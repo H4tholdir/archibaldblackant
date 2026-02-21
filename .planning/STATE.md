@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 9: E2E Tests & VPS Validation (complete) → Phase 10 next
+**Current focus:** Phase 9: E2E Tests & VPS Validation (complete, validated) → Phase 10 next
 
 ## Current Position
 
 Phase: 9 of 10 (E2E Tests & VPS Validation)
 Plan: 4 of 4 in current phase
-Status: Phase complete
-Last activity: 2026-02-20 — Completed 09-04-PLAN.md
+Status: Phase complete — all 35 E2E tests passing on VPS
+Last activity: 2026-02-21 — VPS E2E suite fully validated (35/35 pass)
 
 Progress: █████████░ 94%
 
@@ -120,6 +120,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 09-04-PLAN.md — Phase 9 complete
+Last session: 2026-02-21
+Stopped at: VPS E2E suite fully validated — 35/35 tests passing, Phase 9 complete
 Resume file: None

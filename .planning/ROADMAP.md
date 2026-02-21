@@ -22,7 +22,7 @@ None
 - [x] **Phase 6: Data Integrity & Hardening** - IVA da DB, hashing SHA-256, validazione input, rate limiting, PDF persist
 - [ ] **Phase 7: Missing Feature Implementation** - createCustomerBot, subclients API, getNextFtNumber, exportArca, stub
 - [ ] **Phase 8: Unit & Integration Tests** - Test per operation processor, agent lock, sync handlers, WebSocket, DB
-- [ ] **Phase 9: E2E Tests & VPS Validation** - Playwright E2E su VPS, integration test backend, multi-device
+- [x] **Phase 9: E2E Tests & VPS Validation** - Playwright E2E su VPS, integration test backend, multi-device
 - [ ] **Phase 10: Final Review & Stabilization** - Smoke test, verifica multi-dispositivo, fix regressioni, sign-off
 
 ## Phase Details
@@ -127,10 +127,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 09-01: Setup Playwright per test remoti contro VPS (config, auth fixtures, base URL)
-- [ ] 09-02: E2E test login flow (login, PIN setup, unlock, target wizard, logout, account switch)
-- [ ] 09-03: E2E test order flow (crea ordine, modifica, cancella, invia a Verona, verifica sync)
-- [ ] 09-04: E2E test multi-device sync (2 browser contexts, verifica real-time sync pending orders)
+- [x] 09-01: Setup Playwright per test remoti contro VPS (config, auth fixtures, base URL)
+- [x] 09-02: E2E test login flow (login, PIN setup, unlock, target wizard, logout, account switch)
+- [x] 09-03: E2E test order flow (crea ordine, modifica, cancella, invia a Verona, verifica sync)
+- [x] 09-04: E2E test multi-device sync (2 browser contexts, verifica real-time sync pending orders)
 
 ### Phase 10: Final Review & Stabilization
 **Goal**: PWA verificata e stabile, pronta per uso quotidiano in produzione
@@ -159,5 +159,5 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 6. Data Integrity & Hardening | 4/4 | Complete | 2026-02-20 |
 | 7. Missing Features | 3/3 | Complete | 2026-02-20 |
 | 8. Unit & Integration Tests | 5/5 | Complete | 2026-02-20 |
-| 9. E2E Tests & VPS | 4/4 | Complete | 2026-02-20 |
+| 9. E2E Tests & VPS | 4/4 | Complete | 2026-02-21 |
 | 10. Final Review | 0/2 | Not started | - |
