@@ -390,22 +390,22 @@ async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[
 }
 
 async function getMetadata(pool: DbPool, userId: string): Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }> {
-  const { rows: [row] } = await pool.query<{ total_items: string; total_quantity: string; boxes_count: string; reserved_count: string; sold_count: string }>(
+  const { rows: [row] } = await pool.query<{ total_items: number; total_quantity: number; boxes_count: number; reserved_count: number; sold_count: number }>(
     `SELECT
-      COUNT(*)::text AS total_items,
-      COALESCE(SUM(quantity), 0)::text AS total_quantity,
-      COUNT(DISTINCT box_name)::text AS boxes_count,
-      COUNT(*) FILTER (WHERE reserved_for_order IS NOT NULL)::text AS reserved_count,
-      COUNT(*) FILTER (WHERE sold_in_order IS NOT NULL)::text AS sold_count
+      COUNT(*)::int AS total_items,
+      COALESCE(SUM(quantity), 0)::int AS total_quantity,
+      COUNT(DISTINCT box_name)::int AS boxes_count,
+      COUNT(*) FILTER (WHERE reserved_for_order IS NOT NULL)::int AS reserved_count,
+      COUNT(*) FILTER (WHERE sold_in_order IS NOT NULL)::int AS sold_count
     FROM agents.warehouse_items WHERE user_id = $1`,
     [userId],
   );
   return {
-    totalItems: parseInt(row.total_items, 10),
-    totalQuantity: parseInt(row.total_quantity, 10),
-    boxesCount: parseInt(row.boxes_count, 10),
-    reservedCount: parseInt(row.reserved_count, 10),
-    soldCount: parseInt(row.sold_count, 10),
+    totalItems: row.total_items,
+    totalQuantity: row.total_quantity,
+    boxesCount: row.boxes_count,
+    reservedCount: row.reserved_count,
+    soldCount: row.sold_count,
   };
 }
 

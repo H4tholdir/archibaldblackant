@@ -31,12 +31,13 @@ function mapPrice(raw: Record<string, unknown>): SyncParsedPrice {
 
 function createSyncPricesHandler(
   deps: SyncPricesFactoryDeps,
-  createBot: (userId: string) => { downloadPricesPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadPricesPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, _userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot('service-account');
+    await bot.ensureReadyWithContext(context);
     const result = await syncPrices(
       {
         pool: deps.pool,

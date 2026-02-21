@@ -51,8 +51,8 @@ const sampleRow: CustomerRow = {
   our_account_number: 'OUR-001',
   hash: 'abc123hash',
   last_sync: 1700000000000,
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-15T00:00:00Z',
+  created_at: '1704067200000',
+  updated_at: '1705276800000',
   bot_status: 'placed',
   archibald_name: 'ACME CORP',
   photo: null,
@@ -368,8 +368,8 @@ describe('mapRowToCustomer', () => {
       ourAccountNumber: 'OUR-001',
       hash: 'abc123hash',
       lastSync: 1700000000000,
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-15T00:00:00Z',
+      createdAt: 1704067200000,
+      updatedAt: 1705276800000,
       botStatus: 'placed',
       archibaldName: 'ACME CORP',
       photo: null,
@@ -424,6 +424,6 @@ describe('mapRowToCustomer', () => {
     expect(result.name).toBe('Minimal');
     expect(result.internalId).toBeNull();
     expect(result.vatNumber).toBeNull();
-    expect(result.createdAt).toBeNull();
+    expect(result.createdAt).toBe(0);
   });
 });

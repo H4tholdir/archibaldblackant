@@ -18,6 +18,7 @@ function createMockPool(): DbPool {
 
 function createMockBot() {
   return {
+    ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
     downloadPricesPDF: vi.fn().mockResolvedValue('/tmp/prices.pdf'),
   };
 }
@@ -34,6 +35,20 @@ const SMALL_DATASET = Array.from({ length: 3 }, (_, i) => makeRawPrice(i));
 const LARGE_DATASET = Array.from({ length: 15 }, (_, i) => makeRawPrice(i));
 
 describe('createSyncPricesHandler', () => {
+  test('calls ensureReadyWithContext with the browser context before downloading PDF', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const handler = createSyncPricesHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => bot,
+    );
+
+    const mockContext = { page: 'mock-page' };
+    await handler(mockContext, {}, 'user-1', vi.fn());
+
+    expect(bot.ensureReadyWithContext).toHaveBeenCalledWith(mockContext);
+  });
+
   test('returns successful result with correct shape on normal sync', async () => {
     const pool = createMockPool();
     const handler = createSyncPricesHandler(
@@ -70,6 +85,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const abortController = new AbortController();
     const bot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadPricesPDF: vi.fn().mockImplementation(async () => {
         abortController.abort();
         return '/tmp/prices.pdf';
@@ -120,6 +136,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const abortController = new AbortController();
     const bot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadPricesPDF: vi.fn().mockImplementation(async () => {
         abortController.abort();
         return '/tmp/prices.pdf';
@@ -179,6 +196,7 @@ describe('createSyncPricesHandler', () => {
   test('returns success: false with error message when downloadPdf throws', async () => {
     const pool = createMockPool();
     const failingBot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadPricesPDF: vi.fn().mockRejectedValue(new Error('Download failed')),
     };
     const handler = createSyncPricesHandler(
@@ -212,6 +230,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const abortController = new AbortController();
     const bot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadPricesPDF: vi.fn().mockImplementation(async () => {
         abortController.abort();
         return '/tmp/prices.pdf';

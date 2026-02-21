@@ -74,8 +74,8 @@ type Customer = {
   ourAccountNumber: string | null;
   hash: string;
   lastSync: number;
-  createdAt: string | null;
-  updatedAt: string | null;
+  createdAt: number;
+  updatedAt: number;
   botStatus: string | null;
   archibaldName: string | null;
   photo: string | null;
@@ -180,8 +180,8 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     ourAccountNumber: row.our_account_number,
     hash: row.hash,
     lastSync: row.last_sync,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: row.created_at ? Number(row.created_at) : 0,
+    updatedAt: row.updated_at ? Number(row.updated_at) : 0,
     botStatus: row.bot_status,
     archibaldName: row.archibald_name,
     photo: row.photo,

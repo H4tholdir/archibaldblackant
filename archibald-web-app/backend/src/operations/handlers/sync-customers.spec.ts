@@ -24,6 +24,7 @@ function createMockPool(currentCount: number): DbPool {
 
 function createMockBot() {
   return {
+    ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
     downloadCustomersPDF: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
   };
 }
@@ -113,6 +114,20 @@ describe('shouldSkipSync', () => {
 });
 
 describe('createSyncCustomersHandler', () => {
+  test('calls ensureReadyWithContext with the browser context before downloading PDF', async () => {
+    const pool = createMockPool(0);
+    const bot = createMockBot();
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => bot,
+    );
+
+    const mockContext = { page: 'mock-page' };
+    await handler(mockContext, {}, 'user-1', vi.fn());
+
+    expect(bot.ensureReadyWithContext).toHaveBeenCalledWith(mockContext);
+  });
+
   test('returns warnings when parser returns 0 customers with existing data', async () => {
     const pool = createMockPool(50);
     const handler = createSyncCustomersHandler(
@@ -203,6 +218,7 @@ describe('createSyncCustomersHandler', () => {
     const pool = createMockPool(0);
     const abortController = new AbortController();
     const bot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadCustomersPDF: vi.fn().mockImplementation(async () => {
         abortController.abort();
         return '/tmp/customers.pdf';
@@ -323,6 +339,7 @@ describe('createSyncCustomersHandler', () => {
   test('rejects when downloadPdf throws', async () => {
     const pool = createMockPool(0);
     const failingBot = {
+      ensureReadyWithContext: vi.fn().mockResolvedValue(undefined),
       downloadCustomersPDF: vi.fn().mockRejectedValue(new Error('Download failed')),
     };
     const handler = createSyncCustomersHandler(

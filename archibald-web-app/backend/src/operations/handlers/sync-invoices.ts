@@ -36,12 +36,13 @@ function mapInvoice(raw: Record<string, unknown>): SyncParsedInvoice {
 
 function createSyncInvoicesHandler(
   deps: SyncInvoicesFactoryDeps,
-  createBot: (userId: string) => { downloadInvoicesPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadInvoicesPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const result = await syncInvoices(
       {
         pool: deps.pool,

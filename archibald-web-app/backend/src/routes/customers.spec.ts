@@ -300,8 +300,9 @@ describe('createCustomersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].name).toBe('Rossi Mario');
+      expect(res.body.data.customers).toHaveLength(1);
+      expect(res.body.data.customers[0].name).toBe('Rossi Mario');
+      expect(res.body.data.total).toBe(1);
       expect(deps.getCustomers).toHaveBeenCalledWith('user-1', undefined);
     });
 

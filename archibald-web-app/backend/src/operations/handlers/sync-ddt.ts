@@ -34,12 +34,13 @@ function mapDdt(raw: Record<string, unknown>): SyncParsedDdt {
 
 function createSyncDdtHandler(
   deps: SyncDdtFactoryDeps,
-  createBot: (userId: string) => { downloadDDTPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadDDTPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const result = await syncDdt(
       {
         pool: deps.pool,

@@ -36,12 +36,13 @@ function mapOrder(raw: Record<string, unknown>): SyncParsedOrder {
 
 function createSyncOrdersHandler(
   deps: SyncOrdersFactoryDeps,
-  createBot: (userId: string) => { downloadOrdersPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadOrdersPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const result = await syncOrders(
       {
         pool: deps.pool,

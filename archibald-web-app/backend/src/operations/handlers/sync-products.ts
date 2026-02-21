@@ -32,12 +32,13 @@ function mapProduct(raw: Record<string, unknown>): SyncParsedProduct {
 
 function createSyncProductsHandler(
   deps: SyncProductsFactoryDeps,
-  createBot: (userId: string) => { downloadProductsPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadProductsPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, _userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot('service-account');
+    await bot.ensureReadyWithContext(context);
     const result = await syncProducts(
       {
         pool: deps.pool,

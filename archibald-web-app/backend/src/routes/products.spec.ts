@@ -84,8 +84,11 @@ describe('createProductsRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].id).toBe('ART-001');
+      expect(res.body.data.products).toHaveLength(1);
+      expect(res.body.data.products[0].id).toBe('ART-001');
+      expect(res.body.data.totalCount).toBe(1);
+      expect(res.body.data.returnedCount).toBe(1);
+      expect(res.body.data.limited).toBe(false);
     });
 
     test('passes search query', async () => {
@@ -138,7 +141,9 @@ describe('createProductsRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data.productName).toBe('Articolo Test');
+      expect(res.body.data.variantCount).toBe(1);
+      expect(res.body.data.variants).toHaveLength(1);
     });
   });
 
@@ -207,7 +212,7 @@ describe('createProductsRouter', () => {
       const res = await request(app).get('/api/products/zero-price-count');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, count: 8 });
+      expect(res.body).toEqual({ success: true, data: { count: 8 } });
     });
   });
 
@@ -216,7 +221,7 @@ describe('createProductsRouter', () => {
       const res = await request(app).get('/api/products/no-vat-count');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, count: 12 });
+      expect(res.body).toEqual({ success: true, data: { count: 12 } });
     });
   });
 

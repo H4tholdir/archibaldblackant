@@ -86,7 +86,7 @@ async function logParserWarning(
 
 function createSyncCustomersHandler(
   deps: SyncCustomersFactoryDeps,
-  createBot: (userId: string) => { downloadCustomersPDF: (ctx: unknown) => Promise<string> },
+  createBot: (userId: string) => { ensureReadyWithContext: (ctx: unknown) => Promise<void>; downloadCustomersPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
   return async (context, _data, userId, onProgress, signal) => {
     let stopped = false;
@@ -95,6 +95,7 @@ function createSyncCustomersHandler(
     const currentCount = await getCurrentCustomerCount(deps.pool, userId);
 
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     onProgress(5, 'Download PDF clienti');
     const pdfPath = await bot.downloadCustomersPDF(context);
 

@@ -90,7 +90,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       const userId = req.user!.userId;
       const search = req.query.search as string | undefined;
       const customers = await getCustomers(userId, search);
-      res.json({ success: true, data: customers });
+      res.json({ success: true, data: { customers, total: customers.length } });
     } catch (error) {
       logger.error('Error fetching customers', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero clienti' });
