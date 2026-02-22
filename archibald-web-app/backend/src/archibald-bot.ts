@@ -8376,6 +8376,7 @@ export class ArchibaldBot {
     clickStrategy?: "direct" | "responsive-fallback";
     responsiveMenuButtonSelector?: string;
     responsiveExportButtonSelector?: string;
+    retryOnDataStoreError?: boolean;
   }): Promise<string> {
     const {
       context,
@@ -8389,6 +8390,7 @@ export class ArchibaldBot {
       clickStrategy = "direct",
       responsiveMenuButtonSelector,
       responsiveExportButtonSelector,
+      retryOnDataStoreError = false,
     } = options;
 
     const page = await context.newPage();
@@ -8560,6 +8562,40 @@ export class ArchibaldBot {
       logger.info(
         "[ArchibaldBot] PDF export button clicked, waiting for download...",
       );
+
+      if (retryOnDataStoreError) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        const hasDataStoreError = await page.evaluate(() => {
+          const body = document.body.innerText;
+          return body.includes("Requested objects cannot be loaded");
+        });
+
+        if (hasDataStoreError) {
+          logger.warn(
+            "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error, retrying click...",
+          );
+
+          await page.evaluate((sel: string) => {
+            const button = document.querySelector(sel) as HTMLElement;
+            if (button) {
+              button.dispatchEvent(
+                new MouseEvent("mousedown", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("mouseup", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("click", { bubbles: true }),
+              );
+            }
+          }, buttonSelector);
+
+          logger.info(
+            "[ArchibaldBot] Retry click performed after data store error",
+          );
+        }
+      }
 
       await downloadComplete;
 
@@ -8843,6 +8879,7 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
+      retryOnDataStoreError: true,
     });
   }
 
