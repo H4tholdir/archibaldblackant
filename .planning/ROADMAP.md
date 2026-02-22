@@ -44,7 +44,7 @@ Plans:
 
 Plans:
 - [x] 02-01: POST /api/customers/smart-sync e POST /api/customers/resume-syncs
-- [ ] 02-02: POST /api/orders/sync-states e GET /api/orders/resolve-numbers
+- [x] 02-02: POST /api/orders/sync-states e GET /api/orders/resolve-numbers
 - [ ] 02-03: Interactive customer sessions (5 endpoint: start, vat, heartbeat, save, delete)
 - [ ] 02-04: DELETE /api/sync/:type/clear-db — reset e re-sync completo
 
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
-| 2. Critical Missing Endpoints | 1/4 | In progress | - |
+| 2. Critical Missing Endpoints | 2/4 | In progress | - |
 | 3. Admin & Monitoring Endpoints | 0/3 | Not started | - |
 | 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
 | 5. Stubs & Partial Completion | 0/2 | Not started | - |
