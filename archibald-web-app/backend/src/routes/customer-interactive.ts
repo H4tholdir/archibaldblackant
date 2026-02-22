@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { InteractiveSessionManager, BotLike } from '../interactive-session-manager';
@@ -10,12 +11,14 @@ type CustomerBotLike = BotLike & {
   initialize: () => Promise<void>;
   navigateToNewCustomerForm: () => Promise<void>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
-  completeCustomerCreation: (formData: CustomerFormData) => Promise<{ success: boolean; message: string }>;
-  createCustomer: (formData: CustomerFormData) => Promise<{ success: boolean; message: string }>;
+  completeCustomerCreation: (formData: CustomerFormData) => Promise<string>;
+  createCustomer: (formData: CustomerFormData) => Promise<string>;
   setProgressCallback: (cb: (category: string, metadata?: unknown) => Promise<void>) => void;
 };
 
 type BroadcastFn = (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
+
+type ProgressMilestone = { progress: number; label: string } | null;
 
 type CustomerInteractiveRouterDeps = {
   sessionManager: InteractiveSessionManager;
@@ -25,6 +28,8 @@ type CustomerInteractiveRouterDeps = {
   updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
   pauseSyncs: () => Promise<void>;
   resumeSyncs: () => void;
+  smartCustomerSync?: () => Promise<void>;
+  getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
 };
 
 const vatSchema = z.object({
@@ -62,6 +67,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     sessionManager, createBot, broadcast,
     upsertSingleCustomer, updateCustomerBotStatus,
     pauseSyncs, resumeSyncs,
+    smartCustomerSync, getCustomerProgressMilestone,
   } = deps;
   const router = Router();
 
@@ -260,6 +266,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       }
 
       const tempProfile = `TEMP-${Date.now()}`;
+      const taskId = randomUUID();
       const formInput: CustomerFormInput = {
         name: customerData.name,
         vatNumber: customerData.vatNumber,
@@ -279,7 +286,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       res.json({
         success: true,
-        data: { customer, tempProfile },
+        data: { customer: { ...customer, id: customer.customerProfile }, taskId },
         message: 'Salvataggio in corso...',
       });
 
@@ -289,16 +296,42 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         }
 
         try {
+          const setupProgressCallback = (bot: CustomerBotLike) => {
+            if (getCustomerProgressMilestone) {
+              bot.setProgressCallback(async (category) => {
+                const milestone = getCustomerProgressMilestone(category);
+                if (milestone) {
+                  broadcast(userId, {
+                    type: 'CUSTOMER_UPDATE_PROGRESS',
+                    payload: {
+                      taskId,
+                      customerProfile: tempProfile,
+                      progress: milestone.progress,
+                      label: milestone.label,
+                      operation: 'create',
+                    },
+                    timestamp: now(),
+                  });
+                }
+              });
+            }
+          };
+
+          let customerProfileId: string;
+
           if (useInteractiveBot) {
-            await existingBot!.completeCustomerCreation(customerData);
+            setupProgressCallback(existingBot!);
+            customerProfileId = await existingBot!.completeCustomerCreation(customerData);
             await sessionManager.removeBot(sessionId);
             sessionManager.updateState(sessionId, 'completed');
           } else {
             logger.info('Interactive session expired, falling back to fresh bot', { sessionId });
             const freshBot = createBot(userId);
             await freshBot.initialize();
+            setupProgressCallback(freshBot);
             await freshBot.createCustomer(customerData);
             await freshBot.close();
+            customerProfileId = tempProfile;
             if (session) {
               sessionManager.updateState(sessionId, 'completed');
             }
@@ -306,9 +339,15 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           await updateCustomerBotStatus(userId, tempProfile, 'placed');
 
+          if (smartCustomerSync) {
+            smartCustomerSync().catch((err) =>
+              logger.error('Smart customer sync after interactive create failed', { err }),
+            );
+          }
+
           broadcast(userId, {
             type: 'CUSTOMER_UPDATE_COMPLETED',
-            payload: { customerProfile: tempProfile },
+            payload: { taskId, customerProfile: customerProfileId },
             timestamp: now(),
           });
         } catch (error) {
@@ -325,6 +364,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           broadcast(userId, {
             type: 'CUSTOMER_UPDATE_FAILED',
             payload: {
+              taskId,
               customerProfile: tempProfile,
               error: error instanceof Error ? error.message : 'Errore sconosciuto',
             },

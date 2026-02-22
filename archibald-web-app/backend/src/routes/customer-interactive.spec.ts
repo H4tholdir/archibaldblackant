@@ -56,8 +56,8 @@ function createMockBot() {
       pec: 'test@pec.it',
       sdi: 'ABC',
     }),
-    completeCustomerCreation: vi.fn().mockResolvedValue({ success: true, message: 'OK' }),
-    createCustomer: vi.fn().mockResolvedValue({ success: true, message: 'OK' }),
+    completeCustomerCreation: vi.fn().mockResolvedValue('PROFILE-123'),
+    createCustomer: vi.fn().mockResolvedValue('PROFILE-456'),
     setProgressCallback: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
   };
@@ -127,6 +127,52 @@ describe('createCustomerInteractiveRouter', () => {
       await request(app).post('/api/customers/interactive/start');
 
       expect(deps.resumeSyncs).toHaveBeenCalled();
+    });
+
+    test('pauses syncs and initializes bot in background', async () => {
+      const res = await request(app).post('/api/customers/interactive/start');
+      const sessionId = res.body.data.sessionId;
+
+      await vi.waitFor(() => {
+        expect(deps.pauseSyncs).toHaveBeenCalled();
+        expect(deps.createBot).toHaveBeenCalledWith('user-1');
+        expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('ready');
+      });
+    });
+
+    test('broadcasts CUSTOMER_INTERACTIVE_READY when bot is ready', async () => {
+      const res = await request(app).post('/api/customers/interactive/start');
+      const sessionId = res.body.data.sessionId;
+
+      await vi.waitFor(() => {
+        expect(deps.broadcast).toHaveBeenCalledWith(
+          'user-1',
+          expect.objectContaining({
+            type: 'CUSTOMER_INTERACTIVE_READY',
+            payload: { sessionId },
+          }),
+        );
+      });
+    });
+
+    test('handles bot init failure gracefully', async () => {
+      const failBot = createMockBot();
+      failBot.initialize.mockRejectedValue(new Error('init failed'));
+      (deps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(failBot);
+
+      const res = await request(app).post('/api/customers/interactive/start');
+      const sessionId = res.body.data.sessionId;
+
+      await vi.waitFor(() => {
+        expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('failed');
+        expect(deps.broadcast).toHaveBeenCalledWith(
+          'user-1',
+          expect.objectContaining({
+            type: 'CUSTOMER_INTERACTIVE_FAILED',
+            payload: expect.objectContaining({ error: 'init failed' }),
+          }),
+        );
+      });
     });
   });
 
@@ -232,7 +278,7 @@ describe('createCustomerInteractiveRouter', () => {
 
     const validPayload = { name: 'Test Customer', vatNumber: 'IT12345678901' };
 
-    test('saves customer and returns data', async () => {
+    test('saves customer and returns data with taskId', async () => {
       const res = await request(app)
         .post(`/api/customers/interactive/${sessionId}/save`)
         .send(validPayload);
@@ -240,7 +286,8 @@ describe('createCustomerInteractiveRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.customer).toBeDefined();
-      expect(res.body.data.tempProfile).toMatch(/^TEMP-\d+$/);
+      expect(res.body.data.customer.id).toBe(mockCustomer.customerProfile);
+      expect(res.body.data.taskId).toEqual(expect.any(String));
       expect(res.body.message).toBe('Salvataggio in corso...');
     });
 
@@ -290,9 +337,88 @@ describe('createCustomerInteractiveRouter', () => {
         .post(`/api/customers/interactive/${sessionId}/save`)
         .send(validPayload);
 
-      // Background async completes instantly with mocks, so state reaches completed
       await vi.waitFor(() => {
         expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('completed');
+      });
+    });
+
+    test('uses interactive bot completeCustomerCreation when bot exists', async () => {
+      const mockBot = createMockBot();
+      sessionManager.setBot(sessionId, mockBot);
+
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(mockBot.completeCustomerCreation).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Test Customer' }),
+        );
+      });
+    });
+
+    test('falls back to fresh bot when no interactive bot is available', async () => {
+      const freshBot = createMockBot();
+      (deps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(freshBot);
+
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(freshBot.initialize).toHaveBeenCalled();
+        expect(freshBot.createCustomer).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Test Customer' }),
+        );
+        expect(freshBot.close).toHaveBeenCalled();
+      });
+    });
+
+    test('calls smartCustomerSync when provided', async () => {
+      const smartSync = vi.fn().mockResolvedValue(undefined);
+      const customDeps = { ...createMockDeps(sessionManager), smartCustomerSync: smartSync };
+      const customApp = createApp(customDeps);
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'ready');
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(smartSync).toHaveBeenCalled();
+      });
+    });
+
+    test('broadcasts CUSTOMER_UPDATE_COMPLETED with taskId', async () => {
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(deps.broadcast).toHaveBeenCalledWith(
+          'user-1',
+          expect.objectContaining({
+            type: 'CUSTOMER_UPDATE_COMPLETED',
+            payload: expect.objectContaining({
+              taskId: expect.any(String),
+              customerProfile: expect.any(String),
+            }),
+          }),
+        );
+      });
+    });
+
+    test('resumes syncs after save completes with interactive bot', async () => {
+      sessionManager.markSyncsPaused(sessionId, true);
+      sessionManager.setBot(sessionId, createMockBot());
+
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(deps.resumeSyncs).toHaveBeenCalled();
       });
     });
   });
