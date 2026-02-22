@@ -36,6 +36,7 @@ import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as dashboardService from './dashboard-service';
+import { logger } from './logger';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -181,6 +182,39 @@ function createApp(deps: AppDeps): Express {
     getOrderArticles: (orderId, userId) => ordersRepo.getOrderArticles(pool, orderId, userId),
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
     getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
+    getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
+    propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
+      let propagated = 0;
+      for (const orderId of updatedOrderIds) {
+        try {
+          const order = await ordersRepo.getOrderById(pool, userId, orderId);
+          if (!order) continue;
+          const count = await fresisHistoryRepo.propagateState(pool, userId, orderId, {
+            currentState: order.currentState,
+            parentCustomerName: order.customerName,
+            ddtNumber: order.ddtNumber,
+            ddtDeliveryDate: order.ddtDeliveryDate,
+            trackingNumber: order.trackingNumber,
+            trackingUrl: order.trackingUrl,
+            trackingCourier: order.trackingCourier,
+            deliveryCompletedDate: order.deliveryCompletedDate,
+            invoiceNumber: order.invoiceNumber,
+            invoiceDate: order.invoiceDate,
+            invoiceAmount: order.invoiceAmount,
+            invoiceClosed: order.invoiceClosed,
+            invoiceRemainingAmount: order.invoiceRemainingAmount,
+            invoiceDueDate: order.invoiceDueDate,
+          });
+          propagated += count;
+        } catch (err) {
+          logger.warn('[State Sync] Failed to propagate to fresis_history', {
+            orderId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      return propagated;
+    },
   }));
 
   app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({

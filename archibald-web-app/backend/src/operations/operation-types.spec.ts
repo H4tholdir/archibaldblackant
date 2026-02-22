@@ -11,12 +11,12 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['submit-order']).toBe(1);
   });
 
-  test('sync-prices has lowest priority (15)', () => {
-    expect(OPERATION_PRIORITIES['sync-prices']).toBe(15);
+  test('sync-prices has lowest priority (16)', () => {
+    expect(OPERATION_PRIORITIES['sync-prices']).toBe(16);
   });
 
-  test('all 15 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(15);
+  test('all 16 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(16);
   });
 });
 
@@ -34,6 +34,7 @@ describe('isWriteOperation', () => {
     'download-ddt-pdf',
     'download-invoice-pdf',
     'sync-order-articles',
+    'sync-order-states',
     'sync-customers',
     'sync-orders',
     'sync-ddt',
@@ -71,6 +72,7 @@ describe('isScheduledSync', () => {
     'download-ddt-pdf',
     'download-invoice-pdf',
     'sync-order-articles',
+    'sync-order-states',
   ];
 
   test.each(scheduledSyncs)('%s is a scheduled sync', (op) => {

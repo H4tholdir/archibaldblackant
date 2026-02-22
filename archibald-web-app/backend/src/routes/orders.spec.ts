@@ -131,6 +131,10 @@ function createMockDeps(): OrdersRouterDeps {
     getOrderArticles: vi.fn().mockResolvedValue([mockArticle]),
     getStateHistory: vi.fn().mockResolvedValue([mockStateHistory]),
     getLastSalesForArticle: vi.fn().mockResolvedValue([mockLastSale]),
+    getOrderNumbersByIds: vi.fn().mockResolvedValue([
+      { id: 'ORD-001', orderNumber: 'SO-12345' },
+    ]),
+    propagateStatesToFresisHistory: vi.fn().mockResolvedValue(2),
   };
 }
 
@@ -344,6 +348,73 @@ describe('createOrdersRouter', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.jobId).toBe('job-456');
       expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'ORD-001' });
+    });
+  });
+
+  describe('GET /api/orders/resolve-numbers', () => {
+    test('returns mappings for valid comma-separated IDs', async () => {
+      const res = await request(app).get('/api/orders/resolve-numbers?ids=ORD-001,ORD-002');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual([{ id: 'ORD-001', orderNumber: 'SO-12345' }]);
+      expect(deps.getOrderNumbersByIds).toHaveBeenCalledWith('user-1', ['ORD-001', 'ORD-002']);
+    });
+
+    test('returns 400 when ids param is missing', async () => {
+      const res = await request(app).get('/api/orders/resolve-numbers');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('ids');
+    });
+
+    test('returns 400 when ids is empty after filtering', async () => {
+      const res = await request(app).get('/api/orders/resolve-numbers?ids=,,,');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('1-100');
+    });
+
+    test('returns 400 when more than 100 IDs are provided', async () => {
+      const manyIds = Array.from({ length: 101 }, (_, i) => `ORD-${i}`).join(',');
+      const res = await request(app).get(`/api/orders/resolve-numbers?ids=${manyIds}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('1-100');
+    });
+
+    test('returns 500 on repository error', async () => {
+      (deps.getOrderNumbersByIds as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/api/orders/resolve-numbers?ids=ORD-001');
+
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('POST /api/orders/sync-states', () => {
+    test('enqueues sync-order-states job', async () => {
+      const res = await request(app).post('/api/orders/sync-states');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-states', 'user-1', { forceRefresh: false });
+    });
+
+    test('passes forceRefresh=true when query param is set', async () => {
+      const res = await request(app).post('/api/orders/sync-states?forceRefresh=true');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.forceRefresh).toBe(true);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-states', 'user-1', { forceRefresh: true });
+    });
+
+    test('returns 500 on queue error', async () => {
+      (deps.queue.enqueue as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Queue down'));
+      const res = await request(app).post('/api/orders/sync-states');
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('Failed to sync order states');
     });
   });
 });

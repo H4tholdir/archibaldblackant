@@ -8,6 +8,7 @@ const OPERATION_TYPES = [
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
+  'sync-order-states',
   'sync-customers',
   'sync-orders',
   'sync-ddt',
@@ -28,12 +29,13 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'download-ddt-pdf': 7,
   'download-invoice-pdf': 8,
   'sync-order-articles': 9,
-  'sync-customers': 10,
-  'sync-orders': 11,
-  'sync-ddt': 12,
-  'sync-invoices': 13,
-  'sync-products': 14,
-  'sync-prices': 15,
+  'sync-order-states': 10,
+  'sync-customers': 11,
+  'sync-orders': 12,
+  'sync-ddt': 13,
+  'sync-invoices': 14,
+  'sync-products': 15,
+  'sync-prices': 16,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([

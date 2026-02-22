@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
-import type { Order, OrderArticle, StateHistory, OrderFilterOptions } from '../db/repositories/orders';
+import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping } from '../db/repositories/orders';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
@@ -38,10 +37,16 @@ type OrdersRouterDeps = {
   getOrderArticles: (orderId: string, userId: string) => Promise<OrderArticle[]>;
   getStateHistory: (userId: string, orderId: string) => Promise<StateHistory[]>;
   getLastSalesForArticle: (articleCode: string) => Promise<LastSaleEntry[]>;
+  getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
+  propagateStatesToFresisHistory: (userId: string, updatedOrderIds: string[]) => Promise<number>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
-  const { queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles, getStateHistory, getLastSalesForArticle } = deps;
+  const {
+    queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles,
+    getStateHistory, getLastSalesForArticle, getOrderNumbersByIds,
+    propagateStatesToFresisHistory,
+  } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -76,6 +81,46 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     } catch (error) {
       logger.error('Error fetching last sales', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ultime vendite' });
+    }
+  });
+
+  router.get('/resolve-numbers', async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    const idsParam = req.query.ids;
+
+    if (!idsParam || typeof idsParam !== 'string') {
+      return res.status(400).json({ success: false, error: "Query param 'ids' required" });
+    }
+
+    const ids = idsParam.split(',').filter(Boolean);
+    if (ids.length === 0 || ids.length > 100) {
+      return res.status(400).json({ success: false, error: 'Provide 1-100 comma-separated order IDs' });
+    }
+
+    try {
+      const mappings = await getOrderNumbersByIds(userId, ids);
+      res.json({ success: true, data: mappings });
+    } catch (error) {
+      logger.error('Error resolving order numbers', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  router.post('/sync-states', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const forceRefresh = req.query.forceRefresh === 'true';
+      const jobId = await queue.enqueue('sync-order-states', userId, { forceRefresh });
+
+      res.json({
+        success: true,
+        jobId,
+        message: 'Order state sync started in background',
+        data: { forceRefresh },
+      });
+    } catch (error) {
+      logger.error('Error enqueuing order state sync', { error });
+      res.status(500).json({ success: false, error: 'Failed to sync order states. Please try again later.' });
     }
   });
 

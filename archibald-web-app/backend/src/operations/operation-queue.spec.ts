@@ -68,7 +68,7 @@ describe('createOperationQueue', () => {
     expect(mockAdd).toHaveBeenCalledWith(
       'sync-prices',
       expect.objectContaining({ type: 'sync-prices' }),
-      expect.objectContaining({ priority: 15 }),
+      expect.objectContaining({ priority: 16 }),
     );
   });
 

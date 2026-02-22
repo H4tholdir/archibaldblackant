@@ -804,6 +804,26 @@ type LastSaleEntry = {
   creationDate: string;
 };
 
+type OrderNumberMapping = {
+  id: string;
+  orderNumber: string;
+};
+
+async function getOrderNumbersByIds(
+  pool: DbPool,
+  userId: string,
+  orderIds: string[],
+): Promise<OrderNumberMapping[]> {
+  if (orderIds.length === 0) return [];
+
+  const placeholders = orderIds.map((_, i) => `$${i + 2}`).join(', ');
+  const { rows } = await pool.query<{ id: string; order_number: string }>(
+    `SELECT id, order_number FROM agents.order_records WHERE user_id = $1 AND id IN (${placeholders})`,
+    [userId, ...orderIds],
+  );
+  return rows.map((r) => ({ id: r.id, orderNumber: r.order_number }));
+}
+
 async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promise<LastSaleEntry[]> {
   const { rows } = await pool.query<{
     order_id: string;
@@ -886,6 +906,7 @@ export {
   updateInvoiceData,
   deleteOrdersNotInList,
   getLastSalesForArticle,
+  getOrderNumbersByIds,
   mapRowToOrder,
   mapRowToArticle,
   mapRowToStateHistory,
@@ -904,4 +925,5 @@ export {
   type DDTData,
   type InvoiceData,
   type LastSaleEntry,
+  type OrderNumberMapping,
 };
