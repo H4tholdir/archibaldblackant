@@ -1,7 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createSyncStatusRouter, type SyncStatusRouterDeps } from './sync-status';
+import { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps } from './sync-status';
 
 function createMockDeps(): SyncStatusRouterDeps {
   return {
@@ -25,6 +25,10 @@ function createMockDeps(): SyncStatusRouterDeps {
       getDetailedIntervals: vi.fn().mockReturnValue({ orders: 10, customers: 15, products: 30, prices: 60, ddt: 20, invoices: 20 }),
     },
     clearSyncData: vi.fn().mockResolvedValue({ message: 'Database customers cancellato con successo' }),
+    getGlobalCustomerCount: vi.fn().mockResolvedValue(150),
+    getGlobalCustomerLastSyncTime: vi.fn().mockResolvedValue(Date.now() - 30 * 60 * 1000),
+    getProductCount: vi.fn().mockResolvedValue(500),
+    getProductLastSyncTime: vi.fn().mockResolvedValue(Date.now() - 30 * 60 * 1000),
   };
 }
 
@@ -36,6 +40,13 @@ function createApp(deps: SyncStatusRouterDeps, role = 'agent') {
     next();
   });
   app.use('/api/sync', createSyncStatusRouter(deps));
+  return app;
+}
+
+function createPublicApp(deps: SyncStatusRouterDeps) {
+  const app = express();
+  app.use(express.json());
+  app.use('/api/sync', createQuickCheckRouter(deps));
   return app;
 }
 
@@ -158,8 +169,8 @@ describe('createSyncStatusRouter', () => {
   });
 
   describe('GET /api/sync/intervals', () => {
-    test('returns sync intervals', async () => {
-      const app = createApp(deps);
+    test('returns sync intervals for admin', async () => {
+      const app = createApp(deps, 'admin');
       const res = await request(app).get('/api/sync/intervals');
 
       expect(res.status).toBe(200);
@@ -167,11 +178,18 @@ describe('createSyncStatusRouter', () => {
       expect(res.body.intervals).toBeDefined();
       expect(res.body.intervals.orders).toBe(10);
     });
+
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app).get('/api/sync/intervals');
+
+      expect(res.status).toBe(403);
+    });
   });
 
   describe('POST /api/sync/intervals/:type', () => {
-    test('updates sync interval for valid type', async () => {
-      const app = createApp(deps);
+    test('updates sync interval for valid type as admin', async () => {
+      const app = createApp(deps, 'admin');
       const res = await request(app)
         .post('/api/sync/intervals/orders')
         .send({ intervalMinutes: 15 });
@@ -182,8 +200,17 @@ describe('createSyncStatusRouter', () => {
       expect(deps.syncScheduler.updateInterval).toHaveBeenCalledWith('orders', 15);
     });
 
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app)
+        .post('/api/sync/intervals/orders')
+        .send({ intervalMinutes: 15 });
+
+      expect(res.status).toBe(403);
+    });
+
     test('rejects invalid sync type', async () => {
-      const app = createApp(deps);
+      const app = createApp(deps, 'admin');
       const res = await request(app)
         .post('/api/sync/intervals/invalid')
         .send({ intervalMinutes: 15 });
@@ -192,7 +219,7 @@ describe('createSyncStatusRouter', () => {
     });
 
     test('rejects interval out of range', async () => {
-      const app = createApp(deps);
+      const app = createApp(deps, 'admin');
       const res = await request(app)
         .post('/api/sync/intervals/orders')
         .send({ intervalMinutes: 3 });
@@ -201,13 +228,82 @@ describe('createSyncStatusRouter', () => {
     });
 
     test('rejects interval above max', async () => {
-      const app = createApp(deps);
+      const app = createApp(deps, 'admin');
       const res = await request(app)
         .post('/api/sync/intervals/orders')
         .send({ intervalMinutes: 2000 });
 
       expect(res.status).toBe(400);
     });
+  });
+
+  describe('POST /api/sync/frequency', () => {
+    test('updates global sync frequency for admin', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app)
+        .post('/api/sync/frequency')
+        .send({ intervalMinutes: 30 });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        intervalMinutes: 30,
+        message: 'Sync frequency updated to 30 minutes',
+      });
+      expect(deps.syncScheduler.stop).toHaveBeenCalled();
+      expect(deps.syncScheduler.start).toHaveBeenCalled();
+    });
+
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app)
+        .post('/api/sync/frequency')
+        .send({ intervalMinutes: 30 });
+
+      expect(res.status).toBe(403);
+    });
+
+    test('rejects interval below minimum (5)', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app)
+        .post('/api/sync/frequency')
+        .send({ intervalMinutes: 2 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('rejects interval above maximum (1440)', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app)
+        .post('/api/sync/frequency')
+        .send({ intervalMinutes: 1500 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('rejects missing intervalMinutes', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app)
+        .post('/api/sync/frequency')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    test.each([5, 60, 720, 1440])(
+      'accepts valid boundary interval %i',
+      async (intervalMinutes) => {
+        const app = createApp(deps, 'admin');
+        const res = await request(app)
+          .post('/api/sync/frequency')
+          .send({ intervalMinutes });
+
+        expect(res.status).toBe(200);
+        expect(res.body.intervalMinutes).toBe(intervalMinutes);
+      },
+    );
   });
 
   describe('DELETE /api/sync/:type/clear-db', () => {
@@ -267,5 +363,107 @@ describe('createSyncStatusRouter', () => {
         expect(res.status).toBe(200);
       },
     );
+  });
+});
+
+describe('createQuickCheckRouter', () => {
+  let deps: SyncStatusRouterDeps;
+
+  beforeEach(() => {
+    deps = createMockDeps();
+  });
+
+  describe('GET /api/sync/quick-check', () => {
+    test('returns needsSync=false when data exists and sync is recent', async () => {
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.needsSync).toBe(false);
+      expect(res.body.data.needsInitialSync).toBe(false);
+      expect(res.body.data.customers.count).toBe(150);
+      expect(res.body.data.products.count).toBe(500);
+    });
+
+    test('returns needsInitialSync=true when customer count is 0', async () => {
+      (deps.getGlobalCustomerCount as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.needsInitialSync).toBe(true);
+      expect(res.body.data.needsSync).toBe(true);
+    });
+
+    test('returns needsInitialSync=true when product count is 0', async () => {
+      (deps.getProductCount as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.needsInitialSync).toBe(true);
+      expect(res.body.data.needsSync).toBe(true);
+    });
+
+    test('returns needsSync=true when customer lastSync is older than 1 hour', async () => {
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      (deps.getGlobalCustomerLastSyncTime as ReturnType<typeof vi.fn>).mockResolvedValue(twoHoursAgo);
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.customers.needsSync).toBe(true);
+      expect(res.body.data.needsSync).toBe(true);
+    });
+
+    test('returns needsSync=true when product lastSync is null', async () => {
+      (deps.getProductLastSyncTime as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.products.needsSync).toBe(true);
+      expect(res.body.data.products.lastSync).toBeNull();
+      expect(res.body.data.needsSync).toBe(true);
+    });
+
+    test('returns lastSync as ISO string when available', async () => {
+      const recentTimestamp = Date.now() - 10 * 60 * 1000;
+      (deps.getGlobalCustomerLastSyncTime as ReturnType<typeof vi.fn>).mockResolvedValue(recentTimestamp);
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.customers.lastSync).toBe(new Date(recentTimestamp).toISOString());
+    });
+
+    test('does not require authentication (no user on request)', async () => {
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('returns 501 when quick-check deps are not configured', async () => {
+      deps.getGlobalCustomerCount = undefined;
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(501);
+    });
+
+    test('returns 500 on database error', async () => {
+      (deps.getGlobalCustomerCount as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Connection refused'),
+      );
+      const app = createPublicApp(deps);
+      const res = await request(app).get('/api/sync/quick-check');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Connection refused');
+    });
   });
 });

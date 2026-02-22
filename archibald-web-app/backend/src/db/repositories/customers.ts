@@ -289,6 +289,21 @@ async function getLastSyncTime(pool: DbPool, userId: string): Promise<number | n
   return value !== null ? Number(value) : null;
 }
 
+async function getGlobalCustomerCount(pool: DbPool): Promise<number> {
+  const { rows } = await pool.query<{ count: string }>(
+    'SELECT COUNT(*) AS count FROM agents.customers',
+  );
+  return parseInt(rows[0].count, 10);
+}
+
+async function getGlobalCustomerLastSyncTime(pool: DbPool): Promise<number | null> {
+  const { rows } = await pool.query<{ last_sync: string | null }>(
+    'SELECT MAX(last_sync) AS last_sync FROM agents.customers',
+  );
+  const value = rows[0].last_sync;
+  return value !== null ? Number(value) : null;
+}
+
 async function upsertCustomers(
   pool: DbPool,
   userId: string,
@@ -563,6 +578,8 @@ export {
   getCustomerByProfile,
   getCustomerCount,
   getLastSyncTime,
+  getGlobalCustomerCount,
+  getGlobalCustomerLastSyncTime,
   upsertCustomers,
   findDeletedCustomers,
   deleteCustomers,

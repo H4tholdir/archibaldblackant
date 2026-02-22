@@ -16,7 +16,7 @@ import { createProductsRouter } from './routes/products';
 import { createOrdersRouter } from './routes/orders';
 import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
-import { createSyncStatusRouter } from './routes/sync-status';
+import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
 import { createAdminRouter } from './routes/admin';
 import { createPricesRouter } from './routes/prices';
 import { createShareRouter } from './routes/share';
@@ -270,17 +270,27 @@ function createApp(deps: AppDeps): Express {
     getNextFtNumber: async (_userId, _esercizio) => 1,
   }));
 
-  app.use('/api/sync', authenticateJWT, createSyncStatusRouter({
+  const syncSchedulerDeps = {
+    start: (intervals?: unknown) => syncScheduler.start(intervals as any),
+    stop: () => syncScheduler.stop(),
+    isRunning: () => syncScheduler.isRunning(),
+    getIntervals: () => syncScheduler.getIntervals(),
+  };
+
+  const syncStatusDeps = {
     queue,
     agentLock,
-    syncScheduler: {
-      start: (intervals) => syncScheduler.start(intervals as any),
-      stop: () => syncScheduler.stop(),
-      isRunning: () => syncScheduler.isRunning(),
-      getIntervals: () => syncScheduler.getIntervals(),
-    },
-    clearSyncData: (type) => clearSyncData(pool, type),
-  }));
+    syncScheduler: syncSchedulerDeps,
+    clearSyncData: (type: string) => clearSyncData(pool, type),
+    getGlobalCustomerCount: () => customersRepo.getGlobalCustomerCount(pool),
+    getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
+    getProductCount: () => productsRepo.getProductCount(pool),
+    getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
+  };
+
+  app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
+
+  app.use('/api/sync', authenticateJWT, createSyncStatusRouter(syncStatusDeps));
 
   app.use('/api/sync', authenticateJWT, createSseProgressRouter({
     verifyToken,

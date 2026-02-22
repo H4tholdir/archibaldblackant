@@ -21,6 +21,10 @@ type SyncStatusRouterDeps = {
   agentLock: AgentLock;
   syncScheduler: SyncSchedulerLike;
   clearSyncData?: (type: string) => Promise<{ message: string }>;
+  getGlobalCustomerCount?: () => Promise<number>;
+  getGlobalCustomerLastSyncTime?: () => Promise<number | null>;
+  getProductCount?: () => Promise<number>;
+  getProductLastSyncTime?: () => Promise<number | null>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -170,7 +174,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
-  router.get('/intervals', async (_req: AuthRequest, res) => {
+  router.get('/intervals', requireAdmin, async (_req: AuthRequest, res) => {
     try {
       const intervals = syncScheduler.getDetailedIntervals
         ? syncScheduler.getDetailedIntervals()
@@ -190,7 +194,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     intervalMinutes: z.number().min(5).max(1440),
   });
 
-  router.post('/intervals/:type', async (req: AuthRequest, res) => {
+  router.post('/intervals/:type', requireAdmin, async (req: AuthRequest, res) => {
     try {
       const { type } = req.params;
       if (!VALID_INTERVAL_TYPES.has(type)) {
@@ -255,7 +259,92 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  const frequencySchema = z.object({
+    intervalMinutes: z.number().min(5).max(1440),
+  });
+
+  router.post('/frequency', requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const parsed = frequencySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          success: false,
+          error: 'Interval must be a number between 5 and 1440 minutes',
+        });
+      }
+
+      const { intervalMinutes } = parsed.data;
+      syncScheduler.stop();
+      syncScheduler.start();
+
+      logger.info(`Sync frequency updated to ${intervalMinutes} minutes`);
+
+      res.json({
+        success: true,
+        intervalMinutes,
+        message: `Sync frequency updated to ${intervalMinutes} minutes`,
+      });
+    } catch (error) {
+      logger.error('Error updating sync frequency', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento frequenza sync' });
+    }
+  });
+
   return router;
 }
 
-export { createSyncStatusRouter, type SyncStatusRouterDeps };
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+function createQuickCheckRouter(deps: SyncStatusRouterDeps) {
+  const router = Router();
+
+  router.get('/quick-check', async (_req, res) => {
+    try {
+      if (!deps.getGlobalCustomerCount || !deps.getGlobalCustomerLastSyncTime
+        || !deps.getProductCount || !deps.getProductLastSyncTime) {
+        return res.status(501).json({ success: false, error: 'Quick-check non configurato' });
+      }
+
+      const [customerCount, productCount, customerLastSync, productLastSync] = await Promise.all([
+        deps.getGlobalCustomerCount(),
+        deps.getProductCount(),
+        deps.getGlobalCustomerLastSyncTime(),
+        deps.getProductLastSyncTime(),
+      ]);
+
+      const needsInitialSync = customerCount === 0 || productCount === 0;
+
+      const oneHourAgo = Date.now() - ONE_HOUR_MS;
+      const customerNeedsSync = !customerLastSync || customerLastSync < oneHourAgo;
+      const productNeedsSync = !productLastSync || productLastSync < oneHourAgo;
+
+      res.json({
+        success: true,
+        data: {
+          needsSync: needsInitialSync || customerNeedsSync || productNeedsSync,
+          needsInitialSync,
+          customers: {
+            count: customerCount,
+            lastSync: customerLastSync ? new Date(customerLastSync).toISOString() : null,
+            needsSync: customerNeedsSync,
+          },
+          products: {
+            count: productCount,
+            lastSync: productLastSync ? new Date(productLastSync).toISOString() : null,
+            needsSync: productNeedsSync,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error('Error in /sync/quick-check', { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Errore durante il controllo sync',
+      });
+    }
+  });
+
+  return router;
+}
+
+export { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps };
