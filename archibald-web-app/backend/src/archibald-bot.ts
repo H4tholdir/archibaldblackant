@@ -8564,51 +8564,64 @@ export class ArchibaldBot {
       );
 
       if (retryOnDataStoreError) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        let needsRetry = false;
+
         try {
-          await page.waitForNavigation({
-            waitUntil: "domcontentloaded",
-            timeout: 5000,
-          });
-          logger.info(
-            "[ArchibaldBot] Page navigated after click, checking for data store error...",
-          );
-
-          await this.waitForDevExpressReadyOnPage(page);
-
           const hasDataStoreError = await page.evaluate(() => {
-            const body = document.body.innerText;
-            return body.includes("Requested objects cannot be loaded");
+            return document.body.innerText.includes(
+              "Requested objects cannot be loaded",
+            );
           });
-
           if (hasDataStoreError) {
             logger.warn(
-              "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error, retrying click...",
+              "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error (inline banner)",
             );
-
-            await page.waitForSelector(containerSelector, { timeout: 10000 });
-
-            await page.evaluate((sel: string) => {
-              const button = document.querySelector(sel) as HTMLElement;
-              if (button) {
-                button.dispatchEvent(
-                  new MouseEvent("mousedown", { bubbles: true }),
-                );
-                button.dispatchEvent(
-                  new MouseEvent("mouseup", { bubbles: true }),
-                );
-                button.dispatchEvent(
-                  new MouseEvent("click", { bubbles: true }),
-                );
-              }
-            }, buttonSelector);
-
-            logger.info(
-              "[ArchibaldBot] Retry click performed after data store error",
-            );
+            needsRetry = true;
           }
         } catch {
+          logger.warn(
+            "[ArchibaldBot] Page context destroyed (likely navigated due to data store error)",
+          );
+          try {
+            await page.waitForNavigation({
+              waitUntil: "domcontentloaded",
+              timeout: 10000,
+            });
+          } catch {
+            // navigation already completed
+          }
+          needsRetry = true;
+        }
+
+        if (needsRetry) {
+          logger.info("[ArchibaldBot] Retrying PDF export click...");
+
+          await this.waitForDevExpressReadyOnPage(page);
+          await page.waitForSelector(containerSelector, { timeout: 10000 });
+
+          await page.evaluate((sel: string) => {
+            const button = document.querySelector(sel) as HTMLElement;
+            if (button) {
+              button.dispatchEvent(
+                new MouseEvent("mousedown", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("mouseup", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("click", { bubbles: true }),
+              );
+            }
+          }, buttonSelector);
+
           logger.info(
-            "[ArchibaldBot] No navigation detected after click, PDF download likely started normally",
+            "[ArchibaldBot] Retry click performed after data store error",
+          );
+        } else {
+          logger.info(
+            "[ArchibaldBot] No data store error detected, PDF download proceeding normally",
           );
         }
       }
