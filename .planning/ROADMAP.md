@@ -32,7 +32,7 @@ None
 
 Plans:
 - [x] 01-01: Audit dei 42 elementi riprogettati — confronto comportamento master vs branch
-- [ ] 01-02: Setup test infrastructure e primi integration test per endpoint critici
+- [x] 01-02: Code audit of 49 redesigned elements — behavioral comparison master vs branch
 - [ ] 01-03: Fix divergenze trovate durante l'audit
 
 ### Phase 2: Critical Missing Endpoints
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verification & Test Infrastructure | 1/3 | In progress | - |
+| 1. Verification & Test Infrastructure | 2/3 | In progress | - |
 | 2. Critical Missing Endpoints | 0/4 | Not started | - |
 | 3. Admin & Monitoring Endpoints | 0/3 | Not started | - |
 | 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
