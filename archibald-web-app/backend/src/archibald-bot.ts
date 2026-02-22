@@ -8564,35 +8564,51 @@ export class ArchibaldBot {
       );
 
       if (retryOnDataStoreError) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        const hasDataStoreError = await page.evaluate(() => {
-          const body = document.body.innerText;
-          return body.includes("Requested objects cannot be loaded");
-        });
-
-        if (hasDataStoreError) {
-          logger.warn(
-            "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error, retrying click...",
+        try {
+          await page.waitForNavigation({
+            waitUntil: "domcontentloaded",
+            timeout: 5000,
+          });
+          logger.info(
+            "[ArchibaldBot] Page navigated after click, checking for data store error...",
           );
 
-          await page.evaluate((sel: string) => {
-            const button = document.querySelector(sel) as HTMLElement;
-            if (button) {
-              button.dispatchEvent(
-                new MouseEvent("mousedown", { bubbles: true }),
-              );
-              button.dispatchEvent(
-                new MouseEvent("mouseup", { bubbles: true }),
-              );
-              button.dispatchEvent(
-                new MouseEvent("click", { bubbles: true }),
-              );
-            }
-          }, buttonSelector);
+          await this.waitForDevExpressReadyOnPage(page);
 
+          const hasDataStoreError = await page.evaluate(() => {
+            const body = document.body.innerText;
+            return body.includes("Requested objects cannot be loaded");
+          });
+
+          if (hasDataStoreError) {
+            logger.warn(
+              "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error, retrying click...",
+            );
+
+            await page.waitForSelector(containerSelector, { timeout: 10000 });
+
+            await page.evaluate((sel: string) => {
+              const button = document.querySelector(sel) as HTMLElement;
+              if (button) {
+                button.dispatchEvent(
+                  new MouseEvent("mousedown", { bubbles: true }),
+                );
+                button.dispatchEvent(
+                  new MouseEvent("mouseup", { bubbles: true }),
+                );
+                button.dispatchEvent(
+                  new MouseEvent("click", { bubbles: true }),
+                );
+              }
+            }, buttonSelector);
+
+            logger.info(
+              "[ArchibaldBot] Retry click performed after data store error",
+            );
+          }
+        } catch {
           logger.info(
-            "[ArchibaldBot] Retry click performed after data store error",
+            "[ArchibaldBot] No navigation detected after click, PDF download likely started normally",
           );
         }
       }
