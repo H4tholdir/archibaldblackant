@@ -1,205 +1,212 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-01-11
-**Updated:** 2026-01-12 after Vitest setup
+**Analysis Date:** 2026-02-22
 
 ## Test Framework
 
 **Runner:**
-- Vitest 1.2.1 - Configured in `backend/package.json`
-- Config: `backend/vitest.config.ts` with globals enabled, node environment, v8 coverage
-- Coverage: @vitest/coverage-v8@1.2.1 for coverage reporting
+- Vitest 4.0.17 (frontend) / 1.2.1 (backend)
+- Frontend config: `archibald-web-app/frontend/vitest.config.ts` (jsdom environment)
+- Backend config: `archibald-web-app/backend/vitest.config.ts` (node environment)
 
 **Assertion Library:**
-- Vitest built-in expect with globals enabled (no imports needed)
+- Vitest built-in expect
+- @testing-library/jest-dom matchers (frontend)
 
 **Run Commands:**
 ```bash
-npm test                              # Run all tests once (vitest run)
-npm run test:watch                    # Run tests in watch mode
-npm run test:coverage                 # Run tests with coverage report (text + html)
-npm run test:login                    # Manual integration test - ERP login
-npm run test:order                    # Manual integration test - Order creation
-npm run test:queue                    # Manual integration test - Job queue
+npm test --prefix archibald-web-app/frontend      # Frontend tests
+npm test --prefix archibald-web-app/backend        # Backend tests
+npm run type-check --prefix archibald-web-app/frontend  # Frontend type-check
+npm run build --prefix archibald-web-app/backend   # Backend type-check
+npx playwright test --prefix archibald-web-app/frontend  # E2E tests
 ```
 
 ## Test File Organization
 
 **Location:**
-- `*.test.ts` files alongside source files (Vitest convention)
-- Example: `src/config.test.ts` tests `src/config.ts`
+- `*.spec.ts` / `*.spec.tsx` co-located alongside source files
+- No separate `tests/` directory (co-location pattern)
 
 **Naming:**
-- Pattern: `module-name.test.ts`
-- First test: `backend/src/config.test.ts`
+- Unit tests: `{source-name}.spec.ts`
+- Component tests: `{ComponentName}.spec.tsx`
+- E2E tests: `e2e/{feature}.spec.ts`
 
 **Structure:**
-- Test files colocated with source code
-- Manual test scripts remain in `backend/src/scripts/` for integration testing
+```
+frontend/src/
+  utils/
+    format-currency.ts
+    format-currency.spec.ts
+  services/
+    orders.service.ts
+    orders.service.spec.ts
+  components/
+    EntityBadge.tsx
+    EntityBadge.spec.tsx
+
+backend/src/
+  cycle-size-warning.ts
+  cycle-size-warning.spec.ts
+  price-matching-service.ts
+  price-matching-service.spec.ts
+```
 
 ## Test Structure
 
 **Suite Organization:**
-- Use `describe(className/functionName)` for grouping tests
-- Use `it('should behavior')` for individual test cases
-- Example structure:
 ```typescript
-describe('config', () => {
-  it('should load config object', () => {
-    expect(config).toBeDefined();
+import { describe, test, expect, beforeEach, vi } from "vitest";
+
+describe("functionName", () => {
+  test("specific behavior description", () => {
+    // arrange
+    const input = createTestInput();
+    // act
+    const result = functionName(input);
+    // assert
+    expect(result).toEqual(expectedOutput);
+  });
+
+  test.each([
+    { input: value1, expected: result1 },
+    { input: value2, expected: result2 },
+  ])("parameterized test with $input", ({ input, expected }) => {
+    expect(functionName(input)).toBe(expected);
   });
 });
 ```
 
-**Conventions:**
-- Test file must import from vitest: `import { describe, it, expect } from 'vitest'`
-- Or rely on globals (enabled in vitest.config.ts)
-- Group related tests under descriptive `describe` blocks
-- Write clear, behavioral test descriptions
-- Mock external dependencies (Puppeteer, Redis, SQLite) when testing units
+**Patterns:**
+- `describe` blocks match function/class name
+- `beforeEach` for per-test setup
+- `vi.clearAllMocks()` in beforeEach for isolation
+- Parameterized tests with `test.each` for multiple inputs
+- Strong assertions: `toBe`, `toEqual` (not weak comparisons)
 
 ## Mocking
 
 **Framework:**
-- Vitest vi mocking available but not used
+- Vitest built-in mocking (vi)
+- `vi.mock()` at top of test file for module mocking
 
 **Patterns:**
-- Not applicable - no tests present
+```typescript
+vi.mock("../utils/fetch-with-retry", () => ({
+  fetchWithRetry: vi.fn(),
+}));
+
+const mockFetchWithRetry = vi.mocked(fetchWithRetry);
+mockFetchWithRetry.mockResolvedValue({ ok: true, json: () => Promise.resolve(data) });
+```
+
+**What to Mock:**
+- External API calls (fetchWithRetry)
+- File system operations
+- Browser APIs (IndexedDB via fake-indexeddb)
+- Time (vi.useFakeTimers)
+
+**What NOT to Mock:**
+- Pure functions and utilities
+- Internal business logic
+- TypeScript types
 
 ## Fixtures and Factories
 
 **Test Data:**
-- No test fixtures or factories present
-- Manual test scripts use hardcoded data inline
+```typescript
+// Factory functions inline in test files
+function createTestOrder(overrides?: Partial<OrderData>): OrderData {
+  return {
+    customerId: "test-id",
+    customerName: "Test Customer",
+    items: [],
+    ...overrides,
+  };
+}
+```
 
 **Location:**
-- No `tests/fixtures/` or factory patterns found
+- Factory functions: inline in test file
+- Shared fixtures: `backend/src/test-fixtures/`
+- Frontend test setup: `frontend/src/test/setup.ts` (polyfills for Web Crypto, IndexedDB)
 
 ## Coverage
 
 **Requirements:**
-- No specific coverage target defined yet
+- No enforced coverage target
+- Focus on critical paths: calculations, services, parsers
+- Type-check must pass (CI gate per CLAUDE.md G-1)
 
 **Configuration:**
-- Vitest coverage configured with v8 provider
-- Reporters: text (console) and html (coverage/index.html)
-- Run: `npm run test:coverage`
-
-**View Coverage:**
-- Console: Automatically displayed after `npm run test:coverage`
-- HTML: Open `coverage/index.html` in browser after running coverage
+- Provider: v8
+- Reporters: text, html
+- Commands: `npm run test:coverage` (both workspaces)
 
 ## Test Types
 
 **Unit Tests:**
-- Status: FRAMEWORK READY, FIRST TEST IMPLEMENTED
-- First test: `backend/src/config.test.ts` - smoke test for config loading
-- Pattern: `*.test.ts` files alongside source code
+- Pure function testing with parameterized inputs
+- Service logic with mocked dependencies
+- Component rendering with Testing Library
+- Examples: `format-currency.spec.ts`, `price-matching-service.spec.ts`
 
 **Integration Tests:**
-- Status: MANUAL SCRIPTS (automated tests to be added)
-- Location: `backend/src/scripts/`
-- Scripts:
-  - `test-login.ts` - Tests Puppeteer authentication to Archibald ERP
-  - `test-create-order.ts` - Tests end-to-end order creation flow
-  - `test-queue.ts` - Tests BullMQ job queue functionality
-- Execution: Via `npm run test:login`, `npm run test:order`, `npm run test:queue`
-- Pattern: Standalone scripts with manual verification
+- Backend: Real SQLite databases in tests
+- Frontend: Service tests with mocked API responses
+- 30-second timeout for backend integration tests
+
+**Property-Based Tests:**
+- fast-check library for invariant testing
+- Example: `revenue-calculation.spec.ts`
+```typescript
+import fc from "fast-check";
+fc.assert(
+  fc.property(fc.float(), fc.float(), (a, b) =>
+    // test invariant
+  )
+);
+```
 
 **E2E Tests:**
-- Status: NOT IMPLEMENTED
-- No E2E testing framework configured
+- Playwright with multi-device testing
+- Location: `archibald-web-app/frontend/e2e/`
+- Features: Login flows, WebSocket sync, PWA orientation
+- Helpers: `e2e/helpers/multi-device.ts`
 
 ## Common Patterns
 
-**Manual Test Scripts:**
+**Async Testing:**
 ```typescript
-// Example from test-login.ts
-import { ArchibaldBot } from '../archibald-bot';
-import { logger } from '../logger';
-
-async function testLogin() {
-  logger.info('=== TEST LOGIN ARCHIBALD ===');
-  const bot = new ArchibaldBot();
-
-  try {
-    logger.info('1. Inizializzazione browser...');
-    await bot.initialize();
-
-    logger.info('2. Tentativo login...');
-    await bot.login();
-
-    logger.info('✅ LOGIN RIUSCITO!');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-  } catch (error) {
-    logger.error('❌ TEST FALLITO', { error });
-    process.exit(1);
-  } finally {
-    await bot.close();
-  }
-}
-
-testLogin();
+test("handles async operation", async () => {
+  const result = await asyncFunction();
+  expect(result).toBe("expected");
+});
 ```
 
-**Pattern:**
-- Import target service/class
-- Create instance
-- Execute operations with logging
-- Check results manually (visual inspection)
-- Exit with status code
+**Error Testing:**
+```typescript
+test("throws on invalid input", () => {
+  expect(() => functionCall()).toThrow("error message");
+});
 
-## Test Coverage Gaps
+test("rejects on failure", async () => {
+  await expect(asyncCall()).rejects.toThrow("error");
+});
+```
 
-**Status:** Testing framework now ready for use
+**Component Testing:**
+```typescript
+import { render, screen } from "@testing-library/react";
 
-**Services without tests:**
-- `backend/src/customer-sync-service.ts` - No unit tests for sync logic
-- `backend/src/product-sync-service.ts` - No unit tests for pagination
-- `backend/src/price-sync-service.ts` - No validation tests
-- `backend/src/queue-manager.ts` - No job queue tests (only manual script)
-- `backend/src/browser-pool.ts` - No pool management tests
-- `backend/src/archibald-bot.ts` - No automation tests (only manual login test)
-- `backend/src/customer-db.ts` - No database operation tests
-- `backend/src/product-db.ts` - No database operation tests
-
-**Frontend without tests:**
-- No component tests for `OrderForm.tsx`, `OrderStatus.tsx`, etc.
-- No hook tests for `useVoiceInput.ts`
-- No utility tests for `orderParser.ts`
-
-**Why no tests:**
-- Development focused on rapid prototyping
-- Manual testing via scripts deemed sufficient initially
-- Integration complexity (Puppeteer, Redis, SQLite) makes unit testing challenging
-- Framework now configured and ready for test development
-
-**Risk:**
-- Refactoring is risky without safety net
-- Regressions can go undetected
-- Core synchronization logic untested
-- No verification of edge cases
-
-**Priority:**
-- High: Queue processing, sync logic, database operations
-- Medium: Browser automation, API endpoints
-- Low: Utilities, logging, configuration (config.ts now has smoke test)
-
-## Recommendations
-
-**Immediate Actions:**
-1. Convert manual test scripts to automated Vitest integration tests
-2. Add unit tests for critical services (QueueManager, CustomerSyncService)
-3. Mock Puppeteer for bot tests (use puppeteer-mock or similar)
-4. Add property-based tests for parser logic (use fast-check)
-
-**Testing Strategy:**
-- Unit tests: Pure functions (parseVoiceOrder, config loaders)
-- Integration tests: Services with database/Redis (use test containers)
-- Contract tests: API endpoints (use supertest)
-- E2E tests: Full order flow (use Playwright)
+test("renders expected content", () => {
+  render(<Component prop="value" />);
+  expect(screen.getByText("text")).toBeInTheDocument();
+});
+```
 
 ---
 
-*Testing analysis: 2026-01-11*
-*Update when test patterns are established*
+*Testing analysis: 2026-02-22*
+*Update when test patterns change*

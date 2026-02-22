@@ -1,225 +1,183 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-01-11
+**Analysis Date:** 2026-02-22
 
 ## Directory Layout
 
 ```
 Archibald/
-└── archibald-web-app/
-    ├── backend/                    # Node.js Express API + Puppeteer automation
-    │   ├── src/                   # TypeScript source code
-    │   │   ├── scripts/          # Manual test/debug scripts
-    │   │   └── *.ts              # Service classes and utilities
-    │   ├── data/                 # SQLite databases + JSON persistence
-    │   ├── logs/                 # Winston log files
-    │   ├── dist/                 # Compiled JavaScript (gitignored)
-    │   ├── node_modules/
-    │   ├── package.json
-    │   ├── tsconfig.json
-    │   └── .env                  # Environment variables (WARNING: credentials committed)
-    │
-    └── frontend/                  # React 19 PWA
-        ├── src/                   # TypeScript/TSX source code
-        │   ├── components/       # React components
-        │   ├── hooks/            # Custom React hooks
-        │   ├── utils/            # Utility functions
-        │   ├── types/            # TypeScript type definitions
-        │   ├── main.tsx          # React entry point
-        │   └── App.tsx           # Main app component
-        ├── public/               # Static assets (PWA icons)
-        ├── dist/                 # Vite build output (gitignored)
-        ├── node_modules/
-        ├── package.json
-        ├── vite.config.ts
-        ├── tsconfig.json
-        └── index.html            # HTML entry
+├── archibald-web-app/
+│   ├── frontend/           # React PWA (Vite + TypeScript)
+│   │   ├── src/
+│   │   │   ├── api/        # HTTP client modules
+│   │   │   ├── components/ # React components
+│   │   │   ├── contexts/   # React Context providers
+│   │   │   ├── hooks/      # Custom React hooks
+│   │   │   ├── pages/      # Full-page components
+│   │   │   ├── services/   # Business logic services
+│   │   │   ├── types/      # TypeScript type definitions
+│   │   │   ├── utils/      # Utility functions
+│   │   │   ├── test/       # Test setup and fixtures
+│   │   │   ├── main.tsx    # App entry point
+│   │   │   └── AppRouter.tsx # Route definitions
+│   │   ├── e2e/            # Playwright E2E tests
+│   │   ├── public/         # Static assets
+│   │   ├── vite.config.ts  # Vite + PWA config
+│   │   └── playwright.config.ts
+│   │
+│   ├── backend/            # Express server (TypeScript)
+│   │   ├── src/
+│   │   │   ├── routes/     # Express route handlers
+│   │   │   ├── middleware/  # JWT auth middleware
+│   │   │   ├── services/   # Business services
+│   │   │   ├── migrations/ # SQLite schema migrations
+│   │   │   ├── test-fixtures/ # Test data
+│   │   │   ├── scripts/    # CLI utilities & Python parsers
+│   │   │   ├── index.ts    # Server entry point
+│   │   │   ├── config.ts   # Environment config
+│   │   │   ├── *-db.ts     # Database access classes
+│   │   │   ├── *-service.ts # Sync/business services
+│   │   │   └── archibald-bot.ts # Puppeteer automation
+│   │   └── data/           # SQLite database files
+│   │
+│   └── load-tests/         # K6 load testing scripts
+│
+├── .planning/              # GSD planning structure
+├── package.json            # Root workspace manifest
+└── VPS-ACCESS-CREDENTIALS.md # Production access (gitignored)
 ```
 
 ## Directory Purposes
 
-**backend/src/**
-- Purpose: All backend TypeScript source code
-- Contains: Service classes, database wrappers, API routes, bot automation
-- Key files:
-  - `index.ts` - Express app, routes, WebSocket server
-  - `archibald-bot.ts` - Puppeteer browser automation (2777 lines)
-  - `queue-manager.ts` - BullMQ job queue for order processing
-  - `customer-sync-service.ts` - Customer data synchronization (720 lines)
-  - `product-sync-service.ts` - Product data synchronization (791 lines)
-  - `price-sync-service.ts` - Price list synchronization
-  - `browser-pool.ts` - Pre-authenticated browser pool management
-  - `session-manager.ts` - Cookie persistence (24-hour TTL)
-  - `customer-db.ts` - SQLite customer database wrapper
-  - `product-db.ts` - SQLite product database wrapper
-  - `sync-checkpoint.ts` - Checkpoint manager for resumable sync
-  - `adaptive-timeout-manager.ts` - Learning timeout system
-  - `logger.ts` - Winston logger configuration
-  - `config.ts` - Environment variable loader
-  - `types.ts` - TypeScript interfaces
-  - `schemas.ts` - Zod validation schemas
-- Subdirectories: `scripts/` (manual test utilities)
+**`archibald-web-app/frontend/src/api/`:**
+- Purpose: HTTP client functions for backend communication
+- Contains: `auth.ts`, `customers.ts`, `products.ts`, `pending-orders.ts`, `warehouse.ts`, `fresis-history.ts`, `fresis-discounts.ts`
+- Pattern: Fetch-based with JWT bearer token, fetchWithRetry wrapper
 
-**backend/src/scripts/**
-- Purpose: Manual integration test scripts for development
-- Contains:
-  - `test-login.ts` - Test Archibald ERP authentication
-  - `test-create-order.ts` - Test order creation flow
-  - `test-queue.ts` - Test job queue functionality
+**`archibald-web-app/frontend/src/components/`:**
+- Purpose: Reusable React components
+- Contains: `OrderFormSimple.tsx`, `LoginModal.tsx`, `SyncBanner.tsx`, `WebSocketSync.tsx`, `ExcelPriceManager.tsx`
+- Subdirectories: `new-order-form/` (Phase 28.2 rewrite), `arca/` (ARCA format), `widgets/`
 
-**backend/data/**
-- Purpose: Runtime data persistence
-- Contains:
-  - `customers.db` - SQLite database (customer data cache)
-  - `products.db` - SQLite database (product catalog cache)
-  - `sync-checkpoints.db` - SQLite database (sync resume state)
-  - `archibald-session.json` - Cached Puppeteer cookies
-  - `adaptive-timeouts.json` - Timeout learning statistics
+**`archibald-web-app/frontend/src/pages/`:**
+- Purpose: Full-page route components
+- Contains: `Dashboard.tsx`, `OrderHistory.tsx`, `PendingOrdersPage.tsx`, `AdminPage.tsx`, `CustomerList.tsx`, `FresisHistoryPage.tsx`
 
-**backend/logs/**
-- Purpose: Winston log file output
-- Contains:
-  - `error.log` - Error-level logs only
-  - `combined.log` - All log levels
+**`archibald-web-app/frontend/src/services/`:**
+- Purpose: Frontend business logic (singleton services)
+- Contains: `orders.service.ts`, `customers.service.ts`, `products.service.ts`, `prices.service.ts`, `credential-store.ts`, `pdf-export.service.ts`
 
-**frontend/src/components/**
-- Purpose: React UI components
-- Contains:
-  - `OrderForm.tsx` - Main order entry interface with autocomplete
-  - `OrderStatus.tsx` - Order creation status tracking (polling)
-  - `SyncBanner.tsx` - Sync notification banner
-  - `SyncBars.tsx` - Real-time progress bars (customers/products/prices)
-  - `SyncButton.tsx` - Manual sync trigger buttons
+**`archibald-web-app/frontend/src/hooks/`:**
+- Purpose: Custom React hooks for state and side effects
+- Contains: `useAuth.ts`, `useSyncProgress.ts`, `usePendingSync.ts`, `useNetworkStatus.ts`
 
-**frontend/src/hooks/**
-- Purpose: Custom React hooks
-- Contains:
-  - `useVoiceInput.ts` - Web Speech API integration for voice input
+**`archibald-web-app/backend/src/routes/`:**
+- Purpose: Express route handlers (partially extracted from index.ts)
+- Contains: `sync-routes.ts`, `warehouse-routes.ts`, `admin-routes.ts`, `share-routes.ts`, `fresis-history-routes.ts`, `fresis-discount-routes.ts`, `bot.ts`, `delta-sync.ts`
 
-**frontend/src/utils/**
-- Purpose: Utility functions
-- Contains:
-  - `orderParser.ts` - Voice input parsing and normalization
+**`archibald-web-app/backend/src/migrations/`:**
+- Purpose: SQLite schema evolution (34+ migrations)
+- Contains: Numbered migration files for all database tables
 
-**frontend/src/types/**
-- Purpose: TypeScript type definitions
-- Contains:
-  - `order.ts` - Order-related interfaces
-  - `speech-recognition.d.ts` - Web Speech API type declarations
+**`archibald-web-app/backend/data/`:**
+- Purpose: SQLite database files
+- Contains: `customers.db`, `products.db`, `prices.db`, `orders-new.db`, `auth.db`, `sync-checkpoints.db`, `subclients.db`
 
 ## Key File Locations
 
 **Entry Points:**
-- Backend: `backend/src/index.ts` - Express server startup
-- Frontend: `frontend/src/main.tsx` - React app mount
+- `archibald-web-app/backend/src/index.ts` - Backend server (8,181 lines)
+- `archibald-web-app/frontend/src/main.tsx` - Frontend app root
+- `archibald-web-app/frontend/src/AppRouter.tsx` - Route definitions
 
 **Configuration:**
-- Backend: `backend/tsconfig.json` - TypeScript config (CommonJS, ES2022, strict)
-- Backend: `backend/.env` - Environment variables (WARNING: credentials present)
-- Backend: `backend/.env.example` - Environment template
-- Backend: `backend/src/config.ts` - Config loader
-- Frontend: `frontend/tsconfig.json` - TypeScript config (ESNext, React JSX, strict)
-- Frontend: `frontend/vite.config.ts` - Vite + PWA plugin config
+- `archibald-web-app/backend/src/config.ts` - Environment config centralized
+- `archibald-web-app/backend/tsconfig.json` - Backend TypeScript config
+- `archibald-web-app/frontend/tsconfig.json` - Frontend TypeScript config
+- `archibald-web-app/frontend/vite.config.ts` - Vite + PWA config
 
 **Core Logic:**
-- Backend services: `backend/src/*-service.ts`, `backend/src/*-manager.ts`
-- Backend database access: `backend/src/*-db.ts`
-- Frontend components: `frontend/src/components/*.tsx`
-- Frontend hooks: `frontend/src/hooks/*.ts`
+- `archibald-web-app/backend/src/archibald-bot.ts` - Puppeteer automation (12,148 lines)
+- `archibald-web-app/backend/src/sync-orchestrator.ts` - Sync coordination
+- `archibald-web-app/backend/src/queue-manager.ts` - BullMQ job queue
+- `archibald-web-app/backend/src/browser-pool.ts` - Browser instance pool
+
+**Data Access:**
+- `archibald-web-app/backend/src/customer-db.ts` - Customer database
+- `archibald-web-app/backend/src/product-db.ts` - Product database
+- `archibald-web-app/backend/src/price-db.ts` - Price database
+- `archibald-web-app/backend/src/order-db-new.ts` - Order database
+- `archibald-web-app/backend/src/user-db.ts` - User/auth database
+
+**Authentication:**
+- `archibald-web-app/backend/src/auth-utils.ts` - JWT generation
+- `archibald-web-app/backend/src/middleware/auth.ts` - JWT middleware
+- `archibald-web-app/backend/src/schemas.ts` - Zod validation schemas
 
 **Testing:**
-- Backend manual tests: `backend/src/scripts/test-*.ts`
-- No unit test files found (Vitest configured but unused)
-
-**Documentation:**
-- `archibald-web-app/PROPOSTA_TECNICA.md` - Technical proposal
-- `archibald-web-app/ANALISI_GESTIONALE.md` - Management analysis
-- `archibald-web-app/GUIDA_TEST.md` - Test guide
-- `archibald-web-app/backend/README.md` - Backend quick start
-- `archibald-web-app/backend/ADAPTIVE-TIMEOUTS.md` - Adaptive timeout feature docs
-- `archibald-web-app/frontend/README.md` - Frontend quick start
+- `archibald-web-app/backend/src/*.spec.ts` - Backend unit tests (co-located)
+- `archibald-web-app/frontend/src/**/*.spec.ts(x)` - Frontend unit tests (co-located)
+- `archibald-web-app/frontend/e2e/` - Playwright E2E tests
+- `archibald-web-app/load-tests/` - K6 load tests
 
 ## Naming Conventions
 
 **Files:**
-- Backend: kebab-case.ts for all TypeScript files
-  - Services: `customer-sync-service.ts`, `product-sync-service.ts`
-  - Databases: `customer-db.ts`, `product-db.ts`
-  - Managers: `queue-manager.ts`, `session-manager.ts`
-  - Simple files: `config.ts`, `logger.ts`, `types.ts`, `schemas.ts`
-- Frontend: PascalCase.tsx for React components, camelCase.ts for utilities
-  - Components: `OrderForm.tsx`, `SyncBanner.tsx`, `SyncBars.tsx`
-  - Hooks: `useVoiceInput.ts`
-  - Utils: `orderParser.ts`
+- `kebab-case.ts` for service/utility modules (e.g., `customer-sync-service.ts`)
+- `PascalCase.tsx` for React components (e.g., `OrderFormSimple.tsx`)
+- `kebab-case-db.ts` for database classes (e.g., `customer-db.ts`)
+- `*.spec.ts` for test files, co-located with source
 
 **Directories:**
-- kebab-case: `sync-checkpoint/` (if subdirectories existed)
-- Plural for collections: `components/`, `hooks/`, `utils/`, `types/`, `scripts/`
+- kebab-case for all directories
+- Plural for collections: `components/`, `services/`, `hooks/`, `routes/`
 
 **Special Patterns:**
-- `index.ts` - Backend entry point
-- `main.tsx` - Frontend entry point
-- `App.tsx` - Main React component
-- `*.test.ts` - Test files (pattern exists but no tests written)
+- `use*.ts` for React hooks
+- `*-db.ts` for database access classes
+- `*-sync-service.ts` for sync services
+- `*.service.ts` for frontend services
 
 ## Where to Add New Code
 
-**New Backend Service:**
-- Implementation: `backend/src/{name}-service.ts`
-- Database access (if needed): `backend/src/{name}-db.ts`
-- Types: Add to `backend/src/types.ts`
-- Validation: Add Zod schema to `backend/src/schemas.ts`
-- Routes: Add to `backend/src/index.ts`
-- Tests: Create `backend/src/{name}-service.test.ts`
+**New Backend Route:**
+- Definition: `archibald-web-app/backend/src/routes/{name}-routes.ts`
+- Registration: `archibald-web-app/backend/src/index.ts`
+- Tests: `archibald-web-app/backend/src/routes/{name}-routes.spec.ts`
+
+**New Frontend Page:**
+- Component: `archibald-web-app/frontend/src/pages/{PageName}.tsx`
+- Route: `archibald-web-app/frontend/src/AppRouter.tsx`
+- Tests: `archibald-web-app/frontend/src/pages/{PageName}.spec.tsx`
 
 **New Frontend Component:**
-- Implementation: `frontend/src/components/{ComponentName}.tsx`
-- Types: `frontend/src/types/{domain}.ts`
-- Hooks (if custom): `frontend/src/hooks/use{HookName}.ts`
-- Utils (if shared): `frontend/src/utils/{utilName}.ts`
+- Implementation: `archibald-web-app/frontend/src/components/{ComponentName}.tsx`
+- Tests: `archibald-web-app/frontend/src/components/{ComponentName}.spec.tsx`
 
-**New API Endpoint:**
-- Route definition: `backend/src/index.ts` (add to Express app)
-- Handler logic: Extract complex logic to service in `backend/src/*-service.ts`
-- Validation: Define Zod schema in `backend/src/schemas.ts`
+**New Service (Backend):**
+- Implementation: `archibald-web-app/backend/src/{name}-service.ts`
+- Tests: `archibald-web-app/backend/src/{name}-service.spec.ts`
 
-**New Database Table:**
-- Schema: Define in relevant `*-db.ts` file (e.g., `customer-db.ts`)
-- Migrations: Execute manually via better-sqlite3 (no migration framework)
-- Types: Add interface to `backend/src/types.ts`
-
-**Utilities:**
-- Backend: Add to `backend/src/{util-name}.ts` (e.g., existing `logger.ts`, `config.ts`)
-- Frontend: Add to `frontend/src/utils/{utilName}.ts`
+**New Database:**
+- Database class: `archibald-web-app/backend/src/{name}-db.ts`
+- Data file: `archibald-web-app/backend/data/{name}.db`
+- Migration: `archibald-web-app/backend/src/migrations/NNN-{description}.ts`
 
 ## Special Directories
 
-**backend/data/**
-- Purpose: Runtime-generated data (SQLite databases, session cache)
-- Source: Created by application at runtime
-- Committed: No (in .gitignore)
+**`archibald-web-app/frontend/dist/`:**
+- Purpose: Vite build output
+- Committed: No (gitignored)
 
-**backend/dist/**
-- Purpose: TypeScript compilation output (JavaScript)
-- Source: Generated by `tsc` compiler
-- Committed: No (in .gitignore)
+**`archibald-web-app/backend/data/`:**
+- Purpose: SQLite database files
+- Committed: Partially (some .db files in git)
 
-**frontend/dist/**
-- Purpose: Vite build output (optimized production bundle)
-- Source: Generated by `vite build`
-- Committed: No (in .gitignore)
-
-**backend/logs/**
-- Purpose: Winston log file output
-- Source: Generated at runtime by logger
-- Committed: No (in .gitignore)
-
-**node_modules/**
-- Purpose: npm package dependencies
-- Source: Installed via `npm install`
-- Committed: No (in .gitignore)
+**`archibald-web-app/frontend/playwright-report/`:**
+- Purpose: Playwright test reports
+- Committed: No (untracked)
 
 ---
 
-*Structure analysis: 2026-01-11*
+*Structure analysis: 2026-02-22*
 *Update when directory structure changes*
