@@ -31,7 +31,7 @@ None
 **Plans**: TBD
 
 Plans:
-- [ ] 01-01: Audit dei 42 elementi riprogettati — confronto comportamento master vs branch
+- [x] 01-01: Audit dei 42 elementi riprogettati — confronto comportamento master vs branch
 - [ ] 01-02: Setup test infrastructure e primi integration test per endpoint critici
 - [ ] 01-03: Fix divergenze trovate durante l'audit
 
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verification & Test Infrastructure | 0/3 | Not started | - |
+| 1. Verification & Test Infrastructure | 1/3 | In progress | - |
 | 2. Critical Missing Endpoints | 0/4 | Not started | - |
 | 3. Admin & Monitoring Endpoints | 0/3 | Not started | - |
 | 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
