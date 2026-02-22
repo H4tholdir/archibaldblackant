@@ -211,20 +211,61 @@ describe('createSyncStatusRouter', () => {
   });
 
   describe('DELETE /api/sync/:type/clear-db', () => {
-    test('clears database for valid sync type', async () => {
-      const app = createApp(deps);
+    test('clears database for valid sync type as admin', async () => {
+      const app = createApp(deps, 'admin');
       const res = await request(app).delete('/api/sync/customers/clear-db');
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.body).toEqual({
+        success: true,
+        message: 'Database customers cancellato con successo',
+      });
       expect(deps.clearSyncData).toHaveBeenCalledWith('customers');
     });
 
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app).delete('/api/sync/customers/clear-db');
+
+      expect(res.status).toBe(403);
+      expect(deps.clearSyncData).not.toHaveBeenCalled();
+    });
+
     test('rejects invalid sync type', async () => {
-      const app = createApp(deps);
+      const app = createApp(deps, 'admin');
       const res = await request(app).delete('/api/sync/invalid/clear-db');
 
       expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
     });
+
+    test('returns 501 when clearSyncData is not configured', async () => {
+      deps.clearSyncData = undefined;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).delete('/api/sync/customers/clear-db');
+
+      expect(res.status).toBe(501);
+    });
+
+    test('returns 500 on server error', async () => {
+      (deps.clearSyncData as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('DB connection lost'),
+      );
+      const app = createApp(deps, 'admin');
+      const res = await request(app).delete('/api/sync/customers/clear-db');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+
+    test.each(['customers', 'products', 'prices', 'orders', 'ddt', 'invoices'])(
+      'accepts valid sync type "%s"',
+      async (type) => {
+        const app = createApp(deps, 'admin');
+        const res = await request(app).delete(`/api/sync/${type}/clear-db`);
+
+        expect(res.status).toBe(200);
+      },
+    );
   });
 });

@@ -232,7 +232,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     'customers', 'products', 'prices', 'orders', 'ddt', 'invoices',
   ]);
 
-  router.delete('/:type/clear-db', async (req: AuthRequest, res) => {
+  router.delete('/:type/clear-db', requireAdmin, async (req: AuthRequest, res) => {
     try {
       const { type } = req.params;
       if (!VALID_CLEAR_TYPES.has(type)) {

@@ -36,6 +36,7 @@ import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as dashboardService from './dashboard-service';
+import { clearSyncData } from './db/clear-sync-data';
 import { logger } from './logger';
 
 type PasswordCacheLike = {
@@ -278,6 +279,7 @@ function createApp(deps: AppDeps): Express {
       isRunning: () => syncScheduler.isRunning(),
       getIntervals: () => syncScheduler.getIntervals(),
     },
+    clearSyncData: (type) => clearSyncData(pool, type),
   }));
 
   app.use('/api/sync', authenticateJWT, createSseProgressRouter({
