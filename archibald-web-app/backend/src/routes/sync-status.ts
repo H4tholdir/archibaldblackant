@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
+import { requireAdmin } from '../middleware/auth';
 import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
 import type { OperationType } from '../operations/operation-types';
@@ -98,7 +99,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
-  router.post('/trigger/:type', async (req: AuthRequest, res) => {
+  router.post('/trigger/:type', requireAdmin, async (req: AuthRequest, res) => {
     try {
       const syncType = req.params.type;
       if (!VALID_SYNC_TYPES.has(syncType)) {
@@ -114,6 +115,28 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     } catch (error) {
       logger.error('Error triggering sync', { error });
       res.status(500).json({ success: false, error: 'Errore trigger sync' });
+    }
+  });
+
+  const ALL_SYNC_TYPES: OperationType[] = [
+    'sync-orders', 'sync-customers', 'sync-ddt',
+    'sync-invoices', 'sync-prices', 'sync-products',
+  ];
+
+  router.post('/trigger-all', requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const jobIds: string[] = [];
+
+      for (const syncType of ALL_SYNC_TYPES) {
+        const jobId = await queue.enqueue(syncType, userId, {});
+        jobIds.push(jobId);
+      }
+
+      res.json({ success: true, jobIds, message: `Triggered ${ALL_SYNC_TYPES.length} sync operations` });
+    } catch (error) {
+      logger.error('Error triggering all syncs', { error });
+      res.status(500).json({ success: false, error: 'Errore trigger sync completo' });
     }
   });
 

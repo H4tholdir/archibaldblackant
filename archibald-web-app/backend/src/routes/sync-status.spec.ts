@@ -100,8 +100,8 @@ describe('createSyncStatusRouter', () => {
   });
 
   describe('POST /api/sync/trigger/:type', () => {
-    test('triggers manual sync', async () => {
-      const app = createApp(deps);
+    test('triggers manual sync for admin', async () => {
+      const app = createApp(deps, 'admin');
       const res = await request(app).post('/api/sync/trigger/sync-customers');
 
       expect(res.status).toBe(200);
@@ -110,11 +110,37 @@ describe('createSyncStatusRouter', () => {
       );
     });
 
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app).post('/api/sync/trigger/sync-customers');
+
+      expect(res.status).toBe(403);
+    });
+
     test('rejects invalid sync type', async () => {
-      const app = createApp(deps);
+      const app = createApp(deps, 'admin');
       const res = await request(app).post('/api/sync/trigger/invalid-type');
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/sync/trigger-all', () => {
+    test('triggers all 6 sync types for admin', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger-all');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobIds).toHaveLength(6);
+      expect(deps.queue.enqueue).toHaveBeenCalledTimes(6);
+    });
+
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app).post('/api/sync/trigger-all');
+
+      expect(res.status).toBe(403);
     });
   });
 

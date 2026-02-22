@@ -18,6 +18,7 @@ function createMockBot(): CreateCustomerBot {
 }
 
 const sampleData: CreateCustomerData = {
+  customerProfile: 'TEMP-1700000000',
   name: 'New Corp S.r.l.',
   vatNumber: 'IT01234567890',
   pec: 'newcorp@pec.it',
@@ -69,6 +70,29 @@ describe('handleCreateCustomer', () => {
 
     expect(result.customerProfile).toBeDefined();
     expect(typeof result.customerProfile).toBe('string');
+  });
+
+  test('uses customerProfile from data when provided', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
+    const params = insertCall[1] as unknown[];
+    expect(params[0]).toBe('TEMP-1700000000');
+  });
+
+  test('generates TEMP profile when customerProfile not provided', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const { customerProfile: _, ...dataWithoutProfile } = sampleData;
+
+    await handleCreateCustomer(pool, bot, dataWithoutProfile, 'user-1', vi.fn());
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
+    const params = insertCall[1] as unknown[];
+    expect(params[0]).toMatch(/^TEMP-\d+$/);
   });
 
   test('reports progress at key milestones', async () => {

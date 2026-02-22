@@ -2,6 +2,7 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 
 type CreateCustomerData = {
+  customerProfile?: string;
   name: string;
   vatNumber?: string;
   pec?: string;
@@ -37,7 +38,7 @@ async function handleCreateCustomer(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ customerProfile: string }> {
-  const tempProfile = `TEMP-${Date.now()}`;
+  const tempProfile = data.customerProfile ?? `TEMP-${Date.now()}`;
 
   onProgress(5, 'Salvataggio cliente locale');
 

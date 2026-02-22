@@ -3,6 +3,7 @@ import type { OperationHandler } from '../operation-processor';
 
 type UpdateCustomerData = {
   customerProfile: string;
+  originalName?: string;
   name: string;
   vatNumber?: string;
   pec?: string;
@@ -40,13 +41,17 @@ async function handleUpdateCustomer(
 ): Promise<{ success: boolean }> {
   onProgress(5, 'Recupero dati cliente');
 
-  const { rows: [existing] } = await pool.query<{ name: string; archibald_name: string | null }>(
-    `SELECT name, archibald_name FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
-    [data.customerProfile, userId],
-  );
+  let originalName = data.originalName;
 
-  const originalName = existing?.archibald_name ?? existing?.name ?? data.name;
+  if (!originalName) {
+    const { rows: [existing] } = await pool.query<{ name: string; archibald_name: string | null }>(
+      `SELECT name, archibald_name FROM agents.customers
+       WHERE customer_profile = $1 AND user_id = $2`,
+      [data.customerProfile, userId],
+    );
+
+    originalName = existing?.archibald_name ?? existing?.name ?? data.name;
+  }
 
   onProgress(10, 'Aggiornamento locale');
 

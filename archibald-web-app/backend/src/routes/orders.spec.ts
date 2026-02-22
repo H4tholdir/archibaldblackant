@@ -134,11 +134,11 @@ function createMockDeps(): OrdersRouterDeps {
   };
 }
 
-function createApp(deps: OrdersRouterDeps) {
+function createApp(deps: OrdersRouterDeps, role = 'agent') {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).user = { userId: 'user-1', username: 'agent1', role: 'agent' };
+    (req as any).user = { userId: 'user-1', username: 'agent1', role };
     next();
   });
   app.use('/api/orders', createOrdersRouter(deps));
@@ -258,24 +258,58 @@ describe('createOrdersRouter', () => {
   });
 
   describe('POST /api/orders/reset-and-sync', () => {
-    test('enqueues reset-and-sync job', async () => {
-      const res = await request(app).post('/api/orders/reset-and-sync');
+    test('enqueues reset-and-sync job for admin', async () => {
+      const adminApp = createApp(deps, 'admin');
+      const res = await request(adminApp).post('/api/orders/reset-and-sync');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.jobId).toBe('job-456');
       expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-orders', 'user-1', { mode: 'reset' });
     });
+
+    test('rejects non-admin users with 403', async () => {
+      const res = await request(app).post('/api/orders/reset-and-sync');
+
+      expect(res.status).toBe(403);
+    });
   });
 
   describe('POST /api/orders/:orderId/send-to-milano', () => {
-    test('enqueues send-to-verona job', async () => {
+    test('enqueues send-to-verona job for sendable order', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, currentState: 'creato', sentToMilanoAt: null });
       const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.jobId).toBe('job-456');
       expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+    });
+
+    test('returns 404 for unknown order', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      const res = await request(app).post('/api/orders/UNKNOWN/send-to-milano');
+
+      expect(res.status).toBe(404);
+    });
+
+    test('returns early success if already sent', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, sentToMilanoAt: '2026-01-20T10:00:00Z' });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toContain('already sent');
+      expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    test('returns 400 for non-sendable state', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, currentState: 'inviato_milano', sentToMilanoAt: null });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('non inviabile');
+      expect(deps.queue.enqueue).not.toHaveBeenCalled();
     });
   });
 

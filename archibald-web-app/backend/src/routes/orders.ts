@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
+import { requireAdmin } from '../middleware/auth';
 import type { Order, OrderArticle, StateHistory, OrderFilterOptions } from '../db/repositories/orders';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
@@ -99,7 +100,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
-  router.post('/reset-and-sync', async (req: AuthRequest, res) => {
+  router.post('/reset-and-sync', requireAdmin, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const jobId = await queue.enqueue('sync-orders', userId, { mode: 'reset' });
@@ -150,6 +151,28 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     try {
       const userId = req.user!.userId;
       const { orderId } = req.params;
+
+      const order = await getOrderById(userId, orderId);
+      if (!order) {
+        return res.status(404).json({ success: false, error: `Order ${orderId} not found` });
+      }
+
+      if (order.sentToMilanoAt) {
+        return res.json({
+          success: true,
+          message: `Order ${orderId} was already sent to Milano`,
+          data: { orderId, sentToMilanoAt: order.sentToMilanoAt, currentState: order.currentState },
+        });
+      }
+
+      const sendableStates = [null, '', 'creato', 'piazzato'];
+      if (!sendableStates.includes(order.currentState as string | null)) {
+        return res.status(400).json({
+          success: false,
+          error: `Ordine non inviabile nello stato attuale: ${order.currentState}`,
+        });
+      }
+
       const jobId = await queue.enqueue('send-to-verona', userId, { orderId });
       res.json({ success: true, jobId });
     } catch (error) {

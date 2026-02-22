@@ -21,25 +21,14 @@ function createMockBot(): UpdateCustomerBot {
 
 const sampleData: UpdateCustomerData = {
   customerProfile: 'CUST-001',
+  originalName: 'Original Corp S.r.l.',
   name: 'Updated Corp S.r.l.',
   vatNumber: 'IT01234567890',
   street: 'Via Milano 10',
 };
 
 describe('handleUpdateCustomer', () => {
-  test('fetches original name before updating', async () => {
-    const pool = createMockPool();
-    const bot = createMockBot();
-
-    await handleUpdateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
-
-    const selectCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(selectCall[0]).toContain('SELECT');
-    expect(selectCall[0]).toContain('agents.customers');
-    expect(selectCall[1]).toContain('CUST-001');
-  });
-
-  test('calls bot.updateCustomer with profile, data, and original name', async () => {
+  test('uses originalName from data when provided', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -48,6 +37,24 @@ describe('handleUpdateCustomer', () => {
     expect(bot.updateCustomer).toHaveBeenCalledWith(
       'CUST-001',
       sampleData,
+      'Original Corp S.r.l.',
+    );
+  });
+
+  test('falls back to DB lookup when originalName not provided', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const { originalName: _, ...dataWithoutOriginalName } = sampleData;
+
+    await handleUpdateCustomer(pool, bot, dataWithoutOriginalName, 'user-1', vi.fn());
+
+    const selectCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(selectCall[0]).toContain('SELECT');
+    expect(selectCall[0]).toContain('agents.customers');
+
+    expect(bot.updateCustomer).toHaveBeenCalledWith(
+      'CUST-001',
+      dataWithoutOriginalName,
       'Old Name',
     );
   });
