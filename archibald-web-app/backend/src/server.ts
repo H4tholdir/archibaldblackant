@@ -130,6 +130,8 @@ function createApp(deps: AppDeps): Express {
     upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
+    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
+    resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
   }));
 
   if (deps.createCustomerBot) {

@@ -21,6 +21,8 @@ type CustomersRouterDeps = {
   upsertSingleCustomer: (userId: string, formData: CustomerFormInput, customerProfile: string, botStatus: string) => Promise<Customer>;
   updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
   updateArchibaldName: (userId: string, customerProfile: string, name: string) => Promise<void>;
+  smartCustomerSync: (userId: string) => Promise<void>;
+  resumeOtherSyncs: () => void;
 };
 
 const createCustomerSchema = z.object({
@@ -42,6 +44,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     queue, getCustomers, getCustomerByProfile, getCustomerCount, getLastSyncTime,
     getCustomerPhoto, setCustomerPhoto, deleteCustomerPhoto,
     upsertSingleCustomer, updateCustomerBotStatus, updateArchibaldName,
+    smartCustomerSync, resumeOtherSyncs,
   } = deps;
   const router = Router();
 
@@ -118,6 +121,37 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     } catch (error) {
       logger.error('Error fetching sync status', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero stato sync' });
+    }
+  });
+
+  router.post('/smart-sync', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      logger.info('Smart Customer Sync triggered', { userId });
+      await smartCustomerSync(userId);
+      res.json({ success: true, message: 'Smart Customer Sync completato' });
+    } catch (error) {
+      logger.error('Smart Customer Sync failed', { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Errore durante Smart Customer Sync',
+      });
+    }
+  });
+
+  router.post('/resume-syncs', async (req: AuthRequest, res) => {
+    try {
+      logger.info('Resume syncs requested', { userId: req.user!.userId });
+      resumeOtherSyncs();
+      res.json({ success: true, message: 'Syncs resumed' });
+    } catch (error) {
+      logger.error('Resume syncs failed', { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Errore durante resume syncs',
+      });
     }
   });
 

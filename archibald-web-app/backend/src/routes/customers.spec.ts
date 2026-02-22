@@ -60,6 +60,8 @@ function createMockDeps(): CustomersRouterDeps {
     upsertSingleCustomer: vi.fn().mockResolvedValue(mockCustomers[0]),
     updateCustomerBotStatus: vi.fn().mockResolvedValue(undefined),
     updateArchibaldName: vi.fn().mockResolvedValue(undefined),
+    smartCustomerSync: vi.fn().mockResolvedValue(undefined),
+    resumeOtherSyncs: vi.fn(),
   };
 }
 
@@ -98,6 +100,52 @@ describe('createCustomersRouter', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/customers/smart-sync', () => {
+    test('calls smartCustomerSync and returns success', async () => {
+      const res = await request(app).post('/api/customers/smart-sync');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, message: 'Smart Customer Sync completato' });
+      expect(deps.smartCustomerSync).toHaveBeenCalledWith('user-1');
+    });
+
+    test('returns 500 when smartCustomerSync throws', async () => {
+      (deps.smartCustomerSync as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Sync engine down'));
+      const res = await request(app).post('/api/customers/smart-sync');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'Sync engine down',
+        message: 'Errore durante Smart Customer Sync',
+      });
+    });
+  });
+
+  describe('POST /api/customers/resume-syncs', () => {
+    test('calls resumeOtherSyncs and returns success', async () => {
+      const res = await request(app).post('/api/customers/resume-syncs');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, message: 'Syncs resumed' });
+      expect(deps.resumeOtherSyncs).toHaveBeenCalled();
+    });
+
+    test('returns 500 when resumeOtherSyncs throws', async () => {
+      (deps.resumeOtherSyncs as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('Resume failed');
+      });
+      const res = await request(app).post('/api/customers/resume-syncs');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'Resume failed',
+        message: 'Errore durante resume syncs',
+      });
     });
   });
 

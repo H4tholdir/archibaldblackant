@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { createSyncScheduler, type SyncIntervals } from './sync-scheduler';
+import { createSyncScheduler, SAFETY_TIMEOUT_MS, type SyncIntervals } from './sync-scheduler';
 import type { OperationType } from '../operations/operation-types';
 
 function createMockEnqueue(): ReturnType<typeof vi.fn> {
@@ -115,5 +115,145 @@ describe('createSyncScheduler', () => {
     scheduler.start(intervals);
     expect(scheduler.getIntervals()).toEqual({ agentSyncMs: 100, sharedSyncMs: 200 });
     scheduler.stop();
+  });
+
+  describe('smartCustomerSync', () => {
+    test('stops scheduler and enqueues sync-customers for given user', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      expect(scheduler.isRunning()).toBe(true);
+
+      enqueue.mockClear();
+      await scheduler.smartCustomerSync('user-1');
+
+      expect(scheduler.isRunning()).toBe(false);
+      expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+      expect(scheduler.getSessionCount()).toBe(1);
+    });
+
+    test('increments session count on repeated calls without re-enqueuing', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      enqueue.mockClear();
+
+      await scheduler.smartCustomerSync('user-1');
+      await scheduler.smartCustomerSync('user-1');
+
+      expect(scheduler.getSessionCount()).toBe(2);
+      expect(enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    test('uses requesting userId when it is an active agent', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2']);
+
+      await scheduler.smartCustomerSync('user-2');
+
+      expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-2', {});
+    });
+
+    test('falls back to first active agent when userId is not active', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['agent-A']);
+
+      await scheduler.smartCustomerSync('unknown-user');
+
+      expect(enqueue).toHaveBeenCalledWith('sync-customers', 'agent-A', {});
+    });
+
+    test('uses provided userId when no active agents exist', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => []);
+
+      await scheduler.smartCustomerSync('user-1');
+
+      expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    });
+  });
+
+  describe('resumeOtherSyncs', () => {
+    test('resumes scheduler when session count reaches zero', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      await scheduler.smartCustomerSync('user-1');
+      expect(scheduler.isRunning()).toBe(false);
+
+      scheduler.resumeOtherSyncs();
+
+      expect(scheduler.getSessionCount()).toBe(0);
+      expect(scheduler.isRunning()).toBe(true);
+    });
+
+    test('does not resume when session count is still positive', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      await scheduler.smartCustomerSync('user-1');
+      await scheduler.smartCustomerSync('user-1');
+      expect(scheduler.getSessionCount()).toBe(2);
+
+      scheduler.resumeOtherSyncs();
+
+      expect(scheduler.getSessionCount()).toBe(1);
+      expect(scheduler.isRunning()).toBe(false);
+    });
+
+    test('is safe to call when no smart sync is active', () => {
+      const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+
+      scheduler.resumeOtherSyncs();
+
+      expect(scheduler.getSessionCount()).toBe(0);
+    });
+
+    test('does not restart if intervals were never configured', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => []);
+
+      await scheduler.smartCustomerSync('user-1');
+      scheduler.resumeOtherSyncs();
+
+      expect(scheduler.isRunning()).toBe(false);
+    });
+  });
+
+  describe('safety timeout', () => {
+    test('auto-resumes syncs after safety timeout', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      await scheduler.smartCustomerSync('user-1');
+      expect(scheduler.isRunning()).toBe(false);
+
+      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS);
+
+      expect(scheduler.getSessionCount()).toBe(0);
+      expect(scheduler.isRunning()).toBe(true);
+    });
+
+    test('safety timeout resets on subsequent smartCustomerSync calls', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      await scheduler.smartCustomerSync('user-1');
+
+      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
+      await scheduler.smartCustomerSync('user-1');
+
+      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
+      expect(scheduler.isRunning()).toBe(false);
+
+      vi.advanceTimersByTime(1000);
+      expect(scheduler.isRunning()).toBe(true);
+    });
   });
 });
