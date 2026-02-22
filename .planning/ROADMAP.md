@@ -15,7 +15,7 @@ None
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Verification & Test Infrastructure** - Verifica dei 42 elementi riprogettati e setup infrastruttura test
-- [ ] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
+- [x] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
 - [ ] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
 - [ ] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
 - [ ] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
@@ -46,7 +46,7 @@ Plans:
 - [x] 02-01: POST /api/customers/smart-sync e POST /api/customers/resume-syncs
 - [x] 02-02: POST /api/orders/sync-states e GET /api/orders/resolve-numbers
 - [x] 02-03: Interactive customer sessions (5 endpoint: start, vat, heartbeat, save, delete)
-- [ ] 02-04: DELETE /api/sync/:type/clear-db — reset e re-sync completo
+- [x] 02-04: DELETE /api/sync/:type/clear-db — reset e re-sync completo
 
 ### Phase 3: Admin & Monitoring Endpoints
 **Goal**: Implementare gli 8 endpoint di admin e monitoring a media priorità.
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
-| 2. Critical Missing Endpoints | 3/4 | In progress | - |
+| 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
 | 3. Admin & Monitoring Endpoints | 0/3 | Not started | - |
 | 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
 | 5. Stubs & Partial Completion | 0/2 | Not started | - |
