@@ -1,0 +1,195 @@
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import http from 'http';
+
+vi.mock('./config', () => ({
+  config: {
+    database: { host: 'localhost', port: 5432, database: 'test', user: 'test', password: '', maxConnections: 5 },
+    server: { port: 3000, nodeEnv: 'test' },
+    puppeteer: { headless: true, slowMo: 0, timeout: 60000, protocolTimeout: 300000 },
+    archibald: { url: 'https://example.com/Archibald', username: '', password: '' },
+    logging: { level: 'info' },
+  },
+}));
+
+vi.mock('./db/pool', () => ({
+  createPool: vi.fn(() => ({
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+    withTransaction: vi.fn(),
+    end: vi.fn().mockResolvedValue(undefined),
+    getStats: vi.fn(() => ({ totalCount: 0, idleCount: 0, waitingCount: 0 })),
+  })),
+}));
+
+vi.mock('./db/migrate', () => ({
+  runMigrations: vi.fn().mockResolvedValue({ applied: [], skipped: [] }),
+  loadMigrationFiles: vi.fn(() => []),
+}));
+
+vi.mock('./operations/operation-queue', () => ({
+  createOperationQueue: vi.fn(() => ({
+    enqueue: vi.fn().mockResolvedValue('job-1'),
+    getJobStatus: vi.fn(),
+    getAgentJobs: vi.fn(),
+    getStats: vi.fn(),
+    close: vi.fn().mockResolvedValue(undefined),
+    queue: {},
+  })),
+}));
+
+vi.mock('./operations/agent-lock', () => ({
+  createAgentLock: vi.fn(() => ({
+    acquire: vi.fn(),
+    release: vi.fn(),
+    setStopCallback: vi.fn(),
+    getActive: vi.fn(),
+    getAllActive: vi.fn(),
+  })),
+}));
+
+vi.mock('./bot/browser-pool', () => ({
+  createBrowserPool: vi.fn(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    acquireContext: vi.fn(),
+    releaseContext: vi.fn(),
+    getStats: vi.fn(() => ({ browsers: 0, activeContexts: 0, maxContexts: 0, cachedContexts: [] })),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('./sync/sync-scheduler', () => ({
+  createSyncScheduler: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    isRunning: vi.fn(() => false),
+    getIntervals: vi.fn(() => ({ agentSyncMs: 0, sharedSyncMs: 0 })),
+    smartCustomerSync: vi.fn(),
+    resumeOtherSyncs: vi.fn(),
+    getSessionCount: vi.fn(() => 0),
+  })),
+}));
+
+vi.mock('./realtime/websocket-server', () => ({
+  createWebSocketServer: vi.fn(() => ({
+    initialize: vi.fn(),
+    broadcast: vi.fn(),
+    broadcastToAll: vi.fn(),
+    replayEvents: vi.fn(),
+    registerConnection: vi.fn(),
+    unregisterConnection: vi.fn(),
+    getStats: vi.fn(() => ({
+      totalConnections: 0, activeUsers: 0, uptime: 0, reconnectionCount: 0,
+      messagesSent: 0, messagesReceived: 0, averageLatency: 0, connectionsPerUser: {},
+    })),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('./auth-utils', () => ({
+  generateJWT: vi.fn().mockResolvedValue('mock-token'),
+  verifyJWT: vi.fn().mockResolvedValue({ userId: 'test-user' }),
+}));
+
+vi.mock('./password-cache', () => ({
+  PasswordCache: {
+    getInstance: vi.fn(() => ({
+      get: vi.fn(() => null),
+      set: vi.fn(),
+      clear: vi.fn(),
+    })),
+  },
+}));
+
+vi.mock('./server', () => ({
+  createApp: vi.fn((_deps: unknown) => ((_req: unknown, _res: unknown) => {})),
+}));
+
+vi.mock('./logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+vi.mock('puppeteer', () => ({
+  default: { launch: vi.fn() },
+}));
+
+vi.mock('ws', () => ({
+  WebSocketServer: vi.fn(),
+}));
+
+describe('bootstrap', () => {
+  let processOnSpy: ReturnType<typeof vi.spyOn>;
+  let httpCreateServerSpy: ReturnType<typeof vi.spyOn>;
+  const mockServer = {
+    listen: vi.fn((_port: number, cb?: () => void) => { if (cb) cb(); return mockServer; }),
+    on: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    processOnSpy = vi.spyOn(process, 'on').mockImplementation(() => process);
+    httpCreateServerSpy = vi.spyOn(http, 'createServer').mockReturnValue(mockServer as unknown as http.Server);
+  });
+
+  afterEach(() => {
+    processOnSpy.mockRestore();
+    httpCreateServerSpy.mockRestore();
+  });
+
+  test('is exported as a function', async () => {
+    const { bootstrap } = await import('./main');
+    expect(typeof bootstrap).toBe('function');
+  });
+
+  test('initializes all dependencies and starts server', async () => {
+    const { bootstrap } = await import('./main');
+    const { createPool } = await import('./db/pool');
+    const { runMigrations } = await import('./db/migrate');
+    const { createOperationQueue } = await import('./operations/operation-queue');
+    const { createAgentLock } = await import('./operations/agent-lock');
+    const { createBrowserPool } = await import('./bot/browser-pool');
+    const { createSyncScheduler } = await import('./sync/sync-scheduler');
+    const { createWebSocketServer } = await import('./realtime/websocket-server');
+    const { createApp } = await import('./server');
+
+    await bootstrap();
+
+    expect(createPool).toHaveBeenCalledTimes(1);
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(createOperationQueue).toHaveBeenCalledTimes(1);
+    expect(createAgentLock).toHaveBeenCalledTimes(1);
+    expect(createBrowserPool).toHaveBeenCalledTimes(1);
+    expect(createSyncScheduler).toHaveBeenCalledTimes(1);
+    expect(createWebSocketServer).toHaveBeenCalledTimes(1);
+    expect(createApp).toHaveBeenCalledTimes(1);
+    expect(mockServer.listen).toHaveBeenCalledWith(3000, expect.any(Function));
+  });
+
+  test('registers graceful shutdown handlers for SIGTERM and SIGINT', async () => {
+    const { bootstrap } = await import('./main');
+    await bootstrap();
+
+    const signalCalls = processOnSpy.mock.calls
+      .filter(([event]) => event === 'SIGTERM' || event === 'SIGINT')
+      .map(([event]) => event);
+
+    expect(signalCalls).toContain('SIGTERM');
+    expect(signalCalls).toContain('SIGINT');
+  });
+
+  test('starts sync scheduler with default intervals', async () => {
+    const { bootstrap } = await import('./main');
+    const { createSyncScheduler } = await import('./sync/sync-scheduler');
+
+    await bootstrap();
+
+    const scheduler = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.results[0].value;
+    expect(scheduler.start).toHaveBeenCalledWith({
+      agentSyncMs: 5 * 60 * 1000,
+      sharedSyncMs: 30 * 60 * 1000,
+    });
+  });
+});
