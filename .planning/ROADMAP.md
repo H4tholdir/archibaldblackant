@@ -111,7 +111,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: Wire DI dependencies (resetSyncCheckpoint + createTestBot)
+- [x] 08-01: Wire DI dependencies (resetSyncCheckpoint + createTestBot)
 - [ ] 08-02: Add audit log to send-to-verona handler
 
 ### Phase 9: Device Registration
@@ -146,6 +146,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Stubs & Partial Completion | v1.0 | 1/1 | Complete | 2026-02-23 |
 | 6. Frontend Path Migration | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 7. Integration Testing & Parity Validation | v1.0 | 3/3 | Complete | 2026-02-23 |
-| 8. Quick Wiring | v1.1 | 0/? | Not started | - |
+| 8. Quick Wiring | v1.1 | 1/2 | In progress | - |
 | 9. Device Registration | v1.1 | 0/? | Not started | - |
 | 10. Price Management | v1.1 | 0/? | Not started | - |
