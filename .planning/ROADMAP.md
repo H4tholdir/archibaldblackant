@@ -11,7 +11,7 @@ None
 ## Milestones
 
 - ✅ **v1.0 Endpoint Parity** - Phases 1-7 (shipped 2026-02-23, 20 plans)
-- 🚧 **v1.1 Full Feature Parity** - Phases 8-10 (in progress)
+- ✅ **v1.1 Full Feature Parity** - Phases 8-10 (shipped 2026-02-23, 7 plans)
 
 ## Phases
 
@@ -94,13 +94,13 @@ Plans:
 
 </details>
 
-### 🚧 v1.1 Full Feature Parity (In Progress)
+### ✅ v1.1 Full Feature Parity (Shipped 2026-02-23)
 
 **Milestone Goal:** Implementare i 5 elementi rimasti per parità funzionale completa con master — wiring DI mancante, device registration, price management.
 
 - [x] **Phase 8: Quick Wiring** - Reset checkpoint, test login, audit log send-to-verona
 - [x] **Phase 9: Device Registration** - Tabella user_devices, DeviceManager, hook nel login
-- [ ] **Phase 10: Price Management** - Migrazione price_history, PriceMatchingService, 4 endpoint
+- [x] **Phase 10: Price Management** - Migrazione price_history, PriceMatchingService, 4 endpoint
 
 ## Phase Details
 
@@ -133,7 +133,7 @@ Plans:
 - [x] 10-01: parseItalianPrice + matchVariant pure functions (TDD)
 - [x] 10-02: Price History PostgreSQL migration + repository
 - [x] 10-03: matchPricesToProducts service + wire stubs in server.ts
-- [ ] 10-04: sync-prices operation handler + final verification
+- [x] 10-04: sync-prices operation handler + final verification
 
 ## Progress
 
@@ -151,4 +151,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Integration Testing & Parity Validation | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
-| 10. Price Management | v1.1 | 3/4 | In progress | - |
+| 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
