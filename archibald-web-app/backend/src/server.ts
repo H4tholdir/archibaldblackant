@@ -44,6 +44,7 @@ import * as pricesRepo from './db/repositories/prices';
 import * as pricesHistoryRepo from './db/repositories/prices-history';
 import * as syncSessionsRepo from './db/repositories/sync-sessions';
 import * as devicesRepo from './db/repositories/devices';
+import * as adminSessionsRepo from './db/repositories/admin-sessions';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
@@ -659,8 +660,8 @@ function createApp(deps: AppDeps): Express {
       usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
     getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
     generateJWT,
-    createAdminSession: async (_adminUserId, _targetUserId) => 0,
-    closeAdminSession: async (_sessionId) => {},
+    createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
+    closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
     getAllJobs: async (limit, status) => {
       const states = status ? [status] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
       const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
