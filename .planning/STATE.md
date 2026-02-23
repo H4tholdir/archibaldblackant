@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 15 of 16 (Admin Session & SSE)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-23 — Completed 15-02-PLAN.md
+Phase: 16 of 16 (Sync Enhancements)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 16-01-PLAN.md
 
-Progress: █████████░ 97% (38 of 39 total plans)
+Progress: █████████░ 97% (39 of 41 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 38
+- Total plans completed: 39
 - Average duration: ~8min
-- Total execution time: ~4h 30min
+- Total execution time: ~4h 34min
 
 ## Accumulated Context
 
@@ -54,6 +54,8 @@ Key decisions from v1.0/v1.1/v1.2:
 - No getSession/getActiveSessions for admin sessions — YAGNI (15-01)
 - Factory function pub/sub for SSE event bus — no class needed (15-02)
 - Dual broadcast: main.ts fans out to both WebSocket and SSE event bus (15-02)
+- Pure deriveResumePoint helper for threshold logic — 30min stale lock, 1h completion cooldown (16-01)
+- Checkpoint supplements sync_sessions, does not replace it (16-01)
 
 ### Audit Findings (v1.2 scope)
 
@@ -73,7 +75,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 15-02-PLAN.md — Phase 15 complete (2/2 plans)
+Stopped at: Completed 16-01-PLAN.md — Phase 16 in progress (1/3 plans)
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1418 backend + 441 frontend = 1859 passing
+Test baseline: 1435 backend + 441 frontend = 1876 passing
