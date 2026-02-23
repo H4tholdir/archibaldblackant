@@ -24,14 +24,14 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetchWithRetry(`/api/orders/status/${jobId}`);
+        const response = await fetchWithRetry(`/api/operations/${jobId}/status`);
         const data = await response.json();
 
         if (data.success) {
-          setStatus(data.data);
+          setStatus(data.job);
 
           // Se lo stato è completato o fallito, ferma il polling
-          if (data.data.status === 'completed' || data.data.status === 'failed') {
+          if (data.job.status === 'completed' || data.job.status === 'failed') {
             setLoading(false);
           }
         }

@@ -98,14 +98,14 @@ export function usePendingSync(): UsePendingSyncReturn {
 
         try {
           const response = await fetchWithRetry(
-            `/api/orders/status/${order.jobId}`,
+            `/api/operations/${order.jobId}/status`,
           );
           if (!response.ok) continue;
 
           const data = await response.json();
           if (!data.success) continue;
 
-          const jobState = data.data?.status;
+          const jobState = data.job?.status;
           if (
             jobState === "failed" ||
             jobState === "completed" ||
