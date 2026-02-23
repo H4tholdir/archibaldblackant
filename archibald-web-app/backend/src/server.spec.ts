@@ -168,4 +168,15 @@ describe('createApp', () => {
 
     expect(response.status).not.toBe(415);
   });
+
+  test('GET /metrics returns Prometheus metrics without auth', async () => {
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const response = await request(app).get('/metrics');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toMatch(/^text\/plain/);
+    expect(response.text).toContain('archibald_');
+  });
 });

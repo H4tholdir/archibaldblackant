@@ -37,6 +37,7 @@ import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
+import { register as metricsRegister } from './metrics';
 import { logger } from './logger';
 
 type PasswordCacheLike = {
@@ -84,6 +85,16 @@ function createApp(deps: AppDeps): Express {
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/metrics', async (_req, res) => {
+    try {
+      res.set('Content-Type', metricsRegister.contentType);
+      const metrics = await metricsRegister.metrics();
+      res.end(metrics);
+    } catch {
+      res.status(500).end();
+    }
   });
 
   app.get('/api/websocket/health', authenticateJWT, requireAdmin, (_req, res) => {
