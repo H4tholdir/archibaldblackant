@@ -201,7 +201,7 @@ Plans:
 
 Plans:
 - [x] 16-01: Sync checkpoint repository with page-level resume
-- [ ] 16-02: Product sync retry + delta sync endpoints
+- [x] 16-02: Product sync retry + delta sync endpoints
 - [ ] 16-03: Slowdown optimizer + smart sync variants
 
 ## Progress
@@ -226,4 +226,4 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 15. Admin Session & SSE | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 16. Sync Enhancements | v1.2 | 1/3 | In progress | - |
+| 16. Sync Enhancements | v1.2 | 2/3 | In progress | - |
