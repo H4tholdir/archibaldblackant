@@ -89,6 +89,18 @@ async function getLastSyncSession(pool: DbPool): Promise<SyncSession | null> {
   return sessions[0] ?? null;
 }
 
+async function resetCheckpoint(pool: DbPool, syncType: string): Promise<void> {
+  await pool.query(
+    `UPDATE shared.sync_sessions
+     SET status = 'failed',
+         error_message = 'Checkpoint resettato manualmente',
+         completed_at = $1
+     WHERE sync_type = $2
+       AND status IN ('running', 'partial')`,
+    [Date.now(), syncType],
+  );
+}
+
 async function getSyncStats(pool: DbPool): Promise<SyncStats> {
   const { rows } = await pool.query<{
     total_syncs: string;
@@ -127,6 +139,7 @@ export {
   getSyncHistory,
   getLastSyncSession,
   getSyncStats,
+  resetCheckpoint,
   mapRowToSession,
   type SyncSession,
   type SyncSessionRow,

@@ -18,6 +18,7 @@ import { createOrdersRouter } from './routes/orders';
 import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
 import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
+import type { ResetSyncType } from './routes/sync-status';
 import { createAdminRouter } from './routes/admin';
 import { createPricesRouter } from './routes/prices';
 import { createShareRouter } from './routes/share';
@@ -500,6 +501,7 @@ function createApp(deps: AppDeps): Express {
     agentLock,
     syncScheduler: syncSchedulerDeps,
     clearSyncData: (type: string) => clearSyncData(pool, type),
+    resetSyncCheckpoint: (type: ResetSyncType) => syncSessionsRepo.resetCheckpoint(pool, type),
     getGlobalCustomerCount: () => customersRepo.getGlobalCustomerCount(pool),
     getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
     getProductCount: () => productsRepo.getProductCount(pool),
