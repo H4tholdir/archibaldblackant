@@ -3,8 +3,11 @@ import { handleSendToVerona, type SendToVeronaBot, type SendToVeronaData } from 
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
+  const queryMock = vi.fn()
+    .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 })
+    .mockResolvedValue({ rows: [], rowCount: 1 });
   return {
-    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+    query: queryMock,
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   };
@@ -31,31 +34,52 @@ describe('handleSendToVerona', () => {
     expect(bot.sendOrderToVerona).toHaveBeenCalledWith('ORD-001');
   });
 
-  test('updates order state to inviato_milano in DB', async () => {
+  test('updates order state to inviato_milano via updateOrderState', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.order_records'));
-    expect(updateCalls).toHaveLength(1);
-
-    const params = updateCalls[0][1] as unknown[];
-    expect(params).toContain('inviato_milano');
-    expect(params).toContain('ORD-001');
-    expect(params).toContain('user-1');
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const stateUpdateCall = calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.order_records SET current_state'),
+    );
+    expect(stateUpdateCall).toBeDefined();
+    expect(stateUpdateCall![1]).toEqual(['inviato_milano', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes only one DB query (UPDATE order state)', async () => {
+  test('executes 4 DB queries for audit trail', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-    expect(pool.query).toHaveBeenCalledTimes(1);
-    const call = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(call[0]).toContain('UPDATE agents.order_records');
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(4);
+    expect(calls[0][0]).toContain('SELECT current_state');
+    expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
+    expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
+    expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_milano_at');
+  });
+
+  test('inserts audit entry in order_state_history', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const historyInsert = calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_state_history'),
+    );
+    expect(historyInsert).toBeDefined();
+
+    const params = historyInsert![1] as unknown[];
+    expect(params).toEqual([
+      'ORD-001', 'user-1', 'bozza', 'inviato_milano',
+      'system', 'Sent to Verona', null, 'send-to-verona',
+      expect.any(String), expect.any(String),
+    ]);
   });
 
   test('returns success with sentToMilanoAt timestamp', async () => {
