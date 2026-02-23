@@ -28,6 +28,7 @@ import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
 import { createSubclientsRouter } from './routes/subclients';
 import * as subclientsRepo from './db/repositories/subclients';
+import { importSubClients } from './services/subclient-excel-importer';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
@@ -593,7 +594,15 @@ function createApp(deps: AppDeps): Express {
       return { removedCompleted: completed.length, removedFailed: failed.length };
     },
     getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
-    importSubclients: async (_buffer, _filename) => ({ success: true, imported: 0, skipped: 0 }),
+    importSubclients: async (buffer, filename) =>
+      importSubClients(buffer, filename, {
+        upsertSubclients: (subs) => subclientsRepo.upsertSubclients(pool, subs),
+        getAllCodici: async () => {
+          const all = await subclientsRepo.getAllSubclients(pool);
+          return all.map((s) => s.codice);
+        },
+        deleteSubclientsByCodici: (codici) => subclientsRepo.deleteSubclientsByCodici(pool, codici),
+      }),
   }));
 
   app.use('/api/widget', authenticateJWT, createWidgetRouter({
