@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 14 of 16 (Price/VAT Excel Import)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-23 — Completed 14-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-23 — Completed 14-02-PLAN.md
 
-Progress: █████████░ 87% (35 of 39 total plans)
+Progress: █████████░ 92% (36 of 39 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 35
+- Total plans completed: 36
 - Average duration: ~8min
-- Total execution time: ~4h 15min
+- Total execution time: ~4h 22min
 
 ## Accumulated Context
 
@@ -48,6 +48,9 @@ Key decisions from v1.0/v1.1/v1.2:
 - ft_counter seeded from imported NUMERODOC max via GREATEST() (13-01)
 - findSiblingVariants returns ALL siblings including self — caller filters (14-01)
 - escapeRegex local helper in products.ts for dot-containing product IDs (14-01)
+- parseVatValue handles Italian comma format and percentage strings (14-02)
+- Invalid Excel buffers → "missing required columns" error (xlsx lenient with binary) (14-02)
+- recordPriceChange .then(() => {}) to discard return value for Promise<void> deps type (14-02)
 
 ### Audit Findings (v1.2 scope)
 
@@ -67,7 +70,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 14-01-PLAN.md — Phase 14 in progress (1/2 plans)
+Stopped at: Completed 14-02-PLAN.md — Phase 14 complete (2/2 plans)
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1378 backend + 441 frontend = 1819 passing
+Test baseline: 1408 backend + 441 frontend = 1849 passing
