@@ -164,7 +164,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: Subclient PostgreSQL repository + wire stubs in server.ts
+- [x] 12-01: Subclient PostgreSQL repository + wire stubs in server.ts
 - [ ] 12-02: Subclient Excel importer (code normalization, header mapping, bulk upsert)
 
 ### Phase 13: Fresis History Completion
@@ -220,7 +220,7 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
 | 11. Bootstrap & Entry Point | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 12. Subclient System | v1.2 | 0/2 | Not started | - |
+| 12. Subclient System | v1.2 | 1/2 | In progress | - |
 | 13. Fresis History Completion | v1.2 | 0/2 | Not started | - |
 | 14. Price/VAT Excel Import | v1.2 | 0/1 | Not started | - |
 | 15. Admin Session & SSE | v1.2 | 0/1 | Not started | - |

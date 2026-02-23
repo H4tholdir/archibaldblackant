@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 11 of 16 (Bootstrap & Entry Point)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-23 — Completed 11-02-PLAN.md
+Phase: 12 of 16 (Subclient System)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 12-01-PLAN.md
 
-Progress: ████████░░ 76% (29 of 38 total plans)
+Progress: ████████░░ 79% (30 of 38 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 29
+- Total plans completed: 30
 - Average duration: ~8min
-- Total execution time: ~3h 41min
+- Total execution time: ~3h 49min
 
 ## Accumulated Context
 
@@ -37,6 +37,9 @@ Key decisions from v1.0/v1.1/v1.2:
 - createOperationQueue() reads Redis config from env vars, not config.ts (11-01)
 - Operation processor wired with 10 handler types via handler map pattern (11-02)
 - Sync scheduler: 10min agent, 30min shared intervals (11-02)
+- Subclient type: single source of truth in repository, imported by routes (12-01)
+- Subclient search: ILIKE across ragione_sociale, suppl_ragione_sociale, codice (12-01)
+- Bulk upsert: ON CONFLICT (codice) DO UPDATE for idempotent import (12-01)
 
 ### Audit Findings (v1.2 scope)
 
@@ -56,7 +59,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 11-02-PLAN.md (Phase 11 complete)
+Stopped at: Completed 12-01-PLAN.md (1 of 2 in Phase 12)
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1286 backend + 441 frontend = 1727 passing
+Test baseline: 1307 backend + 441 frontend = 1748 passing
