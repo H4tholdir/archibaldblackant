@@ -1,7 +1,9 @@
 import fc from 'fast-check';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { ProductRow } from '../db/repositories/products';
-import { matchVariant, parseItalianPrice } from './price-matching';
+import type { PriceRow } from '../db/repositories/prices';
+import type { MatchPricesToProductsDeps } from './price-matching';
+import { matchVariant, parseItalianPrice, matchPricesToProducts, computeChangeType } from './price-matching';
 
 function makeProduct(overrides: Partial<ProductRow> & Pick<ProductRow, 'id'>): ProductRow {
   return {
@@ -170,5 +172,279 @@ describe('matchVariant', () => {
     const contentMatch = makeProduct({ id: 'A.K3', package_content: '5 colli' });
     const suffixMatch = makeProduct({ id: 'B.K2', package_content: '1 collo' });
     expect(matchVariant([contentMatch, suffixMatch], 'K2')).toEqual(contentMatch);
+  });
+});
+
+function makePriceRow(overrides: Partial<PriceRow> & Pick<PriceRow, 'product_id' | 'product_name'>): PriceRow {
+  return {
+    id: 1,
+    unit_price: '10,00',
+    item_selection: null,
+    packaging_description: null,
+    currency: 'EUR',
+    price_valid_from: null,
+    price_valid_to: null,
+    price_unit: null,
+    account_description: null,
+    account_code: null,
+    price_qty_from: null,
+    price_qty_to: null,
+    last_modified: null,
+    data_area_id: null,
+    hash: 'hash-1',
+    last_sync: 0,
+    created_at: null,
+    updated_at: null,
+    ...overrides,
+  };
+}
+
+function createMockDeps(overrides?: Partial<MatchPricesToProductsDeps>): MatchPricesToProductsDeps {
+  return {
+    getAllPrices: vi.fn().mockResolvedValue([]),
+    getProductVariants: vi.fn().mockResolvedValue([]),
+    updateProductPrice: vi.fn().mockResolvedValue(true),
+    recordPriceChange: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+describe('computeChangeType', () => {
+  test('returns "new" when old price is null', () => {
+    expect(computeChangeType(null, 10)).toBe('new');
+  });
+
+  test('returns "increase" when new price is greater than old price', () => {
+    expect(computeChangeType(5, 10)).toBe('increase');
+  });
+
+  test('returns "decrease" when new price is less than old price', () => {
+    expect(computeChangeType(10, 5)).toBe('decrease');
+  });
+
+  test('returns "decrease" when prices are equal', () => {
+    expect(computeChangeType(10, 10)).toBe('decrease');
+  });
+});
+
+describe('matchPricesToProducts', () => {
+  test('returns zero counts for empty prices list', async () => {
+    const deps = createMockDeps();
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 0, unmatched: 0, skipped: 0 },
+      unmatchedPrices: [],
+    });
+  });
+
+  test('skips price with null unit_price and adds to unmatched with reason null_price', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: null });
+    const deps = createMockDeps({ getAllPrices: vi.fn().mockResolvedValue([price]) });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 0, unmatched: 0, skipped: 1 },
+      unmatchedPrices: [{ productId: 'P1', productName: 'Prodotto A', reason: 'null_price' }],
+    });
+    expect(deps.getProductVariants).not.toHaveBeenCalled();
+  });
+
+  test('skips price with unparseable unit_price and adds to unmatched with reason unparseable_price', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: 'abc' });
+    const deps = createMockDeps({ getAllPrices: vi.fn().mockResolvedValue([price]) });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 0, unmatched: 0, skipped: 1 },
+      unmatchedPrices: [{ productId: 'P1', productName: 'Prodotto A', reason: 'unparseable_price' }],
+    });
+    expect(deps.getProductVariants).not.toHaveBeenCalled();
+  });
+
+  test('counts as unmatched when no products found for product_name', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '10,00' });
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([]),
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 0, unmatched: 1, skipped: 0 },
+      unmatchedPrices: [{ productId: 'P1', productName: 'Prodotto A', reason: 'product_not_found' }],
+    });
+  });
+
+  test('counts as unmatched with variant_mismatch when matchVariant returns null', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '10,00', item_selection: 'K2' });
+    const product = makeProduct({ id: 'P1.K3', name: 'Prodotto A', package_content: '1 collo' });
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 0, unmatched: 1, skipped: 0 },
+      unmatchedPrices: [{ productId: 'P1', productName: 'Prodotto A', reason: 'variant_mismatch' }],
+    });
+  });
+
+  test('matches price to product, updates price, and records price change when price differs', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '15,50' });
+    const product = makeProduct({ id: 'P1', name: 'Prodotto A', price: 10, vat: 22 });
+
+    const recordPriceChange = vi.fn().mockResolvedValue(undefined);
+    const updateProductPrice = vi.fn().mockResolvedValue(true);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+      updateProductPrice,
+      recordPriceChange,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 1, unmatched: 0, skipped: 0 },
+      unmatchedPrices: [],
+    });
+    expect(updateProductPrice).toHaveBeenCalledWith('P1', 15.5, 22, 'prices-db', null);
+    expect(recordPriceChange).toHaveBeenCalledWith({
+      productId: 'P1',
+      productName: 'Prodotto A',
+      variantId: null,
+      oldPrice: '10',
+      newPrice: '15.5',
+      oldPriceNumeric: 10,
+      newPriceNumeric: 15.5,
+      priceChange: 5.5,
+      percentageChange: 55.00000000000001,
+      changeType: 'increase',
+      source: 'pdf-sync',
+    });
+  });
+
+  test('matches price to product and does NOT record price change when price is unchanged', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '10,00' });
+    const product = makeProduct({ id: 'P1', name: 'Prodotto A', price: 10, vat: 22 });
+
+    const recordPriceChange = vi.fn().mockResolvedValue(undefined);
+    const updateProductPrice = vi.fn().mockResolvedValue(true);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+      updateProductPrice,
+      recordPriceChange,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result).toEqual({
+      result: { matched: 1, unmatched: 0, skipped: 0 },
+      unmatchedPrices: [],
+    });
+    expect(updateProductPrice).toHaveBeenCalledWith('P1', 10, 22, 'prices-db', null);
+    expect(recordPriceChange).not.toHaveBeenCalled();
+  });
+
+  test('records price change with "new" type when product has no existing price', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '10,00' });
+    const product = makeProduct({ id: 'P1', name: 'Prodotto A', price: null, vat: null });
+
+    const recordPriceChange = vi.fn().mockResolvedValue(undefined);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+      recordPriceChange,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result.result).toEqual({ matched: 1, unmatched: 0, skipped: 0 });
+    expect(recordPriceChange).toHaveBeenCalledWith(expect.objectContaining({
+      changeType: 'new',
+      oldPrice: null,
+      oldPriceNumeric: null,
+      priceChange: null,
+      percentageChange: null,
+    }));
+  });
+
+  test('records price change with "decrease" type when new price is lower', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '8,00' });
+    const product = makeProduct({ id: 'P1', name: 'Prodotto A', price: 10, vat: 22 });
+
+    const recordPriceChange = vi.fn().mockResolvedValue(undefined);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+      recordPriceChange,
+    });
+
+    await matchPricesToProducts(deps);
+
+    expect(recordPriceChange).toHaveBeenCalledWith(expect.objectContaining({
+      changeType: 'decrease',
+      priceChange: -2,
+      percentageChange: -20,
+    }));
+  });
+
+  test('correctly passes item_selection as variantId in price change record', async () => {
+    const price = makePriceRow({ product_id: 'P1', product_name: 'Prodotto A', unit_price: '15,00', item_selection: 'K2' });
+    const product = makeProduct({ id: 'P1.K2', name: 'Prodotto A', price: 10, package_content: '5 colli' });
+
+    const recordPriceChange = vi.fn().mockResolvedValue(undefined);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([product]),
+      recordPriceChange,
+    });
+
+    await matchPricesToProducts(deps);
+
+    expect(recordPriceChange).toHaveBeenCalledWith(expect.objectContaining({
+      variantId: 'K2',
+    }));
+  });
+
+  test('handles multiple prices with mixed outcomes', async () => {
+    const prices = [
+      makePriceRow({ id: 1, product_id: 'P1', product_name: 'Matched', unit_price: '10,00' }),
+      makePriceRow({ id: 2, product_id: 'P2', product_name: 'Null Price', unit_price: null }),
+      makePriceRow({ id: 3, product_id: 'P3', product_name: 'Not Found', unit_price: '5,00' }),
+      makePriceRow({ id: 4, product_id: 'P4', product_name: 'Variant Miss', unit_price: '7,00', item_selection: 'K2' }),
+    ];
+
+    const matchedProduct = makeProduct({ id: 'P1', name: 'Matched', price: 8, vat: 10 });
+    const variantMissProduct = makeProduct({ id: 'P4.K3', name: 'Variant Miss', package_content: '1 collo' });
+
+    const getProductVariants = vi.fn()
+      .mockImplementation((name: string) => {
+        if (name === 'Matched') return Promise.resolve([matchedProduct]);
+        if (name === 'Not Found') return Promise.resolve([]);
+        if (name === 'Variant Miss') return Promise.resolve([variantMissProduct]);
+        return Promise.resolve([]);
+      });
+
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue(prices),
+      getProductVariants,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result.result).toEqual({ matched: 1, unmatched: 2, skipped: 1 });
+    expect(result.unmatchedPrices).toEqual([
+      { productId: 'P2', productName: 'Null Price', reason: 'null_price' },
+      { productId: 'P3', productName: 'Not Found', reason: 'product_not_found' },
+      { productId: 'P4', productName: 'Variant Miss', reason: 'variant_mismatch' },
+    ]);
   });
 });
