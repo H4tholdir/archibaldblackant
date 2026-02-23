@@ -142,7 +142,7 @@ Plans:
 
 - [x] **Phase 11: Bootstrap & Entry Point** - main.ts, migrations, graceful shutdown, background services
 - [x] **Phase 12: Subclient System** - Repository PostgreSQL, Excel importer, wire stubs
-- [ ] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
+- [x] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
 - [ ] **Phase 14: Price/VAT Excel Import** - ExcelVatImporter, matching prodotti, propagazione VAT
 - [ ] **Phase 15: Admin Session & SSE** - Impersonificazione admin, eventi SSE real-time
 - [ ] **Phase 16: Sync Enhancements** - Checkpoint/resume, retry, delta sync, optimizer
@@ -174,7 +174,7 @@ Plans:
 
 Plans:
 - [x] 13-01: getNextFtNumber + exportArca + importArca implementations
-- [ ] 13-02: Missing endpoints (reassign-merged, PUT /:id, archive) + discount bulk upload
+- [x] 13-02: Missing endpoints (reassign-merged, PUT /:id, archive) + discount bulk upload
 
 ### Phase 14: Price/VAT Excel Import
 **Goal**: Import Excel VAT con matching prodotti e propagazione VAT ai sibling variants.
@@ -221,7 +221,7 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
 | 11. Bootstrap & Entry Point | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 13. Fresis History Completion | v1.2 | 1/2 | In progress | - |
+| 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 0/1 | Not started | - |
 | 15. Admin Session & SSE | v1.2 | 0/1 | Not started | - |
 | 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |
