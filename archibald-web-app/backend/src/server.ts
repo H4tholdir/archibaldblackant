@@ -29,6 +29,8 @@ import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/
 import { createSubclientsRouter } from './routes/subclients';
 import * as subclientsRepo from './db/repositories/subclients';
 import { importSubClients } from './services/subclient-excel-importer';
+import { importExcelVat } from './services/excel-vat-importer';
+import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
@@ -402,8 +404,15 @@ function createApp(deps: AppDeps): Express {
     getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
     getPriceHistory: (productId, limit) => pricesHistoryRepo.getProductHistory(pool, productId, limit),
     getRecentPriceChanges: (days) => pricesHistoryRepo.getRecentChanges(pool, days),
-    getImportHistory: async () => [],
-    importExcel: async (_buffer, _filename, _userId) => ({ totalRows: 0, matched: 0, unmatched: 0, errors: ['Not yet implemented'] }),
+    getImportHistory: () => excelVatImportsRepo.getImportHistory(pool),
+    importExcel: (buffer, filename, userId) => importExcelVat(buffer, filename, userId, {
+      getProductById: (id) => productsRepo.getProductById(pool, id),
+      findSiblingVariants: (productId) => productsRepo.findSiblingVariants(pool, productId),
+      updateProductVat: (productId, vat, vatSource) => productsRepo.updateProductVat(pool, productId, vat, vatSource),
+      updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+      recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
+      recordImport: (data) => excelVatImportsRepo.recordImport(pool, data),
+    }),
     getProductsWithoutVat: (limit) => productsRepo.getProductsWithoutVat(pool, limit),
     matchPricesToProducts: () => matchPricesToProducts({
       getAllPrices: () => pricesRepo.getAllPrices(pool),
