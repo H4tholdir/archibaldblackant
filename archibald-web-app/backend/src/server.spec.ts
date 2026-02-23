@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { createApp, type AppDeps } from './server';
+import { generateJWT } from './auth-utils';
 import request from 'supertest';
 
 function createMockDeps(): AppDeps {
@@ -178,5 +179,44 @@ describe('createApp', () => {
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toMatch(/^text\/plain/);
     expect(response.text).toContain('archibald_');
+  });
+
+  test('GET /api/cache/export requires authentication', async () => {
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const response = await request(app).get('/api/cache/export');
+
+    expect(response.status).toBe(401);
+  });
+
+  test('GET /api/cache/export returns data with correct structure', async () => {
+    const deps = createMockDeps();
+    const app = createApp(deps);
+    const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent' });
+
+    const response = await request(app)
+      .get('/api/cache/export')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        customers: [],
+        products: [],
+        variants: [],
+        prices: [],
+      },
+      metadata: {
+        exportedAt: expect.any(String),
+        recordCounts: {
+          customers: 0,
+          products: 0,
+          variants: 0,
+          prices: 0,
+        },
+      },
+    });
   });
 });

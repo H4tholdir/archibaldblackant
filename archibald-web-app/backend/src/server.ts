@@ -9,6 +9,7 @@ import type { SyncScheduler } from './sync/sync-scheduler';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import type { JWTPayload } from './auth-utils';
 import { authenticateJWT, requireAdmin } from './middleware/auth';
+import type { AuthRequest } from './middleware/auth';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
 import { createCustomersRouter } from './routes/customers';
@@ -412,6 +413,46 @@ function createApp(deps: AppDeps): Express {
     sendEmail,
     uploadToDropbox,
   }));
+
+  app.get('/api/cache/export', authenticateJWT, async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+
+      const [customers, products, variants, prices] = await Promise.all([
+        customersRepo.getCustomers(pool, userId),
+        productsRepo.getAllProducts(pool),
+        productsRepo.getAllProductVariants(pool),
+        pricesRepo.getAllPrices(pool),
+      ]);
+
+      const durationMs = Date.now() - startTime;
+      const recordCounts = {
+        customers: customers.length,
+        products: products.length,
+        variants: variants.length,
+        prices: prices.length,
+      };
+
+      logger.info('[Cache Export] Completed', { userId, durationMs, recordCounts });
+
+      res.json({
+        success: true,
+        data: { customers, products, variants, prices },
+        metadata: {
+          exportedAt: new Date().toISOString(),
+          recordCounts,
+        },
+      });
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      logger.error('[Cache Export] Failed', {
+        error: error instanceof Error ? error.message : String(error),
+        durationMs,
+      });
+      res.status(500).json({ success: false, error: 'Cache export failed' });
+    }
+  });
 
   return app;
 }
