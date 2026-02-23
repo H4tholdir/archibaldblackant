@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Una PWA per agenti commerciali Komet che funziona identicamente alla versione in produzione, ma con un backend modulare, testabile e manutenibile.
-**Current focus:** Phase 4 in progress — Low Priority & Debug Endpoints
+**Current focus:** Phase 4 complete — Ready for Phase 5: Stubs & Partial Completion
 
 ## Current Position
 
 Phase: 4 of 7 (Low Priority & Debug Endpoints)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-23 — Completed 04-02-PLAN.md (adaptive timeouts + retention)
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-23 — Completed 04-03-PLAN.md (test login + PDF parser health checks)
 
-Progress: █████░░░░░ ~57% (12/21 plans)
+Progress: ██████░░░░ ~62% (13/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 6min
-- Total execution time: 1.22 hours
+- Total execution time: 1.29 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: █████░░░░░ ~57% (12/21 plans)
 | 1. Verification | 3 | 22min | 7min |
 | 2. Critical Missing Endpoints | 4 | 22min | 6min |
 | 3. Admin & Monitoring Endpoints | 3 | 20min | 7min |
-| 4. Low Priority & Debug | 2 | 9min | 5min |
+| 4. Low Priority & Debug | 3 | 13min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (6min), 03-03 (6min), 04-01 (6min), 04-02 (3min)
-- Trend: Steady ~5-7min per plan
+- Last 5 plans: 03-03 (6min), 04-01 (6min), 04-02 (3min), 04-03 (4min)
+- Trend: Steady ~4-6min per plan
 
 ## Accumulated Context
 
@@ -63,6 +63,8 @@ Recent decisions affecting current work:
 - 03-03: resetSyncCheckpoint as optional DI dependency (not direct DB query in route handler)
 - 03-03: 501 response when resetSyncCheckpoint not configured (graceful degradation)
 - 04-02: Timeout endpoints placed as standalone routes without auth, matching master behavior
+- 04-03: createTestBot as optional DI dep with 501 graceful degradation (matching 03-03 pattern)
+- 04-03: Health check endpoints unauthenticated (monitoring probes need no auth)
 
 ### Deferred Issues
 
@@ -77,7 +79,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 04-02-PLAN.md. Next: 04-03-PLAN.md
-Resume file: .planning/phases/04-low-priority-debug-endpoints/04-02-SUMMARY.md
-Feature branch: feat/unified-operation-queue (latest commit: cd08b33)
-Test baseline: 851 backend + 418 frontend = 1269 passing, 12 skipped
+Stopped at: Completed 04-03-PLAN.md. Phase 4 complete. Next: Phase 5
+Resume file: .planning/phases/04-low-priority-debug-endpoints/04-03-SUMMARY.md
+Feature branch: feat/unified-operation-queue (latest commit: d319103)
+Test baseline: 860 backend + 418 frontend = 1278 passing, 12 skipped

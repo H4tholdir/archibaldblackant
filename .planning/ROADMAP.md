@@ -17,7 +17,7 @@ None
 - [x] **Phase 1: Verification & Test Infrastructure** - Verifica dei 42 elementi riprogettati e setup infrastruttura test
 - [x] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
 - [x] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
-- [ ] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
+- [x] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
 - [ ] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
 - [ ] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
 - [ ] **Phase 7: Integration Testing & Parity Validation** - Test E2E e validazione parità 100%
@@ -69,7 +69,7 @@ Plans:
 Plans:
 - [x] 04-01: GET /metrics (Prometheus), GET /api/cache/export
 - [x] 04-02: Adaptive timeouts (3 endpoint), GET /api/admin/jobs/retention
-- [ ] 04-03: POST /api/test/login, 6 health check PDF parser
+- [x] 04-03: POST /api/test/login, 6 health check PDF parser
 
 ### Phase 5: Stubs & Partial Completion
 **Goal**: Completare gli 11 elementi parziali/stub già presenti nel branch.
@@ -113,7 +113,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
 | 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
 | 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
-| 4. Low Priority & Debug Endpoints | 2/3 | In progress | - |
+| 4. Low Priority & Debug Endpoints | 3/3 | Complete | 2026-02-23 |
 | 5. Stubs & Partial Completion | 0/2 | Not started | - |
 | 6. Frontend Path Migration | 0/3 | Not started | - |
 | 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
