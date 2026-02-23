@@ -44,6 +44,7 @@ import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as pricesHistoryRepo from './db/repositories/prices-history';
 import * as syncSessionsRepo from './db/repositories/sync-sessions';
+import * as syncCheckpointsRepo from './db/repositories/sync-checkpoints';
 import * as devicesRepo from './db/repositories/devices';
 import * as adminSessionsRepo from './db/repositories/admin-sessions';
 import * as dashboardService from './dashboard-service';
@@ -633,7 +634,7 @@ function createApp(deps: AppDeps): Express {
     agentLock,
     syncScheduler: syncSchedulerDeps,
     clearSyncData: (type: string) => clearSyncData(pool, type),
-    resetSyncCheckpoint: (type: ResetSyncType) => syncSessionsRepo.resetCheckpoint(pool, type),
+    resetSyncCheckpoint: (type: ResetSyncType) => syncCheckpointsRepo.resetCheckpoint(pool, type),
     getGlobalCustomerCount: () => customersRepo.getGlobalCustomerCount(pool),
     getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
     getProductCount: () => productsRepo.getProductCount(pool),
