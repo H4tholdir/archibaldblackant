@@ -40,6 +40,12 @@ import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
 import { AdaptiveTimeoutManager } from './adaptive-timeout-manager';
+import { pdfParserService } from './pdf-parser-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { PDFParserPricesService } from './pdf-parser-prices-service';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 import { logger } from './logger';
 
 type PasswordCacheLike = {
@@ -88,6 +94,71 @@ function createApp(deps: AppDeps): Express {
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/api/health/pdf-parser', async (_req, res) => {
+    try {
+      const isHealthy = await pdfParserService.healthCheck();
+      if (isHealthy) {
+        res.json({ status: 'ok', message: 'PDF parser ready (Python3 + PyPDF2 available)' });
+      } else {
+        res.status(503).json({ status: 'error', message: 'PDF parser not ready. Check logs for details.' });
+      }
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-products', async (_req, res) => {
+    try {
+      const health = await PDFParserProductsService.getInstance().healthCheck();
+      res.status(health.healthy ? 200 : 503).json(health);
+    } catch {
+      res.status(500).json({ healthy: false, error: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-prices', async (_req, res) => {
+    try {
+      const health = await PDFParserPricesService.getInstance().healthCheck();
+      if (health.healthy) {
+        res.json({ status: 'ok', message: 'Prices PDF parser ready (Python3 + PyPDF2 available)', ...health });
+      } else {
+        res.status(503).json({ status: 'unavailable', message: 'Prices PDF parser not ready. Check logs for details.', ...health });
+      }
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-orders', (_req, res) => {
+    const parserService = PDFParserOrdersService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-orders-pdf.py', timeout: '300s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'Orders PDF parser not available', ...health });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-ddt', (_req, res) => {
+    const parserService = PDFParserDDTService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-ddt-pdf.py', timeout: '180s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'DDT PDF parser not available', ...health });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-invoices', (_req, res) => {
+    const parserService = PDFParserInvoicesService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-invoices-pdf.py', timeout: '120s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'Invoices PDF parser not available', ...health });
+    }
   });
 
   app.get('/metrics', async (_req, res) => {

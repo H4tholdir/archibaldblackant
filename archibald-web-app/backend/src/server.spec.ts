@@ -1,7 +1,60 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { createApp, type AppDeps } from './server';
 import { generateJWT } from './auth-utils';
 import request from 'supertest';
+
+vi.mock('./pdf-parser-service', () => ({
+  pdfParserService: {
+    healthCheck: vi.fn(),
+  },
+}));
+
+vi.mock('./pdf-parser-products-service', () => ({
+  PDFParserProductsService: {
+    getInstance: vi.fn().mockReturnValue({
+      healthCheck: vi.fn(),
+    }),
+  },
+}));
+
+vi.mock('./pdf-parser-prices-service', () => ({
+  PDFParserPricesService: {
+    getInstance: vi.fn().mockReturnValue({
+      healthCheck: vi.fn(),
+    }),
+  },
+}));
+
+vi.mock('./pdf-parser-orders-service', () => ({
+  PDFParserOrdersService: {
+    getInstance: vi.fn().mockReturnValue({
+      isAvailable: vi.fn().mockReturnValue(false),
+    }),
+  },
+}));
+
+vi.mock('./pdf-parser-ddt-service', () => ({
+  PDFParserDDTService: {
+    getInstance: vi.fn().mockReturnValue({
+      isAvailable: vi.fn().mockReturnValue(false),
+    }),
+  },
+}));
+
+vi.mock('./pdf-parser-invoices-service', () => ({
+  PDFParserInvoicesService: {
+    getInstance: vi.fn().mockReturnValue({
+      isAvailable: vi.fn().mockReturnValue(false),
+    }),
+  },
+}));
+
+import { pdfParserService } from './pdf-parser-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { PDFParserPricesService } from './pdf-parser-prices-service';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 
 function createMockDeps(): AppDeps {
   const mockPool = {
@@ -329,6 +382,99 @@ describe('createApp', () => {
         error: 'Credenziali non valide',
       });
       expect(mockBot.close).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('GET /api/health/pdf-parser', () => {
+    test('returns 200 when parser is healthy', async () => {
+      vi.mocked(pdfParserService.healthCheck).mockResolvedValue(true);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        status: 'ok',
+        message: 'PDF parser ready (Python3 + PyPDF2 available)',
+      });
+    });
+
+    test('returns 503 when parser is not healthy', async () => {
+      vi.mocked(pdfParserService.healthCheck).mockResolvedValue(false);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({
+        status: 'error',
+        message: 'PDF parser not ready. Check logs for details.',
+      });
+    });
+  });
+
+  describe('GET /api/health/pdf-parser-products', () => {
+    test('returns 200 when products parser is healthy', async () => {
+      const healthResult = { healthy: true, pythonVersion: 'Python 3.11.0', pdfplumberAvailable: true };
+      vi.mocked(PDFParserProductsService.getInstance().healthCheck).mockResolvedValue(healthResult);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser-products');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(healthResult);
+    });
+
+    test('returns 503 when products parser is not healthy', async () => {
+      const healthResult = { healthy: false, error: 'Python not found' };
+      vi.mocked(PDFParserProductsService.getInstance().healthCheck).mockResolvedValue(healthResult);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser-products');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual(healthResult);
+    });
+  });
+
+  describe('GET /api/health/pdf-parser-orders', () => {
+    test('returns 200 when orders parser is available', async () => {
+      vi.mocked(PDFParserOrdersService.getInstance().isAvailable).mockReturnValue(true);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser-orders');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        available: true,
+        parser: 'parse-orders-pdf.py',
+        timeout: '300s',
+        maxBuffer: '20MB',
+      });
+    });
+
+    test('returns 503 when orders parser is not available', async () => {
+      vi.mocked(PDFParserOrdersService.getInstance().isAvailable).mockReturnValue(false);
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/health/pdf-parser-orders');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({
+        success: false,
+        message: 'Orders PDF parser not available',
+        available: false,
+        parser: 'parse-orders-pdf.py',
+        timeout: '300s',
+        maxBuffer: '20MB',
+      });
     });
   });
 
