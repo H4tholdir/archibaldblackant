@@ -19,7 +19,7 @@ None
 - [x] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
 - [x] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
 - [x] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
-- [ ] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
+- [x] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
 - [ ] **Phase 7: Integration Testing & Parity Validation** - Test E2E e validazione parità 100%
 
 ## Phase Details
@@ -87,9 +87,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 06-01: Aggiornare auth/me → auth/verify, orders/status → operations/:jobId/status, orders/my-orders → operations/user/:userId
-- [ ] 06-02: Aggiornare queue/stats → operations/stats, customers/search → customers?search=, products/search → products?search=
-- [ ] 06-03: Aggiornare orders/:id/edit-in-archibald → operations/enqueue, orders/:id/delete-from-archibald → operations/enqueue
+- [x] 06-01: Aggiornare auth/me → auth/verify, orders/status → operations/:jobId/status, orders/my-orders → operations/user/:userId
+- [x] 06-02: Verification sweep — all queue/stats, customers/search, products/search migrations confirmed complete
+- [x] 06-03: Verification sweep — all edit/delete-in-archibald → operations/enqueue migrations confirmed complete
 
 ### Phase 7: Integration Testing & Parity Validation
 **Goal**: Validazione end-to-end completa della parità funzionale al 100% con master.
@@ -114,5 +114,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
 | 4. Low Priority & Debug Endpoints | 3/3 | Complete | 2026-02-23 |
 | 5. Stubs & Partial Completion | 1/1 | Complete | 2026-02-23 |
-| 6. Frontend Path Migration | 1/3 | In progress | - |
+| 6. Frontend Path Migration | 3/3 | Complete | 2026-02-23 |
 | 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
