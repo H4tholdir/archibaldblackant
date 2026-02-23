@@ -5,43 +5,46 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Una PWA per agenti commerciali Komet che funziona identicamente alla versione in produzione, ma con un backend modulare, testabile e manutenibile.
-**Current focus:** v1.1 Full Feature Parity — closing remaining 5 gaps with master
+**Current focus:** v1.2 Production Parity — closing all 25 gaps found in 1:1 master vs branch audit
 
 ## Current Position
 
-Phase: 10 of 10 (Price Management)
-Plan: 4 of 4 in current phase
-Status: Phase complete — v1.1 milestone done
-Last activity: 2026-02-23 — Completed 10-04-PLAN.md
+Phase: 11 of 16 (Bootstrap & Entry Point)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-02-23 — v1.2 milestone created, design approved
 
-Progress: ██████████ 100%
+Progress: ███████░░░ 68% (27 of 38 total plans)
 
 ## Performance Metrics
 
-**Velocity (v1.0):**
-- Total plans completed: 20
-- Average duration: 9min
-- Total execution time: 2h 48min
+**Velocity (v1.0+v1.1):**
+- Total plans completed: 27
+- Average duration: ~8min
+- Total execution time: ~3h 30min
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions from v1.0 documented in respective SUMMARY files and PRE-MERGE-REPORT.md.
-Key decisions affecting v1.1:
+Key decisions from v1.0/v1.1:
 - DI pattern established: optional dependencies with 501 graceful degradation
 - PostgreSQL for all tables (migrated from SQLite)
 - BrowserPool for Puppeteer bot management
-- Existing prices table in PostgreSQL (needs price_history addition)
-- order_state_history table exists (audit log can reuse it)
+- server.ts exports createApp(deps) — needs main.ts bootstrap caller
+- 13 stubs in server.ts need real implementations
+- 3 frontend endpoints have no backend handler
 
-### Deferred Issues (from v1.0 — now being addressed)
+### Audit Findings (v1.2 scope)
 
-- ~~Device registration + background sync on login → Phase 9~~ DONE (09-01)
-- ~~Audit log on send-to-verona → Phase 8~~ DONE (08-02)
-- ~~Price management stubs → Phase 10~~ DONE (10-01 to 10-04)
-- ~~sync/reset 501 degradation → Phase 8~~ DONE (08-01)
-- ~~test/login 501 degradation → Phase 8~~ DONE (08-01)
+25 gaps identified in comprehensive master vs branch audit:
+- 13 stubs in server.ts (subclients, prices, admin, fresis, SSE)
+- 3 frontend endpoints without backend (fresis reassign-merged, PUT, archive)
+- 4 infrastructure gaps (bootstrap, migrations, shutdown, background services)
+- 3 sync system gaps (checkpoint/resume, retry, delta sync)
+- 2 minor features (bulk discount upload, slowdown optimizer)
+
+Design doc: docs/plans/2026-02-23-full-parity-v1.2-design.md
 
 ### Blockers/Concerns
 
@@ -49,8 +52,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-23T16:40:14Z
-Stopped at: Completed 10-04-PLAN.md — Phase 10 complete, v1.1 milestone done
+Last session: 2026-02-23
+Stopped at: v1.2 milestone created, roadmap updated, ready to plan Phase 11
 Resume file: None
 Feature branch: feat/unified-operation-queue
 Test baseline: 1279 backend + 441 frontend = 1720 passing

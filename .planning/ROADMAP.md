@@ -2,7 +2,7 @@
 
 ## Overview
 
-Completare il branch `feat/unified-operation-queue` raggiungendo parità funzionale al 100% con master. Il primo milestone ha coperto la migrazione architetturale e i 18 endpoint mancanti. Il secondo milestone chiude i 5 elementi rimasti (wiring DI, device registration, price management) per parità totale.
+Completare il branch `feat/unified-operation-queue` raggiungendo parità funzionale al 100% con master. Il primo milestone ha coperto la migrazione architetturale e i 18 endpoint mancanti. Il secondo milestone ha chiuso i 5 elementi rimasti. Il terzo milestone chiude i 25 gap rimanenti trovati nell'audit 1:1 master vs branch.
 
 ## Domain Expertise
 
@@ -12,6 +12,7 @@ None
 
 - ✅ **v1.0 Endpoint Parity** - Phases 1-7 (shipped 2026-02-23, 20 plans)
 - ✅ **v1.1 Full Feature Parity** - Phases 8-10 (shipped 2026-02-23, 7 plans)
+- 🚧 **v1.2 Production Parity** - Phases 11-16 (in progress)
 
 ## Phases
 
@@ -135,10 +136,76 @@ Plans:
 - [x] 10-03: matchPricesToProducts service + wire stubs in server.ts
 - [x] 10-04: sync-prices operation handler + final verification
 
+### 🚧 v1.2 Production Parity (In Progress)
+
+**Milestone Goal:** Chiudere tutti i 25 gap trovati nell'audit 1:1 master vs branch — bootstrap, stubs, endpoint mancanti, sync enhancements. Design doc: `docs/plans/2026-02-23-full-parity-v1.2-design.md`
+
+- [ ] **Phase 11: Bootstrap & Entry Point** - main.ts, migrations, graceful shutdown, background services
+- [ ] **Phase 12: Subclient System** - Repository PostgreSQL, Excel importer, wire stubs
+- [ ] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
+- [ ] **Phase 14: Price/VAT Excel Import** - ExcelVatImporter, matching prodotti, propagazione VAT
+- [ ] **Phase 15: Admin Session & SSE** - Impersonificazione admin, eventi SSE real-time
+- [ ] **Phase 16: Sync Enhancements** - Checkpoint/resume, retry, delta sync, optimizer
+
+## Phase Details (v1.2)
+
+### Phase 11: Bootstrap & Production Entry Point
+**Goal**: L'app deve poter partire in produzione — entry point, migrations, shutdown, background services.
+**Depends on**: v1.1 complete
+**Plans**: 2 plans
+
+Plans:
+- [ ] 11-01: main.ts entry point (pool, queue, browserPool, scheduler, createApp, listen, shutdown)
+- [ ] 11-02: Migration runner on startup + background services init
+
+### Phase 12: Subclient System
+**Goal**: Subclient CRUD + import Excel completamente funzionanti con tutti i 15 campi dal master.
+**Depends on**: Phase 11
+**Plans**: 2 plans
+
+Plans:
+- [ ] 12-01: Subclient PostgreSQL repository + wire stubs in server.ts
+- [ ] 12-02: Subclient Excel importer (code normalization, header mapping, bulk upsert)
+
+### Phase 13: Fresis History Completion
+**Goal**: Tutte le funzionalità fresis — Arca export/import, FT numbering, endpoint mancanti, bulk discounts.
+**Depends on**: Phase 11
+**Plans**: 2 plans
+
+Plans:
+- [ ] 13-01: getNextFtNumber + exportArca + importArca implementations
+- [ ] 13-02: Missing endpoints (reassign-merged, PUT /:id, archive) + discount bulk upload
+
+### Phase 14: Price/VAT Excel Import
+**Goal**: Import Excel VAT con matching prodotti e propagazione VAT ai sibling variants.
+**Depends on**: Phase 11
+**Plans**: 1 plan
+
+Plans:
+- [ ] 14-01: Excel VAT importer + import history tracking
+
+### Phase 15: Admin Session & SSE
+**Goal**: Impersonificazione admin funzionante + eventi SSE real-time per job progress.
+**Depends on**: Phase 11
+**Plans**: 1 plan
+
+Plans:
+- [ ] 15-01: createAdminSession/closeAdminSession + onJobEvent SSE wiring
+
+### Phase 16: Sync Enhancements
+**Goal**: Parità completa sistema sync — checkpoint/resume a livello pagina, retry con backoff, delta sync, optimizer.
+**Depends on**: Phase 11
+**Plans**: 3 plans
+
+Plans:
+- [ ] 16-01: Sync checkpoint repository with page-level resume
+- [ ] 16-02: Product sync retry + delta sync endpoints
+- [ ] 16-03: Slowdown optimizer + smart sync variants
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
+Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 → 14 → 15 → 16
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -152,3 +219,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
+| 11. Bootstrap & Entry Point | v1.2 | 0/2 | Not started | - |
+| 12. Subclient System | v1.2 | 0/2 | Not started | - |
+| 13. Fresis History Completion | v1.2 | 0/2 | Not started | - |
+| 14. Price/VAT Excel Import | v1.2 | 0/1 | Not started | - |
+| 15. Admin Session & SSE | v1.2 | 0/1 | Not started | - |
+| 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |
