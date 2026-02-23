@@ -283,4 +283,153 @@ describe('createProductsRouter', () => {
       expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-products', 'user-1', {});
     });
   });
+
+  describe('GET /api/products/sync/metrics', () => {
+    const mockSyncStats = {
+      totalSyncs: 5,
+      lastSyncTime: '2026-02-18T10:00:00.000Z',
+      avgDurationMs: 30000,
+      successRate: 0.8,
+      recentHistory: [
+        {
+          id: 'session-1',
+          syncType: 'products',
+          startedAt: '2026-02-18T10:00:00.000Z',
+          completedAt: '2026-02-18T10:00:30.000Z',
+          status: 'completed',
+          duration: 30000,
+          totalPages: 5,
+          pagesProcessed: 5,
+          itemsProcessed: 100,
+          itemsCreated: 10,
+          itemsUpdated: 80,
+          itemsDeleted: 2,
+          imagesDownloaded: 50,
+          errorMessage: null,
+          syncMode: 'full',
+        },
+      ],
+    };
+
+    test('returns sync metrics when configured', async () => {
+      deps.getSyncStats = vi.fn().mockResolvedValue(mockSyncStats);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/sync/metrics');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        metrics: mockSyncStats,
+        history: mockSyncStats.recentHistory,
+      });
+    });
+
+    test('returns 501 when not configured', async () => {
+      const res = await request(app).get('/api/products/sync/metrics');
+
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({ success: false, error: 'Sync metrics non configurate' });
+    });
+  });
+
+  describe('GET /api/products/sync-history', () => {
+    const mockSessions = [
+      {
+        id: 'session-1',
+        syncType: 'products',
+        startedAt: '2026-02-18T10:00:00.000Z',
+        completedAt: '2026-02-18T10:00:30.000Z',
+        status: 'completed',
+        duration: 30000,
+        totalPages: 5,
+        pagesProcessed: 5,
+        itemsProcessed: 100,
+        itemsCreated: 10,
+        itemsUpdated: 80,
+        itemsDeleted: 2,
+        imagesDownloaded: 50,
+        errorMessage: null,
+        syncMode: 'full',
+      },
+    ];
+
+    test('returns sync history with default limit', async () => {
+      deps.getSyncHistory = vi.fn().mockResolvedValue(mockSessions);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/sync-history');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        sessions: mockSessions,
+        count: 1,
+      });
+      expect(deps.getSyncHistory).toHaveBeenCalledWith(10);
+    });
+
+    test('accepts custom limit', async () => {
+      deps.getSyncHistory = vi.fn().mockResolvedValue(mockSessions);
+      app = createApp(deps);
+
+      await request(app).get('/api/products/sync-history?limit=5');
+
+      expect(deps.getSyncHistory).toHaveBeenCalledWith(5);
+    });
+
+    test('returns 501 when not configured', async () => {
+      const res = await request(app).get('/api/products/sync-history');
+
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({ success: false, error: 'Sync history non configurata' });
+    });
+  });
+
+  describe('GET /api/products/last-sync', () => {
+    const mockSession = {
+      id: 'session-1',
+      syncType: 'products',
+      startedAt: '2026-02-18T10:00:00.000Z',
+      completedAt: '2026-02-18T10:00:30.000Z',
+      status: 'completed',
+      duration: 30000,
+      totalPages: 5,
+      pagesProcessed: 5,
+      itemsProcessed: 100,
+      itemsCreated: 10,
+      itemsUpdated: 80,
+      itemsDeleted: 2,
+      imagesDownloaded: 50,
+      errorMessage: null,
+      syncMode: 'full',
+    };
+
+    test('returns last sync session when configured', async () => {
+      deps.getLastSyncSession = vi.fn().mockResolvedValue(mockSession);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/last-sync');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, session: mockSession });
+    });
+
+    test('returns null session when no syncs exist', async () => {
+      deps.getLastSyncSession = vi.fn().mockResolvedValue(null);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/last-sync');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, session: null });
+    });
+
+    test('returns 501 when not configured', async () => {
+      const res = await request(app).get('/api/products/last-sync');
+
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({ success: false, error: 'Last sync non configurato' });
+    });
+  });
 });

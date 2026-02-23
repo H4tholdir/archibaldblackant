@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { ProductRow } from '../db/repositories/products';
+import type { SyncSession, SyncStats } from '../db/repositories/sync-sessions';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
@@ -35,6 +36,9 @@ type ProductsRouterDeps = {
   getProductChanges: (productId: string) => Promise<ProductChange[]>;
   getRecentProductChanges: (days: number, limit: number) => Promise<ProductChange[]>;
   getProductChangeStats: (days: number) => Promise<ProductChangeStats>;
+  getSyncHistory?: (limit: number) => Promise<SyncSession[]>;
+  getLastSyncSession?: () => Promise<SyncSession | null>;
+  getSyncStats?: () => Promise<SyncStats>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -146,6 +150,46 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     } catch (error) {
       logger.error('Error enqueuing product sync', { error });
       res.status(500).json({ success: false, error: 'Errore avvio sincronizzazione prodotti' });
+    }
+  });
+
+  router.get('/sync/metrics', async (_req: AuthRequest, res) => {
+    if (!deps.getSyncStats) {
+      return res.status(501).json({ success: false, error: 'Sync metrics non configurate' });
+    }
+    try {
+      const stats = await deps.getSyncStats();
+      res.json({ success: true, metrics: stats, history: stats.recentHistory });
+    } catch (error) {
+      logger.error('Error fetching sync metrics', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero metriche sync' });
+    }
+  });
+
+  router.get('/sync-history', async (req: AuthRequest, res) => {
+    if (!deps.getSyncHistory) {
+      return res.status(501).json({ success: false, error: 'Sync history non configurata' });
+    }
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      const sessions = await deps.getSyncHistory(limit);
+      res.json({ success: true, sessions, count: sessions.length });
+    } catch (error) {
+      logger.error('Error fetching sync history', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero storico sync' });
+    }
+  });
+
+  router.get('/last-sync', async (_req: AuthRequest, res) => {
+    if (!deps.getLastSyncSession) {
+      return res.status(501).json({ success: false, error: 'Last sync non configurato' });
+    }
+    try {
+      const session = await deps.getLastSyncSession();
+      res.json({ success: true, session });
+    } catch (error) {
+      logger.error('Error fetching last sync session', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero ultima sessione sync' });
     }
   });
 

@@ -36,6 +36,7 @@ import * as warehouseRepo from './db/repositories/warehouse';
 import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
+import * as syncSessionsRepo from './db/repositories/sync-sessions';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
@@ -314,6 +315,9 @@ function createApp(deps: AppDeps): Express {
     getProductChanges: (productId) => productsRepo.getProductChanges(pool, productId),
     getRecentProductChanges: (days, limit) => productsRepo.getRecentProductChanges(pool, days, limit),
     getProductChangeStats: (days) => productsRepo.getProductChangeStats(pool, days),
+    getSyncHistory: (limit) => syncSessionsRepo.getSyncHistory(pool, limit),
+    getLastSyncSession: () => syncSessionsRepo.getLastSyncSession(pool),
+    getSyncStats: () => syncSessionsRepo.getSyncStats(pool),
   }));
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({
