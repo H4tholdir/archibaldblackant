@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Una PWA moderna e mobile-first che permette agli agenti Komet di creare ordini in Archibald ERP in modo fluido e veloce tramite voice input e UI touch-optimized, superando la macchinosità dell'interfaccia web legacy di Archibald su dispositivi mobili.
+Una PWA moderna e mobile-first che permette agli agenti Komet di creare ordini in Archibald ERP in modo fluido e veloce tramite voice input e UI touch-optimized, superando la macchinosità dell'interfaccia web legacy di Archibald su dispositivi mobili. Il backend è stato completamente migrato a un'architettura modulare con DI pattern, PostgreSQL, e unified operation queue.
 
 ## Core Value
 
@@ -12,22 +12,30 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 
 ### Validated
 
-<!-- Funzionalità già implementate nel codebase esistente -->
-
-- ✓ Sincronizzazione clienti da Archibald ERP — existing (`backend/src/customer-sync-service.ts`)
-- ✓ Sincronizzazione prodotti da Archibald ERP — existing (`backend/src/product-sync-service.ts`)
-- ✓ Sincronizzazione prezzi da Archibald ERP — existing (`backend/src/price-sync-service.ts`)
-- ✓ Browser automation pool per performance — existing (`backend/src/browser-pool.ts`)
-- ✓ Job queue con BullMQ per ordini asincroni — existing (`backend/src/queue-manager.ts`)
-- ✓ WebSocket real-time per sync progress — existing (`backend/src/index.ts`)
-- ✓ React PWA con service worker configurato — existing (`frontend/vite.config.ts`)
-- ✓ Voice input con Web Speech API — existing (`frontend/src/hooks/useVoiceInput.ts`)
-- ✓ Cache locale SQLite per clienti/prodotti — existing (`backend/data/*.db`)
-- ✓ Checkpoint/resume per sync interrotte — existing (`backend/src/sync-checkpoint.ts`)
+- ✓ Sincronizzazione clienti da Archibald ERP — v1.0
+- ✓ Sincronizzazione prodotti da Archibald ERP — v1.0
+- ✓ Sincronizzazione prezzi da Archibald ERP — v1.0
+- ✓ Browser automation pool per performance — v1.0
+- ✓ Job queue con BullMQ per ordini asincroni — v1.0
+- ✓ WebSocket real-time per sync progress — v1.0
+- ✓ React PWA con service worker configurato — v1.0
+- ✓ Voice input con Web Speech API — v1.0
+- ✓ Checkpoint/resume per sync interrotte — v1.0
+- ✓ Backend modulare con DI pattern e PostgreSQL — v1.0
+- ✓ Unified operation queue (sostituisce job queue multipli) — v1.0
+- ✓ 100% endpoint parity con master (42 elementi verificati, 18 endpoint aggiunti) — v1.0
+- ✓ Frontend migrato ai path API unificati — v1.0
+- ✓ Device registration con tracking al login — v1.1
+- ✓ Price management system (parseItalianPrice, matchVariant, PriceMatchingService) — v1.1
+- ✓ Production bootstrap (main.ts, migrations, graceful shutdown, background services) — v1.2
+- ✓ Subclient CRUD + Excel import con reconciliation — v1.2
+- ✓ Fresis history (Arca export/import, FT numbering atomico, bulk discounts) — v1.2
+- ✓ Price/VAT Excel import con sibling variant propagation — v1.2
+- ✓ Admin session impersonation + SSE real-time events — v1.2
+- ✓ Sync enhancements (checkpoint/resume, retry, delta sync, optimizer) — v1.2
+- ✓ Test suite: 1,473 backend + 441 frontend = 1,914 test — v1.2
 
 ### Active
-
-<!-- MVP Ordini - Fase 1 prioritaria -->
 
 **Order Creation (MVP):**
 - [ ] Ricerca clienti con autocomplete da cache locale
@@ -49,33 +57,6 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 - [ ] Sessioni Puppeteer per-utente (vs sessione globale attuale)
 - [ ] Backend non salva credenziali (session-per-request)
 
-**Security & Stability:**
-- [ ] Fix credenziali hardcoded in `backend/.env` (CRITICAL)
-- [ ] Rotazione credenziali ERP dopo leak
-- [ ] Rimozione `.env` da git history (BFG Repo-Cleaner)
-- [ ] Centralizzare tutti URL hardcoded in `config.ts`
-- [ ] Fix bug `activeSyncType` undefined in `backend/src/index.ts`
-- [ ] Rimuovere dead code in `product-sync-service.ts`
-- [ ] Sostituire `console.log()` con `logger` (30+ istanze)
-- [ ] Rimuovere type `any` con interfacce tipate
-
-**Testing Foundation:**
-- [ ] Unit test suite per service layer (Vitest)
-- [ ] Integration test per sync services
-- [ ] Integration test per queue manager
-- [ ] E2E test per order creation flow (Playwright)
-- [ ] Mock Puppeteer per test isolati
-
-**Deployment:**
-- [ ] VPS con budget minimo (raccomandato: 2 vCPU / 4 GB RAM)
-- [ ] Docker Compose setup (Nginx + Node + Redis)
-- [ ] SSL con Let's Encrypt per archibaldblackant.it
-- [ ] CI/CD pipeline per deploy automatico
-- [ ] Health check endpoint (`/health`)
-- [ ] Graceful shutdown con wait per operazioni in-progress
-
-<!-- Offline Capability - Fase 2 -->
-
 **Offline-First (Post-MVP):**
 - [ ] IndexedDB cache per clienti/prodotti/prezzi
 - [ ] Service worker con offline strategy
@@ -84,8 +65,6 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 - [ ] Sync automatico quando torna la rete
 - [ ] Conflict resolution per dati stale
 
-<!-- Order History & Tracking - Fase 3 -->
-
 **Order History:**
 - [ ] Visualizzare storico ordini da Archibald
 - [ ] Filtri per cliente/data/stato ordine
@@ -93,8 +72,6 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 - [ ] Tracking stato ordine (in lavorazione/spedito/consegnato)
 - [ ] Modifica ordini pendenti (se non ancora evasi)
 - [ ] Duplica ordine ("Ripeti ultimo ordine")
-
-<!-- Analytics - Fase 4 (post-MVP) -->
 
 **Analytics (Future):**
 - [ ] Dashboard KPI agente (totale venduto, trend)
@@ -115,37 +92,26 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 
 ## Context
 
-**Problema attuale:**
-- Archibald ERP ha UI web obsoleta, lenta e macchinosa su mobile/tablet
-- Agenti Komet faticano a creare ordini in mobilità
-- Processo attuale richiede troppi step, campi obbligatori inutili, navigation complessa
-- Limitazioni strutturali del DB Archibald rendono UI poco flessibile
+**Current State (post v1.2):**
+- Backend completamente migrato a architettura modulare con DI, PostgreSQL, unified operation queue
+- 1,914 test passing (1,473 backend + 441 frontend)
+- 450 file modificati, 45K+ linee aggiunte, 68K+ linee rimosse
+- Branch `feat/unified-operation-queue` pronto per merge in master
 
 **Utenti target:**
 - Agenti commerciali Komet che usano Archibald per ordini clienti
 - Device: smartphone/tablet Android e iOS, desktop Mac/Windows
 - Contesto d'uso: in movimento, visite clienti, fiere, ufficio
 
-**Architettura esistente:**
-- Backend Node.js + Express + Puppeteer per browser automation
+**Architettura attuale (post-migration):**
+- Backend Node.js + Express modulare con DI pattern
+- PostgreSQL per tutti i dati (migrato da SQLite)
+- Unified operation queue con BullMQ + Redis
+- main.ts bootstrap → createApp(deps) pattern
 - Frontend React 19 PWA con Vite
-- Automazione Archibald via headless Chrome (sessioni pre-autenticate)
-- Cache locale SQLite per performance (customers.db, products.db, prices.db)
-- Job queue BullMQ + Redis per ordini asincroni
-- WebSocket per sync progress real-time
-
-**Codebase concerns (da CONCERNS.md):**
-- ⚠️ **CRITICAL:** Credenziali production hardcoded in `backend/.env` committato (username: [REDACTED-USERNAME], password: [REDACTED-PASSWORD])
-- Bug: Variable `activeSyncType` undefined causa runtime error
-- Tech debt: 30+ `console.log()` invece di logger, 10+ type `any`, dead code
-- Testing: 0 unit tests, 0 integration tests, 0 E2E tests (solo manual scripts)
-- Performance: Polling loop busy-wait, N+1 query pattern in price sync
-
-**Stato attuale del codice:**
-- MVP parziale: form ordini, autocomplete clienti/prodotti, voice input base
-- Mancante: prezzi read-only, vincoli confezione, multi-utente, sessioni per-agente
-- Sync services funzionanti ma sessione globale (non per-utente)
-- Offline non completo (solo cache API, no IndexedDB, no coda ordini locale)
+- Automazione Archibald via headless Chrome (BrowserPool)
+- SSE + WebSocket per eventi real-time
+- Sync checkpoint/resume, retry con backoff, delta sync
 
 ## Constraints
 
@@ -160,15 +126,18 @@ Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** p
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| PWA vs Native App | PWA installabile funziona su tutti device (iOS/Android/desktop) senza doppio sviluppo, costi minori | — Pending |
-| Puppeteer Browser Automation | Archibald non ha API, unica via è browser automation headless per leggere/scrivere dati | ✓ Good — funziona, performance accettabili con browser pool |
-| SQLite Cache Locale | Cache clienti/prodotti/prezzi riduce latency, funziona offline, no dipendenza cloud DB | ✓ Good — sync veloce, no costi extra |
-| BullMQ Job Queue | Ordini asincroni con retry, no blocking UI, scalabile con Redis backend | — Pending |
-| Voice Input Hybrid | Dettatura popola form, utente rivede visivamente, conferma tap finale — massima affidabilità vs errori voice recognition | — Pending |
-| Session per-User | Ogni agente usa proprie credenziali Archibald, backend crea sessione on-demand, no salvataggio credenziali server | — Pending |
-| Whitelist Agenti | Lista autorizzati gestita manualmente vs sistema abbonamento automatico — semplicità MVP | — Pending |
-| Docker Deployment | Docker Compose (Nginx + Node + Redis) su VPS per portabilità, facilità deploy, ambiente riproducibile | — Pending |
-| React 19 + Vite | Stack moderno, fast refresh, PWA plugin built-in, TypeScript strict mode | ✓ Good — setup esistente funzionante |
+| PWA vs Native App | PWA installabile funziona su tutti device senza doppio sviluppo | ✓ Good — funziona su tutti device |
+| Puppeteer Browser Automation | Archibald non ha API, unica via è browser automation headless | ✓ Good — funziona, performance accettabili con browser pool |
+| PostgreSQL migration (da SQLite) | Supporto concorrenza, transazioni ACID, scalabilità | ✓ Good — v1.0-v1.2 |
+| DI pattern con optional dependencies | Graceful degradation con 501 status, testabilità | ✓ Good — v1.0 |
+| Unified operation queue | Singola coda per tutte le operazioni vs job queue multipli | ✓ Good — v1.0 |
+| createApp(deps) + main.ts bootstrap | Separazione app creation da bootstrap per testabilità | ✓ Good — v1.2 |
+| Handler map pattern per operation processor | 10+ handler types senza switch/case | ✓ Good — v1.1 |
+| Factory function pub/sub per SSE | Nessuna classe necessaria, composabilità | ✓ Good — v1.2 |
+| Binary search optimizer per sync | Complementare a AdaptiveTimeoutManager | ✓ Good — v1.2 |
+| Sync modes via query parameter | Backward compatibility con endpoint esistenti | ✓ Good — v1.2 |
+| BullMQ Job Queue | Ordini asincroni con retry, no blocking UI, scalabile | ✓ Good — validato in produzione |
+| React 19 + Vite | Stack moderno, fast refresh, PWA plugin built-in, TypeScript strict | ✓ Good — setup funzionante |
 
 ---
-*Last updated: 2026-01-11 after initialization with codebase mapping*
+*Last updated: 2026-02-24 after v1.2 milestone completion*
