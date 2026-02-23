@@ -69,6 +69,7 @@ type AppDeps = {
   uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;
   createCustomerBot?: (userId: string) => CustomerBotLike;
   broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
+  createTestBot?: () => Promise<{ initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> }>;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -96,6 +97,28 @@ function createApp(deps: AppDeps): Express {
       res.end(metrics);
     } catch {
       res.status(500).end();
+    }
+  });
+
+  app.post('/api/test/login', async (_req, res) => {
+    if (!deps.createTestBot) {
+      return res.status(501).json({ success: false, error: 'Test login non configurato' });
+    }
+    let bot: { initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> } | undefined;
+    try {
+      bot = await deps.createTestBot();
+      await bot.initialize();
+      await bot.login();
+      res.json({ success: true, message: 'Login test riuscito!' });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Login fallito',
+      });
+    } finally {
+      if (bot) {
+        await bot.close().catch(() => {});
+      }
     }
   });
 

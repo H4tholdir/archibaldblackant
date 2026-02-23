@@ -274,6 +274,64 @@ describe('createApp', () => {
     });
   });
 
+  describe('POST /api/test/login', () => {
+    test('returns 501 when createTestBot is not configured', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).post('/api/test/login');
+
+      expect(response.status).toBe(501);
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Test login non configurato',
+      });
+    });
+
+    test('returns 200 when bot login succeeds', async () => {
+      const deps = createMockDeps();
+      const mockBot = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        login: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      deps.createTestBot = vi.fn().mockResolvedValue(mockBot);
+      const app = createApp(deps);
+
+      const response = await request(app).post('/api/test/login');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: 'Login test riuscito!',
+      });
+      expect(mockBot.initialize).toHaveBeenCalledOnce();
+      expect(mockBot.login).toHaveBeenCalledOnce();
+      expect(mockBot.close).toHaveBeenCalledOnce();
+    });
+
+    test('returns 500 and closes bot when login fails', async () => {
+      const deps = createMockDeps();
+      const loginError = new Error('Credenziali non valide');
+      const mockBot = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        login: vi.fn().mockRejectedValue(loginError),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      deps.createTestBot = vi.fn().mockResolvedValue(mockBot);
+      const app = createApp(deps);
+
+      const response = await request(app).post('/api/test/login');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Credenziali non valide',
+      });
+      expect(mockBot.close).toHaveBeenCalledOnce();
+    });
+  });
+
   test('GET /api/cache/export requires authentication', async () => {
     const deps = createMockDeps();
     const app = createApp(deps);
