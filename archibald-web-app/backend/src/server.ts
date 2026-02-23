@@ -284,6 +284,63 @@ function createApp(deps: AppDeps): Express {
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
     smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
     resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
+    getCustomerSyncMetrics: async () => {
+      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
+      const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
+      syncJobs.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
+
+      const totalSyncs = syncJobs.length;
+
+      let consecutiveFailures = 0;
+      for (const job of syncJobs) {
+        const state = await job.getState();
+        if (state === 'failed') {
+          consecutiveFailures++;
+        } else {
+          break;
+        }
+      }
+
+      const lastJob = syncJobs[0] ?? null;
+      const lastSyncTime = lastJob?.finishedOn
+        ? new Date(lastJob.finishedOn).toISOString()
+        : null;
+
+      let lastResult: {
+        success: boolean;
+        customersProcessed: number;
+        duration: number;
+        error: string | null;
+      } | null = null;
+
+      if (lastJob) {
+        const lastState = await lastJob.getState();
+        const duration = (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0);
+        const returnData = lastJob.returnvalue?.data ?? {};
+        lastResult = {
+          success: lastState === 'completed',
+          customersProcessed: typeof returnData.customersProcessed === 'number' ? returnData.customersProcessed : 0,
+          duration,
+          error: lastJob.failedReason ?? null,
+        };
+      }
+
+      const durations = syncJobs
+        .filter((j) => j.finishedOn && j.processedOn)
+        .map((j) => (j.finishedOn ?? 0) - (j.processedOn ?? 0));
+      const averageDuration = durations.length > 0
+        ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+        : 0;
+
+      return {
+        lastSyncTime,
+        lastResult,
+        totalSyncs,
+        consecutiveFailures,
+        averageDuration,
+        health: (consecutiveFailures < 3 ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
+      };
+    },
   }));
 
   if (deps.createCustomerBot) {

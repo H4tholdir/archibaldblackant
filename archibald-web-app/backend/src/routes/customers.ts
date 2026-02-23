@@ -9,6 +9,20 @@ type QueueLike = {
   enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
 };
 
+type CustomerSyncMetrics = {
+  lastSyncTime: string | null;
+  lastResult: {
+    success: boolean;
+    customersProcessed: number;
+    duration: number;
+    error: string | null;
+  } | null;
+  totalSyncs: number;
+  consecutiveFailures: number;
+  averageDuration: number;
+  health: 'healthy' | 'degraded';
+};
+
 type CustomersRouterDeps = {
   queue: QueueLike;
   getCustomers: (userId: string, searchQuery?: string) => Promise<Customer[]>;
@@ -23,6 +37,7 @@ type CustomersRouterDeps = {
   updateArchibaldName: (userId: string, customerProfile: string, name: string) => Promise<void>;
   smartCustomerSync: (userId: string) => Promise<void>;
   resumeOtherSyncs: () => void;
+  getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
 };
 
 const createCustomerSchema = z.object({
@@ -152,6 +167,19 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
         error: error instanceof Error ? error.message : 'Unknown error',
         message: 'Errore durante resume syncs',
       });
+    }
+  });
+
+  router.get('/sync/metrics', async (_req: AuthRequest, res) => {
+    if (!deps.getCustomerSyncMetrics) {
+      return res.status(501).json({ success: false, error: 'Customer sync metrics non configurate' });
+    }
+    try {
+      const metrics = await deps.getCustomerSyncMetrics();
+      res.json({ success: true, ...metrics });
+    } catch (error) {
+      logger.error('Error fetching customer sync metrics', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero metriche sync clienti' });
     }
   });
 
@@ -302,4 +330,4 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
   return router;
 }
 
-export { createCustomersRouter, type CustomersRouterDeps };
+export { createCustomersRouter, type CustomersRouterDeps, type CustomerSyncMetrics };

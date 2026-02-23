@@ -397,6 +397,61 @@ describe('createCustomersRouter', () => {
     });
   });
 
+  describe('GET /api/customers/sync/metrics', () => {
+    const mockMetrics = {
+      lastSyncTime: '2026-02-18T10:00:00.000Z',
+      lastResult: {
+        success: true,
+        customersProcessed: 42,
+        duration: 15000,
+        error: null,
+      },
+      totalSyncs: 10,
+      consecutiveFailures: 0,
+      averageDuration: 12000,
+      health: 'healthy' as const,
+    };
+
+    test('returns sync metrics when configured', async () => {
+      deps.getCustomerSyncMetrics = vi.fn().mockResolvedValue(mockMetrics);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/customers/sync/metrics');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        ...mockMetrics,
+      });
+    });
+
+    test('returns 501 when not configured', async () => {
+      const res = await request(app).get('/api/customers/sync/metrics');
+
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'Customer sync metrics non configurate',
+      });
+    });
+
+    test('returns degraded health when consecutive failures >= 3', async () => {
+      const degradedMetrics = {
+        ...mockMetrics,
+        consecutiveFailures: 5,
+        health: 'degraded' as const,
+      };
+      deps.getCustomerSyncMetrics = vi.fn().mockResolvedValue(degradedMetrics);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/customers/sync/metrics');
+
+      expect(res.status).toBe(200);
+      expect(res.body.health).toBe('degraded');
+      expect(res.body.consecutiveFailures).toBe(5);
+    });
+  });
+
   describe('GET /api/customers/:customerProfile/photo', () => {
     test('returns photo data', async () => {
       (deps.getCustomerPhoto as ReturnType<typeof vi.fn>).mockResolvedValue('data:image/png;base64,abc');
