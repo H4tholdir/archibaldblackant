@@ -1,4 +1,5 @@
 import type { DbPool } from '../../db/pool';
+import * as ordersRepo from '../../db/repositories/orders';
 import type { OperationHandler } from '../operation-processor';
 
 type SendToVeronaData = {
@@ -34,11 +35,11 @@ async function handleSendToVerona(
 
   onProgress(70, 'Aggiornamento stato ordine');
 
+  await ordersRepo.updateOrderState(pool, userId, data.orderId, 'inviato_milano', 'system', result.message, null, 'send-to-verona');
+
   await pool.query(
-    `UPDATE agents.order_records
-     SET current_state = $1, sent_to_milano_at = $2, last_sync = $3
-     WHERE id = $4 AND user_id = $5`,
-    ['inviato_milano', sentToMilanoAt, Math.floor(Date.now() / 1000), data.orderId, userId],
+    'UPDATE agents.order_records SET sent_to_milano_at = $1 WHERE id = $2 AND user_id = $3',
+    [sentToMilanoAt, data.orderId, userId],
   );
 
   onProgress(100, 'Invio completato');
