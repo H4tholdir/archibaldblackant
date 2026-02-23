@@ -5,6 +5,7 @@ import {
   getProductById,
   getProductCount,
   getProductVariants,
+  getProductsWithoutVat,
   upsertProducts,
   findDeletedProducts,
   softDeleteProducts,
@@ -340,6 +341,33 @@ describe('getAllProducts', () => {
 
     expect(result).toEqual(products);
     expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('deleted_at IS NULL'));
+  });
+});
+
+describe('getProductsWithoutVat', () => {
+  test('returns products where vat IS NULL with limit', async () => {
+    const productsWithoutVat = [
+      { id: 'P003', name: 'No VAT Product', price: 10.0, vat: null, group_code: 'GRP1' },
+    ];
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: productsWithoutVat, rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await getProductsWithoutVat(pool, 50);
+
+    expect(result).toEqual(productsWithoutVat);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('vat IS NULL'),
+      [50],
+    );
+  });
+
+  test('returns empty array when all products have VAT', async () => {
+    const pool = createMockPool();
+
+    const result = await getProductsWithoutVat(pool, 100);
+
+    expect(result).toEqual([]);
   });
 });
 

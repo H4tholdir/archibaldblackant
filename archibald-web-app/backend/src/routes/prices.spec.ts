@@ -47,6 +47,38 @@ const mockPriceRow = {
   updated_at: '2026-01-15',
 };
 
+const mockProductWithoutVat = {
+  id: 'ART-002',
+  name: 'Prodotto senza IVA',
+  price: 15.0,
+  vat: null,
+  group_code: 'GRP-1',
+};
+
+const mockMatchResult = {
+  result: { matched: 45, unmatched: 5, skipped: 10 },
+  unmatchedPrices: [{ productId: 'ART-X', productName: 'Non trovato' }],
+};
+
+const mockSyncStats = {
+  total_prices: 200,
+  last_sync_timestamp: 1700000000,
+  prices_with_null_price: 15,
+};
+
+const mockHistorySummary = {
+  stats: {
+    totalChanges: 30,
+    increases: 18,
+    decreases: 10,
+    newPrices: 2,
+    avgIncrease: 5.5,
+    avgDecrease: -3.2,
+  },
+  topIncreases: [{ ...mockPriceHistory, changeType: 'increase' }],
+  topDecreases: [{ ...mockPriceHistory, changeType: 'decrease', oldPrice: '15.00', newPrice: '12.00' }],
+};
+
 function createMockDeps(): PricesRouterDeps {
   return {
     getPricesByProductId: vi.fn().mockResolvedValue([mockPriceRow]),
@@ -54,14 +86,18 @@ function createMockDeps(): PricesRouterDeps {
     getRecentPriceChanges: vi.fn().mockResolvedValue([mockPriceHistory]),
     getImportHistory: vi.fn().mockResolvedValue([mockImportRecord]),
     importExcel: vi.fn().mockResolvedValue({ totalRows: 500, matched: 480, unmatched: 20, errors: [] }),
+    getProductsWithoutVat: vi.fn().mockResolvedValue([mockProductWithoutVat]),
+    matchPricesToProducts: vi.fn().mockResolvedValue(mockMatchResult),
+    getSyncStats: vi.fn().mockResolvedValue(mockSyncStats),
+    getHistorySummary: vi.fn().mockResolvedValue(mockHistorySummary),
   };
 }
 
-function createApp(deps: PricesRouterDeps) {
+function createApp(deps: PricesRouterDeps, role: string = 'admin') {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).user = { userId: 'user-1', username: 'agent1', role: 'admin' };
+    (req as any).user = { userId: 'user-1', username: 'agent1', role };
     next();
   });
   app.use('/api/prices', createPricesRouter(deps));
@@ -84,6 +120,171 @@ describe('createPricesRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toEqual([mockImportRecord]);
+    });
+  });
+
+  describe('GET /api/prices/unmatched', () => {
+    test('returns products without VAT', async () => {
+      const res = await request(app).get('/api/prices/unmatched');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: [mockProductWithoutVat],
+      });
+      expect(deps.getProductsWithoutVat).toHaveBeenCalledWith(100);
+    });
+
+    test('accepts custom limit parameter', async () => {
+      const res = await request(app).get('/api/prices/unmatched?limit=50');
+
+      expect(res.status).toBe(200);
+      expect(deps.getProductsWithoutVat).toHaveBeenCalledWith(50);
+    });
+
+    test('requires admin role', async () => {
+      const agentApp = createApp(deps, 'agent');
+
+      const res = await request(agentApp).get('/api/prices/unmatched');
+
+      expect(res.status).toBe(403);
+    });
+
+    test('returns 500 on error', async () => {
+      (deps.getProductsWithoutVat as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+
+      const res = await request(app).get('/api/prices/unmatched');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/prices/match', () => {
+    test('triggers price matching and returns results', async () => {
+      const res = await request(app).post('/api/prices/match');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        result: mockMatchResult.result,
+        unmatchedPrices: mockMatchResult.unmatchedPrices,
+        totalUnmatched: 1,
+      });
+      expect(deps.matchPricesToProducts).toHaveBeenCalled();
+    });
+
+    test('limits unmatched prices to 100 in response', async () => {
+      const manyUnmatched = Array.from({ length: 150 }, (_, i) => ({
+        productId: `ART-${i}`,
+        productName: `Product ${i}`,
+      }));
+      (deps.matchPricesToProducts as ReturnType<typeof vi.fn>).mockResolvedValue({
+        result: { matched: 0, unmatched: 150, skipped: 0 },
+        unmatchedPrices: manyUnmatched,
+      });
+
+      const res = await request(app).post('/api/prices/match');
+
+      expect(res.status).toBe(200);
+      expect(res.body.unmatchedPrices).toHaveLength(100);
+      expect(res.body.totalUnmatched).toBe(150);
+    });
+
+    test('returns 500 on error', async () => {
+      (deps.matchPricesToProducts as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Match failed'));
+
+      const res = await request(app).post('/api/prices/match');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'Match failed',
+      });
+    });
+  });
+
+  describe('GET /api/prices/sync/stats', () => {
+    test('returns sync statistics with coverage', async () => {
+      const res = await request(app).get('/api/prices/sync/stats');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        stats: {
+          totalPrices: 200,
+          lastSyncTimestamp: 1700000000,
+          lastSyncDate: new Date(1700000000 * 1000).toISOString(),
+          pricesWithNullPrice: 15,
+          coverage: '92.50%',
+        },
+      });
+    });
+
+    test('returns 0% coverage when no prices', async () => {
+      (deps.getSyncStats as ReturnType<typeof vi.fn>).mockResolvedValue({
+        total_prices: 0,
+        last_sync_timestamp: null,
+        prices_with_null_price: 0,
+      });
+
+      const res = await request(app).get('/api/prices/sync/stats');
+
+      expect(res.status).toBe(200);
+      expect(res.body.stats.coverage).toBe('0%');
+      expect(res.body.stats.lastSyncDate).toBe(null);
+    });
+
+    test('returns 500 on error', async () => {
+      (deps.getSyncStats as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+
+      const res = await request(app).get('/api/prices/sync/stats');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/prices/history/summary', () => {
+    test('returns price history summary with top increases and decreases', async () => {
+      const res = await request(app).get('/api/prices/history/summary');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        stats: mockHistorySummary.stats,
+        topIncreases: mockHistorySummary.topIncreases,
+        topDecreases: mockHistorySummary.topDecreases,
+      });
+      expect(deps.getHistorySummary).toHaveBeenCalledWith(30);
+    });
+
+    test('limits results to 10 per category', async () => {
+      const manyEntries = Array.from({ length: 15 }, (_, i) => ({
+        ...mockPriceHistory,
+        id: i + 1,
+        changeType: 'increase',
+      }));
+      (deps.getHistorySummary as ReturnType<typeof vi.fn>).mockResolvedValue({
+        stats: mockHistorySummary.stats,
+        topIncreases: manyEntries,
+        topDecreases: manyEntries,
+      });
+
+      const res = await request(app).get('/api/prices/history/summary');
+
+      expect(res.status).toBe(200);
+      expect(res.body.topIncreases).toHaveLength(10);
+      expect(res.body.topDecreases).toHaveLength(10);
+    });
+
+    test('returns 500 on error', async () => {
+      (deps.getHistorySummary as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+
+      const res = await request(app).get('/api/prices/history/summary');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
     });
   });
 

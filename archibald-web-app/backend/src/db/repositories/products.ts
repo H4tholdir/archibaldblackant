@@ -435,6 +435,27 @@ async function getAllProducts(pool: DbPool): Promise<ProductRow[]> {
   return rows;
 }
 
+type ProductWithoutVatRow = {
+  id: string;
+  name: string;
+  price: number | null;
+  vat: number | null;
+  group_code: string | null;
+};
+
+async function getProductsWithoutVat(pool: DbPool, limit: number): Promise<ProductWithoutVatRow[]> {
+  const { rows } = await pool.query<ProductWithoutVatRow>(
+    `SELECT id, name, price, vat, group_code
+     FROM shared.products
+     WHERE deleted_at IS NULL AND vat IS NULL
+     ORDER BY name ASC
+     LIMIT $1`,
+    [limit],
+  );
+
+  return rows;
+}
+
 async function getAllProductVariants(pool: DbPool): Promise<VariantRow[]> {
   const { rows } = await pool.query<VariantRow>(
     `SELECT
@@ -459,6 +480,7 @@ export {
   getZeroPriceCount,
   getNoVatCount,
   getProductVariants,
+  getProductsWithoutVat,
   upsertProducts,
   findDeletedProducts,
   softDeleteProducts,
@@ -470,6 +492,7 @@ export {
   getRecentProductChanges,
   getProductChangeStats,
   type ProductRow,
+  type ProductWithoutVatRow,
   type ProductUpsertInput,
   type UpsertResult,
   type VariantRow,

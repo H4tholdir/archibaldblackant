@@ -173,6 +173,14 @@ function createApp(deps: AppDeps): Express {
     getRecentPriceChanges: async (_days) => [],
     getImportHistory: async () => [],
     importExcel: async (_buffer, _filename, _userId) => ({ totalRows: 0, matched: 0, unmatched: 0, errors: ['Not yet implemented'] }),
+    getProductsWithoutVat: (limit) => productsRepo.getProductsWithoutVat(pool, limit),
+    matchPricesToProducts: async () => ({ result: { matched: 0, unmatched: 0, skipped: 0 }, unmatchedPrices: [] }),
+    getSyncStats: () => pricesRepo.getSyncStats(pool),
+    getHistorySummary: async (_days) => ({
+      stats: { totalChanges: 0, increases: 0, decreases: 0, newPrices: 0, avgIncrease: 0, avgDecrease: 0 },
+      topIncreases: [],
+      topDecreases: [],
+    }),
   }));
 
   app.use('/api/orders', authenticateJWT, createOrdersRouter({
