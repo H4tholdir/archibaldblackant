@@ -99,7 +99,7 @@ Plans:
 **Milestone Goal:** Implementare i 5 elementi rimasti per parità funzionale completa con master — wiring DI mancante, device registration, price management.
 
 - [x] **Phase 8: Quick Wiring** - Reset checkpoint, test login, audit log send-to-verona
-- [ ] **Phase 9: Device Registration** - Tabella user_devices, DeviceManager, hook nel login
+- [x] **Phase 9: Device Registration** - Tabella user_devices, DeviceManager, hook nel login
 - [ ] **Phase 10: Price Management** - Migrazione price_history, PriceMatchingService, 4 endpoint
 
 ## Phase Details
@@ -121,7 +121,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 09-01: Device repository + login hook wiring
+- [x] 09-01: Device repository + login hook wiring
 
 ### Phase 10: Price Management
 **Goal**: Implementare il sistema completo di price management — migrazione price_history in PostgreSQL, PriceMatchingService per matching prezzi↔prodotti, 4 endpoint fully functional.
@@ -147,5 +147,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Frontend Path Migration | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 7. Integration Testing & Parity Validation | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
-| 9. Device Registration | v1.1 | 0/1 | Not started | - |
+| 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 10. Price Management | v1.1 | 0/? | Not started | - |
