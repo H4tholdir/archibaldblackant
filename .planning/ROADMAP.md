@@ -18,7 +18,7 @@ None
 - [x] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
 - [x] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
 - [x] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
-- [ ] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
+- [x] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
 - [ ] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
 - [ ] **Phase 7: Integration Testing & Parity Validation** - Test E2E e validazione parità 100%
 
@@ -78,8 +78,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Completare interactive customer sessions (5 endpoint stub in routes/customer-interactive.ts)
-- [ ] 05-02: Verificare e completare health check PDF parser, customers/sync/metrics, products/sync-history, products/last-sync
+- [x] 05-01: Sync monitoring endpoints (4 endpoints: products sync/metrics, sync-history, last-sync + customers sync/metrics)
 
 ### Phase 6: Frontend Path Migration
 **Goal**: Aggiornare tutte le chiamate API nel frontend per i path rinominati/unificati.
@@ -114,6 +113,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
 | 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
 | 4. Low Priority & Debug Endpoints | 3/3 | Complete | 2026-02-23 |
-| 5. Stubs & Partial Completion | 0/2 | Not started | - |
+| 5. Stubs & Partial Completion | 1/1 | Complete | 2026-02-23 |
 | 6. Frontend Path Migration | 0/3 | Not started | - |
 | 7. Integration Testing & Parity Validation | 0/3 | Not started | - |

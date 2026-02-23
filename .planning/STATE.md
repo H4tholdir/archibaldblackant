@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Una PWA per agenti commerciali Komet che funziona identicamente alla versione in produzione, ma con un backend modulare, testabile e manutenibile.
-**Current focus:** Phase 4 complete — Ready for Phase 5: Stubs & Partial Completion
+**Current focus:** Phase 5 complete — Ready for Phase 6: Frontend Path Migration
 
 ## Current Position
 
-Phase: 4 of 7 (Low Priority & Debug Endpoints)
-Plan: 3 of 3 in current phase
+Phase: 5 of 7 (Stubs & Partial Completion)
+Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-23 — Completed 04-03-PLAN.md (test login + PDF parser health checks)
+Last activity: 2026-02-23 — Completed 05-01-PLAN.md (sync monitoring endpoints)
 
-Progress: ██████░░░░ ~62% (13/21 plans)
+Progress: ███████░░░ 70% (14/20 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: 6min
-- Total execution time: 1.29 hours
+- Total execution time: 1.4 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: ██████░░░░ ~62% (13/21 plans)
 | 2. Critical Missing Endpoints | 4 | 22min | 6min |
 | 3. Admin & Monitoring Endpoints | 3 | 20min | 7min |
 | 4. Low Priority & Debug | 3 | 13min | 4min |
+| 5. Stubs & Partial Completion | 1 | 7min | 7min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (6min), 04-01 (6min), 04-02 (3min), 04-03 (4min)
-- Trend: Steady ~4-6min per plan
+- Last 5 plans: 04-01 (6min), 04-02 (3min), 04-03 (4min), 05-01 (7min)
+- Trend: Steady ~4-7min per plan
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting current work:
 - 04-02: Timeout endpoints placed as standalone routes without auth, matching master behavior
 - 04-03: createTestBot as optional DI dep with 501 graceful degradation (matching 03-03 pattern)
 - 04-03: Health check endpoints unauthenticated (monitoring probes need no auth)
+- 05-01: Customer sync metrics derived from BullMQ job history (not sync_sessions DB table)
+- 05-01: BullMQ returnvalue access corrected to match OperationJobResult shape (data?.customersProcessed)
 
 ### Deferred Issues
 
@@ -79,7 +82,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 04-03-PLAN.md. Phase 4 complete. Next: Phase 5
-Resume file: .planning/phases/04-low-priority-debug-endpoints/04-03-SUMMARY.md
-Feature branch: feat/unified-operation-queue (latest commit: d319103)
-Test baseline: 860 backend + 418 frontend = 1278 passing, 12 skipped
+Stopped at: Completed 05-01-PLAN.md. Phase 5 complete. Next: Phase 6
+Resume file: .planning/phases/05-stubs-partial-completion/05-01-SUMMARY.md
+Feature branch: feat/unified-operation-queue (latest commit: cc89f94)
+Test baseline: 881 backend + 418 frontend = 1299 passing
