@@ -18,6 +18,7 @@ import { createOrdersRouter } from './routes/orders';
 import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
 import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
+import { createDeltaSyncRouter } from './routes/delta-sync';
 import type { ResetSyncType } from './routes/sync-status';
 import { createAdminRouter } from './routes/admin';
 import { createPricesRouter } from './routes/prices';
@@ -754,6 +755,8 @@ function createApp(deps: AppDeps): Express {
     sendEmail,
     uploadToDropbox,
   }));
+
+  app.use('/api/cache', authenticateJWT, createDeltaSyncRouter({ pool }));
 
   app.get('/api/cache/export', authenticateJWT, async (req, res) => {
     const startTime = Date.now();
