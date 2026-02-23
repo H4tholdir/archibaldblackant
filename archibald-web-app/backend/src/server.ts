@@ -53,6 +53,12 @@ import { PDFParserOrdersService } from './pdf-parser-orders-service';
 import { PDFParserDDTService } from './pdf-parser-ddt-service';
 import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 import { matchPricesToProducts } from './services/price-matching';
+import { getNextFtNumber } from './services/ft-counter';
+import { exportToArcaDbf, createExportTempDir, cleanupExportDir, streamExportAsZip } from './arca-export-service';
+import { parseArcaExport } from './arca-import-service';
+import type { FresisHistoryRow } from './arca-import-service';
+import type { FresisHistoryInput } from './db/repositories/fresis-history';
+import { PassThrough } from 'stream';
 import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
 
@@ -506,9 +512,99 @@ function createApp(deps: AppDeps): Express {
     upsertDiscount: (userId, id, code, pct, kp) => fresisHistoryRepo.upsertDiscount(pool, userId, id, code, pct, kp),
     deleteDiscount: (userId, id) => fresisHistoryRepo.deleteDiscount(pool, userId, id),
     searchOrders: async (userId, query) => ordersRepo.getOrdersByUser(pool, userId, { search: query, limit: 50 }),
-    exportArca: async (_userId) => ({ zipBuffer: Buffer.from(''), stats: { totalDocuments: 0, totalRows: 0, totalClients: 0, totalDestinations: 0 } }),
-    importArca: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, errors: [] }),
-    getNextFtNumber: async (_userId, _esercizio) => 1,
+    exportArca: async (userId) => {
+      const result = await pool.query(
+        `SELECT *, arca_data::text AS arca_data, sub_client_data::text AS sub_client_data, items::text AS items
+         FROM agents.fresis_history
+         WHERE user_id = $1 AND arca_data IS NOT NULL
+         ORDER BY created_at`,
+        [userId],
+      );
+      const rows = result.rows as FresisHistoryRow[];
+      const tmpDir = createExportTempDir();
+      try {
+        const stats = await exportToArcaDbf(rows, tmpDir);
+        const chunks: Buffer[] = [];
+        const passthrough = new PassThrough();
+        passthrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+        await streamExportAsZip(tmpDir, passthrough);
+        const zipBuffer = Buffer.concat(chunks);
+        return { zipBuffer, stats };
+      } finally {
+        cleanupExportDir(tmpDir);
+      }
+    },
+    importArca: async (userId, buffer, filename) => {
+      await fresisHistoryRepo.deleteArcaImports(pool, userId);
+
+      const parseResult = await parseArcaExport(
+        [{ originalName: filename, buffer }],
+        userId,
+        null,
+        null,
+      );
+
+      const records: FresisHistoryInput[] = parseResult.records.map(row => ({
+        id: row.id,
+        originalPendingOrderId: row.original_pending_order_id,
+        subClientCodice: row.sub_client_codice,
+        subClientName: row.sub_client_name,
+        subClientData: row.sub_client_data ? JSON.parse(row.sub_client_data) : null,
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        items: JSON.parse(row.items),
+        discountPercent: row.discount_percent,
+        targetTotalWithVat: row.target_total_with_vat,
+        shippingCost: row.shipping_cost,
+        shippingTax: row.shipping_tax,
+        revenue: row.revenue,
+        mergedIntoOrderId: row.merged_into_order_id,
+        mergedAt: row.merged_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        notes: row.notes,
+        archibaldOrderId: row.archibald_order_id,
+        archibaldOrderNumber: row.archibald_order_number,
+        currentState: row.current_state,
+        stateUpdatedAt: row.state_updated_at,
+        ddtNumber: row.ddt_number,
+        ddtDeliveryDate: row.ddt_delivery_date,
+        trackingNumber: row.tracking_number,
+        trackingUrl: row.tracking_url,
+        trackingCourier: row.tracking_courier,
+        deliveryCompletedDate: row.delivery_completed_date,
+        invoiceNumber: row.invoice_number,
+        invoiceDate: row.invoice_date,
+        invoiceAmount: row.invoice_amount,
+        invoiceClosed: null,
+        invoiceRemainingAmount: null,
+        invoiceDueDate: null,
+        arcaData: row.arca_data ? JSON.parse(row.arca_data) : null,
+        parentCustomerName: null,
+        source: row.source,
+      }));
+
+      if (records.length > 0) {
+        await fresisHistoryRepo.upsertRecords(pool, userId, records);
+      }
+
+      for (const [esercizio, maxNum] of parseResult.maxNumerodocByEsercizio) {
+        await pool.query(
+          `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (esercizio, user_id)
+           DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
+          [esercizio, userId, maxNum],
+        );
+      }
+
+      return {
+        success: true,
+        imported: records.length,
+        errors: parseResult.errors,
+      };
+    },
+    getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio),
   }));
 
   const syncSchedulerDeps = {

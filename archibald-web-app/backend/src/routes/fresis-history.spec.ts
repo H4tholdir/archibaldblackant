@@ -276,7 +276,7 @@ describe('createFresisHistoryRouter', () => {
       const res = await request(app).get('/api/fresis-history/next-ft-number');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: { nextNumber: 42 } });
+      expect(res.body).toEqual({ success: true, ftNumber: 42, esercizio: expect.any(String) });
       expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', expect.any(String));
     });
 

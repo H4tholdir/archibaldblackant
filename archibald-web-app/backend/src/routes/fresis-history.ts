@@ -171,7 +171,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     try {
       const esercizio = (req.query.esercizio as string) || new Date().getFullYear().toString();
       const nextNumber = await getNextFtNumber(req.user!.userId, esercizio);
-      res.json({ success: true, data: { nextNumber } });
+      res.json({ success: true, ftNumber: nextNumber, esercizio });
     } catch (error) {
       logger.error('Error getting next FT number', { error });
       res.status(500).json({ success: false, error: 'Errore recupero numero FT' });
