@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { createApp, type AppDeps } from './server';
 import { generateJWT } from './auth-utils';
+import type { Express } from 'express';
 import request from 'supertest';
 
 vi.mock('./pdf-parser-service', () => ({
@@ -515,5 +516,155 @@ describe('createApp', () => {
         },
       },
     });
+  });
+});
+
+describe('cross-flow integration', () => {
+  function createAuthFlowDeps() {
+    const deps = createMockDeps();
+    const mockUserRow = {
+      id: 'user-1',
+      username: 'agent1',
+      full_name: 'Agent One',
+      role: 'agent',
+      whitelisted: true,
+      created_at: Date.now(),
+      last_login_at: null,
+      last_order_sync_at: null,
+      last_customer_sync_at: null,
+      monthly_target: 0,
+      yearly_target: 0,
+      currency: 'EUR',
+      target_updated_at: null,
+      commission_rate: 0,
+      bonus_amount: 0,
+      bonus_interval: 0,
+      extra_budget_interval: 0,
+      extra_budget_reward: 0,
+      monthly_advance: 0,
+      hide_commissions: false,
+    };
+
+    (deps.pool as any).query = vi.fn().mockResolvedValue({ rows: [mockUserRow] });
+    deps.generateJWT = generateJWT;
+
+    return deps;
+  }
+
+  describe('auth flow: login → token → protected endpoint', () => {
+    test('login returns token, token grants access to protected endpoint', async () => {
+      const deps = createAuthFlowDeps();
+      const app = createApp(deps);
+
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agent1', password: 'test-pass' });
+
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body).toEqual(expect.objectContaining({
+        success: true,
+        token: expect.any(String),
+      }));
+
+      const token = loginResponse.body.token;
+
+      const protectedResponse = await request(app)
+        .get('/api/customers')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(protectedResponse.status).toBe(200);
+    });
+  });
+
+  describe('operation enqueue → status check flow', () => {
+    test('enqueue returns jobId, status check returns job state', async () => {
+      const deps = createMockDeps();
+      const jobId = 'job-42';
+      (deps.queue as any).enqueue = vi.fn().mockResolvedValue(jobId);
+      (deps.queue as any).getJobStatus = vi.fn().mockResolvedValue({
+        id: jobId,
+        state: 'completed',
+        type: 'sync-customers',
+        userId: 'user-1',
+        progress: 100,
+        result: { customersProcessed: 10 },
+      });
+      const app = createApp(deps);
+      const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent' });
+
+      const enqueueResponse = await request(app)
+        .post('/api/operations/enqueue')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ type: 'sync-customers', data: {} });
+
+      expect(enqueueResponse.status).toBe(200);
+      expect(enqueueResponse.body).toEqual({ success: true, jobId });
+
+      const statusResponse = await request(app)
+        .get(`/api/operations/${jobId}/status`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(statusResponse.status).toBe(200);
+      expect(statusResponse.body).toEqual({
+        success: true,
+        job: expect.objectContaining({
+          id: jobId,
+          state: 'completed',
+          type: 'sync-customers',
+        }),
+      });
+    });
+  });
+
+  describe('unauthenticated access control', () => {
+    const protectedMountPoints: Array<{ method: string; path: string }> = [
+      { method: 'GET', path: '/api/customers' },
+      { method: 'GET', path: '/api/products' },
+      { method: 'GET', path: '/api/orders' },
+      { method: 'GET', path: '/api/operations/stats' },
+      { method: 'GET', path: '/api/admin/users' },
+      { method: 'GET', path: '/api/warehouse/boxes' },
+      { method: 'GET', path: '/api/fresis-history' },
+      { method: 'GET', path: '/api/widget/dashboard-data' },
+      { method: 'GET', path: '/api/users/me/target' },
+      { method: 'GET', path: '/api/subclients' },
+      { method: 'GET', path: '/api/pending-orders' },
+      { method: 'GET', path: '/api/prices/sync/stats' },
+      { method: 'GET', path: '/api/sync/stats' },
+      { method: 'GET', path: '/api/cache/export' },
+      { method: 'GET', path: '/api/metrics/budget' },
+    ];
+
+    test.each(protectedMountPoints)(
+      '$method $path → 401 without token',
+      async ({ method, path }) => {
+        const deps = createMockDeps();
+        const app = createApp(deps);
+        const m = method.toLowerCase() as 'get' | 'post';
+        const response = await request(app)[m](path);
+        expect(response.status).toBe(401);
+      },
+    );
+  });
+
+  describe('public endpoints accessible without token', () => {
+    const publicEndpoints: Array<{ method: string; path: string }> = [
+      { method: 'GET', path: '/api/health' },
+      { method: 'GET', path: '/metrics' },
+      { method: 'GET', path: '/api/timeouts/stats' },
+      { method: 'GET', path: '/api/sync/quick-check' },
+      { method: 'GET', path: '/api/share/pdf/nonexistent' },
+    ];
+
+    test.each(publicEndpoints)(
+      '$method $path → non-401 without token',
+      async ({ method, path }) => {
+        const deps = createMockDeps();
+        const app = createApp(deps);
+        const m = method.toLowerCase() as 'get' | 'post';
+        const response = await request(app)[m](path);
+        expect(response.status).not.toBe(401);
+      },
+    );
   });
 });
