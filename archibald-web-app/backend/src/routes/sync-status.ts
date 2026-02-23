@@ -16,11 +16,16 @@ type SyncSchedulerLike = {
   getDetailedIntervals?: () => Record<string, number>;
 };
 
+type ResetSyncType = 'customers' | 'products' | 'prices';
+
+const VALID_RESET_TYPES = new Set<ResetSyncType>(['customers', 'products', 'prices']);
+
 type SyncStatusRouterDeps = {
   queue: OperationQueue;
   agentLock: AgentLock;
   syncScheduler: SyncSchedulerLike;
   clearSyncData?: (type: string) => Promise<{ message: string }>;
+  resetSyncCheckpoint?: (type: ResetSyncType) => Promise<void>;
   getGlobalCustomerCount?: () => Promise<number>;
   getGlobalCustomerLastSyncTime?: () => Promise<number | null>;
   getProductCount?: () => Promise<number>;
@@ -259,6 +264,36 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  router.post('/reset/:type', requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const syncType = req.params.type;
+      if (!VALID_RESET_TYPES.has(syncType as ResetSyncType)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Tipo sync non valido. Usare: customers, products, prices',
+        });
+      }
+
+      if (!deps.resetSyncCheckpoint) {
+        return res.status(501).json({ success: false, error: 'Reset checkpoint non supportato' });
+      }
+
+      await deps.resetSyncCheckpoint(syncType as ResetSyncType);
+      logger.info(`Checkpoint ${syncType} resettato`, { userId: req.user?.userId });
+
+      res.json({
+        success: true,
+        message: `Checkpoint ${syncType} resettato. Prossima sync ripartirà da pagina 1.`,
+      });
+    } catch (error) {
+      logger.error('Errore API /api/sync/reset', { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Errore reset checkpoint',
+      });
+    }
+  });
+
   const frequencySchema = z.object({
     intervalMinutes: z.number().min(5).max(1440),
   });
@@ -347,4 +382,4 @@ function createQuickCheckRouter(deps: SyncStatusRouterDeps) {
   return router;
 }
 
-export { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps };
+export { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps, type ResetSyncType };
