@@ -225,5 +225,5 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 15. Admin Session & SSE | v1.2 | 0/2 | Not started | - |
+| 15. Admin Session & SSE | v1.2 | 1/2 | In progress | - |
 | 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |
