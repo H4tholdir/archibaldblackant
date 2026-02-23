@@ -140,7 +140,7 @@ Plans:
 
 **Milestone Goal:** Chiudere tutti i 25 gap trovati nell'audit 1:1 master vs branch — bootstrap, stubs, endpoint mancanti, sync enhancements. Design doc: `docs/plans/2026-02-23-full-parity-v1.2-design.md`
 
-- [ ] **Phase 11: Bootstrap & Entry Point** - main.ts, migrations, graceful shutdown, background services
+- [x] **Phase 11: Bootstrap & Entry Point** - main.ts, migrations, graceful shutdown, background services
 - [ ] **Phase 12: Subclient System** - Repository PostgreSQL, Excel importer, wire stubs
 - [ ] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
 - [ ] **Phase 14: Price/VAT Excel Import** - ExcelVatImporter, matching prodotti, propagazione VAT
@@ -156,7 +156,7 @@ Plans:
 
 Plans:
 - [x] 11-01: main.ts entry point (pool, queue, browserPool, scheduler, createApp, listen, shutdown)
-- [ ] 11-02: Migration runner on startup + background services init
+- [x] 11-02: Migration runner on startup + background services init
 
 ### Phase 12: Subclient System
 **Goal**: Subclient CRUD + import Excel completamente funzionanti con tutti i 15 campi dal master.
@@ -219,7 +219,7 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
-| 11. Bootstrap & Entry Point | v1.2 | 1/2 | In progress | - |
+| 11. Bootstrap & Entry Point | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 12. Subclient System | v1.2 | 0/2 | Not started | - |
 | 13. Fresis History Completion | v1.2 | 0/2 | Not started | - |
 | 14. Price/VAT Excel Import | v1.2 | 0/1 | Not started | - |
