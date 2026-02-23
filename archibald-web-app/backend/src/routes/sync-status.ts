@@ -108,6 +108,8 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  const VALID_MODES = new Set(['full', 'forced', 'delta', 'manual']);
+
   router.post('/trigger/:type', requireAdmin, async (req: AuthRequest, res) => {
     try {
       const syncType = req.params.type;
@@ -118,8 +120,32 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         });
       }
 
+      const mode = (req.query.mode as string) ?? 'full';
+      if (!VALID_MODES.has(mode)) {
+        return res.status(400).json({ success: false, error: `Invalid sync mode: ${mode}` });
+      }
+
       const userId = req.user!.userId;
-      const jobId = await queue.enqueue(syncType as OperationType, userId, {});
+
+      if (mode === 'forced') {
+        if (!deps.clearSyncData) {
+          return res.status(501).json({ success: false, error: 'clearSyncData non disponibile' });
+        }
+        await deps.clearSyncData(syncType);
+        if (deps.resetSyncCheckpoint && VALID_RESET_TYPES.has(syncType.replace('sync-', '') as ResetSyncType)) {
+          await deps.resetSyncCheckpoint(syncType.replace('sync-', '') as ResetSyncType);
+        }
+      }
+
+      const jobData: Record<string, unknown> = {};
+      if (mode === 'delta') {
+        jobData.syncMode = 'delta';
+      } else if (mode === 'manual') {
+        jobData.syncMode = 'manual';
+        jobData.triggeredBy = userId;
+      }
+
+      const jobId = await queue.enqueue(syncType as OperationType, userId, jobData);
       res.json({ success: true, jobId });
     } catch (error) {
       logger.error('Error triggering sync', { error });

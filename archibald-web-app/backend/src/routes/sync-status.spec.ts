@@ -135,6 +135,76 @@ describe('createSyncStatusRouter', () => {
 
       expect(res.status).toBe(400);
     });
+
+    test('defaults to full mode when no mode specified', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers');
+
+      expect(res.status).toBe(200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    });
+
+    test('rejects invalid sync mode with 400', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=invalid');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Invalid sync mode: invalid' });
+    });
+
+    test('forced mode calls clearSyncData then enqueues', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=forced');
+
+      expect(res.status).toBe(200);
+      expect(deps.clearSyncData).toHaveBeenCalledWith('sync-customers');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    });
+
+    test('forced mode calls resetSyncCheckpoint if available', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=forced');
+
+      expect(res.status).toBe(200);
+      expect(deps.resetSyncCheckpoint).toHaveBeenCalledWith('customers');
+    });
+
+    test('forced mode returns 501 if clearSyncData not available', async () => {
+      deps.clearSyncData = undefined;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=forced');
+
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({ success: false, error: 'clearSyncData non disponibile' });
+    });
+
+    test('forced mode skips resetSyncCheckpoint if not available', async () => {
+      deps.resetSyncCheckpoint = undefined;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=forced');
+
+      expect(res.status).toBe(200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    });
+
+    test('delta mode passes syncMode in job data', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=delta');
+
+      expect(res.status).toBe(200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', { syncMode: 'delta' });
+    });
+
+    test('manual mode passes syncMode and triggeredBy in job data', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-customers?mode=manual');
+
+      expect(res.status).toBe(200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {
+        syncMode: 'manual',
+        triggeredBy: 'user-1',
+      });
+    });
   });
 
   describe('POST /api/sync/trigger-all', () => {
