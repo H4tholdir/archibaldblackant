@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 14 of 16 (Price/VAT Excel Import)
-Plan: 0 of 1 in current phase
-Status: Not started
-Last activity: 2026-02-23 — Completed 13-02-PLAN.md (Phase 13 complete)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 14-01-PLAN.md
 
-Progress: █████████░ 87% (34 of 38 total plans)
+Progress: █████████░ 87% (35 of 39 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 34
+- Total plans completed: 35
 - Average duration: ~8min
-- Total execution time: ~4h 10min
+- Total execution time: ~4h 15min
 
 ## Accumulated Context
 
@@ -46,6 +46,8 @@ Key decisions from v1.0/v1.1/v1.2:
 - Atomic FT counter: INSERT ON CONFLICT DO UPDATE RETURNING for sequential numbering (13-01)
 - JSONB→text cast needed when passing DB rows to arca-export-service JSON.parse (13-01)
 - ft_counter seeded from imported NUMERODOC max via GREATEST() (13-01)
+- findSiblingVariants returns ALL siblings including self — caller filters (14-01)
+- escapeRegex local helper in products.ts for dot-containing product IDs (14-01)
 
 ### Audit Findings (v1.2 scope)
 
@@ -65,7 +67,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 13-02-PLAN.md — Phase 13 fully complete
+Stopped at: Completed 14-01-PLAN.md — Phase 14 in progress (1/2 plans)
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1358 backend + 441 frontend = 1799 passing
+Test baseline: 1378 backend + 441 frontend = 1819 passing

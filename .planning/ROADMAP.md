@@ -182,7 +182,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: Foundation — Migration + excel-vat-imports repository + product helpers (findSiblingVariants, updateProductVat)
+- [x] 14-01: Foundation — Migration + excel-vat-imports repository + product helpers (findSiblingVariants, updateProductVat)
 - [ ] 14-02: Excel VAT importer service + wire stubs in server.ts
 
 ### Phase 15: Admin Session & SSE
@@ -223,6 +223,6 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 11. Bootstrap & Entry Point | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 14. Price/VAT Excel Import | v1.2 | 0/2 | Not started | - |
+| 14. Price/VAT Excel Import | v1.2 | 1/2 | In progress | - |
 | 15. Admin Session & SSE | v1.2 | 0/1 | Not started | - |
 | 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |
