@@ -130,7 +130,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 10-01: parseItalianPrice + matchVariant pure functions (TDD)
+- [x] 10-01: parseItalianPrice + matchVariant pure functions (TDD)
 - [ ] 10-02: Price History PostgreSQL migration + repository
 - [ ] 10-03: matchPricesToProducts service + wire stubs in server.ts
 - [ ] 10-04: sync-prices operation handler + final verification
@@ -151,4 +151,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Integration Testing & Parity Validation | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
-| 10. Price Management | v1.1 | 0/4 | Planning complete | - |
+| 10. Price Management | v1.1 | 1/4 | In progress | - |
