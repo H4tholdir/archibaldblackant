@@ -37,6 +37,7 @@ import * as warehouseRepo from './db/repositories/warehouse';
 import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
+import * as pricesHistoryRepo from './db/repositories/prices-history';
 import * as syncSessionsRepo from './db/repositories/sync-sessions';
 import * as devicesRepo from './db/repositories/devices';
 import * as dashboardService from './dashboard-service';
@@ -49,6 +50,7 @@ import { PDFParserPricesService } from './pdf-parser-prices-service';
 import { PDFParserOrdersService } from './pdf-parser-orders-service';
 import { PDFParserDDTService } from './pdf-parser-ddt-service';
 import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
+import { matchPricesToProducts } from './services/price-matching';
 import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
 
@@ -390,18 +392,26 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({
     getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
-    getPriceHistory: async (_productId, _limit) => [],
-    getRecentPriceChanges: async (_days) => [],
+    getPriceHistory: (productId, limit) => pricesHistoryRepo.getProductHistory(pool, productId, limit),
+    getRecentPriceChanges: (days) => pricesHistoryRepo.getRecentChanges(pool, days),
     getImportHistory: async () => [],
     importExcel: async (_buffer, _filename, _userId) => ({ totalRows: 0, matched: 0, unmatched: 0, errors: ['Not yet implemented'] }),
     getProductsWithoutVat: (limit) => productsRepo.getProductsWithoutVat(pool, limit),
-    matchPricesToProducts: async () => ({ result: { matched: 0, unmatched: 0, skipped: 0 }, unmatchedPrices: [] }),
-    getSyncStats: () => pricesRepo.getSyncStats(pool),
-    getHistorySummary: async (_days) => ({
-      stats: { totalChanges: 0, increases: 0, decreases: 0, newPrices: 0, avgIncrease: 0, avgDecrease: 0 },
-      topIncreases: [],
-      topDecreases: [],
+    matchPricesToProducts: () => matchPricesToProducts({
+      getAllPrices: () => pricesRepo.getAllPrices(pool),
+      getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
+      updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+      recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
     }),
+    getSyncStats: () => pricesRepo.getSyncStats(pool),
+    getHistorySummary: async (days) => {
+      const [stats, topIncreases, topDecreases] = await Promise.all([
+        pricesHistoryRepo.getRecentStats(pool, days),
+        pricesHistoryRepo.getTopIncreases(pool, days, 10),
+        pricesHistoryRepo.getTopDecreases(pool, days, 10),
+      ]);
+      return { stats, topIncreases, topDecreases };
+    },
   }));
 
   app.use('/api/orders', authenticateJWT, createOrdersRouter({
