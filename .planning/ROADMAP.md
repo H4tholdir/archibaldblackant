@@ -67,7 +67,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 04-01: GET /metrics (Prometheus), GET /api/cache/export
+- [x] 04-01: GET /metrics (Prometheus), GET /api/cache/export
 - [ ] 04-02: Adaptive timeouts (3 endpoint), GET /api/admin/jobs/retention
 - [ ] 04-03: POST /api/test/login, 6 health check PDF parser
 
@@ -113,7 +113,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
 | 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
 | 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
-| 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
+| 4. Low Priority & Debug Endpoints | 1/3 | In progress | - |
 | 5. Stubs & Partial Completion | 0/2 | Not started | - |
 | 6. Frontend Path Migration | 0/3 | Not started | - |
 | 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
