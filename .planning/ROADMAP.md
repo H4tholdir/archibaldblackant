@@ -12,7 +12,7 @@ None
 
 - ✅ **v1.0 Endpoint Parity** - Phases 1-7 (shipped 2026-02-23, 20 plans)
 - ✅ **v1.1 Full Feature Parity** - Phases 8-10 (shipped 2026-02-23, 7 plans)
-- 🚧 **v1.2 Production Parity** - Phases 11-16 (in progress)
+- ✅ **v1.2 Production Parity** - Phases 11-16 (shipped 2026-02-24, 14 plans)
 
 ## Phases
 
@@ -136,7 +136,7 @@ Plans:
 - [x] 10-03: matchPricesToProducts service + wire stubs in server.ts
 - [x] 10-04: sync-prices operation handler + final verification
 
-### 🚧 v1.2 Production Parity (In Progress)
+### ✅ v1.2 Production Parity (Shipped 2026-02-24)
 
 **Milestone Goal:** Chiudere tutti i 25 gap trovati nell'audit 1:1 master vs branch — bootstrap, stubs, endpoint mancanti, sync enhancements. Design doc: `docs/plans/2026-02-23-full-parity-v1.2-design.md`
 
@@ -145,7 +145,7 @@ Plans:
 - [x] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
 - [x] **Phase 14: Price/VAT Excel Import** - ExcelVatImporter, matching prodotti, propagazione VAT
 - [x] **Phase 15: Admin Session & SSE** - Impersonificazione admin, eventi SSE real-time
-- [ ] **Phase 16: Sync Enhancements** - Checkpoint/resume, retry, delta sync, optimizer
+- [x] **Phase 16: Sync Enhancements** - Checkpoint/resume, retry, delta sync, optimizer
 
 ## Phase Details (v1.2)
 
@@ -202,7 +202,7 @@ Plans:
 Plans:
 - [x] 16-01: Sync checkpoint repository with page-level resume
 - [x] 16-02: Product sync retry + delta sync endpoints
-- [ ] 16-03: Slowdown optimizer + smart sync variants
+- [x] 16-03: Slowdown optimizer + smart sync variants
 
 ## Progress
 
@@ -226,4 +226,4 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 15. Admin Session & SSE | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 16. Sync Enhancements | v1.2 | 2/3 | In progress | - |
+| 16. Sync Enhancements | v1.2 | 3/3 | Complete | 2026-02-24 |
