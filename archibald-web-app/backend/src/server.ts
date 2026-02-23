@@ -39,6 +39,7 @@ import * as pricesRepo from './db/repositories/prices';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
+import { AdaptiveTimeoutManager } from './adaptive-timeout-manager';
 import { logger } from './logger';
 
 type PasswordCacheLike = {
@@ -95,6 +96,48 @@ function createApp(deps: AppDeps): Express {
       res.end(metrics);
     } catch {
       res.status(500).end();
+    }
+  });
+
+  app.get('/api/timeouts/stats', (_req, res) => {
+    try {
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const stats = manager.getAllStats();
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post('/api/timeouts/reset/:operation?', (req, res) => {
+    try {
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const operation = req.params.operation;
+      if (operation) {
+        manager.resetStats(operation);
+        logger.info(`[Timeouts] Reset stats for operation: ${operation}`);
+        res.json({ success: true, message: `Statistiche per ${operation} resettate` });
+      } else {
+        manager.resetStats();
+        logger.info('[Timeouts] Reset all timeout stats');
+        res.json({ success: true, message: 'Tutte le statistiche timeout resettate' });
+      }
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post('/api/timeouts/set', (req, res) => {
+    try {
+      const { operation, timeout } = req.body;
+      if (!operation || typeof timeout !== 'number') {
+        return res.status(400).json({ success: false, error: 'Parametri mancanti: operation (string) e timeout (number) richiesti' });
+      }
+      const manager = AdaptiveTimeoutManager.getInstance();
+      manager.setTimeout(operation, timeout);
+      res.json({ success: true, message: `Timeout per ${operation} impostato a ${timeout}ms` });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
   });
 

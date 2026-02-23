@@ -181,6 +181,99 @@ describe('createApp', () => {
     expect(response.text).toContain('archibald_');
   });
 
+  describe('GET /api/timeouts/stats', () => {
+    test('returns timeout statistics without auth', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).get('/api/timeouts/stats');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: expect.any(Array),
+      });
+    });
+  });
+
+  describe('POST /api/timeouts/reset', () => {
+    test('resets all timeout stats without operation param', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app).post('/api/timeouts/reset');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: 'Tutte le statistiche timeout resettate',
+      });
+    });
+
+    test('resets stats for specific operation', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+      const operationName = 'test-operation';
+
+      const response = await request(app).post(`/api/timeouts/reset/${operationName}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: `Statistiche per ${operationName} resettate`,
+      });
+    });
+  });
+
+  describe('POST /api/timeouts/set', () => {
+    test('sets timeout for an operation', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+      const operationName = 'test-operation';
+      const timeoutMs = 3000;
+
+      const response = await request(app)
+        .post('/api/timeouts/set')
+        .send({ operation: operationName, timeout: timeoutMs });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: `Timeout per ${operationName} impostato a ${timeoutMs}ms`,
+      });
+    });
+
+    test('returns 400 when operation is missing', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app)
+        .post('/api/timeouts/set')
+        .send({ timeout: 3000 });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Parametri mancanti: operation (string) e timeout (number) richiesti',
+      });
+    });
+
+    test('returns 400 when timeout is not a number', async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const response = await request(app)
+        .post('/api/timeouts/set')
+        .send({ operation: 'test-op', timeout: 'not-a-number' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Parametri mancanti: operation (string) e timeout (number) richiesti',
+      });
+    });
+  });
+
   test('GET /api/cache/export requires authentication', async () => {
     const deps = createMockDeps();
     const app = createApp(deps);
