@@ -25,6 +25,7 @@ function createMockDeps(): SyncStatusRouterDeps {
       getDetailedIntervals: vi.fn().mockReturnValue({ orders: 10, customers: 15, products: 30, prices: 60, ddt: 20, invoices: 20 }),
     },
     clearSyncData: vi.fn().mockResolvedValue({ message: 'Database customers cancellato con successo' }),
+    resetSyncCheckpoint: vi.fn().mockResolvedValue(undefined),
     getGlobalCustomerCount: vi.fn().mockResolvedValue(150),
     getGlobalCustomerLastSyncTime: vi.fn().mockResolvedValue(Date.now() - 30 * 60 * 1000),
     getProductCount: vi.fn().mockResolvedValue(500),
@@ -363,6 +364,68 @@ describe('createSyncStatusRouter', () => {
         expect(res.status).toBe(200);
       },
     );
+  });
+
+  describe('POST /api/sync/reset/:type', () => {
+    test.each(['customers', 'products', 'prices'] as const)(
+      'resets checkpoint for valid type "%s" and returns 200',
+      async (type) => {
+        const app = createApp(deps, 'admin');
+        const res = await request(app).post(`/api/sync/reset/${type}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+          success: true,
+          message: `Checkpoint ${type} resettato. Prossima sync ripartirà da pagina 1.`,
+        });
+        expect(deps.resetSyncCheckpoint).toHaveBeenCalledWith(type);
+      },
+    );
+
+    test('rejects non-admin users with 403', async () => {
+      const app = createApp(deps, 'agent');
+      const res = await request(app).post('/api/sync/reset/customers');
+
+      expect(res.status).toBe(403);
+      expect(deps.resetSyncCheckpoint).not.toHaveBeenCalled();
+    });
+
+    test.each(['orders', 'ddt', 'invoices', 'invalid', 'foo'])(
+      'rejects invalid sync type "%s" with 400',
+      async (type) => {
+        const app = createApp(deps, 'admin');
+        const res = await request(app).post(`/api/sync/reset/${type}`);
+
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({
+          success: false,
+          error: 'Tipo sync non valido. Usare: customers, products, prices',
+        });
+      },
+    );
+
+    test('returns 501 when resetSyncCheckpoint is not configured', async () => {
+      deps.resetSyncCheckpoint = undefined;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/reset/customers');
+
+      expect(res.status).toBe(501);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 500 on server error', async () => {
+      (deps.resetSyncCheckpoint as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('DB connection lost'),
+      );
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/reset/customers');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'DB connection lost',
+      });
+    });
   });
 });
 
