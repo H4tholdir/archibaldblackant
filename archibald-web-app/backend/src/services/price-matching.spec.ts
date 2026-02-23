@@ -144,7 +144,7 @@ describe('matchVariant', () => {
 
   test('returns first product when itemSelection is undefined', () => {
     const singleProduct = makeProduct({ id: 'X' });
-    expect(matchVariant([singleProduct], undefined as unknown as string | null)).toEqual(singleProduct);
+    expect(matchVariant([singleProduct], undefined)).toEqual(singleProduct);
   });
 
   test('returns null for empty products array', () => {
