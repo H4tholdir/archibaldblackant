@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Una PWA per agenti commerciali Komet che funziona identicamente alla versione in produzione, ma con un backend modulare, testabile e manutenibile.
-**Current focus:** Phase 5 complete — Ready for Phase 6: Frontend Path Migration
+**Current focus:** Phase 6 in progress — Frontend Path Migration
 
 ## Current Position
 
-Phase: 5 of 7 (Stubs & Partial Completion)
-Plan: 1 of 1 in current phase
-Status: Phase complete
-Last activity: 2026-02-23 — Completed 05-01-PLAN.md (sync monitoring endpoints)
+Phase: 6 of 7 (Frontend Path Migration)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 06-01-PLAN.md (order status path migration + dead code removal)
 
-Progress: ███████░░░ 70% (14/20 plans)
+Progress: ███████░░░ 75% (15/20 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: 6min
-- Total execution time: 1.4 hours
+- Total execution time: 1.5 hours
 
 **By Phase:**
 
@@ -32,10 +32,11 @@ Progress: ███████░░░ 70% (14/20 plans)
 | 3. Admin & Monitoring Endpoints | 3 | 20min | 7min |
 | 4. Low Priority & Debug | 3 | 13min | 4min |
 | 5. Stubs & Partial Completion | 1 | 7min | 7min |
+| 6. Frontend Path Migration | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (6min), 04-02 (3min), 04-03 (4min), 05-01 (7min)
-- Trend: Steady ~4-7min per plan
+- Last 5 plans: 04-02 (3min), 04-03 (4min), 05-01 (7min), 06-01 (3min)
+- Trend: Steady ~3-7min per plan
 
 ## Accumulated Context
 
@@ -73,7 +74,7 @@ Recent decisions affecting current work:
 
 - Device registration + background sync on login: deviceManager and userSpecificSyncService not in branch DI
 - Audit log on send-to-verona: no insertAuditLog, no audit_log table in branch
-- Response shape changes (sync->jobId): deferred to Phase 6 frontend migration
+- Response shape changes (sync->jobId): resolved in 06-01 (data.data → data.job)
 
 ### Blockers/Concerns
 
@@ -82,7 +83,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 05-01-PLAN.md. Phase 5 complete. Next: Phase 6
-Resume file: .planning/phases/05-stubs-partial-completion/05-01-SUMMARY.md
-Feature branch: feat/unified-operation-queue (latest commit: cc89f94)
+Stopped at: Completed 06-01-PLAN.md. 1/3 plans done in Phase 6. Next: 06-02
+Resume file: .planning/phases/06-frontend-path-migration/06-01-SUMMARY.md
+Feature branch: feat/unified-operation-queue (latest commit: 72009e8)
 Test baseline: 881 backend + 418 frontend = 1299 passing

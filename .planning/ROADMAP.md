@@ -114,5 +114,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
 | 4. Low Priority & Debug Endpoints | 3/3 | Complete | 2026-02-23 |
 | 5. Stubs & Partial Completion | 1/1 | Complete | 2026-02-23 |
-| 6. Frontend Path Migration | 0/3 | Not started | - |
+| 6. Frontend Path Migration | 1/3 | In progress | - |
 | 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
