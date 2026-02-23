@@ -98,7 +98,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 07-01: Test E2E flussi critici (login → ordine → sync → verifica)
+- [x] 07-01: Endpoint parity audit (289 tests) + cross-flow integration tests (20 tests)
 - [ ] 07-02: Test regressione completo — confronto risposte API branch vs master
 - [ ] 07-03: Validazione finale e checklist pre-merge
 
@@ -115,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Low Priority & Debug Endpoints | 3/3 | Complete | 2026-02-23 |
 | 5. Stubs & Partial Completion | 1/1 | Complete | 2026-02-23 |
 | 6. Frontend Path Migration | 3/3 | Complete | 2026-02-23 |
-| 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
+| 7. Integration Testing & Parity Validation | 1/3 | In progress | - |
