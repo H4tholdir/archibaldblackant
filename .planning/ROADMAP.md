@@ -144,7 +144,7 @@ Plans:
 - [x] **Phase 12: Subclient System** - Repository PostgreSQL, Excel importer, wire stubs
 - [x] **Phase 13: Fresis History Completion** - Arca export/import, FT numbering, endpoint mancanti, bulk discounts
 - [x] **Phase 14: Price/VAT Excel Import** - ExcelVatImporter, matching prodotti, propagazione VAT
-- [ ] **Phase 15: Admin Session & SSE** - Impersonificazione admin, eventi SSE real-time
+- [x] **Phase 15: Admin Session & SSE** - Impersonificazione admin, eventi SSE real-time
 - [ ] **Phase 16: Sync Enhancements** - Checkpoint/resume, retry, delta sync, optimizer
 
 ## Phase Details (v1.2)
@@ -191,8 +191,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: Admin sessions PostgreSQL repository + wire stubs in server.ts
-- [ ] 15-02: SSE job event bus + wire onJobEvent in server.ts/main.ts
+- [x] 15-01: Admin sessions PostgreSQL repository + wire stubs in server.ts
+- [x] 15-02: SSE job event bus + wire onJobEvent in server.ts/main.ts
 
 ### Phase 16: Sync Enhancements
 **Goal**: Parità completa sistema sync — checkpoint/resume a livello pagina, retry con backoff, delta sync, optimizer.
@@ -225,5 +225,5 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 15. Admin Session & SSE | v1.2 | 1/2 | In progress | - |
+| 15. Admin Session & SSE | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |

@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 15 of 16 (Admin Session & SSE)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-23 — Completed 15-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-23 — Completed 15-02-PLAN.md
 
-Progress: █████████░ 95% (37 of 39 total plans)
+Progress: █████████░ 97% (38 of 39 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 37
+- Total plans completed: 38
 - Average duration: ~8min
-- Total execution time: ~4h 26min
+- Total execution time: ~4h 30min
 
 ## Accumulated Context
 
@@ -52,6 +52,8 @@ Key decisions from v1.0/v1.1/v1.2:
 - Invalid Excel buffers → "missing required columns" error (xlsx lenient with binary) (14-02)
 - recordPriceChange .then(() => {}) to discard return value for Promise<void> deps type (14-02)
 - No getSession/getActiveSessions for admin sessions — YAGNI (15-01)
+- Factory function pub/sub for SSE event bus — no class needed (15-02)
+- Dual broadcast: main.ts fans out to both WebSocket and SSE event bus (15-02)
 
 ### Audit Findings (v1.2 scope)
 
@@ -71,7 +73,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 15-01-PLAN.md — Phase 15 in progress (1/2 plans)
+Stopped at: Completed 15-02-PLAN.md — Phase 15 complete (2/2 plans)
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1412 backend + 441 frontend = 1853 passing
+Test baseline: 1418 backend + 441 frontend = 1859 passing
