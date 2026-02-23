@@ -108,10 +108,11 @@ Plans:
 **Goal**: Collegare 3 funzionalità che hanno già slot DI pronti — reset sync checkpoint, test login bot, audit log su invio ordine.
 **Depends on**: v1.0 complete
 **Research**: Unlikely (codice master analizzato, pattern DI stabiliti)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD (run /gsd:plan-phase 8 to break down)
+- [ ] 08-01: Wire DI dependencies (resetSyncCheckpoint + createTestBot)
+- [ ] 08-02: Add audit log to send-to-verona handler
 
 ### Phase 9: Device Registration
 **Goal**: Implementare il device tracking al login — tabella user_devices in PostgreSQL, DeviceManager service, hook nel flusso di login.
