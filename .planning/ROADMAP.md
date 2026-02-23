@@ -16,7 +16,7 @@ None
 
 - [x] **Phase 1: Verification & Test Infrastructure** - Verifica dei 42 elementi riprogettati e setup infrastruttura test
 - [x] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
-- [ ] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
+- [x] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
 - [ ] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
 - [ ] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
 - [ ] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
@@ -57,7 +57,7 @@ Plans:
 Plans:
 - [x] 03-01: GET /api/sync/quick-check, POST /api/sync/intervals/:type, POST /api/admin/sync/frequency
 - [x] 03-02: GET /api/prices/unmatched, POST /api/prices/match, GET /api/prices/sync/stats, GET /api/prices/history/summary
-- [ ] 03-03: POST /api/sync/reset/:type
+- [x] 03-03: POST /api/sync/reset/:type
 
 ### Phase 4: Low Priority & Debug Endpoints
 **Goal**: Implementare i 6 endpoint a bassa priorità (metrics, cache, debug).
@@ -112,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
 | 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
-| 3. Admin & Monitoring Endpoints | 2/3 | In progress | - |
+| 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
 | 4. Low Priority & Debug Endpoints | 0/3 | Not started | - |
 | 5. Stubs & Partial Completion | 0/2 | Not started | - |
 | 6. Frontend Path Migration | 0/3 | Not started | - |
