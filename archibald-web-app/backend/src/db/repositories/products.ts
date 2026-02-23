@@ -473,6 +473,45 @@ async function getAllProductVariants(pool: DbPool): Promise<VariantRow[]> {
   return rows;
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractBaseCode(productId: string): string {
+  return productId.replace(/[KRkr]$/, '');
+}
+
+async function findSiblingVariants(
+  pool: DbPool,
+  productId: string,
+): Promise<ProductRow[]> {
+  const baseCode = extractBaseCode(productId);
+  const { rows } = await pool.query<ProductRow>(
+    `SELECT * FROM shared.products
+     WHERE id ~ $1 AND deleted_at IS NULL`,
+    [`^${escapeRegex(baseCode)}[KRkr]?$`],
+  );
+  return rows;
+}
+
+async function updateProductVat(
+  pool: DbPool,
+  productId: string,
+  vat: number,
+  vatSource: string,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE shared.products SET
+       vat = $2,
+       vat_source = $3,
+       vat_updated_at = NOW(),
+       updated_at = NOW()
+     WHERE id = $1`,
+    [productId, vat, vatSource],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 export {
   getProducts,
   getProductById,
@@ -491,6 +530,9 @@ export {
   getProductChanges,
   getRecentProductChanges,
   getProductChangeStats,
+  extractBaseCode,
+  findSiblingVariants,
+  updateProductVat,
   type ProductRow,
   type ProductWithoutVatRow,
   type ProductUpsertInput,

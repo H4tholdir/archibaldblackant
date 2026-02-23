@@ -13,6 +13,9 @@ import {
   getLastSyncTime,
   getAllProducts,
   getAllProductVariants,
+  extractBaseCode,
+  findSiblingVariants,
+  updateProductVat,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -386,5 +389,150 @@ describe('getAllProductVariants', () => {
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('multiple_qty IS NOT NULL'),
     );
+  });
+});
+
+describe('extractBaseCode', () => {
+  test('strips trailing K', () => {
+    expect(extractBaseCode('ABC123K')).toBe('ABC123');
+  });
+
+  test('strips trailing R', () => {
+    expect(extractBaseCode('ABC123R')).toBe('ABC123');
+  });
+
+  test('no change for base codes without suffix', () => {
+    expect(extractBaseCode('ABC123')).toBe('ABC123');
+  });
+
+  test('handles lowercase suffix', () => {
+    expect(extractBaseCode('abc123k')).toBe('abc123');
+  });
+
+  test('does not strip K/R from middle of code', () => {
+    expect(extractBaseCode('KR123')).toBe('KR123');
+  });
+
+  test('handles dot-containing product IDs', () => {
+    expect(extractBaseCode('h129fsq.104.023K')).toBe('h129fsq.104.023');
+  });
+
+  test('preserves IDs ending in non-K/R letters', () => {
+    expect(extractBaseCode('ABC123Z')).toBe('ABC123Z');
+  });
+});
+
+describe('findSiblingVariants', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns all products sharing base code', async () => {
+    const siblings = [
+      { id: 'ABC123' },
+      { id: 'ABC123K' },
+      { id: 'ABC123R' },
+    ];
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: siblings, rowCount: 3, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await findSiblingVariants(pool, 'ABC123K');
+
+    expect(result).toEqual(siblings);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE id ~ $1 AND deleted_at IS NULL'),
+      ['^ABC123[KRkr]?$'],
+    );
+  });
+
+  test('returns empty array when no siblings exist', async () => {
+    const pool = createMockPool();
+
+    const result = await findSiblingVariants(pool, 'LONELY001');
+
+    expect(result).toEqual([]);
+  });
+
+  test('escapes dots in product IDs for regex safety', async () => {
+    const siblings = [{ id: 'h129.001' }, { id: 'h129.001K' }];
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: siblings, rowCount: 2, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await findSiblingVariants(pool, 'h129.001');
+
+    expect(result).toEqual(siblings);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE id ~ $1 AND deleted_at IS NULL'),
+      ['^h129\\.001[KRkr]?$'],
+    );
+  });
+
+  test('excludes soft-deleted products via WHERE clause', async () => {
+    const pool = createMockPool();
+
+    await findSiblingVariants(pool, 'ABC123');
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('deleted_at IS NULL'),
+      expect.any(Array),
+    );
+  });
+});
+
+describe('updateProductVat', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('updates VAT and vat_source on existing product', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await updateProductVat(pool, 'P001', 22, 'excel-import');
+
+    expect(result).toBe(true);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('vat = $2'),
+      ['P001', 22, 'excel-import'],
+    );
+  });
+
+  test('returns true when product exists', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await updateProductVat(pool, 'P001', 10, 'manual');
+
+    expect(result).toBe(true);
+  });
+
+  test('returns false when product does not exist', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await updateProductVat(pool, 'MISSING', 22, 'excel-import');
+
+    expect(result).toBe(false);
+  });
+
+  test('does not touch price fields', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    await updateProductVat(pool, 'P001', 22, 'excel-import');
+
+    const sql = vi.mocked(pool.query).mock.calls[0][0] as string;
+    expect(sql).not.toContain('price =');
+    expect(sql).not.toContain('price_source');
+    expect(sql).not.toContain('price_updated_at');
+    expect(sql).toContain('vat = $2');
+    expect(sql).toContain('vat_source = $3');
+    expect(sql).toContain('vat_updated_at');
   });
 });
