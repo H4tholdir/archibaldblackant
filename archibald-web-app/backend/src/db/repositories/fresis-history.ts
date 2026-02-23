@@ -422,6 +422,90 @@ async function propagateState(
   return rowCount ?? 0;
 }
 
+const CAMEL_TO_SNAKE: Record<string, string> = {
+  originalPendingOrderId: 'original_pending_order_id',
+  subClientCodice: 'sub_client_codice',
+  subClientName: 'sub_client_name',
+  subClientData: 'sub_client_data',
+  customerId: 'customer_id',
+  customerName: 'customer_name',
+  items: 'items',
+  discountPercent: 'discount_percent',
+  targetTotalWithVat: 'target_total_with_vat',
+  shippingCost: 'shipping_cost',
+  shippingTax: 'shipping_tax',
+  mergedIntoOrderId: 'merged_into_order_id',
+  mergedAt: 'merged_at',
+  notes: 'notes',
+  archibaldOrderId: 'archibald_order_id',
+  archibaldOrderNumber: 'archibald_order_number',
+  currentState: 'current_state',
+  stateUpdatedAt: 'state_updated_at',
+  ddtNumber: 'ddt_number',
+  ddtDeliveryDate: 'ddt_delivery_date',
+  trackingNumber: 'tracking_number',
+  trackingUrl: 'tracking_url',
+  trackingCourier: 'tracking_courier',
+  deliveryCompletedDate: 'delivery_completed_date',
+  invoiceNumber: 'invoice_number',
+  invoiceDate: 'invoice_date',
+  invoiceAmount: 'invoice_amount',
+  source: 'source',
+  revenue: 'revenue',
+  invoiceClosed: 'invoice_closed',
+  invoiceRemainingAmount: 'invoice_remaining_amount',
+  invoiceDueDate: 'invoice_due_date',
+  arcaData: 'arca_data',
+  parentCustomerName: 'parent_customer_name',
+};
+
+const JSONB_COLUMNS = new Set(['items', 'sub_client_data', 'arca_data']);
+
+async function updateRecord(
+  pool: DbPool,
+  userId: string,
+  id: string,
+  updates: Partial<FresisHistoryRecord>,
+): Promise<FresisHistoryRecord | null> {
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  for (const [camelKey, value] of Object.entries(updates)) {
+    if (camelKey === 'id' || camelKey === 'userId') continue;
+    const snakeCol = CAMEL_TO_SNAKE[camelKey];
+    if (!snakeCol) continue;
+
+    setClauses.push(`${snakeCol} = $${paramIndex}`);
+    values.push(JSONB_COLUMNS.has(snakeCol) && value != null ? JSON.stringify(value) : value);
+    paramIndex++;
+  }
+
+  if (setClauses.length === 0) return null;
+
+  setClauses.push(`updated_at = NOW()`);
+
+  const { rows: [row] } = await pool.query<FresisHistoryRow>(
+    `UPDATE agents.fresis_history SET ${setClauses.join(', ')} WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1} RETURNING *`,
+    [...values, id, userId],
+  );
+
+  return row ? mapRowToFresisHistory(row) : null;
+}
+
+async function reassignMerged(
+  pool: DbPool,
+  userId: string,
+  oldMergedId: string,
+  newMergedId: string,
+): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.fresis_history SET merged_into_order_id = $1, updated_at = NOW() WHERE merged_into_order_id = $2 AND user_id = $3`,
+    [newMergedId, oldMergedId, userId],
+  );
+  return rowCount ?? 0;
+}
+
 async function deleteArcaImports(pool: DbPool, userId: string): Promise<number> {
   const { rowCount } = await pool.query(
     "DELETE FROM agents.fresis_history WHERE user_id = $1 AND source = 'arca_import'",
@@ -515,6 +599,8 @@ export {
   getByMotherOrder,
   getSiblings,
   propagateState,
+  updateRecord,
+  reassignMerged,
   deleteArcaImports,
   getArcaExport,
   updateItems,

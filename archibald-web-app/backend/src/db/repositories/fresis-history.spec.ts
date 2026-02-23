@@ -567,3 +567,148 @@ describe('mapRowToFresisHistory', () => {
     expect(result.parentCustomerName).toBeNull();
   });
 });
+
+describe('updateRecord', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('updates specific fields and returns mapped record', async () => {
+    const pool = createMockPool();
+    const updatedRow = { ...sampleHistoryRow, notes: 'Updated note', discount_percent: 20 };
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      rows: [updatedRow],
+      rowCount: 1,
+    });
+
+    const { updateRecord, mapRowToFresisHistory } = await import('./fresis-history');
+    const result = await updateRecord(pool, TEST_USER_ID, 'fh-001', { notes: 'Updated note', discountPercent: 20 });
+
+    expect(result).toEqual(mapRowToFresisHistory(updatedRow));
+  });
+
+  test('returns null when record not found', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    const result = await updateRecord(pool, TEST_USER_ID, 'nonexistent', { notes: 'test' });
+
+    expect(result).toBeNull();
+  });
+
+  test('returns null when record belongs to different user', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    const result = await updateRecord(pool, 'different-user', 'fh-001', { notes: 'test' });
+
+    expect(result).toBeNull();
+  });
+
+  test('query filters by both id and user_id', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    await updateRecord(pool, TEST_USER_ID, 'fh-001', { notes: 'test' });
+
+    const call = pool.queryCalls[0];
+    expect(call.text).toContain('id =');
+    expect(call.text).toContain('user_id =');
+    expect(call.params).toContain('fh-001');
+    expect(call.params).toContain(TEST_USER_ID);
+  });
+
+  test('sets updated_at automatically', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    await updateRecord(pool, TEST_USER_ID, 'fh-001', { notes: 'test' });
+
+    const call = pool.queryCalls[0];
+    expect(call.text).toContain('updated_at');
+  });
+
+  test('ignores unknown fields not in whitelist', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    await updateRecord(pool, TEST_USER_ID, 'fh-001', { notes: 'test', badField: 'hack' } as any);
+
+    const call = pool.queryCalls[0];
+    expect(call.text).not.toContain('bad_field');
+    expect(call.text).not.toContain('badField');
+  });
+
+  test('does not allow updating id or userId — returns null without querying', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    const result = await updateRecord(pool, TEST_USER_ID, 'fh-001', { id: 'hacked', userId: 'hacked' } as any);
+
+    expect(result).toBeNull();
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  test('returns null when no valid fields provided', async () => {
+    const pool = createMockPool();
+
+    const { updateRecord } = await import('./fresis-history');
+    const result = await updateRecord(pool, TEST_USER_ID, 'fh-001', { badField: 'hack' } as any);
+
+    expect(result).toBeNull();
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+});
+
+describe('reassignMerged', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('updates merged_into_order_id and returns count', async () => {
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      rows: [],
+      rowCount: 3,
+    });
+
+    const { reassignMerged } = await import('./fresis-history');
+    const result = await reassignMerged(pool, TEST_USER_ID, 'old-merged-id', 'new-merged-id');
+
+    expect(result).toBe(3);
+  });
+
+  test('returns 0 when no records match oldMergedId', async () => {
+    const pool = createMockPool();
+
+    const { reassignMerged } = await import('./fresis-history');
+    const result = await reassignMerged(pool, TEST_USER_ID, 'nonexistent', 'new-id');
+
+    expect(result).toBe(0);
+  });
+
+  test('only affects records belonging to specified user', async () => {
+    const pool = createMockPool();
+
+    const { reassignMerged } = await import('./fresis-history');
+    await reassignMerged(pool, TEST_USER_ID, 'old-id', 'new-id');
+
+    const call = pool.queryCalls[0];
+    expect(call.text).toContain('user_id =');
+    expect(call.params).toContain(TEST_USER_ID);
+  });
+
+  test('uses parameterized query with correct values', async () => {
+    const pool = createMockPool();
+
+    const { reassignMerged } = await import('./fresis-history');
+    await reassignMerged(pool, TEST_USER_ID, 'old-merged', 'new-merged');
+
+    const call = pool.queryCalls[0];
+    expect(call.text).toContain('UPDATE agents.fresis_history');
+    expect(call.text).toContain('merged_into_order_id =');
+    expect(call.text).toContain('updated_at =');
+    expect(call.params).toContain('old-merged');
+    expect(call.params).toContain('new-merged');
+  });
+});
