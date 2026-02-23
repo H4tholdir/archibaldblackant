@@ -188,10 +188,11 @@ Plans:
 ### Phase 15: Admin Session & SSE
 **Goal**: Impersonificazione admin funzionante + eventi SSE real-time per job progress.
 **Depends on**: Phase 11
-**Plans**: 1 plan
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: createAdminSession/closeAdminSession + onJobEvent SSE wiring
+- [ ] 15-01: Admin sessions PostgreSQL repository + wire stubs in server.ts
+- [ ] 15-02: SSE job event bus + wire onJobEvent in server.ts/main.ts
 
 ### Phase 16: Sync Enhancements
 **Goal**: Parità completa sistema sync — checkpoint/resume a livello pagina, retry con backoff, delta sync, optimizer.
@@ -224,5 +225,5 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
 | 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
-| 15. Admin Session & SSE | v1.2 | 0/1 | Not started | - |
+| 15. Admin Session & SSE | v1.2 | 0/2 | Not started | - |
 | 16. Sync Enhancements | v1.2 | 0/3 | Not started | - |
