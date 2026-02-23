@@ -4,8 +4,18 @@ import request from 'supertest';
 import { createSubclientsRouter, type SubclientsRouterDeps } from './subclients';
 
 const mockSubclients = [
-  { codice: 'SC001', nome: 'Subclient One', indirizzo: 'Via Roma 1', cap: '20100', citta: 'Milano', provincia: 'MI' },
-  { codice: 'SC002', nome: 'Subclient Two', indirizzo: 'Via Verdi 5', cap: '10100', citta: 'Torino', provincia: 'TO' },
+  {
+    codice: 'SC001', ragioneSociale: 'Subclient One', supplRagioneSociale: null,
+    indirizzo: 'Via Roma 1', cap: '20100', localita: 'Milano', prov: 'MI',
+    telefono: null, fax: null, email: null, partitaIva: null,
+    codFiscale: null, zona: null, persDaContattare: null, emailAmministraz: null,
+  },
+  {
+    codice: 'SC002', ragioneSociale: 'Subclient Two', supplRagioneSociale: null,
+    indirizzo: 'Via Verdi 5', cap: '10100', localita: 'Torino', prov: 'TO',
+    telefono: null, fax: null, email: null, partitaIva: null,
+    codFiscale: null, zona: null, persDaContattare: null, emailAmministraz: null,
+  },
 ];
 
 function createMockDeps(): SubclientsRouterDeps {

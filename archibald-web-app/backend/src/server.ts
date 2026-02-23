@@ -27,6 +27,7 @@ import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
 import { createSubclientsRouter } from './routes/subclients';
+import * as subclientsRepo from './db/repositories/subclients';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
@@ -617,10 +618,10 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
-    getAllSubclients: async () => [],
-    searchSubclients: async (_query) => [],
-    getSubclientByCodice: async (_codice) => null,
-    deleteSubclient: async (_codice) => false,
+    getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
+    searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
+    getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
+    deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
   }));
 
   app.use('/api/share', (req, res, next) => {
