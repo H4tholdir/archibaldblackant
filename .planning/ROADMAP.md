@@ -155,7 +155,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: main.ts entry point (pool, queue, browserPool, scheduler, createApp, listen, shutdown)
+- [x] 11-01: main.ts entry point (pool, queue, browserPool, scheduler, createApp, listen, shutdown)
 - [ ] 11-02: Migration runner on startup + background services init
 
 ### Phase 12: Subclient System
@@ -219,7 +219,7 @@ Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 →
 | 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
-| 11. Bootstrap & Entry Point | v1.2 | 0/2 | Not started | - |
+| 11. Bootstrap & Entry Point | v1.2 | 1/2 | In progress | - |
 | 12. Subclient System | v1.2 | 0/2 | Not started | - |
 | 13. Fresis History Completion | v1.2 | 0/2 | Not started | - |
 | 14. Price/VAT Excel Import | v1.2 | 0/1 | Not started | - |

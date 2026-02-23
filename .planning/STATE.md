@@ -10,30 +10,31 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 11 of 16 (Bootstrap & Entry Point)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-02-23 — v1.2 milestone created, design approved
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 11-01-PLAN.md
 
-Progress: ███████░░░ 68% (27 of 38 total plans)
+Progress: ████████░░ 74% (28 of 38 total plans)
 
 ## Performance Metrics
 
-**Velocity (v1.0+v1.1):**
-- Total plans completed: 27
+**Velocity (v1.0+v1.1+v1.2):**
+- Total plans completed: 28
 - Average duration: ~8min
-- Total execution time: ~3h 30min
+- Total execution time: ~3h 34min
 
 ## Accumulated Context
 
 ### Decisions
 
-Key decisions from v1.0/v1.1:
+Key decisions from v1.0/v1.1/v1.2:
 - DI pattern established: optional dependencies with 501 graceful degradation
 - PostgreSQL for all tables (migrated from SQLite)
 - BrowserPool for Puppeteer bot management
-- server.ts exports createApp(deps) — needs main.ts bootstrap caller
+- server.ts exports createApp(deps) — main.ts bootstrap caller created (11-01)
 - 13 stubs in server.ts need real implementations
 - 3 frontend endpoints have no backend handler
+- createOperationQueue() reads Redis config from env vars, not config.ts (11-01)
 
 ### Audit Findings (v1.2 scope)
 
@@ -53,7 +54,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: v1.2 milestone created, roadmap updated, ready to plan Phase 11
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1279 backend + 441 frontend = 1720 passing
+Test baseline: 1283 backend + 441 frontend = 1724 passing
