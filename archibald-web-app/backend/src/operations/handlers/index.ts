@@ -7,3 +7,4 @@ export { createSendToVeronaHandler, type SendToVeronaBot } from './send-to-veron
 export { createSubmitOrderHandler, type SubmitOrderBot } from './submit-order';
 export { createSyncOrderArticlesHandler, type SyncOrderArticlesBot } from './sync-order-articles';
 export { createSyncPricesHandler, type SyncPricesBot } from './sync-prices';
+export { createUpdateCustomerHandler, type UpdateCustomerBot } from './update-customer';

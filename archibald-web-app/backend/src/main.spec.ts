@@ -112,6 +112,47 @@ vi.mock('./logger', () => ({
   },
 }));
 
+vi.mock('./operations/operation-processor', () => ({
+  createOperationProcessor: vi.fn(() => ({
+    processJob: vi.fn().mockResolvedValue({ success: true, data: {}, duration: 0 }),
+  })),
+}));
+
+vi.mock('./operations/handlers', () => ({
+  createSubmitOrderHandler: vi.fn(() => vi.fn()),
+  createCreateCustomerHandler: vi.fn(() => vi.fn()),
+  createUpdateCustomerHandler: vi.fn(() => vi.fn()),
+  createDeleteOrderHandler: vi.fn(() => vi.fn()),
+  createEditOrderHandler: vi.fn(() => vi.fn()),
+  createSendToVeronaHandler: vi.fn(() => vi.fn()),
+  createDownloadDdtPdfHandler: vi.fn(() => vi.fn()),
+  createDownloadInvoicePdfHandler: vi.fn(() => vi.fn()),
+  createSyncOrderArticlesHandler: vi.fn(() => vi.fn()),
+  createSyncPricesHandler: vi.fn(() => vi.fn()),
+}));
+
+vi.mock('bullmq', () => ({
+  Worker: vi.fn(() => ({
+    close: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+  })),
+  Queue: vi.fn(() => ({
+    add: vi.fn().mockResolvedValue({ id: 'job-1' }),
+    getJob: vi.fn(),
+    getJobs: vi.fn().mockResolvedValue([]),
+    getJobCounts: vi.fn().mockResolvedValue({}),
+    close: vi.fn().mockResolvedValue(undefined),
+    clean: vi.fn().mockResolvedValue([]),
+  })),
+}));
+
+vi.mock('ioredis', () => ({
+  Redis: vi.fn(() => ({
+    disconnect: vi.fn(),
+    on: vi.fn(),
+  })),
+}));
+
 vi.mock('puppeteer', () => ({
   default: { launch: vi.fn() },
 }));
@@ -180,7 +221,7 @@ describe('bootstrap', () => {
     expect(signalCalls).toContain('SIGINT');
   });
 
-  test('starts sync scheduler with default intervals', async () => {
+  test('starts sync scheduler with production intervals', async () => {
     const { bootstrap } = await import('./main');
     const { createSyncScheduler } = await import('./sync/sync-scheduler');
 
@@ -188,8 +229,50 @@ describe('bootstrap', () => {
 
     const scheduler = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.results[0].value;
     expect(scheduler.start).toHaveBeenCalledWith({
-      agentSyncMs: 5 * 60 * 1000,
+      agentSyncMs: 10 * 60 * 1000,
       sharedSyncMs: 30 * 60 * 1000,
+    });
+  });
+
+  test('creates operation processor with handler map', async () => {
+    const { bootstrap } = await import('./main');
+    const { createOperationProcessor } = await import('./operations/operation-processor');
+
+    await bootstrap();
+
+    expect(createOperationProcessor).toHaveBeenCalledTimes(1);
+    const deps = (createOperationProcessor as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(deps).toHaveProperty('agentLock');
+    expect(deps).toHaveProperty('browserPool');
+    expect(deps).toHaveProperty('broadcast');
+    expect(deps).toHaveProperty('enqueue');
+    expect(deps).toHaveProperty('handlers');
+  });
+
+  test('creates BullMQ worker for operations queue', async () => {
+    const { bootstrap } = await import('./main');
+    const { Worker } = await import('bullmq');
+
+    await bootstrap();
+
+    expect(Worker).toHaveBeenCalledTimes(1);
+    expect((Worker as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('operations');
+  });
+
+  test('logs startup complete with enabled services', async () => {
+    const { bootstrap } = await import('./main');
+    const { logger } = await import('./logger');
+
+    await bootstrap();
+
+    expect(logger.info).toHaveBeenCalledWith('Startup complete', {
+      port: 3000,
+      services: {
+        syncScheduler: true,
+        operationProcessor: true,
+        webSocket: true,
+        sessionCleanup: true,
+      },
     });
   });
 });
