@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 13 of 16 (Fresis History Completion)
-Plan: 0 of 2 in current phase
-Status: Planning complete, ready for execution
-Last activity: 2026-02-23 — Created 13-01-PLAN.md and 13-02-PLAN.md
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Completed 13-01-PLAN.md
 
-Progress: ████████░░ 82% (31 of 38 total plans)
+Progress: ████████░░ 84% (32 of 38 total plans)
 
 ## Performance Metrics
 
 **Velocity (v1.0+v1.1+v1.2):**
-- Total plans completed: 31
+- Total plans completed: 32
 - Average duration: ~8min
-- Total execution time: ~3h 54min
+- Total execution time: ~4h 00min
 
 ## Accumulated Context
 
@@ -43,6 +43,9 @@ Key decisions from v1.0/v1.1/v1.2:
 - Excel header matching: case-insensitive lookup map with O(1) resolution (12-02)
 - normalizeSubClientCode: regex /^[Cc](?=\d)/ strips C prefix only when followed by digit (12-02)
 - Reconciliation: full sync semantics — DB records not in imported Excel are deleted (12-02)
+- Atomic FT counter: INSERT ON CONFLICT DO UPDATE RETURNING for sequential numbering (13-01)
+- JSONB→text cast needed when passing DB rows to arca-export-service JSON.parse (13-01)
+- ft_counter seeded from imported NUMERODOC max via GREATEST() (13-01)
 
 ### Audit Findings (v1.2 scope)
 
@@ -62,7 +65,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 12-02-PLAN.md (Phase 12 complete)
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None
 Feature branch: feat/unified-operation-queue
-Test baseline: 1332 backend + 441 frontend = 1773 passing
+Test baseline: 1337 backend + 441 frontend = 1778 passing
