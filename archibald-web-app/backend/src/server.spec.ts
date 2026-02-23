@@ -329,17 +329,13 @@ describe('createApp', () => {
   });
 
   describe('POST /api/test/login', () => {
-    test('returns 501 when createTestBot is not configured', async () => {
+    test('uses default factory when createTestBot is not in deps (no 501)', async () => {
       const deps = createMockDeps();
       const app = createApp(deps);
 
       const response = await request(app).post('/api/test/login');
 
-      expect(response.status).toBe(501);
-      expect(response.body).toEqual({
-        success: false,
-        error: 'Test login non configurato',
-      });
+      expect(response.status).not.toBe(501);
     });
 
     test('returns 200 when bot login succeeds', async () => {

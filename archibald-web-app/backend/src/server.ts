@@ -49,6 +49,7 @@ import { PDFParserOrdersService } from './pdf-parser-orders-service';
 import { PDFParserDDTService } from './pdf-parser-ddt-service';
 import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 import { logger } from './logger';
+import { ArchibaldBot } from './bot/archibald-bot';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -86,6 +87,15 @@ function createApp(deps: AppDeps): Express {
     passwordCache, pdfStore, generateJWT, verifyToken,
     sendEmail, uploadToDropbox,
   } = deps;
+
+  const effectiveCreateTestBot = deps.createTestBot ?? (async () => {
+    const bot = new ArchibaldBot();
+    return {
+      initialize: () => bot.initializeDedicatedBrowser(),
+      login: () => Promise.resolve(),
+      close: () => bot.close(),
+    };
+  });
 
   const app = express();
 
@@ -174,12 +184,9 @@ function createApp(deps: AppDeps): Express {
   });
 
   app.post('/api/test/login', async (_req, res) => {
-    if (!deps.createTestBot) {
-      return res.status(501).json({ success: false, error: 'Test login non configurato' });
-    }
     let bot: { initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> } | undefined;
     try {
-      bot = await deps.createTestBot();
+      bot = await effectiveCreateTestBot();
       await bot.initialize();
       await bot.login();
       res.json({ success: true, message: 'Login test riuscito!' });
