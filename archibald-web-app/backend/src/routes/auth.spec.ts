@@ -37,6 +37,7 @@ function createMockDeps(): AuthRouterDeps {
     },
     generateJWT: vi.fn().mockResolvedValue('jwt-token-123'),
     encryptAndSavePassword: vi.fn().mockResolvedValue(undefined),
+    registerDevice: vi.fn().mockResolvedValue({ id: 'dev-id' }),
   };
 }
 
@@ -129,6 +130,37 @@ describe('createAuthRouter', () => {
         .send({ username: 'agent1' });
 
       expect(res.status).toBe(400);
+    });
+
+    test('calls registerDevice when deviceId provided', async () => {
+      const app = createApp(deps);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agent1', password: 'pass123', deviceId: 'abc', platform: 'iOS', deviceName: 'iPhone' });
+
+      expect(res.status).toBe(200);
+      expect(deps.registerDevice).toHaveBeenCalledWith('user-1', 'abc', 'iOS', 'iPhone');
+    });
+
+    test('login succeeds even if registerDevice fails', async () => {
+      (deps.registerDevice as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const app = createApp(deps);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agent1', password: 'pass123', deviceId: 'abc', platform: 'iOS', deviceName: 'iPhone' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('does not call registerDevice when deviceId absent', async () => {
+      const app = createApp(deps);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agent1', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(deps.registerDevice).not.toHaveBeenCalled();
     });
   });
 

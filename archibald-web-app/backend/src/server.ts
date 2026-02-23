@@ -38,6 +38,7 @@ import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as syncSessionsRepo from './db/repositories/sync-sessions';
+import * as devicesRepo from './db/repositories/devices';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
@@ -276,6 +277,8 @@ function createApp(deps: AppDeps): Express {
       releaseContext: (userId, ctx, success) => browserPool.releaseContext(userId, ctx as any, success),
     },
     generateJWT,
+    registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
+      devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
   }));
 
   app.use('/api/customers', authenticateJWT, createCustomersRouter({

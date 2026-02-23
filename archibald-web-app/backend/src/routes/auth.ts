@@ -26,6 +26,7 @@ type AuthRouterDeps = {
   browserPool: BrowserPoolLike;
   generateJWT: (payload: JWTPayload) => Promise<string>;
   encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
+  registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
 };
 
 const loginSchema = z.object({
@@ -86,6 +87,12 @@ function createAuthRouter(deps: AuthRouterDeps) {
         role: user.role as UserRole,
         deviceId: deviceId || undefined,
       });
+
+      const { platform, deviceName } = parsed.data;
+      if (deps.registerDevice && deviceId) {
+        deps.registerDevice(user.id, deviceId, platform || 'unknown', deviceName || 'Unknown Device')
+          .catch((err) => logger.warn('Failed to register device', { userId: user.id, deviceId, error: err }));
+      }
 
       res.json({
         success: true,
