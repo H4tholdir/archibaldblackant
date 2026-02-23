@@ -75,6 +75,8 @@ function createMockDeps(): FresisHistoryRouterDeps {
     exportArca: vi.fn().mockResolvedValue({ zipBuffer: Buffer.from('ZIP'), stats: { totalDocuments: 1, totalRows: 2, totalClients: 1, totalDestinations: 0 } }),
     importArca: vi.fn().mockResolvedValue({ success: true, imported: 5, errors: [] }),
     getNextFtNumber: vi.fn().mockResolvedValue(42),
+    updateRecord: vi.fn().mockResolvedValue({ ...mockRecord, notes: 'Updated' }),
+    reassignMerged: vi.fn().mockResolvedValue(3),
   };
 }
 
@@ -285,6 +287,132 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', '2025');
+    });
+  });
+
+  describe('PUT /api/fresis-history/:id', () => {
+    test('returns 200 with updated record', async () => {
+      const res = await request(app)
+        .put('/api/fresis-history/FH-001')
+        .send({ notes: 'Updated' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.notes).toBe('Updated');
+      expect(deps.updateRecord).toHaveBeenCalledWith('user-1', 'FH-001', { notes: 'Updated' });
+    });
+
+    test('returns 404 for non-existent record', async () => {
+      (deps.updateRecord as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      const res = await request(app)
+        .put('/api/fresis-history/UNKNOWN')
+        .send({ notes: 'test' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/fresis-history/reassign-merged', () => {
+    test('returns 200 with count', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history/reassign-merged')
+        .send({ oldMergedId: 'OLD-001', newMergedId: 'NEW-001' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, count: 3 });
+      expect(deps.reassignMerged).toHaveBeenCalledWith('user-1', 'OLD-001', 'NEW-001');
+    });
+
+    test('returns 400 when oldMergedId is missing', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history/reassign-merged')
+        .send({ newMergedId: 'NEW-001' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when newMergedId is missing', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history/reassign-merged')
+        .send({ oldMergedId: 'OLD-001' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/fresis-history/archive', () => {
+    test('returns 200 with records', async () => {
+      const archiveOrders = [
+        {
+          id: 'PO-001',
+          customerId: 'CUST-001',
+          customerName: 'Rossi Mario',
+          items: [{ articleCode: 'ART-001', quantity: 5 }],
+          createdAt: '2026-01-15T10:00:00Z',
+        },
+      ];
+
+      const res = await request(app)
+        .post('/api/fresis-history/archive')
+        .send({ orders: archiveOrders, mergedOrderId: 'MERGED-001' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.records).toHaveLength(1);
+      expect(deps.upsertRecords).toHaveBeenCalledWith('user-1', expect.arrayContaining([
+        expect.objectContaining({
+          id: 'PO-001',
+          customerId: 'CUST-001',
+          mergedIntoOrderId: 'MERGED-001',
+          source: 'app',
+        }),
+      ]));
+    });
+
+    test('returns 400 when orders is missing', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history/archive')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when orders is empty array', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history/archive')
+        .send({ orders: [] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('works without mergedOrderId', async () => {
+      const archiveOrders = [
+        {
+          id: 'PO-002',
+          customerId: 'CUST-002',
+          customerName: 'Bianchi Luigi',
+          items: [],
+          createdAt: '2026-01-20T10:00:00Z',
+        },
+      ];
+
+      const res = await request(app)
+        .post('/api/fresis-history/archive')
+        .send({ orders: archiveOrders });
+
+      expect(res.status).toBe(200);
+      expect(deps.upsertRecords).toHaveBeenCalledWith('user-1', expect.arrayContaining([
+        expect.objectContaining({
+          id: 'PO-002',
+          mergedIntoOrderId: null,
+          mergedAt: null,
+        }),
+      ]));
     });
   });
 });

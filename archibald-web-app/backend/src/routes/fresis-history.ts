@@ -23,6 +23,8 @@ type FresisHistoryRouterDeps = {
   exportArca: (userId: string) => Promise<{ zipBuffer: Buffer; stats: ExportStats }>;
   importArca: (userId: string, buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; errors?: string[] }>;
   getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
+  updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
+  reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
 };
 
 const propagateStateSchema = z.object({
@@ -101,6 +103,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     getAll, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
+    updateRecord, reassignMerged,
   } = deps;
   const router = Router();
 
@@ -198,6 +201,79 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     }
   });
 
+  router.post('/reassign-merged', async (req: AuthRequest, res) => {
+    try {
+      const { oldMergedId, newMergedId } = req.body;
+      if (!oldMergedId || !newMergedId) {
+        return res.status(400).json({ success: false, error: 'oldMergedId e newMergedId richiesti' });
+      }
+      const count = await reassignMerged(req.user!.userId, oldMergedId, newMergedId);
+      res.json({ success: true, count });
+    } catch (error) {
+      logger.error('Error reassigning merged order', { error });
+      res.status(500).json({ success: false, error: 'Errore riassegnamento ordine' });
+    }
+  });
+
+  router.post('/archive', async (req: AuthRequest, res) => {
+    try {
+      const { orders, mergedOrderId } = req.body;
+      if (!orders || !Array.isArray(orders) || orders.length === 0) {
+        return res.status(400).json({ success: false, error: 'orders array richiesto' });
+      }
+      const now = new Date().toISOString();
+      const records: FresisHistoryInput[] = orders.map((order: Record<string, unknown>) => ({
+        id: order.id as string,
+        originalPendingOrderId: order.id as string,
+        subClientCodice: (order.subClientCodice as string) || '',
+        subClientName: (order.subClientName as string) || '',
+        subClientData: order.subClientData || null,
+        customerId: order.customerId as string,
+        customerName: order.customerName as string,
+        items: order.items as unknown,
+        discountPercent: (order.discountPercent as number) ?? null,
+        targetTotalWithVat: (order.targetTotalWithVAT as number) ?? null,
+        shippingCost: (order.shippingCost as number) ?? null,
+        shippingTax: (order.shippingTax as number) ?? null,
+        revenue: (order.revenue as number) ?? null,
+        mergedIntoOrderId: (mergedOrderId as string) || null,
+        mergedAt: mergedOrderId ? now : null,
+        createdAt: (order.createdAt as string) || now,
+        updatedAt: now,
+        notes: null,
+        archibaldOrderId: null,
+        archibaldOrderNumber: null,
+        currentState: null,
+        stateUpdatedAt: null,
+        ddtNumber: null,
+        ddtDeliveryDate: null,
+        trackingNumber: null,
+        trackingUrl: null,
+        trackingCourier: null,
+        deliveryCompletedDate: null,
+        invoiceNumber: null,
+        invoiceDate: null,
+        invoiceAmount: null,
+        invoiceClosed: null,
+        invoiceRemainingAmount: null,
+        invoiceDueDate: null,
+        arcaData: null,
+        parentCustomerName: null,
+        source: 'app',
+      }));
+
+      await upsertRecords(req.user!.userId, records);
+
+      const createdRecords = await Promise.all(
+        records.map(r => getById(req.user!.userId, r.id))
+      );
+      res.json({ success: true, records: createdRecords.filter(Boolean) });
+    } catch (error) {
+      logger.error('Error archiving orders', { error });
+      res.status(500).json({ success: false, error: 'Errore archiviazione ordini' });
+    }
+  });
+
   router.get('/:id', async (req: AuthRequest, res) => {
     try {
       const record = await getById(req.user!.userId, req.params.id);
@@ -208,6 +284,19 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     } catch (error) {
       logger.error('Error fetching fresis history record', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero record' });
+    }
+  });
+
+  router.put('/:id', async (req: AuthRequest, res) => {
+    try {
+      const updated = await updateRecord(req.user!.userId, req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ success: false, error: 'Record non trovato' });
+      }
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      logger.error('Error updating fresis history record', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento record' });
     }
   });
 

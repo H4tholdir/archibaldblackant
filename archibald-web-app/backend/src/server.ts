@@ -605,6 +605,8 @@ function createApp(deps: AppDeps): Express {
       };
     },
     getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio),
+    updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
+    reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
   }));
 
   const syncSchedulerDeps = {
