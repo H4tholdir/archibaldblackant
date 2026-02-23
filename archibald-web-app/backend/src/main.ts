@@ -25,6 +25,7 @@ import {
 import { createBrowserPool } from './bot/browser-pool';
 import { createSyncScheduler } from './sync/sync-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
+import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { PasswordCache } from './password-cache';
 import { createApp } from './server';
@@ -87,6 +88,8 @@ async function bootstrap(): Promise<void> {
     verifyToken: verifyJWT,
   });
 
+  const jobEventBus = createJobEventBus();
+
   const passwordCache = PasswordCache.getInstance();
 
   const pdfStore = {
@@ -119,6 +122,7 @@ async function bootstrap(): Promise<void> {
     verifyToken: verifyJWT,
     sendEmail,
     uploadToDropbox,
+    onJobEvent: jobEventBus.onJobEvent,
   });
 
   const server = http.createServer(app);
@@ -189,6 +193,7 @@ async function bootstrap(): Promise<void> {
         payload: event,
         timestamp: new Date().toISOString(),
       });
+      jobEventBus.publish(userId, { event: event.event as string, data: event as Record<string, unknown> });
     },
     enqueue: queue.enqueue,
     handlers,

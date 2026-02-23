@@ -32,6 +32,7 @@ import { importSubClients } from './services/subclient-excel-importer';
 import { importExcelVat } from './services/excel-vat-importer';
 import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
 import { createSseProgressRouter } from './realtime/sse-progress';
+import type { JobEvent } from './realtime/sse-progress';
 import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
 import * as usersRepo from './db/repositories/users';
@@ -93,6 +94,7 @@ type AppDeps = {
   createCustomerBot?: (userId: string) => CustomerBotLike;
   broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
   createTestBot?: () => Promise<{ initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> }>;
+  onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -646,7 +648,7 @@ function createApp(deps: AppDeps): Express {
     verifyToken,
     getActiveJob: (userId) => agentLock.getActive(userId),
     getQueueStats: () => queue.getStats(),
-    onJobEvent: (_userId, _callback) => () => {},
+    onJobEvent: deps.onJobEvent ?? ((_userId, _callback) => () => {}),
   }));
 
   app.use('/api/admin', authenticateJWT, requireAdmin, createAdminRouter({
