@@ -8371,6 +8371,7 @@ export class ArchibaldBot {
     clickStrategy?: "direct" | "responsive-fallback";
     responsiveMenuButtonSelector?: string;
     responsiveExportButtonSelector?: string;
+    retryOnDataStoreError?: boolean;
   }): Promise<string> {
     const {
       context,
@@ -8384,6 +8385,7 @@ export class ArchibaldBot {
       clickStrategy = "direct",
       responsiveMenuButtonSelector,
       responsiveExportButtonSelector,
+      retryOnDataStoreError = false,
     } = options;
 
     const page = await context.newPage();
@@ -8555,6 +8557,69 @@ export class ArchibaldBot {
       logger.info(
         "[ArchibaldBot] PDF export button clicked, waiting for download...",
       );
+
+      if (retryOnDataStoreError) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        let needsRetry = false;
+
+        try {
+          const hasDataStoreError = await page.evaluate(() => {
+            return document.body.innerText.includes(
+              "Requested objects cannot be loaded",
+            );
+          });
+          if (hasDataStoreError) {
+            logger.warn(
+              "[ArchibaldBot] Detected 'Requested objects cannot be loaded' error (inline banner)",
+            );
+            needsRetry = true;
+          }
+        } catch {
+          logger.warn(
+            "[ArchibaldBot] Page context destroyed (likely navigated due to data store error)",
+          );
+          try {
+            await page.waitForNavigation({
+              waitUntil: "domcontentloaded",
+              timeout: 10000,
+            });
+          } catch {
+            // navigation already completed
+          }
+          needsRetry = true;
+        }
+
+        if (needsRetry) {
+          logger.info("[ArchibaldBot] Retrying PDF export click...");
+
+          await this.waitForDevExpressReadyOnPage(page);
+          await page.waitForSelector(containerSelector, { timeout: 10000 });
+
+          await page.evaluate((sel: string) => {
+            const button = document.querySelector(sel) as HTMLElement;
+            if (button) {
+              button.dispatchEvent(
+                new MouseEvent("mousedown", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("mouseup", { bubbles: true }),
+              );
+              button.dispatchEvent(
+                new MouseEvent("click", { bubbles: true }),
+              );
+            }
+          }, buttonSelector);
+
+          logger.info(
+            "[ArchibaldBot] Retry click performed after data store error",
+          );
+        } else {
+          logger.info(
+            "[ArchibaldBot] No data store error detected, PDF download proceeding normally",
+          );
+        }
+      }
 
       await downloadComplete;
 
@@ -8838,6 +8903,7 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
+      retryOnDataStoreError: true,
     });
   }
 
