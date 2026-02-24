@@ -164,8 +164,9 @@ describe('createOrdersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.total).toBe(1);
+      expect(res.body.data.orders).toHaveLength(1);
+      expect(res.body.data.total).toBe(1);
+      expect(res.body.data.hasMore).toBe(false);
     });
 
     test('passes filter options', async () => {

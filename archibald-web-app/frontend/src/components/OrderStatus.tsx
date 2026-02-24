@@ -7,14 +7,16 @@ interface OrderStatusProps {
 }
 
 interface JobStatus {
-  status: string;
+  state: string;
   progress?: number;
   result?: {
-    orderId: string;
+    success: boolean;
+    data?: {
+      orderId: string;
+    };
     duration: number;
-    timestamp: number;
   };
-  error?: string;
+  failedReason?: string;
 }
 
 export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
@@ -30,8 +32,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
         if (data.success) {
           setStatus(data.job);
 
-          // Se lo stato è completato o fallito, ferma il polling
-          if (data.job.status === 'completed' || data.job.status === 'failed') {
+          if (data.job.state === 'completed' || data.job.state === 'failed') {
             setLoading(false);
           }
         }
@@ -40,10 +41,8 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
       }
     };
 
-    // Fetch iniziale
     fetchStatus();
 
-    // Polling ogni 2 secondi finché non è completato
     const interval = setInterval(() => {
       if (loading) {
         fetchStatus();
@@ -56,8 +55,9 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
   const getStatusClass = () => {
     if (!status) return 'status-waiting';
 
-    switch (status.status) {
+    switch (status.state) {
       case 'waiting':
+      case 'delayed':
         return 'status-waiting';
       case 'active':
         return 'status-active';
@@ -73,19 +73,20 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
   const getStatusText = () => {
     if (!status) return 'Caricamento...';
 
-    switch (status.status) {
+    switch (status.state) {
       case 'waiting':
-        return '⏳ In attesa...';
+      case 'delayed':
+        return 'In attesa...';
       case 'active':
-        return '🔄 In elaborazione...';
+        return 'In elaborazione...';
       case 'completed':
-        return '✅ Ordine creato!';
+        return 'Ordine creato!';
       case 'failed':
-        return '❌ Errore';
+        return 'Errore';
       case 'not_found':
-        return '❓ Job non trovato';
+        return 'Job non trovato';
       default:
-        return status.status;
+        return status.state;
     }
   };
 
@@ -100,10 +101,13 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
     return `${seconds}s`;
   };
 
+  const resultOrderId = status?.result?.data?.orderId;
+  const resultDuration = status?.result?.duration;
+
   return (
     <div>
       <div className="card">
-        <h2 className="card-title">📊 Stato Ordine</h2>
+        <h2 className="card-title">Stato Ordine</h2>
 
         <div className={`status ${getStatusClass()}`}>
           {getStatusText()}
@@ -143,14 +147,14 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
           </div>
         )}
 
-        {status?.result && (
+        {resultOrderId && (
           <div>
             <div className="form-group">
-              <label className="form-label">✅ ID Ordine Archibald</label>
+              <label className="form-label">ID Ordine Archibald</label>
               <input
                 type="text"
                 className="form-input"
-                value={status.result.orderId}
+                value={resultOrderId}
                 readOnly
                 style={{
                   fontWeight: 'bold',
@@ -161,25 +165,27 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">⏱️ Tempo Elaborazione</label>
-              <input
-                type="text"
-                className="form-input"
-                value={formatDuration(status.result.duration)}
-                readOnly
-                style={{ textAlign: 'center' }}
-              />
-            </div>
+            {resultDuration !== undefined && (
+              <div className="form-group">
+                <label className="form-label">Tempo Elaborazione</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formatDuration(resultDuration)}
+                  readOnly
+                  style={{ textAlign: 'center' }}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {status?.error && (
+        {status?.failedReason && (
           <div className="form-group">
-            <label className="form-label">❌ Errore</label>
+            <label className="form-label">Errore</label>
             <textarea
               className="form-textarea"
-              value={status.error}
+              value={status.failedReason}
               readOnly
               style={{ color: '#dc2626', fontFamily: 'monospace', fontSize: '0.875rem' }}
             />
@@ -204,7 +210,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
       </div>
 
       <button type="button" className="btn btn-primary" onClick={onNewOrder}>
-        ➕ Nuovo Ordine
+        Nuovo Ordine
       </button>
     </div>
   );

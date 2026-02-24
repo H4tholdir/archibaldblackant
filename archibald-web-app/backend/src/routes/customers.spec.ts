@@ -343,13 +343,14 @@ describe('createCustomersRouter', () => {
   });
 
   describe('GET /api/customers', () => {
-    test('returns all customers for user', async () => {
+    test('returns all customers wrapped in { customers, total }', async () => {
       const res = await request(app).get('/api/customers');
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].name).toBe('Rossi Mario');
+      expect(res.body).toEqual({
+        success: true,
+        data: { customers: mockCustomers, total: 1 },
+      });
       expect(deps.getCustomers).toHaveBeenCalledWith('user-1', undefined);
     });
 
@@ -453,12 +454,24 @@ describe('createCustomersRouter', () => {
   });
 
   describe('GET /api/customers/:customerProfile/photo', () => {
-    test('returns photo data', async () => {
-      (deps.getCustomerPhoto as ReturnType<typeof vi.fn>).mockResolvedValue('data:image/png;base64,abc');
+    test('returns binary image data with Content-Type from data URI', async () => {
+      const base64Content = Buffer.from('fake-png-bytes').toString('base64');
+      (deps.getCustomerPhoto as ReturnType<typeof vi.fn>).mockResolvedValue(`data:image/png;base64,${base64Content}`);
       const res = await request(app).get('/api/customers/CUST-001/photo');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, photo: 'data:image/png;base64,abc' });
+      expect(res.headers['content-type']).toMatch(/^image\/png/);
+      expect(Buffer.from(res.body).toString()).toBe('fake-png-bytes');
+    });
+
+    test('returns binary image/jpeg when photo is raw base64', async () => {
+      const base64Content = Buffer.from('fake-jpeg-bytes').toString('base64');
+      (deps.getCustomerPhoto as ReturnType<typeof vi.fn>).mockResolvedValue(base64Content);
+      const res = await request(app).get('/api/customers/CUST-001/photo');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/^image\/jpeg/);
+      expect(Buffer.from(res.body).toString()).toBe('fake-jpeg-bytes');
     });
 
     test('returns 404 when no photo', async () => {
@@ -468,20 +481,22 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('PUT /api/customers/:customerProfile/photo', () => {
-    test('saves photo', async () => {
+  describe('POST /api/customers/:customerProfile/photo', () => {
+    test('saves uploaded photo as base64 data URI', async () => {
+      const fileContent = Buffer.from('fake-image-data');
       const res = await request(app)
-        .put('/api/customers/CUST-001/photo')
-        .send({ photo: 'data:image/png;base64,abc' });
+        .post('/api/customers/CUST-001/photo')
+        .attach('photo', fileContent, { filename: 'photo.jpg', contentType: 'image/jpeg' });
 
       expect(res.status).toBe(200);
-      expect(deps.setCustomerPhoto).toHaveBeenCalledWith('user-1', 'CUST-001', 'data:image/png;base64,abc');
+      expect(res.body).toEqual({ success: true });
+      const expectedBase64 = `data:image/jpeg;base64,${fileContent.toString('base64')}`;
+      expect(deps.setCustomerPhoto).toHaveBeenCalledWith('user-1', 'CUST-001', expectedBase64);
     });
 
-    test('returns 400 for missing photo', async () => {
+    test('returns 400 when no file attached', async () => {
       const res = await request(app)
-        .put('/api/customers/CUST-001/photo')
-        .send({});
+        .post('/api/customers/CUST-001/photo');
 
       expect(res.status).toBe(400);
     });

@@ -323,7 +323,7 @@ describe('response shape regression', () => {
   });
 
   describe('customers endpoints', () => {
-    test('GET /api/customers returns { success, data: Array }', async () => {
+    test('GET /api/customers returns { success, data: { customers, total } }', async () => {
       const deps = createMockDeps();
       const app = createApp(deps);
       const token = await makeAgentToken();
@@ -335,7 +335,10 @@ describe('response shape regression', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         success: true,
-        data: expect.any(Array),
+        data: {
+          customers: expect.any(Array),
+          total: expect.any(Number),
+        },
       });
     });
 
@@ -391,7 +394,7 @@ describe('response shape regression', () => {
   });
 
   describe('products endpoints', () => {
-    test('GET /api/products returns { success, data: Array }', async () => {
+    test('GET /api/products returns { success, data: { products, totalCount, returnedCount, limited } }', async () => {
       const deps = createMockDeps();
       const app = createApp(deps);
       const token = await makeAgentToken();
@@ -403,7 +406,12 @@ describe('response shape regression', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         success: true,
-        data: expect.any(Array),
+        data: {
+          products: expect.any(Array),
+          totalCount: expect.any(Number),
+          returnedCount: expect.any(Number),
+          limited: expect.any(Boolean),
+        },
       });
     });
 
@@ -545,7 +553,7 @@ describe('response shape regression', () => {
   });
 
   describe('orders endpoints', () => {
-    test('GET /api/orders returns { success, data: Array, total }', async () => {
+    test('GET /api/orders returns { success, data: { orders, total, hasMore } }', async () => {
       const deps = createMockDeps();
       const app = createApp(deps);
       const token = await makeAgentToken();
@@ -557,8 +565,11 @@ describe('response shape regression', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         success: true,
-        data: expect.any(Array),
-        total: expect.any(Number),
+        data: {
+          orders: expect.any(Array),
+          total: expect.any(Number),
+          hasMore: expect.any(Boolean),
+        },
       });
     });
   });

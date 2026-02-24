@@ -34,6 +34,7 @@ export function PendingOrdersPage() {
     isSyncing: loading,
     staleJobIds,
     refetch,
+    trackJobs,
   } = usePendingSync();
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
@@ -138,6 +139,14 @@ export function PendingOrdersPage() {
         ),
       );
       const jobIds = results.map((r) => r.jobId);
+
+      const selectedOrders2 = orders.filter((o) => selectedOrderIds.has(o.id!));
+      trackJobs(
+        selectedOrders2.map((order, i) => ({
+          orderId: order.id!,
+          jobId: jobIds[i],
+        })),
+      );
 
       for (const orderId of selectedOrderIds) {
         const order = orders.find((o) => o.id === orderId);

@@ -105,7 +105,7 @@ const masterEndpoints: EndpointEntry[] = [
   { method: 'GET', masterPath: '/api/customers/:customerProfile/status', branchPath: '/api/customers/:customerProfile/status', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/:customerProfile/retry', branchPath: '/api/customers/:customerProfile/retry', auth: 'auth' },
   { method: 'GET', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
-  { method: 'POST', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', branchMethod: 'PUT', auth: 'auth', note: 'branch uses PUT for photo upload' },
+  { method: 'POST', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
   { method: 'DELETE', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/sync', branchPath: '/api/customers/sync', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/smart-sync', branchPath: '/api/customers/smart-sync', auth: 'auth' },

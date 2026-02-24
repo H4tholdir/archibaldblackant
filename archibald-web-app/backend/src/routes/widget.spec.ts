@@ -73,8 +73,8 @@ describe('createWidgetRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.heroStatus).toBeDefined();
-      expect(res.body.data.kpiCards).toBeDefined();
+      expect(res.body.heroStatus).toBeDefined();
+      expect(res.body.kpiCards).toBeDefined();
       expect(deps.getDashboardData).toHaveBeenCalledWith('user-1');
     });
   });
@@ -85,8 +85,8 @@ describe('createWidgetRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.orders).toHaveLength(1);
-      expect(res.body.data.summary.totalOrders).toBe(1);
+      expect(res.body.orders).toHaveLength(1);
+      expect(res.body.summary.totalOrders).toBe(1);
       expect(deps.getOrdersForPeriod).toHaveBeenCalledWith('user-1', 2026, 2);
     });
 

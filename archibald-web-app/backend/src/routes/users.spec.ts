@@ -51,7 +51,7 @@ describe('createUsersRouter', () => {
       const res = await request(app).get('/api/users/me/target');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: mockTarget });
+      expect(res.body).toEqual(mockTarget);
       expect(deps.getUserTarget).toHaveBeenCalledWith('user-1');
     });
 
@@ -83,9 +83,8 @@ describe('createUsersRouter', () => {
         .send(validBody);
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.monthlyTarget).toBe(30000);
-      expect(res.body.data.yearlyTarget).toBe(360000);
+      expect(res.body.monthlyTarget).toBe(30000);
+      expect(res.body.yearlyTarget).toBe(360000);
       expect(deps.updateUserTarget).toHaveBeenCalledWith(
         'user-1',
         360000, 'EUR', 0.20, 600, 60000, 40000, 250, 2000, true,

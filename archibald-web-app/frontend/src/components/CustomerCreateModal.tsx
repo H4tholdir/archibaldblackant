@@ -6,6 +6,7 @@ import { PAYMENT_TERMS } from "../data/payment-terms";
 import { CAP_BY_CODE } from "../data/cap-list";
 import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { pollJobUntilDone } from "../api/operations";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
@@ -402,33 +403,57 @@ export function CustomerCreateModal({
       }),
     );
 
-    // Polling fallback: if WebSocket events don't arrive, poll botStatus
+    // Primary fallback: poll job status via queue API (works for both create and update)
+    let cancelled = false;
+    pollJobUntilDone(taskId, {
+      maxWaitMs: 180_000,
+      onProgress: (progress, label) => {
+        if (!resolved && !cancelled) {
+          setProgress(progress);
+          setProgressLabel(label ?? "Elaborazione...");
+        }
+      },
+    }).then(() => {
+      if (!cancelled) markCompleted();
+    }).catch((err) => {
+      if (!cancelled) markFailed(err instanceof Error ? err.message : "Operazione fallita");
+    });
+
+    // Secondary fallback: poll botStatus for updates (has customerProfile)
     const customerProfile = editCustomer?.customerProfile;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-    const pollTimeout = setTimeout(() => {
-      if (resolved || !customerProfile) return;
-      pollInterval = setInterval(async () => {
-        if (resolved) {
-          if (pollInterval) clearInterval(pollInterval);
-          return;
-        }
-        try {
-          const status =
-            await customerService.getCustomerBotStatus(customerProfile);
-          if (status === "placed") markCompleted();
-          else if (status === "failed")
-            markFailed("Operazione fallita su Archibald");
-        } catch {
-          // ignore polling errors
-        }
-      }, 5000);
-    }, 10000);
+    if (customerProfile) {
+      const pollTimeout = setTimeout(() => {
+        if (resolved) return;
+        pollInterval = setInterval(async () => {
+          if (resolved) {
+            if (pollInterval) clearInterval(pollInterval);
+            return;
+          }
+          try {
+            const status =
+              await customerService.getCustomerBotStatus(customerProfile);
+            if (status === "placed") markCompleted();
+            else if (status === "failed")
+              markFailed("Operazione fallita su Archibald");
+          } catch {
+            // ignore polling errors
+          }
+        }, 5000);
+      }, 10000);
+
+      return () => {
+        cancelled = true;
+        unsubs.forEach((u) => u());
+        clearTimeout(pollTimeout);
+        if (pollInterval) clearInterval(pollInterval);
+      };
+    }
 
     return () => {
+      cancelled = true;
       unsubs.forEach((u) => u());
-      clearTimeout(pollTimeout);
-      if (pollInterval) clearInterval(pollInterval);
     };
   }, [taskId, subscribe, onSaved, onClose, editCustomer]);
 

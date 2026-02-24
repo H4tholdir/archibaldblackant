@@ -80,7 +80,7 @@ function createWidgetRouter(deps: WidgetRouterDeps) {
     try {
       const userId = req.user!.userId;
       const data = await getDashboardData(userId);
-      res.json({ success: true, data });
+      res.json({ success: true, ...data });
     } catch (error) {
       logger.error('Error getting dashboard data', { error });
       res.status(500).json({ success: false, error: 'Errore server' });
@@ -109,7 +109,7 @@ function createWidgetRouter(deps: WidgetRouterDeps) {
 
       const userId = req.user!.userId;
       const data = await getOrdersForPeriod(userId, year, month);
-      res.json({ success: true, data });
+      res.json({ success: true, ...data });
     } catch (error) {
       logger.error('Error getting widget orders', { error });
       res.status(500).json({ success: false, error: 'Errore server' });

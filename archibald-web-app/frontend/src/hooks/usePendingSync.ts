@@ -2,7 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { getPendingOrders } from "../api/pending-orders";
 import type { PendingOrder } from "../types/pending-order";
-import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { getJobStatus } from "../api/operations";
+
+export type JobTrackingEntry = {
+  orderId: string;
+  jobId: string;
+  status: "queued" | "active" | "completed" | "failed";
+  error?: string;
+  startedAt: number;
+};
 
 export interface UsePendingSyncReturn {
   pendingOrders: PendingOrder[];
@@ -10,22 +18,8 @@ export interface UsePendingSyncReturn {
   isSyncing: boolean;
   staleJobIds: Set<string>;
   refetch: () => Promise<void>;
-}
-
-function isJobStale(order: PendingOrder): boolean {
-  const now = Date.now();
-
-  if (order.jobStatus === "started" && order.jobStartedAt) {
-    const startedAt = new Date(order.jobStartedAt).getTime();
-    return now - startedAt > 45_000;
-  }
-
-  if (order.jobStatus === "processing") {
-    const updatedAt = new Date(order.updatedAt).getTime();
-    return now - updatedAt > 120_000;
-  }
-
-  return false;
+  trackJobs: (entries: Array<{ orderId: string; jobId: string }>) => void;
+  jobTracking: Map<string, JobTrackingEntry>;
 }
 
 const WS_EVENTS_PENDING = [
@@ -33,11 +27,8 @@ const WS_EVENTS_PENDING = [
   "PENDING_UPDATED",
   "PENDING_DELETED",
   "PENDING_SUBMITTED",
-  "JOB_STARTED",
-  "JOB_PROGRESS",
   "JOB_COMPLETED",
   "JOB_FAILED",
-  "ORDER_NUMBERS_RESOLVED",
 ] as const;
 
 export function usePendingSync(): UsePendingSyncReturn {
@@ -45,6 +36,7 @@ export function usePendingSync(): UsePendingSyncReturn {
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [staleJobIds, setStaleJobIds] = useState<Set<string>>(new Set());
+  const [jobTracking, setJobTracking] = useState<Map<string, JobTrackingEntry>>(new Map());
 
   const fetchPendingOrders = useCallback(async () => {
     try {
@@ -69,11 +61,51 @@ export function usePendingSync(): UsePendingSyncReturn {
     await fetchPendingOrders();
   }, [fetchPendingOrders]);
 
+  const trackJobs = useCallback((entries: Array<{ orderId: string; jobId: string }>) => {
+    setJobTracking((prev) => {
+      const next = new Map(prev);
+      for (const entry of entries) {
+        next.set(entry.orderId, {
+          orderId: entry.orderId,
+          jobId: entry.jobId,
+          status: "queued",
+          startedAt: Date.now(),
+        });
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     fetchPendingOrders();
 
     const unsubscribers = WS_EVENTS_PENDING.map((eventType) =>
-      subscribe(eventType, () => {
+      subscribe(eventType, (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
+          const jobId = p.jobId as string;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: "completed" });
+              }
+            }
+            return next;
+          });
+        } else if (eventType === "JOB_FAILED" && p.type === "submit-order") {
+          const jobId = p.jobId as string;
+          const error = p.error as string | undefined;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: "failed", error: error ?? "Errore sconosciuto" });
+              }
+            }
+            return next;
+          });
+        }
         fetchPendingOrders();
       }),
     );
@@ -83,35 +115,36 @@ export function usePendingSync(): UsePendingSyncReturn {
     };
   }, [subscribe, fetchPendingOrders]);
 
-  const pendingOrdersRef = useRef(pendingOrders);
-  pendingOrdersRef.current = pendingOrders;
+  const jobTrackingRef = useRef(jobTracking);
+  jobTrackingRef.current = jobTracking;
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const orders = pendingOrdersRef.current;
+      const tracking = jobTrackingRef.current;
       const newStaleIds = new Set<string>();
 
-      for (const order of orders) {
-        if (!isJobStale(order) || !order.jobId) continue;
+      for (const [orderId, entry] of tracking) {
+        if (entry.status === "completed" || entry.status === "failed") continue;
 
-        newStaleIds.add(order.id);
+        const elapsed = Date.now() - entry.startedAt;
+        if (elapsed < 45_000) continue;
+
+        newStaleIds.add(orderId);
 
         try {
-          const response = await fetchWithRetry(
-            `/api/operations/${order.jobId}/status`,
-          );
-          if (!response.ok) continue;
-
-          const data = await response.json();
-          if (!data.success) continue;
-
-          const jobState = data.job?.status;
-          if (
-            jobState === "failed" ||
-            jobState === "completed" ||
-            jobState === "not_found"
-          ) {
-            newStaleIds.delete(order.id);
+          const result = await getJobStatus(entry.jobId);
+          const jobState = result.job.state;
+          if (jobState === "failed" || jobState === "completed") {
+            newStaleIds.delete(orderId);
+            setJobTracking((prev) => {
+              const next = new Map(prev);
+              next.set(orderId, {
+                ...entry,
+                status: jobState === "failed" ? "failed" : "completed",
+                error: jobState === "failed" ? (result.job.failedReason ?? "Errore sconosciuto") : undefined,
+              });
+              return next;
+            });
             fetchPendingOrders();
           }
         } catch {
@@ -131,5 +164,7 @@ export function usePendingSync(): UsePendingSyncReturn {
     isSyncing,
     staleJobIds,
     refetch,
+    trackJobs,
+    jobTracking,
   };
 }

@@ -106,7 +106,7 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
+      expect(res.body.records).toHaveLength(1);
     });
   });
 
@@ -125,7 +125,7 @@ describe('createFresisHistoryRouter', () => {
       const res = await request(app).get('/api/fresis-history/FH-001');
 
       expect(res.status).toBe(200);
-      expect(res.body.data.id).toBe('FH-001');
+      expect(res.body.record.id).toBe('FH-001');
     });
 
     test('returns 404 for missing record', async () => {
@@ -184,7 +184,7 @@ describe('createFresisHistoryRouter', () => {
       const res = await request(app).get('/api/fresis-history/by-mother-order/ARC-001');
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toHaveLength(1);
+      expect(res.body.records).toHaveLength(1);
     });
   });
 
@@ -195,7 +195,7 @@ describe('createFresisHistoryRouter', () => {
         .send({ orderId: 'ARC-001', currentState: 'shipped' });
 
       expect(res.status).toBe(200);
-      expect(res.body.updated).toBe(2);
+      expect(res.body.updatedCount).toBe(2);
     });
   });
 
@@ -223,7 +223,7 @@ describe('createFresisHistoryRouter', () => {
       const res = await request(app).get('/api/fresis-history/search-orders?q=Rossi');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: mockOrders });
+      expect(res.body).toEqual({ success: true, orders: mockOrders });
       expect(deps.searchOrders).toHaveBeenCalledWith('user-1', 'Rossi');
     });
 
@@ -258,10 +258,10 @@ describe('createFresisHistoryRouter', () => {
       const csvContent = 'test data';
       const res = await request(app)
         .post('/api/fresis-history/import-arca')
-        .attach('file', Buffer.from(csvContent), 'import.zip');
+        .attach('files', Buffer.from(csvContent), 'import.zip');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: { success: true, imported: 5, errors: [] } });
+      expect(res.body).toEqual({ success: true, stats: { success: true, imported: 5, errors: [] }, errors: [] });
       expect(deps.importArca).toHaveBeenCalledWith('user-1', expect.any(Buffer), 'import.zip');
     });
 

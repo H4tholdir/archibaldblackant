@@ -110,7 +110,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const records = await getAll(req.user!.userId);
-      res.json({ success: true, data: records });
+      res.json({ success: true, records });
     } catch (error) {
       logger.error('Error fetching fresis history', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero storico' });
@@ -134,7 +134,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         return res.status(400).json({ success: false, error: 'Parametro di ricerca richiesto' });
       }
       const data = await searchOrders(req.user!.userId, q);
-      res.json({ success: true, data });
+      res.json({ success: true, orders: data });
     } catch (error) {
       logger.error('Error searching orders for fresis', { error });
       res.status(500).json({ success: false, error: 'Errore ricerca ordini' });
@@ -156,14 +156,14 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     }
   });
 
-  router.post('/import-arca', upload.single('file'), async (req: AuthRequest, res) => {
+  router.post('/import-arca', upload.single('files'), async (req: AuthRequest, res) => {
     try {
       const file = req.file;
       if (!file) {
         return res.status(400).json({ success: false, error: 'File richiesto' });
       }
       const result = await importArca(req.user!.userId, file.buffer, file.originalname);
-      res.json({ success: true, data: result });
+      res.json({ success: true, stats: result, errors: result.errors });
     } catch (error) {
       logger.error('Error importing ArcA', { error });
       res.status(500).json({ success: false, error: 'Errore importazione ArcA' });
@@ -184,7 +184,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   router.get('/by-mother-order/:orderId', async (req: AuthRequest, res) => {
     try {
       const records = await getByMotherOrder(req.user!.userId, req.params.orderId);
-      res.json({ success: true, data: records });
+      res.json({ success: true, records });
     } catch (error) {
       logger.error('Error fetching by mother order', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ordini figlio' });
@@ -193,8 +193,9 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.get('/siblings/:archibaldOrderId', async (req: AuthRequest, res) => {
     try {
-      const records = await getSiblings(req.user!.userId, [req.params.archibaldOrderId]);
-      res.json({ success: true, data: records });
+      const ids = req.params.archibaldOrderId.split(',');
+      const records = await getSiblings(req.user!.userId, ids);
+      res.json({ success: true, records });
     } catch (error) {
       logger.error('Error fetching siblings', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero fratelli' });
@@ -280,7 +281,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       if (!record) {
         return res.status(404).json({ success: false, error: 'Record non trovato' });
       }
-      res.json({ success: true, data: record });
+      res.json({ success: true, record });
     } catch (error) {
       logger.error('Error fetching fresis history record', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero record' });
@@ -335,7 +336,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       }
       const { orderId, ...stateData } = parsed.data;
       const updated = await propagateState(req.user!.userId, orderId, stateData);
-      res.json({ success: true, updated });
+      res.json({ success: true, updatedCount: updated });
     } catch (error) {
       logger.error('Error propagating state', { error });
       res.status(500).json({ success: false, error: 'Errore nella propagazione stato' });

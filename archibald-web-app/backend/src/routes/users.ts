@@ -40,7 +40,7 @@ function createUsersRouter(deps: UsersRouterDeps) {
         return res.status(404).json({ success: false, error: 'Target non trovato' });
       }
 
-      res.json({ success: true, data: target });
+      res.json(target);
     } catch (error) {
       logger.error('Error getting user target', { error });
       res.status(500).json({ success: false, error: 'Errore server' });
@@ -62,19 +62,16 @@ function createUsersRouter(deps: UsersRouterDeps) {
       const monthlyTarget = Math.round(yearlyTarget / 12);
 
       res.json({
-        success: true,
-        data: {
-          monthlyTarget,
-          yearlyTarget,
-          currency,
-          commissionRate,
-          bonusAmount,
-          bonusInterval,
-          extraBudgetInterval,
-          extraBudgetReward,
-          monthlyAdvance,
-          hideCommissions,
-        },
+        monthlyTarget,
+        yearlyTarget,
+        currency,
+        commissionRate,
+        bonusAmount,
+        bonusInterval,
+        extraBudgetInterval,
+        extraBudgetReward,
+        monthlyAdvance,
+        hideCommissions,
       });
     } catch (error) {
       logger.error('Error updating user target', { error });

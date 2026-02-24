@@ -15,6 +15,7 @@ type JobStatus = {
   userId: string;
   state: string;
   progress: number;
+  progressLabel?: string;
   result: OperationJobResult | null;
   failedReason: string | undefined;
 };
@@ -92,7 +93,14 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
       type: job.data.type,
       userId: job.data.userId,
       state,
-      progress: typeof job.progress === 'number' ? job.progress : 0,
+      progress: typeof job.progress === 'number'
+        ? job.progress
+        : (typeof job.progress === 'object' && job.progress !== null && 'progress' in job.progress)
+          ? (job.progress as { progress: number }).progress
+          : 0,
+      progressLabel: (typeof job.progress === 'object' && job.progress !== null && 'label' in job.progress)
+        ? (job.progress as { label: string }).label
+        : undefined,
       result: job.returnvalue ?? null,
       failedReason: job.failedReason,
     };

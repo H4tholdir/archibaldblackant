@@ -20,6 +20,8 @@ vi.mock("../hooks/usePendingSync", () => ({
     isSyncing: mockIsSyncing,
     staleJobIds: new Set<string>(),
     refetch: mockRefetch,
+    trackJobs: vi.fn(),
+    jobTracking: new Map(),
   }),
 }));
 

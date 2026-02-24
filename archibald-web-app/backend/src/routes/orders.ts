@@ -62,14 +62,40 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
       };
 
-      const [data, total] = await Promise.all([
+      const [orders, total] = await Promise.all([
         getOrdersByUser(userId, options),
         countOrders(userId, options),
       ]);
 
-      res.json({ success: true, data, total });
+      res.json({ success: true, data: { orders, total, hasMore: false } });
     } catch (error) {
       logger.error('Error fetching orders', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero ordini' });
+    }
+  });
+
+  // Alias: the frontend OrderHistory page calls /api/orders/history with the same query params as GET /
+  router.get('/history', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const options: OrderFilterOptions = {
+        customer: req.query.customer as string | undefined,
+        status: req.query.status as string | undefined,
+        dateFrom: req.query.dateFrom as string | undefined,
+        dateTo: req.query.dateTo as string | undefined,
+        search: req.query.search as string | undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
+        offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
+      };
+
+      const [orders, total] = await Promise.all([
+        getOrdersByUser(userId, options),
+        countOrders(userId, options),
+      ]);
+
+      res.json({ success: true, data: { orders, total, hasMore: false } });
+    } catch (error) {
+      logger.error('Error fetching order history', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ordini' });
     }
   });

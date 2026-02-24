@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import type { Customer, CustomerFormInput } from '../db/repositories/customers';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 type QueueLike = {
   enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
@@ -108,7 +114,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       const userId = req.user!.userId;
       const search = req.query.search as string | undefined;
       const customers = await getCustomers(userId, search);
-      res.json({ success: true, data: customers });
+      res.json({ success: true, data: { customers, total: customers.length } });
     } catch (error) {
       logger.error('Error fetching customers', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero clienti' });
@@ -296,20 +302,30 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       if (!photo) {
         return res.status(404).json({ success: false, error: 'Foto non trovata' });
       }
-      res.json({ success: true, photo });
+      const dataUriMatch = photo.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUriMatch) {
+        const contentType = dataUriMatch[1];
+        const base64Data = dataUriMatch[2];
+        res.set('Content-Type', contentType);
+        res.send(Buffer.from(base64Data, 'base64'));
+      } else {
+        res.set('Content-Type', 'image/jpeg');
+        res.send(Buffer.from(photo, 'base64'));
+      }
     } catch (error) {
       logger.error('Error fetching customer photo', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero foto' });
     }
   });
 
-  router.put('/:customerProfile/photo', async (req: AuthRequest, res) => {
+  router.post('/:customerProfile/photo', upload.single('photo'), async (req: AuthRequest, res) => {
     try {
-      const { photo } = req.body;
-      if (!photo || typeof photo !== 'string') {
+      const file = req.file;
+      if (!file) {
         return res.status(400).json({ success: false, error: 'Foto richiesta' });
       }
-      await setCustomerPhoto(req.user!.userId, req.params.customerProfile, photo);
+      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      await setCustomerPhoto(req.user!.userId, req.params.customerProfile, base64);
       res.json({ success: true });
     } catch (error) {
       logger.error('Error saving customer photo', { error });

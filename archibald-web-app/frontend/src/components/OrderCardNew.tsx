@@ -1064,10 +1064,15 @@ function TabArticoli({
         return;
       }
 
-      setTimeout(() => {
-        setSubmittingEdit(false);
-        onEditDone?.();
-      }, 2000);
+      await pollJobUntilDone(result.jobId, {
+        maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          setEditProgress?.({ progress, operation: label ?? "Modifica in corso..." });
+        },
+      });
+
+      setSubmittingEdit(false);
+      onEditDone?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di rete");
       setSubmittingEdit(false);
@@ -3255,7 +3260,8 @@ function downloadPdfWithProgress(
 
       if (cancelled) return;
 
-      const pdfBase64 = result.pdf as string;
+      const resultData = (result.data ?? result) as Record<string, unknown>;
+      const pdfBase64 = resultData.pdf as string;
       if (!pdfBase64) {
         onError("Nessun PDF ricevuto dal server");
         return;
@@ -3438,10 +3444,23 @@ export function OrderCardNew({
         throw new Error(result.error || `Errore eliminazione ordine`);
       }
 
-      // WebSocket ORDER_DELETE_COMPLETE gestirà il completamento reale.
-      // Fallback solo se il WebSocket ha già gestito prima della risposta HTTP.
+      if (deleteHandledRef.current) return;
+      setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
+
+      await pollJobUntilDone(result.jobId, {
+        maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          if (!deleteHandledRef.current) {
+            setDeleteProgress({ progress, operation: label ?? "Eliminazione in corso..." });
+          }
+        },
+      });
+
       if (!deleteHandledRef.current) {
-        setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
+        deleteHandledRef.current = true;
+        setDeleteProgress(null);
+        setDeletingOrder(false);
+        onDeleteDone?.();
       }
     } catch (err) {
       console.error("Delete order failed:", err);

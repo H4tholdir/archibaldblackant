@@ -2,6 +2,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createAuthRouter, type AuthRouterDeps } from './auth';
+import { generateJWT } from '../auth-utils';
 
 function createMockDeps(): AuthRouterDeps {
   return {
@@ -48,15 +49,8 @@ function createApp(deps: AuthRouterDeps) {
   return app;
 }
 
-function createAuthenticatedApp(deps: AuthRouterDeps) {
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => {
-    (req as any).user = { userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1' };
-    next();
-  });
-  app.use('/api/auth', createAuthRouter(deps));
-  return app;
+async function createAuthToken() {
+  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1' });
 }
 
 describe('createAuthRouter', () => {
@@ -166,9 +160,11 @@ describe('createAuthRouter', () => {
 
   describe('POST /api/auth/refresh-credentials', () => {
     test('re-caches password', async () => {
-      const app = createAuthenticatedApp(deps);
+      const app = createApp(deps);
+      const token = await createAuthToken();
       const res = await request(app)
         .post('/api/auth/refresh-credentials')
+        .set('Authorization', `Bearer ${token}`)
         .send({ password: 'newpass' });
 
       expect(res.status).toBe(200);
@@ -176,9 +172,11 @@ describe('createAuthRouter', () => {
     });
 
     test('returns 400 for missing password', async () => {
-      const app = createAuthenticatedApp(deps);
+      const app = createApp(deps);
+      const token = await createAuthToken();
       const res = await request(app)
         .post('/api/auth/refresh-credentials')
+        .set('Authorization', `Bearer ${token}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -187,8 +185,11 @@ describe('createAuthRouter', () => {
 
   describe('POST /api/auth/logout', () => {
     test('clears password cache', async () => {
-      const app = createAuthenticatedApp(deps);
-      const res = await request(app).post('/api/auth/logout');
+      const app = createApp(deps);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(deps.passwordCache.clear).toHaveBeenCalledWith('user-1');
@@ -198,8 +199,11 @@ describe('createAuthRouter', () => {
   describe('POST /api/auth/refresh', () => {
     test('returns new token when password cached', async () => {
       (deps.passwordCache.get as ReturnType<typeof vi.fn>).mockReturnValue('cached-pass');
-      const app = createAuthenticatedApp(deps);
-      const res = await request(app).post('/api/auth/refresh');
+      const app = createApp(deps);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.token).toBe('jwt-token-123');
@@ -207,8 +211,11 @@ describe('createAuthRouter', () => {
 
     test('returns 401 when password not cached', async () => {
       (deps.passwordCache.get as ReturnType<typeof vi.fn>).mockReturnValue(null);
-      const app = createAuthenticatedApp(deps);
-      const res = await request(app).post('/api/auth/refresh');
+      const app = createApp(deps);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(401);
       expect(res.body.error).toBe('CREDENTIALS_EXPIRED');
@@ -217,8 +224,11 @@ describe('createAuthRouter', () => {
 
   describe('GET /api/auth/me', () => {
     test('returns user profile', async () => {
-      const app = createAuthenticatedApp(deps);
-      const res = await request(app).get('/api/auth/me');
+      const app = createApp(deps);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -227,8 +237,11 @@ describe('createAuthRouter', () => {
 
     test('returns 404 for missing user', async () => {
       (deps.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      const app = createAuthenticatedApp(deps);
-      const res = await request(app).get('/api/auth/me');
+      const app = createApp(deps);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(404);
     });

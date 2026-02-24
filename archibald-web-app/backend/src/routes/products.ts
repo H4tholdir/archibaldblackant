@@ -57,7 +57,15 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     try {
       const search = req.query.search as string | undefined;
       const products = await getProducts(search);
-      res.json({ success: true, data: products });
+      res.json({
+        success: true,
+        data: {
+          products,
+          totalCount: products.length,
+          returnedCount: products.length,
+          limited: false,
+        },
+      });
     } catch (error) {
       logger.error('Error fetching products', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero prodotti' });
@@ -88,7 +96,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/zero-price-count', async (_req: AuthRequest, res) => {
     try {
       const count = await getZeroPriceCount();
-      res.json({ success: true, count });
+      res.json({ success: true, data: { count } });
     } catch (error) {
       logger.error('Error counting zero-price products', { error });
       res.status(500).json({ success: false, error: 'Errore nel conteggio prodotti senza prezzo' });
@@ -98,7 +106,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/no-vat-count', async (_req: AuthRequest, res) => {
     try {
       const count = await getNoVatCount();
-      res.json({ success: true, count });
+      res.json({ success: true, data: { count } });
     } catch (error) {
       logger.error('Error counting no-vat products', { error });
       res.status(500).json({ success: false, error: 'Errore nel conteggio prodotti senza IVA' });
@@ -211,7 +219,14 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       const product = await getProductById(req.params.productId);
       const articleName = product?.name ?? req.params.productId;
       const variants = await getProductVariants(articleName);
-      res.json({ success: true, data: variants });
+      res.json({
+        success: true,
+        data: {
+          productName: articleName,
+          variantCount: variants.length,
+          variants,
+        },
+      });
     } catch (error) {
       logger.error('Error fetching product variants', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero varianti' });

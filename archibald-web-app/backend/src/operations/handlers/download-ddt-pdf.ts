@@ -2,7 +2,7 @@ import type { OperationHandler } from '../operation-processor';
 
 type DownloadDdtPdfData = {
   orderId: string;
-  ddtNumber: string;
+  ddtNumber?: string;
 };
 
 type DownloadDdtPdfBot = {
@@ -23,7 +23,7 @@ async function handleDownloadDdtPdf(
   });
 
   onProgress(10, 'Download DDT PDF');
-  const pdf = await bot.downloadDDTPDF(data.orderId, data.ddtNumber);
+  const pdf = await bot.downloadDDTPDF(data.orderId, data.ddtNumber ?? '');
 
   onProgress(100, 'Download completato');
 
