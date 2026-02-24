@@ -28,6 +28,7 @@ import {
   createSyncDdtHandler,
   createSyncInvoicesHandler,
   createSyncProductsHandler,
+  createSyncOrderStatesHandler,
 } from './operations/handlers';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
@@ -400,6 +401,7 @@ async function bootstrap(): Promise<void> {
         },
       }),
     ),
+    'sync-order-states': createSyncOrderStatesHandler(pool),
   };
 
   const processor = createOperationProcessor({

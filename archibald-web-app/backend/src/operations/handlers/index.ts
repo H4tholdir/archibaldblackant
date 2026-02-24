@@ -12,4 +12,5 @@ export { createSyncInvoicesHandler, type SyncInvoicesBot } from './sync-invoices
 export { createSyncOrdersHandler, type SyncOrdersBot } from './sync-orders';
 export { createSyncPricesHandler, type SyncPricesBot } from './sync-prices';
 export { createSyncProductsHandler, type SyncProductsBot } from './sync-products';
+export { createSyncOrderStatesHandler } from './sync-order-states';
 export { createUpdateCustomerHandler, type UpdateCustomerBot } from './update-customer';

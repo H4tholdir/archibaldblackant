@@ -16,17 +16,18 @@
  * Uso: npx tsx src/scripts/dump-variant-dropdown-elements.ts
  */
 
-import { ArchibaldBot } from "../archibald-bot.js";
-import { ProductDatabase } from "../product-db.js";
-import { config } from "../config.js";
-import { logger } from "../logger.js";
+import { ArchibaldBot } from "../bot/archibald-bot";
+import { createPool } from "../db/pool";
+import { getProductVariants, type VariantRow } from "../db/repositories/products";
+import { config } from "../config";
+import { logger } from "../logger";
 import {
   buildVariantCandidates,
   chooseBestVariantCandidate,
   computeVariantHeaderIndices,
   type VariantMatchInputs,
   type VariantRowSnapshot,
-} from "../variant-selection.js";
+} from "../variant-selection";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -443,7 +444,15 @@ async function dumpVariantDropdowns() {
 
   await fs.mkdir(DUMP_DIR, { recursive: true });
 
-  const productDb = new ProductDatabase();
+  const pool = createPool(config.database);
+
+  function selectPackageVariant(variants: VariantRow[], quantity: number): VariantRow | null {
+    if (variants.length === 0) return null;
+    if (variants.length === 1) return variants[0];
+    const valid = variants.filter((v) => quantity % (v.multiple_qty || 1) === 0);
+    if (valid.length === 0) return variants[variants.length - 1];
+    return valid[0];
+  }
   let bot: ArchibaldBot | null = null;
   const results: VariantAnalysis[] = [];
 
@@ -455,7 +464,7 @@ async function dumpVariantDropdowns() {
     logger.info("─".repeat(60));
 
     for (const testArticle of TEST_ARTICLES) {
-      const dbVariants = productDb.getProductVariants(testArticle.articleName);
+      const dbVariants = await getProductVariants(pool, testArticle.articleName);
       logger.info(`\n  📦 ${testArticle.articleName} - ${testArticle.description}`);
       logger.info(`     Varianti nel DB: ${dbVariants.length}`);
 
@@ -469,10 +478,7 @@ async function dumpVariantDropdowns() {
       // Test selectPackageVariant per ogni quantità
       logger.info(`     └─ Test selectPackageVariant:`);
       for (const qty of testArticle.testQuantities) {
-        const selected = productDb.selectPackageVariant(
-          testArticle.articleName,
-          qty,
-        );
+        const selected = selectPackageVariant(dbVariants, qty);
         if (selected) {
           const suffix = selected.id.substring(selected.id.length - 2);
           logger.info(
@@ -897,7 +903,7 @@ async function dumpVariantDropdowns() {
 
     for (let artIdx = 0; artIdx < TEST_ARTICLES.length; artIdx++) {
       const testArticle = TEST_ARTICLES[artIdx];
-      const dbVariants = productDb.getProductVariants(testArticle.articleName);
+      const dbVariants = await getProductVariants(pool, testArticle.articleName);
 
       logger.info(
         `\n\n${"═".repeat(60)}\n  ARTICOLO ${artIdx + 1}/${TEST_ARTICLES.length}: ${testArticle.articleName}\n  ${testArticle.description}\n${"═".repeat(60)}`,
@@ -934,10 +940,7 @@ async function dumpVariantDropdowns() {
         );
 
         // Get variant from DB
-        const selectedVariant = productDb.selectPackageVariant(
-          testArticle.articleName,
-          qty,
-        );
+        const selectedVariant = selectPackageVariant(dbVariants, qty);
 
         if (!selectedVariant) {
           logger.warn(`  qty=${qty}: NESSUNA VARIANTE SELEZIONATA DAL DB`);
@@ -1687,7 +1690,7 @@ async function dumpVariantDropdowns() {
         await (bot as any).cleanup?.();
       } catch {}
     }
-    productDb.close();
+    await pool.end();
   }
 }
 

@@ -9,7 +9,7 @@
  * Output: logs/archibald-payment-terms.json
  */
 
-import { ArchibaldBot } from "../archibald-bot.js";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
 import * as fs from "fs";
