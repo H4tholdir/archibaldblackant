@@ -30,6 +30,7 @@ type SyncStatusRouterDeps = {
   getGlobalCustomerLastSyncTime?: () => Promise<number | null>;
   getProductCount?: () => Promise<number>;
   getProductLastSyncTime?: () => Promise<number | null>;
+  getSessionCount?: () => number;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -72,6 +73,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         scheduler: {
           running: syncScheduler.isRunning(),
           intervals: syncScheduler.getIntervals(),
+          sessionCount: deps.getSessionCount?.() ?? 0,
         },
       });
     } catch (error) {

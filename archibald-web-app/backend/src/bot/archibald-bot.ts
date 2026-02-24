@@ -12140,4 +12140,129 @@ export class ArchibaldBot {
 
     return customerProfileId;
   }
+
+  private async downloadSingleDocumentPDF(
+    context: BrowserContext,
+    pageUrl: string,
+    searchTerm: string,
+    pdfLinkSelector: string,
+    tmpDir: string,
+    timeout: number,
+  ): Promise<Buffer> {
+    const page = await context.newPage();
+
+    try {
+      logger.info("[ArchibaldBot] downloadSingleDocumentPDF: navigating", { pageUrl, searchTerm });
+
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
+      await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await this.waitForDevExpressReadyOnPage(page);
+
+      const searchInput = await page.waitForSelector(
+        'input[id*="SearchAC"][id*="Ed_I"]',
+        { timeout: 15000 },
+      );
+      if (!searchInput) throw new Error("Search input not found");
+
+      await page.evaluate((sel: string, term: string) => {
+        const input = document.querySelector(sel) as HTMLInputElement;
+        if (!input) return;
+        input.value = term;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+      }, 'input[id*="SearchAC"][id*="Ed_I"]', searchTerm);
+
+      await page.keyboard.press("Enter");
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const selectCell = await page.waitForSelector(
+        'td.dxgvCommandColumn_XafTheme[onclick*="Select"]',
+        { timeout: 10000 },
+      );
+      if (!selectCell) throw new Error("No row found for search term");
+      await selectCell.click();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const downloadBtn = await page.waitForSelector(
+        'li[title="Scarica PDF"] a.dxm-content',
+        { timeout: 10000 },
+      );
+      if (!downloadBtn) throw new Error("Download PDF button not found");
+
+      await page.waitForSelector(pdfLinkSelector, { timeout });
+
+      await fsp.mkdir(tmpDir, { recursive: true });
+
+      const client = await page.target().createCDPSession();
+      await client.send("Page.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: tmpDir,
+      });
+
+      await page.click(pdfLinkSelector);
+
+      const downloadedFile = await this.waitForDownloadedFile(tmpDir, 30000);
+      const buffer = await fsp.readFile(downloadedFile);
+
+      await fsp.unlink(downloadedFile).catch(() => {});
+
+      logger.info("[ArchibaldBot] downloadSingleDocumentPDF: success", {
+        searchTerm,
+        size: buffer.length,
+      });
+
+      return buffer;
+    } finally {
+      if (!page.isClosed()) {
+        await page.close().catch(() => {});
+      }
+    }
+  }
+
+  private async waitForDownloadedFile(dir: string, timeoutMs: number): Promise<string> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const files = await fsp.readdir(dir);
+      const pdfFiles = files.filter(
+        (f) => f.endsWith(".pdf") && !f.endsWith(".crdownload"),
+      );
+      if (pdfFiles.length > 0) {
+        return `${dir}/${pdfFiles[0]}`;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`PDF download timed out after ${timeoutMs}ms`);
+  }
+
+  async downloadSingleDDTPDF(
+    context: BrowserContext,
+    orderNumber: string,
+  ): Promise<Buffer> {
+    return this.downloadSingleDocumentPDF(
+      context,
+      `${config.archibald.url}/CUSTPACKINGSLIPJOUR_ListView/`,
+      orderNumber,
+      'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
+      "/tmp/archibald-ddt",
+      15000,
+    );
+  }
+
+  async downloadSingleInvoicePDF(
+    context: BrowserContext,
+    orderNumber: string,
+  ): Promise<Buffer> {
+    return this.downloadSingleDocumentPDF(
+      context,
+      `${config.archibald.url}/CUSTINVOICEJOUR_ListView/`,
+      orderNumber,
+      'a.XafFileDataAnchor[id*="_xaf_InvoicePDF"]',
+      "/tmp/archibald-invoices",
+      30000,
+    );
+  }
 }

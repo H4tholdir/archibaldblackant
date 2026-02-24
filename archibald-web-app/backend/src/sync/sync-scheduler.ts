@@ -123,7 +123,21 @@ function createSyncScheduler(
     return sessionCount;
   }
 
-  return { start, stop, isRunning, getIntervals, smartCustomerSync, resumeOtherSyncs, getSessionCount };
+  function updateInterval(type: string, intervalMinutes: number): void {
+    const ms = intervalMinutes * 60 * 1000;
+    const agentTypes = new Set(['customers', 'orders', 'ddt', 'invoices']);
+    if (agentTypes.has(type)) {
+      currentIntervals.agentSyncMs = ms;
+    } else {
+      currentIntervals.sharedSyncMs = ms;
+    }
+    if (running) {
+      stop();
+      start(currentIntervals);
+    }
+  }
+
+  return { start, stop, isRunning, getIntervals, smartCustomerSync, resumeOtherSyncs, getSessionCount, updateInterval };
 }
 
 type SyncScheduler = ReturnType<typeof createSyncScheduler>;

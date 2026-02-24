@@ -4,7 +4,8 @@ import type { Order, OrderItem } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { enqueueOperation } from "../api/operations";
+import { enqueueOperation, pollJobUntilDone } from "../api/operations";
+import type { OperationType } from "../api/operations";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
@@ -723,20 +724,29 @@ function TabArticoli({
           );
 
           if (syncResponse.ok) {
-            const syncResult = await syncResponse.json();
-            if (syncResult.success && syncResult.data.articles.length > 0) {
-              freshArticles = syncResult.data.articles;
-              if (!cancelled) {
-                setArticles(freshArticles);
-                if (
-                  onTotalsUpdate &&
-                  syncResult.data.totalVatAmount &&
-                  syncResult.data.totalWithVat
-                ) {
-                  onTotalsUpdate({
-                    totalVatAmount: syncResult.data.totalVatAmount,
-                    totalWithVat: syncResult.data.totalWithVat,
-                  });
+            const enqueueResult = await syncResponse.json();
+
+            if (enqueueResult.jobId) {
+              await pollJobUntilDone(enqueueResult.jobId, {
+                maxWaitMs: 120_000,
+              });
+
+              const articlesResponse = await fetchWithRetry(
+                `/api/orders/${orderId}/articles`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              );
+
+              if (articlesResponse.ok) {
+                const articlesData = await articlesResponse.json();
+                if (articlesData.success && articlesData.data.length > 0) {
+                  freshArticles = articlesData.data;
+                  if (!cancelled) {
+                    setArticles(freshArticles);
+                  }
                 }
               }
             }
@@ -1049,7 +1059,7 @@ function TabArticoli({
       });
 
       if (!result.success) {
-        setError("Errore durante la modifica");
+        setError(result.error || "Errore durante la modifica");
         setSubmittingEdit(false);
         return;
       }
@@ -1100,21 +1110,49 @@ function TabArticoli({
         );
       }
 
-      const result = await response.json();
-      setArticles(result.data.articles);
-      const totalVat = result.data.totalVatAmount ?? 0;
+      const enqueueResult = await response.json();
+
+      if (!enqueueResult.jobId) {
+        throw new Error("Nessun job creato per la sincronizzazione");
+      }
+
+      const result = await pollJobUntilDone(enqueueResult.jobId, {
+        maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          setSuccess(label ?? `Sincronizzazione in corso... ${progress}%`);
+        },
+      });
+
+      const articlesResponse = await fetchWithRetry(
+        `/api/orders/${orderId}/articles`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (articlesResponse.ok) {
+        const articlesData = await articlesResponse.json();
+        if (articlesData.success) {
+          setArticles(articlesData.data);
+        }
+      }
+
+      const totalVat = (result.totalVatAmount as number) ?? 0;
+      const articlesCount = (result.articlesCount as number) ?? 0;
       setSuccess(
-        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
+        `Sincronizzati ${articlesCount} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
       );
 
       if (
         onTotalsUpdate &&
-        result.data.totalVatAmount &&
-        result.data.totalWithVat
+        result.totalVatAmount &&
+        result.totalWithVat
       ) {
         onTotalsUpdate({
-          totalVatAmount: result.data.totalVatAmount,
-          totalWithVat: result.data.totalWithVat,
+          totalVatAmount: result.totalVatAmount as number,
+          totalWithVat: result.totalWithVat as number,
         });
       }
 
@@ -3187,54 +3225,67 @@ const tableCellStyle: React.CSSProperties = {
 function downloadPdfWithProgress(
   orderId: string,
   type: "invoice" | "ddt",
-  token: string,
+  _token: string,
   onProgress: (stage: string, percent: number) => void,
   onComplete: () => void,
   onError: (error: string) => void,
 ): () => void {
-  const encodedId = encodeURIComponent(orderId);
-  const url = `/api/orders/${encodedId}/pdf-download?type=${type}&token=${encodeURIComponent(token)}`;
+  let cancelled = false;
 
-  const eventSource = new EventSource(url);
-
-  eventSource.onmessage = (event) => {
+  (async () => {
     try {
-      const data = JSON.parse(event.data);
-      if (data.type === "progress") {
-        onProgress(data.stage, data.percent);
-      } else if (data.type === "complete") {
-        onProgress("Download completato!", 100);
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "application/pdf" });
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        a.download = data.filename;
-        a.click();
-        window.URL.revokeObjectURL(downloadUrl);
-        eventSource.close();
-        onComplete();
-      } else if (data.type === "error") {
-        eventSource.close();
-        onError(data.error);
+      onProgress("Avvio download...", 5);
+
+      const operationType: OperationType = type === "invoice" ? "download-invoice-pdf" : "download-ddt-pdf";
+      const { jobId } = await enqueueOperation(operationType, { orderId });
+
+      if (cancelled) return;
+
+      onProgress("In coda...", 10);
+
+      const result = await pollJobUntilDone(jobId, {
+        intervalMs: 1500,
+        maxWaitMs: 180_000,
+        onProgress: (progress, label) => {
+          if (!cancelled) {
+            onProgress(label ?? "Download in corso...", progress);
+          }
+        },
+      });
+
+      if (cancelled) return;
+
+      const pdfBase64 = result.pdf as string;
+      if (!pdfBase64) {
+        onError("Nessun PDF ricevuto dal server");
+        return;
       }
-    } catch {
-      eventSource.close();
-      onError("Errore durante il parsing della risposta");
+
+      onProgress("Download completato!", 100);
+
+      const byteCharacters = atob(pdfBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `${type === "ddt" ? "DDT" : "Fattura"}_${orderId}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      onComplete();
+    } catch (err) {
+      if (!cancelled) {
+        onError(err instanceof Error ? err.message : "Errore durante il download");
+      }
     }
-  };
+  })();
 
-  eventSource.onerror = () => {
-    eventSource.close();
-    onError("Connessione persa durante il download");
-  };
-
-  return () => eventSource.close();
+  return () => { cancelled = true; };
 }
 
 function ProgressBar({
@@ -3379,16 +3430,18 @@ export function OrderCardNew({
     setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
 
     try {
-      await enqueueOperation('delete-order', {
+      const result = await enqueueOperation('delete-order', {
         orderId: order.id,
       });
 
-      // Fallback: if WebSocket ORDER_DELETE_COMPLETE already handled, skip
+      if (!result.success) {
+        throw new Error(result.error || `Errore eliminazione ordine`);
+      }
+
+      // WebSocket ORDER_DELETE_COMPLETE gestirà il completamento reale.
+      // Fallback solo se il WebSocket ha già gestito prima della risposta HTTP.
       if (!deleteHandledRef.current) {
-        deleteHandledRef.current = true;
-        setDeleteProgress(null);
-        setDeletingOrder(false);
-        onDeleteDone?.();
+        setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
       }
     } catch (err) {
       console.error("Delete order failed:", err);

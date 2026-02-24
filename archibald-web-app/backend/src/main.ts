@@ -1,4 +1,5 @@
 import http from 'http';
+import * as fsp from 'fs/promises';
 import path from 'path';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -7,6 +8,7 @@ import puppeteer from 'puppeteer';
 import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
+import * as usersRepo from './db/repositories/users';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
@@ -21,15 +23,30 @@ import {
   createDownloadInvoicePdfHandler,
   createSyncOrderArticlesHandler,
   createSyncPricesHandler,
+  createSyncCustomersHandler,
+  createSyncOrdersHandler,
+  createSyncDdtHandler,
+  createSyncInvoicesHandler,
+  createSyncProductsHandler,
 } from './operations/handlers';
 import { createBrowserPool } from './bot/browser-pool';
+import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { PasswordCache } from './password-cache';
+import { pdfParserService } from './pdf-parser-service';
+import { PDFParserPricesService } from './pdf-parser-prices-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
+import { PDFParserSaleslinesService } from './pdf-parser-saleslines-service';
+import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct, adaptPrice } from './parser-adapters';
 import { createApp } from './server';
 import { logger } from './logger';
+import type { BrowserContext } from 'puppeteer';
 import type { BrowserLike } from './bot/browser-pool';
 import type { OperationType } from './operations/operation-types';
 import type { OperationHandler } from './operations/operation-processor';
@@ -78,9 +95,19 @@ async function bootstrap(): Promise<void> {
     (options) => puppeteer.launch(options) as unknown as Promise<BrowserLike>,
   );
 
+  let cachedAgentIds: string[] = [];
+  async function refreshAgentIds(): Promise<void> {
+    const users = await usersRepo.getWhitelistedUsers(pool);
+    cachedAgentIds = users.map(u => u.id);
+  }
+  await refreshAgentIds();
+  const agentIdRefreshInterval = setInterval(() => {
+    refreshAgentIds().catch(err => logger.warn('Agent refresh failed', { error: String(err) }));
+  }, 5 * 60 * 1000);
+
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
-    () => [],
+    () => cachedAgentIds,
   );
 
   const wsServer = createWebSocketServer({
@@ -137,47 +164,241 @@ async function bootstrap(): Promise<void> {
     sharedSyncMs: DEFAULT_SHARED_SYNC_MS,
   });
 
-  const stubNotConfigured = () => { throw new Error('Bot not configured'); };
+  function createBotForUser(userId: string): ArchibaldBot {
+    return new ArchibaldBot(userId, {
+      browserPool: {
+        acquireContext: (uid) => browserPool.acquireContext(uid, { fromQueue: true }) as unknown as Promise<BrowserContext>,
+        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
+      },
+      getUserById: (uid) => usersRepo.getUserById(pool, uid)
+        .then(u => u ? { username: u.username } : null),
+    });
+  }
+
+  const cleanupFile = async (filePath: string): Promise<void> => {
+    await fsp.unlink(filePath).catch(() => {});
+  };
+
+  const pricesParser = PDFParserPricesService.getInstance();
+  const productsParser = PDFParserProductsService.getInstance();
+  const ordersParser = PDFParserOrdersService.getInstance();
+  const ddtParser = PDFParserDDTService.getInstance();
+  const invoicesParser = PDFParserInvoicesService.getInstance();
+  const saleslinesParser = PDFParserSaleslinesService.getInstance();
 
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
-    'submit-order': createSubmitOrderHandler(pool, () => ({
-      createOrder: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'create-customer': createCreateCustomerHandler(pool, () => ({
-      createCustomer: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'update-customer': createUpdateCustomerHandler(pool, () => ({
-      updateCustomer: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'delete-order': createDeleteOrderHandler(pool, () => ({
-      deleteOrderFromArchibald: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'edit-order': createEditOrderHandler(pool, () => ({
-      editOrderInArchibald: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'send-to-verona': createSendToVeronaHandler(pool, () => ({
-      sendOrderToVerona: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'download-ddt-pdf': createDownloadDdtPdfHandler(() => ({
-      downloadDDTPDF: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
-    'download-invoice-pdf': createDownloadInvoicePdfHandler(() => ({
-      downloadInvoicePDF: stubNotConfigured,
-      setProgressCallback: () => {},
-    })),
+    'submit-order': createSubmitOrderHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        createOrder: async (data) => { await ensureInit(); return bot.createOrder(data); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'create-customer': createCreateCustomerHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        createCustomer: async (data) => { await ensureInit(); return bot.createCustomer(data); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'update-customer': createUpdateCustomerHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        updateCustomer: async (customerProfile, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(customerProfile, customerData as never, originalName); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'delete-order': createDeleteOrderHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        deleteOrderFromArchibald: async (id) => { await ensureInit(); return bot.deleteOrderFromArchibald(id); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'edit-order': createEditOrderHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        editOrderInArchibald: async (id, data) => { await ensureInit(); return bot.editOrderInArchibald(id, data as never); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'send-to-verona': createSendToVeronaHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'download-ddt-pdf': createDownloadDdtPdfHandler((userId) => {
+      const bot = createBotForUser(userId);
+      return {
+        downloadDDTPDF: async (_orderId, ddtNumber) => {
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadSingleDDTPDF(ctx as unknown as BrowserContext, ddtNumber);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'download-invoice-pdf': createDownloadInvoicePdfHandler((userId) => {
+      const bot = createBotForUser(userId);
+      return {
+        downloadInvoicePDF: async (_orderId, invoiceNumber) => {
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadSingleInvoicePDF(ctx as unknown as BrowserContext, invoiceNumber);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
     'sync-order-articles': createSyncOrderArticlesHandler(
-      { pool, parsePdf: stubNotConfigured, getProductVat: () => 0, cleanupFile: async () => {} },
-      () => ({ downloadOrderArticlesPDF: stubNotConfigured, setProgressCallback: () => {} }),
+      {
+        pool,
+        parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
+        getProductVat: () => 0,
+        cleanupFile,
+      },
+      (userId) => ({
+        downloadOrderArticlesPDF: async (archibaldOrderId) => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+        setProgressCallback: (cb) => createBotForUser(userId).setProgressCallback(cb),
+      }),
     ),
     'sync-prices': createSyncPricesHandler(
-      pool, stubNotConfigured, async () => {}, () => ({ downloadPricePdf: stubNotConfigured }),
+      pool,
+      async (pdfPath) => (await pricesParser.parsePDF(pdfPath)).map(adaptPrice),
+      cleanupFile,
+      (userId) => ({
+        downloadPricePdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadPricesPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-customers': createSyncCustomersHandler(
+      pool,
+      async (pdfPath) => {
+        const result = await pdfParserService.parsePDF(pdfPath);
+        return result.customers.map(adaptCustomer);
+      },
+      cleanupFile,
+      (userId) => ({
+        downloadCustomersPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-orders': createSyncOrdersHandler(
+      pool,
+      async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),
+      cleanupFile,
+      (userId) => ({
+        downloadOrdersPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadOrdersPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-ddt': createSyncDdtHandler(
+      pool,
+      async (pdfPath) => (await ddtParser.parseDDTPDF(pdfPath)).map(adaptDdt),
+      cleanupFile,
+      (userId) => ({
+        downloadDdtPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadDDTPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-invoices': createSyncInvoicesHandler(
+      pool,
+      async (pdfPath) => (await invoicesParser.parseInvoicesPDF(pdfPath)).map(adaptInvoice),
+      cleanupFile,
+      (userId) => ({
+        downloadInvoicesPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadInvoicesPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-products': createSyncProductsHandler(
+      pool,
+      async (pdfPath) => (await productsParser.parsePDF(pdfPath)).map(adaptProduct),
+      cleanupFile,
+      (userId) => ({
+        downloadProductsPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
     ),
   };
 
@@ -235,6 +456,7 @@ async function bootstrap(): Promise<void> {
   const shutdown = async () => {
     logger.info('Graceful shutdown initiated...');
     clearInterval(cleanupInterval);
+    clearInterval(agentIdRefreshInterval);
     syncScheduler.stop();
     await worker.close();
     await queue.close();

@@ -628,6 +628,7 @@ function createApp(deps: AppDeps): Express {
     stop: () => syncScheduler.stop(),
     isRunning: () => syncScheduler.isRunning(),
     getIntervals: () => syncScheduler.getIntervals(),
+    updateInterval: (type: string, intervalMinutes: number) => syncScheduler.updateInterval(type, intervalMinutes),
   };
 
   const syncStatusDeps = {
@@ -640,6 +641,7 @@ function createApp(deps: AppDeps): Express {
     getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
     getProductCount: () => productsRepo.getProductCount(pool),
     getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
+    getSessionCount: () => syncScheduler.getSessionCount(),
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));

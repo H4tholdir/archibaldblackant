@@ -116,27 +116,28 @@ export function PendingOrdersPage() {
 
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
-      const jobIds: string[] = [];
-      for (const order of selectedOrders) {
-        const result = await enqueueOperation('submit-order', {
-          pendingOrderId: order.id,
-          customerId: order.customerId,
-          customerName: order.customerName,
-          items: order.items.map((item) => ({
-            articleCode: item.articleCode,
-            productName: item.productName,
-            description: item.description,
-            quantity: item.quantity,
-            price: item.price,
-            discount: item.discount,
-            warehouseQuantity: item.warehouseQuantity || 0,
-            warehouseSources: item.warehouseSources || [],
-          })),
-          discountPercent: order.discountPercent,
-          targetTotalWithVAT: order.targetTotalWithVAT,
-        });
-        jobIds.push(result.jobId);
-      }
+      const results = await Promise.all(
+        selectedOrders.map((order) =>
+          enqueueOperation('submit-order', {
+            pendingOrderId: order.id,
+            customerId: order.customerId,
+            customerName: order.customerName,
+            items: order.items.map((item) => ({
+              articleCode: item.articleCode,
+              productName: item.productName,
+              description: item.description,
+              quantity: item.quantity,
+              price: item.price,
+              discount: item.discount,
+              warehouseQuantity: item.warehouseQuantity || 0,
+              warehouseSources: item.warehouseSources || [],
+            })),
+            discountPercent: order.discountPercent,
+            targetTotalWithVAT: order.targetTotalWithVAT,
+          }),
+        ),
+      );
+      const jobIds = results.map((r) => r.jobId);
 
       for (const orderId of selectedOrderIds) {
         const order = orders.find((o) => o.id === orderId);

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { enqueueOperation, getJobStatus, getOperationsDashboard } from './operations';
+import { enqueueOperation, getJobStatus, getOperationsDashboard, pollJobUntilDone } from './operations';
 
 const mockFetch = vi.fn();
 
@@ -109,5 +109,85 @@ describe('getOperationsDashboard', () => {
       '/api/operations/dashboard',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+});
+
+describe('pollJobUntilDone', () => {
+  const jobId = 'poll-test-job';
+
+  function mockJobStatusResponse(state: string, progress: number, result: Record<string, unknown> | null = null, failedReason?: string) {
+    return {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        success: true,
+        job: { jobId, type: 'submit-order', userId: 'u1', state, progress, result, failedReason },
+      }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+    };
+  }
+
+  test('resolves with result when job completes after polling', async () => {
+    const expectedResult = { pdf: 'base64data', pages: 3 };
+    mockFetch
+      .mockResolvedValueOnce(mockJobStatusResponse('active', 50))
+      .mockResolvedValueOnce(mockJobStatusResponse('completed', 100, expectedResult));
+
+    const result = await pollJobUntilDone(jobId, { intervalMs: 10 });
+
+    expect(result).toEqual(expectedResult);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('resolves immediately when job is already completed', async () => {
+    const expectedResult = { count: 5 };
+    mockFetch.mockResolvedValueOnce(mockJobStatusResponse('completed', 100, expectedResult));
+
+    const result = await pollJobUntilDone(jobId, { intervalMs: 10 });
+
+    expect(result).toEqual(expectedResult);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns empty object when completed job has null result', async () => {
+    mockFetch.mockResolvedValueOnce(mockJobStatusResponse('completed', 100, null));
+
+    const result = await pollJobUntilDone(jobId, { intervalMs: 10 });
+
+    expect(result).toEqual({});
+  });
+
+  test('rejects with failedReason when job fails', async () => {
+    mockFetch.mockResolvedValueOnce(mockJobStatusResponse('failed', 0, null, 'Bot login failed'));
+
+    await expect(pollJobUntilDone(jobId, { intervalMs: 10 })).rejects.toThrow('Bot login failed');
+  });
+
+  test('rejects with default message when job fails without reason', async () => {
+    mockFetch.mockResolvedValueOnce(mockJobStatusResponse('failed', 0, null, undefined));
+
+    await expect(pollJobUntilDone(jobId, { intervalMs: 10 })).rejects.toThrow('Operazione fallita');
+  });
+
+  test('calls onProgress with progress updates', async () => {
+    const onProgress = vi.fn();
+    mockFetch
+      .mockResolvedValueOnce(mockJobStatusResponse('active', 25))
+      .mockResolvedValueOnce(mockJobStatusResponse('active', 75))
+      .mockResolvedValueOnce(mockJobStatusResponse('completed', 100, { done: true }));
+
+    await pollJobUntilDone(jobId, { intervalMs: 10, onProgress });
+
+    expect(onProgress).toHaveBeenCalledWith(25);
+    expect(onProgress).toHaveBeenCalledWith(75);
+    expect(onProgress).toHaveBeenCalledWith(100, 'Completato');
+  });
+
+  test('times out after maxWaitMs and rejects', async () => {
+    mockFetch.mockResolvedValue(mockJobStatusResponse('active', 10));
+
+    await expect(
+      pollJobUntilDone(jobId, { intervalMs: 10, maxWaitMs: 50 }),
+    ).rejects.toThrow('Timeout: operazione non completata entro il tempo massimo');
   });
 });

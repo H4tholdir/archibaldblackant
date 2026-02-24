@@ -25,6 +25,14 @@ vi.mock('./db/migrate', () => ({
   loadMigrationFiles: vi.fn(() => []),
 }));
 
+vi.mock('./db/repositories/users', () => ({
+  getWhitelistedUsers: vi.fn().mockResolvedValue([
+    { id: 'agent-1', username: 'agent1' },
+    { id: 'agent-2', username: 'agent2' },
+  ]),
+  getUserById: vi.fn().mockResolvedValue({ id: 'agent-1', username: 'agent1' }),
+}));
+
 vi.mock('./operations/operation-queue', () => ({
   createOperationQueue: vi.fn(() => ({
     enqueue: vi.fn().mockResolvedValue('job-1'),
@@ -53,6 +61,28 @@ vi.mock('./bot/browser-pool', () => ({
     releaseContext: vi.fn(),
     getStats: vi.fn(() => ({ browsers: 0, activeContexts: 0, maxContexts: 0, cachedContexts: [] })),
     shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('./bot/archibald-bot', () => ({
+  ArchibaldBot: vi.fn(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    createOrder: vi.fn(),
+    createCustomer: vi.fn(),
+    updateCustomer: vi.fn(),
+    deleteOrderFromArchibald: vi.fn(),
+    editOrderInArchibald: vi.fn(),
+    sendOrderToVerona: vi.fn(),
+    downloadSingleDDTPDF: vi.fn(),
+    downloadSingleInvoicePDF: vi.fn(),
+    downloadOrderArticlesPDF: vi.fn(),
+    downloadPricesPDF: vi.fn(),
+    downloadCustomersPDF: vi.fn(),
+    downloadOrdersPDF: vi.fn(),
+    downloadDDTPDF: vi.fn(),
+    downloadInvoicesPDF: vi.fn(),
+    downloadProductsPDF: vi.fn(),
+    setProgressCallback: vi.fn(),
   })),
 }));
 
@@ -99,6 +129,43 @@ vi.mock('./password-cache', () => ({
   },
 }));
 
+vi.mock('./pdf-parser-service', () => ({
+  pdfParserService: { parsePDF: vi.fn() },
+}));
+
+vi.mock('./pdf-parser-prices-service', () => ({
+  PDFParserPricesService: { getInstance: vi.fn(() => ({ parsePDF: vi.fn() })) },
+}));
+
+vi.mock('./pdf-parser-products-service', () => ({
+  PDFParserProductsService: { getInstance: vi.fn(() => ({ parsePDF: vi.fn() })) },
+}));
+
+vi.mock('./pdf-parser-orders-service', () => ({
+  PDFParserOrdersService: { getInstance: vi.fn(() => ({ parseOrdersPDF: vi.fn() })) },
+}));
+
+vi.mock('./pdf-parser-ddt-service', () => ({
+  PDFParserDDTService: { getInstance: vi.fn(() => ({ parseDDTPDF: vi.fn() })) },
+}));
+
+vi.mock('./pdf-parser-invoices-service', () => ({
+  PDFParserInvoicesService: { getInstance: vi.fn(() => ({ parseInvoicesPDF: vi.fn() })) },
+}));
+
+vi.mock('./pdf-parser-saleslines-service', () => ({
+  PDFParserSaleslinesService: { getInstance: vi.fn(() => ({ parseSaleslinesPDF: vi.fn() })) },
+}));
+
+vi.mock('./parser-adapters', () => ({
+  adaptCustomer: vi.fn((x: unknown) => x),
+  adaptOrder: vi.fn((x: unknown) => x),
+  adaptDdt: vi.fn((x: unknown) => x),
+  adaptInvoice: vi.fn((x: unknown) => x),
+  adaptProduct: vi.fn((x: unknown) => x),
+  adaptPrice: vi.fn((x: unknown) => x),
+}));
+
 vi.mock('./server', () => ({
   createApp: vi.fn((_deps: unknown) => ((_req: unknown, _res: unknown) => {})),
 }));
@@ -129,6 +196,11 @@ vi.mock('./operations/handlers', () => ({
   createDownloadInvoicePdfHandler: vi.fn(() => vi.fn()),
   createSyncOrderArticlesHandler: vi.fn(() => vi.fn()),
   createSyncPricesHandler: vi.fn(() => vi.fn()),
+  createSyncCustomersHandler: vi.fn(() => vi.fn()),
+  createSyncOrdersHandler: vi.fn(() => vi.fn()),
+  createSyncDdtHandler: vi.fn(() => vi.fn()),
+  createSyncInvoicesHandler: vi.fn(() => vi.fn()),
+  createSyncProductsHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('bullmq', () => ({
@@ -234,19 +306,43 @@ describe('bootstrap', () => {
     });
   });
 
-  test('creates operation processor with handler map', async () => {
+  test('registers all 15 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
     await bootstrap();
 
-    expect(createOperationProcessor).toHaveBeenCalledTimes(1);
     const deps = (createOperationProcessor as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(deps).toHaveProperty('agentLock');
-    expect(deps).toHaveProperty('browserPool');
-    expect(deps).toHaveProperty('broadcast');
-    expect(deps).toHaveProperty('enqueue');
-    expect(deps).toHaveProperty('handlers');
+    const handlerKeys = Object.keys(deps.handlers);
+
+    expect(handlerKeys).toEqual(expect.arrayContaining([
+      'submit-order',
+      'create-customer',
+      'update-customer',
+      'delete-order',
+      'edit-order',
+      'send-to-verona',
+      'download-ddt-pdf',
+      'download-invoice-pdf',
+      'sync-order-articles',
+      'sync-prices',
+      'sync-customers',
+      'sync-orders',
+      'sync-ddt',
+      'sync-invoices',
+      'sync-products',
+    ]));
+    expect(handlerKeys).toHaveLength(15);
+  });
+
+  test('getActiveAgentIds returns whitelisted user IDs', async () => {
+    const { bootstrap } = await import('./main');
+    const { createSyncScheduler } = await import('./sync/sync-scheduler');
+
+    await bootstrap();
+
+    const getActiveAgentIds = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(getActiveAgentIds()).toEqual(['agent-1', 'agent-2']);
   });
 
   test('creates BullMQ worker for operations queue', async () => {

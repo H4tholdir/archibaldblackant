@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncButton.css";
 import { enqueueOperation, type OperationType } from "../api/operations";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -106,6 +107,24 @@ export default function SyncButton() {
   const handleQuickSync = async () => {
     try {
       setSyncing(true);
+      setStatus("checking");
+      setMessage("Verifica...");
+
+      const checkResponse = await fetchWithRetry("/api/sync/quick-check");
+      if (!checkResponse.ok) throw new Error("Quick-check failed");
+      const checkData = await checkResponse.json();
+
+      if (!checkData.success || !checkData.data?.needsSync) {
+        setStatus("success");
+        setMessage("Già sincronizzato");
+        setSyncing(false);
+        setTimeout(() => {
+          setStatus("idle");
+          setMessage("");
+        }, 3000);
+        return;
+      }
+
       setStatus("syncing");
       setMessage("Avvio sync...");
 
@@ -115,7 +134,7 @@ export default function SyncButton() {
       ];
       await Promise.all(syncTypes.map((type) => enqueueOperation(type, {})));
 
-      setMessage("Sync accodati. Progresso via WebSocket...");
+      setMessage("Sync in corso...");
     } catch (error) {
       console.error("Errore sync:", error);
       setStatus("error");

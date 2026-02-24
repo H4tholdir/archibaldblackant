@@ -26,7 +26,7 @@ type ActiveJob = {
 type DashboardState = {
   queue: QueueStats;
   activeJobs: ActiveJob[];
-  scheduler: { running: boolean; intervals: { agentSyncMs: number; sharedSyncMs: number } };
+  scheduler: { running: boolean; intervals: { agentSyncMs: number; sharedSyncMs: number }; sessionCount: number };
 };
 
 interface SyncSection {
@@ -45,9 +45,32 @@ const syncSections: SyncSection[] = [
   { type: "prices", label: "Prezzi", icon: "💰", priority: 1 },
 ];
 
+function formatLastSync(iso: string | null): string {
+  if (!iso) return "Mai";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Ora";
+  if (diffMin < 60) return `${diffMin} min fa`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h fa`;
+  return d.toLocaleDateString("it-IT");
+}
+
+function getHealthColor(iso: string | null): string {
+  if (!iso) return "#f44336";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffH = diffMs / 3600000;
+  if (diffH < 1) return "#4caf50";
+  if (diffH < 6) return "#ff9800";
+  return "#f44336";
+}
+
 export default function SyncControlPanel() {
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastSyncTimes, setLastSyncTimes] = useState<Record<string, string | null>>({});
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
     customers: false,
     products: false,
@@ -81,8 +104,12 @@ export default function SyncControlPanel() {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetchWithRetry("/api/sync/monitoring/status");
-      const data = await response.json();
+      const [statusResponse, customerSyncRes, productSyncRes] = await Promise.all([
+        fetchWithRetry("/api/sync/monitoring/status"),
+        fetchWithRetry("/api/customers/sync-status").catch(() => null),
+        fetchWithRetry("/api/products/sync-status").catch(() => null),
+      ]);
+      const data = await statusResponse.json();
       if (data.success) {
         setDashboard(data);
 
@@ -100,6 +127,14 @@ export default function SyncControlPanel() {
 
         setSyncing(newSyncing);
       }
+
+      const customerSync = customerSyncRes ? await customerSyncRes.json().catch(() => null) : null;
+      const productSync = productSyncRes ? await productSyncRes.json().catch(() => null) : null;
+      setLastSyncTimes((prev) => ({
+        ...prev,
+        customers: customerSync?.lastSync ?? prev.customers ?? null,
+        products: productSync?.lastSync ?? prev.products ?? null,
+      }));
     } catch (error) {
       console.error("Error fetching sync status:", error);
     } finally {
@@ -226,13 +261,15 @@ export default function SyncControlPanel() {
   };
 
   const getHealthIndicator = (syncType: SyncType) => {
-    if (!dashboard) return "";
+    if (!dashboard) return { color: "#9e9e9e", label: "" };
 
     if (isSyncActive(syncType)) {
-      return ""; // Running
+      return { color: "#ff9800", label: "In esecuzione" };
     }
 
-    return ""; // Idle
+    const lastSync = lastSyncTimes[syncType] ?? null;
+    const color = getHealthColor(lastSync);
+    return { color, label: formatLastSync(lastSync) };
   };
 
   if (loading) {
@@ -334,6 +371,25 @@ export default function SyncControlPanel() {
         </div>
       </div>
 
+      {dashboard && dashboard.scheduler.sessionCount > 0 && (
+        <div
+          style={{
+            margin: "0 0 20px 0",
+            padding: "12px 16px",
+            background: "#fff3cd",
+            border: "1px solid #ffc107",
+            borderRadius: "8px",
+            fontSize: "14px",
+          }}
+        >
+          <strong>Smart Customer Sync attivo</strong>
+          <br />
+          Sessioni interattive: {dashboard.scheduler.sessionCount}
+          <br />
+          <small>Il sync automatico riprende alla chiusura delle sessioni</small>
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -394,7 +450,16 @@ export default function SyncControlPanel() {
                     >
                       {statusBadge.text}
                     </span>
-                    <span title="Health indicator">{healthIndicator}</span>
+                    <span
+                      title={healthIndicator.label}
+                      style={{
+                        display: "inline-block",
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        backgroundColor: healthIndicator.color,
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -465,6 +530,9 @@ export default function SyncControlPanel() {
               <div style={{ fontSize: "12px", color: "#666" }}>
                 <div>
                   <strong>Priorità:</strong> {section.priority}/6
+                </div>
+                <div>
+                  <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null)}
                 </div>
               </div>
             </div>

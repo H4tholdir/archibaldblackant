@@ -18,6 +18,7 @@ type OperationType =
 type EnqueueResponse = {
   success: boolean;
   jobId: string;
+  error?: string;
 };
 
 type JobStatusResponse = {
@@ -149,6 +150,41 @@ async function cancelJob(jobId: string): Promise<{ success: boolean }> {
   return response.json();
 }
 
+type PollOptions = {
+  intervalMs?: number;
+  maxWaitMs?: number;
+  onProgress?: (progress: number, label?: string) => void;
+};
+
+async function pollJobUntilDone(
+  jobId: string,
+  options: PollOptions = {},
+): Promise<Record<string, unknown>> {
+  const { intervalMs = 1500, maxWaitMs = 180_000, onProgress } = options;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    const { job } = await getJobStatus(jobId);
+
+    if (job.state === 'completed') {
+      onProgress?.(100, 'Completato');
+      return job.result ?? {};
+    }
+
+    if (job.state === 'failed') {
+      throw new Error(job.failedReason ?? 'Operazione fallita');
+    }
+
+    if (typeof job.progress === 'number') {
+      onProgress?.(job.progress);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error('Timeout: operazione non completata entro il tempo massimo');
+}
+
 export {
   enqueueOperation,
   getJobStatus,
@@ -156,8 +192,10 @@ export {
   getQueueStats,
   retryJob,
   cancelJob,
+  pollJobUntilDone,
   type OperationType,
   type EnqueueResponse,
   type JobStatusResponse,
   type DashboardResponse,
+  type PollOptions,
 };
