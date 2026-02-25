@@ -85,8 +85,21 @@ function createOperationProcessor(deps: ProcessorDeps) {
     try {
       context = await browserPool.acquireContext(userId, { fromQueue: true });
 
+      broadcast(userId, {
+        event: 'JOB_STARTED',
+        jobId: job.id,
+        type,
+      });
+
       const onProgress = (progress: number, label?: string) => {
         job.updateProgress(label ? { progress, label } : progress);
+        broadcast(userId, {
+          event: 'JOB_PROGRESS',
+          jobId: job.id,
+          type,
+          progress,
+          ...(label ? { label } : {}),
+        });
       };
 
       const result = await handler(context, data, userId, onProgress);

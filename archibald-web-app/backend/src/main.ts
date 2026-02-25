@@ -9,6 +9,7 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
+import { getProductById } from './db/repositories/products';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
@@ -76,9 +77,9 @@ async function bootstrap(): Promise<void> {
 
   const browserPool = createBrowserPool(
     {
-      maxBrowsers: 2,
-      maxContextsPerBrowser: 5,
-      contextExpiryMs: 30 * 60 * 1000,
+      maxBrowsers: config.browserPool.maxBrowsers,
+      maxContextsPerBrowser: config.browserPool.maxContextsPerBrowser,
+      contextExpiryMs: config.browserPool.contextExpiryMs,
       launchOptions: {
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo,
@@ -286,21 +287,26 @@ async function bootstrap(): Promise<void> {
       {
         pool,
         parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
-        getProductVat: () => 0,
+        getProductVat: async (articleCode: string) => {
+          const product = await getProductById(pool, articleCode);
+          return product?.vat ?? 0;
+        },
         cleanupFile,
       },
-      (userId) => ({
-        downloadOrderArticlesPDF: async (archibaldOrderId) => {
-          const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          try {
-            return await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
-          }
-        },
-        setProgressCallback: (cb) => createBotForUser(userId).setProgressCallback(cb),
-      }),
+      (userId) => {
+        const bot = createBotForUser(userId);
+        return {
+          downloadOrderArticlesPDF: async (archibaldOrderId) => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+            try {
+              return await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, true);
+            }
+          },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      },
     ),
     'sync-prices': createSyncPricesHandler(
       pool,
@@ -438,7 +444,7 @@ async function bootstrap(): Promise<void> {
       });
       return { success: result.success, data: result.data, duration: result.duration };
     },
-    { connection: workerConnection as never, concurrency: 1 },
+    { connection: workerConnection as never, concurrency: config.queue.workerConcurrency },
   );
 
   const cleanupInterval = setInterval(() => {

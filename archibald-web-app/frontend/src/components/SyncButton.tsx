@@ -1,9 +1,11 @@
 import { useState } from "react";
 import "../styles/SyncButton.css";
-import { enqueueOperation, pollJobUntilDone, type OperationType } from "../api/operations";
+import { enqueueOperation, waitForJobViaWebSocket, type OperationType } from "../api/operations";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 export default function SyncButton() {
+  const { subscribe } = useWebSocketContext();
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState<
     "idle" | "checking" | "syncing" | "success" | "error"
@@ -47,7 +49,7 @@ export default function SyncButton() {
 
       const jobIds = enqueueResults.map((r) => r.jobId);
       const results = await Promise.allSettled(
-        jobIds.map((jobId) => pollJobUntilDone(jobId)),
+        jobIds.map((jobId) => waitForJobViaWebSocket(jobId, { subscribe })),
       );
 
       const allFulfilled = results.every((r) => r.status === "fulfilled");

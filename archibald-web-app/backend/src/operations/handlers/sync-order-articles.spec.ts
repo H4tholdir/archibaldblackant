@@ -28,7 +28,7 @@ function createMockDeps(pool: DbPool, bot: SyncOrderArticlesBot): SyncOrderArtic
       { articleCode: 'ART-01', description: 'Widget', quantity: 10, unitPrice: 5.0, discountPercent: 0, lineAmount: 50.0 },
       { articleCode: 'ART-02', description: 'Gadget', quantity: 5, unitPrice: 20.0, discountPercent: 10, lineAmount: 90.0 },
     ]),
-    getProductVat: vi.fn().mockReturnValue(22),
+    getProductVat: vi.fn().mockResolvedValue(22),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }

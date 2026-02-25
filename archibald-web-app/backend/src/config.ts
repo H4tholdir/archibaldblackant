@@ -41,6 +41,14 @@ export const config = {
     pass: process.env.SMTP_PASS || "",
     from: process.env.SMTP_FROM || "",
   },
+  queue: {
+    workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || "10", 10),
+  },
+  browserPool: {
+    maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
+    maxContextsPerBrowser: parseInt(process.env.BROWSER_POOL_MAX_CONTEXTS || "8", 10),
+    contextExpiryMs: parseInt(process.env.BROWSER_POOL_CONTEXT_EXPIRY_MS || "1800000", 10),
+  },
   dropbox: {
     refreshToken: process.env.DROPBOX_REFRESH_TOKEN || "",
     appKey: process.env.DROPBOX_APP_KEY || "",

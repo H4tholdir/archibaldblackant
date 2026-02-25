@@ -8,6 +8,8 @@ vi.mock('./config', () => ({
     puppeteer: { headless: true, slowMo: 0, timeout: 60000, protocolTimeout: 300000 },
     archibald: { url: 'https://example.com/Archibald', username: '', password: '' },
     logging: { level: 'info' },
+    queue: { workerConcurrency: 10 },
+    browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000 },
   },
 }));
 

@@ -16,7 +16,7 @@ import {
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { pollJobUntilDone } from "../api/operations";
+import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import {
@@ -607,7 +607,8 @@ export function OrderHistory() {
           throw new Error(data.message || "Errore nell'invio a Verona");
         }
       } else {
-        await pollJobUntilDone(data.jobId, {
+        await waitForJobViaWebSocket(data.jobId, {
+          subscribe,
           maxWaitMs: 120_000,
           onProgress: (progress, label) => {
             setSendToVeronaProgress({

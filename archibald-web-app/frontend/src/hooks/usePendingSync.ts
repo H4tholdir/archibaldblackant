@@ -27,6 +27,8 @@ const WS_EVENTS_PENDING = [
   "PENDING_UPDATED",
   "PENDING_DELETED",
   "PENDING_SUBMITTED",
+  "JOB_STARTED",
+  "JOB_PROGRESS",
   "JOB_COMPLETED",
   "JOB_FAILED",
 ] as const;
@@ -82,7 +84,20 @@ export function usePendingSync(): UsePendingSyncReturn {
     const unsubscribers = WS_EVENTS_PENDING.map((eventType) =>
       subscribe(eventType, (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
-        if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
+        if (eventType === "JOB_STARTED" && p.type === "submit-order") {
+          const jobId = p.jobId as string;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: "active" });
+              }
+            }
+            return next;
+          });
+        } else if (eventType === "JOB_PROGRESS" && p.type === "submit-order") {
+          // Progress updates trigger a re-render to keep UI fresh
+        } else if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
           const jobId = p.jobId as string;
           setJobTracking((prev) => {
             const next = new Map(prev);

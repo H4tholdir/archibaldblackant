@@ -185,6 +185,73 @@ async function pollJobUntilDone(
   throw new Error('Timeout: operazione non completata entro il tempo massimo');
 }
 
+type SubscribeFn = (eventType: string, callback: (payload: unknown) => void) => () => void;
+
+type WaitForJobOptions = PollOptions & {
+  subscribe?: SubscribeFn;
+  wsFallbackMs?: number;
+};
+
+async function waitForJobViaWebSocket(
+  jobId: string,
+  options: WaitForJobOptions = {},
+): Promise<Record<string, unknown>> {
+  const { subscribe, wsFallbackMs = 5000, intervalMs, maxWaitMs, onProgress } = options;
+
+  if (!subscribe) {
+    return pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress });
+  }
+
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const unsubscribers: Array<() => void> = [];
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      resolved = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      unsubscribers.forEach(u => u());
+    };
+
+    const resetFallback = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => {
+        if (resolved) return;
+        cleanup();
+        pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress })
+          .then(resolve).catch(reject);
+      }, wsFallbackMs);
+    };
+
+    const handleEvent = (eventType: string) => (payload: unknown) => {
+      if (resolved) return;
+      const p = (payload ?? {}) as Record<string, unknown>;
+      if (p.jobId !== jobId) return;
+
+      if (eventType === 'JOB_PROGRESS') {
+        const progress = p.progress as number;
+        const label = p.label as string | undefined;
+        onProgress?.(progress, label);
+        resetFallback();
+      } else if (eventType === 'JOB_COMPLETED') {
+        cleanup();
+        onProgress?.(100, 'Completato');
+        resolve((p.result as Record<string, unknown>) ?? {});
+      } else if (eventType === 'JOB_FAILED') {
+        cleanup();
+        reject(new Error((p.error as string) ?? 'Operazione fallita'));
+      }
+    };
+
+    unsubscribers.push(subscribe('JOB_STARTED', handleEvent('JOB_STARTED')));
+    unsubscribers.push(subscribe('JOB_PROGRESS', handleEvent('JOB_PROGRESS')));
+    unsubscribers.push(subscribe('JOB_COMPLETED', handleEvent('JOB_COMPLETED')));
+    unsubscribers.push(subscribe('JOB_FAILED', handleEvent('JOB_FAILED')));
+
+    resetFallback();
+  });
+}
+
 export {
   enqueueOperation,
   getJobStatus,
@@ -193,9 +260,12 @@ export {
   retryJob,
   cancelJob,
   pollJobUntilDone,
+  waitForJobViaWebSocket,
   type OperationType,
   type EnqueueResponse,
   type JobStatusResponse,
   type DashboardResponse,
   type PollOptions,
+  type WaitForJobOptions,
+  type SubscribeFn,
 };

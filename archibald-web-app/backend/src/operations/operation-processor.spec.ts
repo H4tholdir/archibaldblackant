@@ -216,6 +216,72 @@ describe('createOperationProcessor', () => {
     );
   });
 
+  test('broadcasts JOB_STARTED before executing handler', async () => {
+    const callOrder: string[] = [];
+    const handler = vi.fn().mockImplementation(async () => {
+      callOrder.push('handler');
+      return { done: true };
+    });
+    const broadcast = vi.fn().mockImplementation((_userId: string, event: Record<string, unknown>) => {
+      callOrder.push(event.event as string);
+    });
+    const { processor } = createProcessor({
+      broadcast,
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      event: 'JOB_STARTED',
+      jobId: 'job-123',
+      type: 'submit-order',
+    });
+    expect(callOrder.indexOf('JOB_STARTED')).toBeLessThan(callOrder.indexOf('handler'));
+  });
+
+  test('broadcasts JOB_PROGRESS when handler reports progress', async () => {
+    const handler = vi.fn().mockImplementation(async (_ctx: unknown, _data: unknown, _userId: string, onProgress: (p: number, l?: string) => void) => {
+      onProgress(50, 'Halfway');
+      return { done: true };
+    });
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      event: 'JOB_PROGRESS',
+      jobId: 'job-123',
+      type: 'submit-order',
+      progress: 50,
+      label: 'Halfway',
+    });
+  });
+
+  test('broadcasts JOB_PROGRESS without label when label is omitted', async () => {
+    const handler = vi.fn().mockImplementation(async (_ctx: unknown, _data: unknown, _userId: string, onProgress: (p: number, l?: string) => void) => {
+      onProgress(75);
+      return { done: true };
+    });
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      event: 'JOB_PROGRESS',
+      jobId: 'job-123',
+      type: 'submit-order',
+      progress: 75,
+    });
+  });
+
   test('throws for unknown operation type', async () => {
     const { processor } = createProcessor();
     const job = createMockJob({ type: 'sync-customers' as any });

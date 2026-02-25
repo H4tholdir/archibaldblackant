@@ -199,11 +199,11 @@ describe('createProductsRouter', () => {
       expect(deps.getProducts).toHaveBeenCalledWith('articolo');
     });
 
-    test('returns all products when no query provided', async () => {
+    test('returns 400 when no query provided', async () => {
       const res = await request(app).get('/api/products/search');
 
-      expect(res.status).toBe(200);
-      expect(deps.getProducts).toHaveBeenCalledWith(undefined);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("Query parameter 'q' is required");
     });
   });
 

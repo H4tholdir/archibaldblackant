@@ -4,7 +4,7 @@ import type { Order, OrderItem } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { enqueueOperation, pollJobUntilDone } from "../api/operations";
+import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
 import type { OperationType } from "../api/operations";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
@@ -727,7 +727,8 @@ function TabArticoli({
             const enqueueResult = await syncResponse.json();
 
             if (enqueueResult.jobId) {
-              await pollJobUntilDone(enqueueResult.jobId, {
+              await waitForJobViaWebSocket(enqueueResult.jobId, {
+                subscribe,
                 maxWaitMs: 120_000,
               });
 
@@ -1064,7 +1065,8 @@ function TabArticoli({
         return;
       }
 
-      await pollJobUntilDone(result.jobId, {
+      await waitForJobViaWebSocket(result.jobId, {
+        subscribe,
         maxWaitMs: 120_000,
         onProgress: (progress, label) => {
           setEditProgress?.({ progress, operation: label ?? "Modifica in corso..." });
@@ -1121,7 +1123,8 @@ function TabArticoli({
         throw new Error("Nessun job creato per la sincronizzazione");
       }
 
-      const result = await pollJobUntilDone(enqueueResult.jobId, {
+      const result = await waitForJobViaWebSocket(enqueueResult.jobId, {
+        subscribe,
         maxWaitMs: 120_000,
         onProgress: (progress, label) => {
           setSuccess(label ?? `Sincronizzazione in corso... ${progress}%`);
@@ -3248,7 +3251,8 @@ function downloadPdfWithProgress(
 
       onProgress("In coda...", 10);
 
-      const result = await pollJobUntilDone(jobId, {
+      const result = await waitForJobViaWebSocket(jobId, {
+        subscribe,
         intervalMs: 1500,
         maxWaitMs: 180_000,
         onProgress: (progress, label) => {
@@ -3447,7 +3451,8 @@ export function OrderCardNew({
       if (deleteHandledRef.current) return;
       setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
 
-      await pollJobUntilDone(result.jobId, {
+      await waitForJobViaWebSocket(result.jobId, {
+        subscribe,
         maxWaitMs: 120_000,
         onProgress: (progress, label) => {
           if (!deleteHandledRef.current) {

@@ -16,6 +16,9 @@ import {
   extractBaseCode,
   findSiblingVariants,
   updateProductVat,
+  levenshteinDistance,
+  calculateSimilarity,
+  fuzzySearchProducts,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -534,5 +537,108 @@ describe('updateProductVat', () => {
     expect(sql).toContain('vat = $2');
     expect(sql).toContain('vat_source = $3');
     expect(sql).toContain('vat_updated_at');
+  });
+});
+
+describe('levenshteinDistance', () => {
+  test('returns 0 for identical strings', () => {
+    expect(levenshteinDistance('abc', 'abc')).toBe(0);
+  });
+
+  test('returns length of non-empty string when other is empty', () => {
+    expect(levenshteinDistance('abc', '')).toBe(3);
+    expect(levenshteinDistance('', 'xyz')).toBe(3);
+  });
+
+  test('counts single character substitution', () => {
+    expect(levenshteinDistance('cat', 'bat')).toBe(1);
+  });
+
+  test('counts insertion and deletion', () => {
+    expect(levenshteinDistance('kitten', 'sitting')).toBe(3);
+  });
+});
+
+describe('calculateSimilarity', () => {
+  test('returns 1.0 for exact match', () => {
+    expect(calculateSimilarity('h129', 'h129')).toBe(1.0);
+  });
+
+  test('returns 0.98 for match after normalization (dots/spaces/dashes)', () => {
+    expect(calculateSimilarity('h129.fsq', 'h129fsq')).toBe(0.98);
+  });
+
+  test('returns high score for substring match', () => {
+    const score = calculateSimilarity('h129', 'h129fsq104023');
+    expect(score).toBeGreaterThanOrEqual(0.7);
+    expect(score).toBeLessThan(0.98);
+  });
+
+  test('returns low score for unrelated strings', () => {
+    expect(calculateSimilarity('abc', 'xyz')).toBeLessThan(0.5);
+  });
+
+  test('handles product codes with special characters', () => {
+    const score = calculateSimilarity('H129.FSQ.104', 'H129FSQ104023');
+    expect(score).toBeGreaterThanOrEqual(0.7);
+  });
+});
+
+describe('fuzzySearchProducts', () => {
+  function makeProduct(id: string, name: string): Record<string, unknown> {
+    return {
+      id, name, description: '', group_code: '', search_name: name,
+      price_unit: '', product_group_id: '', product_group_description: '',
+      package_content: '', min_qty: 1, multiple_qty: 1, max_qty: 100,
+      price: 10, price_source: '', price_updated_at: null,
+      vat: 22, vat_source: '', vat_updated_at: null,
+      hash: '', last_sync: 0,
+    };
+  }
+
+  test('returns exact matches with highest confidence', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [makeProduct('ABC', 'ABC Widget'), makeProduct('XYZ', 'XYZ Gadget')],
+        rowCount: 2, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const results = await fuzzySearchProducts(pool, 'ABC', 5);
+
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].product.id).toBe('ABC');
+    expect(results[0].confidence).toBeGreaterThanOrEqual(0.7);
+  });
+
+  test('returns empty array for empty query', async () => {
+    const pool = createMockPool(vi.fn());
+    const results = await fuzzySearchProducts(pool, '', 5);
+    expect(results).toEqual([]);
+  });
+
+  test('filters out low confidence results (below 0.3)', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [makeProduct('ZZZZZ', 'Completely Different')],
+        rowCount: 1, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const results = await fuzzySearchProducts(pool, 'ABC', 5);
+    expect(results.every(r => r.confidence > 0.3)).toBe(true);
+  });
+
+  test('classifies match reasons correctly', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [makeProduct('H129', 'H129 Fresa')],
+        rowCount: 1, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const results = await fuzzySearchProducts(pool, 'H129', 5);
+    expect(results[0].matchReason).toBe('exact');
+    expect(results[0].confidence).toBeGreaterThanOrEqual(0.95);
   });
 });

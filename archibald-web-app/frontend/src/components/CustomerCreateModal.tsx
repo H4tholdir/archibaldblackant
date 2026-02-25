@@ -6,7 +6,7 @@ import { PAYMENT_TERMS } from "../data/payment-terms";
 import { CAP_BY_CODE } from "../data/cap-list";
 import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
-import { pollJobUntilDone } from "../api/operations";
+import { waitForJobViaWebSocket } from "../api/operations";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
@@ -381,31 +381,9 @@ export function CustomerCreateModal({
       setBotError(errorMsg);
     };
 
-    unsubs.push(
-      subscribe("CUSTOMER_UPDATE_PROGRESS", (payload: any) => {
-        if (payload.taskId !== taskId) return;
-        setProgress(payload.progress);
-        setProgressLabel(payload.label || "");
-      }),
-    );
-
-    unsubs.push(
-      subscribe("CUSTOMER_UPDATE_COMPLETED", (payload: any) => {
-        if (payload.taskId !== taskId) return;
-        markCompleted();
-      }),
-    );
-
-    unsubs.push(
-      subscribe("CUSTOMER_UPDATE_FAILED", (payload: any) => {
-        if (payload.taskId !== taskId) return;
-        markFailed(payload.error || "Errore sconosciuto");
-      }),
-    );
-
-    // Primary fallback: poll job status via queue API (works for both create and update)
     let cancelled = false;
-    pollJobUntilDone(taskId, {
+    waitForJobViaWebSocket(taskId, {
+      subscribe,
       maxWaitMs: 180_000,
       onProgress: (progress, label) => {
         if (!resolved && !cancelled) {

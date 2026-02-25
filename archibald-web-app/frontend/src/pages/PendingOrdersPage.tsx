@@ -200,7 +200,7 @@ export function PendingOrdersPage() {
         updatedAt: new Date().toISOString(),
       });
 
-      await enqueueOperation('submit-order', {
+      const result = await enqueueOperation('submit-order', {
         pendingOrderId: order.id,
         customerId: order.customerId,
         customerName: order.customerName,
@@ -218,6 +218,7 @@ export function PendingOrdersPage() {
         targetTotalWithVAT: order.targetTotalWithVAT,
       });
 
+      trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {

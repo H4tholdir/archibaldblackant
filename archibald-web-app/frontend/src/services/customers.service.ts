@@ -99,9 +99,9 @@ export class CustomerService {
     postalCodeCountry?: string;
     deliveryPostalCodeCity?: string;
     deliveryPostalCodeCountry?: string;
-  }): Promise<{ customer: Customer | null; taskId: string | null }> {
+  }): Promise<{ taskId: string }> {
     const result = await enqueueOperation('create-customer', formData as Record<string, unknown>);
-    return { customer: null, taskId: result.jobId };
+    return { taskId: result.jobId };
   }
 
   async updateCustomer(

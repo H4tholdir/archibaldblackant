@@ -512,6 +512,85 @@ async function updateProductVat(
   return (rowCount ?? 0) > 0;
 }
 
+type FuzzySearchResult = {
+  product: ProductRow;
+  confidence: number;
+  matchReason: 'exact' | 'normalized' | 'fuzzy';
+};
+
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1,
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function calculateSimilarity(query: string, target: string): number {
+  if (query === target) return 1.0;
+
+  const normalizeCode = (str: string) => str.replace(/[.\s-]/g, '').toLowerCase();
+  const normalizedQuery = normalizeCode(query);
+  const normalizedTarget = normalizeCode(target);
+
+  if (normalizedQuery === normalizedTarget) return 0.98;
+
+  if (normalizedTarget.includes(normalizedQuery)) {
+    const ratio = normalizedQuery.length / normalizedTarget.length;
+    return 0.7 + ratio * 0.28;
+  }
+  if (normalizedQuery.includes(normalizedTarget)) {
+    const ratio = normalizedTarget.length / normalizedQuery.length;
+    return 0.7 + ratio * 0.28;
+  }
+
+  const distance = levenshteinDistance(normalizedQuery, normalizedTarget);
+  const maxLen = Math.max(normalizedQuery.length, normalizedTarget.length);
+  return maxLen === 0 ? 0 : 1 - distance / maxLen;
+}
+
+async function fuzzySearchProducts(
+  pool: DbPool,
+  query: string,
+  limit: number = 5,
+): Promise<FuzzySearchResult[]> {
+  const normalizedQuery = query.toLowerCase().trim();
+  if (!normalizedQuery) return [];
+
+  const { rows: allProducts } = await pool.query<ProductRow>(
+    `SELECT ${PRODUCT_COLUMNS}
+     FROM shared.products
+     WHERE deleted_at IS NULL
+     ORDER BY name ASC`,
+  );
+
+  return allProducts
+    .map((product) => {
+      const nameScore = calculateSimilarity(normalizedQuery, product.name.toLowerCase());
+      const idScore = calculateSimilarity(normalizedQuery, product.id.toLowerCase());
+      const confidence = Math.max(nameScore, idScore);
+      const matchReason: FuzzySearchResult['matchReason'] =
+        confidence >= 0.95 ? 'exact' : confidence >= 0.7 ? 'normalized' : 'fuzzy';
+      return { product, confidence, matchReason };
+    })
+    .filter((r) => r.confidence > 0.3)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, limit);
+}
+
 export {
   getProducts,
   getProductById,
@@ -533,6 +612,9 @@ export {
   extractBaseCode,
   findSiblingVariants,
   updateProductVat,
+  fuzzySearchProducts,
+  calculateSimilarity,
+  levenshteinDistance,
   type ProductRow,
   type ProductWithoutVatRow,
   type ProductUpsertInput,

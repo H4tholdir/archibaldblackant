@@ -23,6 +23,12 @@ type QueueLike = {
   enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
 };
 
+type FuzzySearchResult = {
+  product: ProductRow;
+  confidence: number;
+  matchReason: 'exact' | 'normalized' | 'fuzzy';
+};
+
 type ProductsRouterDeps = {
   queue: QueueLike;
   getProducts: (searchQuery?: string) => Promise<ProductRow[]>;
@@ -39,6 +45,7 @@ type ProductsRouterDeps = {
   getSyncHistory?: (limit: number) => Promise<SyncSession[]>;
   getLastSyncSession?: () => Promise<SyncSession | null>;
   getSyncStats?: () => Promise<SyncStats>;
+  fuzzySearchProducts?: (query: string, limit: number) => Promise<FuzzySearchResult[]>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -75,8 +82,32 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/search', async (req: AuthRequest, res) => {
     try {
       const query = req.query.q as string | undefined;
-      const products = await getProducts(query);
-      res.json({ success: true, data: products });
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      if (!query || query.trim().length === 0) {
+        res.status(400).json({ success: false, error: "Query parameter 'q' is required" });
+        return;
+      }
+
+      if (deps.fuzzySearchProducts) {
+        const results = await deps.fuzzySearchProducts(query, limit);
+        res.json({
+          success: true,
+          data: results.map((r) => ({
+            id: r.product.id,
+            name: r.product.name,
+            description: r.product.description,
+            packageContent: r.product.package_content,
+            multipleQty: r.product.multiple_qty,
+            price: r.product.price,
+            confidence: Math.round(r.confidence * 100),
+            matchReason: r.matchReason,
+          })),
+        });
+      } else {
+        const products = await getProducts(query);
+        res.json({ success: true, data: products });
+      }
     } catch (error) {
       logger.error('Error searching products', { error });
       res.status(500).json({ success: false, error: 'Errore nella ricerca prodotti' });

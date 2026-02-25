@@ -25,7 +25,7 @@ type SyncOrderArticlesDeps = {
   pool: DbPool;
   bot: SyncOrderArticlesBot;
   parsePdf: (pdfPath: string) => Promise<ParsedArticle[]>;
-  getProductVat: (articleCode: string) => number;
+  getProductVat: (articleCode: string) => number | Promise<number>;
   cleanupFile: (filePath: string) => Promise<void>;
 };
 
@@ -64,18 +64,20 @@ async function handleSyncOrderArticles(
     const parsedArticles = await parsePdf(pdfPath);
 
     onProgress(50, 'Arricchimento con IVA');
-    const enrichedArticles = parsedArticles.map((article) => {
-      const vatPercent = getProductVat(article.articleCode);
-      const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
-      const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
+    const enrichedArticles = await Promise.all(
+      parsedArticles.map(async (article) => {
+        const vatPercent = await getProductVat(article.articleCode);
+        const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
+        const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
 
-      return {
-        ...article,
-        vatPercent,
-        vatAmount,
-        lineTotalWithVat,
-      };
-    });
+        return {
+          ...article,
+          vatPercent,
+          vatAmount,
+          lineTotalWithVat,
+        };
+      }),
+    );
 
     const totalVatAmount = parseFloat(
       enrichedArticles.reduce((sum, a) => sum + a.vatAmount, 0).toFixed(2),

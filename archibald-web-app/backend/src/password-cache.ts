@@ -21,6 +21,8 @@
  * - Zero manual intervention: Fully transparent to users
  */
 
+import { logger } from './logger';
+
 interface CachedPassword {
   password: string;
   timestamp: number;
@@ -102,16 +104,11 @@ export class PasswordCache {
           // Cache it for future requests
           this.set(userId, password);
 
-          console.log(
-            `[PasswordCache] Lazy-loaded password for user ${userId} from database`,
-          );
+          logger.debug('Lazy-loaded password from database', { userId });
           return password;
         }
       } catch (error) {
-        console.error(
-          `[PasswordCache] Failed to lazy-load password for user ${userId}:`,
-          error,
-        );
+        logger.warn('Failed to lazy-load password from database', { userId, error: error instanceof Error ? error.message : String(error) });
         // Fall through to return null
       }
     }

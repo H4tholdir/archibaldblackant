@@ -2,9 +2,10 @@ import { useState } from "react";
 import "../styles/SyncBars.css";
 import {
   enqueueOperation,
-  pollJobUntilDone,
+  waitForJobViaWebSocket,
   type OperationType,
 } from "../api/operations";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 type SyncType = "customers" | "products" | "prices";
 
@@ -43,6 +44,7 @@ const DEFAULT_PROGRESS: SyncProgress = {
 };
 
 export default function SyncBars() {
+  const { subscribe } = useWebSocketContext();
   const [syncState, setSyncState] = useState<SyncState>({
     customers: { ...DEFAULT_PROGRESS },
     products: { ...DEFAULT_PROGRESS },
@@ -80,7 +82,8 @@ export default function SyncBars() {
         },
       }));
 
-      const result = await pollJobUntilDone(jobId, {
+      const result = await waitForJobViaWebSocket(jobId, {
+        subscribe,
         onProgress: (progress) => {
           setSyncState((prev) => ({
             ...prev,

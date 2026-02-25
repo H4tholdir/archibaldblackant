@@ -403,6 +403,7 @@ function createApp(deps: AppDeps): Express {
     getSyncHistory: (limit) => syncSessionsRepo.getSyncHistory(pool, limit),
     getLastSyncSession: () => syncSessionsRepo.getLastSyncSession(pool),
     getSyncStats: () => syncSessionsRepo.getSyncStats(pool),
+    fuzzySearchProducts: (query, limit) => productsRepo.fuzzySearchProducts(pool, query, limit),
   }));
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({

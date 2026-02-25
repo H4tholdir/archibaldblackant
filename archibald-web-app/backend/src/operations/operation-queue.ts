@@ -79,7 +79,9 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
       timestamp: Date.now(),
     };
 
-    const job = await queue.add(type, jobData, getJobOptions(type));
+    const jobOpts = getJobOptions(type);
+    jobOpts.jobId = jobData.idempotencyKey;
+    const job = await queue.add(type, jobData, jobOpts);
     return job.id!;
   }
 
