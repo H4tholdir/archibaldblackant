@@ -50,6 +50,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
+
+# Copy SQL migration files (not processed by TypeScript compiler)
+COPY archibald-web-app/backend/src/db/migrations/*.sql ./dist/db/migrations/
 COPY archibald-web-app/backend/package*.json ./
 
 # Copy Python scripts for PDF parsing
