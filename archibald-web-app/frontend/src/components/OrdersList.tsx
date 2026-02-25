@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchWithRetry } from '../utils/fetch-with-retry';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 
 interface OrdersListProps {
   token: string;
@@ -27,6 +28,7 @@ interface UserOrder {
 }
 
 export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersListProps) {
+  const { subscribe } = useWebSocketContext();
   const [orders, setOrders] = useState<UserOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersLis
 
   const fetchOrders = async () => {
     try {
-      const response = await fetchWithRetry('/api/orders/my-orders', {
+      const response = await fetchWithRetry('/api/orders', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -59,11 +61,20 @@ export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersLis
   useEffect(() => {
     fetchOrders();
 
-    // Polling ogni 5 secondi per aggiornare gli stati
-    const interval = setInterval(fetchOrders, 5000);
+    const unsubs = [
+      subscribe('JOB_COMPLETED', () => fetchOrders()),
+      subscribe('JOB_FAILED', () => fetchOrders()),
+      subscribe('JOB_STARTED', () => fetchOrders()),
+    ];
 
-    return () => clearInterval(interval);
-  }, [token]);
+    // Fallback polling every 30s for missed WS events
+    const interval = setInterval(fetchOrders, 30_000);
+
+    return () => {
+      unsubs.forEach(u => u());
+      clearInterval(interval);
+    };
+  }, [token, subscribe]);
 
   const getStatusEmoji = (status: string) => {
     switch (status) {

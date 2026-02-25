@@ -20,6 +20,8 @@ vi.mock("../hooks/usePendingSync", () => ({
     isSyncing: mockIsSyncing,
     staleJobIds: new Set<string>(),
     refetch: mockRefetch,
+    trackJobs: vi.fn(),
+    jobTracking: new Map(),
   }),
 }));
 
@@ -285,7 +287,7 @@ describe("PendingOrdersPage", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/bot/submit-orders",
+        "/api/operations/enqueue",
         expect.objectContaining({
           method: "POST",
         }),

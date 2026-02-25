@@ -101,22 +101,6 @@ export interface ProductVariantsResponse {
   error?: string;
 }
 
-export interface SearchResult {
-  id: string;
-  name: string;
-  description?: string;
-  packageContent?: string;
-  multipleQty?: number;
-  price?: number;
-  confidence: number;
-  matchReason: string;
-}
-
-export interface SearchResponse {
-  success: boolean;
-  data: SearchResult[];
-}
-
 /**
  * Get all package variants for a product by article name
  */
@@ -238,34 +222,6 @@ export async function updateProductPrice(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || `HTTP ${response.status}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Fuzzy search products with confidence scores
- */
-export async function searchProducts(
-  token: string,
-  query: string,
-  limit: number = 10,
-): Promise<SearchResponse> {
-  const params = new URLSearchParams();
-  params.append("q", query);
-  params.append("limit", limit.toString());
-
-  const response = await fetchWithRetry(
-    `${API_BASE_URL}/api/products/search?${params}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
   return response.json();

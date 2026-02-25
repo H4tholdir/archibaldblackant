@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { config } from "../config";
 import { logger } from "../logger";
 import fs from "fs/promises";

@@ -1,11 +1,17 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import "../styles/SyncBars.css";
-import { toastService } from "../services/toast.service";
+import {
+  enqueueOperation,
+  waitForJobViaWebSocket,
+  type OperationType,
+} from "../api/operations";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
+
+type SyncType = "customers" | "products" | "prices";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
-  currentPage: number;
-  totalPages: number;
+  progressPercent: number;
   itemsProcessed: number;
   message: string;
   error?: string;
@@ -15,195 +21,110 @@ interface SyncState {
   customers: SyncProgress;
   products: SyncProgress;
   prices: SyncProgress;
-  activeSyncType: "customers" | "products" | "prices" | null;
+  activeSyncType: SyncType | null;
 }
 
+const RESULT_KEYS: Record<SyncType, string> = {
+  customers: "customersProcessed",
+  products: "productsProcessed",
+  prices: "pricesProcessed",
+};
+
+const LABELS: Record<SyncType, string> = {
+  customers: "clienti",
+  products: "prodotti",
+  prices: "prezzi",
+};
+
+const DEFAULT_PROGRESS: SyncProgress = {
+  status: "idle",
+  progressPercent: 0,
+  itemsProcessed: 0,
+  message: "Pronto",
+};
+
 export default function SyncBars() {
+  const { subscribe } = useWebSocketContext();
   const [syncState, setSyncState] = useState<SyncState>({
-    customers: {
-      status: "idle",
-      currentPage: 0,
-      totalPages: 0,
-      itemsProcessed: 0,
-      message: "Pronto",
-    },
-    products: {
-      status: "idle",
-      currentPage: 0,
-      totalPages: 0,
-      itemsProcessed: 0,
-      message: "Pronto",
-    },
-    prices: {
-      status: "idle",
-      currentPage: 0,
-      totalPages: 0,
-      itemsProcessed: 0,
-      message: "Pronto",
-    },
+    customers: { ...DEFAULT_PROGRESS },
+    products: { ...DEFAULT_PROGRESS },
+    prices: { ...DEFAULT_PROGRESS },
     activeSyncType: null,
   });
 
-  const wsRef = useRef<WebSocket | null>(null);
-
-  // Handle cache invalidation events from WebSocket
-  const handleCacheInvalidation = async (event: any) => {
-    console.log("[SyncBars] Cache invalidation received:", event);
-
-    if (event.target === "products") {
-      toastService.success(
-        `Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
-      );
-    }
-  };
-
-  useEffect(() => {
-    // Connetti al WebSocket per ricevere aggiornamenti sync
-    const connectWebSocket = () => {
-      try {
-        const ws = new WebSocket("ws://localhost:3000/ws/sync");
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          console.log("✅ SyncBars WebSocket connesso");
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            // Handle cache invalidation events
-            if (data.type === "cache_invalidation") {
-              handleCacheInvalidation(data);
-              return;
-            }
-
-            // Determina il tipo di sync dal messaggio
-            let syncType: "customers" | "products" | "prices" | null = null;
-            if (data.customersProcessed !== undefined) {
-              syncType = "customers";
-            } else if (data.productsProcessed !== undefined) {
-              syncType = "products";
-            } else if (data.pricesProcessed !== undefined) {
-              syncType = "prices";
-            }
-
-            if (!syncType) {
-              console.log("WebSocket message without sync type:", data);
-              return;
-            }
-
-            const progress: SyncProgress = {
-              status: data.status || "idle",
-              currentPage: data.currentPage || 0,
-              totalPages: data.totalPages || 0,
-              itemsProcessed:
-                data.customersProcessed ||
-                data.productsProcessed ||
-                data.pricesProcessed ||
-                0,
-              message: data.message || "",
-              error: data.error,
-            };
-
-            setSyncState((prev) => {
-              // Determina activeSyncType: solo se questo sync è "syncing"
-              let newActiveSyncType = prev.activeSyncType;
-
-              if (data.status === "syncing") {
-                // Se sta sincronizzando, imposta come attivo
-                newActiveSyncType = syncType;
-              } else if (
-                prev.activeSyncType === syncType &&
-                (data.status === "completed" ||
-                  data.status === "error" ||
-                  data.status === "idle")
-              ) {
-                // Se questo sync era attivo ma ora è completato/errore/idle, resetta
-                newActiveSyncType = null;
-              }
-
-              return {
-                ...prev,
-                [syncType]: progress,
-                activeSyncType: newActiveSyncType,
-              };
-            });
-          } catch (error) {
-            console.error("Errore parsing WebSocket message:", error);
-          }
-        };
-
-        ws.onerror = (error) => {
-          console.error("WebSocket error:", error);
-        };
-
-        ws.onclose = () => {
-          console.log("🔌 SyncBars WebSocket disconnesso");
-          wsRef.current = null;
-          setTimeout(connectWebSocket, 5000);
-        };
-      } catch (error) {
-        console.error("Errore connessione WebSocket:", error);
-        setTimeout(connectWebSocket, 5000);
-      }
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
-
-  const handleSync = async (type: "customers" | "products" | "prices") => {
-    // Previeni sync multipli in parallelo
+  const handleSync = async (type: SyncType) => {
     if (syncState.activeSyncType) {
       alert(
-        `Sincronizzazione ${syncState.activeSyncType === "customers" ? "clienti" : syncState.activeSyncType === "products" ? "prodotti" : "prezzi"} in corso. Attendi il completamento.`,
+        `Sincronizzazione ${LABELS[syncState.activeSyncType]} in corso. Attendi il completamento.`,
       );
       return;
     }
 
+    if (!localStorage.getItem("archibald_jwt")) {
+      alert("Autenticazione richiesta. Effettua il login.");
+      return;
+    }
+
     try {
-      // Get JWT token for admin authentication
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
-        alert("Autenticazione richiesta. Effettua il login.");
-        return;
-      }
+      const { jobId } = await enqueueOperation(
+        `sync-${type}` as OperationType,
+        {},
+      );
 
-      const endpoint = `/api/sync/${type}`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
-      });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Errore avvio sincronizzazione");
-      }
-
-      // Il progresso sarà mostrato via WebSocket
       setSyncState((prev) => ({
         ...prev,
         activeSyncType: type,
+        [type]: {
+          status: "syncing" as const,
+          progressPercent: 0,
+          itemsProcessed: 0,
+          message: "Avvio sincronizzazione...",
+        },
+      }));
+
+      const result = await waitForJobViaWebSocket(jobId, {
+        subscribe,
+        onProgress: (progress) => {
+          setSyncState((prev) => ({
+            ...prev,
+            [type]: {
+              ...prev[type],
+              status: "syncing" as const,
+              progressPercent: progress,
+              message: `Sincronizzazione ${LABELS[type]}...`,
+            },
+          }));
+        },
+      });
+
+      const count = (result[RESULT_KEYS[type]] as number) ?? 0;
+
+      setSyncState((prev) => ({
+        ...prev,
+        activeSyncType: null,
+        [type]: {
+          status: "completed" as const,
+          progressPercent: 100,
+          itemsProcessed: count,
+          message: `Completato: ${count} ${LABELS[type]}`,
+        },
       }));
     } catch (error) {
-      console.error(`Errore sync ${type}:`, error);
-      alert(
-        `Errore avvio sincronizzazione ${type === "customers" ? "clienti" : type === "products" ? "prodotti" : "prezzi"}`,
-      );
-    }
-  };
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
 
-  const calculateProgress = (progress: SyncProgress): number => {
-    if (progress.totalPages === 0) return 0;
-    return Math.round((progress.currentPage / progress.totalPages) * 100);
+      setSyncState((prev) => ({
+        ...prev,
+        activeSyncType: null,
+        [type]: {
+          status: "error" as const,
+          progressPercent: 0,
+          itemsProcessed: 0,
+          message: "Errore",
+          error: errorMessage,
+        },
+      }));
+    }
   };
 
   const getStatusClass = (progress: SyncProgress): string => {
@@ -224,18 +145,18 @@ export default function SyncBars() {
         <div className="sync-bar-background">
           <div
             className="sync-bar-fill"
-            style={{ width: `${calculateProgress(syncState.customers)}%` }}
+            style={{ width: `${syncState.customers.progressPercent}%` }}
           />
         </div>
         <div className="sync-bar-content">
           <span className="sync-bar-label">Clienti</span>
           <span className="sync-bar-info">
             {syncState.customers.status === "syncing"
-              ? `${calculateProgress(syncState.customers)}% - ${syncState.customers.itemsProcessed} items`
+              ? `${syncState.customers.progressPercent}% - ${syncState.customers.message}`
               : syncState.customers.status === "completed"
-                ? `✓ ${syncState.customers.itemsProcessed} clienti`
+                ? `\u2713 ${syncState.customers.itemsProcessed} clienti`
                 : syncState.customers.status === "error"
-                  ? "✗ Errore"
+                  ? "\u2717 Errore"
                   : "Clicca per avviare"}
           </span>
         </div>
@@ -250,18 +171,18 @@ export default function SyncBars() {
         <div className="sync-bar-background">
           <div
             className="sync-bar-fill"
-            style={{ width: `${calculateProgress(syncState.products)}%` }}
+            style={{ width: `${syncState.products.progressPercent}%` }}
           />
         </div>
         <div className="sync-bar-content">
           <span className="sync-bar-label">Prodotti</span>
           <span className="sync-bar-info">
             {syncState.products.status === "syncing"
-              ? `${calculateProgress(syncState.products)}% - ${syncState.products.itemsProcessed} items`
+              ? `${syncState.products.progressPercent}% - ${syncState.products.message}`
               : syncState.products.status === "completed"
-                ? `✓ ${syncState.products.itemsProcessed} prodotti`
+                ? `\u2713 ${syncState.products.itemsProcessed} prodotti`
                 : syncState.products.status === "error"
-                  ? "✗ Errore"
+                  ? "\u2717 Errore"
                   : "Clicca per avviare"}
           </span>
         </div>
@@ -276,18 +197,18 @@ export default function SyncBars() {
         <div className="sync-bar-background">
           <div
             className="sync-bar-fill"
-            style={{ width: `${calculateProgress(syncState.prices)}%` }}
+            style={{ width: `${syncState.prices.progressPercent}%` }}
           />
         </div>
         <div className="sync-bar-content">
           <span className="sync-bar-label">Prezzi</span>
           <span className="sync-bar-info">
             {syncState.prices.status === "syncing"
-              ? `${calculateProgress(syncState.prices)}% - ${syncState.prices.itemsProcessed} items`
+              ? `${syncState.prices.progressPercent}% - ${syncState.prices.message}`
               : syncState.prices.status === "completed"
-                ? `✓ ${syncState.prices.itemsProcessed} prezzi`
+                ? `\u2713 ${syncState.prices.itemsProcessed} prezzi`
                 : syncState.prices.status === "error"
-                  ? "✗ Errore"
+                  ? "\u2717 Errore"
                   : "Clicca per avviare"}
           </span>
         </div>

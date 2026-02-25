@@ -2,81 +2,48 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-22)
+See: .planning/PROJECT.md (updated 2026-02-24)
 
-**Core value:** Una PWA per agenti commerciali Komet che funziona identicamente alla versione in produzione, ma con un backend modulare, testabile e manutenibile.
-**Current focus:** Phase 4 in progress — Low Priority & Debug Endpoints
+**Core value:** Rendere la creazione ordini Archibald veloce, affidabile e mobile-friendly per agenti in movimento.
+**Current focus:** All milestones complete (v1.0 + v1.1 + v1.2). Branch ready for merge.
 
 ## Current Position
 
-Phase: 4 of 7 (Low Priority & Debug Endpoints)
-Plan: 1 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-23 — Completed 04-01-PLAN.md (metrics + cache export)
+Phase: 16 of 16 (Sync Enhancements)
+Plan: 3 of 3 in current phase
+Status: All milestones archived — v1.0, v1.1, v1.2 complete
+Last activity: 2026-02-24 — Milestones archived
 
-Progress: █████░░░░░ ~52% (11/21 plans)
+Progress: ██████████ 100% (41 of 41 total plans)
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 11
-- Average duration: 6min
-- Total execution time: 1.17 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. Verification | 3 | 22min | 7min |
-| 2. Critical Missing Endpoints | 4 | 22min | 6min |
-| 3. Admin & Monitoring Endpoints | 3 | 20min | 7min |
-| 4. Low Priority & Debug | 1 | 6min | 6min |
-
-**Recent Trend:**
-- Last 5 plans: 03-01 (8min), 03-02 (6min), 03-03 (6min), 04-01 (6min)
-- Trend: Steady ~6-8min per plan
+**Velocity (v1.0+v1.1+v1.2):**
+- Total plans completed: 41
+- Total commits: 174
+- Files modified: 450
+- Lines: +45,913 / -68,544
+- Timeline: 5 days (2026-02-19 → 2026-02-24)
 
 ## Accumulated Context
 
-### Decisions
+### Milestones Completed
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+- v1.0 Endpoint Parity (Phases 1-7, 20 plans) — shipped 2026-02-23
+- v1.1 Full Feature Parity (Phases 8-10, 7 plans) — shipped 2026-02-23
+- v1.2 Production Parity (Phases 11-16, 14 plans) — shipped 2026-02-24
 
-- 01-01: Tracked 49 individual code units (not ~42 from PDF approximate count)
-- 01-01: Identified 10 high-priority elements for code audit (bot+queue interaction risk)
-- 01-02: Found 2 critical divergences (missing requireAdmin, missing pre-send validation)
-- 01-02: Response shape changes (sync->jobId) deferred to Phase 6 frontend migration
-- 01-02: Duplicate TEMP profile creation in create-customer handler identified as significant bug
-- 01-03: Import requireAdmin directly in route files (not through DI)
-- 01-03: Deferred device registration on login (deviceManager not migrated)
-- 01-03: Deferred audit log on send-to-verona (no audit log infrastructure)
-- 02-01: smartCustomerSync implemented in sync-scheduler (not separate orchestrator) matching branch architecture
-- 02-02: sync-states enqueues job via queue (not inline like master) because OrderStateSyncService depends on unmigrated SQLite singleton
-- 02-02: fresis_history propagation composed in server.ts DI using existing propagateState from fresis-history repo
-- 02-03: Fixed bot return types (completeCustomerCreation/createCustomer return string, not {success,message})
-- 02-03: Added taskId, progress callbacks, smartCustomerSync as optional deps for backward compatibility
-- 02-04: DDT/invoices use column nullification (embedded in order_records), not TRUNCATE
-- 02-04: Used pool.withTransaction for atomic operations matching existing DbPool abstraction
-- 03-02: matchPricesToProducts and getHistorySummary wired as stubs — PriceMatchingService and price_history table not in branch yet
-- 03-02: getProductsWithoutVat placed in products repo (queries products table)
-- 03-03: resetSyncCheckpoint as optional DI dependency (not direct DB query in route handler)
-- 03-03: 501 response when resetSyncCheckpoint not configured (graceful degradation)
-
-### Deferred Issues
-
-- Device registration + background sync on login: deviceManager and userSpecificSyncService not in branch DI
-- Audit log on send-to-verona: no insertAuditLog, no audit_log table in branch
-- Response shape changes (sync->jobId): deferred to Phase 6 frontend migration
+Full details: .planning/MILESTONES.md
+Archives: .planning/milestones/
 
 ### Blockers/Concerns
 
-None.
+None. Ready for merge to master.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 04-01-PLAN.md. Next: 04-02-PLAN.md
-Resume file: .planning/phases/04-low-priority-debug-endpoints/04-01-SUMMARY.md
-Feature branch: feat/unified-operation-queue (latest commit: 983a807)
-Test baseline: 845 backend + 418 frontend = 1263 passing, 12 skipped
+Last session: 2026-02-24
+Stopped at: All milestones archived, ready for merge
+Resume file: None
+Feature branch: feat/unified-operation-queue
+Test baseline: 1473 backend + 441 frontend = 1914 passing

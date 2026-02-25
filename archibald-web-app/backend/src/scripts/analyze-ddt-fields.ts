@@ -3,7 +3,7 @@
  * Analyze DDT fields: inspect 5 rows to find patterns for missing fields
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Analyzing DDT Fields (5 rows)\n");

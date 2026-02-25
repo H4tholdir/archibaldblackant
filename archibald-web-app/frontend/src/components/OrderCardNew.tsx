@@ -1,9 +1,10 @@
-// @ts-nocheck - Contains legacy code with articleCode
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { Order, OrderItem } from "../types/order";
+import type { Order, OrderItem, OrderArticle } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
+import type { OperationType, SubscribeFn } from "../api/operations";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
@@ -598,7 +599,7 @@ function recalcLineAmounts(item: EditItem): EditItem {
 }
 
 function TabArticoli({
-  items,
+  items: _items,
   orderId,
   archibaldOrderId,
   token,
@@ -621,10 +622,11 @@ function TabArticoli({
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
 }) {
-  const [articles, setArticles] = useState(items || []);
+  const [articles, setArticles] = useState<OrderArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { subscribe } = useWebSocketContext();
 
   // Edit mode state
   const [editItems, setEditItems] = useState<EditItem[]>([]);
@@ -644,8 +646,6 @@ function TabArticoli({
     null,
   );
   const [submittingEdit, setSubmittingEdit] = useState(false);
-  const [syncingProducts, setSyncingProducts] = useState(false);
-  const [syncProductsMsg, setSyncProductsMsg] = useState("");
   const [syncingArticles, setSyncingArticles] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
@@ -722,20 +722,30 @@ function TabArticoli({
           );
 
           if (syncResponse.ok) {
-            const syncResult = await syncResponse.json();
-            if (syncResult.success && syncResult.data.articles.length > 0) {
-              freshArticles = syncResult.data.articles;
-              if (!cancelled) {
-                setArticles(freshArticles);
-                if (
-                  onTotalsUpdate &&
-                  syncResult.data.totalVatAmount &&
-                  syncResult.data.totalWithVat
-                ) {
-                  onTotalsUpdate({
-                    totalVatAmount: syncResult.data.totalVatAmount,
-                    totalWithVat: syncResult.data.totalWithVat,
-                  });
+            const enqueueResult = await syncResponse.json();
+
+            if (enqueueResult.jobId) {
+              await waitForJobViaWebSocket(enqueueResult.jobId, {
+                subscribe,
+                maxWaitMs: 120_000,
+              });
+
+              const articlesResponse = await fetchWithRetry(
+                `/api/orders/${orderId}/articles`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              );
+
+              if (articlesResponse.ok) {
+                const articlesData = await articlesResponse.json();
+                if (articlesData.success && articlesData.data.length > 0) {
+                  freshArticles = articlesData.data;
+                  if (!cancelled) {
+                    setArticles(freshArticles);
+                  }
                 }
               }
             }
@@ -753,17 +763,17 @@ function TabArticoli({
       if (cancelled) return;
 
       // 3. Initialize edit items from fresh articles
-      const mapped: EditItem[] = freshArticles.map((item: any) => ({
+      const mapped: EditItem[] = freshArticles.map((item: OrderArticle) => ({
         articleCode: item.articleCode || "",
         productName: item.productName || "",
         quantity: item.quantity || 0,
-        unitPrice: item.unitPrice ?? item.price ?? 0,
-        discountPercent: item.discountPercent ?? item.discount ?? 0,
+        unitPrice: item.unitPrice ?? 0,
+        discountPercent: item.discountPercent ?? 0,
         vatPercent: item.vatPercent ?? 0,
         vatAmount: item.vatAmount ?? 0,
         lineAmount: item.lineAmount ?? 0,
         lineTotalWithVat: item.lineTotalWithVat ?? 0,
-        articleDescription: item.articleDescription ?? item.description ?? "",
+        articleDescription: item.articleDescription ?? "",
       }));
       setEditItems(mapped);
       setOriginalItems(mapped.map((m) => ({ ...m })));
@@ -1041,29 +1051,25 @@ function TabArticoli({
     setSubmittingEdit(true);
 
     try {
-      const response = await fetch(`/api/orders/${orderId}/edit-in-archibald`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          modifications,
-          updatedItems: editItems,
-        }),
+      const result = await enqueueOperation('edit-order', {
+        orderId,
+        modifications,
+        updatedItems: editItems,
       });
 
-      const result = await response.json();
       if (!result.success) {
         setError(result.error || "Errore durante la modifica");
         setSubmittingEdit(false);
         return;
       }
 
-      setTimeout(() => {
-        setSubmittingEdit(false);
-        onEditDone?.();
-      }, 2000);
+      await waitForJobViaWebSocket(result.jobId, {
+        subscribe,
+        maxWaitMs: 120_000,
+      });
+
+      setSubmittingEdit(false);
+      onEditDone?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di rete");
       setSubmittingEdit(false);
@@ -1106,21 +1112,50 @@ function TabArticoli({
         );
       }
 
-      const result = await response.json();
-      setArticles(result.data.articles);
-      const totalVat = result.data.totalVatAmount ?? 0;
+      const enqueueResult = await response.json();
+
+      if (!enqueueResult.jobId) {
+        throw new Error("Nessun job creato per la sincronizzazione");
+      }
+
+      const result = await waitForJobViaWebSocket(enqueueResult.jobId, {
+        subscribe,
+        maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          setSuccess(label ?? `Sincronizzazione in corso... ${progress}%`);
+        },
+      });
+
+      const articlesResponse = await fetchWithRetry(
+        `/api/orders/${orderId}/articles`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (articlesResponse.ok) {
+        const articlesData = await articlesResponse.json();
+        if (articlesData.success) {
+          setArticles(articlesData.data);
+        }
+      }
+
+      const totalVat = (result.totalVatAmount as number) ?? 0;
+      const articlesCount = (result.articlesCount as number) ?? 0;
       setSuccess(
-        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
+        `Sincronizzati ${articlesCount} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
       );
 
       if (
         onTotalsUpdate &&
-        result.data.totalVatAmount &&
-        result.data.totalWithVat
+        result.totalVatAmount &&
+        result.totalWithVat
       ) {
         onTotalsUpdate({
-          totalVatAmount: result.data.totalVatAmount,
-          totalWithVat: result.data.totalWithVat,
+          totalVatAmount: result.totalVatAmount as number,
+          totalWithVat: result.totalWithVat as number,
         });
       }
 
@@ -1158,29 +1193,6 @@ function TabArticoli({
     );
   }
 
-  // Syncing products overlay
-  if (editing && syncingProducts) {
-    return (
-      <div style={{ padding: "32px", textAlign: "center" }}>
-        <div
-          style={{
-            fontSize: "48px",
-            marginBottom: "16px",
-            animation: "spin 1s linear infinite",
-          }}
-        >
-          {"⏳"}
-        </div>
-        <p style={{ fontSize: "16px", color: "#666", marginBottom: "8px" }}>
-          Sincronizzazione catalogo prodotti...
-        </p>
-        <p style={{ fontSize: "13px", color: "#999" }}>{syncProductsMsg}</p>
-        <style>
-          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
-        </style>
-      </div>
-    );
-  }
 
   // Confirm modal
   if (confirmModal && !submittingEdit) {
@@ -1851,18 +1863,15 @@ function TabArticoli({
           </thead>
           <tbody>
             {articles.map((item, index) => {
-              const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
-              const discount =
-                (item as any).discountPercent ?? item.discount ?? 0;
-              const description =
-                (item as any).articleDescription ?? item.description ?? "";
+              const unitPrice = item.unitPrice ?? 0;
+              const discount = item.discountPercent ?? 0;
+              const description = item.articleDescription ?? "";
               const lineAmount =
-                (item as any).lineAmount ??
+                item.lineAmount ??
                 (unitPrice * item.quantity * (100 - discount)) / 100;
-              const vatPercent = (item as any).vatPercent ?? 0;
-              const vatAmount = (item as any).vatAmount ?? 0;
-              const lineTotalWithVat =
-                (item as any).lineTotalWithVat ?? lineAmount;
+              const vatPercent = item.vatPercent ?? 0;
+              const vatAmount = item.vatAmount ?? 0;
+              const lineTotalWithVat = item.lineTotalWithVat ?? lineAmount;
 
               return (
                 <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
@@ -1907,18 +1916,18 @@ function TabArticoli({
       {articles.length > 0 &&
         (() => {
           const subtotalBeforeDiscount = articles.reduce((sum, item) => {
-            const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
+            const unitPrice = item.unitPrice ?? 0;
             const quantity = item.quantity ?? 0;
             return sum + unitPrice * quantity;
           }, 0);
           const totalImponibile = articles.reduce(
-            (sum, item) => sum + ((item as any).lineAmount ?? 0),
+            (sum, item) => sum + (item.lineAmount ?? 0),
             0,
           );
           const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
 
           const uniqueDiscounts = new Set(
-            articles.map((item) => (item as any).discountPercent ?? 0),
+            articles.map((item) => item.discountPercent ?? 0),
           );
           const hasUniformDiscount =
             uniqueDiscounts.size === 1 && Array.from(uniqueDiscounts)[0] > 0;
@@ -1999,7 +2008,7 @@ function TabArticoli({
                   <span style={{ fontWeight: 600 }}>
                     {formatCurrency(
                       articles.reduce(
-                        (sum, item) => sum + ((item as any).vatAmount ?? 0),
+                        (sum, item) => sum + (item.vatAmount ?? 0),
                         0,
                       ),
                     )}
@@ -2050,6 +2059,7 @@ function TabLogistica({
   token?: string;
   searchQuery?: string;
 }) {
+  const { subscribe } = useWebSocketContext();
   const [ddtProgress, setDdtProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2094,6 +2104,7 @@ function TabLogistica({
         setDdtError(error);
         setDdtProgress({ active: false, percent: 0, stage: "" });
       },
+      subscribe,
     );
   };
 
@@ -2465,6 +2476,7 @@ function TabFinanziario({
   token?: string;
   searchQuery?: string;
 }) {
+  const { subscribe } = useWebSocketContext();
   const [invoiceProgress, setInvoiceProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2500,6 +2512,7 @@ function TabFinanziario({
         setInvoiceError(error);
         setInvoiceProgress({ active: false, percent: 0, stage: "" });
       },
+      subscribe,
     );
   };
 
@@ -2989,8 +3002,19 @@ function TabFinanziario({
   );
 }
 
+type FresisChildFT = {
+  id: string;
+  subClientName?: string;
+  subClientCodice?: string;
+  archibaldOrderNumber?: string;
+  createdAt?: string;
+  targetTotalWithVAT?: number;
+  revenue?: number;
+  currentState?: string;
+};
+
 function TabCronologia({ order, token }: { order: Order; token?: string }) {
-  const [childFTs, setChildFTs] = useState<any[]>([]);
+  const [childFTs, setChildFTs] = useState<FresisChildFT[]>([]);
   const [ftLoading, setFtLoading] = useState(false);
   const [ftError, setFtError] = useState<string | null>(null);
 
@@ -3070,7 +3094,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
               </tr>
             </thead>
             <tbody>
-              {childFTs.map((ft: any) => (
+              {childFTs.map((ft) => (
                 <tr key={ft.id} style={{ borderBottom: "1px solid #eee" }}>
                   <td style={ftTdStyle}>{ft.subClientName || ft.subClientCodice}</td>
                   <td style={ftTdStyle}>{ft.archibaldOrderNumber || "-"}</td>
@@ -3080,7 +3104,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
                       ? Number(ft.targetTotalWithVAT).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "-"}
                   </td>
-                  <td style={{ ...ftTdStyle, textAlign: "right", color: ft.revenue >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
+                  <td style={{ ...ftTdStyle, textAlign: "right", color: (ft.revenue ?? 0) >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
                     {ft.revenue != null
                       ? Number(ft.revenue).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "-"}
@@ -3193,54 +3217,70 @@ const tableCellStyle: React.CSSProperties = {
 function downloadPdfWithProgress(
   orderId: string,
   type: "invoice" | "ddt",
-  token: string,
+  _token: string,
   onProgress: (stage: string, percent: number) => void,
   onComplete: () => void,
   onError: (error: string) => void,
+  subscribe: SubscribeFn,
 ): () => void {
-  const encodedId = encodeURIComponent(orderId);
-  const url = `/api/orders/${encodedId}/pdf-download?type=${type}&token=${encodeURIComponent(token)}`;
+  let cancelled = false;
 
-  const eventSource = new EventSource(url);
-
-  eventSource.onmessage = (event) => {
+  (async () => {
     try {
-      const data = JSON.parse(event.data);
-      if (data.type === "progress") {
-        onProgress(data.stage, data.percent);
-      } else if (data.type === "complete") {
-        onProgress("Download completato!", 100);
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "application/pdf" });
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        a.download = data.filename;
-        a.click();
-        window.URL.revokeObjectURL(downloadUrl);
-        eventSource.close();
-        onComplete();
-      } else if (data.type === "error") {
-        eventSource.close();
-        onError(data.error);
+      onProgress("Avvio download...", 5);
+
+      const operationType: OperationType = type === "invoice" ? "download-invoice-pdf" : "download-ddt-pdf";
+      const { jobId } = await enqueueOperation(operationType, { orderId });
+
+      if (cancelled) return;
+
+      onProgress("In coda...", 10);
+
+      const result = await waitForJobViaWebSocket(jobId, {
+        subscribe,
+        intervalMs: 1500,
+        maxWaitMs: 180_000,
+        onProgress: (progress, label) => {
+          if (!cancelled) {
+            onProgress(label ?? "Download in corso...", progress);
+          }
+        },
+      });
+
+      if (cancelled) return;
+
+      const resultData = (result.data ?? result) as Record<string, unknown>;
+      const pdfBase64 = resultData.pdf as string;
+      if (!pdfBase64) {
+        onError("Nessun PDF ricevuto dal server");
+        return;
       }
-    } catch {
-      eventSource.close();
-      onError("Errore durante il parsing della risposta");
+
+      onProgress("Download completato!", 100);
+
+      const byteCharacters = atob(pdfBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `${type === "ddt" ? "DDT" : "Fattura"}_${orderId}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      onComplete();
+    } catch (err) {
+      if (!cancelled) {
+        onError(err instanceof Error ? err.message : "Errore durante il download");
+      }
     }
-  };
+  })();
 
-  eventSource.onerror = () => {
-    eventSource.close();
-    onError("Connessione persa durante il download");
-  };
-
-  return () => eventSource.close();
+  return () => { cancelled = true; };
 }
 
 function ProgressBar({
@@ -3324,16 +3364,18 @@ export function OrderCardNew({
   const { subscribe } = useWebSocketContext();
   useEffect(() => {
     if (!editing) return;
-    const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: unknown) => {
+      const p = payload as { recordId?: string; progress?: number; operation?: string };
+      if (p.recordId === order.id) {
         setEditProgress({
-          progress: payload.progress,
-          operation: payload.operation,
+          progress: p.progress ?? 0,
+          operation: p.operation ?? "",
         });
       }
     });
-    const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: unknown) => {
+      const p = payload as { recordId?: string };
+      if (p.recordId === order.id) {
         setEditProgress(null);
         onEditDone?.();
       }
@@ -3357,16 +3399,18 @@ export function OrderCardNew({
   useEffect(() => {
     if (!deletingOrder) return;
     deleteHandledRef.current = false;
-    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: unknown) => {
+      const p = payload as { recordId?: string; progress?: number; operation?: string };
+      if (p.recordId === order.id) {
         setDeleteProgress({
-          progress: payload.progress,
-          operation: payload.operation,
+          progress: p.progress ?? 0,
+          operation: p.operation ?? "",
         });
       }
     });
-    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: any) => {
-      if (payload.recordId === order.id && !deleteHandledRef.current) {
+    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: unknown) => {
+      const p = payload as { recordId?: string };
+      if (p.recordId === order.id && !deleteHandledRef.current) {
         deleteHandledRef.current = true;
         setDeleteProgress(null);
         setDeletingOrder(false);
@@ -3385,24 +3429,27 @@ export function OrderCardNew({
     setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
 
     try {
-      const jwt = token || localStorage.getItem("archibald_jwt") || "";
-      const response = await fetch(
-        `/api/orders/${order.id}/delete-from-archibald`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const result = await enqueueOperation('delete-order', {
+        orderId: order.id,
+      });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Errore ${response.status}`);
+      if (!result.success) {
+        throw new Error(result.error || `Errore eliminazione ordine`);
       }
 
-      // Fallback: if WebSocket ORDER_DELETE_COMPLETE already handled, skip
+      if (deleteHandledRef.current) return;
+      setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
+
+      await waitForJobViaWebSocket(result.jobId, {
+        subscribe,
+        maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          if (!deleteHandledRef.current) {
+            setDeleteProgress({ progress, operation: label ?? "Eliminazione in corso..." });
+          }
+        },
+      });
+
       if (!deleteHandledRef.current) {
         deleteHandledRef.current = true;
         setDeleteProgress(null);
@@ -3789,6 +3836,7 @@ export function OrderCardNew({
                               stage: "",
                             });
                           },
+                          subscribe,
                         );
                       }}
                       style={{
@@ -3882,6 +3930,7 @@ export function OrderCardNew({
                               stage: "",
                             });
                           },
+                          subscribe,
                         );
                       }}
                       style={{

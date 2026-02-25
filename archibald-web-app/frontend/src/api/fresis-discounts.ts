@@ -5,7 +5,7 @@ const API_BASE = "";
 
 export async function getFresisDiscounts(): Promise<FresisArticleDiscount[]> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/fresis-discounts`,
+    `${API_BASE}/api/fresis-history/discounts`,
   );
 
   if (!response.ok) {
@@ -13,7 +13,7 @@ export async function getFresisDiscounts(): Promise<FresisArticleDiscount[]> {
   }
 
   const data = await response.json();
-  return data.discounts;
+  return data.data ?? data.discounts ?? [];
 }
 
 export async function getDiscountForArticle(
@@ -26,19 +26,26 @@ export async function getDiscountForArticle(
 export async function uploadFresisDiscounts(
   discounts: FresisArticleDiscount[],
 ): Promise<{ count: number }> {
-  const response = await fetchWithRetry(
-    `${API_BASE}/api/fresis-discounts/upload`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ discounts }),
-    },
-  );
+  let count = 0;
+  for (const discount of discounts) {
+    const response = await fetchWithRetry(
+      `${API_BASE}/api/fresis-history/discounts`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: discount.id ?? `${discount.articleCode}-${Date.now()}`,
+          articleCode: discount.articleCode,
+          discountPercent: discount.discountPercent,
+          kpPriceUnit: discount.kpPriceUnit,
+        }),
+      },
+    );
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    count++;
   }
-
-  const data = await response.json();
-  return { count: data.count };
+  return { count };
 }

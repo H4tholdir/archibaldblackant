@@ -3,7 +3,7 @@
  * Full inspection of DDT table structure including all rows
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Full DDT Table Structure Inspection\n");

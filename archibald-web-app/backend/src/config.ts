@@ -41,10 +41,26 @@ export const config = {
     pass: process.env.SMTP_PASS || "",
     from: process.env.SMTP_FROM || "",
   },
+  queue: {
+    workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || "10", 10),
+  },
+  browserPool: {
+    maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
+    maxContextsPerBrowser: parseInt(process.env.BROWSER_POOL_MAX_CONTEXTS || "8", 10),
+    contextExpiryMs: parseInt(process.env.BROWSER_POOL_CONTEXT_EXPIRY_MS || "1800000", 10),
+  },
   dropbox: {
     refreshToken: process.env.DROPBOX_REFRESH_TOKEN || "",
     appKey: process.env.DROPBOX_APP_KEY || "",
     appSecret: process.env.DROPBOX_APP_SECRET || "",
     basePath: process.env.DROPBOX_BASE_PATH || "/Archibald/Preventivi",
+  },
+  database: {
+    host: process.env.PG_HOST || "localhost",
+    port: parseInt(process.env.PG_PORT || "5432", 10),
+    database: process.env.PG_DATABASE || "archibald",
+    user: process.env.PG_USER || "archibald",
+    password: process.env.PG_PASSWORD || "",
+    maxConnections: parseInt(process.env.PG_MAX_CONNECTIONS || "20", 10),
   },
 } as const;

@@ -3,7 +3,7 @@
  * Map DDT columns using header detection
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Mapping DDT Columns by Header\n");

@@ -2,118 +2,38 @@
 
 ## Overview
 
-Completare il branch `feat/unified-operation-queue` raggiungendo parità funzionale al 100% con master. Il percorso parte dalla verifica degli elementi già riprogettati, procede con l'implementazione dei 18 endpoint mancanti (per priorità), completa gli stub parziali, aggiorna il frontend per i path cambiati, e chiude con una validazione integrata end-to-end.
+Completare il branch `feat/unified-operation-queue` raggiungendo parità funzionale al 100% con master. Il primo milestone ha coperto la migrazione architetturale e i 18 endpoint mancanti. Il secondo milestone ha chiuso i 5 elementi rimasti. Il terzo milestone chiude i 25 gap rimanenti trovati nell'audit 1:1 master vs branch.
 
 ## Domain Expertise
 
 None
 
-## Phases
+## Completed Milestones
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-- [x] **Phase 1: Verification & Test Infrastructure** - Verifica dei 42 elementi riprogettati e setup infrastruttura test
-- [x] **Phase 2: Critical Missing Endpoints** - 6 endpoint ad alta priorità mancanti
-- [x] **Phase 3: Admin & Monitoring Endpoints** - 8 endpoint a media priorità
-- [ ] **Phase 4: Low Priority & Debug Endpoints** - 6 endpoint a bassa priorità
-- [ ] **Phase 5: Stubs & Partial Completion** - Completamento degli 11 elementi parziali/stub
-- [ ] **Phase 6: Frontend Path Migration** - Aggiornamento 8 path API nel frontend
-- [ ] **Phase 7: Integration Testing & Parity Validation** - Test E2E e validazione parità 100%
-
-## Phase Details
-
-### Phase 1: Verification & Test Infrastructure
-**Goal**: Verificare che i 42 elementi riprogettati mantengano parità funzionale con master. Setup test infrastructure per validazione continua.
-**Depends on**: Nothing (first phase)
-**Research**: Unlikely (review codice esistente, pattern interni)
-**Plans**: TBD
-
-Plans:
-- [x] 01-01: Audit dei 42 elementi riprogettati — confronto comportamento master vs branch
-- [x] 01-02: Code audit of 49 redesigned elements — behavioral comparison master vs branch
-- [x] 01-03: Fix divergenze trovate durante l'audit
-
-### Phase 2: Critical Missing Endpoints
-**Goal**: Implementare i 6 endpoint ad alta priorità mancanti che sono critici per il funzionamento in produzione.
-**Depends on**: Phase 1
-**Research**: Likely (logica originale complessa in master)
-**Research topics**: Logica smart-sync clienti in index.ts, flusso interactive customer sessions con Puppeteer, propagazione sync-states a fresis_history, mapping resolve-numbers
-**Plans**: TBD
-
-Plans:
-- [x] 02-01: POST /api/customers/smart-sync e POST /api/customers/resume-syncs
-- [x] 02-02: POST /api/orders/sync-states e GET /api/orders/resolve-numbers
-- [x] 02-03: Interactive customer sessions (5 endpoint: start, vat, heartbeat, save, delete)
-- [x] 02-04: DELETE /api/sync/:type/clear-db — reset e re-sync completo
-
-### Phase 3: Admin & Monitoring Endpoints
-**Goal**: Implementare gli 8 endpoint di admin e monitoring a media priorità.
-**Depends on**: Phase 2
-**Research**: Unlikely (pattern stabiliti nelle fasi precedenti)
-**Plans**: TBD
-
-Plans:
-- [x] 03-01: GET /api/sync/quick-check, POST /api/sync/intervals/:type, POST /api/admin/sync/frequency
-- [x] 03-02: GET /api/prices/unmatched, POST /api/prices/match, GET /api/prices/sync/stats, GET /api/prices/history/summary
-- [x] 03-03: POST /api/sync/reset/:type
-
-### Phase 4: Low Priority & Debug Endpoints
-**Goal**: Implementare i 6 endpoint a bassa priorità (metrics, cache, debug).
-**Depends on**: Phase 3
-**Research**: Likely (Prometheus metrics format, adaptive timeouts logic)
-**Research topics**: Formato metriche Prometheus, logica adaptive timeout in master index.ts, struttura health check PDF parser
-**Plans**: TBD
-
-Plans:
-- [x] 04-01: GET /metrics (Prometheus), GET /api/cache/export
-- [ ] 04-02: Adaptive timeouts (3 endpoint), GET /api/admin/jobs/retention
-- [ ] 04-03: POST /api/test/login, 6 health check PDF parser
-
-### Phase 5: Stubs & Partial Completion
-**Goal**: Completare gli 11 elementi parziali/stub già presenti nel branch.
-**Depends on**: Phase 2 (interactive sessions stub dipende da fase 2)
-**Research**: Unlikely (stub già presenti, solo completamento implementazione)
-**Plans**: TBD
-
-Plans:
-- [ ] 05-01: Completare interactive customer sessions (5 endpoint stub in routes/customer-interactive.ts)
-- [ ] 05-02: Verificare e completare health check PDF parser, customers/sync/metrics, products/sync-history, products/last-sync
-
-### Phase 6: Frontend Path Migration
-**Goal**: Aggiornare tutte le chiamate API nel frontend per i path rinominati/unificati.
-**Depends on**: Phase 2 (i nuovi endpoint devono esistere prima di aggiornare il frontend)
-**Research**: Unlikely (mapping 1:1 dei path, lavoro meccanico)
-**Plans**: TBD
-
-Plans:
-- [ ] 06-01: Aggiornare auth/me → auth/verify, orders/status → operations/:jobId/status, orders/my-orders → operations/user/:userId
-- [ ] 06-02: Aggiornare queue/stats → operations/stats, customers/search → customers?search=, products/search → products?search=
-- [ ] 06-03: Aggiornare orders/:id/edit-in-archibald → operations/enqueue, orders/:id/delete-from-archibald → operations/enqueue
-
-### Phase 7: Integration Testing & Parity Validation
-**Goal**: Validazione end-to-end completa della parità funzionale al 100% con master.
-**Depends on**: Phase 6 (tutte le fasi precedenti completate)
-**Research**: Unlikely (test interni su funzionalità già implementate)
-**Plans**: TBD
-
-Plans:
-- [ ] 07-01: Test E2E flussi critici (login → ordine → sync → verifica)
-- [ ] 07-02: Test regressione completo — confronto risposte API branch vs master
-- [ ] 07-03: Validazione finale e checklist pre-merge
+- [v1.0 Endpoint Parity](milestones/v1.0-ROADMAP.md) (Phases 1-7, 20 plans) — SHIPPED 2026-02-23
+- [v1.1 Full Feature Parity](milestones/v1.1-ROADMAP.md) (Phases 8-10, 7 plans) — SHIPPED 2026-02-23
+- [v1.2 Production Parity](milestones/v1.2-ROADMAP.md) (Phases 11-16, 14 plans) — SHIPPED 2026-02-24
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → ... → 10 → 11 → 12 → 13 → 14 → 15 → 16
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Verification & Test Infrastructure | 3/3 | Complete | 2026-02-22 |
-| 2. Critical Missing Endpoints | 4/4 | Complete | 2026-02-22 |
-| 3. Admin & Monitoring Endpoints | 3/3 | Complete | 2026-02-23 |
-| 4. Low Priority & Debug Endpoints | 1/3 | In progress | - |
-| 5. Stubs & Partial Completion | 0/2 | Not started | - |
-| 6. Frontend Path Migration | 0/3 | Not started | - |
-| 7. Integration Testing & Parity Validation | 0/3 | Not started | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Verification & Test Infrastructure | v1.0 | 3/3 | Complete | 2026-02-22 |
+| 2. Critical Missing Endpoints | v1.0 | 4/4 | Complete | 2026-02-22 |
+| 3. Admin & Monitoring Endpoints | v1.0 | 3/3 | Complete | 2026-02-23 |
+| 4. Low Priority & Debug Endpoints | v1.0 | 3/3 | Complete | 2026-02-23 |
+| 5. Stubs & Partial Completion | v1.0 | 1/1 | Complete | 2026-02-23 |
+| 6. Frontend Path Migration | v1.0 | 3/3 | Complete | 2026-02-23 |
+| 7. Integration Testing & Parity Validation | v1.0 | 3/3 | Complete | 2026-02-23 |
+| 8. Quick Wiring | v1.1 | 2/2 | Complete | 2026-02-23 |
+| 9. Device Registration | v1.1 | 1/1 | Complete | 2026-02-23 |
+| 10. Price Management | v1.1 | 4/4 | Complete | 2026-02-23 |
+| 11. Bootstrap & Entry Point | v1.2 | 2/2 | Complete | 2026-02-23 |
+| 12. Subclient System | v1.2 | 2/2 | Complete | 2026-02-23 |
+| 13. Fresis History Completion | v1.2 | 2/2 | Complete | 2026-02-23 |
+| 14. Price/VAT Excel Import | v1.2 | 2/2 | Complete | 2026-02-23 |
+| 15. Admin Session & SSE | v1.2 | 2/2 | Complete | 2026-02-23 |
+| 16. Sync Enhancements | v1.2 | 3/3 | Complete | 2026-02-24 |

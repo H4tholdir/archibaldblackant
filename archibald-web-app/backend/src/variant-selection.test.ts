@@ -448,7 +448,7 @@ describe("customer lookup ranking", () => {
     expect(reason).toBe("contains");
   });
 
-  test("returns null when contains matches are ambiguous", () => {
+  test("picks best match when multiple contains matches exist", () => {
     const query = "Bianchi";
     const rows = [
       { index: 0, cellTexts: ["Bianchi SRL", "TORINO"] },
@@ -458,7 +458,7 @@ describe("customer lookup ranking", () => {
     const candidates = buildTextMatchCandidates(rows, query);
     const { chosen, reason } = chooseBestTextMatchCandidate(candidates);
 
-    expect(chosen).toBeNull();
-    expect(reason).toBeNull();
+    expect(chosen?.index).toBe(0);
+    expect(reason).toBe("contains");
   });
 });

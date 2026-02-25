@@ -3,7 +3,7 @@
  * Extract ALL 22 cells including empty ones to find missing fields
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Extracting ALL 22 DDT Cells\n");

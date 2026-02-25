@@ -52,6 +52,14 @@ coverage/
 .nyc_output/
 *.lcov
 
+# ===== Playwright =====
+playwright-report/
+test-results/
+**/playwright/.auth/
+
+# ===== Pre-merge screenshots =====
+pre-merge-screenshots/
+
 # ===== Temporary Files =====
 *.tmp
 *.temp

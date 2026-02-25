@@ -1,0 +1,807 @@
+import express, { type Express } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import type { DbPool } from './db/pool';
+import type { OperationQueue } from './operations/operation-queue';
+import type { AgentLock } from './operations/agent-lock';
+import type { BrowserPool } from './bot/browser-pool';
+import type { SyncScheduler } from './sync/sync-scheduler';
+import type { WebSocketServerModule } from './realtime/websocket-server';
+import type { JWTPayload } from './auth-utils';
+import { authenticateJWT, requireAdmin } from './middleware/auth';
+import type { AuthRequest } from './middleware/auth';
+import { createOperationsRouter } from './routes/operations';
+import { createAuthRouter } from './routes/auth';
+import { createCustomersRouter } from './routes/customers';
+import { createProductsRouter } from './routes/products';
+import { createOrdersRouter } from './routes/orders';
+import { createWarehouseRouter } from './routes/warehouse';
+import { createFresisHistoryRouter } from './routes/fresis-history';
+import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
+import { createDeltaSyncRouter } from './routes/delta-sync';
+import type { ResetSyncType } from './routes/sync-status';
+import { createAdminRouter } from './routes/admin';
+import { createPricesRouter } from './routes/prices';
+import { createShareRouter } from './routes/share';
+import { createPendingOrdersRouter } from './routes/pending-orders';
+import { createUsersRouter } from './routes/users';
+import { createWidgetRouter, createMetricsRouter } from './routes/widget';
+import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
+import { createSubclientsRouter } from './routes/subclients';
+import * as subclientsRepo from './db/repositories/subclients';
+import { importSubClients } from './services/subclient-excel-importer';
+import { importExcelVat } from './services/excel-vat-importer';
+import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
+import { createSseProgressRouter } from './realtime/sse-progress';
+import type { JobEvent } from './realtime/sse-progress';
+import { createInteractiveSessionManager } from './interactive-session-manager';
+import * as customersRepo from './db/repositories/customers';
+import * as usersRepo from './db/repositories/users';
+import * as productsRepo from './db/repositories/products';
+import * as ordersRepo from './db/repositories/orders';
+import * as warehouseRepo from './db/repositories/warehouse';
+import * as fresisHistoryRepo from './db/repositories/fresis-history';
+import * as pendingOrdersRepo from './db/repositories/pending-orders';
+import * as pricesRepo from './db/repositories/prices';
+import * as pricesHistoryRepo from './db/repositories/prices-history';
+import * as syncSessionsRepo from './db/repositories/sync-sessions';
+import * as syncCheckpointsRepo from './db/repositories/sync-checkpoints';
+import * as devicesRepo from './db/repositories/devices';
+import * as adminSessionsRepo from './db/repositories/admin-sessions';
+import * as dashboardService from './dashboard-service';
+import { clearSyncData } from './db/clear-sync-data';
+import { register as metricsRegister } from './metrics';
+import { AdaptiveTimeoutManager } from './adaptive-timeout-manager';
+import { pdfParserService } from './pdf-parser-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { PDFParserPricesService } from './pdf-parser-prices-service';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
+import { matchPricesToProducts } from './services/price-matching';
+import { getNextFtNumber } from './services/ft-counter';
+import { exportToArcaDbf, createExportTempDir, cleanupExportDir, streamExportAsZip } from './arca-export-service';
+import { parseArcaExport } from './arca-import-service';
+import type { FresisHistoryRow } from './arca-import-service';
+import type { FresisHistoryInput } from './db/repositories/fresis-history';
+import { PassThrough } from 'stream';
+import { logger } from './logger';
+import { ArchibaldBot } from './bot/archibald-bot';
+
+type PasswordCacheLike = {
+  get: (userId: string) => string | null;
+  set: (userId: string, password: string) => void;
+  clear: (userId: string) => void;
+};
+
+type PdfStoreLike = {
+  save: (buffer: Buffer, originalName: string, req: express.Request) => { id: string; url: string };
+  get: (id: string) => { buffer: Buffer; originalName: string } | null;
+  delete: (id: string) => void;
+};
+
+type AppDeps = {
+  pool: DbPool;
+  queue: OperationQueue;
+  agentLock: AgentLock;
+  browserPool: BrowserPool;
+  syncScheduler: SyncScheduler;
+  wsServer: WebSocketServerModule;
+  passwordCache: PasswordCacheLike;
+  pdfStore: PdfStoreLike;
+  generateJWT: (payload: JWTPayload) => Promise<string>;
+  verifyToken: (token: string) => Promise<{ userId: string } | null>;
+  sendEmail: (to: string, subject: string, body: string, fileBuffer: Buffer, fileName: string) => Promise<{ messageId: string }>;
+  uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;
+  createCustomerBot?: (userId: string) => CustomerBotLike;
+  broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
+  createTestBot?: () => Promise<{ initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> }>;
+  onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
+};
+
+function createApp(deps: AppDeps): Express {
+  const {
+    pool, queue, agentLock, browserPool, syncScheduler, wsServer,
+    passwordCache, pdfStore, generateJWT, verifyToken,
+    sendEmail, uploadToDropbox,
+  } = deps;
+
+  const effectiveCreateTestBot = deps.createTestBot ?? (async () => {
+    const bot = new ArchibaldBot();
+    return {
+      initialize: () => bot.initializeDedicatedBrowser(),
+      login: () => Promise.resolve(),
+      close: () => bot.close(),
+    };
+  });
+
+  const app = express();
+
+  app.use(cors());
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true }));
+
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
+
+  app.get('/api/health/pdf-parser', async (_req, res) => {
+    try {
+      const isHealthy = await pdfParserService.healthCheck();
+      if (isHealthy) {
+        res.json({ status: 'ok', message: 'PDF parser ready (Python3 + PyPDF2 available)' });
+      } else {
+        res.status(503).json({ status: 'error', message: 'PDF parser not ready. Check logs for details.' });
+      }
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-products', async (_req, res) => {
+    try {
+      const health = await PDFParserProductsService.getInstance().healthCheck();
+      res.status(health.healthy ? 200 : 503).json(health);
+    } catch {
+      res.status(500).json({ healthy: false, error: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-prices', async (_req, res) => {
+    try {
+      const health = await PDFParserPricesService.getInstance().healthCheck();
+      if (health.healthy) {
+        res.json({ status: 'ok', message: 'Prices PDF parser ready (Python3 + PyPDF2 available)', ...health });
+      } else {
+        res.status(503).json({ status: 'unavailable', message: 'Prices PDF parser not ready. Check logs for details.', ...health });
+      }
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Health check failed' });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-orders', (_req, res) => {
+    const parserService = PDFParserOrdersService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-orders-pdf.py', timeout: '300s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'Orders PDF parser not available', ...health });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-ddt', (_req, res) => {
+    const parserService = PDFParserDDTService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-ddt-pdf.py', timeout: '180s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'DDT PDF parser not available', ...health });
+    }
+  });
+
+  app.get('/api/health/pdf-parser-invoices', (_req, res) => {
+    const parserService = PDFParserInvoicesService.getInstance();
+    const health = { available: parserService.isAvailable(), parser: 'parse-invoices-pdf.py', timeout: '120s', maxBuffer: '20MB' };
+    if (health.available) {
+      res.json({ success: true, ...health });
+    } else {
+      res.status(503).json({ success: false, message: 'Invoices PDF parser not available', ...health });
+    }
+  });
+
+  app.get('/metrics', async (_req, res) => {
+    try {
+      res.set('Content-Type', metricsRegister.contentType);
+      const metrics = await metricsRegister.metrics();
+      res.end(metrics);
+    } catch {
+      res.status(500).end();
+    }
+  });
+
+  app.post('/api/test/login', async (_req, res) => {
+    let bot: { initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> } | undefined;
+    try {
+      bot = await effectiveCreateTestBot();
+      await bot.initialize();
+      await bot.login();
+      res.json({ success: true, message: 'Login test riuscito!' });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Login fallito',
+      });
+    } finally {
+      if (bot) {
+        await bot.close().catch(() => {});
+      }
+    }
+  });
+
+  app.get('/api/timeouts/stats', (_req, res) => {
+    try {
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const stats = manager.getAllStats();
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post('/api/timeouts/reset/:operation?', (req, res) => {
+    try {
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const operation = req.params.operation;
+      if (operation) {
+        manager.resetStats(operation);
+        logger.info(`[Timeouts] Reset stats for operation: ${operation}`);
+        res.json({ success: true, message: `Statistiche per ${operation} resettate` });
+      } else {
+        manager.resetStats();
+        logger.info('[Timeouts] Reset all timeout stats');
+        res.json({ success: true, message: 'Tutte le statistiche timeout resettate' });
+      }
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post('/api/timeouts/set', (req, res) => {
+    try {
+      const { operation, timeout } = req.body;
+      if (!operation || typeof timeout !== 'number') {
+        return res.status(400).json({ success: false, error: 'Parametri mancanti: operation (string) e timeout (number) richiesti' });
+      }
+      const manager = AdaptiveTimeoutManager.getInstance();
+      manager.setTimeout(operation, timeout);
+      res.json({ success: true, message: `Timeout per ${operation} impostato a ${timeout}ms` });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get('/api/websocket/health', authenticateJWT, requireAdmin, (_req, res) => {
+    try {
+      const stats = wsServer.getStats();
+      let status: 'healthy' | 'idle' | 'offline' = 'offline';
+      if (stats.totalConnections > 0 && stats.activeUsers > 0) {
+        status = 'healthy';
+      } else if (stats.uptime > 0) {
+        status = 'idle';
+      }
+      res.json({ success: true, status, stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Errore recupero statistiche WebSocket' });
+    }
+  });
+
+  app.use('/api/operations', authenticateJWT, createOperationsRouter({
+    queue,
+    agentLock,
+    browserPool: { getStats: () => browserPool.getStats() },
+  }));
+
+  app.use('/api/auth', createAuthRouter({
+    pool,
+    getUserByUsername: (username) => usersRepo.getUserByUsername(pool, username),
+    getUserById: (userId) => usersRepo.getUserById(pool, userId),
+    updateLastLogin: (userId) => usersRepo.updateLastLogin(pool, userId),
+    passwordCache,
+    browserPool: {
+      acquireContext: (userId) => browserPool.acquireContext(userId) as Promise<unknown>,
+      releaseContext: (userId, ctx, success) => browserPool.releaseContext(userId, ctx as any, success),
+    },
+    generateJWT,
+    registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
+      devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
+  }));
+
+  app.use('/api/customers', authenticateJWT, createCustomersRouter({
+    queue,
+    getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
+    getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
+    getCustomerCount: (userId) => customersRepo.getCustomerCount(pool, userId),
+    getLastSyncTime: (userId) => customersRepo.getLastSyncTime(pool, userId),
+    getCustomerPhoto: (userId, profile) => customersRepo.getCustomerPhoto(pool, userId, profile),
+    setCustomerPhoto: (userId, profile, photo) => customersRepo.setCustomerPhoto(pool, userId, profile, photo),
+    deleteCustomerPhoto: (userId, profile) => customersRepo.deleteCustomerPhoto(pool, userId, profile),
+    upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
+    updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+    updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
+    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
+    resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
+    getCustomerSyncMetrics: async () => {
+      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
+      const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
+      syncJobs.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
+
+      const totalSyncs = syncJobs.length;
+
+      let consecutiveFailures = 0;
+      for (const job of syncJobs) {
+        const state = await job.getState();
+        if (state === 'failed') {
+          consecutiveFailures++;
+        } else {
+          break;
+        }
+      }
+
+      const lastJob = syncJobs[0] ?? null;
+      const lastSyncTime = lastJob?.finishedOn
+        ? new Date(lastJob.finishedOn).toISOString()
+        : null;
+
+      let lastResult: {
+        success: boolean;
+        customersProcessed: number;
+        duration: number;
+        error: string | null;
+      } | null = null;
+
+      if (lastJob) {
+        const lastState = await lastJob.getState();
+        const duration = (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0);
+        const returnData = lastJob.returnvalue?.data ?? {};
+        lastResult = {
+          success: lastState === 'completed',
+          customersProcessed: typeof returnData.customersProcessed === 'number' ? returnData.customersProcessed : 0,
+          duration,
+          error: lastJob.failedReason ?? null,
+        };
+      }
+
+      const durations = syncJobs
+        .filter((j) => j.finishedOn && j.processedOn)
+        .map((j) => (j.finishedOn ?? 0) - (j.processedOn ?? 0));
+      const averageDuration = durations.length > 0
+        ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+        : 0;
+
+      return {
+        lastSyncTime,
+        lastResult,
+        totalSyncs,
+        consecutiveFailures,
+        averageDuration,
+        health: (consecutiveFailures < 3 ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
+      };
+    },
+  }));
+
+  if (deps.createCustomerBot) {
+    const sessionManager = createInteractiveSessionManager();
+    sessionManager.startAutoCleanup();
+    const broadcastFn = deps.broadcast ?? (() => {});
+
+    app.use('/api/customers/interactive', authenticateJWT, createCustomerInteractiveRouter({
+      sessionManager,
+      createBot: deps.createCustomerBot,
+      broadcast: broadcastFn,
+      upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
+      updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+      pauseSyncs: async () => { syncScheduler.stop(); },
+      resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
+    }));
+  }
+
+  app.use('/api/products', authenticateJWT, createProductsRouter({
+    queue,
+    getProducts: (search) => productsRepo.getProducts(pool, search),
+    getProductById: (id) => productsRepo.getProductById(pool, id),
+    getProductCount: () => productsRepo.getProductCount(pool),
+    getZeroPriceCount: () => productsRepo.getZeroPriceCount(pool),
+    getNoVatCount: () => productsRepo.getNoVatCount(pool),
+    getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
+    updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+    getLastSyncTime: () => productsRepo.getLastSyncTime(pool),
+    getProductChanges: (productId) => productsRepo.getProductChanges(pool, productId),
+    getRecentProductChanges: (days, limit) => productsRepo.getRecentProductChanges(pool, days, limit),
+    getProductChangeStats: (days) => productsRepo.getProductChangeStats(pool, days),
+    getSyncHistory: (limit) => syncSessionsRepo.getSyncHistory(pool, limit),
+    getLastSyncSession: () => syncSessionsRepo.getLastSyncSession(pool),
+    getSyncStats: () => syncSessionsRepo.getSyncStats(pool),
+    fuzzySearchProducts: (query, limit) => productsRepo.fuzzySearchProducts(pool, query, limit),
+  }));
+
+  app.use('/api/prices', authenticateJWT, createPricesRouter({
+    getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
+    getPriceHistory: (productId, limit) => pricesHistoryRepo.getProductHistory(pool, productId, limit),
+    getRecentPriceChanges: (days) => pricesHistoryRepo.getRecentChanges(pool, days),
+    getImportHistory: () => excelVatImportsRepo.getImportHistory(pool),
+    importExcel: (buffer, filename, userId) => importExcelVat(buffer, filename, userId, {
+      getProductById: (id) => productsRepo.getProductById(pool, id),
+      findSiblingVariants: (productId) => productsRepo.findSiblingVariants(pool, productId),
+      updateProductVat: (productId, vat, vatSource) => productsRepo.updateProductVat(pool, productId, vat, vatSource),
+      updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+      recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
+      recordImport: (data) => excelVatImportsRepo.recordImport(pool, data),
+    }),
+    getProductsWithoutVat: (limit) => productsRepo.getProductsWithoutVat(pool, limit),
+    matchPricesToProducts: () => matchPricesToProducts({
+      getAllPrices: () => pricesRepo.getAllPrices(pool),
+      getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
+      updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+      recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
+    }),
+    getSyncStats: () => pricesRepo.getSyncStats(pool),
+    getHistorySummary: async (days) => {
+      const [stats, topIncreases, topDecreases] = await Promise.all([
+        pricesHistoryRepo.getRecentStats(pool, days),
+        pricesHistoryRepo.getTopIncreases(pool, days, 10),
+        pricesHistoryRepo.getTopDecreases(pool, days, 10),
+      ]);
+      return { stats, topIncreases, topDecreases };
+    },
+  }));
+
+  app.use('/api/orders', authenticateJWT, createOrdersRouter({
+    queue,
+    getOrdersByUser: (userId, options) => ordersRepo.getOrdersByUser(pool, userId, options),
+    countOrders: (userId, options) => ordersRepo.countOrders(pool, userId, options),
+    getOrderById: (userId, orderId) => ordersRepo.getOrderById(pool, userId, orderId),
+    getOrderArticles: (orderId, userId) => ordersRepo.getOrderArticles(pool, orderId, userId),
+    getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
+    getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
+    getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
+    propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
+      let propagated = 0;
+      for (const orderId of updatedOrderIds) {
+        try {
+          const order = await ordersRepo.getOrderById(pool, userId, orderId);
+          if (!order) continue;
+          const count = await fresisHistoryRepo.propagateState(pool, userId, orderId, {
+            currentState: order.currentState,
+            parentCustomerName: order.customerName,
+            ddtNumber: order.ddtNumber,
+            ddtDeliveryDate: order.ddtDeliveryDate,
+            trackingNumber: order.trackingNumber,
+            trackingUrl: order.trackingUrl,
+            trackingCourier: order.trackingCourier,
+            deliveryCompletedDate: order.deliveryCompletedDate,
+            invoiceNumber: order.invoiceNumber,
+            invoiceDate: order.invoiceDate,
+            invoiceAmount: order.invoiceAmount,
+            invoiceClosed: order.invoiceClosed,
+            invoiceRemainingAmount: order.invoiceRemainingAmount,
+            invoiceDueDate: order.invoiceDueDate,
+          });
+          propagated += count;
+        } catch (err) {
+          logger.warn('[State Sync] Failed to propagate to fresis_history', {
+            orderId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      return propagated;
+    },
+  }));
+
+  app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({
+    getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),
+    upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
+    deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
+  }));
+
+  app.use('/api/warehouse', authenticateJWT, createWarehouseRouter({
+    pool,
+    getBoxes: (userId) => warehouseRepo.getBoxes(pool, userId),
+    createBox: (userId, name, desc, color) => warehouseRepo.createBox(pool, userId, name, desc, color),
+    renameBox: (userId, oldName, newName) => warehouseRepo.renameBox(pool, userId, oldName, newName),
+    deleteBox: (userId, name) => warehouseRepo.deleteBox(pool, userId, name),
+    getItemsByBox: (userId, boxName) => warehouseRepo.getItemsByBox(pool, userId, boxName),
+    addItem: (userId, code, desc, qty, box, device) => warehouseRepo.addItem(pool, userId, code, desc, qty, box, device),
+    updateItemQuantity: (userId, id, qty) => warehouseRepo.updateItemQuantity(pool, userId, id, qty),
+    deleteItem: (userId, id) => warehouseRepo.deleteItem(pool, userId, id),
+    moveItems: (userId, ids, dest) => warehouseRepo.moveItems(pool, userId, ids, dest),
+    clearAllItems: (userId) => warehouseRepo.clearAllItems(pool, userId),
+    getItemById: (userId, id) => warehouseRepo.getItemById(pool, userId, id),
+    ensureBoxExists: (userId, name) => warehouseRepo.ensureBoxExists(pool, userId, name),
+    getAllItems: (userId) => warehouseRepo.getAllItems(pool, userId),
+    bulkStoreItems: (userId, items, clearExisting) => warehouseRepo.bulkStoreItems(pool, userId, items, clearExisting),
+    batchReserve: (userId, itemIds, orderId, tracking) => warehouseRepo.batchReserve(pool, userId, itemIds, orderId, tracking),
+    batchRelease: (userId, orderId) => warehouseRepo.batchRelease(pool, userId, orderId),
+    batchMarkSold: (userId, orderId, tracking) => warehouseRepo.batchMarkSold(pool, userId, orderId, tracking),
+    batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
+    getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
+    validateArticle: async (articleCode) => {
+      const product = await productsRepo.getProductById(pool, articleCode);
+      return product ? { valid: true, productName: product.name } : { valid: false };
+    },
+    importExcel: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, skipped: 0, errors: [] }),
+  }));
+
+  app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
+    pool,
+    getAll: (userId) => fresisHistoryRepo.getAll(pool, userId),
+    getById: (userId, id) => fresisHistoryRepo.getById(pool, userId, id),
+    upsertRecords: (userId, records) => fresisHistoryRepo.upsertRecords(pool, userId, records),
+    deleteRecord: (userId, id) => fresisHistoryRepo.deleteRecord(pool, userId, id),
+    getByMotherOrder: (userId, orderId) => fresisHistoryRepo.getByMotherOrder(pool, userId, orderId),
+    getSiblings: (userId, ids) => fresisHistoryRepo.getSiblings(pool, userId, ids),
+    propagateState: (userId, orderId, data) => fresisHistoryRepo.propagateState(pool, userId, orderId, data),
+    getDiscounts: (userId) => fresisHistoryRepo.getDiscounts(pool, userId),
+    upsertDiscount: (userId, id, code, pct, kp) => fresisHistoryRepo.upsertDiscount(pool, userId, id, code, pct, kp),
+    deleteDiscount: (userId, id) => fresisHistoryRepo.deleteDiscount(pool, userId, id),
+    searchOrders: async (userId, query) => ordersRepo.getOrdersByUser(pool, userId, { search: query, limit: 50 }),
+    exportArca: async (userId) => {
+      const result = await pool.query(
+        `SELECT *, arca_data::text AS arca_data, sub_client_data::text AS sub_client_data, items::text AS items
+         FROM agents.fresis_history
+         WHERE user_id = $1 AND arca_data IS NOT NULL
+         ORDER BY created_at`,
+        [userId],
+      );
+      const rows = result.rows as FresisHistoryRow[];
+      const tmpDir = createExportTempDir();
+      try {
+        const stats = await exportToArcaDbf(rows, tmpDir);
+        const chunks: Buffer[] = [];
+        const passthrough = new PassThrough();
+        passthrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+        await streamExportAsZip(tmpDir, passthrough);
+        const zipBuffer = Buffer.concat(chunks);
+        return { zipBuffer, stats };
+      } finally {
+        cleanupExportDir(tmpDir);
+      }
+    },
+    importArca: async (userId, buffer, filename) => {
+      await fresisHistoryRepo.deleteArcaImports(pool, userId);
+
+      const parseResult = await parseArcaExport(
+        [{ originalName: filename, buffer }],
+        userId,
+        null,
+        null,
+      );
+
+      const records: FresisHistoryInput[] = parseResult.records.map(row => ({
+        id: row.id,
+        originalPendingOrderId: row.original_pending_order_id,
+        subClientCodice: row.sub_client_codice,
+        subClientName: row.sub_client_name,
+        subClientData: row.sub_client_data ? JSON.parse(row.sub_client_data) : null,
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        items: JSON.parse(row.items),
+        discountPercent: row.discount_percent,
+        targetTotalWithVat: row.target_total_with_vat,
+        shippingCost: row.shipping_cost,
+        shippingTax: row.shipping_tax,
+        revenue: row.revenue,
+        mergedIntoOrderId: row.merged_into_order_id,
+        mergedAt: row.merged_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        notes: row.notes,
+        archibaldOrderId: row.archibald_order_id,
+        archibaldOrderNumber: row.archibald_order_number,
+        currentState: row.current_state,
+        stateUpdatedAt: row.state_updated_at,
+        ddtNumber: row.ddt_number,
+        ddtDeliveryDate: row.ddt_delivery_date,
+        trackingNumber: row.tracking_number,
+        trackingUrl: row.tracking_url,
+        trackingCourier: row.tracking_courier,
+        deliveryCompletedDate: row.delivery_completed_date,
+        invoiceNumber: row.invoice_number,
+        invoiceDate: row.invoice_date,
+        invoiceAmount: row.invoice_amount,
+        invoiceClosed: null,
+        invoiceRemainingAmount: null,
+        invoiceDueDate: null,
+        arcaData: row.arca_data ? JSON.parse(row.arca_data) : null,
+        parentCustomerName: null,
+        source: row.source,
+      }));
+
+      if (records.length > 0) {
+        await fresisHistoryRepo.upsertRecords(pool, userId, records);
+      }
+
+      for (const [esercizio, maxNum] of parseResult.maxNumerodocByEsercizio) {
+        await pool.query(
+          `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (esercizio, user_id)
+           DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
+          [esercizio, userId, maxNum],
+        );
+      }
+
+      return {
+        success: true,
+        imported: records.length,
+        errors: parseResult.errors,
+      };
+    },
+    getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio),
+    updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
+    reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
+  }));
+
+  const syncSchedulerDeps = {
+    start: (intervals?: unknown) => syncScheduler.start(intervals as any),
+    stop: () => syncScheduler.stop(),
+    isRunning: () => syncScheduler.isRunning(),
+    getIntervals: () => syncScheduler.getIntervals(),
+    updateInterval: (type: string, intervalMinutes: number) => syncScheduler.updateInterval(type, intervalMinutes),
+  };
+
+  const syncStatusDeps = {
+    queue,
+    agentLock,
+    syncScheduler: syncSchedulerDeps,
+    clearSyncData: (type: string) => clearSyncData(pool, type),
+    resetSyncCheckpoint: (type: ResetSyncType) => syncCheckpointsRepo.resetCheckpoint(pool, type),
+    getGlobalCustomerCount: () => customersRepo.getGlobalCustomerCount(pool),
+    getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
+    getProductCount: () => productsRepo.getProductCount(pool),
+    getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
+    getSessionCount: () => syncScheduler.getSessionCount(),
+  };
+
+  app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
+
+  app.use('/api/sync', authenticateJWT, createSyncStatusRouter(syncStatusDeps));
+
+  app.use('/api/sync', authenticateJWT, createSseProgressRouter({
+    verifyToken,
+    getActiveJob: (userId) => agentLock.getActive(userId),
+    getQueueStats: () => queue.getStats(),
+    onJobEvent: deps.onJobEvent ?? ((_userId, _callback) => () => {}),
+  }));
+
+  app.use('/api/admin', authenticateJWT, requireAdmin, createAdminRouter({
+    pool,
+    getAllUsers: () => usersRepo.getAllUsers(pool),
+    getUserById: (id) => usersRepo.getUserById(pool, id),
+    createUser: (username, fullName, role) => usersRepo.createUser(pool, username, fullName, role),
+    updateWhitelist: (id, whitelisted) => usersRepo.updateWhitelist(pool, id, whitelisted),
+    deleteUser: (id) => usersRepo.deleteUser(pool, id),
+    updateUserTarget: (userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions) =>
+      usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
+    getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
+    generateJWT,
+    createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
+    closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
+    getAllJobs: async (limit, status) => {
+      const states = status ? [status] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
+      const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
+      const result = [];
+      for (const job of jobs) {
+        const state = await job.getState();
+        result.push({
+          jobId: job.id!,
+          type: job.data.type,
+          userId: job.data.userId,
+          state,
+          progress: typeof job.progress === 'number' ? job.progress : 0,
+          createdAt: job.timestamp ?? 0,
+          processedAt: job.processedOn ?? null,
+          finishedAt: job.finishedOn ?? null,
+          failedReason: job.failedReason,
+        });
+      }
+      return result;
+    },
+    retryJob: async (jobId) => {
+      const job = await queue.queue.getJob(jobId);
+      if (!job) return { success: false, error: 'Job non trovato' };
+      const state = await job.getState();
+      if (state !== 'failed') return { success: false, error: `Job in stato ${state}, solo jobs falliti possono essere ritentati` };
+      await job.retry();
+      return { success: true, newJobId: job.id! };
+    },
+    cancelJob: async (jobId) => {
+      const job = await queue.queue.getJob(jobId);
+      if (!job) return { success: false, error: 'Job non trovato' };
+      await job.remove();
+      return { success: true };
+    },
+    cleanupJobs: async () => {
+      const completed = await queue.queue.clean(0, 1000, 'completed');
+      const failed = await queue.queue.clean(0, 1000, 'failed');
+      return { removedCompleted: completed.length, removedFailed: failed.length };
+    },
+    getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
+    importSubclients: async (buffer, filename) =>
+      importSubClients(buffer, filename, {
+        upsertSubclients: (subs) => subclientsRepo.upsertSubclients(pool, subs),
+        getAllCodici: async () => {
+          const all = await subclientsRepo.getAllSubclients(pool);
+          return all.map((s) => s.codice);
+        },
+        deleteSubclientsByCodici: (codici) => subclientsRepo.deleteSubclientsByCodici(pool, codici),
+      }),
+  }));
+
+  app.use('/api/widget', authenticateJWT, createWidgetRouter({
+    getDashboardData: (userId) => dashboardService.getDashboardData(pool, userId),
+    getOrdersForPeriod: (userId, year, month) => dashboardService.getOrdersForPeriod(pool, userId, year, month),
+    setOrderExclusion: (userId, orderId, excludeFromYearly, excludeFromMonthly, reason) =>
+      dashboardService.setOrderExclusion(pool, userId, orderId, excludeFromYearly, excludeFromMonthly, reason),
+    getExcludedOrders: (userId) => dashboardService.getExcludedOrders(pool, userId),
+  }));
+
+  app.use('/api/metrics', authenticateJWT, createMetricsRouter({
+    getBudgetMetrics: (userId) => dashboardService.getBudgetMetrics(pool, userId),
+    getOrderMetrics: (userId) => dashboardService.getOrderMetrics(pool, userId),
+  }));
+
+  app.use('/api/users', authenticateJWT, createUsersRouter({
+    getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
+    updateUserTarget: (userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions) =>
+      usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
+    getPrivacySettings: (userId) => usersRepo.getPrivacySettings(pool, userId),
+    setPrivacySettings: (userId, enabled) => usersRepo.setPrivacySettings(pool, userId, enabled),
+  }));
+
+  app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
+    getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
+    searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
+    getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
+    deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
+  }));
+
+  app.use('/api/share', (req, res, next) => {
+    if (req.method === 'GET' && req.path.startsWith('/pdf/')) {
+      return next();
+    }
+    return authenticateJWT(req as any, res, next);
+  }, createShareRouter({
+    pdfStore,
+    sendEmail,
+    uploadToDropbox,
+  }));
+
+  app.use('/api/cache', authenticateJWT, createDeltaSyncRouter({ pool }));
+
+  app.get('/api/cache/export', authenticateJWT, async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+
+      const [customers, products, variants, prices] = await Promise.all([
+        customersRepo.getCustomers(pool, userId),
+        productsRepo.getAllProducts(pool),
+        productsRepo.getAllProductVariants(pool),
+        pricesRepo.getAllPrices(pool),
+      ]);
+
+      const durationMs = Date.now() - startTime;
+      const recordCounts = {
+        customers: customers.length,
+        products: products.length,
+        variants: variants.length,
+        prices: prices.length,
+      };
+
+      logger.info('[Cache Export] Completed', { userId, durationMs, recordCounts });
+
+      res.json({
+        success: true,
+        data: { customers, products, variants, prices },
+        metadata: {
+          exportedAt: new Date().toISOString(),
+          recordCounts,
+        },
+      });
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      logger.error('[Cache Export] Failed', {
+        error: error instanceof Error ? error.message : String(error),
+        durationMs,
+      });
+      res.status(500).json({ success: false, error: 'Cache export failed' });
+    }
+  });
+
+  return app;
+}
+
+export { createApp, type AppDeps };

@@ -1,9 +1,4 @@
-/**
- * Widget Dashboard Calculations
- * All formulas and logic for dashboard widgets according to PRD
- */
-
-import type { Database } from "better-sqlite3";
+import type { DbPool } from "./db/pool";
 import { logger } from "./logger";
 import {
   buildPreviousMonthComparison,
@@ -22,7 +17,7 @@ export interface UserConfig {
   monthlyTarget: number;
   commissionRate: number;
   bonusAmount: number;
-  bonusInterval: number; // progressiveBonusStep
+  bonusInterval: number;
   extraBudgetInterval: number;
   extraBudgetReward: number;
   monthlyAdvance: number;
@@ -31,24 +26,19 @@ export interface UserConfig {
 export interface OrderData {
   currentMonthRevenue: number;
   currentYearRevenue: number;
-  averageOrderValue: number; // last 3 months
+  averageOrderValue: number;
 }
 
 // ============================================================================
 // WORKING DAYS CALCULATION (Italian calendar: Mon-Fri)
 // ============================================================================
 
-/**
- * Calculate working days remaining in current month
- * Italian calendar: Monday to Friday only
- */
 export function calculateWorkingDaysRemaining(): number {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = now.getDate();
 
-  // Get last day of current month
   const lastDay = new Date(year, month + 1, 0).getDate();
 
   let workingDays = 0;
@@ -56,7 +46,6 @@ export function calculateWorkingDaysRemaining(): number {
   for (let day = today + 1; day <= lastDay; day++) {
     const date = new Date(year, month, day);
     const dayOfWeek = date.getDay();
-    // 0 = Sunday, 6 = Saturday
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       workingDays++;
     }
@@ -70,13 +59,13 @@ export function calculateWorkingDaysRemaining(): number {
 // ============================================================================
 
 export type WidgetStatus =
-  | "legendary" // proiezione ≥ 200% - Mese straordinario
-  | "champion" // proiezione ≥ 150% - Nettamente sopra target
-  | "excellent" // proiezione ≥ 110% - Sopra il target
-  | "on-track" // proiezione ≥ 85% - Allineato al target
-  | "attention" // proiezione ≥ 60% - Serve accelerare
-  | "critical" // proiezione ≥ 30% - Situazione critica
-  | "emergency"; // proiezione < 30% - Emergenza
+  | "legendary"
+  | "champion"
+  | "excellent"
+  | "on-track"
+  | "attention"
+  | "critical"
+  | "emergency";
 
 interface MicroCopyContext {
   dayOfMonth: number;
@@ -206,17 +195,14 @@ export function determineHeroStatus(
   const absoluteProgress =
     monthlyTarget > 0 ? currentMonthRevenue / monthlyTarget : 0;
 
-  // Guardrail: primi 3 giorni con pochi dati → default on-track
   if (dayOfMonth <= 3 && absoluteProgress < 0.1) {
     return { status: "on-track", projectedProgress, projectedMonthRevenue };
   }
 
-  // Override assoluto: target gia' raggiunto
   if (absoluteProgress >= 2.0) {
     return { status: "legendary", projectedProgress, projectedMonthRevenue };
   }
   if (absoluteProgress >= 1.0) {
-    // Almeno excellent, ma puo' essere meglio se la proiezione e' alta
     const projectionStatus = projectedProgressToStatus(projectedProgress);
     const statusRank = STATUS_RANK[projectionStatus];
     const minStatus: WidgetStatus =
@@ -224,7 +210,6 @@ export function determineHeroStatus(
     return { status: minStatus, projectedProgress, projectedMonthRevenue };
   }
 
-  // Caso generale: basato su proiezione
   return {
     status: projectedProgressToStatus(projectedProgress),
     projectedProgress,
@@ -252,13 +237,13 @@ function projectedProgressToStatus(projectedProgress: number): WidgetStatus {
   return "emergency";
 }
 
-export function calculateHeroStatus(
+export async function calculateHeroStatus(
   currentMonthRevenue: number,
   monthlyTarget: number,
   currentYearRevenue: number,
   bonusInterval: number,
   yearlyTarget: number,
-  db: Database,
+  pool: DbPool,
   userId: string,
   averageDailyRevenue: number,
   workingDaysRemaining: number,
@@ -273,7 +258,6 @@ export function calculateHeroStatus(
       dayOfMonth,
     );
 
-  // Select micro-copy with deterministic daily rotation
   const absolutePercent = Math.round(
     (monthlyTarget > 0 ? currentMonthRevenue / monthlyTarget : 0) * 100,
   );
@@ -291,30 +275,22 @@ export function calculateHeroStatus(
     0,
     monthlyTarget - currentMonthRevenue,
   );
-  const progressMonthly = Math.min(1, currentMonthRevenue / monthlyTarget);
+  const progressMonthly = monthlyTarget > 0 ? Math.min(1, currentMonthRevenue / monthlyTarget) : 0;
 
-  // Progress to next bonus
   const progressInCurrentInterval = currentYearRevenue % bonusInterval;
   const progressNextBonus = progressInCurrentInterval / bonusInterval;
 
-  // Calculate temporal comparisons
-  const comparisonPreviousMonth = buildPreviousMonthComparison(
-    db,
-    userId,
-    currentMonthRevenue,
+  const comparisonPreviousMonth = await buildPreviousMonthComparison(
+    pool, userId, currentMonthRevenue,
   );
-  const comparisonSameMonthLastYear = buildSameMonthLastYearComparison(
-    db,
-    userId,
-    currentMonthRevenue,
+  const comparisonSameMonthLastYear = await buildSameMonthLastYearComparison(
+    pool, userId, currentMonthRevenue,
   );
   const comparisonYearlyProgress = buildYearlyProgressComparison(
-    currentYearRevenue,
-    yearlyTarget,
+    currentYearRevenue, yearlyTarget,
   );
 
-  // Generate sparkline for monthly trend
-  const sparkline = generateMonthlySparkline(db, userId, 12);
+  const sparkline = await generateMonthlySparkline(pool, userId, 12);
 
   return {
     status,
@@ -391,7 +367,6 @@ export function calculateBonusRoadmap(
 ) {
   const completedSteps = Math.floor(currentYearRevenue / bonusInterval);
 
-  // Generate 4 steps
   const steps = [];
   for (let i = 0; i < 4; i++) {
     const stepNumber = completedSteps + i;
@@ -430,7 +405,7 @@ export function calculateBonusRoadmap(
 // FORECAST
 // ============================================================================
 
-export function calculateForecast(
+export async function calculateForecast(
   currentMonthRevenue: number,
   currentYearRevenue: number,
   averageDailyRevenue: number,
@@ -439,10 +414,9 @@ export function calculateForecast(
   bonusInterval: number,
   bonusAmount: number,
   monthlyTarget: number,
-  db: Database,
+  pool: DbPool,
   userId: string,
 ) {
-  // PRD Formula
   const projectedMonthRevenue =
     currentMonthRevenue + averageDailyRevenue * workingDaysRemaining;
 
@@ -450,21 +424,15 @@ export function calculateForecast(
 
   const projectedCommissions = projectedYearRevenue * commissionRate;
 
-  // Estimate bonuses
   const projectedBonusSteps = Math.floor(projectedYearRevenue / bonusInterval);
   const estimatedBonuses = projectedBonusSteps * bonusAmount;
 
-  // Calculate required daily revenue to reach target
   const missingToTarget = Math.max(0, monthlyTarget - currentMonthRevenue);
   const requiredDailyRevenue =
     workingDaysRemaining > 0 ? missingToTarget / workingDaysRemaining : 0;
 
-  // Calculate temporal comparisons
-  const previousMonthRevenue = calculatePreviousMonthRevenue(db, userId);
-  const sameMonthLastYearRevenue = calculateSameMonthLastYearRevenue(
-    db,
-    userId,
-  );
+  const previousMonthRevenue = await calculatePreviousMonthRevenue(pool, userId);
+  const sameMonthLastYearRevenue = await calculateSameMonthLastYearRevenue(pool, userId);
 
   const comparisonPreviousMonth = buildComparison(
     projectedMonthRevenue,
@@ -525,16 +493,13 @@ export function calculateActionSuggestion(
     missingToNextBonus / averageOrderValue,
   );
 
-  // Determine primary goal based on proximity
   let primaryGoal: "monthly_target" | "next_bonus" | "extra_budget";
   let primaryMessage: string;
   let primaryMetrics: any;
 
-  // Check if close to monthly target
   const progressToTarget = (currentMonthRevenue / monthlyTarget) * 100;
 
   if (progressToTarget < 90) {
-    // Priority: reach monthly target
     primaryGoal = "monthly_target";
     primaryMessage = `Mancano ${formatCurrency(missingToMonthlyTarget)} al target di ${formatCurrency(monthlyTarget)}`;
     primaryMetrics = {
@@ -543,7 +508,6 @@ export function calculateActionSuggestion(
       averageOrderValue,
     };
   } else if (missingToNextBonus <= averageOrderValue * 2) {
-    // Priority: next bonus is very close!
     primaryGoal = "next_bonus";
     primaryMessage = `Mancano solo ${formatCurrency(missingToNextBonus)} per sbloccare +${formatCurrency(bonusAmount)}`;
     primaryMetrics = {
@@ -552,7 +516,6 @@ export function calculateActionSuggestion(
       averageOrderValue,
     };
   } else {
-    // Default: focus on monthly target
     primaryGoal = "monthly_target";
     primaryMessage = `Focus sul target mensile: ancora ${formatCurrency(missingToMonthlyTarget)}`;
     primaryMetrics = {
@@ -562,7 +525,6 @@ export function calculateActionSuggestion(
     };
   }
 
-  // Secondary goal
   let secondaryGoal:
     | "monthly_target"
     | "next_bonus"
@@ -589,7 +551,6 @@ export function calculateActionSuggestion(
     };
   }
 
-  // Strategic suggestions
   const strategySuggestions: string[] = [];
 
   if (averageOrderValue > 2000) {
@@ -616,7 +577,6 @@ export function calculateActionSuggestion(
     secondaryMessage,
     secondaryMetrics,
     strategySuggestions,
-    // TODO: Add comparison with last month when available
     comparisonLastMonth: undefined,
   };
 }
@@ -632,8 +592,7 @@ export function calculateBalance(
 ) {
   const totalCommissionsMatured = currentYearRevenue * commissionRate;
 
-  // Calculate total advance paid (current month number * monthlyAdvance)
-  const currentMonth = new Date().getMonth() + 1; // 1-12
+  const currentMonth = new Date().getMonth() + 1;
   const totalAdvancePaid = monthlyAdvance * currentMonth;
 
   const balance = totalCommissionsMatured - totalAdvancePaid;
@@ -719,7 +678,6 @@ export function calculateAlerts(
   const severity: "warning" | "critical" =
     projectedMonthRevenue < monthlyTarget * 0.7 ? "critical" : "warning";
 
-  // Calculate required metrics
   const requiredDailyRevenue =
     workingDaysRemaining > 0
       ? (monthlyTarget - currentMonthRevenue) / workingDaysRemaining
@@ -727,7 +685,6 @@ export function calculateAlerts(
 
   const ordersNeeded = Math.ceil(gap / averageOrderValue);
 
-  // Recovery suggestions
   const recoverySuggestions: string[] = [];
   recoverySuggestions.push(
     `Media giornaliera di ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(requiredDailyRevenue)}/gg (ora: ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(averageDailyRevenue)}/gg)`,
@@ -757,7 +714,6 @@ export function calculateAlerts(
     currentDailyRevenue: averageDailyRevenue,
     daysRemaining: workingDaysRemaining,
     recoverySuggestions,
-    // TODO: Add comparison with last month
     comparisonLastMonth: undefined,
   };
 }

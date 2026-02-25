@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
+import { enqueueOperation } from "../api/operations";
 import { batchTransfer } from "../api/warehouse";
 import { getFresisDiscounts } from "../api/fresis-discounts";
 import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
@@ -33,6 +34,7 @@ export function PendingOrdersPage() {
     isSyncing: loading,
     staleJobIds,
     refetch,
+    trackJobs,
   } = usePendingSync();
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
@@ -109,46 +111,42 @@ export function PendingOrdersPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
+      if (!localStorage.getItem("archibald_jwt")) {
         throw new Error("Token non trovato, rifare login");
       }
 
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
-      const ordersToSubmit = selectedOrders.map((order) => ({
-        pendingOrderId: order.id, // Phase 72: Include pending order ID for job tracking
-        customerId: order.customerId,
-        customerName: order.customerName,
-        items: order.items.map((item) => ({
-          articleCode: item.articleCode,
-          productName: item.productName,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          discount: item.discount,
-          // Include warehouse fields for backend filtering
-          warehouseQuantity: item.warehouseQuantity || 0,
-          warehouseSources: item.warehouseSources || [],
+      const results = await Promise.all(
+        selectedOrders.map((order) =>
+          enqueueOperation('submit-order', {
+            pendingOrderId: order.id,
+            customerId: order.customerId,
+            customerName: order.customerName,
+            items: order.items.map((item) => ({
+              articleCode: item.articleCode,
+              productName: item.productName,
+              description: item.description,
+              quantity: item.quantity,
+              price: item.price,
+              discount: item.discount,
+              warehouseQuantity: item.warehouseQuantity || 0,
+              warehouseSources: item.warehouseSources || [],
+            })),
+            discountPercent: order.discountPercent,
+            targetTotalWithVAT: order.targetTotalWithVAT,
+          }),
+        ),
+      );
+      const jobIds = results.map((r) => r.jobId);
+
+      const selectedOrders2 = orders.filter((o) => selectedOrderIds.has(o.id!));
+      trackJobs(
+        selectedOrders2.map((order, i) => ({
+          orderId: order.id!,
+          jobId: jobIds[i],
         })),
-        discountPercent: order.discountPercent,
-        targetTotalWithVAT: order.targetTotalWithVAT,
-      }));
-
-      const response = await fetch("/api/bot/submit-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orders: ordersToSubmit,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Bot submission failed");
-
-      const { jobIds } = await response.json();
+      );
 
       for (const orderId of selectedOrderIds) {
         const order = orders.find((o) => o.id === orderId);
@@ -184,8 +182,7 @@ export function PendingOrdersPage() {
         return;
       }
 
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
+      if (!localStorage.getItem("archibald_jwt")) {
         throw new Error("Token non trovato, rifare login");
       }
 
@@ -203,38 +200,25 @@ export function PendingOrdersPage() {
         updatedAt: new Date().toISOString(),
       });
 
-      // Resubmit to bot
-      const response = await fetch("/api/bot/submit-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orders: [
-            {
-              pendingOrderId: order.id,
-              customerId: order.customerId,
-              customerName: order.customerName,
-              items: order.items.map((item) => ({
-                articleCode: item.articleCode,
-                productName: item.productName,
-                description: item.description,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-                warehouseQuantity: item.warehouseQuantity || 0,
-                warehouseSources: item.warehouseSources || [],
-              })),
-              discountPercent: order.discountPercent,
-              targetTotalWithVAT: order.targetTotalWithVAT,
-            },
-          ],
-        }),
+      const result = await enqueueOperation('submit-order', {
+        pendingOrderId: order.id,
+        customerId: order.customerId,
+        customerName: order.customerName,
+        items: order.items.map((item) => ({
+          articleCode: item.articleCode,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity,
+          price: item.price,
+          discount: item.discount,
+          warehouseQuantity: item.warehouseQuantity || 0,
+          warehouseSources: item.warehouseSources || [],
+        })),
+        discountPercent: order.discountPercent,
+        targetTotalWithVAT: order.targetTotalWithVAT,
       });
 
-      if (!response.ok) throw new Error("Submission failed");
-
+      trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {
