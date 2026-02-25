@@ -28,6 +28,8 @@ interface SyncTypeData {
 interface MonitoringStatus {
   currentSync: SyncType | null;
   types: Record<SyncType, SyncTypeData>;
+  scheduler?: { running: boolean; intervals: Record<string, number>; sessionCount: number };
+  activeJobs?: { userId: string; jobId: string; type: string }[];
 }
 
 const syncSections = [
@@ -184,6 +186,17 @@ export default function SyncMonitoringDashboard() {
     return (
       <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
         Loading monitoring data...
+      </div>
+    );
+  }
+
+  if (!status.types) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
+        <p>Sync monitoring non disponibile con la nuova API.</p>
+        <p style={{ fontSize: "13px" }}>
+          Scheduler: {status.scheduler?.running ? "Attivo" : "Fermo"} | Jobs attivi: {status.activeJobs?.length ?? 0}
+        </p>
       </div>
     );
   }
