@@ -17,6 +17,19 @@ export interface OrderItem {
   total: number; // subtotalAfterDiscount + vat
 }
 
+export type OrderArticle = {
+  articleCode: string;
+  articleDescription: string | null;
+  productName?: string;
+  quantity: number;
+  unitPrice: number | null;
+  discountPercent: number | null;
+  lineAmount: number | null;
+  vatPercent: number | null;
+  vatAmount: number | null;
+  lineTotalWithVat: number | null;
+};
+
 export interface OrderData {
   customerId: string;
   customerName: string;

@@ -1,11 +1,10 @@
-// @ts-nocheck - Contains legacy code with articleCode
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { Order, OrderItem } from "../types/order";
+import type { Order, OrderItem, OrderArticle } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
-import type { OperationType } from "../api/operations";
+import type { OperationType, SubscribeFn } from "../api/operations";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
@@ -600,7 +599,7 @@ function recalcLineAmounts(item: EditItem): EditItem {
 }
 
 function TabArticoli({
-  items,
+  items: _items,
   orderId,
   archibaldOrderId,
   token,
@@ -623,10 +622,11 @@ function TabArticoli({
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
 }) {
-  const [articles, setArticles] = useState(items || []);
+  const [articles, setArticles] = useState<OrderArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { subscribe } = useWebSocketContext();
 
   // Edit mode state
   const [editItems, setEditItems] = useState<EditItem[]>([]);
@@ -646,8 +646,6 @@ function TabArticoli({
     null,
   );
   const [submittingEdit, setSubmittingEdit] = useState(false);
-  const [syncingProducts, setSyncingProducts] = useState(false);
-  const [syncProductsMsg, setSyncProductsMsg] = useState("");
   const [syncingArticles, setSyncingArticles] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
@@ -765,17 +763,17 @@ function TabArticoli({
       if (cancelled) return;
 
       // 3. Initialize edit items from fresh articles
-      const mapped: EditItem[] = freshArticles.map((item: any) => ({
+      const mapped: EditItem[] = freshArticles.map((item: OrderArticle) => ({
         articleCode: item.articleCode || "",
         productName: item.productName || "",
         quantity: item.quantity || 0,
-        unitPrice: item.unitPrice ?? item.price ?? 0,
-        discountPercent: item.discountPercent ?? item.discount ?? 0,
+        unitPrice: item.unitPrice ?? 0,
+        discountPercent: item.discountPercent ?? 0,
         vatPercent: item.vatPercent ?? 0,
         vatAmount: item.vatAmount ?? 0,
         lineAmount: item.lineAmount ?? 0,
         lineTotalWithVat: item.lineTotalWithVat ?? 0,
-        articleDescription: item.articleDescription ?? item.description ?? "",
+        articleDescription: item.articleDescription ?? "",
       }));
       setEditItems(mapped);
       setOriginalItems(mapped.map((m) => ({ ...m })));
@@ -1068,9 +1066,6 @@ function TabArticoli({
       await waitForJobViaWebSocket(result.jobId, {
         subscribe,
         maxWaitMs: 120_000,
-        onProgress: (progress, label) => {
-          setEditProgress?.({ progress, operation: label ?? "Modifica in corso..." });
-        },
       });
 
       setSubmittingEdit(false);
@@ -1198,29 +1193,6 @@ function TabArticoli({
     );
   }
 
-  // Syncing products overlay
-  if (editing && syncingProducts) {
-    return (
-      <div style={{ padding: "32px", textAlign: "center" }}>
-        <div
-          style={{
-            fontSize: "48px",
-            marginBottom: "16px",
-            animation: "spin 1s linear infinite",
-          }}
-        >
-          {"⏳"}
-        </div>
-        <p style={{ fontSize: "16px", color: "#666", marginBottom: "8px" }}>
-          Sincronizzazione catalogo prodotti...
-        </p>
-        <p style={{ fontSize: "13px", color: "#999" }}>{syncProductsMsg}</p>
-        <style>
-          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
-        </style>
-      </div>
-    );
-  }
 
   // Confirm modal
   if (confirmModal && !submittingEdit) {
@@ -1891,18 +1863,15 @@ function TabArticoli({
           </thead>
           <tbody>
             {articles.map((item, index) => {
-              const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
-              const discount =
-                (item as any).discountPercent ?? item.discount ?? 0;
-              const description =
-                (item as any).articleDescription ?? item.description ?? "";
+              const unitPrice = item.unitPrice ?? 0;
+              const discount = item.discountPercent ?? 0;
+              const description = item.articleDescription ?? "";
               const lineAmount =
-                (item as any).lineAmount ??
+                item.lineAmount ??
                 (unitPrice * item.quantity * (100 - discount)) / 100;
-              const vatPercent = (item as any).vatPercent ?? 0;
-              const vatAmount = (item as any).vatAmount ?? 0;
-              const lineTotalWithVat =
-                (item as any).lineTotalWithVat ?? lineAmount;
+              const vatPercent = item.vatPercent ?? 0;
+              const vatAmount = item.vatAmount ?? 0;
+              const lineTotalWithVat = item.lineTotalWithVat ?? lineAmount;
 
               return (
                 <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
@@ -1947,18 +1916,18 @@ function TabArticoli({
       {articles.length > 0 &&
         (() => {
           const subtotalBeforeDiscount = articles.reduce((sum, item) => {
-            const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
+            const unitPrice = item.unitPrice ?? 0;
             const quantity = item.quantity ?? 0;
             return sum + unitPrice * quantity;
           }, 0);
           const totalImponibile = articles.reduce(
-            (sum, item) => sum + ((item as any).lineAmount ?? 0),
+            (sum, item) => sum + (item.lineAmount ?? 0),
             0,
           );
           const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
 
           const uniqueDiscounts = new Set(
-            articles.map((item) => (item as any).discountPercent ?? 0),
+            articles.map((item) => item.discountPercent ?? 0),
           );
           const hasUniformDiscount =
             uniqueDiscounts.size === 1 && Array.from(uniqueDiscounts)[0] > 0;
@@ -2039,7 +2008,7 @@ function TabArticoli({
                   <span style={{ fontWeight: 600 }}>
                     {formatCurrency(
                       articles.reduce(
-                        (sum, item) => sum + ((item as any).vatAmount ?? 0),
+                        (sum, item) => sum + (item.vatAmount ?? 0),
                         0,
                       ),
                     )}
@@ -2090,6 +2059,7 @@ function TabLogistica({
   token?: string;
   searchQuery?: string;
 }) {
+  const { subscribe } = useWebSocketContext();
   const [ddtProgress, setDdtProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2134,6 +2104,7 @@ function TabLogistica({
         setDdtError(error);
         setDdtProgress({ active: false, percent: 0, stage: "" });
       },
+      subscribe,
     );
   };
 
@@ -2505,6 +2476,7 @@ function TabFinanziario({
   token?: string;
   searchQuery?: string;
 }) {
+  const { subscribe } = useWebSocketContext();
   const [invoiceProgress, setInvoiceProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2540,6 +2512,7 @@ function TabFinanziario({
         setInvoiceError(error);
         setInvoiceProgress({ active: false, percent: 0, stage: "" });
       },
+      subscribe,
     );
   };
 
@@ -3029,8 +3002,19 @@ function TabFinanziario({
   );
 }
 
+type FresisChildFT = {
+  id: string;
+  subClientName?: string;
+  subClientCodice?: string;
+  archibaldOrderNumber?: string;
+  createdAt?: string;
+  targetTotalWithVAT?: number;
+  revenue?: number;
+  currentState?: string;
+};
+
 function TabCronologia({ order, token }: { order: Order; token?: string }) {
-  const [childFTs, setChildFTs] = useState<any[]>([]);
+  const [childFTs, setChildFTs] = useState<FresisChildFT[]>([]);
   const [ftLoading, setFtLoading] = useState(false);
   const [ftError, setFtError] = useState<string | null>(null);
 
@@ -3110,7 +3094,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
               </tr>
             </thead>
             <tbody>
-              {childFTs.map((ft: any) => (
+              {childFTs.map((ft) => (
                 <tr key={ft.id} style={{ borderBottom: "1px solid #eee" }}>
                   <td style={ftTdStyle}>{ft.subClientName || ft.subClientCodice}</td>
                   <td style={ftTdStyle}>{ft.archibaldOrderNumber || "-"}</td>
@@ -3120,7 +3104,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
                       ? Number(ft.targetTotalWithVAT).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "-"}
                   </td>
-                  <td style={{ ...ftTdStyle, textAlign: "right", color: ft.revenue >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
+                  <td style={{ ...ftTdStyle, textAlign: "right", color: (ft.revenue ?? 0) >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
                     {ft.revenue != null
                       ? Number(ft.revenue).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "-"}
@@ -3237,6 +3221,7 @@ function downloadPdfWithProgress(
   onProgress: (stage: string, percent: number) => void,
   onComplete: () => void,
   onError: (error: string) => void,
+  subscribe: SubscribeFn,
 ): () => void {
   let cancelled = false;
 
@@ -3379,16 +3364,18 @@ export function OrderCardNew({
   const { subscribe } = useWebSocketContext();
   useEffect(() => {
     if (!editing) return;
-    const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: unknown) => {
+      const p = payload as { recordId?: string; progress?: number; operation?: string };
+      if (p.recordId === order.id) {
         setEditProgress({
-          progress: payload.progress,
-          operation: payload.operation,
+          progress: p.progress ?? 0,
+          operation: p.operation ?? "",
         });
       }
     });
-    const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: unknown) => {
+      const p = payload as { recordId?: string };
+      if (p.recordId === order.id) {
         setEditProgress(null);
         onEditDone?.();
       }
@@ -3412,16 +3399,18 @@ export function OrderCardNew({
   useEffect(() => {
     if (!deletingOrder) return;
     deleteHandledRef.current = false;
-    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: any) => {
-      if (payload.recordId === order.id) {
+    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: unknown) => {
+      const p = payload as { recordId?: string; progress?: number; operation?: string };
+      if (p.recordId === order.id) {
         setDeleteProgress({
-          progress: payload.progress,
-          operation: payload.operation,
+          progress: p.progress ?? 0,
+          operation: p.operation ?? "",
         });
       }
     });
-    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: any) => {
-      if (payload.recordId === order.id && !deleteHandledRef.current) {
+    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: unknown) => {
+      const p = payload as { recordId?: string };
+      if (p.recordId === order.id && !deleteHandledRef.current) {
         deleteHandledRef.current = true;
         setDeleteProgress(null);
         setDeletingOrder(false);
@@ -3847,6 +3836,7 @@ export function OrderCardNew({
                               stage: "",
                             });
                           },
+                          subscribe,
                         );
                       }}
                       style={{
@@ -3940,6 +3930,7 @@ export function OrderCardNew({
                               stage: "",
                             });
                           },
+                          subscribe,
                         );
                       }}
                       style={{
