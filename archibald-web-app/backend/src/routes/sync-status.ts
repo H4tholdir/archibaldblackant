@@ -82,6 +82,96 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  const SYNC_HISTORY_TYPES: OperationType[] = [
+    'sync-customers', 'sync-orders', 'sync-ddt',
+    'sync-invoices', 'sync-products', 'sync-prices',
+  ];
+
+  router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
+    try {
+      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 149);
+
+      const byType = new Map<string, typeof jobs>();
+      for (const syncType of SYNC_HISTORY_TYPES) {
+        byType.set(syncType, []);
+      }
+      for (const job of jobs) {
+        const t = job.data.type;
+        if (byType.has(t)) {
+          byType.get(t)!.push(job);
+        }
+      }
+
+      const types: Record<string, unknown> = {};
+
+      for (const syncType of SYNC_HISTORY_TYPES) {
+        const typeJobs = byType.get(syncType)!;
+        typeJobs.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
+
+        let consecutiveFailures = 0;
+        let totalCompleted = 0;
+        let totalFailed = 0;
+
+        for (const job of typeJobs) {
+          const state = await job.getState();
+          if (state === 'failed') {
+            totalFailed++;
+            if (totalCompleted === 0 && consecutiveFailures === totalFailed - 1) {
+              consecutiveFailures++;
+            }
+          } else {
+            totalCompleted++;
+          }
+        }
+
+        const lastJob = typeJobs[0] ?? null;
+        const lastRunTime = lastJob?.finishedOn
+          ? new Date(lastJob.finishedOn).toISOString()
+          : null;
+        const lastDuration = lastJob
+          ? (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0)
+          : null;
+
+        let lastSuccess: boolean | null = null;
+        let lastError: string | null = null;
+        if (lastJob) {
+          const lastState = await lastJob.getState();
+          lastSuccess = lastState === 'completed';
+          lastError = lastJob.failedReason ?? null;
+        }
+
+        const health: 'healthy' | 'degraded' | 'idle' =
+          typeJobs.length === 0 ? 'idle'
+            : consecutiveFailures >= 3 ? 'degraded'
+              : 'healthy';
+
+        const history = typeJobs.slice(0, 20).map((job) => ({
+          timestamp: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
+          duration: (job.finishedOn ?? 0) - (job.processedOn ?? 0),
+          success: job.returnvalue !== undefined && job.returnvalue !== null,
+          error: job.failedReason ?? null,
+        }));
+
+        types[syncType] = {
+          lastRunTime,
+          lastDuration,
+          lastSuccess,
+          lastError,
+          health,
+          totalCompleted,
+          totalFailed,
+          consecutiveFailures,
+          history,
+        };
+      }
+
+      res.json({ success: true, types });
+    } catch (error) {
+      logger.error('Error fetching sync history', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero history sync' });
+    }
+  });
+
   router.get('/auto-sync/status', async (_req: AuthRequest, res) => {
     res.json({
       success: true,

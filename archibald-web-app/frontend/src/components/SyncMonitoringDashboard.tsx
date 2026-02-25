@@ -1,188 +1,171 @@
-import { useState, useEffect } from "react";
-import ErrorDetailsModal from "./ErrorDetailsModal";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 type SyncType =
-  | "customers"
-  | "products"
-  | "prices"
-  | "orders"
-  | "ddt"
-  | "invoices";
+  | "sync-customers"
+  | "sync-orders"
+  | "sync-ddt"
+  | "sync-invoices"
+  | "sync-products"
+  | "sync-prices";
 
-interface HistoryEntry {
-  timestamp: string;
+type HistoryEntry = {
+  timestamp: string | null;
   duration: number;
   success: boolean;
   error: string | null;
-  warnings?: string[];
-}
+};
 
-interface SyncTypeData {
-  isRunning: boolean;
+type SyncTypeStats = {
   lastRunTime: string | null;
-  queuePosition: number | null;
+  lastDuration: number | null;
+  lastSuccess: boolean | null;
+  lastError: string | null;
+  health: "healthy" | "degraded" | "idle";
+  totalCompleted: number;
+  totalFailed: number;
+  consecutiveFailures: number;
   history: HistoryEntry[];
-  health: "healthy" | "unhealthy" | "idle";
-}
+};
 
-interface MonitoringStatus {
-  currentSync: SyncType | null;
-  types: Record<SyncType, SyncTypeData>;
-  scheduler?: { running: boolean; intervals: Record<string, number>; sessionCount: number };
-  activeJobs?: { userId: string; jobId: string; type: string }[];
-}
+type QueueStats = {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  prioritized: number;
+};
 
-const syncSections = [
-  { type: "orders" as SyncType, label: "Ordini", icon: "📦", priority: 6 },
-  {
-    type: "customers" as SyncType,
-    label: "Clienti",
-    icon: "👥",
-    priority: 5,
-  },
-  { type: "products" as SyncType, label: "Prodotti", icon: "🏷️", priority: 2 },
-  { type: "prices" as SyncType, label: "Prezzi", icon: "💰", priority: 1 },
-  { type: "ddt" as SyncType, label: "DDT", icon: "🚚", priority: 4 },
-  { type: "invoices" as SyncType, label: "Fatture", icon: "📄", priority: 3 },
+type ActiveJob = { userId: string; jobId: string; type: string };
+
+type MonitoringData = {
+  queue: QueueStats;
+  activeJobs: ActiveJob[];
+  scheduler: {
+    running: boolean;
+    intervals: { agentSyncMs: number; sharedSyncMs: number };
+    sessionCount: number;
+  };
+};
+
+type SyncHistoryData = {
+  types: Record<SyncType, SyncTypeStats>;
+};
+
+const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
+  { type: "sync-orders", label: "Ordini", icon: "📦" },
+  { type: "sync-customers", label: "Clienti", icon: "👥" },
+  { type: "sync-products", label: "Prodotti", icon: "🏷️" },
+  { type: "sync-prices", label: "Prezzi", icon: "💰" },
+  { type: "sync-ddt", label: "DDT", icon: "🚚" },
+  { type: "sync-invoices", label: "Fatture", icon: "📄" },
 ];
 
+function getHealthBadge(health: "healthy" | "degraded" | "idle") {
+  switch (health) {
+    case "healthy":
+      return { color: "#4caf50", bg: "#e8f5e9", label: "HEALTHY" };
+    case "degraded":
+      return { color: "#f44336", bg: "#ffebee", label: "DEGRADED" };
+    case "idle":
+      return { color: "#ff9800", bg: "#fff3e0", label: "IDLE" };
+  }
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms === null || ms <= 0) return "-";
+  if (ms < 1000) return `${ms}ms`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function formatTime(iso: string | null): string {
+  if (!iso) return "Mai";
+  return new Date(iso).toLocaleString("it-IT", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function authHeaders(): HeadersInit {
+  const jwt = localStorage.getItem("archibald_jwt");
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+}
+
 export default function SyncMonitoringDashboard() {
-  const [status, setStatus] = useState<MonitoringStatus | null>(null);
-  const [intervals, setIntervals] = useState<Record<SyncType, number> | null>(
-    null,
-  );
-  const [historyLimit, setHistoryLimit] = useState(20);
-  const [selectedError, setSelectedError] = useState<{
-    type: SyncType;
+  const [monitoring, setMonitoring] = useState<MonitoringData | null>(null);
+  const [history, setHistory] = useState<SyncHistoryData | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [expandedError, setExpandedError] = useState<{
+    type: string;
     error: string;
     timestamp: string;
   } | null>(null);
-  const [savingInterval, setSavingInterval] = useState<
-    Record<SyncType, boolean>
-  >({
-    customers: false,
-    products: false,
-    prices: false,
-    orders: false,
-    ddt: false,
-    invoices: false,
-  });
-  const [editedIntervals, setEditedIntervals] = useState<
-    Partial<Record<SyncType, number>>
-  >({});
+  const statusTimer = useRef<ReturnType<typeof setInterval>>(undefined);
+  const historyTimer = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sync/monitoring/status", {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMonitoring({
+          queue: data.queue,
+          activeJobs: data.activeJobs,
+          scheduler: data.scheduler,
+        });
+      }
+    } catch {
+      /* polling — ignore transient errors */
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sync/monitoring/sync-history", {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHistory({ types: data.types });
+      }
+    } catch {
+      /* polling */
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
-    fetchIntervals();
+    fetchHistory();
+    statusTimer.current = setInterval(fetchStatus, 5000);
+    historyTimer.current = setInterval(fetchHistory, 10000);
+    return () => {
+      clearInterval(statusTimer.current);
+      clearInterval(historyTimer.current);
+    };
+  }, [fetchStatus, fetchHistory]);
 
-    const interval = setInterval(() => {
-      fetchStatus();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [historyLimit]);
-
-  const fetchStatus = async () => {
+  const toggleScheduler = async () => {
+    if (!monitoring) return;
+    setToggling(true);
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) return;
-
-      const response = await fetch(
-        `/api/sync/monitoring/status?limit=${historyLimit}`,
-        {
-          headers: { Authorization: `Bearer ${jwt}` },
-        },
-      );
-
-      const data = await response.json();
-      if (data.success) {
-        setStatus(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch monitoring status:", error);
-    }
-  };
-
-  const fetchIntervals = async () => {
-    try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) return;
-
-      const response = await fetch("/api/sync/intervals", {
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setIntervals(data.intervals);
-      }
-    } catch (error) {
-      console.error("Failed to fetch intervals:", error);
-    }
-  };
-
-  const saveInterval = async (type: SyncType) => {
-    const newInterval = editedIntervals[type];
-    if (!newInterval || newInterval < 5 || newInterval > 1440) {
-      alert("Interval must be between 5 and 1440 minutes");
-      return;
-    }
-
-    setSavingInterval((prev) => ({ ...prev, [type]: true }));
-
-    try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      const response = await fetch(`/api/sync/intervals/${type}`, {
+      const action = monitoring.scheduler.running ? "stop" : "start";
+      await fetch(`/api/sync/auto-sync/${action}`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ intervalMinutes: newInterval }),
+        headers: authHeaders(),
       });
-
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Interval updated to ${newInterval} minutes`);
-        fetchIntervals();
-        setEditedIntervals((prev) => {
-          const copy = { ...prev };
-          delete copy[type];
-          return copy;
-        });
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      console.error("Failed to save interval:", error);
-      alert("Failed to save interval");
+      await fetchStatus();
+    } catch {
+      /* ignore */
     } finally {
-      setSavingInterval((prev) => ({ ...prev, [type]: false }));
+      setToggling(false);
     }
   };
 
-  const getHealthColor = (health: "healthy" | "unhealthy" | "idle") => {
-    switch (health) {
-      case "healthy":
-        return "#4caf50";
-      case "unhealthy":
-        return "#f44336";
-      case "idle":
-        return "#ff9800";
-    }
-  };
-
-  const getHealthIcon = (health: "healthy" | "unhealthy" | "idle") => {
-    switch (health) {
-      case "healthy":
-        return "🟢";
-      case "unhealthy":
-        return "🔴";
-      case "idle":
-        return "🟡";
-    }
-  };
-
-  if (!status || !intervals) {
+  if (!monitoring) {
     return (
       <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
         Loading monitoring data...
@@ -190,446 +173,456 @@ export default function SyncMonitoringDashboard() {
     );
   }
 
-  if (!status.types) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
-        <p>Sync monitoring non disponibile con la nuova API.</p>
-        <p style={{ fontSize: "13px" }}>
-          Scheduler: {status.scheduler?.running ? "Attivo" : "Fermo"} | Jobs attivi: {status.activeJobs?.length ?? 0}
-        </p>
-      </div>
-    );
-  }
+  const { queue, activeJobs, scheduler } = monitoring;
 
   return (
     <div>
-      {/* History Limit Selector */}
+      {/* 1. Header */}
       <div
         style={{
-          marginBottom: "20px",
           display: "flex",
           alignItems: "center",
-          gap: "12px",
+          justifyContent: "space-between",
+          marginBottom: "20px",
+          paddingBottom: "12px",
+          borderBottom: "2px solid #eee",
         }}
       >
-        <label
-          htmlFor="historyLimit"
-          style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}
-        >
-          History entries:
-        </label>
-        <select
-          id="historyLimit"
-          value={historyLimit}
-          onChange={(e) => setHistoryLimit(Number(e.target.value))}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>
+            Sync Monitoring
+          </h3>
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "12px",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: scheduler.running ? "#2e7d32" : "#c62828",
+              backgroundColor: scheduler.running ? "#e8f5e9" : "#ffebee",
+            }}
+          >
+            Scheduler: {scheduler.running ? "Running" : "Stopped"}
+          </span>
+          <span style={{ fontSize: "13px", color: "#666" }}>
+            {scheduler.sessionCount} session{scheduler.sessionCount !== 1 && "i"}{" "}
+            attiv{scheduler.sessionCount === 1 ? "a" : "e"}
+          </span>
+        </div>
+        <button
+          onClick={toggleScheduler}
+          disabled={toggling}
           style={{
-            padding: "6px 12px",
-            border: "1px solid #ddd",
-            borderRadius: "4px",
-            fontSize: "14px",
-            cursor: "pointer",
+            padding: "8px 20px",
+            backgroundColor: scheduler.running ? "#c62828" : "#2e7d32",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: toggling ? "not-allowed" : "pointer",
+            fontWeight: 600,
+            fontSize: "13px",
           }}
         >
-          <option value={10}>10</option>
-          <option value={20}>20</option>
-          <option value={50}>50</option>
-          <option value={100}>100</option>
-        </select>
+          {toggling
+            ? "..."
+            : scheduler.running
+              ? "Stop Scheduler"
+              : "Start Scheduler"}
+        </button>
       </div>
 
-      {/* Cards Grid */}
+      {/* 2. Queue Overview */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-          gap: "20px",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "12px",
+          marginBottom: "24px",
         }}
       >
-        {syncSections.map((section) => {
-          const typeData = status.types[section.type];
-          const interval = intervals[section.type];
-          const isRunning =
-            status.currentSync === section.type && typeData.isRunning;
-          const healthColor = getHealthColor(typeData.health);
-          const healthIcon = getHealthIcon(typeData.health);
-          const editedInterval = editedIntervals[section.type];
-          const hasChanges =
-            editedInterval !== undefined && editedInterval !== interval;
+        {(
+          [
+            { label: "Waiting", value: queue.waiting, color: "#ff9800" },
+            { label: "Active", value: queue.active, color: "#2196f3" },
+            { label: "Completed", value: queue.completed, color: "#4caf50" },
+            { label: "Failed", value: queue.failed, color: "#f44336" },
+          ] as const
+        ).map(({ label, value, color }) => (
+          <div
+            key={label}
+            style={{
+              padding: "16px",
+              borderRadius: "8px",
+              backgroundColor: "white",
+              border: `2px solid ${color}20`,
+              textAlign: "center",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+            }}
+          >
+            <div
+              style={{ fontSize: "28px", fontWeight: 700, color }}
+            >
+              {value}
+            </div>
+            <div style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>
+              {label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 3. Sync Types Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))",
+          gap: "16px",
+          marginBottom: "24px",
+        }}
+      >
+        {SYNC_SECTIONS.map((section) => {
+          const stats = history?.types[section.type];
+          const badge = getHealthBadge(stats?.health ?? "idle");
 
           return (
             <div
               key={section.type}
               style={{
-                border: `2px solid ${isRunning ? "#2196f3" : healthColor}`,
+                border: `2px solid ${badge.color}30`,
                 borderRadius: "8px",
-                padding: "20px",
+                padding: "16px",
                 backgroundColor: "white",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
               }}
             >
-              {/* Header */}
+              {/* Card header */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
-                  marginBottom: "16px",
-                  borderBottom: "2px solid #eee",
-                  paddingBottom: "12px",
+                  gap: "10px",
+                  marginBottom: "12px",
+                  paddingBottom: "10px",
+                  borderBottom: "1px solid #eee",
                 }}
               >
-                <span style={{ fontSize: "32px" }}>{section.icon}</span>
+                <span style={{ fontSize: "28px" }}>{section.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>
+                  <h4 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>
                     {section.label}
-                  </h3>
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>{healthIcon}</span>
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        color: healthColor,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {typeData.health.toUpperCase()}
-                    </span>
-                    {isRunning && (
-                      <span
-                        style={{
-                          fontSize: "14px",
-                          color: "#2196f3",
-                          fontWeight: 600,
-                        }}
-                      >
-                        🔵 RUNNING
-                      </span>
-                    )}
-                  </div>
+                  </h4>
+                  {stats && (
+                    <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
+                      {stats.totalCompleted} ok / {stats.totalFailed} fail
+                      {stats.consecutiveFailures > 0 &&
+                        ` (${stats.consecutiveFailures} consecutive fail)`}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {/* Status Section */}
-              <div style={{ marginBottom: "16px" }}>
-                <div
+                <span
                   style={{
-                    fontSize: "13px",
-                    color: "#666",
-                    marginBottom: "4px",
+                    padding: "3px 10px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: badge.color,
+                    backgroundColor: badge.bg,
                   }}
                 >
-                  <strong>Last run:</strong>{" "}
-                  {typeData.lastRunTime
-                    ? new Date(typeData.lastRunTime).toLocaleString("it-IT")
-                    : "Never"}
-                </div>
-                {typeData.history.length > 0 && (
-                  <div style={{ fontSize: "13px", color: "#666" }}>
-                    <strong>Duration:</strong>{" "}
-                    {Math.round(typeData.history[0].duration / 1000)}s
-                  </div>
-                )}
+                  {badge.label}
+                </span>
               </div>
 
-              {/* Interval Config Section */}
+              {/* Status line */}
               <div
                 style={{
-                  marginBottom: "16px",
-                  padding: "12px",
-                  backgroundColor: "#f5f5f5",
-                  borderRadius: "4px",
+                  display: "flex",
+                  gap: "16px",
+                  fontSize: "13px",
+                  color: "#555",
+                  marginBottom: "10px",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginBottom: "8px",
-                    color: "#333",
-                  }}
-                >
-                  Sync Interval
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    type="number"
-                    min={5}
-                    max={1440}
-                    value={
-                      editedInterval !== undefined ? editedInterval : interval
-                    }
-                    onChange={(e) =>
-                      setEditedIntervals((prev) => ({
-                        ...prev,
-                        [section.type]: Number(e.target.value),
-                      }))
-                    }
-                    style={{
-                      flex: 1,
-                      padding: "6px 12px",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      fontSize: "14px",
-                    }}
-                  />
+                <span>
+                  <strong>Last:</strong> {formatTime(stats?.lastRunTime ?? null)}
+                </span>
+                <span>
+                  <strong>Durata:</strong>{" "}
+                  {formatDuration(stats?.lastDuration ?? null)}
+                </span>
+                {stats?.lastSuccess === false && stats.lastError && (
                   <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      fontSize: "14px",
-                      color: "#666",
-                    }}
+                    style={{ color: "#c62828", cursor: "pointer", textDecoration: "underline" }}
+                    onClick={() =>
+                      setExpandedError({
+                        type: section.label,
+                        error: stats.lastError!,
+                        timestamp: stats.lastRunTime ?? "",
+                      })
+                    }
                   >
-                    min
+                    Errore
                   </span>
-                  <button
-                    onClick={() => saveInterval(section.type)}
-                    disabled={!hasChanges || savingInterval[section.type]}
-                    style={{
-                      padding: "6px 16px",
-                      backgroundColor: hasChanges ? "#2196f3" : "#ccc",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: hasChanges ? "pointer" : "not-allowed",
-                      fontWeight: 600,
-                      fontSize: "13px",
-                    }}
-                  >
-                    {savingInterval[section.type] ? "Saving..." : "Save"}
-                  </button>
-                </div>
-                {!hasChanges && (
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#666",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Current interval: {interval} minutes
-                  </div>
                 )}
               </div>
 
-              {/* History Table */}
-              <div>
+              {/* Mini history table */}
+              {stats && stats.history.length > 0 ? (
                 <div
                   style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginBottom: "8px",
-                    color: "#333",
+                    maxHeight: "180px",
+                    overflow: "auto",
+                    border: "1px solid #eee",
+                    borderRadius: "4px",
                   }}
                 >
-                  Recent History ({typeData.history.length} entries)
-                </div>
-                {typeData.history.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "12px",
-                      textAlign: "center",
-                      color: "#999",
-                      fontSize: "13px",
-                    }}
+                  <table
+                    style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}
                   >
-                    No history available
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      maxHeight: "300px",
-                      overflow: "auto",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    <table
-                      style={{ width: "100%", borderCollapse: "collapse" }}
-                    >
-                      <thead>
+                    <thead>
+                      <tr style={{ backgroundColor: "#f9f9f9" }}>
+                        <th style={{ padding: "6px 8px", textAlign: "left" }}>
+                          Ora
+                        </th>
+                        <th style={{ padding: "6px 8px", textAlign: "center" }}>
+                          Durata
+                        </th>
+                        <th style={{ padding: "6px 8px", textAlign: "center" }}>
+                          Esito
+                        </th>
+                        <th style={{ padding: "6px 8px", textAlign: "left" }}>
+                          Errore
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.history.slice(0, 5).map((entry, i) => (
                         <tr
+                          key={i}
                           style={{
-                            backgroundColor: "#f5f5f5",
-                            borderBottom: "2px solid #ddd",
+                            borderTop: "1px solid #f0f0f0",
+                            backgroundColor: i % 2 === 0 ? "white" : "#fafafa",
                           }}
                         >
-                          <th
-                            style={{
-                              padding: "8px",
-                              textAlign: "left",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: "#333",
-                            }}
+                          <td style={{ padding: "5px 8px" }}>
+                            {formatTime(entry.timestamp)}
+                          </td>
+                          <td
+                            style={{ padding: "5px 8px", textAlign: "center" }}
                           >
-                            Time
-                          </th>
-                          <th
+                            {formatDuration(entry.duration)}
+                          </td>
+                          <td
                             style={{
-                              padding: "8px",
+                              padding: "5px 8px",
                               textAlign: "center",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: "#333",
+                              fontSize: "14px",
                             }}
                           >
-                            Duration
-                          </th>
-                          <th
+                            {entry.success ? "✅" : "❌"}
+                          </td>
+                          <td
                             style={{
-                              padding: "8px",
-                              textAlign: "center",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: "#333",
+                              padding: "5px 8px",
+                              color: "#999",
+                              maxWidth: "180px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
                             }}
                           >
-                            Status
-                          </th>
-                          <th
-                            style={{
-                              padding: "8px",
-                              textAlign: "left",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: "#333",
-                            }}
-                          >
-                            Error
-                          </th>
+                            {entry.error ? (
+                              <span
+                                style={{ cursor: "pointer", color: "#c62828" }}
+                                onClick={() =>
+                                  setExpandedError({
+                                    type: section.label,
+                                    error: entry.error!,
+                                    timestamp: entry.timestamp ?? "",
+                                  })
+                                }
+                              >
+                                {entry.error.slice(0, 40)}
+                                {entry.error.length > 40 ? "..." : ""}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {typeData.history.map((entry, idx) => (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom: "1px solid #eee",
-                              backgroundColor:
-                                idx % 2 === 0 ? "white" : "#fafafa",
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: "8px",
-                                fontSize: "12px",
-                                color: "#333",
-                              }}
-                            >
-                              {new Date(entry.timestamp).toLocaleString(
-                                "it-IT",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </td>
-                            <td
-                              style={{
-                                padding: "8px",
-                                fontSize: "12px",
-                                color: "#666",
-                                textAlign: "center",
-                              }}
-                            >
-                              {Math.round(entry.duration / 1000)}s
-                            </td>
-                            <td
-                              style={{
-                                padding: "8px",
-                                textAlign: "center",
-                                fontSize: "16px",
-                              }}
-                            >
-                              {entry.success ? "✅" : "❌"}
-                              {entry.warnings && entry.warnings.length > 0 && (
-                                <span
-                                  title={entry.warnings.join("\n")}
-                                  style={{ cursor: "help", marginLeft: "4px" }}
-                                >
-                                  ⚠️
-                                </span>
-                              )}
-                            </td>
-                            <td
-                              style={{
-                                padding: "8px",
-                                fontSize: "12px",
-                                color: "#666",
-                              }}
-                            >
-                              {entry.error ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                  }}
-                                >
-                                  <span
-                                    style={{
-                                      flex: 1,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                  >
-                                    {entry.error.slice(0, 50)}
-                                    {entry.error.length > 50 ? "..." : ""}
-                                  </span>
-                                  <button
-                                    onClick={() =>
-                                      setSelectedError({
-                                        type: section.type,
-                                        error: entry.error!,
-                                        timestamp: entry.timestamp,
-                                      })
-                                    }
-                                    style={{
-                                      padding: "4px 8px",
-                                      backgroundColor: "#2196f3",
-                                      color: "white",
-                                      border: "none",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      fontSize: "11px",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    👁️ View
-                                  </button>
-                                </div>
-                              ) : (
-                                <span style={{ color: "#999" }}>-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: "10px",
+                    textAlign: "center",
+                    color: "#bbb",
+                    fontSize: "12px",
+                  }}
+                >
+                  Nessuna history
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Error Details Modal */}
-      <ErrorDetailsModal
-        error={selectedError}
-        onClose={() => setSelectedError(null)}
-      />
+      {/* 4. Active Jobs */}
+      <div
+        style={{
+          marginBottom: "24px",
+          padding: "16px",
+          backgroundColor: "white",
+          borderRadius: "8px",
+          border: "1px solid #e0e0e0",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h4 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: 600 }}>
+          Active Jobs ({activeJobs.length})
+        </h4>
+        {activeJobs.length === 0 ? (
+          <div style={{ color: "#999", fontSize: "13px" }}>
+            Nessun job attivo
+          </div>
+        ) : (
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "2px solid #eee" }}>
+                <th style={{ padding: "8px", textAlign: "left" }}>Tipo</th>
+                <th style={{ padding: "8px", textAlign: "left" }}>User ID</th>
+                <th style={{ padding: "8px", textAlign: "left" }}>Job ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeJobs.map((job) => (
+                <tr
+                  key={job.jobId}
+                  style={{ borderBottom: "1px solid #f0f0f0" }}
+                >
+                  <td style={{ padding: "8px" }}>{job.type}</td>
+                  <td style={{ padding: "8px", fontFamily: "monospace" }}>
+                    {job.userId}
+                  </td>
+                  <td style={{ padding: "8px", fontFamily: "monospace", fontSize: "12px" }}>
+                    {job.jobId}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* 5. Scheduler Config */}
+      <div
+        style={{
+          padding: "16px",
+          backgroundColor: "white",
+          borderRadius: "8px",
+          border: "1px solid #e0e0e0",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h4 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: 600 }}>
+          Scheduler Config
+        </h4>
+        <div style={{ display: "flex", gap: "24px", fontSize: "13px" }}>
+          <div>
+            <strong>Agent Sync:</strong>{" "}
+            {Math.round(scheduler.intervals.agentSyncMs / 60000)} min
+          </div>
+          <div>
+            <strong>Shared Sync:</strong>{" "}
+            {Math.round(scheduler.intervals.sharedSyncMs / 60000)} min
+          </div>
+        </div>
+      </div>
+
+      {/* Error Modal */}
+      {expandedError && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setExpandedError(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              padding: "24px",
+              width: "80vw",
+              maxWidth: "700px",
+              maxHeight: "70vh",
+              overflow: "auto",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 8px", color: "#c62828" }}>
+              Errore — {expandedError.type}
+            </h3>
+            <p style={{ fontSize: "13px", color: "#666", margin: "0 0 16px" }}>
+              {formatTime(expandedError.timestamp)}
+            </p>
+            <pre
+              style={{
+                padding: "12px",
+                backgroundColor: "#ffebee",
+                border: "1px solid #f44336",
+                borderRadius: "4px",
+                fontFamily: "monospace",
+                fontSize: "12px",
+                color: "#c62828",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                maxHeight: "300px",
+                overflow: "auto",
+              }}
+            >
+              {expandedError.error}
+            </pre>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                onClick={() => setExpandedError(null)}
+                style={{
+                  padding: "8px 20px",
+                  backgroundColor: "#2196f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
