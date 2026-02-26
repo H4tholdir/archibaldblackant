@@ -93,6 +93,65 @@ async function bootstrap(): Promise<void> {
         defaultViewport: { width: 1280, height: 800 },
       },
       sessionValidationUrl: config.archibald.url,
+      loginFn: async (context, userId) => {
+        const isServiceUser = userId.endsWith('-service') || userId === 'sync-orchestrator';
+        let username: string;
+        let password: string;
+
+        if (isServiceUser) {
+          username = config.archibald.username;
+          password = config.archibald.password;
+        } else {
+          const cachedPassword = PasswordCache.getInstance().get(userId);
+          if (!cachedPassword) {
+            throw new Error(`Password not found in cache for user ${userId}. User must login again.`);
+          }
+          const user = await usersRepo.getUserById(pool, userId);
+          if (!user) throw new Error(`User ${userId} not found in database`);
+          username = user.username;
+          password = cachedPassword;
+        }
+
+        const page = await context.newPage();
+        try {
+          const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
+          await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 } as never);
+          await page.waitForSelector('input[type="text"]', { timeout: 5000 } as never);
+          await page.waitForSelector('input[type="password"]', { timeout: 5000 } as never);
+
+          const filled = await page.evaluate(((user: string, pass: string) => {
+            const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"]'));
+            const userInput = inputs.find(i =>
+              i.name?.includes('UserName') ||
+              i.placeholder?.toLowerCase().includes('account') ||
+              i.placeholder?.toLowerCase().includes('username'),
+            ) || inputs[0];
+            const passwordField = document.querySelector<HTMLInputElement>('input[type="password"]');
+            if (!userInput || !passwordField) return false;
+            userInput.value = user;
+            passwordField.value = pass;
+            userInput.dispatchEvent(new Event('input', { bubbles: true }));
+            passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }) as never, username, password) as boolean;
+
+          if (!filled) throw new Error('Login form fields not found');
+
+          await page.keyboard.press('Enter');
+          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 } as never);
+
+          const finalUrl = page.url();
+          if (finalUrl.includes('Login.aspx')) {
+            throw new Error('Login failed - still on login page');
+          }
+
+          logger.info('Browser pool login successful', { userId, url: finalUrl });
+        } finally {
+          if (!page.isClosed()) {
+            await page.close().catch(() => {});
+          }
+        }
+      },
     },
     (options) => puppeteer.launch(options) as unknown as Promise<BrowserLike>,
   );

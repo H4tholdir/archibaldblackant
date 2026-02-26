@@ -26,12 +26,15 @@ type PageLike = {
 
 type LaunchFn = (options?: Record<string, unknown>) => Promise<BrowserLike>;
 
+type LoginFn = (context: BrowserContextLike, userId: string) => Promise<void>;
+
 type BrowserPoolConfig = {
   maxBrowsers: number;
   maxContextsPerBrowser: number;
   contextExpiryMs: number;
   launchOptions: Record<string, unknown>;
   sessionValidationUrl: string;
+  loginFn?: LoginFn;
 };
 
 type CachedContext = {
@@ -199,6 +202,10 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
         const context = await browser.createBrowserContext();
         browserContextCounts[browserIndex]++;
+
+        if (poolConfig.loginFn) {
+          await poolConfig.loginFn(context, userId);
+        }
 
         contextPool.set(userId, {
           context,
