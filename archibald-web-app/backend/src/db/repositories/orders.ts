@@ -911,7 +911,7 @@ type CustomerHistoryOrder = {
 async function getOrderHistoryByCustomer(
   pool: DbPool,
   userId: string,
-  customerProfileId: string,
+  customerName: string,
 ): Promise<CustomerHistoryOrder[]> {
   const { rows } = await pool.query<{
     id: string;
@@ -930,9 +930,9 @@ async function getOrderHistoryByCustomer(
             a.discount_percent, a.vat_percent
      FROM agents.order_records o
      JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
-     WHERE o.user_id = $1 AND o.customer_profile_id = $2
+     WHERE o.user_id = $1 AND o.customer_name = $2
      ORDER BY o.creation_date DESC`,
-    [userId, customerProfileId],
+    [userId, customerName],
   );
 
   const ordersMap = new Map<string, CustomerHistoryOrder>();

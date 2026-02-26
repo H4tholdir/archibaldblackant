@@ -351,7 +351,7 @@ export default function OrderFormSimple() {
     if (isFresis(selectedCustomer) && selectedSubClient) {
       return await getFresisHistory(selectedSubClient.codice);
     } else if (selectedCustomer) {
-      return await getOrderHistory(selectedCustomer.id);
+      return await getOrderHistory(selectedCustomer.name);
     }
     return [];
   }, [selectedCustomer, selectedSubClient]);

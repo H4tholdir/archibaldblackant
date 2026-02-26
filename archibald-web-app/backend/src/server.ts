@@ -446,7 +446,7 @@ function createApp(deps: AppDeps): Express {
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
     getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
-    getOrderHistoryByCustomer: (userId, customerProfileId) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerProfileId),
+    getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
     propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
       let propagated = 0;
       for (const orderId of updatedOrderIds) {

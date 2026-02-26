@@ -39,7 +39,7 @@ type OrdersRouterDeps = {
   getLastSalesForArticle: (articleCode: string) => Promise<LastSaleEntry[]>;
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
   propagateStatesToFresisHistory: (userId: string, updatedOrderIds: string[]) => Promise<number>;
-  getOrderHistoryByCustomer: (userId: string, customerProfileId: string) => Promise<CustomerHistoryOrder[]>;
+  getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
@@ -111,10 +111,10 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
-  router.get('/customer-history/:customerProfileId', async (req: AuthRequest, res) => {
+  router.get('/customer-history/:customerName', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const orders = await getOrderHistoryByCustomer(userId, req.params.customerProfileId);
+      const orders = await getOrderHistoryByCustomer(userId, decodeURIComponent(req.params.customerName));
       res.json({ success: true, orders });
     } catch (error) {
       logger.error('Error fetching customer order history', { error });

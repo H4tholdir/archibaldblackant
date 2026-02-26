@@ -20,9 +20,9 @@ type OrderHistoryOrder = {
   items: OrderHistoryItem[];
 };
 
-export async function getOrderHistory(customerProfileId: string): Promise<OrderHistoryOrder[]> {
+export async function getOrderHistory(customerName: string): Promise<OrderHistoryOrder[]> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/orders/customer-history/${encodeURIComponent(customerProfileId)}`,
+    `${API_BASE}/api/orders/customer-history/${encodeURIComponent(customerName)}`,
   );
 
   if (!response.ok) {
