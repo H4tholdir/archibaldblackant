@@ -14,8 +14,8 @@ type SyncIntervals = {
 };
 
 const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
-const ARTICLE_SYNC_BATCH_LIMIT = 5;
-const ARTICLE_SYNC_DELAY_MS = 5 * 60 * 1000;
+const ARTICLE_SYNC_BATCH_LIMIT = 10;
+const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
