@@ -446,6 +446,7 @@ function createApp(deps: AppDeps): Express {
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
     getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
+    getOrderHistoryByCustomer: (userId, customerProfileId) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerProfileId),
     propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
       let propagated = 0;
       for (const orderId of updatedOrderIds) {
@@ -517,6 +518,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
     pool,
     getAll: (userId) => fresisHistoryRepo.getAll(pool, userId),
+    getBySubClient: (userId, subClientCodice) => fresisHistoryRepo.getBySubClient(pool, userId, subClientCodice),
     getById: (userId, id) => fresisHistoryRepo.getById(pool, userId, id),
     upsertRecords: (userId, records) => fresisHistoryRepo.upsertRecords(pool, userId, records),
     deleteRecord: (userId, id) => fresisHistoryRepo.deleteRecord(pool, userId, id),

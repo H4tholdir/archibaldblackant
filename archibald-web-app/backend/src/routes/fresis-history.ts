@@ -10,6 +10,7 @@ import { logger } from '../logger';
 type FresisHistoryRouterDeps = {
   pool: DbPool;
   getAll: (userId: string) => Promise<FresisHistoryRecord[]>;
+  getBySubClient: (userId: string, subClientCodice: string) => Promise<FresisHistoryRecord[]>;
   getById: (userId: string, recordId: string) => Promise<FresisHistoryRecord | null>;
   upsertRecords: (userId: string, records: FresisHistoryInput[]) => Promise<{ inserted: number; updated: number }>;
   deleteRecord: (userId: string, recordId: string) => Promise<number>;
@@ -100,7 +101,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   const {
-    getAll, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
+    getAll, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
     updateRecord, reassignMerged,
@@ -109,7 +110,10 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.get('/', async (req: AuthRequest, res) => {
     try {
-      const records = await getAll(req.user!.userId);
+      const subClient = req.query.subClient as string | undefined;
+      const records = subClient
+        ? await getBySubClient(req.user!.userId, subClient)
+        : await getAll(req.user!.userId);
       res.json({ success: true, records });
     } catch (error) {
       logger.error('Error fetching fresis history', { error });

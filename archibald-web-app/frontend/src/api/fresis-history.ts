@@ -4,8 +4,9 @@ import { enqueueOperation } from "./operations";
 
 const API_BASE = "";
 
-export async function getFresisHistory(): Promise<FresisHistoryOrder[]> {
-  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history`);
+export async function getFresisHistory(subClient?: string): Promise<FresisHistoryOrder[]> {
+  const params = subClient ? `?subClient=${encodeURIComponent(subClient)}` : '';
+  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history${params}`);
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

@@ -222,6 +222,17 @@ async function getAll(pool: DbPool, userId: string): Promise<FresisHistoryRecord
   return rows.map(mapRowToFresisHistory);
 }
 
+async function getBySubClient(pool: DbPool, userId: string, subClientCodice: string): Promise<FresisHistoryRecord[]> {
+  const normalized = subClientCodice.replace(/^[Cc]0*/i, '');
+  const { rows } = await pool.query<FresisHistoryRow>(
+    `SELECT * FROM agents.fresis_history
+     WHERE user_id = $1
+       AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') = $2`,
+    [userId, normalized],
+  );
+  return rows.map(mapRowToFresisHistory);
+}
+
 async function getById(pool: DbPool, userId: string, recordId: string): Promise<FresisHistoryRecord | null> {
   const { rows: [row] } = await pool.query<FresisHistoryRow>(
     'SELECT * FROM agents.fresis_history WHERE id = $1 AND user_id = $2',
@@ -593,6 +604,7 @@ async function deleteDiscount(pool: DbPool, userId: string, id: string): Promise
 
 export {
   getAll,
+  getBySubClient,
   getById,
   upsertRecords,
   deleteRecord,

@@ -17,6 +17,7 @@ import {
 } from "./WarehouseMatchAccordion";
 import { batchRelease } from "../api/warehouse";
 import { getFresisHistory } from "../api/fresis-history";
+import { getOrderHistory } from "../api/orders-history";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
@@ -345,34 +346,26 @@ export default function OrderFormSimple() {
     calculateRevenue();
   }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
 
-  // Normalize sub-client codice for matching between SubClient table ("1376")
-  // and fresisHistory Arca format ("C01376")
-  const matchesSubClientCodice = useCallback(
-    (historyCode: string | undefined, subClientCode: string) => {
-      if (!historyCode) return false;
-      const h = historyCode.toLowerCase();
-      const s = subClientCode.toLowerCase();
-      if (h === s) return true;
-      // Arca format "C01376" → extract numeric "1376"
-      const hNumeric = h.replace(/^c0*/i, "");
-      const sNumeric = s.replace(/^c0*/i, "");
-      return hNumeric === sNumeric;
-    },
-    [],
-  );
+  // Load order history from the right source (Fresis or general)
+  const loadOrderHistory = useCallback(async (): Promise<Array<{ id: string; createdAt: string; updatedAt?: string; items: Array<{ articleCode: string; productName?: string; description?: string; quantity: number; price: number; discount?: number; vat: number }> }>> => {
+    if (isFresis(selectedCustomer) && selectedSubClient) {
+      return await getFresisHistory(selectedSubClient.codice);
+    } else if (selectedCustomer) {
+      return await getOrderHistory(selectedCustomer.id);
+    }
+    return [];
+  }, [selectedCustomer, selectedSubClient]);
 
-  // Fresis history: find last purchase of selected article by sub-client
+  // History: find last purchase of selected article by client
   useEffect(() => {
-    if (!selectedProduct || !selectedSubClient || !isFresis(selectedCustomer)) {
+    const needsSubClient = isFresis(selectedCustomer) && !selectedSubClient;
+    if (!selectedProduct || !selectedCustomer || needsSubClient) {
       setArticleHistory(null);
       return;
     }
 
     const searchArticleHistory = async () => {
-      const allOrders = await getFresisHistory();
-      const clientOrders = allOrders.filter((o) =>
-        matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
-      );
+      const clientOrders = await loadOrderHistory();
 
       const productCode = (
         selectedProduct.article || selectedProduct.name
@@ -405,7 +398,7 @@ export default function OrderFormSimple() {
             variantCodes.has(code);
 
           if (matches) {
-            const orderDate = order.createdAt || order.updatedAt || "";
+            const orderDate = order.createdAt || (order as { updatedAt?: string }).updatedAt || "";
             if (orderDate > lastDate) {
               lastDate = orderDate;
               lastItem = {
@@ -426,7 +419,7 @@ export default function OrderFormSimple() {
     };
 
     searchArticleHistory();
-  }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants]);
+  }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants, loadOrderHistory]);
 
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
@@ -783,12 +776,9 @@ export default function OrderFormSimple() {
   };
 
   const loadTopSoldItems = async () => {
-    if (!selectedSubClient) return;
+    if (!selectedCustomer) return;
 
-    const all = await getFresisHistory();
-    const allOrders = all.filter((o) =>
-      matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
-    );
+    const allOrders = await loadOrderHistory();
 
     const aggregated = new Map<
       string,
@@ -825,15 +815,12 @@ export default function OrderFormSimple() {
   };
 
   const searchInHistory = async (query: string) => {
-    if (!selectedSubClient || !query.trim()) {
+    if (!selectedCustomer || !query.trim()) {
       setHistorySearchResults([]);
       return;
     }
 
-    const all = await getFresisHistory();
-    const allOrders = all.filter((o) =>
-      matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
-    );
+    const allOrders = await loadOrderHistory();
 
     const q = query.toLowerCase();
     const results: typeof historySearchResults = [];
@@ -849,7 +836,7 @@ export default function OrderFormSimple() {
       if (matchingItems.length > 0) {
         results.push({
           orderId: order.id,
-          orderDate: order.createdAt || order.updatedAt || "",
+          orderDate: order.createdAt || (order as { updatedAt?: string }).updatedAt || "",
           items: matchingItems.map((item) => ({
             articleCode: item.articleCode,
             productName: item.productName,
@@ -2815,8 +2802,8 @@ export default function OrderFormSimple() {
         )}
       </div>
 
-      {/* Fresis history tabs: Top Sold & Search History */}
-      {selectedCustomer && isFresis(selectedCustomer) && selectedSubClient && (
+      {/* History tabs: Top Sold & Search History (all customers) */}
+      {selectedCustomer && (!isFresis(selectedCustomer) || selectedSubClient) && (
         <div
           style={{
             display: "flex",
@@ -3148,9 +3135,8 @@ export default function OrderFormSimple() {
                     </div>
                   )}
 
-                  {/* Storico acquisti sottocliente (amber section) */}
-                  {isFresis(selectedCustomer) &&
-                    selectedSubClient &&
+                  {/* Storico acquisti cliente (amber section) */}
+                  {selectedCustomer &&
                     articleHistory && (
                       <div
                         style={{

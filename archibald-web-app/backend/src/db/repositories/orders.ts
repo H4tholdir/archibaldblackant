@@ -890,6 +890,78 @@ async function deleteOrdersNotInList(
   return rowCount ?? 0;
 }
 
+type CustomerHistoryItem = {
+  articleCode: string;
+  productName: string;
+  description: string;
+  quantity: number;
+  price: number;
+  discount: number;
+  vat: number;
+};
+
+type CustomerHistoryOrder = {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  createdAt: string;
+  items: CustomerHistoryItem[];
+};
+
+async function getOrderHistoryByCustomer(
+  pool: DbPool,
+  userId: string,
+  customerProfileId: string,
+): Promise<CustomerHistoryOrder[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    order_number: string;
+    customer_name: string;
+    creation_date: string;
+    article_code: string;
+    article_description: string | null;
+    quantity: number;
+    unit_price: number | null;
+    discount_percent: number | null;
+    vat_percent: number | null;
+  }>(
+    `SELECT o.id, o.order_number, o.customer_name, o.creation_date,
+            a.article_code, a.article_description, a.quantity, a.unit_price,
+            a.discount_percent, a.vat_percent
+     FROM agents.order_records o
+     JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
+     WHERE o.user_id = $1 AND o.customer_profile_id = $2
+     ORDER BY o.creation_date DESC`,
+    [userId, customerProfileId],
+  );
+
+  const ordersMap = new Map<string, CustomerHistoryOrder>();
+  for (const row of rows) {
+    let order = ordersMap.get(row.id);
+    if (!order) {
+      order = {
+        id: row.id,
+        orderNumber: row.order_number,
+        customerName: row.customer_name,
+        createdAt: row.creation_date,
+        items: [],
+      };
+      ordersMap.set(row.id, order);
+    }
+    order.items.push({
+      articleCode: row.article_code,
+      productName: row.article_code,
+      description: row.article_description ?? '',
+      quantity: row.quantity,
+      price: row.unit_price ?? 0,
+      discount: row.discount_percent ?? 0,
+      vat: row.vat_percent ?? 0,
+    });
+  }
+
+  return Array.from(ordersMap.values());
+}
+
 export {
   getOrderById,
   getOrderByNumber,
@@ -907,6 +979,7 @@ export {
   deleteOrdersNotInList,
   getLastSalesForArticle,
   getOrderNumbersByIds,
+  getOrderHistoryByCustomer,
   mapRowToOrder,
   mapRowToArticle,
   mapRowToStateHistory,
@@ -926,4 +999,6 @@ export {
   type InvoiceData,
   type LastSaleEntry,
   type OrderNumberMapping,
+  type CustomerHistoryOrder,
+  type CustomerHistoryItem,
 };

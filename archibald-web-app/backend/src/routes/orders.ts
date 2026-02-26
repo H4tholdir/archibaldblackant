@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
-import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping } from '../db/repositories/orders';
+import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder } from '../db/repositories/orders';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
@@ -39,13 +39,14 @@ type OrdersRouterDeps = {
   getLastSalesForArticle: (articleCode: string) => Promise<LastSaleEntry[]>;
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
   propagateStatesToFresisHistory: (userId: string, updatedOrderIds: string[]) => Promise<number>;
+  getOrderHistoryByCustomer: (userId: string, customerProfileId: string) => Promise<CustomerHistoryOrder[]>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
   const {
     queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles,
     getStateHistory, getLastSalesForArticle, getOrderNumbersByIds,
-    propagateStatesToFresisHistory,
+    propagateStatesToFresisHistory, getOrderHistoryByCustomer,
   } = deps;
   const router = Router();
 
@@ -107,6 +108,17 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     } catch (error) {
       logger.error('Error fetching last sales', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ultime vendite' });
+    }
+  });
+
+  router.get('/customer-history/:customerProfileId', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const orders = await getOrderHistoryByCustomer(userId, req.params.customerProfileId);
+      res.json({ success: true, orders });
+    } catch (error) {
+      logger.error('Error fetching customer order history', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero storico cliente' });
     }
   });
 
