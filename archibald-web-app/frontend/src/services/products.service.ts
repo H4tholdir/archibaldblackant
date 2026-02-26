@@ -29,10 +29,10 @@ function mapApiProductToLocal(p: any): Product {
     name: p.name || "",
     article: p.articleName || p.name || "",
     description: p.description || "",
-    packageContent: p.packageContent,
+    packageContent: p.packageContent || p.package_content,
     vat: p.vat,
     price: p.price,
-    lastModified: p.modifiedDatetime || new Date().toISOString(),
+    lastModified: p.modifiedDatetime || p.updated_at || new Date().toISOString(),
     hash: p.hash || "",
   };
 }
@@ -73,9 +73,9 @@ export class ProductService {
           ? (p.variantPackages || []).map((_pkg: string, i: number) => ({
               productId: p.name,
               variantId: `${p.name}-var-${i}`,
-              multipleQty: p.multipleQty ?? 1,
-              minQty: p.minQty ?? 1,
-              maxQty: p.maxQty ?? 999999,
+              multipleQty: p.multipleQty ?? p.multiple_qty ?? 1,
+              minQty: p.minQty ?? p.min_qty ?? 1,
+              maxQty: p.maxQty ?? p.max_qty ?? 999999,
               packageContent: _pkg,
             }))
           : [];
