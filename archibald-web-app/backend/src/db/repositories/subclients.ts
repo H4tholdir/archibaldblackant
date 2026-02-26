@@ -78,6 +78,11 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
      WHERE ragione_sociale ILIKE $1
         OR suppl_ragione_sociale ILIKE $1
         OR codice ILIKE $1
+        OR partita_iva ILIKE $1
+        OR localita ILIKE $1
+        OR cod_fiscale ILIKE $1
+        OR indirizzo ILIKE $1
+        OR cap ILIKE $1
      ORDER BY ragione_sociale ASC`,
     [pattern],
   );
