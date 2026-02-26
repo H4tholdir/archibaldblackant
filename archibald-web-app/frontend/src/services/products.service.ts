@@ -41,10 +41,10 @@ function mapApiVariant(v: any): ProductVariant {
   return {
     productId: v.name || v.productId || "",
     variantId: v.variantId || v.id || "",
-    multipleQty: v.multipleQty ?? 1,
-    minQty: v.minQty ?? 1,
-    maxQty: v.maxQty ?? 999999,
-    packageContent: v.packageContent || "",
+    multipleQty: v.multipleQty ?? v.multiple_qty ?? 1,
+    minQty: v.minQty ?? v.min_qty ?? 1,
+    maxQty: v.maxQty ?? v.max_qty ?? 999999,
+    packageContent: v.packageContent || v.package_content || "",
   };
 }
 
