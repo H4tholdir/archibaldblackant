@@ -97,6 +97,9 @@ async function bootstrap(): Promise<void> {
     (options) => puppeteer.launch(options) as unknown as Promise<BrowserLike>,
   );
 
+  await browserPool.initialize();
+  logger.info('Browser pool initialized', { browsers: config.browserPool.maxBrowsers });
+
   let cachedAgentIds: string[] = [];
   async function refreshAgentIds(): Promise<void> {
     const users = await usersRepo.getWhitelistedUsers(pool);
