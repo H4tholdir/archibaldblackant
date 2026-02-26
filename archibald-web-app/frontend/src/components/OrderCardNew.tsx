@@ -667,18 +667,22 @@ function TabArticoli({
         if (!response.ok) return;
 
         const data = await response.json();
-        if (data.success && data.data.articles.length > 0) {
-          setArticles(data.data.articles);
+        const articlesList = Array.isArray(data.data) ? data.data : [];
+        if (data.success && articlesList.length > 0) {
+          setArticles(articlesList);
 
-          if (
-            onTotalsUpdate &&
-            data.data.totalVatAmount &&
-            data.data.totalWithVat
-          ) {
-            onTotalsUpdate({
-              totalVatAmount: data.data.totalVatAmount,
-              totalWithVat: data.data.totalWithVat,
-            });
+          if (onTotalsUpdate) {
+            const totalVat = articlesList.reduce(
+              (sum: number, a: OrderArticle) => sum + (a.vatAmount ?? 0),
+              0,
+            );
+            const totalWithVat = articlesList.reduce(
+              (sum: number, a: OrderArticle) => sum + (a.lineTotalWithVat ?? 0),
+              0,
+            );
+            if (totalVat > 0 || totalWithVat > 0) {
+              onTotalsUpdate({ totalVatAmount: totalVat, totalWithVat });
+            }
           }
         }
       } catch (err) {
