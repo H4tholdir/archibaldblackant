@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useSearchMatches } from "../hooks/useSearchMatches";
 import { OrderCardNew } from "../components/OrderCardNew";
+import { OrderCardStack } from "../components/OrderCardStack";
 import { SendToVeronaModal } from "../components/SendToVeronaModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
 import { OrderStatusLegend } from "../components/OrderStatusLegend";
@@ -18,6 +19,7 @@ import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
+import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import {
   FresisHistoryRealtimeService,
@@ -198,6 +200,7 @@ export function OrderHistory() {
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
+  const { getStackForOrder, removeFromStack, dissolveStack } = useOrderStacks(orders);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -1816,48 +1819,93 @@ export function OrderHistory() {
                 </h2>
 
                 <div>
-                  {group.orders.map((order) => {
-                    const isExpanded = debouncedSearch
-                      ? true
-                      : expandedOrderId === order.id;
-                    const isHighlighted = highlightFlash === order.id;
+                  {(() => {
+                    const renderedStackIds = new Set<string>();
+                    return group.orders.map((order) => {
+                      const stack = getStackForOrder(order.id);
 
-                    return (
-                      <div
-                        key={order.id}
-                        id={`order-${order.id}`}
-                        style={{
-                          borderRadius: "12px",
-                          transition: "box-shadow 0.5s ease, outline 0.5s ease",
-                          ...(isHighlighted
-                            ? {
-                                outline: "3px solid #1565C0",
-                                boxShadow: "0 0 16px rgba(21, 101, 192, 0.35)",
+                      if (stack && renderedStackIds.has(stack.stackId)) {
+                        return null;
+                      }
+
+                      if (stack) {
+                        const stackOrdersInGroup = stack.orderIds
+                          .map((id) => group.orders.find((o) => o.id === id))
+                          .filter(Boolean) as Order[];
+
+                        if (stackOrdersInGroup.length > 1) {
+                          renderedStackIds.add(stack.stackId);
+                          return (
+                            <OrderCardStack
+                              key={`stack-${stack.stackId}`}
+                              orders={stackOrdersInGroup}
+                              stackId={stack.stackId}
+                              source={stack.source}
+                              expandedOrderId={expandedOrderId}
+                              onToggleOrder={(id) => handleToggle(id)}
+                              onSendToVerona={handleSendToVerona}
+                              onEdit={handleEdit}
+                              onDeleteDone={fetchOrders}
+                              token={
+                                localStorage.getItem("archibald_jwt") || undefined
                               }
-                            : {}),
-                        }}
-                      >
-                        <OrderCardNew
-                          order={order}
-                          expanded={isExpanded}
-                          onToggle={() => handleToggle(order.id)}
-                          onSendToVerona={handleSendToVerona}
-                          onEdit={handleEdit}
-                          token={
-                            localStorage.getItem("archibald_jwt") || undefined
-                          }
-                          searchQuery={debouncedSearch}
-                          editing={editingOrderId === order.id}
-                          onEditDone={() => {
-                            setEditingOrderId(null);
-                            fetchOrders();
+                              searchQuery={debouncedSearch}
+                              editingOrderId={editingOrderId}
+                              onEditDone={() => {
+                                setEditingOrderId(null);
+                                fetchOrders();
+                              }}
+                              sentToVeronaIds={sentToVeronaIds}
+                              isSearchActive={!!debouncedSearch}
+                              onUnstack={stack.source === "manual" ? removeFromStack : undefined}
+                              onDissolve={stack.source === "manual" ? dissolveStack : undefined}
+                            />
+                          );
+                        }
+                      }
+
+                      const isExpanded = debouncedSearch
+                        ? true
+                        : expandedOrderId === order.id;
+                      const isHighlighted = highlightFlash === order.id;
+
+                      return (
+                        <div
+                          key={order.id}
+                          id={`order-${order.id}`}
+                          style={{
+                            borderRadius: "12px",
+                            transition: "box-shadow 0.5s ease, outline 0.5s ease",
+                            ...(isHighlighted
+                              ? {
+                                  outline: "3px solid #1565C0",
+                                  boxShadow: "0 0 16px rgba(21, 101, 192, 0.35)",
+                                }
+                              : {}),
                           }}
-                          onDeleteDone={fetchOrders}
-                          justSentToVerona={sentToVeronaIds.has(order.id)}
-                        />
-                      </div>
-                    );
-                  })}
+                        >
+                          <OrderCardNew
+                            order={order}
+                            expanded={isExpanded}
+                            onToggle={() => handleToggle(order.id)}
+                            onSendToVerona={handleSendToVerona}
+                            onEdit={handleEdit}
+                            token={
+                              localStorage.getItem("archibald_jwt") || undefined
+                            }
+                            searchQuery={debouncedSearch}
+                            editing={editingOrderId === order.id}
+                            onEditDone={() => {
+                              setEditingOrderId(null);
+                              fetchOrders();
+                            }}
+                            onDeleteDone={fetchOrders}
+                            justSentToVerona={sentToVeronaIds.has(order.id)}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             ))}
