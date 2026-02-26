@@ -838,6 +838,14 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
      FROM agents.order_articles a
      JOIN agents.order_records o ON a.order_id = o.id AND a.user_id = o.user_id
      WHERE a.article_code = $1
+       AND o.gross_amount NOT LIKE '-%'
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.order_records cn
+         WHERE cn.user_id = o.user_id
+           AND cn.customer_name = o.customer_name
+           AND cn.gross_amount = '-' || o.gross_amount
+           AND cn.creation_date >= o.creation_date
+       )
      ORDER BY o.creation_date DESC
      LIMIT 20`,
     [articleCode],
@@ -954,6 +962,14 @@ async function getOrderHistoryByCustomer(
      FROM agents.order_records o
      JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
      WHERE o.user_id = $1 AND o.customer_name = $2
+       AND o.gross_amount NOT LIKE '-%'
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.order_records cn
+         WHERE cn.user_id = o.user_id
+           AND cn.customer_name = o.customer_name
+           AND cn.gross_amount = '-' || o.gross_amount
+           AND cn.creation_date >= o.creation_date
+       )
      ORDER BY o.creation_date DESC`,
     [userId, customerName],
   );

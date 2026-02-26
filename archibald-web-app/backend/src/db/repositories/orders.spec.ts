@@ -796,3 +796,27 @@ describe('buildFilterClause', () => {
     expect(result.params).toContain('%Giovanni%');
   });
 });
+
+describe('getLastSalesForArticle', () => {
+  test('excludes credit notes and cancelled orders from results', async () => {
+    const pool = createMockPool();
+    const { getLastSalesForArticle } = await import('./orders');
+    await getLastSalesForArticle(pool, 'SF55.000.');
+    const sql = pool.queryCalls[0].text;
+    expect(sql).toContain("gross_amount NOT LIKE '-%'");
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain("cn.gross_amount = '-' || o.gross_amount");
+  });
+});
+
+describe('getOrderHistoryByCustomer', () => {
+  test('excludes credit notes and cancelled orders from results', async () => {
+    const pool = createMockPool();
+    const { getOrderHistoryByCustomer } = await import('./orders');
+    await getOrderHistoryByCustomer(pool, 'user-1', 'Cupo S.A.S');
+    const sql = pool.queryCalls[0].text;
+    expect(sql).toContain("gross_amount NOT LIKE '-%'");
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain("cn.gross_amount = '-' || o.gross_amount");
+  });
+});
