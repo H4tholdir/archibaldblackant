@@ -594,7 +594,7 @@ async function upsertOrder(
       order_type = $11, document_status = $12, sales_origin = $13, transfer_status = $14,
       transfer_date = $15, completion_date = $16, discount_percent = $17,
       gross_amount = $18, total_amount = $19, is_quote = $20, is_gift_order = $21,
-      hash = $22, last_sync = $23
+      hash = $22, last_sync = $23, articles_synced_at = NULL
     WHERE id = $24 AND user_id = $25`,
     [
       order.orderNumber, order.customerProfileId, order.customerName, order.deliveryName,
@@ -908,6 +908,29 @@ type CustomerHistoryOrder = {
   items: CustomerHistoryItem[];
 };
 
+async function getOrdersNeedingArticleSync(
+  pool: DbPool,
+  userId: string,
+  limit: number,
+): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM agents.order_records
+     WHERE user_id = $1
+       AND archibald_order_id IS NOT NULL
+       AND (
+         articles_synced_at IS NULL
+         OR (
+           creation_date >= (CURRENT_DATE - INTERVAL '90 days')::text
+           AND articles_synced_at::timestamptz < NOW() - INTERVAL '7 days'
+         )
+       )
+     ORDER BY articles_synced_at NULLS FIRST, creation_date DESC
+     LIMIT $2`,
+    [userId, limit],
+  );
+  return rows.map((r) => r.id);
+}
+
 async function getOrderHistoryByCustomer(
   pool: DbPool,
   userId: string,
@@ -980,6 +1003,7 @@ export {
   getLastSalesForArticle,
   getOrderNumbersByIds,
   getOrderHistoryByCustomer,
+  getOrdersNeedingArticleSync,
   mapRowToOrder,
   mapRowToArticle,
   mapRowToStateHistory,

@@ -10,6 +10,7 @@ import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
 import { getProductById } from './db/repositories/products';
+import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
@@ -172,6 +173,7 @@ async function bootstrap(): Promise<void> {
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
     () => cachedAgentIds,
+    (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
   );
 
   const wsServer = createWebSocketServer({

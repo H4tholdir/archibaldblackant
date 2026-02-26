@@ -214,6 +214,21 @@ describe('upsertOrder', () => {
     expect(updateCall).toBeDefined();
   });
 
+  test('resets articles_synced_at when hash changes', async () => {
+    const pool = createMockPool(async (text) => {
+      if (text.includes('SELECT hash')) {
+        return { rows: [{ hash: 'old-different-hash', order_number: 'ORD/26000887' }], rowCount: 1 } as any;
+      }
+      return { rows: [], rowCount: 1 } as any;
+    });
+
+    const { upsertOrder } = await import('./orders');
+    await upsertOrder(pool, 'user-1', SAMPLE_ORDER);
+
+    const updateCall = pool.queryCalls.find((c) => c.text.includes('UPDATE') && c.text.includes('articles_synced_at = NULL'));
+    expect(updateCall).toBeDefined();
+  });
+
   test('detects order number change from PENDING to ORD', async () => {
     const pool = createMockPool(async (text) => {
       if (text.includes('SELECT hash')) {

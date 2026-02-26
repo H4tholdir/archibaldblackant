@@ -6,16 +6,20 @@ type EnqueueFn = (
   data: Record<string, unknown>,
 ) => Promise<string>;
 
+type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<string[]>;
+
 type SyncIntervals = {
   agentSyncMs: number;
   sharedSyncMs: number;
 };
 
 const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
+const ARTICLE_SYNC_BATCH_LIMIT = 5;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getActiveAgentIds: () => string[],
+  getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   let running = false;
@@ -35,6 +39,14 @@ function createSyncScheduler(
           enqueue('sync-orders', userId, {});
           enqueue('sync-ddt', userId, {});
           enqueue('sync-invoices', userId, {});
+
+          if (getOrdersNeedingArticleSync) {
+            getOrdersNeedingArticleSync(userId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
+              for (const orderId of orderIds) {
+                enqueue('sync-order-articles', userId, { orderId });
+              }
+            }).catch(() => {});
+          }
         }
       }, intervals.agentSyncMs),
     );
@@ -142,4 +154,4 @@ function createSyncScheduler(
 
 type SyncScheduler = ReturnType<typeof createSyncScheduler>;
 
-export { createSyncScheduler, SAFETY_TIMEOUT_MS, type SyncScheduler, type SyncIntervals, type EnqueueFn };
+export { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, type SyncScheduler, type SyncIntervals, type EnqueueFn, type GetOrdersNeedingArticleSyncFn };

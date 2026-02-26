@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { createSyncScheduler, SAFETY_TIMEOUT_MS, type SyncIntervals } from './sync-scheduler';
+import { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, type SyncIntervals } from './sync-scheduler';
 import type { OperationType } from '../operations/operation-types';
 
 function createMockEnqueue(): ReturnType<typeof vi.fn> {
@@ -221,6 +221,75 @@ describe('createSyncScheduler', () => {
       scheduler.resumeOtherSyncs();
 
       expect(scheduler.isRunning()).toBe(false);
+    });
+  });
+
+  describe('article sync auto-enqueue', () => {
+    test('enqueues sync-order-articles for orders needing article sync', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1', 'order-2']);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', ARTICLE_SYNC_BATCH_LIMIT);
+      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
+      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-2' });
+
+      scheduler.stop();
+    });
+
+    test('calls getOrdersNeedingArticleSync for each active agent', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2'], getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', ARTICLE_SYNC_BATCH_LIMIT);
+      expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-2', ARTICLE_SYNC_BATCH_LIMIT);
+
+      scheduler.stop();
+    });
+
+    test('does not enqueue article syncs when no orders need sync', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('does not call getOrdersNeedingArticleSync when not provided', () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      vi.advanceTimersByTime(100);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('swallows errors from getOrdersNeedingArticleSync gracefully', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockRejectedValue(new Error('db error'));
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
     });
   });
 
