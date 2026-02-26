@@ -363,10 +363,50 @@ export function SubClientSelector({
                   onMouseLeave={() => setHoveredCodice(null)}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: "500" }}>{sc.ragioneSociale}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                      Cod: {sc.codice}
-                      {sc.supplRagioneSociale && ` - ${sc.supplRagioneSociale}`}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                      }}
+                    >
+                      <strong style={{ fontSize: "0.875rem" }}>
+                        {sc.ragioneSociale}
+                      </strong>
+                      <span
+                        style={{
+                          marginLeft: "0.5rem",
+                          color: "#6b7280",
+                          fontSize: "0.75rem",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {sc.codice}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.125rem" }}>
+                      {sc.supplRagioneSociale && (
+                        <span style={{ fontWeight: "600", color: "#374151" }}>
+                          {sc.supplRagioneSociale}
+                        </span>
+                      )}
+                      {(sc.indirizzo || sc.cap || sc.localita) && (
+                        <span style={{ marginLeft: sc.supplRagioneSociale ? "0.75rem" : 0 }}>
+                          {[
+                            sc.indirizzo,
+                            sc.cap,
+                            sc.localita &&
+                              `${sc.localita}${sc.prov ? ` (${sc.prov})` : ""}`,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      )}
+                      {sc.partitaIva && (
+                        <span style={{ marginLeft: "0.5rem", fontSize: "0.7rem", color: "#9ca3af" }}>
+                          P.IVA: {sc.partitaIva}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {hoveredCodice === sc.codice && (
