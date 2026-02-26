@@ -48,7 +48,8 @@ export function PrivacyProvider({ children }: PrivacyProviderProps) {
 
         if (response.ok) {
           const data = await response.json();
-          setPrivacyEnabled(data.enabled || false);
+          const settings = data.data ?? data;
+          setPrivacyEnabled(settings.enabled || false);
         }
       } catch (error) {
         console.error("Error loading privacy settings:", error);
@@ -90,8 +91,8 @@ export function PrivacyProvider({ children }: PrivacyProviderProps) {
       }
 
       const data = await response.json();
-      // Ensure state matches server response
-      setPrivacyEnabled(data.enabled);
+      const result = data.data ?? data;
+      setPrivacyEnabled(result.enabled);
     } catch (error) {
       console.error("Error updating privacy settings:", error);
       // Revert on error

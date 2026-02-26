@@ -53,7 +53,7 @@ export function Dashboard() {
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
-        setOrderMetrics(data);
+        setOrderMetrics(data.data ?? data);
       } else {
         console.error(
           "[Dashboard] Failed to load order metrics:",
