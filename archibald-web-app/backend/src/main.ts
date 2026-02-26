@@ -39,6 +39,8 @@ import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { PasswordCache } from './password-cache';
+import { passwordEncryption } from './services/password-encryption-service';
+import { getEncryptedPassword } from './db/repositories/users';
 import { pdfParserService } from './pdf-parser-service';
 import { PDFParserPricesService } from './pdf-parser-prices-service';
 import { PDFParserProductsService } from './pdf-parser-products-service';
@@ -103,9 +105,16 @@ async function bootstrap(): Promise<void> {
           username = config.archibald.username;
           password = config.archibald.password;
         } else {
-          const cachedPassword = PasswordCache.getInstance().get(userId);
+          let cachedPassword = PasswordCache.getInstance().get(userId);
           if (!cachedPassword) {
-            throw new Error(`Password not found in cache for user ${userId}. User must login again.`);
+            const encrypted = await getEncryptedPassword(pool, userId);
+            if (encrypted) {
+              cachedPassword = passwordEncryption.decrypt(encrypted, userId);
+              PasswordCache.getInstance().set(userId, cachedPassword);
+            }
+          }
+          if (!cachedPassword) {
+            throw new Error(`Password not found for user ${userId}. User must login once.`);
           }
           const user = await usersRepo.getUserById(pool, userId);
           if (!user) throw new Error(`User ${userId} not found in database`);

@@ -67,6 +67,7 @@ import type { FresisHistoryInput } from './db/repositories/fresis-history';
 import { PassThrough } from 'stream';
 import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
+import { passwordEncryption } from './services/password-encryption-service';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -294,6 +295,10 @@ function createApp(deps: AppDeps): Express {
       releaseContext: (userId, ctx, success) => browserPool.releaseContext(userId, ctx as any, success),
     },
     generateJWT,
+    encryptAndSavePassword: async (userId, password) => {
+      const encrypted = passwordEncryption.encrypt(password, userId);
+      await usersRepo.saveEncryptedPassword(pool, userId, encrypted);
+    },
     registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
   }));
