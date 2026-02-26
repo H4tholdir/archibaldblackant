@@ -15,6 +15,7 @@ type SyncIntervals = {
 
 const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTICLE_SYNC_BATCH_LIMIT = 5;
+const ARTICLE_SYNC_DELAY_MS = 5 * 60 * 1000;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
@@ -22,6 +23,7 @@ function createSyncScheduler(
   getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
+  const pendingTimeouts: NodeJS.Timeout[] = [];
   let running = false;
   let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
   let sessionCount = 0;
@@ -41,11 +43,14 @@ function createSyncScheduler(
           enqueue('sync-invoices', userId, {});
 
           if (getOrdersNeedingArticleSync) {
-            getOrdersNeedingArticleSync(userId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
-              for (const orderId of orderIds) {
-                enqueue('sync-order-articles', userId, { orderId });
-              }
-            }).catch(() => {});
+            const agentUserId = userId;
+            pendingTimeouts.push(setTimeout(() => {
+              getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
+                for (const orderId of orderIds) {
+                  enqueue('sync-order-articles', agentUserId, { orderId });
+                }
+              }).catch(() => {});
+            }, ARTICLE_SYNC_DELAY_MS));
           }
         }
       }, intervals.agentSyncMs),
@@ -64,6 +69,10 @@ function createSyncScheduler(
       clearInterval(timer);
     }
     timers.length = 0;
+    for (const timeout of pendingTimeouts) {
+      clearTimeout(timeout);
+    }
+    pendingTimeouts.length = 0;
     running = false;
   }
 
@@ -154,4 +163,4 @@ function createSyncScheduler(
 
 type SyncScheduler = ReturnType<typeof createSyncScheduler>;
 
-export { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, type SyncScheduler, type SyncIntervals, type EnqueueFn, type GetOrdersNeedingArticleSyncFn };
+export { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, ARTICLE_SYNC_DELAY_MS, type SyncScheduler, type SyncIntervals, type EnqueueFn, type GetOrdersNeedingArticleSyncFn };

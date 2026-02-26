@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, type SyncIntervals } from './sync-scheduler';
+import { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, ARTICLE_SYNC_DELAY_MS, type SyncIntervals } from './sync-scheduler';
 import type { OperationType } from '../operations/operation-types';
 
 function createMockEnqueue(): ReturnType<typeof vi.fn> {
@@ -225,13 +225,17 @@ describe('createSyncScheduler', () => {
   });
 
   describe('article sync auto-enqueue', () => {
-    test('enqueues sync-order-articles for orders needing article sync', async () => {
+    test('enqueues sync-order-articles after delay for orders needing article sync', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1', 'order-2']);
       const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
+
+      await vi.advanceTimersByTimeAsync(ARTICLE_SYNC_DELAY_MS);
 
       expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', ARTICLE_SYNC_BATCH_LIMIT);
       expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
@@ -240,13 +244,13 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
-    test('calls getOrdersNeedingArticleSync for each active agent', async () => {
+    test('calls getOrdersNeedingArticleSync for each active agent after delay', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
       const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2'], getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
 
       expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', ARTICLE_SYNC_BATCH_LIMIT);
       expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-2', ARTICLE_SYNC_BATCH_LIMIT);
@@ -260,7 +264,7 @@ describe('createSyncScheduler', () => {
       const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
 
       expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
 
@@ -272,7 +276,7 @@ describe('createSyncScheduler', () => {
       const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
 
       scheduler.start(intervals);
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(100 + ARTICLE_SYNC_DELAY_MS);
 
       expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
 
@@ -285,11 +289,26 @@ describe('createSyncScheduler', () => {
       const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
 
       expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
 
       scheduler.stop();
+    });
+
+    test('stop() cancels pending article sync timeouts', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1']);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+      scheduler.stop();
+
+      enqueue.mockClear();
+      await vi.advanceTimersByTimeAsync(ARTICLE_SYNC_DELAY_MS);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
     });
   });
 
