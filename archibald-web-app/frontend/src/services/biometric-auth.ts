@@ -74,7 +74,10 @@ export class BiometricAuth {
             name: username,
             displayName: username,
           },
-          pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ES256
+          pubKeyCredParams: [
+            { alg: -7, type: "public-key" },   // ES256
+            { alg: -257, type: "public-key" },  // RS256
+          ],
           authenticatorSelection: {
             authenticatorAttachment: "platform", // Use platform authenticator (Touch ID, Face ID, etc.)
             userVerification: "required",

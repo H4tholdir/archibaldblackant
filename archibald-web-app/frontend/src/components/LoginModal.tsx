@@ -39,6 +39,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
             <input
               id="username"
               type="text"
+              autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
@@ -54,6 +55,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
               <input
                 id="password"
                 type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}

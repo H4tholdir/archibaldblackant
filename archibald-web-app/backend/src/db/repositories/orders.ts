@@ -962,7 +962,11 @@ async function getOrderHistoryByCustomer(
             COALESCE(p.vat, NULLIF(a.vat_percent, 0), 0) AS vat_percent
      FROM agents.order_records o
      JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
-     LEFT JOIN shared.products p ON p.id = a.article_code
+     LEFT JOIN LATERAL (
+       SELECT vat FROM shared.products
+       WHERE name = a.article_code AND deleted_at IS NULL AND vat IS NOT NULL
+       LIMIT 1
+     ) p ON TRUE
      WHERE o.user_id = $1 AND o.customer_name = $2
        AND o.gross_amount NOT LIKE '-%'
        AND NOT EXISTS (

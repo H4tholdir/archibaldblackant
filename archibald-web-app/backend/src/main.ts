@@ -9,7 +9,7 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
-import { getProductById } from './db/repositories/products';
+import { getProductVariants } from './db/repositories/products';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
@@ -361,8 +361,8 @@ async function bootstrap(): Promise<void> {
         pool,
         parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
         getProductVat: async (articleCode: string) => {
-          const product = await getProductById(pool, articleCode);
-          return product?.vat ?? 0;
+          const variants = await getProductVariants(pool, articleCode);
+          return variants[0]?.vat ?? 0;
         },
         cleanupFile,
       },
