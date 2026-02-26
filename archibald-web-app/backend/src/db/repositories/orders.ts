@@ -958,9 +958,11 @@ async function getOrderHistoryByCustomer(
   }>(
     `SELECT o.id, o.order_number, o.customer_name, o.creation_date,
             a.article_code, a.article_description, a.quantity, a.unit_price,
-            a.discount_percent, a.vat_percent
+            a.discount_percent,
+            COALESCE(p.vat, NULLIF(a.vat_percent, 0), 0) AS vat_percent
      FROM agents.order_records o
      JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
+     LEFT JOIN shared.products p ON p.id = a.article_code
      WHERE o.user_id = $1 AND o.customer_name = $2
        AND o.gross_amount NOT LIKE '-%'
        AND NOT EXISTS (
