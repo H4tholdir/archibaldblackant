@@ -1,4 +1,5 @@
 import http from 'http';
+import fs from 'fs';
 import * as fsp from 'fs/promises';
 import path from 'path';
 import { Worker } from 'bullmq';
@@ -194,33 +195,63 @@ async function bootstrap(): Promise<void> {
 
   const passwordCache = PasswordCache.getInstance();
 
-  const PDF_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-  const pdfEntries = new Map<string, { buffer: Buffer; originalName: string; expiresAt: number }>();
+  const PDF_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const PDF_DIR = path.join(process.env.DATABASE_PATH || '/app/data', 'shared-pdfs');
+  fs.mkdirSync(PDF_DIR, { recursive: true });
 
   // Cleanup expired PDFs every hour
   setInterval(() => {
-    const now = Date.now();
-    for (const [id, entry] of pdfEntries) {
-      if (now > entry.expiresAt) pdfEntries.delete(id);
+    try {
+      const now = Date.now();
+      for (const file of fs.readdirSync(PDF_DIR)) {
+        if (!file.endsWith('.json')) continue;
+        const metaPath = path.join(PDF_DIR, file);
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        if (now > meta.expiresAt) {
+          const pdfPath = path.join(PDF_DIR, meta.pdfFile);
+          if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+          fs.unlinkSync(metaPath);
+        }
+      }
+    } catch (err) {
+      logger.error('PDF cleanup error', { error: err });
     }
   }, 60 * 60 * 1000);
 
   const pdfStore = {
     save: (buffer: Buffer, originalName: string, _req: unknown) => {
       const id = `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      pdfEntries.set(id, { buffer, originalName, expiresAt: Date.now() + PDF_TTL_MS });
+      const pdfFile = `${id}.pdf`;
+      fs.writeFileSync(path.join(PDF_DIR, pdfFile), buffer);
+      fs.writeFileSync(path.join(PDF_DIR, `${id}.json`), JSON.stringify({
+        originalName,
+        pdfFile,
+        expiresAt: Date.now() + PDF_TTL_MS,
+      }));
       return { id, url: `/api/share/pdf/${id}` };
     },
     get: (id: string) => {
-      const entry = pdfEntries.get(id);
-      if (!entry) return null;
-      if (Date.now() > entry.expiresAt) {
-        pdfEntries.delete(id);
+      const metaPath = path.join(PDF_DIR, `${id}.json`);
+      if (!fs.existsSync(metaPath)) return null;
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      if (Date.now() > meta.expiresAt) {
+        const pdfPath = path.join(PDF_DIR, meta.pdfFile);
+        if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+        fs.unlinkSync(metaPath);
         return null;
       }
-      return { buffer: entry.buffer, originalName: entry.originalName };
+      const pdfPath = path.join(PDF_DIR, meta.pdfFile);
+      if (!fs.existsSync(pdfPath)) return null;
+      return { buffer: fs.readFileSync(pdfPath), originalName: meta.originalName };
     },
-    delete: (id: string) => { pdfEntries.delete(id); },
+    delete: (id: string) => {
+      const metaPath = path.join(PDF_DIR, `${id}.json`);
+      if (!fs.existsSync(metaPath)) return;
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const pdfPath = path.join(PDF_DIR, meta.pdfFile);
+      if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+      fs.unlinkSync(metaPath);
+    },
   };
 
   const sendEmail = async (
