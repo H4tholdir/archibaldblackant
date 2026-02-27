@@ -271,6 +271,7 @@ export default function OrderFormSimple() {
       quantity: number;
       price: number;
       discount?: number;
+      globalDiscount?: number;
       vat: number;
     };
   } | null>(null);
@@ -347,7 +348,7 @@ export default function OrderFormSimple() {
   }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
 
   // Load order history from the right source (Fresis or general)
-  const loadOrderHistory = useCallback(async (): Promise<Array<{ id: string; createdAt: string; updatedAt?: string; items: Array<{ articleCode: string; productName?: string; description?: string; quantity: number; price: number; discount?: number; vat: number }> }>> => {
+  const loadOrderHistory = useCallback(async (): Promise<Array<{ id: string; createdAt: string; updatedAt?: string; discountPercent?: number; items: Array<{ articleCode: string; productName?: string; description?: string; quantity: number; price: number; discount?: number; vat: number }> }>> => {
     if (isFresis(selectedCustomer) && selectedSubClient) {
       return await getFresisHistory(selectedSubClient.codice);
     } else if (selectedCustomer) {
@@ -380,6 +381,7 @@ export default function OrderFormSimple() {
         quantity: number;
         price: number;
         discount?: number;
+        globalDiscount?: number;
         vat: number;
       } | null = null;
 
@@ -406,6 +408,7 @@ export default function OrderFormSimple() {
                 quantity: item.quantity,
                 price: item.price,
                 discount: item.discount,
+                globalDiscount: order.discountPercent,
                 vat: item.vat,
               };
             }
@@ -3176,18 +3179,25 @@ export default function OrderFormSimple() {
                                 articleHistory.lastPurchase.price,
                               )}
                             </span>
-                            {articleHistory.lastPurchase.discount ? (
-                              <span>
-                                Sconto: {articleHistory.lastPurchase.discount}%
-                              </span>
-                            ) : null}
+                            {(() => {
+                              const p = articleHistory.lastPurchase;
+                              const row = p.discount || 0;
+                              const global = p.globalDiscount || 0;
+                              if (row && global) {
+                                const compound = Math.round((1 - (1 - row / 100) * (1 - global / 100)) * 10000) / 100;
+                                return <span>Sconto: {row}%+{global}% = {compound}%</span>;
+                              }
+                              if (global) return <span>Sconto: {global}% (globale)</span>;
+                              if (row) return <span>Sconto: {row}%</span>;
+                              return null;
+                            })()}
                             <span>IVA: {articleHistory.lastPurchase.vat}%</span>
                             <span style={{ color: "#1e40af" }}>
                               Netto:{" "}
                               {(() => {
                                 const p = articleHistory.lastPurchase;
                                 const netto =
-                                  p.price - (p.price * (p.discount || 0)) / 100;
+                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
                                 return formatCurrency(netto);
                               })()}
                             </span>
@@ -3196,7 +3206,7 @@ export default function OrderFormSimple() {
                               {(() => {
                                 const p = articleHistory.lastPurchase;
                                 const netto =
-                                  p.price - (p.price * (p.discount || 0)) / 100;
+                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
                                 const total = netto * (1 + p.vat / 100);
                                 return formatCurrency(total);
                               })()}

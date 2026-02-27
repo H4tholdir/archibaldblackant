@@ -17,6 +17,7 @@ type OrderHistoryOrder = {
   orderNumber: string;
   customerName: string;
   createdAt: string;
+  discountPercent?: number;
   items: OrderHistoryItem[];
 };
 

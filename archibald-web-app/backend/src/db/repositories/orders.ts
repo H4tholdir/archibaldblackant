@@ -913,6 +913,7 @@ type CustomerHistoryOrder = {
   orderNumber: string;
   customerName: string;
   createdAt: string;
+  discountPercent?: number;
   items: CustomerHistoryItem[];
 };
 
@@ -949,6 +950,7 @@ async function getOrderHistoryByCustomer(
     order_number: string;
     customer_name: string;
     creation_date: string;
+    order_discount_percent: string | null;
     article_code: string;
     article_description: string | null;
     quantity: number;
@@ -957,6 +959,7 @@ async function getOrderHistoryByCustomer(
     vat_percent: number | null;
   }>(
     `SELECT o.id, o.order_number, o.customer_name, o.creation_date,
+            o.discount_percent AS order_discount_percent,
             a.article_code, a.article_description, a.quantity, a.unit_price,
             a.discount_percent,
             COALESCE(p.vat, NULLIF(a.vat_percent, 0), 0) AS vat_percent
@@ -989,6 +992,7 @@ async function getOrderHistoryByCustomer(
         orderNumber: row.order_number,
         customerName: row.customer_name,
         createdAt: row.creation_date,
+        ...(row.order_discount_percent ? { discountPercent: parseFloat(row.order_discount_percent) } : {}),
         items: [],
       };
       ordersMap.set(row.id, order);
