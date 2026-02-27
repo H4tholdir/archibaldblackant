@@ -1229,6 +1229,34 @@ export default function OrderFormSimple() {
     );
   };
 
+  const handleApplyLastPurchase = () => {
+    if (!articleHistory?.lastPurchase) return;
+    const p = articleHistory.lastPurchase;
+    const rowDisc = p.discount || 0;
+    const globalDisc = p.globalDiscount || 0;
+
+    const compound =
+      (1 - (1 - rowDisc / 100) * (1 - globalDisc / 100)) * 100;
+    const roundedDiscount = Math.round(compound * 100) / 100;
+
+    if (canEditPrice) {
+      setListPrice(p.price.toString());
+      if (roundedDiscount > 0) setItemDiscount(roundedDiscount.toString());
+      toastService.success(
+        `Ultimo acquisto applicato: ${formatCurrency(p.price)}${roundedDiscount > 0 ? `, sconto ${roundedDiscount}%` : ""}`,
+      );
+    } else {
+      if (roundedDiscount > 0) {
+        setItemDiscount(roundedDiscount.toString());
+        toastService.success(
+          `Sconto ultimo acquisto applicato: ${roundedDiscount}%`,
+        );
+      } else {
+        toastService.info("Nessuno sconto da applicare dall'ultimo acquisto");
+      }
+    }
+  };
+
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
@@ -3152,6 +3180,7 @@ export default function OrderFormSimple() {
                       >
                         {articleHistory.found && articleHistory.lastPurchase ? (
                           <div
+                            onClick={handleApplyLastPurchase}
                             style={{
                               display: "flex",
                               flexWrap: "wrap",
@@ -3160,10 +3189,14 @@ export default function OrderFormSimple() {
                               fontSize: isMobile ? "0.85rem" : "0.9rem",
                               fontWeight: "600",
                               color: "#92400e",
+                              cursor: "pointer",
                             }}
                           >
                             <span style={{ fontWeight: "700" }}>
-                              Ultimo acquisto:
+                              Ultimo acquisto:{" "}
+                              <span style={{ fontWeight: "400", fontSize: "0.75rem", opacity: 0.7 }}>
+                                (clicca per applicare)
+                              </span>
                             </span>
                             <span>
                               {new Date(
@@ -3330,7 +3363,7 @@ export default function OrderFormSimple() {
                             fontWeight: "600",
                           }}
                         >
-                          {searchingLastSale ? "..." : "Ultima Vendita"}
+                          {searchingLastSale ? "..." : "Ultime Vendite"}
                         </button>
                       </label>
                       <input
