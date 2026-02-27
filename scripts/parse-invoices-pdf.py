@@ -201,9 +201,9 @@ def parse_invoices_pdf(pdf_path: str):
                     quantity = get_column_value(tables[1], row_idx, "QUANTITÀ")
                     sales_balance = get_column_value(tables[1], row_idx, "SALDO VENDITE MST")
 
-                    # Page 3/7: SOMMA LINEA, SCONTO MST, SCONTO TOTALE: SOMMA FISCALE MST, IMPORTO FATTURA MST (4 columns)
-                    line_sum = get_column_value(tables[2], row_idx, "SOMMA LINEA")
-                    discount_amount = get_column_value(tables[2], row_idx, "SCONTO MST")
+                    # Page 3/7: SOMMA LINEA SCONTO MST, SCONTO TOTALE:, SOMMA FISCALE MST, IMPORTO FATTURA MST (4 columns)
+                    line_sum = get_column_value(tables[2], row_idx, "SOMMA LINEA SCONTO")
+                    discount_amount = get_column_value(tables[2], row_idx, "SCONTO TOTALE")
                     tax_sum = get_column_value(tables[2], row_idx, "SOMMA FISCALE MST")
                     invoice_amount = get_column_value(tables[2], row_idx, "IMPORTO FATTURA MST")
 
@@ -218,9 +218,9 @@ def parse_invoices_pdf(pdf_path: str):
                     payment_term_id = get_column_value(tables[4], row_idx, "ID TERMINE DI PAGAMENTO")
                     days_past_due = get_column_value(tables[4], row_idx, "OLTRE I GIORNI DI SCADENZA")
 
-                    # Page 6/7: LIQUIDA, IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO, DATA DI ULTIMA LIQUIDAZIONE (4 columns)
-                    settled = get_column_value(tables[5], row_idx, "LIQUIDA")
-                    amount = get_column_value(tables[5], row_idx, "IMPORTO MST")
+                    # Page 6/7: LIQUIDA IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO:, DATA DI ULTIMA LIQUIDAZIONE (3 columns)
+                    settled = get_column_value(tables[5], row_idx, "LIQUIDA IMPORTO")
+                    amount = settled  # Same column as settled in current PDF format
                     last_payment_id = get_column_value(tables[5], row_idx, "IDENTIFICATIVO ULTIMO PAGAMENTO")
                     last_settlement_date_raw = get_column_value(tables[5], row_idx, "DATA DI ULTIMA LIQUIDAZIONE")
                     last_settlement_date = parse_italian_date(last_settlement_date_raw)
