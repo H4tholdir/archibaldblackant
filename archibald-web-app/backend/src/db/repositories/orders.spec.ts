@@ -805,7 +805,8 @@ describe('getLastSalesForArticle', () => {
     const sql = pool.queryCalls[0].text;
     expect(sql).toContain("gross_amount NOT LIKE '-%'");
     expect(sql).toContain('NOT EXISTS');
-    expect(sql).toContain("cn.gross_amount = '-' || o.gross_amount");
+    expect(sql).toContain("cn.gross_amount LIKE '-%'");
+    expect(sql).toContain('ABS(');
   });
 });
 
@@ -817,6 +818,7 @@ describe('getOrderHistoryByCustomer', () => {
     const sql = pool.queryCalls[0].text;
     expect(sql).toContain("gross_amount NOT LIKE '-%'");
     expect(sql).toContain('NOT EXISTS');
-    expect(sql).toContain("cn.gross_amount = '-' || o.gross_amount");
+    expect(sql).toContain("cn.gross_amount LIKE '-%'");
+    expect(sql).toContain('ABS(');
   });
 });

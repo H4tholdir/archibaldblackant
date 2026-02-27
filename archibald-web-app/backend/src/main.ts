@@ -197,7 +197,7 @@ async function bootstrap(): Promise<void> {
 
   const PDF_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
   const PDF_DIR = path.join(process.env.DATABASE_PATH || '/app/data', 'shared-pdfs');
-  fs.mkdirSync(PDF_DIR, { recursive: true });
+  try { fs.mkdirSync(PDF_DIR, { recursive: true }); } catch { /* non-critical */ }
 
   // Cleanup expired PDFs every hour
   setInterval(() => {

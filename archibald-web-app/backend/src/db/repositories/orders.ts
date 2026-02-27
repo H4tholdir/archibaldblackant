@@ -850,7 +850,11 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
          SELECT 1 FROM agents.order_records cn
          WHERE cn.user_id = o.user_id
            AND cn.customer_name = o.customer_name
-           AND cn.gross_amount = '-' || o.gross_amount
+           AND cn.gross_amount LIKE '-%'
+           AND ABS(
+             CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+           ) < 1.0
            AND cn.creation_date >= o.creation_date
        )
      ORDER BY o.creation_date DESC
@@ -985,7 +989,11 @@ async function getOrderHistoryByCustomer(
          SELECT 1 FROM agents.order_records cn
          WHERE cn.user_id = o.user_id
            AND cn.customer_name = o.customer_name
-           AND cn.gross_amount = '-' || o.gross_amount
+           AND cn.gross_amount LIKE '-%'
+           AND ABS(
+             CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+           ) < 1.0
            AND cn.creation_date >= o.creation_date
        )
      ORDER BY o.creation_date DESC`,
