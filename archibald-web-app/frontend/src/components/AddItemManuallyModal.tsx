@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import {
   manualAddItem,
@@ -27,11 +27,13 @@ export function AddItemManuallyModal({
   onSuccess,
 }: AddItemManuallyModalProps) {
   const [articleCode, setArticleCode] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState("1");
   const [selectedBox, setSelectedBox] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [articleConfirmed, setArticleConfirmed] = useState(false);
   const {
     scrollFieldIntoView,
     modalOverlayKeyboardStyle,
@@ -49,6 +51,10 @@ export function AddItemManuallyModal({
     matchedProduct: null,
     suggestions: [],
   });
+
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLSelectElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   // Load boxes when modal opens
   useEffect(() => {
@@ -75,8 +81,10 @@ export function AddItemManuallyModal({
   useEffect(() => {
     if (isOpen) {
       setArticleCode("");
-      setQuantity(1);
+      setQuantity("1");
       setDescription("");
+      setHighlightedIndex(-1);
+      setArticleConfirmed(false);
       setValidationState({
         status: "idle",
         confidence: 0,
@@ -88,49 +96,43 @@ export function AddItemManuallyModal({
 
   // Debounce validation (500ms) - Real-time fuzzy matching
   useEffect(() => {
-    if (!articleCode.trim() || loading) {
-      // Reset validation state if empty
-      setValidationState({
-        status: "idle",
-        confidence: 0,
-        matchedProduct: null,
-        suggestions: [],
-      });
-      setDescription("");
+    if (!articleCode.trim() || loading || articleConfirmed) {
+      if (!articleCode.trim()) {
+        setValidationState({
+          status: "idle",
+          confidence: 0,
+          matchedProduct: null,
+          suggestions: [],
+        });
+        setDescription("");
+      }
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
-        // Call validation API for real-time fuzzy matching
         const result = await validateArticleCode(articleCode.trim());
 
         const matchedProduct = result.matchedProduct as ValidatedProduct | null;
         const { confidence } = result;
         const suggestions = result.suggestions as ValidatedProduct[];
 
-        // Update validation state based on confidence
         let status: "valid" | "warning" | "invalid" = "invalid";
         if (confidence >= 0.7) {
           status = "valid";
           setDescription(matchedProduct?.description || matchedProduct?.name || "");
         } else if (confidence >= 0.3) {
           status = "warning";
-          setDescription(""); // Allow manual entry
+          setDescription("");
         } else {
           status = "invalid";
-          setDescription(""); // Allow manual entry
+          setDescription("");
         }
 
-        setValidationState({
-          status,
-          confidence,
-          matchedProduct,
-          suggestions,
-        });
+        setValidationState({ status, confidence, matchedProduct, suggestions });
+        setHighlightedIndex(-1);
       } catch (error) {
         console.error("Validation error:", error);
-        // On error, reset to idle (don't block user)
         setValidationState({
           status: "idle",
           confidence: 0,
@@ -141,7 +143,7 @@ export function AddItemManuallyModal({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [articleCode, loading]);
+  }, [articleCode, loading, articleConfirmed]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget && !loading) {
@@ -153,13 +155,14 @@ export function AddItemManuallyModal({
     e.preventDefault();
     if (loading) return;
 
-    // Validation
+    const qty = parseInt(quantity, 10);
+
     if (!articleCode.trim()) {
       toastService.error("Codice articolo obbligatorio");
       return;
     }
 
-    if (quantity <= 0) {
+    if (!qty || qty <= 0) {
       toastService.error("Quantità deve essere maggiore di 0");
       return;
     }
@@ -172,14 +175,8 @@ export function AddItemManuallyModal({
     setLoading(true);
 
     try {
-      await manualAddItem(
-        articleCode.trim(),
-        quantity,
-        selectedBox,
-      );
-
+      await manualAddItem(articleCode.trim(), qty, selectedBox);
       toastService.success("Articolo aggiunto");
-
       onSuccess();
       onClose();
     } catch (error) {
@@ -194,17 +191,69 @@ export function AddItemManuallyModal({
     }
   };
 
-  const handleSuggestionClick = (product: ValidatedProduct) => {
-    // Set article code using product.name (the article code, not variant)
+  const selectSuggestion = (product: ValidatedProduct) => {
     setArticleCode(product.name);
-    // Pre-fill description and validation state immediately
     setDescription(product.description || "");
+    setArticleConfirmed(true);
     setValidationState({
       status: "valid",
-      confidence: 1.0, // Perfect match since user clicked suggestion
+      confidence: 1.0,
       matchedProduct: product,
       suggestions: [],
     });
+    setHighlightedIndex(-1);
+    setTimeout(() => quantityRef.current?.focus(), 0);
+  };
+
+  const showSuggestions = !articleConfirmed && validationState.suggestions.length > 0;
+  const visibleSuggestions = showSuggestions
+    ? validationState.suggestions.slice(0, 5)
+    : [];
+
+  const handleArticleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showSuggestions) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < visibleSuggestions.length - 1 ? prev + 1 : 0,
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev > 0 ? prev - 1 : visibleSuggestions.length - 1,
+        );
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < visibleSuggestions.length) {
+          selectSuggestion(visibleSuggestions[highlightedIndex]);
+        } else if (visibleSuggestions.length > 0) {
+          selectSuggestion(visibleSuggestions[0]);
+        }
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      setArticleConfirmed(true);
+      setTimeout(() => quantityRef.current?.focus(), 0);
+    }
+  };
+
+  const handleArticleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setArticleCode(e.target.value);
+    setArticleConfirmed(false);
+  };
+
+  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      boxRef.current?.focus();
+    }
+  };
+
+  const handleBoxKeyDown = (e: React.KeyboardEvent<HTMLSelectElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitRef.current?.focus();
+    }
   };
 
   if (!isOpen) return null;
@@ -223,23 +272,11 @@ export function AddItemManuallyModal({
     };
 
     if (confidence >= 0.7) {
-      return {
-        ...baseStyle,
-        backgroundColor: "#d4edda",
-        color: "#155724",
-      };
+      return { ...baseStyle, backgroundColor: "#d4edda", color: "#155724" };
     } else if (confidence >= 0.3) {
-      return {
-        ...baseStyle,
-        backgroundColor: "#fff3cd",
-        color: "#856404",
-      };
+      return { ...baseStyle, backgroundColor: "#fff3cd", color: "#856404" };
     } else {
-      return {
-        ...baseStyle,
-        backgroundColor: "#f8d7da",
-        color: "#721c24",
-      };
+      return { ...baseStyle, backgroundColor: "#f8d7da", color: "#721c24" };
     }
   };
 
@@ -273,21 +310,9 @@ export function AddItemManuallyModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: "24px 24px 16px 24px",
-            borderBottom: "1px solid #e0e0e0",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "24px",
-              fontWeight: 700,
-              color: "#333",
-              margin: 0,
-            }}
-          >
-            ➕ Aggiungi Articolo Manuale
+        <div style={{ padding: "24px 24px 16px 24px", borderBottom: "1px solid #e0e0e0" }}>
+          <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#333", margin: 0 }}>
+            Aggiungi Articolo Manuale
           </h2>
         </div>
 
@@ -295,25 +320,19 @@ export function AddItemManuallyModal({
         <form onSubmit={handleSubmit}>
           <div style={{ padding: "24px", ...keyboardPaddingStyle }}>
             {/* Article Code */}
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
+            <div style={{ marginBottom: "20px", position: "relative" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
                 Codice Articolo *
               </label>
               <input
                 type="text"
                 value={articleCode}
-                onChange={(e) => setArticleCode(e.target.value)}
+                onChange={handleArticleChange}
+                onKeyDown={handleArticleKeyDown}
                 onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 placeholder="es: H129FSQ.104.023"
                 disabled={loading}
+                autoComplete="off"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -326,100 +345,70 @@ export function AddItemManuallyModal({
               {validationState.status !== "idle" && (
                 <div style={getBadgeStyle()}>
                   {validationState.confidence >= 0.7
-                    ? `🟢 Match esatto (${Math.round(validationState.confidence * 100)}%)`
+                    ? `Match esatto (${Math.round(validationState.confidence * 100)}%)`
                     : validationState.confidence >= 0.3
-                      ? `🟡 Match parziale (${Math.round(validationState.confidence * 100)}%)`
-                      : `🔴 Nessun match`}
+                      ? `Match parziale (${Math.round(validationState.confidence * 100)}%)`
+                      : `Nessun match`}
                 </div>
               )}
               {validationState.status === "invalid" && (
+                <div style={{ marginTop: "6px", fontSize: "12px", color: "#856404" }}>
+                  Articolo non presente a catalogo. Puoi comunque aggiungerlo manualmente.
+                </div>
+              )}
+
+              {/* Suggestions dropdown */}
+              {showSuggestions && (
                 <div
                   style={{
-                    marginTop: "6px",
-                    fontSize: "12px",
-                    color: "#856404",
+                    marginTop: "4px",
+                    border: "1px solid #ddd",
+                    borderRadius: "6px",
+                    backgroundColor: "#fff",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    overflow: "hidden",
                   }}
                 >
-                  Articolo non presente a catalogo. Puoi comunque aggiungerlo
-                  manualmente.
+                  {visibleSuggestions.map((product, idx) => (
+                    <div
+                      key={product.id}
+                      onClick={() => selectSuggestion(product)}
+                      style={{
+                        padding: "10px 12px",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        backgroundColor: idx === highlightedIndex ? "#e8f0fe" : "#fff",
+                        borderBottom: idx < visibleSuggestions.length - 1 ? "1px solid #f0f0f0" : "none",
+                      }}
+                    >
+                      <strong>{product.name}</strong>
+                      {product.description && (
+                        <span style={{ color: "#555", marginLeft: "6px" }}>
+                          {product.description}
+                        </span>
+                      )}
+                      {product.packageContent && (
+                        <span style={{ color: "#888", marginLeft: "6px" }}>
+                          ({product.packageContent})
+                        </span>
+                      )}
+                      {product.confidence != null && (
+                        <span style={{ color: "#999", marginLeft: "6px", fontSize: "11px" }}>
+                          {Math.round(product.confidence * 100)}%
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Suggestions */}
-            {validationState.suggestions.length > 0 && (
-              <div
-                style={{
-                  marginBottom: "20px",
-                  padding: "12px",
-                  backgroundColor: "#fff3cd",
-                  borderRadius: "6px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginBottom: "8px",
-                  }}
-                >
-                  Suggerimenti:
-                </div>
-                {validationState.suggestions.slice(0, 3).map((product) => (
-                  <div
-                    key={product.id}
-                    onClick={() => handleSuggestionClick(product)}
-                    style={{
-                      padding: "8px",
-                      cursor: "pointer",
-                      borderRadius: "4px",
-                      marginBottom: "4px",
-                      backgroundColor: "#fff",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <strong>{product.name}</strong>
-                    {product.description && (
-                      <span style={{ color: "#555", marginLeft: "6px" }}>
-                        {product.description}
-                      </span>
-                    )}
-                    {product.packageContent && (
-                      <span style={{ color: "#888", marginLeft: "6px" }}>
-                        ({product.packageContent})
-                      </span>
-                    )}
-                    {product.confidence != null && (
-                      <span style={{ color: "#999", marginLeft: "6px", fontSize: "11px" }}>
-                        {Math.round(product.confidence * 100)}%
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Description */}
             <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
                 Descrizione
                 {validationState.confidence >= 0.7 && (
-                  <span
-                    style={{
-                      marginLeft: "8px",
-                      fontSize: "12px",
-                      color: "#155724",
-                      fontWeight: 400,
-                    }}
-                  >
+                  <span style={{ marginLeft: "8px", fontSize: "12px", color: "#155724", fontWeight: 400 }}>
                     (auto-compilato)
                   </span>
                 )}
@@ -442,33 +431,29 @@ export function AddItemManuallyModal({
                   border: "1px solid #ccc",
                   borderRadius: "6px",
                   boxSizing: "border-box",
-                  backgroundColor:
-                    validationState.confidence >= 0.7 ? "#f0f0f0" : "#fff",
-                  cursor:
-                    validationState.confidence >= 0.7 ? "not-allowed" : "text",
+                  backgroundColor: validationState.confidence >= 0.7 ? "#f0f0f0" : "#fff",
+                  cursor: validationState.confidence >= 0.7 ? "not-allowed" : "text",
                 }}
               />
             </div>
 
             {/* Quantity */}
             <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
                 Quantità *
               </label>
               <input
-                type="number"
-                min="1"
+                ref={quantityRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ""))}
+                onKeyDown={handleQuantityKeyDown}
+                onFocus={(e) => {
+                  scrollFieldIntoView(e.target as HTMLElement);
+                  e.target.select();
+                }}
                 disabled={loading}
                 style={{
                   width: "100%",
@@ -483,20 +468,14 @@ export function AddItemManuallyModal({
 
             {/* Box Selection */}
             <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
                 Scatolo *
               </label>
               <select
+                ref={boxRef}
                 value={selectedBox}
                 onChange={(e) => setSelectedBox(e.target.value)}
+                onKeyDown={handleBoxKeyDown}
                 onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 disabled={loading}
                 style={{
@@ -527,7 +506,7 @@ export function AddItemManuallyModal({
                     color: "#856404",
                   }}
                 >
-                  ⚠️ Nessuno scatolo disponibile. Crea uno scatolo nella sezione
+                  Nessuno scatolo disponibile. Crea uno scatolo nella sezione
                   "Gestione Scatoli" prima di aggiungere articoli.
                 </div>
               )}
@@ -562,6 +541,7 @@ export function AddItemManuallyModal({
               Annulla
             </button>
             <button
+              ref={submitRef}
               type="submit"
               disabled={loading}
               style={{
