@@ -12,7 +12,7 @@ type LastSaleEntry = {
   quantity: number;
   unitPrice: number | null;
   lineAmount: number | null;
-  creationDate: string;
+  date: string;
 };
 
 type JobStatusResult = {
@@ -36,7 +36,7 @@ type OrdersRouterDeps = {
   getOrderById: (userId: string, orderId: string) => Promise<Order | null>;
   getOrderArticles: (orderId: string, userId: string) => Promise<OrderArticle[]>;
   getStateHistory: (userId: string, orderId: string) => Promise<StateHistory[]>;
-  getLastSalesForArticle: (articleCode: string) => Promise<LastSaleEntry[]>;
+  getLastSalesForArticle: (articleCode: string, userId: string) => Promise<LastSaleEntry[]>;
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
   propagateStatesToFresisHistory: (userId: string, updatedOrderIds: string[]) => Promise<number>;
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
@@ -103,7 +103,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
 
   router.get('/last-sales/:articleCode', async (req: AuthRequest, res) => {
     try {
-      const sales = await getLastSalesForArticle(req.params.articleCode);
+      const sales = await getLastSalesForArticle(req.params.articleCode, req.user!.userId);
       res.json({ success: true, data: sales });
     } catch (error) {
       logger.error('Error fetching last sales', { error });
@@ -244,15 +244,15 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         return res.json({
           success: true,
           message: `Order ${orderId} was already sent to Milano`,
-          data: { orderId, sentToMilanoAt: order.sentToMilanoAt, currentState: order.currentState },
+          data: { orderId, sentToMilanoAt: order.sentToMilanoAt, state: order.state },
         });
       }
 
       const sendableStates = [null, '', 'creato', 'piazzato'];
-      if (!sendableStates.includes(order.currentState as string | null)) {
+      if (!sendableStates.includes(order.state as string | null)) {
         return res.status(400).json({
           success: false,
-          error: `Ordine non inviabile nello stato attuale: ${order.currentState}`,
+          error: `Ordine non inviabile nello stato attuale: ${order.state}`,
         });
       }
 

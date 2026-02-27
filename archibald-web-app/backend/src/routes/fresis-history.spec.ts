@@ -24,7 +24,7 @@ const mockRecord = {
   notes: null,
   archibaldOrderId: 'ARC-001',
   archibaldOrderNumber: 'SO-12345',
-  currentState: 'created',
+  state: 'created',
   stateUpdatedAt: null,
   ddtNumber: null,
   ddtDeliveryDate: null,
@@ -192,7 +192,7 @@ describe('createFresisHistoryRouter', () => {
     test('propagates state to children', async () => {
       const res = await request(app)
         .post('/api/fresis-history/propagate-state')
-        .send({ orderId: 'ARC-001', currentState: 'shipped' });
+        .send({ orderId: 'ARC-001', state: 'shipped' });
 
       expect(res.status).toBe(200);
       expect(res.body.updatedCount).toBe(2);

@@ -75,6 +75,32 @@ type OrderRow = {
   shipping_tax: number | null;
 };
 
+type DdtInfo = {
+  ddtId: string | null;
+  ddtNumber: string | null;
+  ddtDeliveryDate: string | null;
+  ddtCustomerAccount: string | null;
+  ddtSalesName: string | null;
+  ddtDeliveryName: string | null;
+  ddtDeliveryAddress: string | null;
+  ddtTotal: string | null;
+  ddtCustomerReference: string | null;
+  ddtDescription: string | null;
+  deliveryTerms: string | null;
+  deliveryMethod: string | null;
+  deliveryCity: string | null;
+  attentionTo: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  trackingCourier: string | null;
+};
+
+type TrackingInfo = {
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  trackingCourier: string | null;
+};
+
 type Order = {
   id: string;
   userId: string;
@@ -83,20 +109,20 @@ type Order = {
   customerName: string;
   deliveryName: string | null;
   deliveryAddress: string | null;
-  creationDate: string;
+  date: string;
   deliveryDate: string | null;
   remainingSalesFinancial: string | null;
   customerReference: string | null;
-  salesStatus: string | null;
+  status: string | null;
   orderType: string | null;
-  documentStatus: string | null;
+  documentState: string | null;
   salesOrigin: string | null;
   transferStatus: string | null;
   transferDate: string | null;
   completionDate: string | null;
   discountPercent: string | null;
   grossAmount: string | null;
-  totalAmount: string | null;
+  total: string | null;
   isQuote: string | null;
   isGiftOrder: string | null;
   hash: string;
@@ -139,7 +165,7 @@ type Order = {
   invoiceLastPaymentId: string | null;
   invoiceLastSettlementDate: string | null;
   invoiceClosedDate: string | null;
-  currentState: string | null;
+  state: string | null;
   sentToMilanoAt: string | null;
   archibaldOrderId: string | null;
   totalVatAmount: string | null;
@@ -147,6 +173,8 @@ type Order = {
   articlesSyncedAt: string | null;
   shippingCost: number | null;
   shippingTax: number | null;
+  ddt: DdtInfo | undefined;
+  tracking: TrackingInfo | undefined;
 };
 
 type OrderInput = {
@@ -156,20 +184,20 @@ type OrderInput = {
   customerName: string;
   deliveryName: string | null;
   deliveryAddress: string | null;
-  creationDate: string;
+  date: string;
   deliveryDate: string | null;
   remainingSalesFinancial: string | null;
   customerReference: string | null;
-  salesStatus: string | null;
+  status: string | null;
   orderType: string | null;
-  documentStatus: string | null;
+  documentState: string | null;
   salesOrigin: string | null;
   transferStatus: string | null;
   transferDate: string | null;
   completionDate: string | null;
   discountPercent: string | null;
   grossAmount: string | null;
-  totalAmount: string | null;
+  total: string | null;
   isQuote?: string | null;
   isGiftOrder?: string | null;
 };
@@ -320,20 +348,20 @@ function mapRowToOrder(row: OrderRow): Order {
     customerName: row.customer_name,
     deliveryName: row.delivery_name,
     deliveryAddress: row.delivery_address,
-    creationDate: row.creation_date,
+    date: row.creation_date,
     deliveryDate: row.delivery_date,
     remainingSalesFinancial: row.remaining_sales_financial,
     customerReference: row.customer_reference,
-    salesStatus: row.sales_status,
+    status: row.sales_status,
     orderType: row.order_type,
-    documentStatus: row.document_status,
+    documentState: row.document_status,
     salesOrigin: row.sales_origin,
     transferStatus: row.transfer_status,
     transferDate: row.transfer_date,
     completionDate: row.completion_date,
     discountPercent: row.discount_percent,
     grossAmount: row.gross_amount,
-    totalAmount: row.total_amount,
+    total: row.total_amount,
     isQuote: row.is_quote ?? null,
     isGiftOrder: row.is_gift_order ?? null,
     hash: row.hash,
@@ -376,7 +404,7 @@ function mapRowToOrder(row: OrderRow): Order {
     invoiceLastPaymentId: row.invoice_last_payment_id,
     invoiceLastSettlementDate: row.invoice_last_settlement_date,
     invoiceClosedDate: row.invoice_closed_date,
-    currentState: row.current_state,
+    state: row.current_state,
     sentToMilanoAt: row.sent_to_milano_at,
     archibaldOrderId: row.archibald_order_id,
     totalVatAmount: row.total_vat_amount,
@@ -384,6 +412,30 @@ function mapRowToOrder(row: OrderRow): Order {
     articlesSyncedAt: row.articles_synced_at,
     shippingCost: row.shipping_cost,
     shippingTax: row.shipping_tax,
+    ddt: row.ddt_number ? {
+      ddtId: row.ddt_id,
+      ddtNumber: row.ddt_number,
+      ddtDeliveryDate: row.ddt_delivery_date,
+      ddtCustomerAccount: row.ddt_customer_account,
+      ddtSalesName: row.ddt_sales_name,
+      ddtDeliveryName: row.ddt_delivery_name,
+      ddtDeliveryAddress: row.ddt_delivery_address,
+      ddtTotal: row.ddt_total,
+      ddtCustomerReference: row.ddt_customer_reference,
+      ddtDescription: row.ddt_description,
+      deliveryTerms: row.delivery_terms,
+      deliveryMethod: row.delivery_method,
+      deliveryCity: row.delivery_city,
+      attentionTo: row.attention_to,
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      trackingCourier: row.tracking_courier,
+    } : undefined,
+    tracking: row.tracking_number ? {
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      trackingCourier: row.tracking_courier,
+    } : undefined,
   };
 }
 
@@ -427,10 +479,10 @@ function computeHash(order: OrderInput): string {
   const hashInput = [
     order.id,
     order.orderNumber,
-    order.salesStatus,
-    order.documentStatus,
+    order.status,
+    order.documentState,
     order.transferStatus,
-    order.totalAmount,
+    order.total,
   ].join('|');
   return crypto.createHash('md5').update(hashInput).digest('hex');
 }
@@ -567,11 +619,11 @@ async function upsertOrder(
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
       [
         order.id, userId, order.orderNumber, order.customerProfileId, order.customerName,
-        order.deliveryName, order.deliveryAddress, order.creationDate, order.deliveryDate,
-        order.remainingSalesFinancial, order.customerReference, order.salesStatus,
-        order.orderType, order.documentStatus, order.salesOrigin, order.transferStatus,
+        order.deliveryName, order.deliveryAddress, order.date, order.deliveryDate,
+        order.remainingSalesFinancial, order.customerReference, order.status,
+        order.orderType, order.documentState, order.salesOrigin, order.transferStatus,
         order.transferDate, order.completionDate, order.discountPercent, order.grossAmount,
-        order.totalAmount, order.isQuote ?? null, order.isGiftOrder ?? null,
+        order.total, order.isQuote ?? null, order.isGiftOrder ?? null,
         hash, now, new Date().toISOString(),
       ],
     );
@@ -598,11 +650,11 @@ async function upsertOrder(
     WHERE id = $24 AND user_id = $25`,
     [
       order.orderNumber, order.customerProfileId, order.customerName, order.deliveryName,
-      order.deliveryAddress, order.creationDate, order.deliveryDate,
-      order.remainingSalesFinancial, order.customerReference, order.salesStatus,
-      order.orderType, order.documentStatus, order.salesOrigin, order.transferStatus,
+      order.deliveryAddress, order.date, order.deliveryDate,
+      order.remainingSalesFinancial, order.customerReference, order.status,
+      order.orderType, order.documentState, order.salesOrigin, order.transferStatus,
       order.transferDate, order.completionDate, order.discountPercent,
-      order.grossAmount, order.totalAmount, order.isQuote ?? null, order.isGiftOrder ?? null,
+      order.grossAmount, order.total, order.isQuote ?? null, order.isGiftOrder ?? null,
       hash, now,
       order.id, userId,
     ],
@@ -803,7 +855,7 @@ type LastSaleEntry = {
   discountPercent: number;
   orderDiscountPercent: number;
   lineAmount: number | null;
-  creationDate: string;
+  date: string;
 };
 
 type OrderNumberMapping = {
@@ -826,7 +878,7 @@ async function getOrderNumbersByIds(
   return rows.map((r) => ({ id: r.id, orderNumber: r.order_number }));
 }
 
-async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promise<LastSaleEntry[]> {
+async function getLastSalesForArticle(pool: DbPool, articleCode: string, userId: string): Promise<LastSaleEntry[]> {
   const { rows } = await pool.query<{
     order_id: string;
     order_number: string;
@@ -845,6 +897,7 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
      FROM agents.order_articles a
      JOIN agents.order_records o ON a.order_id = o.id AND a.user_id = o.user_id
      WHERE a.article_code = $1
+       AND o.user_id = $2
        AND o.gross_amount NOT LIKE '-%'
        AND NOT EXISTS (
          SELECT 1 FROM agents.order_records cn
@@ -859,7 +912,7 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
        )
      ORDER BY o.creation_date DESC
      LIMIT 20`,
-    [articleCode],
+    [articleCode, userId],
   );
   return rows.map((r) => ({
     orderId: r.order_id,
@@ -870,7 +923,7 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
     discountPercent: r.discount_percent ?? 0,
     orderDiscountPercent: r.order_discount_percent ? parseFloat(r.order_discount_percent) : 0,
     lineAmount: r.line_amount,
-    creationDate: r.creation_date,
+    date: r.creation_date,
   }));
 }
 
@@ -891,15 +944,15 @@ async function deleteOrdersNotInList(
   if (staleRows.length === 0) return 0;
 
   const staleIds = staleRows.map((r) => r.id);
-  const stalePlaceholders = staleIds.map((_, i) => `$${i + 1}`).join(', ');
+  const stalePlaceholders = staleIds.map((_, i) => `$${i + 2}`).join(', ');
 
   await pool.query(
-    `DELETE FROM agents.order_articles WHERE order_id IN (${stalePlaceholders})`,
-    staleIds,
+    `DELETE FROM agents.order_articles WHERE user_id = $1 AND order_id IN (${stalePlaceholders})`,
+    [userId, ...staleIds],
   );
   await pool.query(
-    `DELETE FROM agents.order_state_history WHERE order_id IN (${stalePlaceholders})`,
-    staleIds,
+    `DELETE FROM agents.order_state_history WHERE user_id = $1 AND order_id IN (${stalePlaceholders})`,
+    [userId, ...staleIds],
   );
 
   const deleteOrderPlaceholders = staleIds.map((_, i) => `$${i + 2}`).join(', ');

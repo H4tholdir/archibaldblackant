@@ -119,9 +119,9 @@ describe('adaptOrder', () => {
     expect(result.orderNumber).toBe('ORD/26000001');
     expect(result.customerProfileId).toBe('CUST001');
     expect(result.customerName).toBe('Acme Corp');
-    expect(result.creationDate).toBe('2025-06-01');
-    expect(result.salesStatus).toBe('Open');
-    expect(result.totalAmount).toBe('1234.56');
+    expect(result.date).toBe('2025-06-01');
+    expect(result.status).toBe('Open');
+    expect(result.total).toBe('1234.56');
   });
 });
 

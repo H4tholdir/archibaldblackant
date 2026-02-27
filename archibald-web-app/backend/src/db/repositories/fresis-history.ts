@@ -62,7 +62,7 @@ type FresisHistoryRecord = {
   notes: string | null;
   archibaldOrderId: string | null;
   archibaldOrderNumber: string | null;
-  currentState: string | null;
+  state: string | null;
   stateUpdatedAt: string | null;
   ddtNumber: string | null;
   ddtDeliveryDate: string | null;
@@ -123,7 +123,7 @@ type FresisHistoryInput = {
   notes: string | null;
   archibaldOrderId: string | null;
   archibaldOrderNumber: string | null;
-  currentState: string | null;
+  state: string | null;
   stateUpdatedAt: string | null;
   ddtNumber: string | null;
   ddtDeliveryDate: string | null;
@@ -143,7 +143,7 @@ type FresisHistoryInput = {
 };
 
 type StateData = {
-  currentState?: string | null;
+  state?: string | null;
   parentCustomerName?: string | null;
   ddtNumber?: string | null;
   ddtDeliveryDate?: string | null;
@@ -181,7 +181,7 @@ function mapRowToFresisHistory(row: FresisHistoryRow): FresisHistoryRecord {
     notes: row.notes,
     archibaldOrderId: row.archibald_order_id,
     archibaldOrderNumber: row.archibald_order_number,
-    currentState: row.current_state,
+    state: row.current_state,
     stateUpdatedAt: row.state_updated_at,
     ddtNumber: row.ddt_number,
     ddtDeliveryDate: row.ddt_delivery_date,
@@ -264,7 +264,7 @@ async function upsertRecords(
       r.targetTotalWithVat, r.shippingCost, r.shippingTax, r.revenue,
       r.mergedIntoOrderId, r.mergedAt, r.createdAt, r.updatedAt,
       r.notes, r.archibaldOrderId, r.archibaldOrderNumber,
-      r.currentState, r.stateUpdatedAt, r.ddtNumber, r.ddtDeliveryDate,
+      r.state, r.stateUpdatedAt, r.ddtNumber, r.ddtDeliveryDate,
       r.trackingNumber, r.trackingUrl, r.trackingCourier, r.deliveryCompletedDate,
       r.invoiceNumber, r.invoiceDate, r.invoiceAmount, r.invoiceClosed,
       r.invoiceRemainingAmount, r.invoiceDueDate,
@@ -418,7 +418,7 @@ async function propagateState(
       OR archibald_order_id LIKE $20
     ) AND source = 'app'`,
     [
-      stateData.currentState ?? null, now,
+      stateData.state ?? null, now,
       stateData.parentCustomerName ?? null,
       stateData.ddtNumber ?? null, stateData.ddtDeliveryDate ?? null,
       stateData.trackingNumber ?? null, stateData.trackingUrl ?? null,
@@ -450,7 +450,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   notes: 'notes',
   archibaldOrderId: 'archibald_order_id',
   archibaldOrderNumber: 'archibald_order_number',
-  currentState: 'current_state',
+  state: 'current_state',
   stateUpdatedAt: 'state_updated_at',
   ddtNumber: 'ddt_number',
   ddtDeliveryDate: 'ddt_delivery_date',

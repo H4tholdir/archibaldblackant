@@ -6,18 +6,18 @@ type ParsedOrder = {
   orderNumber: string;
   customerProfileId?: string;
   customerName: string;
-  creationDate: string;
+  date: string;
   deliveryDate?: string;
-  salesStatus?: string;
+  status?: string;
   orderType?: string;
-  documentStatus?: string;
+  documentState?: string;
   salesOrigin?: string;
   transferStatus?: string;
   transferDate?: string;
   completionDate?: string;
   discountPercent?: string;
   grossAmount?: string;
-  totalAmount?: string;
+  total?: string;
   deliveryName?: string;
   deliveryAddress?: string;
   remainingSalesFinancial?: string;
@@ -73,7 +73,7 @@ async function syncOrders(
     const now = Math.floor(Date.now() / 1000);
 
     const computeHash = (o: ParsedOrder) =>
-      [o.id, o.orderNumber, o.salesStatus, o.documentStatus, o.transferStatus, o.totalAmount].join('|');
+      [o.id, o.orderNumber, o.status, o.documentState, o.transferStatus, o.total].join('|');
 
     for (const order of parsedOrders) {
       const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
@@ -95,11 +95,11 @@ async function syncOrders(
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
           [
             order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
-            order.deliveryName ?? null, order.deliveryAddress ?? null, order.creationDate, order.deliveryDate ?? null,
-            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.salesStatus ?? null,
-            order.orderType ?? null, order.documentStatus ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
+            order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
+            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
+            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
             order.transferDate ?? null, order.completionDate ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.totalAmount ?? null, hash, now, new Date().toISOString(),
+            order.total ?? null, hash, now, new Date().toISOString(),
           ],
         );
         ordersInserted++;
@@ -115,11 +115,11 @@ async function syncOrders(
           WHERE id=$1 AND user_id=$2`,
           [
             order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
-            order.deliveryName ?? null, order.deliveryAddress ?? null, order.creationDate, order.deliveryDate ?? null,
-            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.salesStatus ?? null,
-            order.orderType ?? null, order.documentStatus ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
+            order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
+            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
+            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
             order.transferDate ?? null, order.completionDate ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.totalAmount ?? null, hash, now,
+            order.total ?? null, hash, now,
           ],
         );
         ordersUpdated++;

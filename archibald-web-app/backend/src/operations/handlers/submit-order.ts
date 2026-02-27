@@ -31,17 +31,17 @@ type SubmitOrderBot = {
 function calculateAmounts(
   items: SubmitOrderItem[],
   discountPercent?: number,
-): { grossAmount: number; totalAmount: number } {
+): { grossAmount: number; total: number } {
   const grossAmount = items.reduce((sum, item) => {
     const lineAmount = item.price * item.quantity * (1 - (item.discount || 0) / 100);
     return sum + lineAmount;
   }, 0);
 
-  const totalAmount = discountPercent
+  const total = discountPercent
     ? grossAmount * (1 - discountPercent / 100)
     : grossAmount;
 
-  return { grossAmount, totalAmount };
+  return { grossAmount, total };
 }
 
 async function handleSubmitOrder(
@@ -60,7 +60,7 @@ async function handleSubmitOrder(
 
   onProgress(70, 'Salvataggio ordine nel database');
 
-  const { grossAmount, totalAmount } = calculateAmounts(data.items, data.discountPercent);
+  const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
 
   const isWarehouseOnly = orderId.startsWith('warehouse-');
   const now = new Date().toISOString();
@@ -94,14 +94,14 @@ async function handleSubmitOrder(
         null, // customerReference
         isWarehouseOnly ? 'WAREHOUSE_FULFILLED' : null,
         isWarehouseOnly ? 'Warehouse' : 'Giornale',
-        null, // documentStatus
+        null, // documentState
         isWarehouseOnly ? 'PWA' : 'Agent',
         isWarehouseOnly ? null : 'Modifica',
         null, // transferDate
         null, // completionDate
         data.discountPercent?.toString() ?? null,
         grossAmount.toFixed(2),
-        totalAmount.toFixed(2),
+        total.toFixed(2),
         '', // hash
         Math.floor(Date.now() / 1000),
         now,

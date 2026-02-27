@@ -30,7 +30,7 @@ type FresisHistoryRouterDeps = {
 
 const propagateStateSchema = z.object({
   orderId: z.string().min(1),
-  currentState: z.string().optional(),
+  state: z.string().optional(),
   parentCustomerName: z.string().optional(),
   ddtNumber: z.string().optional(),
   ddtDeliveryDate: z.string().optional(),
@@ -74,7 +74,7 @@ const fresisRecordSchema = z.object({
   notes: z.string().nullable(),
   archibaldOrderId: z.string().nullable(),
   archibaldOrderNumber: z.string().nullable(),
-  currentState: z.string().nullable(),
+  state: z.string().nullable(),
   stateUpdatedAt: z.string().nullable(),
   ddtNumber: z.string().nullable(),
   ddtDeliveryDate: z.string().nullable(),
@@ -248,7 +248,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         notes: null,
         archibaldOrderId: null,
         archibaldOrderNumber: null,
-        currentState: null,
+        state: null,
         stateUpdatedAt: null,
         ddtNumber: null,
         ddtDeliveryDate: null,

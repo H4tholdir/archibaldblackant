@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useSearchMatches } from "../hooks/useSearchMatches";
 import { OrderCardNew } from "../components/OrderCardNew";
@@ -719,31 +719,33 @@ export function OrderHistory() {
   }
 
   // Filtering pipeline: hideZeroAmount → quick filters → global search
-  let result = orders;
-  if (hideZeroAmount) {
-    result = result.filter((o) => {
-      const t = parseFloat(
-        String(o.total)
-          .replace(/[^\d.,-]/g, "")
-          .replace(",", "."),
-      );
-      return isNaN(t) || t !== 0;
-    });
-  }
+  const { filteredOrders, backorderCount, ordersForCounts } = useMemo(() => {
+    let result = orders;
+    if (hideZeroAmount) {
+      result = result.filter((o) => {
+        const t = parseFloat(
+          String(o.total)
+            .replace(/[^\d.,-]/g, "")
+            .replace(",", "."),
+        );
+        return isNaN(t) || t !== 0;
+      });
+    }
 
-  // Orders after hideZero, used for chip counts
-  const ordersForCounts = result;
+    const forCounts = result;
 
-  const backorderCount = ordersForCounts.filter((o) => {
-    const hoursElapsed = (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-    return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
-  }).length;
+    const bCount = forCounts.filter((o) => {
+      const hoursElapsed = (Date.now() - new Date(o.date).getTime()) / 3_600_000;
+      return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
+    }).length;
 
-  result = applyQuickFilters(result);
-  if (debouncedSearch) {
-    result = result.filter((o) => matchesGlobalSearch(o, debouncedSearch));
-  }
-  const filteredOrders = result;
+    result = applyQuickFilters(result);
+    if (debouncedSearch) {
+      result = result.filter((o) => matchesGlobalSearch(o, debouncedSearch));
+    }
+
+    return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
+  }, [orders, hideZeroAmount, filters.quickFilters, debouncedSearch]);
 
   const hasActiveFilters =
     selectedCustomer !== null ||
@@ -755,7 +757,7 @@ export function OrderHistory() {
 
   const visibleOrders = filteredOrders.slice(0, visibleCount);
   const hasMoreOrders = visibleCount < filteredOrders.length;
-  const orderGroups = groupOrdersByPeriod(visibleOrders);
+  const orderGroups = useMemo(() => groupOrdersByPeriod(visibleOrders), [visibleOrders]);
 
   // Infinite scroll: re-create observer after each batch so it fires again
   useEffect(() => {
@@ -774,13 +776,13 @@ export function OrderHistory() {
   }, [visibleCount, hasMoreOrders]);
 
   // Quick filter definitions
-  const quickFilterDefs: {
+  const quickFilterDefs = useMemo<{
     id: QuickFilterType;
     label: string;
     color: string;
     bgColor: string;
     count: number;
-  }[] = [
+  }[]>(() => [
     {
       id: "requiresAttention",
       label: "\u26a0\ufe0f Richiede attenzione",
@@ -849,7 +851,7 @@ export function OrderHistory() {
       bgColor: "#FFCDD2",
       count: ordersForCounts.filter((o) => isOverdue(o)).length,
     },
-  ];
+  ], [ordersForCounts]);
 
   const timePresets: { id: TimePreset; label: string }[] = [
     { id: "today", label: "Oggi" },

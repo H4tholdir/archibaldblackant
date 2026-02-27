@@ -24,20 +24,20 @@ const SAMPLE_ORDER: OrderInput = {
   customerName: 'Carrazza Giovanni',
   deliveryName: 'Carrazza Giovanni',
   deliveryAddress: 'Via Mezzacapo, 121 84036 Sala Consilina Sa',
-  creationDate: '2026-01-20T12:04:22',
+  date: '2026-01-20T12:04:22',
   deliveryDate: '2026-01-21',
   remainingSalesFinancial: null,
   customerReference: null,
-  salesStatus: 'Ordine aperto',
+  status: 'Ordine aperto',
   orderType: 'Ordine di vendita',
-  documentStatus: 'Nessuno',
+  documentState: 'Nessuno',
   salesOrigin: 'Agent',
   transferStatus: 'Trasferito',
   transferDate: '2026-01-20',
   completionDate: '2026-01-20',
   discountPercent: '21,49 %',
   grossAmount: '105,60 \u20ac',
-  totalAmount: '82,91 \u20ac',
+  total: '82,91 \u20ac',
 };
 
 const SAMPLE_ORDER_ROW = {
@@ -130,7 +130,7 @@ describe('getOrderById', () => {
       userId: 'user-1',
       orderNumber: 'ORD/26000887',
       customerName: 'Carrazza Giovanni',
-      salesStatus: 'Ordine aperto',
+      status: 'Ordine aperto',
       lastSync: 1737370000,
     }));
   });
@@ -710,17 +710,17 @@ describe('computeHash', () => {
     expect(hash1).toBe(hash2);
   });
 
-  test('produces different hash for different salesStatus', async () => {
+  test('produces different hash for different status', async () => {
     const { computeHash } = await import('./orders');
     const hash1 = computeHash(SAMPLE_ORDER);
-    const hash2 = computeHash({ ...SAMPLE_ORDER, salesStatus: 'Consegnato' });
+    const hash2 = computeHash({ ...SAMPLE_ORDER, status: 'Consegnato' });
     expect(hash1).not.toBe(hash2);
   });
 
-  test('produces different hash for different totalAmount', async () => {
+  test('produces different hash for different total', async () => {
     const { computeHash } = await import('./orders');
     const hash1 = computeHash(SAMPLE_ORDER);
-    const hash2 = computeHash({ ...SAMPLE_ORDER, totalAmount: '999,00 \u20ac' });
+    const hash2 = computeHash({ ...SAMPLE_ORDER, total: '999,00 \u20ac' });
     expect(hash1).not.toBe(hash2);
   });
 });
@@ -736,8 +736,8 @@ describe('mapRowToOrder', () => {
     expect(order.customerProfileId).toBe(SAMPLE_ORDER_ROW.customer_profile_id);
     expect(order.customerName).toBe(SAMPLE_ORDER_ROW.customer_name);
     expect(order.deliveryName).toBe(SAMPLE_ORDER_ROW.delivery_name);
-    expect(order.creationDate).toBe(SAMPLE_ORDER_ROW.creation_date);
-    expect(order.salesStatus).toBe(SAMPLE_ORDER_ROW.sales_status);
+    expect(order.date).toBe(SAMPLE_ORDER_ROW.creation_date);
+    expect(order.status).toBe(SAMPLE_ORDER_ROW.sales_status);
     expect(order.lastSync).toBe(SAMPLE_ORDER_ROW.last_sync);
     expect(order.createdAt).toBe(SAMPLE_ORDER_ROW.created_at);
     expect(order.shippingCost).toBe(SAMPLE_ORDER_ROW.shipping_cost);

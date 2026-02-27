@@ -11,20 +11,20 @@ const mockOrder = {
   customerName: 'Rossi Mario',
   deliveryName: null,
   deliveryAddress: null,
-  creationDate: '2026-01-15',
+  date: '2026-01-15',
   deliveryDate: null,
   remainingSalesFinancial: null,
   customerReference: null,
-  salesStatus: 'Aperto',
+  status: 'Aperto',
   orderType: null,
-  documentStatus: null,
+  documentState: null,
   salesOrigin: null,
   transferStatus: null,
   transferDate: null,
   completionDate: null,
   discountPercent: null,
   grossAmount: '100.00',
-  totalAmount: '122.00',
+  total: '122.00',
   isQuote: null,
   isGiftOrder: null,
   hash: 'abc',
@@ -67,7 +67,7 @@ const mockOrder = {
   invoiceLastPaymentId: null,
   invoiceLastSettlementDate: null,
   invoiceClosedDate: null,
-  currentState: 'created',
+  state: 'created',
   sentToMilanoAt: null,
   archibaldOrderId: 'ARC-001',
   totalVatAmount: null,
@@ -116,7 +116,7 @@ const mockLastSale = {
   quantity: 5,
   unitPrice: 10.00,
   lineAmount: 50.00,
-  creationDate: '2026-01-15',
+  date: '2026-01-15',
 };
 
 function createMockDeps(): OrdersRouterDeps {
@@ -235,7 +235,7 @@ describe('createOrdersRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toEqual([mockLastSale]);
-      expect(deps.getLastSalesForArticle).toHaveBeenCalledWith('ART-001');
+      expect(deps.getLastSalesForArticle).toHaveBeenCalledWith('ART-001', 'user-1');
     });
   });
 
@@ -282,7 +282,7 @@ describe('createOrdersRouter', () => {
 
   describe('POST /api/orders/:orderId/send-to-milano', () => {
     test('enqueues send-to-verona job for sendable order', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, currentState: 'creato', sentToMilanoAt: null });
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'creato', sentToMilanoAt: null });
       const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
 
       expect(res.status).toBe(200);
@@ -309,7 +309,7 @@ describe('createOrdersRouter', () => {
     });
 
     test('returns 400 for non-sendable state', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, currentState: 'inviato_milano', sentToMilanoAt: null });
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'inviato_milano', sentToMilanoAt: null });
       const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
 
       expect(res.status).toBe(400);

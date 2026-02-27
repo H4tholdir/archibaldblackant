@@ -449,7 +449,7 @@ function createApp(deps: AppDeps): Express {
     getOrderById: (userId, orderId) => ordersRepo.getOrderById(pool, userId, orderId),
     getOrderArticles: (orderId, userId) => ordersRepo.getOrderArticles(pool, orderId, userId),
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
-    getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
+    getLastSalesForArticle: (articleCode, userId) => ordersRepo.getLastSalesForArticle(pool, articleCode, userId),
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
     propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
@@ -459,7 +459,7 @@ function createApp(deps: AppDeps): Express {
           const order = await ordersRepo.getOrderById(pool, userId, orderId);
           if (!order) continue;
           const count = await fresisHistoryRepo.propagateState(pool, userId, orderId, {
-            currentState: order.currentState,
+            state: order.state,
             parentCustomerName: order.customerName,
             ddtNumber: order.ddtNumber,
             ddtDeliveryDate: order.ddtDeliveryDate,
@@ -604,7 +604,7 @@ function createApp(deps: AppDeps): Express {
         notes: row.notes,
         archibaldOrderId: row.archibald_order_id,
         archibaldOrderNumber: row.archibald_order_number,
-        currentState: row.current_state,
+        state: row.current_state,
         stateUpdatedAt: row.state_updated_at,
         ddtNumber: row.ddt_number,
         ddtDeliveryDate: row.ddt_delivery_date,

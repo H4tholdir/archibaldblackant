@@ -650,6 +650,10 @@ function TabArticoli({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const subscribeRef = useRef(subscribe);
+  subscribeRef.current = subscribe;
 
   // Load existing articles from database on mount
   useEffect(() => {
@@ -712,14 +716,14 @@ function TabArticoli({
       setSyncingArticles(true);
       let freshArticles = articles;
 
-      if (token && orderId) {
+      if (tokenRef.current && orderId) {
         try {
           const syncResponse = await fetchWithRetry(
             `/api/orders/${orderId}/sync-articles`,
             {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: `Bearer ${tokenRef.current}`,
                 "Content-Type": "application/json",
               },
             },
@@ -730,7 +734,7 @@ function TabArticoli({
 
             if (enqueueResult.jobId) {
               await waitForJobViaWebSocket(enqueueResult.jobId, {
-                subscribe,
+                subscribe: subscribeRef.current,
                 maxWaitMs: 120_000,
               });
 
@@ -738,7 +742,7 @@ function TabArticoli({
                 `/api/orders/${orderId}/articles`,
                 {
                   headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${tokenRef.current}`,
                   },
                 },
               );
@@ -786,7 +790,7 @@ function TabArticoli({
     return () => {
       cancelled = true;
     };
-  }, [editing]);
+  }, [editing, orderId]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -4151,7 +4155,7 @@ export function OrderCardNew({
               justifyContent: "center",
               zIndex: 2000,
             }}
-            onClick={() => setDeleteConfirm(false)}
+            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(false); }}
           >
             <div
               style={{

@@ -17,8 +17,8 @@ function createMockDeps(pool?: DbPool): OrderSyncDeps {
     pool: pool ?? createMockPool(),
     downloadPdf: vi.fn().mockResolvedValue('/tmp/orders.pdf'),
     parsePdf: vi.fn().mockResolvedValue([
-      { id: 'ORD-001', orderNumber: 'SO-001', customerProfileId: 'C1', customerName: 'Acme', creationDate: '2026-01-01', salesStatus: 'Open' },
-      { id: 'ORD-002', orderNumber: 'SO-002', customerProfileId: 'C2', customerName: 'Beta', creationDate: '2026-01-02', salesStatus: 'Open' },
+      { id: 'ORD-001', orderNumber: 'SO-001', customerProfileId: 'C1', customerName: 'Acme', date: '2026-01-01', status: 'Open' },
+      { id: 'ORD-002', orderNumber: 'SO-002', customerProfileId: 'C2', customerName: 'Beta', date: '2026-01-02', status: 'Open' },
     ]),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
   };

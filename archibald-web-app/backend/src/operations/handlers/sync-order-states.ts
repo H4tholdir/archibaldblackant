@@ -119,36 +119,36 @@ function detectOrderState(order: Order): StateDetection {
     };
   }
 
-  if (order.salesStatus) {
-    const statusLower = order.salesStatus.toLowerCase();
+  if (order.status) {
+    const statusLower = order.status.toLowerCase();
 
     if (statusLower.includes('ordine aperto') || statusLower.includes('open')) {
-      return { state: 'ordine_aperto', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.salesStatus}` };
+      return { state: 'ordine_aperto', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.status}` };
     }
     if (statusLower.includes('consegnato') || statusLower.includes('delivered')) {
-      return { state: 'spedito', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.salesStatus} (tag = affidato a corriere)` };
+      return { state: 'spedito', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.status} (tag = affidato a corriere)` };
     }
     if (statusLower.includes('fatturato') || statusLower.includes('invoiced')) {
-      return { state: 'fatturato', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.salesStatus}` };
+      return { state: 'fatturato', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.status}` };
     }
     if (statusLower.includes('trasferito') || statusLower.includes('transferred')) {
-      return { state: 'trasferito', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.salesStatus}` };
+      return { state: 'trasferito', confidence: 'high', source: 'archibald', notes: `Archibald status: ${order.status}` };
     }
     if (statusLower.includes('modifica') || statusLower.includes('modification')) {
-      return { state: 'modifica', confidence: 'medium', source: 'archibald', notes: `Archibald status: ${order.salesStatus}` };
+      return { state: 'modifica', confidence: 'medium', source: 'archibald', notes: `Archibald status: ${order.status}` };
     }
     if (statusLower.includes('error') || statusLower.includes('errore')) {
-      return { state: 'transfer_error', confidence: 'medium', source: 'archibald', notes: `Archibald status: ${order.salesStatus}` };
+      return { state: 'transfer_error', confidence: 'medium', source: 'archibald', notes: `Archibald status: ${order.status}` };
     }
   }
 
   if (
-    order.currentState &&
-    order.currentState !== 'creato' &&
-    order.currentState !== 'piazzato'
+    order.state &&
+    order.state !== 'creato' &&
+    order.state !== 'piazzato'
   ) {
     return {
-      state: order.currentState as OrderState,
+      state: order.state as OrderState,
       confidence: 'low',
       source: 'database',
       notes: 'Using last known state from database',
@@ -184,7 +184,7 @@ function createSyncOrderStatesHandler(pool: DbPool): OperationHandler {
       try {
         const detection = detectOrderState(order);
 
-        if (detection.state !== order.currentState || forceRefresh) {
+        if (detection.state !== order.state || forceRefresh) {
           await updateOrderState(
             pool,
             userId,

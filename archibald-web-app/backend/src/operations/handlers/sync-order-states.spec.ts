@@ -11,20 +11,20 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     customerName: 'Test Customer',
     deliveryName: null,
     deliveryAddress: null,
-    creationDate: '2026-02-01',
+    date: '2026-02-01',
     deliveryDate: null,
     remainingSalesFinancial: null,
     customerReference: null,
-    salesStatus: null,
+    status: null,
     orderType: null,
-    documentStatus: null,
+    documentState: null,
     salesOrigin: null,
     transferStatus: null,
     transferDate: null,
     completionDate: null,
     discountPercent: null,
     grossAmount: null,
-    totalAmount: null,
+    total: null,
     isQuote: null,
     isGiftOrder: null,
     hash: 'abc123',
@@ -67,7 +67,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     invoiceLastPaymentId: null,
     invoiceLastSettlementDate: null,
     invoiceClosedDate: null,
-    currentState: null,
+    state: null,
     sentToMilanoAt: null,
     archibaldOrderId: null,
     totalVatAmount: null,
@@ -156,37 +156,37 @@ describe('detectOrderState', () => {
   });
 
   test('salesStatus "Ordine Aperto" → ordine_aperto', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'Ordine Aperto' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'Ordine Aperto' });
     expect(detectOrderState(order).state).toBe('ordine_aperto');
   });
 
   test('salesStatus "Consegnato" maps to spedito (corriere)', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'Consegnato' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'Consegnato' });
     expect(detectOrderState(order).state).toBe('spedito');
   });
 
   test('salesStatus "Fatturato" → fatturato', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'Fatturato' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'Fatturato' });
     expect(detectOrderState(order).state).toBe('fatturato');
   });
 
   test('salesStatus "Trasferito" → trasferito', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'Trasferito' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'Trasferito' });
     expect(detectOrderState(order).state).toBe('trasferito');
   });
 
   test('salesStatus "In modifica" → modifica', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'In modifica' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'In modifica' });
     expect(detectOrderState(order).state).toBe('modifica');
   });
 
   test('salesStatus with "errore" → transfer_error', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', salesStatus: 'Errore trasferimento' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', status: 'Errore trasferimento' });
     expect(detectOrderState(order).state).toBe('transfer_error');
   });
 
   test('fallback to existing currentState if non-trivial', () => {
-    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', currentState: 'trasferito' });
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', sentToMilanoAt: '2026-01-01', state: 'trasferito' });
     expect(detectOrderState(order).state).toBe('trasferito');
     expect(detectOrderState(order).confidence).toBe('low');
   });
