@@ -201,10 +201,15 @@ export function WarehouseMatchAccordion({
             const isUnavailable =
               !!match.item.reservedForOrder || !!match.item.soldInOrder;
 
+            const isPerfectMatch =
+              match.score === 100 &&
+              match.availableQty >= requestedQuantity &&
+              requestedQuantity > 0;
+
             return (
               <div
                 key={match.item.id}
-                className={`match-item ${isSelected ? "selected" : ""}`}
+                className={`match-item ${isSelected ? "selected" : ""} ${isPerfectMatch ? "perfect-match" : ""}`}
                 style={
                   isUnavailable
                     ? { opacity: 0.6, pointerEvents: "none" }
@@ -387,6 +392,16 @@ export function WarehouseMatchAccordion({
         .match-item.selected {
           border-color: #007bff;
           background: #f0f8ff;
+        }
+
+        .match-item.perfect-match {
+          border-color: #10b981;
+          animation: warehouse-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes warehouse-pulse {
+          0%, 100% { background: white; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+          50% { background: #d1fae5; box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.3); }
         }
 
         .match-header-row {
