@@ -800,6 +800,8 @@ type LastSaleEntry = {
   customerName: string;
   quantity: number;
   unitPrice: number | null;
+  discountPercent: number;
+  orderDiscountPercent: number;
   lineAmount: number | null;
   creationDate: string;
 };
@@ -831,10 +833,15 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
     customer_name: string;
     quantity: number;
     unit_price: number | null;
+    discount_percent: number | null;
+    order_discount_percent: string | null;
     line_amount: number | null;
     creation_date: string;
   }>(
-    `SELECT a.order_id, o.order_number, o.customer_name, a.quantity, a.unit_price, a.line_amount, o.creation_date
+    `SELECT a.order_id, o.order_number, o.customer_name, a.quantity, a.unit_price,
+            COALESCE(a.discount_percent, 0) AS discount_percent,
+            o.discount_percent AS order_discount_percent,
+            a.line_amount, o.creation_date
      FROM agents.order_articles a
      JOIN agents.order_records o ON a.order_id = o.id AND a.user_id = o.user_id
      WHERE a.article_code = $1
@@ -856,6 +863,8 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promis
     customerName: r.customer_name,
     quantity: r.quantity,
     unitPrice: r.unit_price,
+    discountPercent: r.discount_percent ?? 0,
+    orderDiscountPercent: r.order_discount_percent ? parseFloat(r.order_discount_percent) : 0,
     lineAmount: r.line_amount,
     creationDate: r.creation_date,
   }));

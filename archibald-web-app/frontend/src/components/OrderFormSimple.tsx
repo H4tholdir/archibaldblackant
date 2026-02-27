@@ -103,6 +103,7 @@ export default function OrderFormSimple() {
     Array<{
       unitPrice: number;
       discountPercent: number;
+      globalDiscountPercent: number;
       quantity: number;
       creationDate: string;
       customerName: string;
@@ -1123,6 +1124,7 @@ export default function OrderFormSimple() {
       type SaleEntry = {
         unitPrice: number;
         discountPercent: number;
+        globalDiscountPercent: number;
         quantity: number;
         creationDate: string;
         customerName: string;
@@ -1146,6 +1148,7 @@ export default function OrderFormSimple() {
             allSales.push({
               unitPrice: item.price,
               discountPercent: item.discount ?? 0,
+              globalDiscountPercent: order.discountPercent ?? 0,
               quantity: item.quantity,
               creationDate: order.createdAt || "",
               customerName: order.subClientName || order.customerName || "",
@@ -1175,6 +1178,7 @@ export default function OrderFormSimple() {
                 allSales.push({
                   unitPrice: sale.unitPrice,
                   discountPercent: sale.discountPercent ?? 0,
+                  globalDiscountPercent: sale.orderDiscountPercent ?? 0,
                   quantity: sale.quantity,
                   creationDate: sale.creationDate || "",
                   customerName: sale.customerName || "",
@@ -1218,14 +1222,21 @@ export default function OrderFormSimple() {
   const handleSelectLastSale = (sale: {
     unitPrice: number;
     discountPercent: number;
+    globalDiscountPercent: number;
   }) => {
+    const rowDisc = sale.discountPercent || 0;
+    const globalDisc = sale.globalDiscountPercent || 0;
+    const compound =
+      (1 - (1 - rowDisc / 100) * (1 - globalDisc / 100)) * 100;
+    const roundedDiscount = Math.round(compound * 100) / 100;
+
     setListPrice(sale.unitPrice.toString());
-    if (sale.discountPercent > 0) {
-      setItemDiscount(sale.discountPercent.toString());
+    if (roundedDiscount > 0) {
+      setItemDiscount(roundedDiscount.toString());
     }
     setLastSalesModalOpen(false);
     toastService.success(
-      `Prezzo applicato: ${formatCurrency(sale.unitPrice)}${sale.discountPercent ? ` (sconto ${sale.discountPercent}%)` : ""}`,
+      `Prezzo applicato: ${formatCurrency(sale.unitPrice)}${roundedDiscount > 0 ? ` (sconto ${roundedDiscount}%)` : ""}`,
     );
   };
 
@@ -3367,7 +3378,7 @@ export default function OrderFormSimple() {
                             fontWeight: "600",
                           }}
                         >
-                          {searchingLastSale ? "..." : "Ultime Vendite"}
+                          {searchingLastSale ? "\u23F3" : "Ultime Vendite"}
                         </button>
                       </label>
                       <input
@@ -5213,23 +5224,38 @@ export default function OrderFormSimple() {
                       marginBottom: "0.25rem",
                     }}
                   >
-                    <span style={{ fontWeight: "600", fontSize: "0.9375rem" }}>
-                      {formatCurrency(sale.unitPrice)}
-                    </span>
-                    {sale.discountPercent > 0 && (
-                      <span
-                        style={{
-                          background: "#fef3c7",
-                          color: "#92400e",
-                          padding: "0.125rem 0.5rem",
-                          borderRadius: "9999px",
-                          fontSize: "0.75rem",
-                          fontWeight: "600",
-                        }}
-                      >
-                        -{sale.discountPercent}%
-                      </span>
-                    )}
+                    {(() => {
+                      const rowD = sale.discountPercent || 0;
+                      const globalD = sale.globalDiscountPercent || 0;
+                      const netPrice = sale.unitPrice * (1 - rowD / 100) * (1 - globalD / 100);
+                      const compound = Math.round((1 - (1 - rowD / 100) * (1 - globalD / 100)) * 10000) / 100;
+                      return (
+                        <>
+                          <span style={{ fontWeight: "600", fontSize: "0.9375rem" }}>
+                            {formatCurrency(netPrice)}
+                            {compound > 0 && (
+                              <span style={{ fontWeight: "400", fontSize: "0.75rem", color: "#6b7280", marginLeft: "0.375rem" }}>
+                                (listino {formatCurrency(sale.unitPrice)})
+                              </span>
+                            )}
+                          </span>
+                          {compound > 0 && (
+                            <span
+                              style={{
+                                background: "#fef3c7",
+                                color: "#92400e",
+                                padding: "0.125rem 0.5rem",
+                                borderRadius: "9999px",
+                                fontSize: "0.75rem",
+                                fontWeight: "600",
+                              }}
+                            >
+                              -{compound}%
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                   <div
                     style={{
