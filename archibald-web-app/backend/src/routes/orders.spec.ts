@@ -134,7 +134,7 @@ function createMockDeps(): OrdersRouterDeps {
     getOrderNumbersByIds: vi.fn().mockResolvedValue([
       { id: 'ORD-001', orderNumber: 'SO-12345' },
     ]),
-    propagateStatesToFresisHistory: vi.fn().mockResolvedValue(2),
+    getOrderHistoryByCustomer: vi.fn().mockResolvedValue([]),
   };
 }
 

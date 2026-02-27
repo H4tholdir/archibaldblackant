@@ -39,12 +39,7 @@ function normalizeAmount(grossAmount: string): string {
 }
 
 function getOrderDate(order: Order): Date {
-  const raw =
-    order.date ||
-    (order.orderDate as string | undefined) ||
-    (order.creationDate as string | undefined) ||
-    "";
-  return new Date(raw);
+  return new Date(order.date || "");
 }
 
 function detectNcTriads(orders: Order[]): NcTriad[] {

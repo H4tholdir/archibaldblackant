@@ -63,7 +63,7 @@ export function formatPriceFromString(
       return amount;
     }
     const parsed = parseFloat(amount.replace(",", "."));
-    if (isNaN(parsed)) return "€ 0,00";
+    if (isNaN(parsed)) return amount;
     amount = parsed;
   }
 

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
 import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder } from '../db/repositories/orders';
@@ -38,7 +39,6 @@ type OrdersRouterDeps = {
   getStateHistory: (userId: string, orderId: string) => Promise<StateHistory[]>;
   getLastSalesForArticle: (articleCode: string, userId: string) => Promise<LastSaleEntry[]>;
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
-  propagateStatesToFresisHistory: (userId: string, updatedOrderIds: string[]) => Promise<number>;
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
 };
 
@@ -46,11 +46,11 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
   const {
     queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles,
     getStateHistory, getLastSalesForArticle, getOrderNumbersByIds,
-    propagateStatesToFresisHistory, getOrderHistoryByCustomer,
+    getOrderHistoryByCustomer,
   } = deps;
   const router = Router();
 
-  router.get('/', async (req: AuthRequest, res) => {
+  const handleGetOrders = async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.userId;
       const options: OrderFilterOptions = {
@@ -68,38 +68,16 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         countOrders(userId, options),
       ]);
 
-      res.json({ success: true, data: { orders, total, hasMore: false } });
+      const hasMore = (options.offset ?? 0) + orders.length < total;
+      res.json({ success: true, data: { orders, total, hasMore } });
     } catch (error) {
       logger.error('Error fetching orders', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ordini' });
     }
-  });
+  };
 
-  // Alias: the frontend OrderHistory page calls /api/orders/history with the same query params as GET /
-  router.get('/history', async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user!.userId;
-      const options: OrderFilterOptions = {
-        customer: req.query.customer as string | undefined,
-        status: req.query.status as string | undefined,
-        dateFrom: req.query.dateFrom as string | undefined,
-        dateTo: req.query.dateTo as string | undefined,
-        search: req.query.search as string | undefined,
-        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
-        offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
-      };
-
-      const [orders, total] = await Promise.all([
-        getOrdersByUser(userId, options),
-        countOrders(userId, options),
-      ]);
-
-      res.json({ success: true, data: { orders, total, hasMore: false } });
-    } catch (error) {
-      logger.error('Error fetching order history', { error });
-      res.status(500).json({ success: false, error: 'Errore nel recupero ordini' });
-    }
-  });
+  router.get('/', handleGetOrders);
+  router.get('/history', handleGetOrders);
 
   router.get('/last-sales/:articleCode', async (req: AuthRequest, res) => {
     try {

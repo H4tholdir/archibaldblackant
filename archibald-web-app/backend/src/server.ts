@@ -452,38 +452,6 @@ function createApp(deps: AppDeps): Express {
     getLastSalesForArticle: (articleCode, userId) => ordersRepo.getLastSalesForArticle(pool, articleCode, userId),
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
-    propagateStatesToFresisHistory: async (userId, updatedOrderIds) => {
-      let propagated = 0;
-      for (const orderId of updatedOrderIds) {
-        try {
-          const order = await ordersRepo.getOrderById(pool, userId, orderId);
-          if (!order) continue;
-          const count = await fresisHistoryRepo.propagateState(pool, userId, orderId, {
-            state: order.state,
-            parentCustomerName: order.customerName,
-            ddtNumber: order.ddtNumber,
-            ddtDeliveryDate: order.ddtDeliveryDate,
-            trackingNumber: order.trackingNumber,
-            trackingUrl: order.trackingUrl,
-            trackingCourier: order.trackingCourier,
-            deliveryCompletedDate: order.deliveryCompletedDate,
-            invoiceNumber: order.invoiceNumber,
-            invoiceDate: order.invoiceDate,
-            invoiceAmount: order.invoiceAmount,
-            invoiceClosed: order.invoiceClosed,
-            invoiceRemainingAmount: order.invoiceRemainingAmount,
-            invoiceDueDate: order.invoiceDueDate,
-          });
-          propagated += count;
-        } catch (err) {
-          logger.warn('[State Sync] Failed to propagate to fresis_history', {
-            orderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-      return propagated;
-    },
   }));
 
   app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({

@@ -94,8 +94,8 @@ export function groupOrdersByPeriod(orders: Order[]): OrderGroup[] {
   // Sort orders within each group by date descending (newest first)
   groups.forEach((orders) => {
     orders.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.date).getTime() || 0;
+      const dateB = new Date(b.date).getTime() || 0;
       return dateB - dateA;
     });
   });

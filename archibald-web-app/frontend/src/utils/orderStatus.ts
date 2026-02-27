@@ -99,7 +99,7 @@ function parseItalianAmount(value: string): number {
   return parseFloat(value.replace(/\./g, "").replace(",", "."));
 }
 
-function isInvoicePaid(order: Order): boolean {
+export function isInvoicePaid(order: Order): boolean {
   if (order.invoiceClosed === true) return true;
   if (order.invoiceRemainingAmount) {
     const remaining = parseItalianAmount(order.invoiceRemainingAmount);

@@ -67,12 +67,7 @@ describe(getOrderDate, () => {
     expect(getOrderDate(order).toISOString()).toContain("2026-02-15");
   });
 
-  test("falls back to creationDate", () => {
-    const order = makeOrder({ id: "1", date: "", creationDate: "2026-01-20T08:00:00" });
-    expect(getOrderDate(order).toISOString()).toContain("2026-01-20");
-  });
-
-  test("returns Invalid Date for missing dates", () => {
+  test("returns Invalid Date when date is empty", () => {
     const order = makeOrder({ id: "1", date: "" });
     expect(isNaN(getOrderDate(order).getTime())).toBe(true);
   });

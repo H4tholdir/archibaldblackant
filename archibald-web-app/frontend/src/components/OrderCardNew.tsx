@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { Order, OrderItem, OrderArticle } from "../types/order";
+import type { Order, OrderArticle } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
@@ -78,20 +78,12 @@ function formatDateTime(dateString: string | undefined): string {
   }
 }
 
-function getCourierLogo(courier: string | undefined): string {
-  if (!courier) return "📦";
-  const courierLower = courier.toLowerCase();
-  if (courierLower.includes("ups")) return "📦"; // UPS brown
-  if (courierLower.includes("fedex")) return "📦"; // FedEx purple
-  if (courierLower.includes("dhl")) return "📦"; // DHL yellow
-  if (courierLower.includes("tnt")) return "📦"; // TNT orange
-  if (courierLower.includes("bartolini")) return "📦"; // Bartolini
-  if (courierLower.includes("sda")) return "📦"; // SDA
+function getCourierLogo(_courier: string | undefined): string {
   return "📦";
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(text).catch(() => {});
 }
 
 // ============================================================================
@@ -600,7 +592,6 @@ function recalcLineAmounts(item: EditItem): EditItem {
 }
 
 function TabArticoli({
-  items: _items,
   orderId,
   archibaldOrderId,
   token,
@@ -610,7 +601,6 @@ function TabArticoli({
   onEditDone,
   editProgress,
 }: {
-  items?: OrderItem[];
   orderId: string;
   archibaldOrderId?: string;
   token?: string;
@@ -1189,7 +1179,7 @@ function TabArticoli({
           style={{
             fontSize: "48px",
             marginBottom: "16px",
-            animation: "spin 1s linear infinite",
+            animation: "archibald-spinner-spin 1s linear infinite",
           }}
         >
           {"⏳"}
@@ -1198,7 +1188,7 @@ function TabArticoli({
           Sincronizzazione articoli da Archibald...
         </p>
         <style>
-          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+          {`@keyframes archibald-spinner-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
         </style>
       </div>
     );
@@ -1387,8 +1377,7 @@ function TabArticoli({
   }
 
   // EDIT MODE RENDERING
-  if (editing && editItems.length >= 0) {
-    const displayItems = editItems.length > 0 ? editItems : [];
+  if (editing) {
     return (
       <div style={{ padding: "16px" }}>
         <style>{`
@@ -1490,7 +1479,7 @@ function TabArticoli({
               </tr>
             </thead>
             <tbody>
-              {displayItems.map((item, idx) => {
+              {editItems.map((item, idx) => {
                 const isSearching = editingArticleIdx === idx;
                 const qtyError = qtyValidation.get(idx);
 
@@ -3158,22 +3147,18 @@ function InfoField({
   value,
   bold,
   small,
-  copyable,
-  multiline,
   searchQuery = "",
 }: {
   label: string;
   value?: string;
   bold?: boolean;
   small?: boolean;
-  copyable?: boolean;
-  multiline?: boolean;
   searchQuery?: string;
 }) {
   if (!value) return null;
 
   return (
-    <div style={{ marginBottom: multiline ? "12px" : "0" }}>
+    <div>
       <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>
         {label}
       </div>
@@ -3185,28 +3170,12 @@ function InfoField({
           display: "flex",
           alignItems: "center",
           gap: "8px",
-          whiteSpace: multiline ? "pre-wrap" : "nowrap",
-          overflow: multiline ? "visible" : "hidden",
-          textOverflow: multiline ? "clip" : "ellipsis",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         <HighlightText text={value} query={searchQuery} />
-        {copyable && (
-          <button
-            onClick={() => copyToClipboard(value)}
-            style={{
-              padding: "2px 8px",
-              fontSize: "12px",
-              border: "none",
-              backgroundColor: "#e0e0e0",
-              color: "#333",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            📋
-          </button>
-        )}
       </div>
     </div>
   );
@@ -4312,7 +4281,6 @@ export function OrderCardNew({
             {activeTab === "articoli" && (
               <>
                 <TabArticoli
-                  items={order.items}
                   orderId={order.id}
                   archibaldOrderId={order.id}
                   token={token}

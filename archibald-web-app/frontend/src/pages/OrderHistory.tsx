@@ -13,6 +13,7 @@ import {
   isLikelyDelivered,
   isInTransit,
   isNotSentToVerona,
+  isInvoicePaid,
 } from "../utils/orderStatus";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
@@ -178,19 +179,6 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
   return false;
 }
 
-function parseItalianAmount(value: string): number {
-  return parseFloat(value.replace(/\./g, "").replace(",", "."));
-}
-
-function isOrderPaid(order: Order): boolean {
-  if (order.invoiceClosed === true) return true;
-  if (order.invoiceRemainingAmount) {
-    const remaining = parseItalianAmount(order.invoiceRemainingAmount);
-    return !isNaN(remaining) && remaining <= 0;
-  }
-  return false;
-}
-
 export function OrderHistory() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightOrderId = searchParams.get("highlight");
@@ -306,13 +294,6 @@ export function OrderHistory() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        setLoading(false);
-        return;
-      }
-
       const params = new URLSearchParams();
       if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
@@ -322,19 +303,9 @@ export function OrderHistory() {
 
       const response = await fetchWithRetry(
         `/api/orders/history?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          setError("Sessione scaduta. Effettua il login.");
-          localStorage.removeItem("archibald_jwt");
-          return;
-        }
         const errorBody = await response.json().catch(() => null);
         const errorMsg =
           errorBody?.error || response.statusText || "Errore sconosciuto";
@@ -559,30 +530,13 @@ export function OrderHistory() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        setSendingToVerona(false);
-        return;
-      }
-
       const response = await fetchWithRetry(
         `/api/orders/${modalOrderId}/send-to-milano`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        { method: "POST" },
         { maxRetries: 0, totalTimeout: 120000 },
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          setError("Sessione scaduta. Effettua il login.");
-          localStorage.removeItem("archibald_jwt");
-          return;
-        }
         const errorBody = await response.json().catch(() => null);
         const errorMsg =
           errorBody?.error || response.statusText || "Errore sconosciuto";
@@ -675,11 +629,11 @@ export function OrderHistory() {
             break;
 
           case "invoiced":
-            matches = !!order.invoiceNumber && !isOrderPaid(order);
+            matches = !!order.invoiceNumber && !isInvoicePaid(order);
             break;
 
           case "paid":
-            matches = !!order.invoiceNumber && isOrderPaid(order);
+            matches = !!order.invoiceNumber && isInvoicePaid(order);
             break;
 
           case "overdue":
@@ -752,14 +706,14 @@ export function OrderHistory() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 30);
+          setVisibleCount((prev) => Math.min(prev + 30, filteredOrders.length));
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, hasMoreOrders]);
+  }, [visibleCount, hasMoreOrders, filteredOrders.length]);
 
   // Quick filter definitions
   const quickFilterDefs = useMemo<{
@@ -819,7 +773,7 @@ export function OrderHistory() {
       label: "\ud83d\udcd1 Fatturati",
       color: "#9C27B0",
       bgColor: "#F3E5F5",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isOrderPaid(o))
+      count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isInvoicePaid(o))
         .length,
     },
     {
@@ -827,7 +781,7 @@ export function OrderHistory() {
       label: "\u2705 Pagati",
       color: "#2E7D32",
       bgColor: "#E8F5E9",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && isOrderPaid(o))
+      count: ordersForCounts.filter((o) => !!o.invoiceNumber && isInvoicePaid(o))
         .length,
     },
     {
@@ -847,6 +801,8 @@ export function OrderHistory() {
     { id: "thisYear", label: "Quest'anno" },
     { id: "custom", label: "Personalizzato" },
   ];
+
+  const token = localStorage.getItem("archibald_jwt") || undefined;
 
   return (
     <div
@@ -1834,9 +1790,7 @@ export function OrderHistory() {
                               onSendToVerona={handleSendToVerona}
                               onEdit={handleEdit}
                               onDeleteDone={fetchOrders}
-                              token={
-                                localStorage.getItem("archibald_jwt") || undefined
-                              }
+                              token={token}
                               searchQuery={debouncedSearch}
                               editingOrderId={editingOrderId}
                               onEditDone={() => {
@@ -1878,9 +1832,7 @@ export function OrderHistory() {
                             onToggle={() => handleToggle(order.id)}
                             onSendToVerona={handleSendToVerona}
                             onEdit={handleEdit}
-                            token={
-                              localStorage.getItem("archibald_jwt") || undefined
-                            }
+                            token={token}
                             searchQuery={debouncedSearch}
                             editing={editingOrderId === order.id}
                             onEditDone={() => {

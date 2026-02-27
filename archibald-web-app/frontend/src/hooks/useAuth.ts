@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import * as authApi from "../api/auth";
 import { jwtRefreshService } from "../services/jwt-refresh-service";
+import { FresisHistoryRealtimeService } from "../services/fresis-history-realtime.service";
 
 const TOKEN_KEY = "archibald_jwt";
 const LAST_USER_KEY = "archibald_last_user";
@@ -136,6 +137,8 @@ export function useAuth() {
 
     // Stop JWT auto-refresh service
     jwtRefreshService.stop();
+
+    FresisHistoryRealtimeService.getInstance().reset();
 
     localStorage.removeItem(TOKEN_KEY);
     setState({

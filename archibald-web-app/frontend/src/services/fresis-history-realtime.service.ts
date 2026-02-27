@@ -330,6 +330,18 @@ export class FresisHistoryRealtimeService {
     }
   }
 
+  public reset(): void {
+    this._deleteProgressMap.clear();
+    this._editProgressMap.clear();
+    this._orderEditProgressMap.clear();
+    this._orderDeleteProgressMap.clear();
+    this.updateHandlers.clear();
+    this.deleteProgressHandlers.clear();
+    this.editProgressHandlers.clear();
+    this.orderEditProgressHandlers.clear();
+    this.orderDeleteProgressHandlers.clear();
+  }
+
   public handleBulkImported(payload: unknown): void {
     try {
       const data = payload as BulkImportedPayload;
