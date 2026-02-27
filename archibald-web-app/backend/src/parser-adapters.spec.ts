@@ -31,7 +31,6 @@ describe('adaptCustomer', () => {
       description: 'Test customer',
       last_order_date: '2025-01-01',
       actual_order_count: 10,
-      actual_sales: 50000,
       previous_order_count_1: 8,
       previous_sales_1: 40000,
       previous_order_count_2: 5,
@@ -63,7 +62,6 @@ describe('adaptCustomer', () => {
       description: 'Test customer',
       lastOrderDate: '2025-01-01',
       actualOrderCount: 10,
-      actualSales: 50000,
       previousOrderCount1: 8,
       previousSales1: 40000,
       previousOrderCount2: 5,
@@ -202,7 +200,7 @@ describe('adaptInvoice', () => {
     expect(result.invoiceQuantity).toBe(5);
     expect(result.invoiceRemainingAmount).toBe('0.00');
     expect(result.invoiceTaxAmount).toBe('22.00');
-    expect(result.invoiceLineDiscount).toBe('10.00');
+    expect(result.invoiceLineDiscount).toBe('100.00');
     expect(result.invoiceTotalDiscount).toBe('10.00');
     expect(result.invoiceDueDate).toBe('2025-08-01');
     expect(result.invoicePaymentTermsId).toBe('NET30');

@@ -25,8 +25,14 @@ class ParsedDDT:
     customer_account: Optional[str]
     sales_name: Optional[str]
 
-    # Page 3/6: Delivery Name
+    # Page 3/6: Delivery Name + Address
     delivery_name: Optional[str]
+    delivery_address: Optional[str]
+
+    # Page 4/6: Totals
+    ddt_total: Optional[str]
+    customer_reference: Optional[str]
+    description: Optional[str]
 
     # Page 5/6: TRACKING (Key page!)
     tracking_number: Optional[str]  # e.g., "445291888246"
@@ -36,6 +42,7 @@ class ParsedDDT:
 
     # Page 6/6: Delivery Method & Location
     delivery_method: Optional[str]  # Courier: "FedEx", "UPS", "DHL"
+    attention_to: Optional[str]
     delivery_city: Optional[str]
 
 
@@ -241,13 +248,16 @@ def parse_ddt_pdf(pdf_path: str):
                     customer_account = row2[0] if len(row2) > 0 else None
                     sales_name = row2[1] if len(row2) > 1 else None
 
-                    # Page 3/6: Delivery Name (2 columns - use first)
+                    # Page 3/6: Delivery Name + Address (2 columns)
                     row3 = tables[2][row_idx] if row_idx < len(tables[2]) else [None] * 2
                     delivery_name = row3[0] if len(row3) > 0 else None
+                    delivery_address = row3[1] if len(row3) > 1 else None
 
                     # Page 4/6: Totals (3 columns)
-                    # Columns: [TOTALE, RIFERIMENTO CLIENTE, DESCRIZIONE]
-                    # (We don't currently extract these values)
+                    row4 = tables[3][row_idx] if row_idx < len(tables[3]) else [None] * 3
+                    ddt_total = row4[0] if len(row4) > 0 else None
+                    customer_reference = row4[1] if len(row4) > 1 else None
+                    ddt_description = row4[2] if len(row4) > 2 else None
 
                     # Page 5/6: TRACKING (2 columns) ⭐ KEY PAGE
                     # Columns: [NUMERO DI TRACCIABILITÀ, TERMINI DI CONSEGNA]
@@ -260,6 +270,7 @@ def parse_ddt_pdf(pdf_path: str):
                     # Columns: [MODALITÀ DI CONSEGNA, ALL'ATTENZIONE DI, CITTÀ DI CONSEGNA]
                     row6 = tables[5][row_idx] if row_idx < len(tables[5]) else [None] * 3
                     delivery_method = row6[0] if len(row6) > 0 else None
+                    attention_to = row6[1] if len(row6) > 1 else None
                     delivery_city = row6[2] if len(row6) > 2 else None
 
                     # Create ParsedDDT
@@ -271,11 +282,16 @@ def parse_ddt_pdf(pdf_path: str):
                         customer_account=customer_account,
                         sales_name=sales_name,
                         delivery_name=delivery_name,
+                        delivery_address=delivery_address,
+                        ddt_total=ddt_total,
+                        customer_reference=customer_reference,
+                        description=ddt_description,
                         tracking_number=tracking_number,
                         tracking_url=tracking_url,
                         tracking_courier=tracking_courier,
                         delivery_terms=delivery_terms,
                         delivery_method=delivery_method,
+                        attention_to=attention_to,
                         delivery_city=delivery_city
                     )
 

@@ -16,9 +16,11 @@ type ParsedOrder = {
   transferStatus?: string;
   transferDate?: string;
   completionDate?: string;
+  isQuote?: string;
   discountPercent?: string;
   grossAmount?: string;
   total?: string;
+  isGiftOrder?: string;
   deliveryName?: string;
   deliveryAddress?: string;
   remainingSalesFinancial?: string;
@@ -92,16 +94,16 @@ async function syncOrders(
             delivery_name, delivery_address, creation_date, delivery_date,
             remaining_sales_financial, customer_reference, sales_status,
             order_type, document_status, sales_origin, transfer_status,
-            transfer_date, completion_date, discount_percent, gross_amount,
-            total_amount, hash, last_sync, created_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+            transfer_date, completion_date, is_quote, discount_percent, gross_amount,
+            total_amount, is_gift_order, hash, last_sync, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
           [
             order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
             order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
             order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
-            order.transferDate ?? null, order.completionDate ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.total ?? null, hash, now, new Date().toISOString(),
+            order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
+            order.total ?? null, order.isGiftOrder ?? null, hash, now, new Date().toISOString(),
           ],
         );
         ordersInserted++;
@@ -112,16 +114,16 @@ async function syncOrders(
             delivery_name=$6, delivery_address=$7, creation_date=$8, delivery_date=$9,
             remaining_sales_financial=$10, customer_reference=$11, sales_status=$12,
             order_type=$13, document_status=$14, sales_origin=$15, transfer_status=$16,
-            transfer_date=$17, completion_date=$18, discount_percent=$19, gross_amount=$20,
-            total_amount=$21, hash=$22, last_sync=$23
+            transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20, gross_amount=$21,
+            total_amount=$22, is_gift_order=$23, hash=$24, last_sync=$25
           WHERE id=$1 AND user_id=$2`,
           [
             order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
             order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
             order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
-            order.transferDate ?? null, order.completionDate ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.total ?? null, hash, now,
+            order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
+            order.total ?? null, order.isGiftOrder ?? null, hash, now,
           ],
         );
         ordersUpdated++;

@@ -47,7 +47,7 @@ class ParsedCustomer:
     last_order_date: Optional[str] = None  # DATA DELL'ULTIMO ORDINE
     # Page 4: Order Analytics
     actual_order_count: Optional[int] = None  # CONTEGGI DEGLI ORDINI EFFETTIVI
-    actual_sales: Optional[float] = None  # VENDITE ATTUALI (€)
+    customer_type: Optional[str] = None  # TIPO DI CLIENTE
     previous_order_count_1: Optional[int] = None  # CONTEGGIO DEGLI ORDINI PRECEDENTE
     # Page 5: Sales Analytics
     previous_sales_1: Optional[float] = None  # VENDITE PRECEDENTE
@@ -221,7 +221,7 @@ class CustomerPDFParser:
                 attention_to=contact_data.get('attention_to'),
                 last_order_date=order_data.get('last_order_date'),
                 actual_order_count=order_data.get('actual_order_count'),
-                actual_sales=order_data.get('actual_sales'),
+                customer_type=order_data.get('customer_type'),
                 previous_order_count_1=sales1_data.get('previous_order_count_1'),
                 previous_sales_1=sales1_data.get('previous_sales_1'),
                 previous_order_count_2=sales2_data.get('previous_order_count_2'),
@@ -336,12 +336,12 @@ class CustomerPDFParser:
         }
 
     def _parse_page4(self, row: List[str]) -> Dict:
-        """Parse page 4: DATA ULTIMO ORDINE, CONTEGGI ORDINI EFFETTIVI, VENDITE ATTUALI (€)
-        Columns: [LAST_ORDER_DATE, ACTUAL_ORDER_COUNT, ACTUAL_SALES]
+        """Parse page 4: DATA DELL'ULTIMO ORDINE, CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE
+        Columns: [LAST_ORDER_DATE, ACTUAL_ORDER_COUNT, CUSTOMER_TYPE]
         """
         last_order_date = None
         actual_order_count = None
-        actual_sales = None
+        customer_type = None
 
         if len(row) > 0:
             last_order_date = (row[0] or '').strip()
@@ -354,12 +354,13 @@ class CustomerPDFParser:
                 pass
 
         if len(row) > 2:
-            actual_sales = self._parse_currency(row[2])
+            customer_type = (row[2] or '').strip()
+            customer_type = customer_type if customer_type else None
 
         return {
             'last_order_date': last_order_date,
             'actual_order_count': actual_order_count,
-            'actual_sales': actual_sales
+            'customer_type': customer_type
         }
 
     def _parse_page5(self, row: List[str]) -> Dict:
@@ -474,7 +475,7 @@ def main():
 
         elif output_format == 'csv':
             # Print CSV header
-            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date,actual_order_count,actual_sales,previous_order_count_1,previous_sales_1,previous_order_count_2,previous_sales_2,description,type,external_account_number,our_account_number')
+            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date,actual_order_count,customer_type,previous_order_count_1,previous_sales_1,previous_order_count_2,previous_sales_2,description,type,external_account_number,our_account_number')
 
             # Print data rows
             for c in customers:
@@ -496,7 +497,7 @@ def main():
                     c.attention_to or '',
                     c.last_order_date or '',
                     str(c.actual_order_count) if c.actual_order_count is not None else '',
-                    str(c.actual_sales) if c.actual_sales is not None else '',
+                    str(c.customer_type) if c.customer_type is not None else '',
                     str(c.previous_order_count_1) if c.previous_order_count_1 is not None else '',
                     str(c.previous_sales_1) if c.previous_sales_1 is not None else '',
                     str(c.previous_order_count_2) if c.previous_order_count_2 is not None else '',

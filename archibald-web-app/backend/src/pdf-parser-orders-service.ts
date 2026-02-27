@@ -22,9 +22,11 @@ export interface ParsedOrder {
   transfer_status: string | null;
   transfer_date: string | null;
   completion_date: string | null;
+  is_quote: string | null;
   discount_percent: string | null;
   gross_amount: string | null;
   total_amount: string | null;
+  is_gift_order: string | null;
 }
 
 export class PDFParserOrdersService {

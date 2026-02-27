@@ -23,7 +23,6 @@ type ParsedCustomer = {
   description?: string;
   lastOrderDate?: string;
   actualOrderCount?: number;
-  actualSales?: number;
   previousOrderCount1?: number;
   previousSales1?: number;
   previousOrderCount2?: number;
@@ -103,19 +102,19 @@ async function syncCustomers(
             phone, mobile, email, url, attention_to,
             street, logistics_address, postal_code, city,
             customer_type, type, delivery_terms, description,
-            last_order_date, actual_order_count, actual_sales,
+            last_order_date, actual_order_count,
             previous_order_count_1, previous_sales_1,
             previous_order_count_2, previous_sales_2,
             external_account_number, our_account_number,
             hash, last_sync
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`,
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
           [
             customer.customerProfile, userId, customer.internalId ?? null, customer.name,
             customer.vatNumber ?? null, customer.fiscalCode ?? null, customer.sdi ?? null, customer.pec ?? null,
             customer.phone ?? null, customer.mobile ?? null, customer.email ?? null, customer.url ?? null, customer.attentionTo ?? null,
             customer.street ?? null, customer.logisticsAddress ?? null, customer.postalCode ?? null, customer.city ?? null,
             customer.customerType ?? null, customer.type ?? null, customer.deliveryTerms ?? null, customer.description ?? null,
-            customer.lastOrderDate ?? null, customer.actualOrderCount ?? 0, customer.actualSales ?? 0,
+            customer.lastOrderDate ?? null, customer.actualOrderCount ?? 0,
             customer.previousOrderCount1 ?? 0, customer.previousSales1 ?? 0,
             customer.previousOrderCount2 ?? 0, customer.previousSales2 ?? 0,
             customer.externalAccountNumber ?? null, customer.ourAccountNumber ?? null,
@@ -130,11 +129,11 @@ async function syncCustomers(
             phone=$9, mobile=$10, email=$11, url=$12, attention_to=$13,
             street=$14, logistics_address=$15, postal_code=$16, city=$17,
             customer_type=$18, type=$19, delivery_terms=$20, description=$21,
-            last_order_date=$22, actual_order_count=$23, actual_sales=$24,
-            previous_order_count_1=$25, previous_sales_1=$26,
-            previous_order_count_2=$27, previous_sales_2=$28,
-            external_account_number=$29, our_account_number=$30,
-            hash=$31, last_sync=$32, updated_at=NOW()
+            last_order_date=$22, actual_order_count=$23,
+            previous_order_count_1=$24, previous_sales_1=$25,
+            previous_order_count_2=$26, previous_sales_2=$27,
+            external_account_number=$28, our_account_number=$29,
+            hash=$30, last_sync=$31, updated_at=NOW()
           WHERE customer_profile=$1 AND user_id=$2`,
           [
             customer.customerProfile, userId, customer.internalId ?? null, customer.name,
@@ -142,7 +141,7 @@ async function syncCustomers(
             customer.phone ?? null, customer.mobile ?? null, customer.email ?? null, customer.url ?? null, customer.attentionTo ?? null,
             customer.street ?? null, customer.logisticsAddress ?? null, customer.postalCode ?? null, customer.city ?? null,
             customer.customerType ?? null, customer.type ?? null, customer.deliveryTerms ?? null, customer.description ?? null,
-            customer.lastOrderDate ?? null, customer.actualOrderCount ?? 0, customer.actualSales ?? 0,
+            customer.lastOrderDate ?? null, customer.actualOrderCount ?? 0,
             customer.previousOrderCount1 ?? 0, customer.previousSales1 ?? 0,
             customer.previousOrderCount2 ?? 0, customer.previousSales2 ?? 0,
             customer.externalAccountNumber ?? null, customer.ourAccountNumber ?? null,

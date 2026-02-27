@@ -45,11 +45,13 @@ class ParsedOrder:
 
     # Page 6/7: Amounts
     completion_date: Optional[str]  # ISO 8601
+    is_quote: Optional[str]  # "Si"/"No" (PREVENTIVO)
     discount_percent: Optional[str]  # Keep as string for precision
     gross_amount: Optional[str]  # Italian format: "105,60 €"
 
     # Page 7/7: Total
     total_amount: Optional[str]  # Italian format: "82,91 €"
+    is_gift_order: Optional[str]  # "Checked"/"Unchecked" (ORDINE OMAGGIO)
 
 
 def parse_italian_datetime(date_str: str) -> Optional[str]:
@@ -296,7 +298,9 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     completion_date = parse_italian_date(completion_date_raw)
 
-                    # Skip "PREVENTIVO" column - not needed
+                    is_quote = get_column_value(
+                        tables[5], row_idx, "PREVENTIVO"
+                    )
                     discount_percent = get_column_value(
                         tables[5], row_idx, "APPLICA SCONTO"
                     )
@@ -306,7 +310,9 @@ def parse_orders_pdf(pdf_path: str):
                     total_amount = get_column_value(
                         tables[6], row_idx, "IMPORTO TOTALE"
                     )
-                    # Skip "ORDINE OMAGGIO" column - gift flag not needed
+                    is_gift_order = get_column_value(
+                        tables[6], row_idx, "ORDINE OMAGGIO"
+                    )
 
                     # Create ParsedOrder
                     order = ParsedOrder(
@@ -327,9 +333,11 @@ def parse_orders_pdf(pdf_path: str):
                         transfer_status=transfer_status,
                         transfer_date=transfer_date,
                         completion_date=completion_date,
+                        is_quote=is_quote,
                         discount_percent=discount_percent,
                         gross_amount=gross_amount,
                         total_amount=total_amount,
+                        is_gift_order=is_gift_order,
                     )
 
                     yield order
