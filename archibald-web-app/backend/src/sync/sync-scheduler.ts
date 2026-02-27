@@ -1,4 +1,5 @@
 import type { OperationType } from '../operations/operation-types';
+import { logger } from '../logger';
 
 type EnqueueFn = (
   type: OperationType,
@@ -49,7 +50,9 @@ function createSyncScheduler(
                 for (const orderId of orderIds) {
                   enqueue('sync-order-articles', agentUserId, { orderId });
                 }
-              }).catch(() => {});
+              }).catch((error) => {
+                logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
+              });
             }, ARTICLE_SYNC_DELAY_MS));
           }
         }

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { enqueueOperation, type OperationType } from "../api/operations";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 type SyncType =
   | "customers"
@@ -45,7 +46,10 @@ const syncSections: SyncSection[] = [
   { type: "prices", label: "Prezzi", icon: "💰", priority: 1 },
 ];
 
-function formatLastSync(iso: string | null): string {
+const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices"];
+
+function formatLastSync(iso: string | null, isLoading: boolean): string {
+  if (isLoading) return "...";
   if (!iso) return "Mai";
   const d = new Date(iso);
   const now = new Date();
@@ -58,7 +62,8 @@ function formatLastSync(iso: string | null): string {
   return d.toLocaleDateString("it-IT");
 }
 
-function getHealthColor(iso: string | null): string {
+function getHealthColor(iso: string | null, isLoading: boolean): string {
+  if (isLoading) return "#9e9e9e";
   if (!iso) return "#f44336";
   const diffMs = Date.now() - new Date(iso).getTime();
   const diffH = diffMs / 3600000;
@@ -68,27 +73,94 @@ function getHealthColor(iso: string | null): string {
 }
 
 export default function SyncControlPanel() {
+  const { subscribe } = useWebSocketContext();
+
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastSyncTimes, setLastSyncTimes] = useState<Record<string, string | null>>({});
+  const [lastSyncTimesLoaded, setLastSyncTimesLoaded] = useState(false);
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
-    customers: false,
-    products: false,
-    prices: false,
-    orders: false,
-    ddt: false,
-    invoices: false,
+    customers: false, products: false, prices: false,
+    orders: false, ddt: false, invoices: false,
   });
   const [syncingAll, setSyncingAll] = useState(false);
+  const [enqueuedTypes, setEnqueuedTypes] = useState<Set<SyncType>>(new Set());
   const [deletingDb, setDeletingDb] = useState<Record<SyncType, boolean>>({
-    customers: false,
-    products: false,
-    prices: false,
-    orders: false,
-    ddt: false,
-    invoices: false,
+    customers: false, products: false, prices: false,
+    orders: false, ddt: false, invoices: false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
+  const [fetchError, setFetchError] = useState(false);
+  const consecutiveErrorsRef = useRef(0);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const [statusResponse, syncHistoryRes] = await Promise.all([
+        fetchWithRetry("/api/sync/monitoring/status"),
+        fetchWithRetry("/api/sync/monitoring/sync-history").catch(() => null),
+      ]);
+      const data = await statusResponse.json();
+      if (data.success) {
+        setDashboard(data);
+
+        const activeTypes = new Set<string>();
+        for (const job of (data.activeJobs || [])) {
+          const syncType = job.type.replace('sync-', '');
+          activeTypes.add(syncType);
+        }
+
+        setSyncing((prev) => {
+          const next = { ...prev };
+          for (const t of ALL_SYNC_TYPES) {
+            next[t] = activeTypes.has(t);
+          }
+          return next;
+        });
+
+        setEnqueuedTypes((prev) => {
+          const next = new Set(prev);
+          for (const t of activeTypes) {
+            next.delete(t as SyncType);
+          }
+          return next;
+        });
+      }
+
+      const syncHistory = syncHistoryRes ? await syncHistoryRes.json().catch(() => null) : null;
+      if (syncHistory?.success && syncHistory.types) {
+        const newTimes: Record<string, string | null> = {};
+        for (const [syncType, typeData] of Object.entries(syncHistory.types)) {
+          const type = syncType.replace('sync-', '');
+          newTimes[type] = (typeData as { lastRunTime: string | null }).lastRunTime;
+        }
+        setLastSyncTimes(newTimes);
+        setLastSyncTimesLoaded(true);
+      }
+
+      consecutiveErrorsRef.current = 0;
+      setFetchError(false);
+    } catch (error) {
+      console.error("Error fetching sync status:", error);
+      consecutiveErrorsRef.current++;
+      if (consecutiveErrorsRef.current >= 3) {
+        setFetchError(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchAutoSyncStatus = useCallback(async () => {
+    try {
+      const response = await fetchWithRetry("/api/sync/auto-sync/status");
+      const data = await response.json();
+      if (data.success) {
+        setAutoSyncEnabled(data.running);
+      }
+    } catch (error) {
+      console.error("Failed to fetch auto-sync status:", error);
+    }
+  }, []);
 
   useEffect(() => {
     fetchStatus();
@@ -100,98 +172,67 @@ export default function SyncControlPanel() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchStatus, fetchAutoSyncStatus]);
 
-  const fetchStatus = async () => {
-    try {
-      const [statusResponse, customerSyncRes, productSyncRes] = await Promise.all([
-        fetchWithRetry("/api/sync/monitoring/status"),
-        fetchWithRetry("/api/customers/sync-status").catch(() => null),
-        fetchWithRetry("/api/products/sync-status").catch(() => null),
-      ]);
-      const data = await statusResponse.json();
-      if (data.success) {
-        setDashboard(data);
-
-        const newSyncing: Record<SyncType, boolean> = {
-          customers: false, products: false, prices: false,
-          orders: false, ddt: false, invoices: false,
-        };
-
-        for (const job of (data.activeJobs || [])) {
-          const syncType = job.type.replace('sync-', '') as SyncType;
-          if (syncType in newSyncing) {
-            newSyncing[syncType] = true;
-          }
-        }
-
-        setSyncing(newSyncing);
-      }
-
-      const customerSync = customerSyncRes ? await customerSyncRes.json().catch(() => null) : null;
-      const productSync = productSyncRes ? await productSyncRes.json().catch(() => null) : null;
-      setLastSyncTimes((prev) => ({
-        ...prev,
-        customers: customerSync?.lastSync ?? prev.customers ?? null,
-        products: productSync?.lastSync ?? prev.products ?? null,
-      }));
-    } catch (error) {
-      console.error("Error fetching sync status:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAutoSyncStatus = async () => {
-    try {
-      const response = await fetchWithRetry("/api/sync/auto-sync/status");
-      const data = await response.json();
-      if (data.success) {
-        setAutoSyncEnabled(data.running);
-      }
-    } catch (error) {
-      console.error("Failed to fetch auto-sync status:", error);
-    }
-  };
+  useEffect(() => {
+    const unsubs = [
+      subscribe("JOB_STARTED", () => { fetchStatus(); }),
+      subscribe("JOB_COMPLETED", () => { fetchStatus(); }),
+      subscribe("JOB_FAILED", () => { fetchStatus(); }),
+    ];
+    return () => { unsubs.forEach((u) => u()); };
+  }, [subscribe, fetchStatus]);
 
   const toggleAutoSync = async () => {
-    const endpoint = autoSyncEnabled ? "stop" : "start";
+    const wasEnabled = autoSyncEnabled;
+    const endpoint = wasEnabled ? "stop" : "start";
+    setAutoSyncEnabled(!wasEnabled);
     try {
       const response = await fetchWithRetry(`/api/sync/auto-sync/${endpoint}`, {
         method: "POST",
       });
-
       const data = await response.json();
-      if (data.success) {
-        setAutoSyncEnabled(!autoSyncEnabled);
-      } else {
+      if (!data.success) {
+        setAutoSyncEnabled(wasEnabled);
         alert(`Errore: ${data.error}`);
       }
     } catch (error) {
       console.error("Failed to toggle auto-sync:", error);
+      setAutoSyncEnabled(wasEnabled);
       alert("Errore durante il cambio dello stato auto-sync");
     }
   };
 
   const handleSyncIndividual = async (type: SyncType) => {
+    setSyncing((prev) => ({ ...prev, [type]: true }));
+    setEnqueuedTypes((prev) => new Set(prev).add(type));
     try {
-      setSyncing((prev) => ({ ...prev, [type]: true }));
       await enqueueOperation(`sync-${type}` as OperationType, {});
       fetchStatus();
     } catch (error) {
       console.error(`Error syncing ${type}:`, error);
+      setSyncing((prev) => ({ ...prev, [type]: false }));
+      setEnqueuedTypes((prev) => {
+        const next = new Set(prev);
+        next.delete(type);
+        return next;
+      });
       alert(`Errore durante sync ${type}`);
     }
   };
 
   const handleSyncAll = async () => {
+    setSyncingAll(true);
+    setEnqueuedTypes(new Set(ALL_SYNC_TYPES));
     try {
-      setSyncingAll(true);
-
-      const syncTypes: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices"];
-      await Promise.all(
-        syncTypes.map((type) => enqueueOperation(`sync-${type}` as OperationType, {})),
+      const results = await Promise.allSettled(
+        ALL_SYNC_TYPES.map((type) => enqueueOperation(`sync-${type}` as OperationType, {})),
       );
+
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length > 0) {
+        alert(`${failed.length} sync su ${ALL_SYNC_TYPES.length} non sono stati avviati.`);
+      }
 
       fetchStatus();
     } catch (error) {
@@ -241,7 +282,8 @@ export default function SyncControlPanel() {
     return dashboard.activeJobs.some((j) => j.type === `sync-${syncType}`);
   };
 
-  const hasAnyActiveSync = () => {
+  const isAnySyncBusy = () => {
+    if (syncingAll) return true;
     if (!dashboard) return false;
     return dashboard.activeJobs.some((j) => j.type.startsWith('sync-'));
   };
@@ -253,7 +295,7 @@ export default function SyncControlPanel() {
       return { bg: "#ff9800", color: "#fff", text: "Running" };
     }
 
-    if (dashboard.queue.waiting > 0) {
+    if (syncing[syncType] || enqueuedTypes.has(syncType)) {
       return { bg: "#2196f3", color: "#fff", text: "In coda" };
     }
 
@@ -268,8 +310,8 @@ export default function SyncControlPanel() {
     }
 
     const lastSync = lastSyncTimes[syncType] ?? null;
-    const color = getHealthColor(lastSync);
-    return { color, label: formatLastSync(lastSync) };
+    const color = getHealthColor(lastSync, !lastSyncTimesLoaded);
+    return { color, label: formatLastSync(lastSync, !lastSyncTimesLoaded) };
   };
 
   if (loading) {
@@ -282,6 +324,40 @@ export default function SyncControlPanel() {
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
+      {fetchError && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px 16px",
+            backgroundColor: "#ffebee",
+            border: "1px solid #f44336",
+            borderRadius: "8px",
+            fontSize: "14px",
+            color: "#c62828",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>Errore di connessione al server. I dati visualizzati potrebbero non essere aggiornati.</span>
+          <button
+            onClick={() => { consecutiveErrorsRef.current = 0; setFetchError(false); fetchStatus(); }}
+            style={{
+              padding: "6px 12px",
+              backgroundColor: "#f44336",
+              color: "#fff",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+            }}
+          >
+            Riprova
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           marginBottom: "24px",
@@ -302,20 +378,20 @@ export default function SyncControlPanel() {
         </div>
         <button
           onClick={handleSyncAll}
-          disabled={syncingAll || hasAnyActiveSync()}
+          disabled={syncingAll || isAnySyncBusy()}
           style={{
             padding: "12px 24px",
             fontSize: "16px",
             fontWeight: 600,
             backgroundColor:
-              syncingAll || hasAnyActiveSync()
+              syncingAll || isAnySyncBusy()
                 ? "#9e9e9e"
                 : "#2196f3",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
             cursor:
-              syncingAll || hasAnyActiveSync()
+              syncingAll || isAnySyncBusy()
                 ? "not-allowed"
                 : "pointer",
             transition: "all 0.2s",
@@ -344,7 +420,7 @@ export default function SyncControlPanel() {
           <div>
             <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>
               🤖 Sync Automatico{" "}
-              {autoSyncEnabled ? "(Attivo)" : "(Disattivato)"}
+              {autoSyncEnabled === null ? "" : autoSyncEnabled ? "(Attivo)" : "(Disattivato)"}
             </h3>
             <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#666" }}>
               {autoSyncEnabled
@@ -400,6 +476,7 @@ export default function SyncControlPanel() {
         {syncSections.map((section) => {
           const statusBadge = getStatusBadge(section.type);
           const healthIndicator = getHealthIndicator(section.type);
+          const isBusy = syncing[section.type] || syncingAll || isAnySyncBusy();
 
           return (
             <div
@@ -469,56 +546,42 @@ export default function SyncControlPanel() {
               >
                 <button
                   onClick={() => handleSyncIndividual(section.type)}
-                  disabled={
-                    syncing[section.type] || hasAnyActiveSync()
-                  }
+                  disabled={isBusy}
                   style={{
                     flex: 1,
                     padding: "10px",
                     fontSize: "14px",
                     fontWeight: 600,
-                    backgroundColor:
-                      syncing[section.type] || hasAnyActiveSync()
-                        ? "#9e9e9e"
-                        : "#4caf50",
+                    backgroundColor: isBusy ? "#9e9e9e" : "#4caf50",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
-                    cursor:
-                      syncing[section.type] || hasAnyActiveSync()
-                        ? "not-allowed"
-                        : "pointer",
+                    cursor: isBusy ? "not-allowed" : "pointer",
                   }}
                 >
                   {syncing[section.type]
                     ? "⏳ Syncing..."
-                    : "▶️ Avvia Full Sync"}
+                    : enqueuedTypes.has(section.type)
+                      ? "⏳ In coda..."
+                      : "▶️ Avvia Full Sync"}
                 </button>
                 <button
                   onClick={() => handleDeleteDb(section.type)}
-                  disabled={
-                    deletingDb[section.type] ||
-                    syncing[section.type] ||
-                    hasAnyActiveSync()
-                  }
+                  disabled={deletingDb[section.type] || isBusy}
                   title="Cancella database e ricrea da zero"
                   style={{
                     padding: "10px 16px",
                     fontSize: "14px",
                     fontWeight: 600,
                     backgroundColor:
-                      deletingDb[section.type] ||
-                      syncing[section.type] ||
-                      hasAnyActiveSync()
+                      deletingDb[section.type] || isBusy
                         ? "#9e9e9e"
                         : "#f44336",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     cursor:
-                      deletingDb[section.type] ||
-                      syncing[section.type] ||
-                      hasAnyActiveSync()
+                      deletingDb[section.type] || isBusy
                         ? "not-allowed"
                         : "pointer",
                   }}
@@ -532,7 +595,7 @@ export default function SyncControlPanel() {
                   <strong>Priorità:</strong> {section.priority}/6
                 </div>
                 <div>
-                  <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null)}
+                  <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null, !lastSyncTimesLoaded)}
                 </div>
               </div>
             </div>
@@ -558,7 +621,7 @@ export default function SyncControlPanel() {
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {dashboard.activeJobs.map((job) => (
               <div
-                key={job.jobId}
+                key={`${job.userId}-${job.jobId}`}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",

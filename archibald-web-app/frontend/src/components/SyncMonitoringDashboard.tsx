@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 type SyncType =
   | "sync-customers"
@@ -6,7 +7,8 @@ type SyncType =
   | "sync-ddt"
   | "sync-invoices"
   | "sync-products"
-  | "sync-prices";
+  | "sync-prices"
+  | "sync-order-articles";
 
 type HistoryEntry = {
   timestamp: string | null;
@@ -59,6 +61,7 @@ const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
   { type: "sync-prices", label: "Prezzi", icon: "💰" },
   { type: "sync-ddt", label: "DDT", icon: "🚚" },
   { type: "sync-invoices", label: "Fatture", icon: "📄" },
+  { type: "sync-order-articles" as SyncType, label: "Articoli Ordini", icon: "📋" },
 ];
 
 function getHealthBadge(health: "healthy" | "degraded" | "idle") {
@@ -94,16 +97,20 @@ function authHeaders(): HeadersInit {
 }
 
 export default function SyncMonitoringDashboard() {
+  const { subscribe } = useWebSocketContext();
+
   const [monitoring, setMonitoring] = useState<MonitoringData | null>(null);
   const [history, setHistory] = useState<SyncHistoryData | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [expandedError, setExpandedError] = useState<{
     type: string;
     error: string;
     timestamp: string;
   } | null>(null);
-  const statusTimer = useRef<ReturnType<typeof setInterval>>(undefined);
-  const historyTimer = useRef<ReturnType<typeof setInterval>>(undefined);
+  const statusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const historyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const consecutiveErrorsRef = useRef(0);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -117,9 +124,12 @@ export default function SyncMonitoringDashboard() {
           activeJobs: data.activeJobs,
           scheduler: data.scheduler,
         });
+        consecutiveErrorsRef.current = 0;
+        setFetchError(false);
       }
     } catch {
-      /* polling — ignore transient errors */
+      consecutiveErrorsRef.current++;
+      if (consecutiveErrorsRef.current >= 3) setFetchError(true);
     }
   }, []);
 
@@ -133,20 +143,29 @@ export default function SyncMonitoringDashboard() {
         setHistory({ types: data.types });
       }
     } catch {
-      /* polling */
+      /* history polling — status errors already tracked */
     }
   }, []);
 
   useEffect(() => {
     fetchStatus();
     fetchHistory();
-    statusTimer.current = setInterval(fetchStatus, 5000);
-    historyTimer.current = setInterval(fetchHistory, 10000);
+    statusTimerRef.current = setInterval(fetchStatus, 5000);
+    historyTimerRef.current = setInterval(fetchHistory, 10000);
     return () => {
-      clearInterval(statusTimer.current);
-      clearInterval(historyTimer.current);
+      if (statusTimerRef.current) clearInterval(statusTimerRef.current);
+      if (historyTimerRef.current) clearInterval(historyTimerRef.current);
     };
   }, [fetchStatus, fetchHistory]);
+
+  useEffect(() => {
+    const unsubs = [
+      subscribe("JOB_STARTED", () => { fetchStatus(); }),
+      subscribe("JOB_COMPLETED", () => { fetchStatus(); fetchHistory(); }),
+      subscribe("JOB_FAILED", () => { fetchStatus(); fetchHistory(); }),
+    ];
+    return () => { unsubs.forEach((u) => u()); };
+  }, [subscribe, fetchStatus, fetchHistory]);
 
   const toggleScheduler = async () => {
     if (!monitoring) return;
@@ -177,6 +196,22 @@ export default function SyncMonitoringDashboard() {
 
   return (
     <div>
+      {fetchError && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px 16px",
+            backgroundColor: "#ffebee",
+            border: "1px solid #f44336",
+            borderRadius: "8px",
+            fontSize: "14px",
+            color: "#c62828",
+          }}
+        >
+          Errore di connessione — i dati potrebbero non essere aggiornati.
+        </div>
+      )}
+
       {/* 1. Header */}
       <div
         style={{
@@ -503,7 +538,7 @@ export default function SyncMonitoringDashboard() {
             <tbody>
               {activeJobs.map((job) => (
                 <tr
-                  key={job.jobId}
+                  key={`${job.userId}-${job.jobId}`}
                   style={{ borderBottom: "1px solid #f0f0f0" }}
                 >
                   <td style={{ padding: "8px" }}>{job.type}</td>

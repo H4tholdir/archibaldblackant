@@ -85,6 +85,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const SYNC_HISTORY_TYPES: OperationType[] = [
     'sync-customers', 'sync-orders', 'sync-ddt',
     'sync-invoices', 'sync-products', 'sync-prices',
+    'sync-order-articles',
   ];
 
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
@@ -113,14 +114,18 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         let totalFailed = 0;
 
         for (const job of typeJobs) {
-          const state = await job.getState();
-          if (state === 'failed') {
+          if (job.failedReason) {
             totalFailed++;
-            if (totalCompleted === 0 && consecutiveFailures === totalFailed - 1) {
-              consecutiveFailures++;
-            }
           } else {
             totalCompleted++;
+          }
+        }
+
+        for (const job of typeJobs) {
+          if (job.failedReason) {
+            consecutiveFailures++;
+          } else {
+            break;
           }
         }
 
@@ -132,13 +137,8 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           ? (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0)
           : null;
 
-        let lastSuccess: boolean | null = null;
-        let lastError: string | null = null;
-        if (lastJob) {
-          const lastState = await lastJob.getState();
-          lastSuccess = lastState === 'completed';
-          lastError = lastJob.failedReason ?? null;
-        }
+        const lastSuccess: boolean | null = lastJob ? !lastJob.failedReason : null;
+        const lastError: string | null = lastJob?.failedReason ?? null;
 
         const health: 'healthy' | 'degraded' | 'idle' =
           typeJobs.length === 0 ? 'idle'
@@ -148,7 +148,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         const history = typeJobs.slice(0, 20).map((job) => ({
           timestamp: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
           duration: (job.finishedOn ?? 0) - (job.processedOn ?? 0),
-          success: job.returnvalue !== undefined && job.returnvalue !== null,
+          success: !job.failedReason,
           error: job.failedReason ?? null,
         }));
 
