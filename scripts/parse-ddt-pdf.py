@@ -203,6 +203,19 @@ def parse_ddt_pdf(pdf_path: str):
             if not tables[0] or len(tables[0]) <= 1:
                 continue
 
+            # Diagnostic: dump headers for first cycle
+            if cycle_start == 0:
+                for page_i, tbl in enumerate(tables):
+                    if tbl and len(tbl) > 0:
+                        headers = [(h or '').strip() for h in tbl[0]]
+                        rows_count = len(tbl) - 1
+                        print(f"DIAG_PAGE:{page_i+1}/{cycle_size} headers={headers} rows={rows_count}", file=sys.stderr)
+                        if len(tbl) > 1:
+                            sample = [(c or '')[:30] for c in tbl[1]]
+                            print(f"DIAG_SAMPLE:{page_i+1}/{cycle_size} row1={sample}", file=sys.stderr)
+                    else:
+                        print(f"DIAG_PAGE:{page_i+1}/{cycle_size} EMPTY_TABLE", file=sys.stderr)
+
             num_rows = len(tables[0])
 
             for row_idx in range(1, num_rows):  # Skip header

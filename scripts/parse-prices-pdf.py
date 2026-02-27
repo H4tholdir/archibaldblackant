@@ -117,6 +117,14 @@ class PricesPDFParser:
                         print(f"Warning: Missing tables for cycle {cycle_idx}", file=sys.stderr)
                         continue
 
+                    # Diagnostic: dump headers for first cycle
+                    if cycle_idx == 0:
+                        for t_idx, tbl in enumerate([table1, table2, table3], 1):
+                            if tbl and len(tbl) > 0:
+                                headers = [(h or '').strip() for h in tbl[0]]
+                                rows_count = len(tbl) - 1
+                                print(f"DIAG_PAGE:{t_idx}/{self.PAGES_PER_CYCLE} headers={headers} rows={rows_count}", file=sys.stderr)
+
                     # Process each row (skip header at index 0)
                     for row_idx in range(1, min(len(table1), len(table2), len(table3))):
                         try:

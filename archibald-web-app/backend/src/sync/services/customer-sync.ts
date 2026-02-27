@@ -1,4 +1,5 @@
 import type { DbPool } from '../../db/pool';
+import { copyFile } from 'node:fs/promises';
 
 type ParsedCustomer = {
   customerProfile: string;
@@ -71,6 +72,7 @@ async function syncCustomers(
 
     onProgress(5, 'Download PDF clienti');
     pdfPath = await downloadPdf(userId);
+    await copyFile(pdfPath, '/app/data/debug-clienti.pdf').catch(() => {});
 
     if (shouldStop()) throw new SyncStoppedError('download');
 

@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
+import { copyFile } from 'node:fs/promises';
 
 type ParsedOrder = {
   id: string;
@@ -57,6 +58,7 @@ async function syncOrders(
 
     onProgress(5, 'Download PDF ordini');
     pdfPath = await downloadPdf(userId);
+    await copyFile(pdfPath, '/app/data/debug-ordini.pdf').catch(() => {});
 
     if (shouldStop()) throw new SyncStoppedError('download');
 

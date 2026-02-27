@@ -152,6 +152,11 @@ class ProductsPDFParserOptimized:
                         page = pdf.pages[page_idx]
                         tables = page.extract_tables()
                         if tables:
+                            # Diagnostic: dump headers for first cycle
+                            if cycle == 0 and tables[0] and len(tables[0]) > 0:
+                                headers = [(h or '').strip() for h in tables[0][0]]
+                                rows_count = len(tables[0]) - 1
+                                print(f"DIAG_PAGE:{offset+1}/{self.PAGES_PER_CYCLE} headers={headers} rows={rows_count}", file=sys.stderr)
                             # Skip header row, get data rows only
                             table_data = tables[0][1:] if len(tables[0]) > 1 else []
                             cycle_tables.append(table_data)
