@@ -194,13 +194,33 @@ async function bootstrap(): Promise<void> {
 
   const passwordCache = PasswordCache.getInstance();
 
+  const PDF_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const pdfEntries = new Map<string, { buffer: Buffer; originalName: string; expiresAt: number }>();
+
+  // Cleanup expired PDFs every hour
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of pdfEntries) {
+      if (now > entry.expiresAt) pdfEntries.delete(id);
+    }
+  }, 60 * 60 * 1000);
+
   const pdfStore = {
-    save: (_buffer: Buffer, originalName: string, _req: unknown) => ({
-      id: originalName,
-      url: `/api/share/pdf/${originalName}`,
-    }),
-    get: (_id: string) => null as { buffer: Buffer; originalName: string } | null,
-    delete: (_id: string) => {},
+    save: (buffer: Buffer, originalName: string, _req: unknown) => {
+      const id = `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      pdfEntries.set(id, { buffer, originalName, expiresAt: Date.now() + PDF_TTL_MS });
+      return { id, url: `/api/share/pdf/${id}` };
+    },
+    get: (id: string) => {
+      const entry = pdfEntries.get(id);
+      if (!entry) return null;
+      if (Date.now() > entry.expiresAt) {
+        pdfEntries.delete(id);
+        return null;
+      }
+      return { buffer: entry.buffer, originalName: entry.originalName };
+    },
+    delete: (id: string) => { pdfEntries.delete(id); },
   };
 
   const sendEmail = async (
