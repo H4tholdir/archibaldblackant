@@ -38,8 +38,12 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     shippingCost: raw.shippingCost as number | undefined,
     shippingTax: raw.shippingTax as number | undefined,
     revenue: raw.revenue as number | undefined,
-    createdAt: String(raw.createdAt),
-    updatedAt: String(raw.updatedAt),
+    createdAt: typeof raw.createdAt === "number"
+      ? new Date(raw.createdAt).toISOString()
+      : String(raw.createdAt),
+    updatedAt: typeof raw.updatedAt === "number"
+      ? new Date(raw.updatedAt).toISOString()
+      : String(raw.updatedAt),
     status: (raw.status as PendingOrder["status"]) ?? "pending",
     errorMessage: raw.errorMessage as string | undefined,
     retryCount: (raw.retryCount as number) ?? 0,
