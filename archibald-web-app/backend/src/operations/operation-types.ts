@@ -54,6 +54,7 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-invoices',
   'sync-products',
   'sync-prices',
+  'sync-order-articles',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {

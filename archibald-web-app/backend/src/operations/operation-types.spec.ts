@@ -60,6 +60,7 @@ describe('isScheduledSync', () => {
     'sync-invoices',
     'sync-products',
     'sync-prices',
+    'sync-order-articles',
   ];
 
   const nonScheduledSyncs: OperationType[] = [
@@ -71,7 +72,6 @@ describe('isScheduledSync', () => {
     'delete-order',
     'download-ddt-pdf',
     'download-invoice-pdf',
-    'sync-order-articles',
     'sync-order-states',
   ];
 

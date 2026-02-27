@@ -133,8 +133,8 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         const lastRunTime = lastJob?.finishedOn
           ? new Date(lastJob.finishedOn).toISOString()
           : null;
-        const lastDuration = lastJob
-          ? (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0)
+        const lastDuration = lastJob?.finishedOn && lastJob.processedOn
+          ? lastJob.finishedOn - lastJob.processedOn
           : null;
 
         const lastSuccess: boolean | null = lastJob ? !lastJob.failedReason : null;
@@ -147,7 +147,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
         const history = typeJobs.slice(0, 20).map((job) => ({
           timestamp: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
-          duration: (job.finishedOn ?? 0) - (job.processedOn ?? 0),
+          duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null,
           success: !job.failedReason,
           error: job.failedReason ?? null,
         }));

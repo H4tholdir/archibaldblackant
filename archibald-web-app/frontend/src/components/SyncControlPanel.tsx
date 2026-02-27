@@ -90,6 +90,7 @@ export default function SyncControlPanel() {
     orders: false, ddt: false, invoices: false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
+  const [togglingAutoSync, setTogglingAutoSync] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const consecutiveErrorsRef = useRef(0);
 
@@ -186,6 +187,7 @@ export default function SyncControlPanel() {
   const toggleAutoSync = async () => {
     const wasEnabled = autoSyncEnabled;
     const endpoint = wasEnabled ? "stop" : "start";
+    setTogglingAutoSync(true);
     setAutoSyncEnabled(!wasEnabled);
     try {
       const response = await fetchWithRetry(`/api/sync/auto-sync/${endpoint}`, {
@@ -200,6 +202,8 @@ export default function SyncControlPanel() {
       console.error("Failed to toggle auto-sync:", error);
       setAutoSyncEnabled(wasEnabled);
       alert("Errore durante il cambio dello stato auto-sync");
+    } finally {
+      setTogglingAutoSync(false);
     }
   };
 
@@ -229,14 +233,24 @@ export default function SyncControlPanel() {
         ALL_SYNC_TYPES.map((type) => enqueueOperation(`sync-${type}` as OperationType, {})),
       );
 
-      const failed = results.filter((r) => r.status === "rejected");
-      if (failed.length > 0) {
-        alert(`${failed.length} sync su ${ALL_SYNC_TYPES.length} non sono stati avviati.`);
+      const failedTypes = new Set<SyncType>();
+      results.forEach((r, i) => {
+        if (r.status === "rejected") failedTypes.add(ALL_SYNC_TYPES[i]);
+      });
+
+      if (failedTypes.size > 0) {
+        setEnqueuedTypes((prev) => {
+          const next = new Set(prev);
+          for (const t of failedTypes) next.delete(t);
+          return next;
+        });
+        alert(`${failedTypes.size} sync su ${ALL_SYNC_TYPES.length} non sono stati avviati.`);
       }
 
       fetchStatus();
     } catch (error) {
       console.error("Error syncing all:", error);
+      setEnqueuedTypes(new Set());
       alert("Errore durante sync generale");
     } finally {
       setSyncingAll(false);
@@ -430,16 +444,16 @@ export default function SyncControlPanel() {
           </div>
           <button
             onClick={toggleAutoSync}
-            disabled={autoSyncEnabled === null}
+            disabled={autoSyncEnabled === null || togglingAutoSync}
             style={{
               padding: "10px 20px",
               backgroundColor: autoSyncEnabled ? "#f44336" : "#4caf50",
               color: "white",
               border: "none",
               borderRadius: "4px",
-              cursor: autoSyncEnabled === null ? "not-allowed" : "pointer",
+              cursor: autoSyncEnabled === null || togglingAutoSync ? "not-allowed" : "pointer",
               fontWeight: 600,
-              opacity: autoSyncEnabled === null ? 0.6 : 1,
+              opacity: autoSyncEnabled === null || togglingAutoSync ? 0.6 : 1,
             }}
           >
             {autoSyncEnabled ? "⏸️ Disattiva" : "▶️ Attiva"}
