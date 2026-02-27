@@ -77,7 +77,7 @@ async function syncOrders(
     const now = Math.floor(Date.now() / 1000);
 
     const computeHash = (o: ParsedOrder) =>
-      [o.id, o.orderNumber, o.status, o.documentState, o.transferStatus, o.total].join('|');
+      [o.id, o.orderNumber, o.status, o.documentState, o.transferStatus, o.total, o.isQuote, o.isGiftOrder].join('|');
 
     for (const order of parsedOrders) {
       const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
