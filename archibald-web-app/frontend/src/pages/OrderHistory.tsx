@@ -598,14 +598,16 @@ export function OrderHistory() {
         let matches = false;
 
         switch (filterType) {
-          case "requiresAttention":
+          case "requiresAttention": {
+            const tsUpper =
+              order.transferStatus?.toUpperCase().replace(/_/g, " ") ?? "";
             matches =
               order.state === "IN ATTESA DI APPROVAZIONE" ||
+              tsUpper === "IN ATTESA DI APPROVAZIONE" ||
               order.state === "TRANSFER ERROR" ||
-              order.transferStatus
-                ?.toUpperCase()
-                .replace(/_/g, " ") === "TRANSFER ERROR";
+              tsUpper === "TRANSFER ERROR";
             break;
+          }
 
           case "editable":
             matches = isNotSentToVerona(order);
@@ -629,7 +631,10 @@ export function OrderHistory() {
             break;
 
           case "invoiced":
-            matches = !!order.invoiceNumber && !isInvoicePaid(order);
+            matches =
+              !!order.invoiceNumber &&
+              !isInvoicePaid(order) &&
+              !isOverdue(order);
             break;
 
           case "paid":
@@ -728,19 +733,21 @@ export function OrderHistory() {
       label: "\u26a0\ufe0f Richiede attenzione",
       color: "#F44336",
       bgColor: "#FFEBEE",
-      count: ordersForCounts.filter(
-        (o) =>
+      count: ordersForCounts.filter((o) => {
+        const ts = o.transferStatus?.toUpperCase().replace(/_/g, " ") ?? "";
+        return (
           o.state === "IN ATTESA DI APPROVAZIONE" ||
+          ts === "IN ATTESA DI APPROVAZIONE" ||
           o.state === "TRANSFER ERROR" ||
-          o.transferStatus?.toUpperCase().replace(/_/g, " ") ===
-            "TRANSFER ERROR",
-      ).length,
+          ts === "TRANSFER ERROR"
+        );
+      }).length,
     },
     {
       id: "editable",
       label: "\u270f\ufe0f Modificabili",
-      color: "#757575",
-      bgColor: "#F5F5F5",
+      color: "#546E7A",
+      bgColor: "#ECEFF1",
       count: ordersForCounts.filter((o) => isNotSentToVerona(o)).length,
     },
     {
@@ -757,24 +764,25 @@ export function OrderHistory() {
     {
       id: "inTransit",
       label: "\ud83d\ude9a In transito",
-      color: "#2196F3",
-      bgColor: "#E3F2FD",
+      color: "#1565C0",
+      bgColor: "#BBDEFB",
       count: ordersForCounts.filter((o) => isInTransit(o)).length,
     },
     {
       id: "delivered",
       label: "\ud83d\udce6 Consegnati",
-      color: "#4CAF50",
-      bgColor: "#E8F5E9",
+      color: "#0277BD",
+      bgColor: "#B3E5FC",
       count: ordersForCounts.filter((o) => isLikelyDelivered(o)).length,
     },
     {
       id: "invoiced",
       label: "\ud83d\udcd1 Fatturati",
-      color: "#9C27B0",
-      bgColor: "#F3E5F5",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isInvoicePaid(o))
-        .length,
+      color: "#4527A0",
+      bgColor: "#D1C4E9",
+      count: ordersForCounts.filter(
+        (o) => !!o.invoiceNumber && !isInvoicePaid(o) && !isOverdue(o),
+      ).length,
     },
     {
       id: "paid",
@@ -787,8 +795,8 @@ export function OrderHistory() {
     {
       id: "overdue",
       label: "\ud83d\udd34 Scaduti",
-      color: "#B71C1C",
-      bgColor: "#FFCDD2",
+      color: "#E65100",
+      bgColor: "#FFE0B2",
       count: ordersForCounts.filter((o) => isOverdue(o)).length,
     },
   ], [ordersForCounts]);

@@ -8,6 +8,7 @@ export type OrderStatusCategory =
   | "pending-approval"
   | "in-processing"
   | "blocked"
+  | "backorder"
   | "in-transit"
   | "delivered"
   | "invoiced"
@@ -57,6 +58,14 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     description: "Bloccato per anagrafica o pagamenti",
     borderColor: "#C62828",
     backgroundColor: "#FFCDD2",
+  },
+  backorder: {
+    category: "backorder",
+    label: "Possibile backorder",
+    description:
+      "Ordine aperto da oltre 36 ore, possibile spedizione parziale o ritardo",
+    borderColor: "#E65100",
+    backgroundColor: "#FFF3E0",
   },
   "in-transit": {
     category: "in-transit",
@@ -158,12 +167,13 @@ export function isOverdue(order: Order): boolean {
  * 1. Pagato - Invoice exists and is fully paid
  * 2. Pagamento scaduto - Invoice overdue
  * 3. Fatturato - Invoice exists but not yet paid
- * 4. Consegnato - Delivered (tracking + 3+ days or invoice)
+ * 4. Consegnato - Delivered (tracking + 3+ days or deliveryCompletedDate)
  * 5. In transito - Has tracking/DDT but not yet delivered
  * 6. Bloccato - Transfer errors
  * 7. In attesa - Waiting for approval
  * 8. In lavorazione - Accepted by Verona (ORD/ + Trasferito), not yet shipped
- * 9. Su Archibald - Default/fallback
+ * 9. Backorder - ORDINE APERTO for 36+ hours
+ * 10. Su Archibald - Default/fallback
  */
 export function getOrderStatus(order: Order): OrderStatusStyle {
   if (order.invoiceNumber && isInvoicePaid(order)) {
@@ -172,10 +182,6 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
 
   if (isOverdue(order)) {
     return ORDER_STATUS_STYLES.overdue;
-  }
-
-  if (order.invoiceNumber && order.documentState === "FATTURA") {
-    return ORDER_STATUS_STYLES.invoiced;
   }
 
   if (order.invoiceNumber) {
@@ -210,6 +216,17 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     tsNormalized === "COMPLETATO"
   ) {
     return ORDER_STATUS_STYLES["in-processing"];
+  }
+
+  if (
+    order.status?.toUpperCase() === "ORDINE APERTO" &&
+    order.orderNumber?.startsWith("ORD/")
+  ) {
+    const hoursElapsed =
+      (Date.now() - new Date(order.date).getTime()) / 3_600_000;
+    if (hoursElapsed > 36) {
+      return ORDER_STATUS_STYLES.backorder;
+    }
   }
 
   return ORDER_STATUS_STYLES["on-archibald"];

@@ -35,10 +35,14 @@ type StateSyncResult = {
 
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
+function parseAmount(value: string): number {
+  return parseFloat(value.replace(/\./g, '').replace(',', '.'));
+}
+
 function detectOrderState(order: Order): StateDetection {
   if (order.invoiceNumber) {
     const remainingAmount = order.invoiceRemainingAmount
-      ? parseFloat(order.invoiceRemainingAmount)
+      ? parseAmount(order.invoiceRemainingAmount)
       : null;
     const isPaid =
       order.invoiceClosed === true ||

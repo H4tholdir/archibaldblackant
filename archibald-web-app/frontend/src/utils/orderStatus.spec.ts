@@ -435,16 +435,17 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all 9 status styles", () => {
+  test("returns all 10 status styles", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(9);
+    expect(allStyles).toHaveLength(10);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
     expect(categories).toContain("pending-approval");
     expect(categories).toContain("in-processing");
     expect(categories).toContain("blocked");
+    expect(categories).toContain("backorder");
     expect(categories).toContain("in-transit");
     expect(categories).toContain("delivered");
     expect(categories).toContain("invoiced");
