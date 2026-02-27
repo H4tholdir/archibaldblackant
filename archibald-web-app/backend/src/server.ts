@@ -514,8 +514,24 @@ function createApp(deps: AppDeps): Express {
     batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
     getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
     validateArticle: async (articleCode) => {
-      const product = await productsRepo.getProductById(pool, articleCode);
-      return product ? { valid: true, productName: product.name } : { valid: false };
+      const results = await productsRepo.fuzzySearchProducts(pool, articleCode, 5);
+      const best = results[0] ?? null;
+      return {
+        matchedProduct: best ? {
+          id: best.product.id,
+          name: best.product.name,
+          description: best.product.description,
+          packageContent: best.product.package_content,
+        } : null,
+        confidence: best?.confidence ?? 0,
+        suggestions: results.slice(0, 5).map((r) => ({
+          id: r.product.id,
+          name: r.product.name,
+          description: r.product.description,
+          packageContent: r.product.package_content,
+          confidence: r.confidence,
+        })),
+      };
     },
     importExcel: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, skipped: 0, errors: [] }),
   }));

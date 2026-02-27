@@ -22,7 +22,7 @@ function createMockDeps(): WarehouseRouterDeps {
     clearAllItems: vi.fn().mockResolvedValue(10),
     getItemById: vi.fn().mockResolvedValue(mockItem),
     ensureBoxExists: vi.fn().mockResolvedValue(undefined),
-    validateArticle: vi.fn().mockResolvedValue({ valid: true, productName: 'Test Product' }),
+    validateArticle: vi.fn().mockResolvedValue({ matchedProduct: { id: 'ART-001', name: 'ART-001', description: 'Test Product', packageContent: null }, confidence: 1.0, suggestions: [{ id: 'ART-001', name: 'ART-001', description: 'Test Product', packageContent: null, confidence: 1.0 }] }),
     getAllItems: vi.fn().mockResolvedValue([mockItem]),
     bulkStoreItems: vi.fn().mockResolvedValue(5),
     batchReserve: vi.fn().mockResolvedValue({ reserved: 2, skipped: 0 }),
@@ -197,11 +197,14 @@ describe('createWarehouseRouter', () => {
   });
 
   describe('GET /api/warehouse/items/validate', () => {
-    test('validates article code', async () => {
+    test('validates article code with fuzzy results', async () => {
       const res = await request(app).get('/api/warehouse/items/validate?articleCode=ART-001');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: { valid: true, productName: 'Test Product' } });
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.confidence).toBe(1.0);
+      expect(res.body.data.matchedProduct).toEqual({ id: 'ART-001', name: 'ART-001', description: 'Test Product', packageContent: null });
+      expect(res.body.data.suggestions).toHaveLength(1);
       expect(deps.validateArticle).toHaveBeenCalledWith('ART-001');
     });
 
@@ -212,12 +215,14 @@ describe('createWarehouseRouter', () => {
       expect(res.body).toEqual({ success: false, error: 'Codice articolo richiesto' });
     });
 
-    test('returns valid:false for unknown article', async () => {
-      (deps.validateArticle as ReturnType<typeof vi.fn>).mockResolvedValue({ valid: false });
+    test('returns no match for unknown article', async () => {
+      (deps.validateArticle as ReturnType<typeof vi.fn>).mockResolvedValue({ matchedProduct: null, confidence: 0, suggestions: [] });
       const res = await request(app).get('/api/warehouse/items/validate?articleCode=UNKNOWN');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: { valid: false } });
+      expect(res.body.data.matchedProduct).toBeNull();
+      expect(res.body.data.confidence).toBe(0);
+      expect(res.body.data.suggestions).toEqual([]);
     });
   });
 });

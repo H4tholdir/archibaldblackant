@@ -286,9 +286,9 @@ export async function manualAddItem(
 export async function validateArticleCode(
   code: string,
 ): Promise<{
-  matchedProduct: { id: string; name: string; description?: string } | null;
+  matchedProduct: { id: string; name: string; description?: string; packageContent?: string | null } | null;
   confidence: number;
-  suggestions: Array<{ id: string; name: string; description?: string }>;
+  suggestions: Array<{ id: string; name: string; description?: string; packageContent?: string | null; confidence?: number }>;
 }> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/warehouse/items/validate?articleCode=${encodeURIComponent(code)}`,
@@ -299,17 +299,7 @@ export async function validateArticleCode(
   }
 
   const data = await response.json();
-  const result = data.data as { valid: boolean; productName?: string };
-
-  if (result.valid) {
-    return {
-      matchedProduct: { id: code, name: code, description: result.productName },
-      confidence: 1.0,
-      suggestions: [],
-    };
-  }
-
-  return { matchedProduct: null, confidence: 0, suggestions: [] };
+  return data.data;
 }
 
 export async function clearAllWarehouseData(): Promise<{

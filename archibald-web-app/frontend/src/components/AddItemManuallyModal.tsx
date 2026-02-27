@@ -10,10 +10,9 @@ import { toastService } from "../services/toast.service";
 type ValidatedProduct = {
   id: string;
   name: string;
-  description?: string;
-  price?: number;
-  vat?: number;
-  packageContent?: string;
+  description?: string | null;
+  packageContent?: string | null;
+  confidence?: number;
 };
 
 export interface AddItemManuallyModalProps {
@@ -114,10 +113,7 @@ export function AddItemManuallyModal({
         let status: "valid" | "warning" | "invalid" = "invalid";
         if (confidence >= 0.7) {
           status = "valid";
-          // Auto-fill description for high confidence matches
-          setDescription(
-            matchedProduct?.name || matchedProduct?.description || "",
-          );
+          setDescription(matchedProduct?.description || matchedProduct?.name || "");
         } else if (confidence >= 0.3) {
           status = "warning";
           setDescription(""); // Allow manual entry
@@ -336,6 +332,18 @@ export function AddItemManuallyModal({
                       : `🔴 Nessun match`}
                 </div>
               )}
+              {validationState.status === "invalid" && (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "#856404",
+                  }}
+                >
+                  Articolo non presente a catalogo. Puoi comunque aggiungerlo
+                  manualmente.
+                </div>
+              )}
             </div>
 
             {/* Suggestions */}
@@ -371,10 +379,19 @@ export function AddItemManuallyModal({
                     }}
                   >
                     <strong>{product.name}</strong>
-                    {product.packageContent && ` (${product.packageContent})`}
-                    {product.id && (
-                      <span style={{ color: "#666", marginLeft: "8px" }}>
-                        [{product.id}]
+                    {product.description && (
+                      <span style={{ color: "#555", marginLeft: "6px" }}>
+                        {product.description}
+                      </span>
+                    )}
+                    {product.packageContent && (
+                      <span style={{ color: "#888", marginLeft: "6px" }}>
+                        ({product.packageContent})
+                      </span>
+                    )}
+                    {product.confidence != null && (
+                      <span style={{ color: "#999", marginLeft: "6px", fontSize: "11px" }}>
+                        {Math.round(product.confidence * 100)}%
                       </span>
                     )}
                   </div>
