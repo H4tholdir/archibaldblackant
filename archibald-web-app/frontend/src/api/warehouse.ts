@@ -291,7 +291,7 @@ export async function validateArticleCode(
   suggestions: unknown[];
 }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/warehouse/items/validate?code=${encodeURIComponent(code)}`,
+    `${API_BASE}/api/warehouse/items/validate?articleCode=${encodeURIComponent(code)}`,
   );
 
   if (!response.ok) {
