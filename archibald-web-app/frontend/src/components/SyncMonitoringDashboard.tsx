@@ -97,7 +97,7 @@ function authHeaders(): HeadersInit {
 }
 
 export default function SyncMonitoringDashboard() {
-  const { subscribe } = useWebSocketContext();
+  const { subscribe, state: wsState } = useWebSocketContext();
 
   const [monitoring, setMonitoring] = useState<MonitoringData | null>(null);
   const [history, setHistory] = useState<SyncHistoryData | null>(null);
@@ -108,8 +108,6 @@ export default function SyncMonitoringDashboard() {
     error: string;
     timestamp: string;
   } | null>(null);
-  const statusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const historyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const consecutiveErrorsRef = useRef(0);
 
   const fetchStatus = useCallback(async () => {
@@ -150,13 +148,18 @@ export default function SyncMonitoringDashboard() {
   useEffect(() => {
     fetchStatus();
     fetchHistory();
-    statusTimerRef.current = setInterval(fetchStatus, 5000);
-    historyTimerRef.current = setInterval(fetchHistory, 10000);
-    return () => {
-      if (statusTimerRef.current) clearInterval(statusTimerRef.current);
-      if (historyTimerRef.current) clearInterval(historyTimerRef.current);
-    };
   }, [fetchStatus, fetchHistory]);
+
+  useEffect(() => {
+    const statusMs = wsState === "connected" ? 30000 : 5000;
+    const historyMs = wsState === "connected" ? 60000 : 10000;
+    const statusTimer = setInterval(fetchStatus, statusMs);
+    const historyTimer = setInterval(fetchHistory, historyMs);
+    return () => {
+      clearInterval(statusTimer);
+      clearInterval(historyTimer);
+    };
+  }, [wsState, fetchStatus, fetchHistory]);
 
   useEffect(() => {
     const unsubs = [

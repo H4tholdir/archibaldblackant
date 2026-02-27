@@ -73,7 +73,7 @@ function getHealthColor(iso: string | null, isLoading: boolean): string {
 }
 
 export default function SyncControlPanel() {
-  const { subscribe } = useWebSocketContext();
+  const { subscribe, state: wsState } = useWebSocketContext();
 
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,14 +166,16 @@ export default function SyncControlPanel() {
   useEffect(() => {
     fetchStatus();
     fetchAutoSyncStatus();
+  }, [fetchStatus, fetchAutoSyncStatus]);
 
+  useEffect(() => {
+    const pollMs = wsState === "connected" ? 30000 : 5000;
     const interval = setInterval(() => {
       fetchStatus();
       fetchAutoSyncStatus();
-    }, 5000);
-
+    }, pollMs);
     return () => clearInterval(interval);
-  }, [fetchStatus, fetchAutoSyncStatus]);
+  }, [wsState, fetchStatus, fetchAutoSyncStatus]);
 
   useEffect(() => {
     const unsubs = [
