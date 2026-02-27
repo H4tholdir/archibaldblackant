@@ -115,6 +115,7 @@ export default function SyncMonitoringDashboard() {
       const res = await fetch("/api/sync/monitoring/status", {
         headers: authHeaders(),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         setMonitoring({
@@ -175,13 +176,14 @@ export default function SyncMonitoringDashboard() {
     setToggling(true);
     try {
       const action = monitoring.scheduler.running ? "stop" : "start";
-      await fetch(`/api/sync/auto-sync/${action}`, {
+      const res = await fetch(`/api/sync/auto-sync/${action}`, {
         method: "POST",
         headers: authHeaders(),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchStatus();
     } catch {
-      /* ignore */
+      alert("Errore durante il cambio dello stato scheduler");
     } finally {
       setToggling(false);
     }
