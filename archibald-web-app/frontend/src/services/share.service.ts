@@ -116,7 +116,8 @@ class ShareService {
     }
 
     const { url } = await this.uploadPDFForSharing(blob, fileName);
-    const fullMessage = `${message}\n${url}`;
+    const absoluteUrl = url.startsWith("http") ? url : `${window.location.origin}${url}`;
+    const fullMessage = `${message}\n${absoluteUrl}`;
     this.openWhatsApp(fullMessage);
   }
 
