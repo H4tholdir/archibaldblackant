@@ -51,6 +51,11 @@ export function PendingOrdersPage() {
     new Set(),
   );
 
+  // Actions toggle - which orders have actions visible
+  const [actionsVisibleIds, setActionsVisibleIds] = useState<Set<string>>(
+    new Set(),
+  );
+
   // Share state
   const [emailDialogOrder, setEmailDialogOrder] = useState<PendingOrder | null>(
     null,
@@ -978,394 +983,68 @@ export function PendingOrdersPage() {
 
                 {/* Action buttons - desktop layout */}
                 {!isMobile && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      alignItems: "center",
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <div
                       style={{
                         padding: "0.25rem 0.75rem",
                         borderRadius: "9999px",
                         fontSize: "0.875rem",
                         fontWeight: "600",
-                        backgroundColor:
-                          order.status === "pending"
-                            ? "#fef3c7"
-                            : order.status === "error"
-                              ? "#fee2e2"
-                              : "#dbeafe",
-                        color:
-                          order.status === "pending"
-                            ? "#92400e"
-                            : order.status === "error"
-                              ? "#991b1b"
-                              : "#1e40af",
+                        backgroundColor: order.status === "pending" ? "#fef3c7" : order.status === "error" ? "#fee2e2" : "#dbeafe",
+                        color: order.status === "pending" ? "#92400e" : order.status === "error" ? "#991b1b" : "#1e40af",
                       }}
                     >
-                      {order.status === "pending"
-                        ? "In Attesa"
-                        : order.status === "error"
-                          ? "Errore"
-                          : order.status === "completed-warehouse"
-                            ? "Da Magazzino"
-                            : "In Elaborazione"}
+                      {order.status === "pending" ? "In Attesa" : order.status === "error" ? "Errore" : order.status === "completed-warehouse" ? "Da Magazzino" : "In Elaborazione"}
                     </div>
-                    <button
-                      onClick={() => handleDownloadPDF(order)}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background: "#10b981",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Scarica PDF"
-                    >
-                      📄 PDF
-                    </button>
-                    <button
-                      onClick={() => handlePrintOrder(order)}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background: "#8b5cf6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Stampa ordine"
-                    >
-                      🖨️ Stampa
-                    </button>
-                    <button
-                      onClick={() => handleWhatsApp(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#25D366",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Invia via WhatsApp"
-                    >
-                      {sharingOrderId === order.id ? "..." : "WhatsApp"}
-                    </button>
-                    <button
-                      onClick={() => handleEmail(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#ea580c",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Invia via Email"
-                    >
-                      Email
-                    </button>
-                    <button
-                      onClick={() => handleDropbox(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#0061FF",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Carica su Dropbox"
-                    >
-                      {sharingOrderId === order.id ? "..." : "Dropbox"}
-                    </button>
-                    {isWarehouseOrder ? (
+                    {!actionsVisibleIds.has(order.id!) ? (
                       <button
-                        onClick={() => handleConfirmWarehouseOrder(order)}
-                        style={{
-                          padding: "0.5rem 0.75rem",
-                          background: "#22c55e",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                          fontWeight: "600",
-                        }}
-                        title="Conferma e archivia ordine magazzino"
+                        onClick={() => setActionsVisibleIds((prev) => new Set(prev).add(order.id!))}
+                        style={{ padding: "0.5rem 0.75rem", background: "#6b7280", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }}
                       >
-                        Conferma e Archivia
+                        Azioni
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleEditOrder(order.id!)}
-                        style={{
-                          padding: "0.5rem 0.75rem",
-                          background: "#3b82f6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                          fontWeight: "500",
-                        }}
-                        title="Modifica ordine"
-                      >
-                        ✏️ Modifica
-                      </button>
+                      <>
+                        <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.5rem 0.75rem", background: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Scarica PDF">PDF</button>
+                        <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.5rem 0.75rem", background: "#8b5cf6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Stampa ordine">Stampa</button>
+                        <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#25D366", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "..." : "WhatsApp"}</button>
+                        <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Invia via Email">Email</button>
+                        <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "..." : "Dropbox"}</button>
+                        {isWarehouseOrder ? (
+                          <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.5rem 0.75rem", background: "#22c55e", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Conferma e archivia">Conferma e Archivia</button>
+                        ) : (
+                          <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Modifica ordine">Modifica</button>
+                        )}
+                        <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Elimina ordine">Elimina</button>
+                      </>
                     )}
-                    <button
-                      onClick={() => handleDeleteOrder(order.id!)}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background: "#dc2626",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Elimina ordine"
-                    >
-                      🗑️ Elimina
-                    </button>
                   </div>
                 )}
 
                 {/* Action buttons - mobile layout (grid) */}
-                {isMobile && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: "0.5rem",
-                      marginTop: "0.5rem",
-                    }}
-                  >
+                {isMobile && !actionsVisibleIds.has(order.id!) && (
+                  <div style={{ marginTop: "0.5rem" }}>
                     <button
-                      onClick={() => handleDownloadPDF(order)}
-                      style={{
-                        padding: "0.75rem",
-                        background: "#10b981",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Scarica PDF"
+                      onClick={() => setActionsVisibleIds((prev) => new Set(prev).add(order.id!))}
+                      style={{ padding: "0.75rem 1.5rem", background: "#6b7280", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", width: "100%", minHeight: "44px" }}
                     >
-                      <span>📄</span>
-                      <span>PDF</span>
+                      Azioni
                     </button>
-                    <button
-                      onClick={() => handlePrintOrder(order)}
-                      style={{
-                        padding: "0.75rem",
-                        background: "#8b5cf6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Stampa ordine"
-                    >
-                      <span>🖨️</span>
-                      <span>Stampa</span>
-                    </button>
-                    <button
-                      onClick={() => handleWhatsApp(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#25D366",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Invia via WhatsApp"
-                    >
-                      <span>
-                        {sharingOrderId === order.id ? "..." : "WhatsApp"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => handleEmail(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#ea580c",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Invia via Email"
-                    >
-                      <span>Email</span>
-                    </button>
-                    <button
-                      onClick={() => handleDropbox(order)}
-                      disabled={sharingOrderId === order.id}
-                      style={{
-                        padding: "0.75rem",
-                        background:
-                          sharingOrderId === order.id ? "#9ca3af" : "#0061FF",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor:
-                          sharingOrderId === order.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Carica su Dropbox"
-                    >
-                      <span>
-                        {sharingOrderId === order.id ? "..." : "Dropbox"}
-                      </span>
-                    </button>
+                  </div>
+                )}
+                {isMobile && actionsVisibleIds.has(order.id!) && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem", marginTop: "0.5rem" }}>
+                    <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.75rem", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Scarica PDF">PDF</button>
+                    <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.75rem", background: "#8b5cf6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Stampa ordine">Stampa</button>
+                    <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#25D366", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "..." : "WhatsApp"}</button>
+                    <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Invia via Email">Email</button>
+                    <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "..." : "Dropbox"}</button>
                     {isWarehouseOrder ? (
-                      <button
-                        onClick={() => handleConfirmWarehouseOrder(order)}
-                        style={{
-                          padding: "0.75rem",
-                          background: "#22c55e",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontSize: "0.9375rem",
-                          fontWeight: "600",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "0.375rem",
-                          minHeight: "44px",
-                        }}
-                        title="Conferma e archivia"
-                      >
-                        <span>Conferma</span>
-                      </button>
+                      <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.75rem", background: "#22c55e", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Conferma e archivia">Conferma</button>
                     ) : (
-                      <button
-                        onClick={() => handleEditOrder(order.id!)}
-                        style={{
-                          padding: "0.75rem",
-                          background: "#3b82f6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontSize: "0.9375rem",
-                          fontWeight: "600",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "0.375rem",
-                          minHeight: "44px",
-                        }}
-                        title="Modifica ordine"
-                      >
-                        <span>✏️</span>
-                        <span>Modifica</span>
-                      </button>
+                      <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.75rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Modifica ordine">Modifica</button>
                     )}
-                    <button
-                      onClick={() => handleDeleteOrder(order.id!)}
-                      style={{
-                        padding: "0.75rem",
-                        background: "#dc2626",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Elimina ordine"
-                    >
-                      <span>🗑️</span>
-                      <span>Elimina</span>
-                    </button>
+                    <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Elimina ordine">Elimina</button>
                   </div>
                 )}
               </div>
