@@ -4,14 +4,6 @@ import type { PendingOrderItem } from "../types/pending-order";
 import type { SubClient } from "../types/sub-client";
 import { formatCurrency } from "../utils/format-currency";
 
-function parseOrderDate(value: string): Date {
-  const d = new Date(value);
-  if (!isNaN(d.getTime())) return d;
-  const n = Number(value);
-  if (!isNaN(n)) return new Date(n);
-  return new Date();
-}
-
 export type PDFOrderData = {
   id: string;
   customerId: string;
@@ -213,7 +205,7 @@ export class PDFExportService {
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
 
-    const createdDate = parseOrderDate(order.createdAt);
+    const createdDate = new Date(order.createdAt);
     const expiryDate = new Date(createdDate);
     expiryDate.setDate(expiryDate.getDate() + 30); // Valid for 30 days
 
@@ -530,12 +522,12 @@ export class PDFExportService {
   }
 
   getOrderPDFFileName(order: PDFOrderData): string {
-    return `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${parseOrderDate(order.createdAt).toISOString().split("T")[0]}.pdf`;
+    return `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${new Date(order.createdAt).toISOString().split("T")[0]}.pdf`;
   }
 
   downloadOrderPDF(order: PDFOrderData): void {
     const doc = this.generateOrderPDF(order);
-    const fileName = `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${parseOrderDate(order.createdAt).toISOString().split("T")[0]}.pdf`;
+    const fileName = `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${new Date(order.createdAt).toISOString().split("T")[0]}.pdf`;
     doc.save(fileName);
   }
 
