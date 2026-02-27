@@ -4,6 +4,13 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 const API_BASE = "";
 
+function toISODateString(value: unknown): string {
+  if (typeof value === "number") return new Date(value).toISOString();
+  const s = String(value);
+  if (/^\d+$/.test(s)) return new Date(Number(s)).toISOString();
+  return s;
+}
+
 function parseJsonField<T>(value: unknown): T | undefined {
   if (value === null || value === undefined) return undefined;
   if (typeof value === "string") {
@@ -38,12 +45,8 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     shippingCost: raw.shippingCost as number | undefined,
     shippingTax: raw.shippingTax as number | undefined,
     revenue: raw.revenue as number | undefined,
-    createdAt: typeof raw.createdAt === "number"
-      ? new Date(raw.createdAt).toISOString()
-      : String(raw.createdAt),
-    updatedAt: typeof raw.updatedAt === "number"
-      ? new Date(raw.updatedAt).toISOString()
-      : String(raw.updatedAt),
+    createdAt: toISODateString(raw.createdAt),
+    updatedAt: toISODateString(raw.updatedAt),
     status: (raw.status as PendingOrder["status"]) ?? "pending",
     errorMessage: raw.errorMessage as string | undefined,
     retryCount: (raw.retryCount as number) ?? 0,
