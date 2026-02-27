@@ -175,7 +175,7 @@ export function AddItemManuallyModal({
     setLoading(true);
 
     try {
-      await manualAddItem(articleCode.trim(), qty, selectedBox);
+      await manualAddItem(articleCode.trim(), qty, selectedBox, description || undefined);
       toastService.success("Articolo aggiunto");
       onSuccess();
       onClose();

@@ -266,13 +266,14 @@ export async function manualAddItem(
   articleCode: string,
   quantity: number,
   boxName: string,
+  description?: string,
 ): Promise<{ success: boolean; data: unknown }> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/warehouse/items/manual-add`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ articleCode, quantity, boxName }),
+      body: JSON.stringify({ articleCode, description, quantity, boxName }),
     },
   );
 

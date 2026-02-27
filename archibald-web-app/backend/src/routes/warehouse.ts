@@ -55,6 +55,7 @@ const moveItemsSchema = z.object({
 
 const manualAddSchema = z.object({
   articleCode: z.string().min(1),
+  description: z.string().optional(),
   quantity: z.number().int().positive(),
   boxName: z.string().min(1),
 });
@@ -258,10 +259,10 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
-      const { articleCode, quantity, boxName } = parsed.data;
+      const { articleCode, description, quantity, boxName } = parsed.data;
       const deviceId = req.user!.deviceId || 'unknown';
       await ensureBoxExists(req.user!.userId, boxName);
-      const item = await addItem(req.user!.userId, articleCode, articleCode, quantity, boxName, deviceId);
+      const item = await addItem(req.user!.userId, articleCode, description || articleCode, quantity, boxName, deviceId);
       res.status(201).json({ success: true, data: item });
     } catch (error) {
       logger.error('Error manually adding item', { error });
