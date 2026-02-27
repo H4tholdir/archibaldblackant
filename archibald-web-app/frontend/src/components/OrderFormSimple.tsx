@@ -3462,18 +3462,18 @@ export default function OrderFormSimple() {
                     style={{
                       padding: isMobile ? "0.75rem" : "1rem",
                       background: packagingPreview.success
-                        ? "#d1fae5"
+                        ? "#f9fafb"
                         : "#fee2e2",
                       borderRadius: isMobile ? "6px" : "4px",
                       marginBottom: isMobile ? "0.75rem" : "1rem",
-                      border: `2px solid ${packagingPreview.success ? "#065f46" : "#dc2626"}`,
+                      border: `1px solid ${packagingPreview.success ? "#d1d5db" : "#dc2626"}`,
                     }}
                   >
                     {packagingPreview.success ? (
                       <>
                         <strong
                           style={{
-                            color: "#065f46",
+                            color: "#111827",
                             display: "block",
                             marginBottom: "0.5rem",
                           }}
@@ -3485,7 +3485,7 @@ export default function OrderFormSimple() {
                           style={{
                             margin: "0.5rem 0",
                             paddingLeft: "1.5rem",
-                            color: "#065f46",
+                            color: "#111827",
                           }}
                         >
                           {packagingPreview.breakdown?.map((item, idx) => (
@@ -3501,7 +3501,7 @@ export default function OrderFormSimple() {
                           style={{
                             margin: "0.5rem 0 0 0",
                             fontSize: "0.875rem",
-                            color: "#047857",
+                            color: "#6b7280",
                           }}
                         >
                           Totale: {packagingPreview.totalPackages} confezioni ={" "}
