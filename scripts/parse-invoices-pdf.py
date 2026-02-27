@@ -161,6 +161,19 @@ def parse_invoices_pdf(pdf_path: str):
             if not tables[0] or len(tables[0]) <= 1:
                 continue
 
+            # Diagnostic: dump headers for first cycle
+            if cycle_start == 0:
+                for page_i, tbl in enumerate(tables):
+                    if tbl and len(tbl) > 0:
+                        headers = [(h or '').strip() for h in tbl[0]]
+                        rows_count = len(tbl) - 1
+                        print(f"DIAG_PAGE:{page_i+1}/{cycle_size} headers={headers} rows={rows_count}", file=sys.stderr)
+                        if len(tbl) > 1:
+                            sample = [(c or '')[:30] for c in tbl[1]]
+                            print(f"DIAG_SAMPLE:{page_i+1}/{cycle_size} row1={sample}", file=sys.stderr)
+                    else:
+                        print(f"DIAG_PAGE:{page_i+1}/{cycle_size} EMPTY_TABLE", file=sys.stderr)
+
             num_rows = len(tables[0])
 
             for row_idx in range(1, num_rows):  # Skip header
@@ -262,8 +275,16 @@ def main():
     pdf_path = sys.argv[1]
 
     try:
+        count = 0
         for invoice in parse_invoices_pdf(pdf_path):
-            print(json.dumps(asdict(invoice), ensure_ascii=False))
+            d = asdict(invoice)
+            print(json.dumps(d, ensure_ascii=False))
+            count += 1
+            if count <= 3:
+                null_fields = [k for k, v in d.items() if v is None]
+                pop_fields = [k for k, v in d.items() if v is not None]
+                print(f"DIAG_RECORD:{count} populated={pop_fields} null={null_fields}", file=sys.stderr)
+        print(f"DIAG_TOTAL: {count} invoices parsed", file=sys.stderr)
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

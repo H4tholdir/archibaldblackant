@@ -1,5 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
+import { logger } from '../../logger';
+import { copyFile } from 'node:fs/promises';
 
 type ParsedInvoice = {
   orderNumber: string;
@@ -58,8 +60,22 @@ async function syncInvoices(
 
     if (shouldStop()) throw new SyncStoppedError('download');
 
+    // Diagnostic: save PDF copy for inspection
+    const debugPdfPath = '/app/data/debug-invoices.pdf';
+    await copyFile(pdfPath, debugPdfPath).catch(() => { /* ignore */ });
+    logger.info('[InvoiceSync] PDF saved to debug path', { debugPdfPath });
+
     onProgress(20, 'Lettura PDF fatture');
     const parsedInvoices = await parsePdf(pdfPath);
+
+    // Diagnostic: log first 3 parsed records
+    for (let i = 0; i < Math.min(3, parsedInvoices.length); i++) {
+      const inv = parsedInvoices[i];
+      const nullFields = Object.entries(inv).filter(([, v]) => v === null || v === undefined).map(([k]) => k);
+      const popFields = Object.entries(inv).filter(([, v]) => v !== null && v !== undefined).map(([k]) => k);
+      logger.info(`[InvoiceSync] DIAG record ${i + 1}`, { populated: popFields, null: nullFields, orderNumber: inv.orderNumber, invoiceNumber: inv.invoiceNumber });
+    }
+    logger.info(`[InvoiceSync] Total parsed: ${parsedInvoices.length}`);
 
     if (shouldStop()) throw new SyncStoppedError('parse');
 

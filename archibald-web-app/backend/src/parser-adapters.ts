@@ -111,7 +111,7 @@ function adaptInvoice(p: ParserInvoice): ParsedInvoice {
     invoiceCustomerAccount: n(p.customer_account),
     invoiceBillingName: n(p.billing_name),
     invoiceQuantity: p.quantity ? parseInt(p.quantity, 10) || undefined : undefined,
-    invoiceRemainingAmount: n(p.sales_balance),
+    invoiceRemainingAmount: n(p.remaining_amount),
     invoiceTaxAmount: n(p.tax_sum),
     invoiceLineDiscount: n(p.discount_amount),
     invoiceTotalDiscount: n(p.discount_amount),
