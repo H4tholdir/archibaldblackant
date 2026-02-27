@@ -2794,6 +2794,8 @@ export default function OrderFormSimple() {
                 setCustomerSearch("");
                 setSelectedSubClient(null);
                 setGlobalDiscountPercent("");
+                setItemDiscount("");
+                setListPrice("");
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
@@ -2824,6 +2826,8 @@ export default function OrderFormSimple() {
               onClear={() => {
                 setSelectedSubClient(null);
                 setGlobalDiscountPercent("");
+                setItemDiscount("");
+                setListPrice("");
               }}
               selectedSubClient={selectedSubClient}
               externalInputRef={subClientInputRef}
