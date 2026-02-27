@@ -39,9 +39,6 @@ function createSyncScheduler(
         const agentIds = getActiveAgentIds();
         for (const userId of agentIds) {
           enqueue('sync-customers', userId, {});
-          enqueue('sync-orders', userId, {});
-          enqueue('sync-ddt', userId, {});
-          enqueue('sync-invoices', userId, {});
 
           if (getOrdersNeedingArticleSync) {
             const agentUserId = userId;

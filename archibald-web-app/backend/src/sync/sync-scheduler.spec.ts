@@ -42,11 +42,10 @@ describe('createSyncScheduler', () => {
     scheduler.start(intervals);
     vi.advanceTimersByTime(100);
 
-    const agentSyncTypes: OperationType[] = ['sync-customers', 'sync-orders', 'sync-ddt', 'sync-invoices'];
-    for (const type of agentSyncTypes) {
-      expect(enqueue).toHaveBeenCalledWith(type, 'user-1', {});
-      expect(enqueue).toHaveBeenCalledWith(type, 'user-2', {});
-    }
+    // Scheduler now only enqueues the first sync in the chain (sync-customers).
+    // The rest (sync-orders, sync-ddt, sync-invoices) are chained by the operation processor.
+    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-2', {});
 
     scheduler.stop();
   });

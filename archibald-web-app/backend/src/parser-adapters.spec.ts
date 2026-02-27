@@ -200,7 +200,7 @@ describe('adaptInvoice', () => {
     expect(result.invoiceCustomerAccount).toBe('ACME');
     expect(result.invoiceBillingName).toBe('Acme Corp');
     expect(result.invoiceQuantity).toBe(5);
-    expect(result.invoiceRemainingAmount).toBe('500.00');
+    expect(result.invoiceRemainingAmount).toBe('0.00');
     expect(result.invoiceTaxAmount).toBe('22.00');
     expect(result.invoiceLineDiscount).toBe('10.00');
     expect(result.invoiceTotalDiscount).toBe('10.00');

@@ -1,4 +1,5 @@
 import type { OperationType, OperationJobData, OperationJobResult } from './operation-types';
+import { getNextSyncInChain } from './operation-types';
 import type { AgentLock } from './agent-lock';
 
 type BrowserContext = unknown;
@@ -114,6 +115,11 @@ function createOperationProcessor(deps: ProcessorDeps) {
         result,
       });
 
+      const nextSync = getNextSyncInChain(type);
+      if (nextSync) {
+        await enqueue(nextSync, userId, {});
+      }
+
       return { success: true, data: result, duration: Date.now() - startTime };
     } catch (error) {
       if (context) {
@@ -126,6 +132,11 @@ function createOperationProcessor(deps: ProcessorDeps) {
         type,
         error: error instanceof Error ? error.message : String(error),
       });
+
+      const nextSync = getNextSyncInChain(type);
+      if (nextSync) {
+        await enqueue(nextSync, userId, {}).catch(() => { /* ignore chain enqueue errors */ });
+      }
 
       throw error;
     } finally {

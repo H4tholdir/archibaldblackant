@@ -65,6 +65,21 @@ function isScheduledSync(type: OperationType): boolean {
   return SCHEDULED_SYNCS.has(type);
 }
 
+const AGENT_SYNC_CHAIN: readonly OperationType[] = [
+  'sync-customers',
+  'sync-orders',
+  'sync-ddt',
+  'sync-invoices',
+];
+
+function getNextSyncInChain(type: OperationType): OperationType | null {
+  const idx = AGENT_SYNC_CHAIN.indexOf(type);
+  if (idx >= 0 && idx < AGENT_SYNC_CHAIN.length - 1) {
+    return AGENT_SYNC_CHAIN[idx + 1];
+  }
+  return null;
+}
+
 type OperationJobData = {
   type: OperationType;
   userId: string;
@@ -84,8 +99,10 @@ export {
   OPERATION_PRIORITIES,
   WRITE_OPERATIONS,
   SCHEDULED_SYNCS,
+  AGENT_SYNC_CHAIN,
   isWriteOperation,
   isScheduledSync,
+  getNextSyncInChain,
   type OperationType,
   type OperationJobData,
   type OperationJobResult,
