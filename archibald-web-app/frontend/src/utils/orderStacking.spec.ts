@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "vitest";
-import type { Order } from "./orderGrouping";
+import type { Order } from "../types/order";
 import {
   isCreditNote,
   normalizeAmount,

@@ -905,8 +905,12 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string, userId:
            AND cn.customer_name = o.customer_name
            AND cn.gross_amount LIKE '-%'
            AND ABS(
-             CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-             + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+               ELSE 0 END
+             + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+               ELSE 0 END
            ) < 1.0
            AND cn.creation_date >= o.creation_date
        )
@@ -1044,8 +1048,12 @@ async function getOrderHistoryByCustomer(
            AND cn.customer_name = o.customer_name
            AND cn.gross_amount LIKE '-%'
            AND ABS(
-             CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-             + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+               ELSE 0 END
+             + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+               ELSE 0 END
            ) < 1.0
            AND cn.creation_date >= o.creation_date
        )

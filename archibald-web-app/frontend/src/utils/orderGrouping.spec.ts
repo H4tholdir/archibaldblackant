@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { groupOrdersByPeriod, type Order, type Period } from "./orderGrouping";
+import type { Order } from "../types/order";
+import { groupOrdersByPeriod, type Period } from "./orderGrouping";
 
 const createOrder = (id: string, date: string): Order => ({
   id,

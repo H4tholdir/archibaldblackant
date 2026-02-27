@@ -38,6 +38,7 @@ function formatDate(dateString: string | undefined): string {
   if (!dateString) return "N/A";
   try {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
     const months = [
       "gen",
       "feb",
@@ -654,6 +655,8 @@ function TabArticoli({
   tokenRef.current = token;
   const subscribeRef = useRef(subscribe);
   subscribeRef.current = subscribe;
+  const onTotalsUpdateRef = useRef(onTotalsUpdate);
+  onTotalsUpdateRef.current = onTotalsUpdate;
 
   // Load existing articles from database on mount
   useEffect(() => {
@@ -675,7 +678,7 @@ function TabArticoli({
         if (data.success && articlesList.length > 0) {
           setArticles(articlesList);
 
-          if (onTotalsUpdate) {
+          if (onTotalsUpdateRef.current) {
             const totalVat = articlesList.reduce(
               (sum: number, a: OrderArticle) => sum + (a.vatAmount ?? 0),
               0,
@@ -685,7 +688,7 @@ function TabArticoli({
               0,
             );
             if (totalVat > 0 || totalWithVat > 0) {
-              onTotalsUpdate({ totalVatAmount: totalVat, totalWithVat });
+              onTotalsUpdateRef.current({ totalVatAmount: totalVat, totalWithVat });
             }
           }
         }
@@ -695,7 +698,7 @@ function TabArticoli({
     };
 
     loadArticles();
-  }, [orderId, token, onTotalsUpdate]);
+  }, [orderId, token]);
 
   // Initialize edit items when entering edit mode
   useEffect(() => {
@@ -2044,7 +2047,7 @@ function TabArticoli({
                     {formatCurrency(
                       articles.reduce(
                         (sum, item) =>
-                          sum + ((item as any).lineTotalWithVat ?? 0),
+                          sum + (item.lineTotalWithVat ?? 0),
                         0,
                       ),
                     )}
@@ -2559,7 +2562,10 @@ function TabFinanziario({
           <div style={{ fontSize: "20px", fontWeight: 700, color: "#333" }}>
             {order.total}
           </div>
-          {order.totalWithVat && parseFloat(order.totalWithVat) > 0 && (
+          {(() => {
+            const parsed = order.totalWithVat ? parseFloat(order.totalWithVat) : NaN;
+            return !isNaN(parsed) && parsed > 0;
+          })() && (
             <div
               style={{
                 fontSize: "13px",
@@ -2568,10 +2574,13 @@ function TabFinanziario({
                 marginTop: "2px",
               }}
             >
-              {formatCurrency(parseFloat(order.totalWithVat))} (con IVA)
+              {formatCurrency(parseFloat(order.totalWithVat!))} (con IVA)
             </div>
           )}
-          {(!order.totalWithVat || parseFloat(order.totalWithVat) === 0) && (
+          {(() => {
+            const parsed = order.totalWithVat ? parseFloat(order.totalWithVat) : NaN;
+            return isNaN(parsed) || parsed === 0;
+          })() && (
             <div
               style={{
                 fontSize: "11px",
@@ -2801,16 +2810,15 @@ function TabFinanziario({
             />
           </div>
 
-          {order.invoiceDueDate && (
+          {order.invoiceDueDate && (() => {
+            const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
+            const isDaysPastDueValid = daysPastDue !== null && !isNaN(daysPastDue);
+            return (
             <div
               style={{
                 padding: "10px 16px",
-                backgroundColor: (() => {
-                  const days = order.invoiceDaysPastDue
-                    ? parseInt(order.invoiceDaysPastDue)
-                    : null;
-                  return days !== null && days <= 0 ? "#ffebee" : "#e8f5e9";
-                })(),
+                backgroundColor:
+                  isDaysPastDueValid && daysPastDue <= 0 ? "#ffebee" : "#e8f5e9",
                 borderTop: "1px solid #e0e0e0",
                 display: "flex",
                 justifyContent: "space-between",
@@ -2823,13 +2831,13 @@ function TabFinanziario({
                 <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
                 {formatDate(order.invoiceDueDate)}
               </div>
-              {order.invoiceDaysPastDue && (
+              {isDaysPastDueValid && (
                 <div
                   style={{
                     fontSize: "13px",
                     fontWeight: 600,
                     color:
-                      parseInt(order.invoiceDaysPastDue) <= 0
+                      daysPastDue <= 0
                         ? "#c62828"
                         : "#2e7d32",
                     display: "flex",
@@ -2843,19 +2851,20 @@ function TabFinanziario({
                       height: "8px",
                       borderRadius: "50%",
                       backgroundColor:
-                        parseInt(order.invoiceDaysPastDue) <= 0
+                        daysPastDue <= 0
                           ? "#c62828"
                           : "#2e7d32",
                       display: "inline-block",
                     }}
                   />
-                  {parseInt(order.invoiceDaysPastDue) <= 0
-                    ? `Scaduta da ${Math.abs(parseInt(order.invoiceDaysPastDue))} giorni`
-                    : `${order.invoiceDaysPastDue} giorni rimanenti`}
+                  {daysPastDue <= 0
+                    ? `Scaduta da ${Math.abs(daysPastDue)} giorni`
+                    : `${daysPastDue} giorni rimanenti`}
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {(order.invoiceSettledAmount ||
             order.invoiceLastPaymentId ||
@@ -3645,13 +3654,16 @@ export function OrderCardNew({
               </div>
               {!order.invoiceNumber &&
                 (() => {
+                  const parsedTotalWithVat = order.totalWithVat
+                    ? parseFloat(order.totalWithVat)
+                    : undefined;
                   const totalWithVat =
                     articlesTotals.totalWithVat ??
-                    (order.totalWithVat
-                      ? parseFloat(order.totalWithVat)
+                    (parsedTotalWithVat !== undefined && !isNaN(parsedTotalWithVat)
+                      ? parsedTotalWithVat
                       : undefined);
 
-                  if (totalWithVat && totalWithVat > 0) {
+                  if (totalWithVat && totalWithVat !== 0) {
                     return (
                       <div
                         style={{

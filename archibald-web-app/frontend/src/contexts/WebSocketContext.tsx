@@ -68,6 +68,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [state, setState] = useState<WebSocketState>("disconnected");
 
   const wsRef = useRef<WebSocket | null>(null);
+  const isConnectingRef = useRef<boolean>(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectDelayRef = useRef<number>(INITIAL_RECONNECT_DELAY);
   const eventHandlersRef = useRef<Map<string, Set<WebSocketEventHandler>>>(
@@ -229,6 +230,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
    * Connect to WebSocket server
    */
   const connect = useCallback(() => {
+    if (isConnectingRef.current) return;
     if (
       wsRef.current?.readyState === WebSocket.OPEN ||
       wsRef.current?.readyState === WebSocket.CONNECTING
@@ -236,9 +238,12 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       return;
     }
 
+    isConnectingRef.current = true;
+
     const token = getToken();
     if (!token) {
       console.warn("[WebSocket] No auth token, cannot connect");
+      isConnectingRef.current = false;
       setState("disconnected");
       return;
     }
@@ -257,6 +262,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     ws.onopen = () => {
       console.log("[WebSocket] Connected");
+      isConnectingRef.current = false;
       setState("connected");
       reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
 
@@ -268,12 +274,14 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     ws.onerror = (error) => {
       console.error("[WebSocket] Error:", error);
+      isConnectingRef.current = false;
     };
 
     ws.onclose = (event) => {
       console.log(
         `[WebSocket] Closed (code: ${event.code}, reason: ${event.reason})`,
       );
+      isConnectingRef.current = false;
       wsRef.current = null;
       stopHeartbeat();
 

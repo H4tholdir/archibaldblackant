@@ -21,10 +21,7 @@ import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
 import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
-import {
-  FresisHistoryRealtimeService,
-  type SendToVeronaProgressState,
-} from "../services/fresis-history-realtime.service";
+import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
 
 interface OrderFilters {
@@ -258,27 +255,7 @@ export function OrderHistory() {
     debouncedSearch,
   );
 
-  // WebSocket subscription for sendToVerona progress
   const { subscribe } = useWebSocketContext();
-
-  useEffect(() => {
-    if (!sendingToVerona || !modalOrderId) return;
-    const realtimeService = FresisHistoryRealtimeService.getInstance();
-    const unsubscribeWs = subscribe(
-      "ORDER_SEND_TO_VERONA_PROGRESS",
-      (payload) => realtimeService.handleSendToVeronaProgress(payload),
-    );
-    const unsubscribeProgress = realtimeService.onSendToVeronaProgress(() => {
-      const p = realtimeService.getSendToVeronaProgress(modalOrderId);
-      if (p) setSendToVeronaProgress({ ...p });
-    });
-    return () => {
-      unsubscribeWs();
-      unsubscribeProgress();
-      realtimeService.clearSendToVeronaProgress(modalOrderId);
-      setSendToVeronaProgress(null);
-    };
-  }, [sendingToVerona, modalOrderId, subscribe]);
 
   // Debounce global search input (300ms)
   useEffect(() => {
@@ -339,7 +316,7 @@ export function OrderHistory() {
       const params = new URLSearchParams();
       if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
-      params.append("dateFrom", filters.dateFrom || "2026-01-01");
+      params.append("dateFrom", filters.dateFrom || `${new Date().getFullYear()}-01-01`);
       if (filters.dateTo) params.append("dateTo", filters.dateTo);
       params.append("limit", "10000");
 
@@ -382,6 +359,15 @@ export function OrderHistory() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    const unsubs = [
+      subscribe("JOB_COMPLETED", () => { fetchOrders(); }),
+      subscribe("ORDER_EDIT_COMPLETE", () => { fetchOrders(); }),
+      subscribe("ORDER_DELETE_COMPLETE", () => { fetchOrders(); }),
+    ];
+    return () => { unsubs.forEach((u) => u()); };
+  }, [subscribe, fetchOrders]);
 
   // Auto-expand and scroll to highlighted order from URL param
   useEffect(() => {

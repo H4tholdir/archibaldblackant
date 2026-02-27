@@ -1,11 +1,6 @@
-export interface Order {
-  id: string;
-  date: string; // ISO 8601
-  customerName: string;
-  total: string;
-  status: string;
-  [key: string]: unknown;
-}
+import type { Order } from "../types/order";
+
+export type { Order };
 
 export type Period = "Oggi" | "Questa settimana" | "Questo mese" | "Più vecchi";
 

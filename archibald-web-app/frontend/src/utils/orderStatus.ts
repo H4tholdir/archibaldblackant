@@ -121,7 +121,8 @@ export function isLikelyDelivered(order: Order): boolean {
   if (order.invoiceNumber) return true;
   if (order.deliveryCompletedDate) return true;
 
-  const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
+  const shippedDate = order.ddt?.ddtDeliveryDate;
+  if (!shippedDate) return false;
   const daysSinceShipped =
     (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
   return daysSinceShipped >= 3;

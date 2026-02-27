@@ -44,9 +44,6 @@ export class FresisHistoryRealtimeService {
   private _orderEditProgressMap: Map<string, EditProgressState> = new Map();
   private orderDeleteProgressHandlers: Set<UpdateHandler> = new Set();
   private _orderDeleteProgressMap: Map<string, DeleteProgressState> = new Map();
-  private sendToVeronaProgressHandlers: Set<UpdateHandler> = new Set();
-  private _sendToVeronaProgressMap: Map<string, SendToVeronaProgressState> =
-    new Map();
 
   private constructor() {}
 
@@ -333,52 +330,6 @@ export class FresisHistoryRealtimeService {
     }
   }
 
-  public getSendToVeronaProgress(
-    orderId: string,
-  ): SendToVeronaProgressState | undefined {
-    return this._sendToVeronaProgressMap.get(orderId);
-  }
-
-  public clearSendToVeronaProgress(orderId: string): void {
-    this._sendToVeronaProgressMap.delete(orderId);
-  }
-
-  public onSendToVeronaProgress(handler: UpdateHandler): () => void {
-    this.sendToVeronaProgressHandlers.add(handler);
-    return () => {
-      this.sendToVeronaProgressHandlers.delete(handler);
-    };
-  }
-
-  private notifySendToVeronaProgress(): void {
-    this.sendToVeronaProgressHandlers.forEach((handler) => {
-      try {
-        handler();
-      } catch (error) {
-        console.error(
-          "[FresisHistoryRealtime] Error in sendToVerona progress handler:",
-          error,
-        );
-      }
-    });
-  }
-
-  public handleSendToVeronaProgress(payload: unknown): void {
-    try {
-      const data = payload as DeleteProgressPayload;
-      this._sendToVeronaProgressMap.set(data.recordId, {
-        progress: data.progress,
-        operation: data.operation,
-      });
-      this.notifySendToVeronaProgress();
-    } catch (error) {
-      console.error(
-        "[FresisHistoryRealtime] Error handling ORDER_SEND_TO_VERONA_PROGRESS:",
-        error,
-      );
-    }
-  }
-
   public handleBulkImported(payload: unknown): void {
     try {
       const data = payload as BulkImportedPayload;
@@ -455,12 +406,6 @@ export class FresisHistoryRealtimeService {
         this.handleOrderDeleteComplete(payload),
       ),
     );
-    unsubscribers.push(
-      subscribe("ORDER_SEND_TO_VERONA_PROGRESS", (payload) =>
-        this.handleSendToVeronaProgress(payload),
-      ),
-    );
-
     console.log("[FresisHistoryRealtime] WebSocket subscriptions initialized");
 
     return unsubscribers;

@@ -207,8 +207,15 @@ async function waitForJobViaWebSocket(
     const unsubscribers: Array<() => void> = [];
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const hardDeadline = setTimeout(() => {
+      if (resolved) return;
+      cleanup();
+      reject(new Error('Timeout: operazione non completata entro il tempo massimo'));
+    }, maxWaitMs ?? 180_000);
+
     const cleanup = () => {
       resolved = true;
+      clearTimeout(hardDeadline);
       if (fallbackTimer) clearTimeout(fallbackTimer);
       unsubscribers.forEach(u => u());
     };

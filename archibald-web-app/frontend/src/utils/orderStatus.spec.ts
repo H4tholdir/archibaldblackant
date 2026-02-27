@@ -137,10 +137,30 @@ describe("getOrderStatus", () => {
       expect(result.category).toBe("in-transit");
     });
 
-    test("returns delivered for old orders with tracking (3+ days)", () => {
+    test("returns delivered for old orders with tracking and ddtDeliveryDate (3+ days)", () => {
       const order: Partial<Order> = {
         id: "old-tracking",
         customerName: "Old Tracking",
+        date: "2025-11-15",
+        total: "400.00",
+        status: "Spedito",
+        tracking: {
+          trackingNumber: "LEG999",
+        },
+        ddt: {
+          ddtDeliveryDate: "2025-11-15",
+        },
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("delivered");
+    });
+
+    test("returns in-transit for old orders with tracking but no ddtDeliveryDate", () => {
+      const order: Partial<Order> = {
+        id: "old-tracking-no-ddt",
+        customerName: "Old Tracking No DDT",
         date: "2025-11-15",
         total: "400.00",
         status: "Spedito",
@@ -151,7 +171,7 @@ describe("getOrderStatus", () => {
 
       const result = getOrderStatus(order as Order);
 
-      expect(result.category).toBe("delivered");
+      expect(result.category).toBe("in-transit");
     });
   });
 

@@ -1,4 +1,4 @@
-import type { Order } from "./orderGrouping";
+import type { Order } from "../types/order";
 
 type OrderStack = {
   stackId: string;

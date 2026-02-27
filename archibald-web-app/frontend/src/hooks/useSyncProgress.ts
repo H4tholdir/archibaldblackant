@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface SyncProgress {
@@ -19,6 +19,17 @@ export function useSyncProgress() {
     progress: 0,
     error: null,
   });
+
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
 
   const startSync = useCallback(
     async (
@@ -63,10 +74,16 @@ export function useSyncProgress() {
           throw new Error(syncData.message || "Errore avvio sincronizzazione");
         }
 
+        // Close any existing EventSource before creating a new one
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+        }
+
         // Listen to SSE for real-time progress
         const eventSource = new EventSource(
           `/api/sync/progress?token=${token}`,
         );
+        eventSourceRef.current = eventSource;
 
         return new Promise((resolve, reject) => {
           eventSource.onmessage = (event) => {
@@ -92,6 +109,7 @@ export function useSyncProgress() {
             // Handle completion
             if (progressData.status === "completed") {
               eventSource.close();
+              eventSourceRef.current = null;
 
               // Call completion callback
               if (onCompleted) {
@@ -109,6 +127,7 @@ export function useSyncProgress() {
             // Handle error
             if (progressData.status === "error") {
               eventSource.close();
+              eventSourceRef.current = null;
               reject(
                 new Error(
                   progressData.error || "Errore durante la sincronizzazione",
@@ -120,6 +139,7 @@ export function useSyncProgress() {
           eventSource.onerror = (error) => {
             console.error("SSE error:", error);
             eventSource.close();
+            eventSourceRef.current = null;
             reject(new Error("Errore di connessione al server"));
           };
         });

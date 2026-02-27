@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import type { Order } from "../utils/orderGrouping";
+import type { Order } from "../types/order";
 import {
   buildStackMap,
   loadManualStacks,

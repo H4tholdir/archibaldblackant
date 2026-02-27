@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { Order } from "../utils/orderGrouping";
+import type { Order } from "../types/order";
 import { OrderCardNew } from "./OrderCardNew";
 
 const STACK_OFFSET = 12;
