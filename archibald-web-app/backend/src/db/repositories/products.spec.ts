@@ -66,6 +66,7 @@ describe('getProducts', () => {
     expect(result).toEqual([productRow]);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('FROM shared.products'),
+      [],
     );
   });
 
@@ -78,7 +79,7 @@ describe('getProducts', () => {
 
     const call = vi.mocked(pool.query).mock.calls[0];
     expect(call[0]).toContain('LIKE');
-    expect(call[1]).toEqual(['%h129fsq%', '%h129fsq%', '%h129fsq%', '%h129fsq%']);
+    expect(call[1]).toEqual(['%h129fsq%', '%h129fsq%', '%h129fsq%', '%h129fsq%', 100]);
   });
 });
 

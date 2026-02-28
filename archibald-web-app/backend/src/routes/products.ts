@@ -31,7 +31,7 @@ type FuzzySearchResult = {
 
 type ProductsRouterDeps = {
   queue: QueueLike;
-  getProducts: (searchQuery?: string) => Promise<ProductRow[]>;
+  getProducts: (filters?: string | { searchQuery?: string; vatFilter?: 'missing'; priceFilter?: 'zero'; limit?: number }) => Promise<ProductRow[]>;
   getProductById: (productId: string) => Promise<ProductRow | undefined>;
   getProductCount: () => Promise<number>;
   getZeroPriceCount: () => Promise<number>;
@@ -63,7 +63,16 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const search = req.query.search as string | undefined;
-      const products = await getProducts(search);
+      const vatFilter = req.query.vatFilter === 'missing' ? 'missing' as const : undefined;
+      const priceFilter = req.query.priceFilter === 'zero' ? 'zero' as const : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+      const products = await getProducts({
+        searchQuery: search,
+        vatFilter,
+        priceFilter,
+        limit,
+      });
       res.json({
         success: true,
         data: {

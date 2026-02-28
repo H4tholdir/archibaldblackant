@@ -70,32 +70,54 @@ const PRODUCT_COLUMNS = `
   vat, vat_source, vat_updated_at, hash, last_sync
 `;
 
-async function getProducts(pool: DbPool, searchQuery?: string): Promise<ProductRow[]> {
-  if (searchQuery) {
-    const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+type ProductFilters = {
+  searchQuery?: string;
+  vatFilter?: 'missing';
+  priceFilter?: 'zero';
+  limit?: number;
+};
+
+async function getProducts(pool: DbPool, searchQueryOrFilters?: string | ProductFilters): Promise<ProductRow[]> {
+  const filters: ProductFilters = typeof searchQueryOrFilters === 'string'
+    ? { searchQuery: searchQueryOrFilters }
+    : searchQueryOrFilters ?? {};
+
+  const conditions: string[] = ['deleted_at IS NULL'];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (filters.searchQuery) {
+    const normalized = filters.searchQuery.replace(/[.\s-]/g, '').toLowerCase();
     const pattern = `%${normalized}%`;
-
-    const { rows } = await pool.query<ProductRow>(
-      `SELECT ${PRODUCT_COLUMNS}
-       FROM shared.products
-       WHERE deleted_at IS NULL
-         AND (LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $1
-          OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $2
-          OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $3
-          OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE(description, ''), '.', ''), ' ', ''), '-', '')) LIKE $4)
-       ORDER BY name ASC
-       LIMIT 100`,
-      [pattern, pattern, pattern, pattern],
+    conditions.push(
+      `(LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex}
+       OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 1}
+       OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 2}
+       OR LOWER(REPLACE(REPLACE(REPLACE(COALESCE(description, ''), '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 3})`,
     );
-
-    return rows;
+    params.push(pattern, pattern, pattern, pattern);
+    paramIndex += 4;
   }
+
+  if (filters.vatFilter === 'missing') {
+    conditions.push('vat IS NULL');
+  }
+
+  if (filters.priceFilter === 'zero') {
+    conditions.push('price IS NULL');
+  }
+
+  const limit = filters.limit ?? (filters.searchQuery ? 100 : undefined);
+  const limitClause = limit ? `LIMIT $${paramIndex}` : '';
+  if (limit) params.push(limit);
 
   const { rows } = await pool.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS}
      FROM shared.products
-     WHERE deleted_at IS NULL
-     ORDER BY name ASC`,
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY name ASC
+     ${limitClause}`,
+    params,
   );
 
   return rows;

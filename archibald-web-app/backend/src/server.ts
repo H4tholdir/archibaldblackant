@@ -398,7 +398,7 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/products', authenticateJWT, createProductsRouter({
     queue,
-    getProducts: (search) => productsRepo.getProducts(pool, search),
+    getProducts: (filters) => productsRepo.getProducts(pool, filters),
     getProductById: (id) => productsRepo.getProductById(pool, id),
     getProductCount: () => productsRepo.getProductCount(pool),
     getZeroPriceCount: () => productsRepo.getZeroPriceCount(pool),
