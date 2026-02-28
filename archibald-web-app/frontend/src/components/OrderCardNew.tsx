@@ -3332,7 +3332,7 @@ export function OrderCardNew({
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
-  >("panoramica");
+  >("articoli");
 
   const [editProgress, setEditProgress] = useState<{
     progress: number;
