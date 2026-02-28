@@ -28,7 +28,9 @@ import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
 import { createSubclientsRouter } from './routes/subclients';
+import { createOrderStacksRouter } from './routes/order-stacks';
 import * as subclientsRepo from './db/repositories/subclients';
+import * as orderStacksRepo from './db/repositories/order-stacks';
 import { importSubClients } from './services/subclient-excel-importer';
 import { importExcelVat } from './services/excel-vat-importer';
 import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
@@ -738,6 +740,13 @@ function createApp(deps: AppDeps): Express {
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
     deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
+  }));
+
+  app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
+    getStacks: (userId) => orderStacksRepo.getStacks(pool, userId),
+    createStack: (userId, stackId, orderIds, reason) => orderStacksRepo.createStack(pool, userId, stackId, orderIds, reason),
+    dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
+    removeMember: (userId, stackId, orderId) => orderStacksRepo.removeMember(pool, userId, stackId, orderId),
   }));
 
   app.use('/api/share', (req, res, next) => {

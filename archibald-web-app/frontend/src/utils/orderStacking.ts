@@ -4,6 +4,7 @@ type OrderStack = {
   stackId: string;
   orderIds: string[];
   source: "auto-nc" | "manual";
+  reason?: string;
 };
 
 type StackMap = Map<string, OrderStack>;
@@ -20,6 +21,7 @@ type ManualStackEntry = {
   stackId: string;
   orderIds: string[];
   createdAt: string;
+  reason?: string;
 };
 
 type ManualStacksStorage = {
@@ -144,6 +146,7 @@ function buildStackMap(
       stackId: manual.stackId,
       orderIds: validIds,
       source: "manual",
+      reason: manual.reason,
     };
     stackMap.set(manual.stackId, stack);
     for (const id of validIds) {

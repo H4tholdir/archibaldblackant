@@ -185,7 +185,7 @@ export function OrderHistory() {
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { getStackForOrder, removeFromStack, dissolveStack } = useOrderStacks(orders);
+  const { getStackForOrder, removeFromStack, dissolveStack, createManualStack } = useOrderStacks(orders);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -208,6 +208,13 @@ export function OrderHistory() {
   const [sendToVeronaProgress, setSendToVeronaProgress] =
     useState<SendToVeronaProgressState | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
+
+  // Selection mode for manual stacking
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [stackReasonDialog, setStackReasonDialog] = useState(false);
+  const [stackReason, setStackReason] = useState("");
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Customer autocomplete state
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -588,6 +595,42 @@ export function OrderHistory() {
     setEditingOrderId(orderId);
     setExpandedOrderId(orderId);
   };
+
+  function handleLongPressStart(orderId: string) {
+    longPressTimer.current = setTimeout(() => {
+      setSelectionMode(true);
+      setSelectedOrderIds(new Set([orderId]));
+    }, 500);
+  }
+
+  function handleLongPressEnd() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
+  function handleToggleSelection(orderId: string) {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
+  }
+
+  function handleCancelSelection() {
+    setSelectionMode(false);
+    setSelectedOrderIds(new Set());
+    setStackReasonDialog(false);
+    setStackReason("");
+  }
+
+  async function handleConfirmStack() {
+    if (selectedOrderIds.size < 2) return;
+    await createManualStack(Array.from(selectedOrderIds), stackReason);
+    handleCancelSelection();
+  }
 
   // Apply quick filters client-side (OR logic: order matches if ANY selected filter matches)
   const applyQuickFilters = (ordersToFilter: Order[]): Order[] => {
@@ -1815,6 +1858,7 @@ export function OrderHistory() {
 
                       const isExpanded = expandedOrderId === order.id;
                       const isHighlighted = highlightFlash === order.id;
+                      const isSelected = selectedOrderIds.has(order.id);
 
                       return (
                         <div
@@ -1823,30 +1867,71 @@ export function OrderHistory() {
                           style={{
                             borderRadius: "12px",
                             transition: "box-shadow 0.5s ease, outline 0.5s ease",
+                            position: "relative",
                             ...(isHighlighted
                               ? {
                                   outline: "3px solid #1565C0",
                                   boxShadow: "0 0 16px rgba(21, 101, 192, 0.35)",
                                 }
                               : {}),
+                            ...(selectionMode && isSelected
+                              ? {
+                                  outline: "2px solid #1976d2",
+                                  boxShadow: "0 0 8px rgba(25, 118, 210, 0.3)",
+                                }
+                              : {}),
                           }}
+                          onPointerDown={!selectionMode ? () => handleLongPressStart(order.id) : undefined}
+                          onPointerUp={!selectionMode ? handleLongPressEnd : undefined}
+                          onPointerLeave={!selectionMode ? handleLongPressEnd : undefined}
+                          onClick={selectionMode ? (e) => { e.stopPropagation(); handleToggleSelection(order.id); } : undefined}
                         >
-                          <OrderCardNew
-                            order={order}
-                            expanded={isExpanded}
-                            onToggle={() => handleToggle(order.id)}
-                            onSendToVerona={handleSendToVerona}
-                            onEdit={handleEdit}
-                            token={token}
-                            searchQuery={debouncedSearch}
-                            editing={editingOrderId === order.id}
-                            onEditDone={() => {
-                              setEditingOrderId(null);
-                              fetchOrders();
-                            }}
-                            onDeleteDone={fetchOrders}
-                            justSentToVerona={sentToVeronaIds.has(order.id)}
-                          />
+                          {selectionMode && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "12px",
+                                left: "12px",
+                                zIndex: 10,
+                                width: "28px",
+                                height: "28px",
+                                borderRadius: "50%",
+                                border: isSelected ? "none" : "2px solid #9e9e9e",
+                                backgroundColor: isSelected ? "#1976d2" : "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                                transition: "all 0.15s ease",
+                              }}
+                              onClick={(e) => { e.stopPropagation(); handleToggleSelection(order.id); }}
+                            >
+                              {isSelected && (
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                  <path d="M3.5 8L6.5 11L12.5 5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                          )}
+                          <div style={selectionMode ? { pointerEvents: "none" } : undefined}>
+                            <OrderCardNew
+                              order={order}
+                              expanded={selectionMode ? false : isExpanded}
+                              onToggle={() => handleToggle(order.id)}
+                              onSendToVerona={handleSendToVerona}
+                              onEdit={handleEdit}
+                              token={token}
+                              searchQuery={debouncedSearch}
+                              editing={editingOrderId === order.id}
+                              onEditDone={() => {
+                                setEditingOrderId(null);
+                                fetchOrders();
+                              }}
+                              onDeleteDone={fetchOrders}
+                              justSentToVerona={sentToVeronaIds.has(order.id)}
+                            />
+                          </div>
                         </div>
                       );
                     });
@@ -1928,6 +2013,164 @@ export function OrderHistory() {
         isOpen={legendOpen}
         onClose={() => setLegendOpen(false)}
       />
+
+      {/* Selection mode bottom toolbar */}
+      {selectionMode && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 300,
+            backgroundColor: "#fff",
+            borderTop: "1px solid #e0e0e0",
+            boxShadow: "0 -2px 12px rgba(0,0,0,0.15)",
+            padding: "12px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
+            {selectedOrderIds.size} {selectedOrderIds.size === 1 ? "ordine selezionato" : "ordini selezionati"}
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleCancelSelection}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#fff",
+                color: "#666",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Annulla
+            </button>
+            <button
+              onClick={() => setStackReasonDialog(true)}
+              disabled={selectedOrderIds.size < 2}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: selectedOrderIds.size < 2 ? "#bdbdbd" : "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: selectedOrderIds.size < 2 ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              Impila ({selectedOrderIds.size})
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Stack reason dialog */}
+      {stackReasonDialog && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 400,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => setStackReasonDialog(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: "16px",
+              padding: "24px",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+              Impila {selectedOrderIds.size} ordini
+            </h3>
+            <label
+              htmlFor="stack-reason"
+              style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "8px" }}
+            >
+              Motivo (opzionale)
+            </label>
+            <input
+              id="stack-reason"
+              type="text"
+              placeholder="Es: stesso cliente, stessa spedizione..."
+              value={stackReason}
+              onChange={(e) => setStackReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleConfirmStack();
+                }
+              }}
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: "20px",
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "#1976d2"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "#ddd"; }}
+            />
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setStackReasonDialog(false)}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  backgroundColor: "#fff",
+                  color: "#666",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmStack}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  backgroundColor: "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
