@@ -413,6 +413,10 @@ function createApp(deps: AppDeps): Express {
     getLastSyncSession: () => syncSessionsRepo.getLastSyncSession(pool),
     getSyncStats: () => syncSessionsRepo.getSyncStats(pool),
     fuzzySearchProducts: (query, limit) => productsRepo.fuzzySearchProducts(pool, query, limit),
+    getDistinctProductNames: (search, limit) => productsRepo.getDistinctProductNames(pool, search, limit),
+    getDistinctProductNamesCount: (search) => productsRepo.getDistinctProductNamesCount(pool, search),
+    getVariantPackages: (name) => productsRepo.getVariantPackages(pool, name),
+    getVariantPriceRange: (name) => productsRepo.getVariantPriceRange(pool, name),
   }));
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({

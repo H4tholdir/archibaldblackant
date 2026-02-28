@@ -46,6 +46,10 @@ type ProductsRouterDeps = {
   getLastSyncSession?: () => Promise<SyncSession | null>;
   getSyncStats?: () => Promise<SyncStats>;
   fuzzySearchProducts?: (query: string, limit: number) => Promise<FuzzySearchResult[]>;
+  getDistinctProductNames: (searchQuery?: string, limit?: number) => Promise<string[]>;
+  getDistinctProductNamesCount: (searchQuery?: string) => Promise<number>;
+  getVariantPackages: (articleName: string) => Promise<string[]>;
+  getVariantPriceRange: (articleName: string) => Promise<{ min: number | null; max: number | null }>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -57,15 +61,59 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     getZeroPriceCount, getNoVatCount, getProductVariants,
     updateProductPrice, getLastSyncTime,
     getProductChanges, getRecentProductChanges, getProductChangeStats,
+    getDistinctProductNames, getDistinctProductNamesCount,
+    getVariantPackages, getVariantPriceRange,
   } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const search = req.query.search as string | undefined;
+      const grouped = req.query.grouped === 'true';
       const vatFilter = req.query.vatFilter === 'missing' ? 'missing' as const : undefined;
       const priceFilter = req.query.priceFilter === 'zero' ? 'zero' as const : undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+      if (grouped && !vatFilter && !priceFilter) {
+        const groupedLimit = limit ?? 200;
+        const productNames = await getDistinctProductNames(search, groupedLimit);
+        const baseProducts = await Promise.all(
+          productNames.map(async (name) => {
+            const variants = await getProductVariants(name);
+            return variants.length > 0 ? variants[variants.length - 1] : null;
+          }),
+        );
+        const validProducts = baseProducts.filter(Boolean) as ProductRow[];
+
+        const enriched = await Promise.all(
+          validProducts.map(async (p) => {
+            const [packages, priceRange] = await Promise.all([
+              getVariantPackages(p.name),
+              getVariantPriceRange(p.name),
+            ]);
+            return {
+              ...p,
+              variantPackages: packages,
+              variantPriceMin: priceRange.min,
+              variantPriceMax: priceRange.max,
+            };
+          }),
+        );
+
+        const totalCount = await getDistinctProductNamesCount(search);
+
+        res.json({
+          success: true,
+          data: {
+            products: enriched,
+            totalCount,
+            returnedCount: enriched.length,
+            limited: enriched.length >= groupedLimit,
+            grouped: true,
+          },
+        });
+        return;
+      }
 
       const products = await getProducts({
         searchQuery: search,

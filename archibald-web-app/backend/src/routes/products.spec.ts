@@ -55,6 +55,10 @@ function createMockDeps(): ProductsRouterDeps {
     getProductChanges: vi.fn().mockResolvedValue([mockProductChange]),
     getRecentProductChanges: vi.fn().mockResolvedValue([mockProductChange]),
     getProductChangeStats: vi.fn().mockResolvedValue(mockChangeStats),
+    getDistinctProductNames: vi.fn().mockResolvedValue(['Articolo Test']),
+    getDistinctProductNamesCount: vi.fn().mockResolvedValue(1),
+    getVariantPackages: vi.fn().mockResolvedValue(['6']),
+    getVariantPriceRange: vi.fn().mockResolvedValue({ min: 12.50, max: 12.50 }),
   };
 }
 
@@ -94,7 +98,23 @@ describe('createProductsRouter', () => {
     test('passes search query', async () => {
       await request(app).get('/api/products?search=articolo');
 
-      expect(deps.getProducts).toHaveBeenCalledWith('articolo');
+      expect(deps.getProducts).toHaveBeenCalledWith({
+        searchQuery: 'articolo',
+        vatFilter: undefined,
+        priceFilter: undefined,
+        limit: undefined,
+      });
+    });
+
+    test('grouped mode returns enriched products', async () => {
+      const res = await request(app).get('/api/products?search=test&grouped=true');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.grouped).toBe(true);
+      expect(deps.getDistinctProductNames).toHaveBeenCalledWith('test', expect.any(Number));
+      expect(deps.getVariantPackages).toHaveBeenCalled();
+      expect(deps.getVariantPriceRange).toHaveBeenCalled();
     });
   });
 

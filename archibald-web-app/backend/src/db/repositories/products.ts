@@ -613,6 +613,89 @@ async function fuzzySearchProducts(
     .slice(0, limit);
 }
 
+async function getDistinctProductNames(
+  pool: DbPool, searchQuery?: string, limit: number = 100,
+): Promise<string[]> {
+  const conditions: string[] = ['deleted_at IS NULL'];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (searchQuery) {
+    const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+    const pattern = `%${normalized}%`;
+    conditions.push(
+      `(LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex}
+       OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 1}
+       OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 2})`,
+    );
+    params.push(pattern, pattern, pattern);
+    paramIndex += 3;
+  }
+
+  params.push(limit);
+
+  const { rows } = await pool.query<{ name: string }>(
+    `SELECT DISTINCT name FROM shared.products
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY name ASC
+     LIMIT $${paramIndex}`,
+    params,
+  );
+
+  return rows.map((r) => r.name);
+}
+
+async function getDistinctProductNamesCount(
+  pool: DbPool, searchQuery?: string,
+): Promise<number> {
+  const conditions: string[] = ['deleted_at IS NULL'];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (searchQuery) {
+    const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+    const pattern = `%${normalized}%`;
+    conditions.push(
+      `(LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex}
+       OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 1}
+       OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 2})`,
+    );
+    params.push(pattern, pattern, pattern);
+  }
+
+  const { rows } = await pool.query<{ count: string }>(
+    `SELECT COUNT(DISTINCT name) as count FROM shared.products
+     WHERE ${conditions.join(' AND ')}`,
+    params,
+  );
+
+  return parseInt(rows[0].count, 10);
+}
+
+async function getVariantPackages(
+  pool: DbPool, articleName: string,
+): Promise<string[]> {
+  const { rows } = await pool.query<{ package_content: string }>(
+    `SELECT DISTINCT package_content FROM shared.products
+     WHERE name = $1 AND deleted_at IS NULL AND package_content IS NOT NULL`,
+    [articleName],
+  );
+
+  return rows.map((r) => r.package_content);
+}
+
+async function getVariantPriceRange(
+  pool: DbPool, articleName: string,
+): Promise<{ min: number | null; max: number | null }> {
+  const { rows } = await pool.query<{ min: number | null; max: number | null }>(
+    `SELECT MIN(price) as min, MAX(price) as max FROM shared.products
+     WHERE name = $1 AND deleted_at IS NULL AND price IS NOT NULL AND price > 0`,
+    [articleName],
+  );
+
+  return { min: rows[0]?.min ?? null, max: rows[0]?.max ?? null };
+}
+
 export {
   getProducts,
   getProductById,
@@ -637,6 +720,10 @@ export {
   fuzzySearchProducts,
   calculateSimilarity,
   levenshteinDistance,
+  getDistinctProductNames,
+  getDistinctProductNamesCount,
+  getVariantPackages,
+  getVariantPriceRange,
   type ProductRow,
   type ProductWithoutVatRow,
   type ProductUpsertInput,
