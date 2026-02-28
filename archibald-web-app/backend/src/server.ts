@@ -29,8 +29,10 @@ import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
 import { createSubclientsRouter } from './routes/subclients';
 import { createOrderStacksRouter } from './routes/order-stacks';
+import { createOrderNotesRouter } from './routes/order-notes';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
+import * as orderNotesRepo from './db/repositories/order-notes';
 import { importSubClients } from './services/subclient-excel-importer';
 import { importExcelVat } from './services/excel-vat-importer';
 import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
@@ -747,6 +749,14 @@ function createApp(deps: AppDeps): Express {
     createStack: (userId, stackId, orderIds, reason) => orderStacksRepo.createStack(pool, userId, stackId, orderIds, reason),
     dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
     removeMember: (userId, stackId, orderId) => orderStacksRepo.removeMember(pool, userId, stackId, orderId),
+  }));
+
+  app.use('/api/order-notes', authenticateJWT, createOrderNotesRouter({
+    getNotes: (userId, orderId) => orderNotesRepo.getNotes(pool, userId, orderId),
+    getNotesSummary: (userId, orderIds) => orderNotesRepo.getNotesSummary(pool, userId, orderIds),
+    createNote: (userId, orderId, text) => orderNotesRepo.createNote(pool, userId, orderId, text),
+    updateNote: (userId, noteId, updates) => orderNotesRepo.updateNote(pool, userId, noteId, updates),
+    deleteNote: (userId, noteId) => orderNotesRepo.deleteNote(pool, userId, noteId),
   }));
 
   app.use('/api/share', (req, res, next) => {

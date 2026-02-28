@@ -22,6 +22,7 @@ import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
 import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { getNotesSummary } from "../api/order-notes";
 import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
 
@@ -232,6 +233,20 @@ export function OrderHistory() {
   // Hide zero amount toggle
   const [hideZeroAmount, setHideZeroAmount] = useState(true);
 
+  // Note summaries for collapsed badges
+  const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
+
+  const refreshNoteSummaries = useCallback(async (orderList?: Order[]) => {
+    const target = orderList ?? orders;
+    if (target.length === 0) return;
+    try {
+      const summary = await getNotesSummary(target.map(o => o.id));
+      setNoteSummaries(summary);
+    } catch {
+      // silent - badge is non-critical
+    }
+  }, [orders]);
+
   // Backorder banner dismiss
   const [backorderDismissed, setBackorderDismissed] = useState(false);
 
@@ -346,6 +361,12 @@ export function OrderHistory() {
     ];
     return () => { unsubs.forEach((u) => u()); };
   }, [subscribe, fetchOrders]);
+
+  useEffect(() => {
+    if (orders.length > 0) {
+      refreshNoteSummaries(orders);
+    }
+  }, [orders, refreshNoteSummaries]);
 
   // Auto-expand and scroll to highlighted order from URL param
   useEffect(() => {
@@ -1851,6 +1872,8 @@ export function OrderHistory() {
                               sentToVeronaIds={sentToVeronaIds}
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
                               onDissolve={stack.source === "manual" ? dissolveStack : undefined}
+                              noteSummaries={noteSummaries}
+                              onNotesChanged={() => refreshNoteSummaries()}
                             />
                           );
                         }
@@ -1930,6 +1953,8 @@ export function OrderHistory() {
                               }}
                               onDeleteDone={fetchOrders}
                               justSentToVerona={sentToVeronaIds.has(order.id)}
+                              noteSummary={noteSummaries[order.id]}
+                              onNotesChanged={() => refreshNoteSummaries()}
                             />
                           </div>
                         </div>

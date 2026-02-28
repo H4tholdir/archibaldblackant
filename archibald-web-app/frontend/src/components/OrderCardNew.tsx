@@ -15,6 +15,7 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { OrderNotes } from "./OrderNotes";
 
 interface OrderCardProps {
   order: Order;
@@ -28,6 +29,8 @@ interface OrderCardProps {
   editing?: boolean;
   onEditDone?: () => void;
   justSentToVerona?: boolean;
+  noteSummary?: { total: number; checked: number };
+  onNotesChanged?: () => void;
 }
 
 // ============================================================================
@@ -3329,6 +3332,8 @@ export function OrderCardNew({
   editing = false,
   onEditDone,
   justSentToVerona = false,
+  noteSummary,
+  onNotesChanged,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -3585,6 +3590,23 @@ export function OrderCardNew({
                 </>
               ) : null}
               {formatDate(order.orderDate || order.date)}
+              {noteSummary && noteSummary.total > 0 && (
+                <span style={{
+                  marginLeft: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '1px 7px',
+                  borderRadius: '8px',
+                  backgroundColor: noteSummary.checked === noteSummary.total ? '#e8f5e9' : '#fff3e0',
+                  color: noteSummary.checked === noteSummary.total ? '#2e7d32' : '#e65100',
+                }}>
+                  <span style={{ fontSize: '12px' }}>&#9745;</span>
+                  {noteSummary.checked}/{noteSummary.total}
+                </span>
+              )}
             </div>
 
             {/* Total Amount + Lordo/Sconto inline */}
@@ -4224,6 +4246,9 @@ export function OrderCardNew({
       {/* ===== EXPANDED STATE ===== */}
       {expanded && (
         <div style={{ borderTop: "1px solid #e0e0e0" }}>
+          {/* Order Notes */}
+          <OrderNotes orderId={order.id} expanded={expanded} onNotesChanged={onNotesChanged} />
+
           {/* Tab Navigation */}
           <div
             style={{

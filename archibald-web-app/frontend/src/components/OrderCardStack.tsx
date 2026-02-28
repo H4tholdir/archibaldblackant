@@ -32,6 +32,8 @@ type OrderCardStackProps = {
   sentToVeronaIds?: Set<string>;
   onUnstack?: (stackId: string, orderId: string) => void;
   onDissolve?: (stackId: string) => void;
+  noteSummaries?: Record<string, { total: number; checked: number }>;
+  onNotesChanged?: () => void;
 };
 
 function OrderCardStack({
@@ -50,6 +52,8 @@ function OrderCardStack({
   sentToVeronaIds,
   onUnstack,
   onDissolve,
+  noteSummaries,
+  onNotesChanged,
 }: OrderCardStackProps): ReactNode {
   const [expanded, setExpanded] = useState(false);
   const [cardOrder, setCardOrder] = useState<string[]>(() =>
@@ -258,6 +262,8 @@ function OrderCardStack({
                 editing={editingOrderId === order.id}
                 onEditDone={onEditDone}
                 justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
+                noteSummary={noteSummaries?.[order.id]}
+                onNotesChanged={onNotesChanged}
               />
               {onUnstack && (
                 <button
@@ -389,6 +395,7 @@ function OrderCardStack({
               onToggle={() => {}}
               token={token}
               searchQuery={searchQuery}
+              noteSummary={noteSummaries?.[order.id]}
             />
           </div>
         );
