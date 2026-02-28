@@ -1806,7 +1806,6 @@ export function OrderHistory() {
                                 fetchOrders();
                               }}
                               sentToVeronaIds={sentToVeronaIds}
-                              isSearchActive={!!debouncedSearch}
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
                               onDissolve={stack.source === "manual" ? dissolveStack : undefined}
                             />
@@ -1814,9 +1813,7 @@ export function OrderHistory() {
                         }
                       }
 
-                      const isExpanded = debouncedSearch
-                        ? true
-                        : expandedOrderId === order.id;
+                      const isExpanded = expandedOrderId === order.id;
                       const isHighlighted = highlightFlash === order.id;
 
                       return (

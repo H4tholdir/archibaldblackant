@@ -29,7 +29,6 @@ type OrderCardStackProps = {
   editingOrderId?: string | null;
   onEditDone?: () => void;
   sentToVeronaIds?: Set<string>;
-  isSearchActive: boolean;
   onUnstack?: (stackId: string, orderId: string) => void;
   onDissolve?: (stackId: string) => void;
 };
@@ -48,7 +47,6 @@ function OrderCardStack({
   editingOrderId,
   onEditDone,
   sentToVeronaIds,
-  isSearchActive,
   onUnstack,
   onDissolve,
 }: OrderCardStackProps): ReactNode {
@@ -69,9 +67,6 @@ function OrderCardStack({
     setCardOrder(orders.map((o) => o.id));
   }, [orders]);
 
-  useEffect(() => {
-    if (isSearchActive) setExpanded(true);
-  }, [isSearchActive]);
 
   useLayoutEffect(() => {
     if (!expanded && firstCardRef.current) {
