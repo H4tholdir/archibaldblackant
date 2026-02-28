@@ -183,8 +183,8 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
       id: o.id,
       orderNumber: o.order_number,
       customerName: o.customer_name,
-      total: o.total_amount,
-      date: o.creation_date,
+      totalAmount: o.total_amount,
+      creationDate: o.creation_date,
       excludedFromYearly: o.excluded_from_yearly ?? false,
       excludedFromMonthly: o.excluded_from_monthly ?? false,
       exclusionReason: o.exclusion_reason,
@@ -198,7 +198,7 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
     .filter((o) => !o.excludedFromMonthly)
     .reduce((sum, o) => {
       const override = overrides[o.orderNumber];
-      const amount = override ? override.correctAmount : parseItalianCurrency(o.total);
+      const amount = override ? override.correctAmount : parseItalianCurrency(o.totalAmount);
       return sum + amount;
     }, 0);
 
@@ -206,7 +206,7 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
     .filter((o) => o.excludedFromMonthly)
     .reduce((sum, o) => {
       const override = overrides[o.orderNumber];
-      const amount = override ? override.correctAmount : parseItalianCurrency(o.total);
+      const amount = override ? override.correctAmount : parseItalianCurrency(o.totalAmount);
       return sum + amount;
     }, 0);
 
