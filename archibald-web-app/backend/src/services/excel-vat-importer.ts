@@ -16,6 +16,7 @@ type ImportVatResult = {
   totalRows: number;
   matched: number;
   unmatched: number;
+  vatUpdated: number;
   errors: string[];
 };
 
@@ -109,31 +110,32 @@ async function importExcelVat(
       totalRows: 0,
       matched: 0,
       unmatched: 0,
+      vatUpdated: 0,
       errors: [`Errore lettura file Excel: ${err instanceof Error ? err.message : String(err)}`],
     };
   }
 
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
-    return { totalRows: 0, matched: 0, unmatched: 0, errors: ['File Excel senza fogli'] };
+    return { totalRows: 0, matched: 0, unmatched: 0, vatUpdated: 0, errors: ['File Excel senza fogli'] };
   }
 
   const sheet = workbook.Sheets[sheetName];
   const rawData: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   if (rawData.length < 1) {
-    return { totalRows: 0, matched: 0, unmatched: 0, errors: [] };
+    return { totalRows: 0, matched: 0, unmatched: 0, vatUpdated: 0, errors: [] };
   }
 
   const headerRow = rawData[0] as string[];
   const columnMap = mapHeaders(headerRow);
 
   if (!columnMap.has('productId')) {
-    return { totalRows: 0, matched: 0, unmatched: 0, errors: ['Colonna Codice/Product ID non trovata nel file Excel'] };
+    return { totalRows: 0, matched: 0, unmatched: 0, vatUpdated: 0, errors: ['Colonna Codice/Product ID non trovata nel file Excel'] };
   }
 
   if (!columnMap.has('vat')) {
-    return { totalRows: 0, matched: 0, unmatched: 0, errors: ['Colonna IVA/VAT non trovata nel file Excel'] };
+    return { totalRows: 0, matched: 0, unmatched: 0, vatUpdated: 0, errors: ['Colonna IVA/VAT non trovata nel file Excel'] };
   }
 
   const productIdCol = columnMap.get('productId')!;
@@ -244,7 +246,7 @@ async function importExcelVat(
     status: errors.length > 0 ? 'completed_with_errors' : 'completed',
   });
 
-  return { totalRows, matched, unmatched, errors };
+  return { totalRows, matched, unmatched, vatUpdated, errors };
 }
 
 export { importExcelVat, parseVatValue };

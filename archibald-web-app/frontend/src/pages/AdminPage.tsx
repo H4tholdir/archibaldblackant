@@ -248,8 +248,8 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       alert(
         `✅ IVA caricata con successo!\n\n` +
           `📊 Totale righe: ${uploadData.data.totalRows}\n` +
-          `✓ Prodotti matchati: ${uploadData.data.matchedRows}\n` +
-          `🏷️  IVA aggiornate: ${uploadData.data.vatUpdatedCount}`,
+          `✓ Prodotti matchati: ${uploadData.data.matched}\n` +
+          `🏷️  IVA aggiornate: ${uploadData.data.vatUpdated}`,
       );
     } catch (error) {
       console.error("Excel IVA upload error:", error);
@@ -497,11 +497,15 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                   </div>
                   <div>
                     <strong>Prodotti matchati:</strong>{" "}
-                    {uploadResult.upload?.matchedRows || 0}
+                    {uploadResult.upload?.matched || 0}
+                  </div>
+                  <div>
+                    <strong>Non trovati:</strong>{" "}
+                    {uploadResult.upload?.unmatched || 0}
                   </div>
                   <div>
                     <strong>IVA aggiornate:</strong>{" "}
-                    {uploadResult.upload?.vatUpdatedCount || 0}
+                    {uploadResult.upload?.vatUpdated || 0}
                   </div>
                 </div>
               </div>
@@ -510,25 +514,59 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
             <div
               style={{
                 marginTop: "16px",
-                padding: "12px",
-                backgroundColor: "#e8f5e9",
-                borderRadius: "4px",
+                padding: "16px",
+                backgroundColor: "#e3f2fd",
+                borderRadius: "8px",
                 fontSize: "13px",
+                border: "1px solid #90caf9",
               }}
             >
-              <strong>ℹ️ Info:</strong>
-              <ul style={{ margin: "8px 0 0 20px", paddingLeft: 0 }}>
+              <strong>📋 Formato file Excel richiesto:</strong>
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "12px",
+                  backgroundColor: "#fff",
+                  borderRadius: "6px",
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  overflowX: "auto",
+                }}
+              >
+                <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ddd" }}>
+                      <th style={{ padding: "6px 12px", textAlign: "left" }}>Codice</th>
+                      <th style={{ padding: "6px 12px", textAlign: "left" }}>IVA</th>
+                      <th style={{ padding: "6px 12px", textAlign: "left", color: "#999" }}>Prezzo (opzionale)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "6px 12px" }}>001627K0</td>
+                      <td style={{ padding: "6px 12px" }}>22</td>
+                      <td style={{ padding: "6px 12px", color: "#999" }}>19.94</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 12px" }}>018766K2</td>
+                      <td style={{ padding: "6px 12px" }}>10</td>
+                      <td style={{ padding: "6px 12px", color: "#999" }}>46.11</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <ul style={{ margin: "12px 0 0 20px", paddingLeft: 0, lineHeight: "1.8" }}>
                 <li>
-                  Il file deve avere la struttura standard del listino Excel
+                  <strong>Colonna Codice</strong> (obbligatoria): intestazione "Codice", "ID", "CODICE ARTICOLO" o "Product ID"
                 </li>
-                <li>L'upload carica solo i dati IVA nel database</li>
                 <li>
-                  I prezzi vengono matchati automaticamente durante la sync
-                  prezzi (barra arancione sopra)
+                  <strong>Colonna IVA</strong> (obbligatoria): intestazione "IVA", "IVA %", "VAT" o "Aliquota IVA" — valori: 4, 10, 22, ecc.
                 </li>
                 <li>
-                  Workflow: 1) Carica IVA da Excel → 2) Avvia sync prezzi → 3)
-                  Matching automatico
+                  <strong>Colonna Prezzo</strong> (opzionale): intestazione "Prezzo", "PREZZO" o "Prezzo Unitario"
+                </li>
+                <li>
+                  Il sistema matcha i prodotti per Codice Articolo e aggiorna anche le varianti collegate
                 </li>
               </ul>
             </div>

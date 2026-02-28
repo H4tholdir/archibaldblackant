@@ -133,7 +133,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 3, matched: 3, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 3, matched: 3, unmatched: 0, vatUpdated: 2, errors: [] });
     expect(deps.updateProductVat).toHaveBeenCalledTimes(2);
     expect(deps.recordImport).toHaveBeenCalledTimes(1);
   });
@@ -153,6 +153,7 @@ describe('importExcelVat', () => {
       totalRows: 1,
       matched: 0,
       unmatched: 1,
+      vatUpdated: 0,
       errors: [expect.stringContaining('UNKNOWN')],
     });
     expect(deps.updateProductVat).not.toHaveBeenCalled();
@@ -171,7 +172,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, vatUpdated: 0, errors: [] });
     expect(deps.updateProductVat).not.toHaveBeenCalled();
     expect(deps.recordPriceChange).not.toHaveBeenCalled();
   });
@@ -192,7 +193,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, vatUpdated: 1, errors: [] });
     expect(deps.updateProductVat).toHaveBeenCalledTimes(3);
     expect(deps.updateProductVat).toHaveBeenCalledWith('ABC123K', 22, 'excel-import');
     expect(deps.updateProductVat).toHaveBeenCalledWith('ABC123', 22, 'excel-import-propagated');
@@ -212,7 +213,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, vatUpdated: 0, errors: [] });
     expect(deps.updateProductPrice).toHaveBeenCalledWith('A001', 15, 22, 'excel-import', 'excel-import');
   });
 
@@ -242,7 +243,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 0, matched: 0, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 0, matched: 0, unmatched: 0, vatUpdated: 0, errors: [] });
     expect(deps.getProductById).not.toHaveBeenCalled();
   });
 
@@ -408,7 +409,7 @@ describe('importExcelVat', () => {
 
     const result = await importExcelVat(buffer, 'test.xlsx', 'user1', deps);
 
-    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, errors: [] });
+    expect(result).toEqual({ totalRows: 1, matched: 1, unmatched: 0, vatUpdated: 1, errors: [] });
     expect(deps.updateProductVat).toHaveBeenCalledWith('X001', 22, 'excel-import');
   });
 
