@@ -112,7 +112,7 @@ describe('recordPriceChange', () => {
     });
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO shared.price_history'),
-      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, null, null, 'new', 'excel-upload', null],
+      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, 0, 0, 'new', 'excel-upload', null],
     );
   });
 });
