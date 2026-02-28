@@ -74,7 +74,7 @@ describe('recordPriceChange', () => {
     expect(result).toEqual(EXPECTED_ENTRY);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO shared.price_history'),
-      ['P001', 'Mozzarella DOP', 'K2', '10,50', '12,00', 10.5, 12.0, 1.5, 14.29, 'increase', 'pdf-sync', 'EUR'],
+      ['P001', 'Mozzarella DOP', 'K2', '10,50', '12,00', 10.5, 12.0, 1.5, 14.29, 'increase', expect.any(Number), 'pdf-sync', 'EUR'],
     );
   });
 
@@ -112,7 +112,7 @@ describe('recordPriceChange', () => {
     });
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO shared.price_history'),
-      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, 0, 0, 'new', 'excel-upload', null],
+      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, 0, 0, 'new', expect.any(Number), 'excel-upload', null],
     );
   });
 });

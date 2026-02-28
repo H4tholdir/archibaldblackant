@@ -54,8 +54,8 @@ async function recordPriceChange(
     `INSERT INTO shared.price_history (
        product_id, product_name, variant_id,
        old_price, new_price, old_price_numeric, new_price_numeric,
-       price_change, percentage_change, change_type, source, currency
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       price_change, percentage_change, change_type, sync_date, source, currency
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      RETURNING *`,
     [
       data.productId,
@@ -68,6 +68,7 @@ async function recordPriceChange(
       data.priceChange ?? 0,
       data.percentageChange ?? 0,
       data.changeType,
+      Date.now(),
       data.source,
       data.currency ?? null,
     ],
