@@ -670,7 +670,8 @@ function createApp(deps: AppDeps): Express {
     createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
     closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
     getAllJobs: async (limit, status) => {
-      const states = status ? [status] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
+      const validStatus = status && status !== 'all' ? status : undefined;
+      const states = validStatus ? [validStatus] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
       const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
       const userCache = new Map<string, string>();
       const result = [];

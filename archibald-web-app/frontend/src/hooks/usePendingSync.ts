@@ -97,6 +97,7 @@ export function usePendingSync(): UsePendingSyncReturn {
             }
             return next;
           });
+          return; // No refetch — tracking is local, avoid re-render
         } else if (eventType === "JOB_PROGRESS" && p.type === "submit-order") {
           const jobId = p.jobId as string;
           const progress = (p.progress as number) ?? 0;
@@ -110,6 +111,7 @@ export function usePendingSync(): UsePendingSyncReturn {
             }
             return next;
           });
+          return; // No refetch — progress comes from local tracking, not server
         } else if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
           const jobId = p.jobId as string;
           setJobTracking((prev) => {
@@ -121,7 +123,6 @@ export function usePendingSync(): UsePendingSyncReturn {
             }
             return next;
           });
-          // Delay refetch so user sees the "completed" state before the order disappears
           setTimeout(() => fetchPendingOrders(), 4000);
           return;
         } else if (eventType === "JOB_FAILED" && p.type === "submit-order") {
@@ -136,6 +137,8 @@ export function usePendingSync(): UsePendingSyncReturn {
             }
             return next;
           });
+          fetchPendingOrders(); // Refetch to get persisted error from server
+          return;
         }
         fetchPendingOrders();
       }),
