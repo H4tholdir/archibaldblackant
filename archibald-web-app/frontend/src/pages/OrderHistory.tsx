@@ -216,6 +216,7 @@ export function OrderHistory() {
   const [stackReasonDialog, setStackReasonDialog] = useState(false);
   const [stackReason, setStackReason] = useState("");
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justEnteredSelectionMode = useRef(false);
 
   // Customer autocomplete state
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -638,6 +639,8 @@ export function OrderHistory() {
     longPressTimer.current = setTimeout(() => {
       setSelectionMode(true);
       setSelectedOrderIds(new Set([orderId]));
+      justEnteredSelectionMode.current = true;
+      setTimeout(() => { justEnteredSelectionMode.current = false; }, 300);
     }, 500);
   }
 
@@ -666,7 +669,13 @@ export function OrderHistory() {
 
   async function handleConfirmStack() {
     if (selectedOrderIds.size < 2) return;
-    await createManualStack(Array.from(selectedOrderIds), stackReason);
+    try {
+      await createManualStack(Array.from(selectedOrderIds), stackReason);
+      toastService.success(`Pila creata con ${selectedOrderIds.size} ordini`);
+    } catch (err) {
+      console.error("handleConfirmStack failed:", err);
+      toastService.error("Errore nella creazione della pila");
+    }
     handleCancelSelection();
   }
 
@@ -1912,6 +1921,8 @@ export function OrderHistory() {
                       const isExpanded = expandedOrderId === order.id;
                       const isHighlighted = highlightFlash === order.id;
                       const isSelected = selectedOrderIds.has(order.id);
+                      const someCardExpanded = expandedOrderId !== null && !selectionMode;
+                      const isDimmed = someCardExpanded && !isExpanded;
 
                       return (
                         <div
@@ -1919,8 +1930,20 @@ export function OrderHistory() {
                           id={`order-${order.id}`}
                           style={{
                             borderRadius: "12px",
-                            transition: "box-shadow 0.5s ease, outline 0.5s ease",
+                            transition: "box-shadow 0.5s ease, outline 0.5s ease, opacity 0.3s ease",
                             position: "relative",
+                            ...(isDimmed
+                              ? {
+                                  opacity: 0.3,
+                                  pointerEvents: "none" as const,
+                                }
+                              : {}),
+                            ...(isExpanded && someCardExpanded
+                              ? {
+                                  zIndex: 2,
+                                  boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+                                }
+                              : {}),
                             ...(isHighlighted
                               ? {
                                   outline: "3px solid #1565C0",
@@ -1943,7 +1966,7 @@ export function OrderHistory() {
                           onPointerDown={!selectionMode ? () => handleLongPressStart(order.id) : undefined}
                           onPointerUp={!selectionMode ? handleLongPressEnd : undefined}
                           onPointerLeave={!selectionMode ? handleLongPressEnd : undefined}
-                          onClick={selectionMode ? (e) => { e.stopPropagation(); handleToggleSelection(order.id); } : undefined}
+                          onClick={selectionMode ? (e) => { e.stopPropagation(); if (justEnteredSelectionMode.current) return; handleToggleSelection(order.id); } : undefined}
                         >
                           {selectionMode && (
                             <div

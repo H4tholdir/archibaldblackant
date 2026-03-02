@@ -44,7 +44,14 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
   }
 
   return (
-    <div style={{ padding: '8px 16px', borderBottom: '1px solid #f0f0f0' }}>
+    <div style={{
+      padding: '12px 16px',
+      margin: '8px 12px',
+      borderLeft: '3px solid #1976d2',
+      backgroundColor: '#f0f7ff',
+      borderRadius: '0 8px 8px 0',
+      borderBottom: '2px solid #e0e0e0',
+    }}>
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -52,10 +59,10 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
           alignItems: 'center',
           gap: '8px',
           cursor: 'pointer',
-          fontSize: '13px',
-          fontWeight: 600,
-          color: '#555',
-          marginBottom: isOpen ? '8px' : 0,
+          fontSize: '14px',
+          fontWeight: 700,
+          color: '#1565c0',
+          marginBottom: isOpen ? '10px' : 0,
         }}
       >
         <span style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}>

@@ -1469,7 +1469,7 @@ function TabArticoli({
         <div className="edit-table" style={{ position: "relative" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f5f5f5" }}>
+              <tr>
                 <th style={tableHeaderStyle}>Codice Articolo</th>
                 <th style={tableHeaderStyle}>Descrizione</th>
                 <th style={{ ...tableHeaderStyle, width: "100px" }}>
@@ -1853,7 +1853,7 @@ function TabArticoli({
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ backgroundColor: "#f5f5f5" }}>
+            <tr>
               <th style={tableHeaderStyle}>Codice Articolo</th>
               <th style={tableHeaderStyle}>Descrizione</th>
               <th style={tableHeaderStyle}>Quantita'</th>
@@ -3189,9 +3189,10 @@ const tableHeaderStyle: React.CSSProperties = {
   padding: "12px",
   textAlign: "left",
   fontSize: "12px",
-  fontWeight: 600,
-  color: "#666",
-  borderBottom: "2px solid #e0e0e0",
+  fontWeight: 700,
+  color: "#37474f",
+  borderBottom: "2px solid #bbdefb",
+  backgroundColor: "#e3f2fd",
 };
 
 const tableCellStyle: React.CSSProperties = {
