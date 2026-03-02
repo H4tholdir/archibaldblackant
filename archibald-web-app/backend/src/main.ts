@@ -6,6 +6,7 @@ import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { WebSocketServer } from 'ws';
 import puppeteer from 'puppeteer';
+import nodemailer from 'nodemailer';
 import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
@@ -256,12 +257,48 @@ async function bootstrap(): Promise<void> {
   };
 
   const sendEmail = async (
-    _to: string, _subject: string, _body: string,
-    _fileBuffer: Buffer, _fileName: string,
-  ) => ({ messageId: 'not-configured' });
+    to: string, subject: string, body: string,
+    fileBuffer: Buffer, fileName: string,
+  ) => {
+    if (!config.smtp.host || !config.smtp.user) {
+      throw new Error('SMTP non configurato');
+    }
+    const transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: { user: config.smtp.user, pass: config.smtp.pass },
+    });
+    const info = await transporter.sendMail({
+      from: config.smtp.from || config.smtp.user,
+      to,
+      subject: subject || 'Preventivo',
+      text: body || '',
+      attachments: [{ filename: fileName, content: fileBuffer, contentType: 'application/pdf' }],
+    });
+    logger.info('Email sent with PDF', { to, messageId: info.messageId });
+    return { messageId: info.messageId };
+  };
 
-  const uploadToDropbox = async (_fileBuffer: Buffer, _fileName: string) =>
-    ({ path: 'not-configured' });
+  const uploadToDropbox = async (fileBuffer: Buffer, fileName: string) => {
+    if (!config.dropbox.appKey || !config.dropbox.appSecret || !config.dropbox.refreshToken) {
+      throw new Error('Dropbox non configurato');
+    }
+    const { Dropbox } = await import('dropbox');
+    const dbx = new Dropbox({
+      clientId: config.dropbox.appKey,
+      clientSecret: config.dropbox.appSecret,
+      refreshToken: config.dropbox.refreshToken,
+    });
+    const dropboxPath = `${config.dropbox.basePath}/${fileName}`;
+    const result = await dbx.filesUpload({
+      path: dropboxPath,
+      contents: fileBuffer,
+      mode: { '.tag': 'overwrite' },
+    });
+    logger.info('PDF uploaded to Dropbox', { path: result.result.path_display });
+    return { path: result.result.path_display ?? dropboxPath };
+  };
 
   const app = createApp({
     pool,
