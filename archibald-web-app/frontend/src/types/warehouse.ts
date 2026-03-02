@@ -1,5 +1,7 @@
+export type WarehouseItemInput = Omit<WarehouseItem, 'id'>;
+
 export interface WarehouseItem {
-  id?: number;
+  id: number;
   articleCode: string;
   description: string;
   quantity: number;

@@ -115,7 +115,7 @@ export function WarehouseInventoryView() {
 
   // Select all visible items
   const handleSelectAll = () => {
-    setSelectedItemIds(new Set(filteredItems.map((item) => item.id!)));
+    setSelectedItemIds(new Set(filteredItems.map((item) => item.id)));
   };
 
   // Deselect all items
@@ -134,7 +134,7 @@ export function WarehouseInventoryView() {
     try {
       // Group selected items by their reservedForOrder
       const selectedItems = items.filter(
-        (item) => selectedItemIds.has(item.id!) && item.reservedForOrder,
+        (item) => selectedItemIds.has(item.id) && item.reservedForOrder,
       );
 
       if (selectedItems.length === 0) {
@@ -183,7 +183,7 @@ export function WarehouseInventoryView() {
     try {
       // Filter only sold items
       const selectedSoldItems = items.filter(
-        (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+        (item) => selectedItemIds.has(item.id) && item.soldInOrder,
       );
 
       if (selectedSoldItems.length === 0) {
@@ -198,7 +198,7 @@ export function WarehouseInventoryView() {
         if (!soldOrderGroups.has(orderId)) {
           soldOrderGroups.set(orderId, []);
         }
-        soldOrderGroups.get(orderId)!.push(item.id!);
+        soldOrderGroups.get(orderId)!.push(item.id);
       }
 
       for (const [orderId] of soldOrderGroups) {
@@ -222,7 +222,7 @@ export function WarehouseInventoryView() {
 
   // Start editing item quantity
   const handleStartEdit = (item: WarehouseItem) => {
-    setEditingItemId(item.id!);
+    setEditingItemId(item.id);
     setEditQuantity(item.quantity);
   };
 
@@ -267,7 +267,7 @@ export function WarehouseInventoryView() {
 
     setProcessing(true);
     try {
-      await deleteWarehouseItem(item.id!);
+      await deleteWarehouseItem(item.id);
       toastService.success("✅ Articolo cancellato");
       await loadInventory();
     } catch (error) {
@@ -706,13 +706,13 @@ export function WarehouseInventoryView() {
               {
                 items.filter(
                   (item) =>
-                    selectedItemIds.has(item.id!) && item.reservedForOrder,
+                    selectedItemIds.has(item.id) && item.reservedForOrder,
                 ).length
               }{" "}
               riservati •{" "}
               {
                 items.filter(
-                  (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                  (item) => selectedItemIds.has(item.id) && item.soldInOrder,
                 ).length
               }{" "}
               venduti
@@ -744,7 +744,7 @@ export function WarehouseInventoryView() {
                 processing ||
                 items.filter(
                   (item) =>
-                    selectedItemIds.has(item.id!) && item.reservedForOrder,
+                    selectedItemIds.has(item.id) && item.reservedForOrder,
                 ).length === 0
               }
               style={{
@@ -759,7 +759,7 @@ export function WarehouseInventoryView() {
                   processing ||
                   items.filter(
                     (item) =>
-                      selectedItemIds.has(item.id!) && item.reservedForOrder,
+                      selectedItemIds.has(item.id) && item.reservedForOrder,
                   ).length === 0
                     ? "not-allowed"
                     : "pointer",
@@ -767,7 +767,7 @@ export function WarehouseInventoryView() {
                   processing ||
                   items.filter(
                     (item) =>
-                      selectedItemIds.has(item.id!) && item.reservedForOrder,
+                      selectedItemIds.has(item.id) && item.reservedForOrder,
                   ).length === 0
                     ? 0.5
                     : 1,
@@ -781,7 +781,7 @@ export function WarehouseInventoryView() {
               disabled={
                 processing ||
                 items.filter(
-                  (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                  (item) => selectedItemIds.has(item.id) && item.soldInOrder,
                 ).length === 0
               }
               style={{
@@ -795,14 +795,14 @@ export function WarehouseInventoryView() {
                 cursor:
                   processing ||
                   items.filter(
-                    (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                    (item) => selectedItemIds.has(item.id) && item.soldInOrder,
                   ).length === 0
                     ? "not-allowed"
                     : "pointer",
                 opacity:
                   processing ||
                   items.filter(
-                    (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                    (item) => selectedItemIds.has(item.id) && item.soldInOrder,
                   ).length === 0
                     ? 0.5
                     : 1,
@@ -882,7 +882,7 @@ export function WarehouseInventoryView() {
                     checked={
                       filteredItems.length > 0 &&
                       filteredItems.every((item) =>
-                        selectedItemIds.has(item.id!),
+                        selectedItemIds.has(item.id),
                       )
                     }
                     onChange={(e) => {
@@ -994,7 +994,7 @@ export function WarehouseInventoryView() {
                       transition: "background 0.15s",
                       cursor: "pointer",
                     }}
-                    onClick={() => handleToggleItem(item.id!)}
+                    onClick={() => handleToggleItem(item.id)}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = "#f9fafb")
                     }
@@ -1011,8 +1011,8 @@ export function WarehouseInventoryView() {
                     >
                       <input
                         type="checkbox"
-                        checked={selectedItemIds.has(item.id!)}
-                        onChange={() => handleToggleItem(item.id!)}
+                        checked={selectedItemIds.has(item.id)}
+                        onChange={() => handleToggleItem(item.id)}
                         style={{
                           width: "18px",
                           height: "18px",
@@ -1058,7 +1058,7 @@ export function WarehouseInventoryView() {
                             setEditQuantity(parseInt(e.target.value) || 1)
                           }
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveEdit(item.id!);
+                            if (e.key === "Enter") handleSaveEdit(item.id);
                             if (e.key === "Escape") handleCancelEdit();
                           }}
                           autoFocus
@@ -1094,7 +1094,7 @@ export function WarehouseInventoryView() {
                           }}
                         >
                           <button
-                            onClick={() => handleSaveEdit(item.id!)}
+                            onClick={() => handleSaveEdit(item.id)}
                             disabled={processing}
                             style={{
                               padding: "4px 8px",

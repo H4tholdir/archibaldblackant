@@ -10,7 +10,6 @@ import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { LiquidLoader } from "./components/LiquidLoader";
 import OrderFormNew from "./components/OrderFormSimple";
-import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
 import { ToastContainer } from "./components/Toast";
@@ -255,7 +254,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <Dashboard />
                   </main>
@@ -290,7 +288,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderHistory />
                   </main>
@@ -312,7 +309,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <PendingOrdersPage />
                   </main>
@@ -334,7 +330,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <CustomerList />
                   </main>
@@ -356,7 +351,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <ArticoliList />
                   </main>
@@ -378,7 +372,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProfilePage />
                   </main>
@@ -400,7 +393,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <PriceVariationsPage />
                   </main>
@@ -422,7 +414,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProductVariationsPage />
                   </main>
@@ -441,7 +432,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderFormNew />
                   </main>
@@ -463,7 +453,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <WarehouseManagementView />
                   </main>
@@ -485,7 +474,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <FresisHistoryPage />
                   </main>
@@ -504,7 +492,6 @@ function AppRouter() {
                   className="app"
                   style={{ marginTop: isOffline ? "64px" : "0" }}
                 >
-                  <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <RevenueReportPage />
                   </main>

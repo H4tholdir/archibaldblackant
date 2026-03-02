@@ -15,7 +15,8 @@ export function useSearchMatches(
       return;
     }
     const raf = requestAnimationFrame(() => {
-      const marks = containerRef.current!.querySelectorAll(
+      if (!containerRef.current) return;
+      const marks = containerRef.current.querySelectorAll(
         "[data-search-match]",
       );
       setTotalMatches(marks.length);

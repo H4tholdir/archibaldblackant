@@ -111,7 +111,11 @@ export async function savePendingOrder(
   }
 
   const data = await response.json();
-  return data.results[0];
+  const result = data.results?.[0];
+  if (!result) {
+    throw new Error("Server returned empty results for pending order save");
+  }
+  return result;
 }
 
 export async function deletePendingOrder(orderId: string): Promise<void> {

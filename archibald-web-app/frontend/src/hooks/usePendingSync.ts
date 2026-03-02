@@ -35,6 +35,13 @@ const WS_EVENTS_PENDING = [
   "JOB_FAILED",
 ] as const;
 
+const TRACKING_STATUS_MAP: Record<string, PendingOrder["jobStatus"]> = {
+  queued: "started",
+  active: "processing",
+  completed: "completed",
+  failed: "failed",
+};
+
 export function usePendingSync(): UsePendingSyncReturn {
   const { state, subscribe } = useWebSocketContext();
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
@@ -192,13 +199,6 @@ export function usePendingSync(): UsePendingSyncReturn {
     return () => clearInterval(interval);
   }, [fetchPendingOrders]);
 
-  const trackingStatusMap: Record<string, PendingOrder["jobStatus"]> = {
-    queued: "started",
-    active: "processing",
-    completed: "completed",
-    failed: "failed",
-  };
-
   const enrichedOrders = useMemo(
     () =>
       pendingOrders.map((order) => {
@@ -207,7 +207,7 @@ export function usePendingSync(): UsePendingSyncReturn {
         return {
           ...order,
           jobId: tracking.jobId,
-          jobStatus: trackingStatusMap[tracking.status] ?? order.jobStatus,
+          jobStatus: TRACKING_STATUS_MAP[tracking.status] ?? order.jobStatus,
           jobProgress: tracking.progress ?? order.jobProgress,
           jobOperation: tracking.label ?? order.jobOperation,
           jobError: tracking.error ?? order.jobError,

@@ -47,7 +47,7 @@ export default function WarehouseReturnsView() {
 
       setPreviewItems(
         items.map((item) => ({
-          id: item.id!,
+          id: item.id,
           articleCode: item.articleCode,
           description: item.description,
           quantity: item.quantity,

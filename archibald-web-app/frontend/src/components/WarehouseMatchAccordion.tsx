@@ -48,7 +48,7 @@ export function WarehouseMatchAccordion({
       .then((results) => {
         // 🔧 FIX #2: Filter out warehouse items already used in other order rows
         const filteredResults = results.filter(
-          (match) => !excludeWarehouseItemIds.includes(match.item.id!),
+          (match) => !excludeWarehouseItemIds.includes(match.item.id),
         );
         setMatches(filteredResults);
         // Auto-expand if matches found
@@ -101,9 +101,9 @@ export function WarehouseMatchAccordion({
         requestedQuantity > 0
           ? Math.min(match.availableQty, requestedQuantity)
           : match.availableQty;
-      newSelected.set(match.item.id!, defaultQty);
+      newSelected.set(match.item.id, defaultQty);
     } else {
-      newSelected.delete(match.item.id!);
+      newSelected.delete(match.item.id);
     }
 
     setSelectedMatches(newSelected);
@@ -117,9 +117,9 @@ export function WarehouseMatchAccordion({
     const clampedQty = Math.max(0, Math.min(qty, maxQty));
 
     if (clampedQty > 0) {
-      newSelected.set(match.item.id!, clampedQty);
+      newSelected.set(match.item.id, clampedQty);
     } else {
-      newSelected.delete(match.item.id!);
+      newSelected.delete(match.item.id);
     }
 
     setSelectedMatches(newSelected);
@@ -195,8 +195,8 @@ export function WarehouseMatchAccordion({
       {expanded && (
         <div className="warehouse-match-body">
           {matches.map((match) => {
-            const isSelected = selectedMatches.has(match.item.id!);
-            const selectedQty = selectedMatches.get(match.item.id!) || 0;
+            const isSelected = selectedMatches.has(match.item.id);
+            const selectedQty = selectedMatches.get(match.item.id) || 0;
             // 🔧 FIX #2: Disable if reserved or sold
             const isUnavailable =
               !!match.item.reservedForOrder || !!match.item.soldInOrder;

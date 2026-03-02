@@ -164,8 +164,8 @@ async function deletePendingOrder(pool: DbPool, userId: string, orderId: string)
 
 async function updatePendingOrderError(pool: DbPool, pendingOrderId: string, errorMessage: string): Promise<void> {
   await pool.query(
-    `UPDATE agents.pending_orders SET status = 'error', error_message = $1, updated_at = NOW() WHERE id = $2`,
-    [errorMessage, pendingOrderId],
+    `UPDATE agents.pending_orders SET status = 'error', error_message = $1, updated_at = $2 WHERE id = $3`,
+    [errorMessage, Date.now(), pendingOrderId],
   );
 }
 

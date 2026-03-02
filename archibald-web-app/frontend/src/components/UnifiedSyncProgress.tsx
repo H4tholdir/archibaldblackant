@@ -52,45 +52,53 @@ export function UnifiedSyncProgress({
   const [dismissedAt, setDismissedAt] = useState<number>(0);
 
   useEffect(() => {
-    // Get JWT from localStorage for SSE authentication
     const jwt = localStorage.getItem("archibald_jwt");
     if (!jwt) {
       console.warn("[SyncProgress] No JWT found, cannot connect to SSE");
       return;
     }
 
-    // Connect to SSE for real-time progress (pass JWT as query param)
-    const eventSource = new EventSource(`/api/sync/progress?token=${jwt}`);
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let disposed = false;
 
-    eventSource.onmessage = (event) => {
-      const progress: SyncProgress = JSON.parse(event.data);
+    const connect = () => {
+      if (disposed) return;
+      eventSource = new EventSource(`/api/sync/progress?token=${jwt}`);
 
-      // Skip if connected message
-      if ("connected" in progress) return;
+      eventSource.onmessage = (event) => {
+        retryCount = 0;
+        const progress: SyncProgress = JSON.parse(event.data);
+        if ("connected" in progress) return;
+        if (filterType && progress.syncType !== filterType) return;
 
-      // Filter by type if specified
-      if (filterType && progress.syncType !== filterType) return;
+        setActiveSync(progress);
+        setIsVisible(true);
 
-      // Show progress
-      setActiveSync(progress);
-      setIsVisible(true);
+        if (progress.status === "completed") {
+          setTimeout(() => {
+            setIsVisible(false);
+            setActiveSync(null);
+          }, 3000);
+        }
+      };
 
-      // Auto-hide after completion (3 seconds)
-      if (progress.status === "completed") {
-        setTimeout(() => {
-          setIsVisible(false);
-          setActiveSync(null);
-        }, 3000);
-      }
+      eventSource.onerror = () => {
+        eventSource?.close();
+        if (disposed) return;
+        retryCount++;
+        const delay = Math.min(1000 * 2 ** retryCount, 30_000);
+        reconnectTimer = setTimeout(connect, delay);
+      };
     };
 
-    eventSource.onerror = (error) => {
-      console.error("[SyncProgress] SSE connection error:", error);
-      eventSource.close();
-    };
+    connect();
 
     return () => {
-      eventSource.close();
+      disposed = true;
+      eventSource?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [filterType]);
 

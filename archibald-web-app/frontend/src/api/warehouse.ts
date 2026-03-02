@@ -1,4 +1,4 @@
-import type { WarehouseItem, WarehouseMetadata, BoxWithStats } from "../types/warehouse";
+import type { WarehouseItem, WarehouseItemInput, WarehouseMetadata, BoxWithStats } from "../types/warehouse";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 const API_BASE = "";
@@ -15,7 +15,7 @@ export async function getWarehouseItems(): Promise<WarehouseItem[]> {
 }
 
 export async function storeWarehouseItems(
-  items: WarehouseItem[],
+  items: WarehouseItemInput[],
   clearExisting?: boolean,
 ): Promise<{ success: boolean; results: unknown[] }> {
   const response = await fetchWithRetry(`${API_BASE}/api/warehouse/items/bulk`, {
