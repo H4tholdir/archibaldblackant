@@ -89,6 +89,14 @@ async function dissolveStack(pool: DbPool, userId: string, stackId: string): Pro
   return (rowCount ?? 0) > 0;
 }
 
+async function updateReason(pool: DbPool, userId: string, stackId: string, reason: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.order_stacks SET reason = $1 WHERE user_id = $2 AND stack_id = $3`,
+    [reason, userId, stackId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 async function removeMember(
   pool: DbPool,
   userId: string,
@@ -124,6 +132,7 @@ export {
   getStacks,
   createStack,
   dissolveStack,
+  updateReason,
   removeMember,
   mapRowToStack,
   type OrderStack,

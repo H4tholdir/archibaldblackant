@@ -186,7 +186,7 @@ export function OrderHistory() {
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { getStackForOrder, removeFromStack, dissolveStack, createManualStack } = useOrderStacks(orders);
+  const { stackMap, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel } = useOrderStacks(orders);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -284,6 +284,21 @@ export function OrderHistory() {
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes wiggle {
+        0% { transform: rotate(0deg); }
+        25% { transform: rotate(-1deg); }
+        50% { transform: rotate(0deg); }
+        75% { transform: rotate(1deg); }
+        100% { transform: rotate(0deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
   }, []);
 
   // Click outside customer dropdown
@@ -653,6 +668,16 @@ export function OrderHistory() {
     if (selectedOrderIds.size < 2) return;
     await createManualStack(Array.from(selectedOrderIds), stackReason);
     handleCancelSelection();
+  }
+
+  async function handleDissolveStack(stackId: string) {
+    const stack = stackMap.get(stackId);
+    if (!stack) return;
+    if (stack.source === "auto-nc") {
+      await createManualStack(stack.orderIds, "__dismissed__");
+    } else {
+      await dissolveStack(stackId);
+    }
   }
 
   // Apply quick filters client-side (OR logic: order matches if ANY selected filter matches)
@@ -1839,7 +1864,7 @@ export function OrderHistory() {
                 <div>
                   {(() => {
                     const renderedStackIds = new Set<string>();
-                    return group.orders.map((order) => {
+                    return group.orders.map((order, orderIndex) => {
                       const stack = getStackForOrder(order.id);
 
                       if (stack && renderedStackIds.has(stack.stackId)) {
@@ -1873,7 +1898,9 @@ export function OrderHistory() {
                               }}
                               sentToVeronaIds={sentToVeronaIds}
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
-                              onDissolve={stack.source === "manual" ? dissolveStack : undefined}
+                              onDissolve={handleDissolveStack}
+                              onLabelChange={stack.source === "manual" ? updateLabel : undefined}
+                              reason={stack.reason}
                               noteSummaries={noteSummaries}
                               notePreviews={notePreviews}
                               onNotesChanged={() => refreshNoteSummaries()}
@@ -1904,6 +1931,12 @@ export function OrderHistory() {
                               ? {
                                   outline: "2px solid #1976d2",
                                   boxShadow: "0 0 8px rgba(25, 118, 210, 0.3)",
+                                }
+                              : {}),
+                            ...(selectionMode
+                              ? {
+                                  animation: "wiggle 0.3s ease-in-out infinite",
+                                  animationDelay: `${(orderIndex % 3) * 0.05}s`,
                                 }
                               : {}),
                           }}

@@ -8,6 +8,7 @@ type OrderStacksRouterDeps = {
   getStacks: (userId: string) => Promise<OrderStack[]>;
   createStack: (userId: string, stackId: string, orderIds: string[], reason: string) => Promise<OrderStack>;
   dissolveStack: (userId: string, stackId: string) => Promise<boolean>;
+  updateReason: (userId: string, stackId: string, reason: string) => Promise<boolean>;
   removeMember: (userId: string, stackId: string, orderId: string) => Promise<boolean>;
 };
 
@@ -16,8 +17,12 @@ const createStackSchema = z.object({
   reason: z.string().default(''),
 });
 
+const updateReasonSchema = z.object({
+  reason: z.string(),
+});
+
 function createOrderStacksRouter(deps: OrderStacksRouterDeps) {
-  const { getStacks, createStack, dissolveStack, removeMember } = deps;
+  const { getStacks, createStack, dissolveStack, updateReason, removeMember } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -42,6 +47,20 @@ function createOrderStacksRouter(deps: OrderStacksRouterDeps) {
     } catch (error) {
       logger.error('Error creating order stack', { error });
       res.status(500).json({ success: false, error: 'Errore nella creazione stack ordini' });
+    }
+  });
+
+  router.patch('/:stackId', async (req: AuthRequest, res) => {
+    const parsed = updateReasonSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues });
+    }
+    try {
+      const ok = await updateReason(req.user!.userId, req.params.stackId, parsed.data.reason);
+      res.json({ success: true, updated: ok });
+    } catch (error) {
+      logger.error('Error updating stack reason', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento motivo stack' });
     }
   });
 

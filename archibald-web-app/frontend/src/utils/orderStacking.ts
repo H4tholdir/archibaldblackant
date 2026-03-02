@@ -139,6 +139,7 @@ function buildStackMap(
   }
 
   for (const manual of manualStacks) {
+    if (manual.reason === "__dismissed__") continue;
     const validIds = manual.orderIds.filter((id) => orderById.has(id));
     if (validIds.length < 2) continue;
 

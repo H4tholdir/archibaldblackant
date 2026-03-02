@@ -219,6 +219,35 @@ describe(buildStackMap, () => {
     const { stackMap } = buildStackMap([standalone], manual);
     expect(stackMap.size).toBe(0);
   });
+
+  test("dismissed NC stacks suppress triads without showing as manual stacks", () => {
+    const dismissed = [{ stackId: "manual-d", orderIds: ["47.761", "48.068", "48.070"], createdAt: "2026-02-26", reason: "__dismissed__" }];
+    const { stackMap, orderIndex } = buildStackMap(
+      [original, creditNote, replacement, standalone],
+      dismissed,
+    );
+
+    expect(stackMap.has("nc-47.761")).toBe(false);
+    expect(stackMap.has("manual-d")).toBe(false);
+    expect(stackMap.size).toBe(0);
+    expect(orderIndex.has("47.761")).toBe(false);
+  });
+
+  test("dismissed NC with additional manual stack still works", () => {
+    const stacks = [
+      { stackId: "manual-d", orderIds: ["47.761", "48.068", "48.070"], createdAt: "2026-02-26", reason: "__dismissed__" },
+      { stackId: "manual-2", orderIds: ["99", "48.070"], createdAt: "2026-02-26" },
+    ];
+    const { stackMap } = buildStackMap(
+      [original, creditNote, replacement, standalone],
+      stacks,
+    );
+
+    expect(stackMap.has("nc-47.761")).toBe(false);
+    expect(stackMap.has("manual-d")).toBe(false);
+    expect(stackMap.has("manual-2")).toBe(true);
+    expect(stackMap.get("manual-2")!.orderIds).toEqual(["99", "48.070"]);
+  });
 });
 
 describe("localStorage helpers", () => {

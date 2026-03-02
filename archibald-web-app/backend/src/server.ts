@@ -768,6 +768,7 @@ function createApp(deps: AppDeps): Express {
     getStacks: (userId) => orderStacksRepo.getStacks(pool, userId),
     createStack: (userId, stackId, orderIds, reason) => orderStacksRepo.createStack(pool, userId, stackId, orderIds, reason),
     dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
+    updateReason: (userId, stackId, reason) => orderStacksRepo.updateReason(pool, userId, stackId, reason),
     removeMember: (userId, stackId, orderId) => orderStacksRepo.removeMember(pool, userId, stackId, orderId),
   }));
 

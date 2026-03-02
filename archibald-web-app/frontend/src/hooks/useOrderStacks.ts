@@ -12,6 +12,7 @@ import {
   createOrderStack,
   dissolveOrderStack,
   removeFromOrderStack,
+  updateOrderStackReason,
 } from "../api/order-stacks";
 
 function useOrderStacks(orders: Order[]) {
@@ -111,6 +112,18 @@ function useOrderStacks(orders: Order[]) {
     [refreshStacks],
   );
 
+  const updateLabel = useCallback(
+    async (stackId: string, newLabel: string) => {
+      try {
+        await updateOrderStackReason(stackId, newLabel);
+        await refreshStacks();
+      } catch (err) {
+        console.error("Failed to update label:", err);
+      }
+    },
+    [refreshStacks],
+  );
+
   return {
     stackMap,
     orderIndex,
@@ -118,6 +131,7 @@ function useOrderStacks(orders: Order[]) {
     createManualStack,
     removeFromStack,
     dissolveStack,
+    updateLabel,
   } as const;
 }
 
