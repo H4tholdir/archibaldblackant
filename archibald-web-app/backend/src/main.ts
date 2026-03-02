@@ -126,6 +126,7 @@ async function bootstrap(): Promise<void> {
 
         const page = await context.newPage();
         try {
+          await (page as any).setExtraHTTPHeaders({ 'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' });
           const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
           await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 } as never);
           await page.waitForSelector('input[type="text"]', { timeout: 5000 } as never);

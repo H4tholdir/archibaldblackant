@@ -2149,6 +2149,11 @@ export class ArchibaldBot {
         "login",
       );
 
+      // Force Italian locale so Archibald renders UI in Italian (server is in Germany)
+      await this.page!.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
       logger.info(
         `Bot inizializzato per user ${this.userId} (multi-user mode)`,
       );
@@ -2773,9 +2778,10 @@ export class ArchibaldBot {
                 const elements = Array.from(
                   document.querySelectorAll("span, button, a"),
                 );
-                return elements.some(
-                  (el) => el.textContent?.trim().toLowerCase() === "nuovo",
-                );
+                return elements.some((el) => {
+                  const text = el.textContent?.trim().toLowerCase() ?? "";
+                  return text === "nuovo" || text === "new";
+                });
               },
               { timeout: timeoutMs },
             );
@@ -2853,22 +2859,28 @@ export class ArchibaldBot {
 
       await this.emitProgress("navigation.ordini");
 
-      // STEP 2: Click "Nuovo" button
+      // STEP 2: Click "Nuovo"/"New" button
       await this.runOp(
         "order.click_nuovo",
         async () => {
-          logger.debug('Clicking "Nuovo" button...');
+          logger.debug('Clicking "Nuovo"/"New" button...');
 
           const urlBefore = this.page!.url();
           logger.debug(`URL before click: ${urlBefore}`);
 
-          const clicked = await this.clickElementByText("Nuovo", {
+          let clicked = await this.clickElementByText("Nuovo", {
             exact: true,
             selectors: ["button", "a", "span"],
           });
+          if (!clicked) {
+            clicked = await this.clickElementByText("New", {
+              exact: true,
+              selectors: ["button", "a", "span"],
+            });
+          }
 
           if (!clicked) {
-            throw new Error('Button "Nuovo" not found');
+            throw new Error('Button "Nuovo"/"New" not found');
           }
 
           logger.debug("Waiting for navigation after Nuovo click...");
@@ -5841,7 +5853,7 @@ export class ArchibaldBot {
               document.querySelectorAll("span, button, a"),
             );
             return elements.some(
-              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+              (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
           { timeout: 15000 },
@@ -6148,7 +6160,7 @@ export class ArchibaldBot {
               document.querySelectorAll("span, button, a"),
             );
             return elements.some(
-              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+              (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
           { timeout: 15000 },
@@ -6578,7 +6590,7 @@ export class ArchibaldBot {
               document.querySelectorAll("span, button, a"),
             );
             return elements.some(
-              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+              (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
           { timeout: 15000 },
@@ -11043,10 +11055,15 @@ export class ArchibaldBot {
 
     await this.waitForDevExpressReady({ timeout: 10000 });
 
-    const nuovoClicked = await this.clickElementByText("Nuovo", {
+    let nuovoClicked = await this.clickElementByText("Nuovo", {
       selectors: ["a", "span", "button"],
     });
-    if (!nuovoClicked) throw new Error("'Nuovo' button not found");
+    if (!nuovoClicked) {
+      nuovoClicked = await this.clickElementByText("New", {
+        selectors: ["a", "span", "button"],
+      });
+    }
+    if (!nuovoClicked) throw new Error("'Nuovo'/'New' button not found");
 
     await this.emitProgress("customer.navigation");
 
@@ -11733,10 +11750,15 @@ export class ArchibaldBot {
 
     await this.waitForDevExpressReady({ timeout: 10000 });
 
-    const nuovoClicked = await this.clickElementByText("Nuovo", {
+    let nuovoClicked = await this.clickElementByText("Nuovo", {
       selectors: ["a", "span", "button"],
     });
-    if (!nuovoClicked) throw new Error("'Nuovo' button not found");
+    if (!nuovoClicked) {
+      nuovoClicked = await this.clickElementByText("New", {
+        selectors: ["a", "span", "button"],
+      });
+    }
+    if (!nuovoClicked) throw new Error("'Nuovo'/'New' button not found");
 
     await this.page.waitForFunction(
       (baseUrl: string) => !window.location.href.includes("ListView"),
