@@ -69,6 +69,30 @@ describe('createShareRouter', () => {
 
       expect(res.status).toBe(404);
     });
+
+    test('returns HTML with OG meta tags for WhatsApp crawler', async () => {
+      (deps.pdfStore.get as ReturnType<typeof vi.fn>).mockReturnValue({
+        buffer: Buffer.from('fake-pdf'),
+        originalName: 'preventivo_Fresis_Soc_Cooperativa_2026-03-02.pdf',
+      });
+      const res = await request(app)
+        .get('/api/share/pdf/123_preventivo_Fresis.pdf')
+        .set('User-Agent', 'WhatsApp/2.23.20.0');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/html');
+      expect(res.text).toContain('og:title');
+      expect(res.text).toContain('Preventivo - Fresis Soc Cooperativa 2026-03-02');
+    });
+
+    test('returns PDF for regular browser even when OG data exists', async () => {
+      const res = await request(app)
+        .get('/api/share/pdf/pdf-123.pdf')
+        .set('User-Agent', 'Mozilla/5.0 Chrome/120');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/pdf');
+    });
   });
 
   describe('POST /api/share/email', () => {

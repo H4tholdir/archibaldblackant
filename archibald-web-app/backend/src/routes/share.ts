@@ -12,6 +12,30 @@ const emailSchema = z.object({
 
 const ALLOWED_PDF_MIME_TYPES = ['application/pdf'];
 
+const SOCIAL_BOT_PATTERN = /WhatsApp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|LinkedInBot|Slackbot/i;
+
+function humanReadableTitle(originalName: string): string {
+  return originalName
+    .replace(/\.pdf$/i, '')
+    .replace(/^preventivo_/i, 'Preventivo - ')
+    .replace(/_/g, ' ');
+}
+
+function buildOgHtml(title: string, pdfUrl: string): string {
+  const escaped = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta property="og:title" content="${escaped}">
+<meta property="og:description" content="Clicca per visualizzare il preventivo PDF">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${pdfUrl}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${escaped}">
+</head>
+<body></body></html>`;
+}
+
 type PdfStoreLike = {
   save: (buffer: Buffer, originalName: string, req: Request) => { id: string; url: string };
   get: (id: string) => { buffer: Buffer; originalName: string } | null;
@@ -55,6 +79,16 @@ function createShareRouter(deps: ShareRouterDeps) {
 
     if (!pdf) {
       return res.status(404).json({ success: false, error: 'PDF non trovato o scaduto' });
+    }
+
+    const ua = req.headers['user-agent'] || '';
+    if (SOCIAL_BOT_PATTERN.test(ua)) {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const pdfUrl = `${protocol}://${host}${req.originalUrl}`;
+      const title = humanReadableTitle(pdf.originalName);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(buildOgHtml(title, pdfUrl));
     }
 
     res.setHeader('Content-Type', 'application/pdf');
