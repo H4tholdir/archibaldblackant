@@ -30,7 +30,7 @@ function mapRowToStack(row: OrderStackRow): OrderStack {
     stackId: row.stack_id,
     reason: row.reason,
     orderIds: (row.order_ids ?? []).filter((id) => id !== null),
-    createdAt: row.created_at,
+    createdAt: Number(row.created_at),
   };
 }
 
@@ -76,7 +76,7 @@ async function createStack(
       stackId,
       reason,
       orderIds,
-      createdAt: stackRow.created_at,
+      createdAt: Number(stackRow.created_at),
     };
   });
 }
