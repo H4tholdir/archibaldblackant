@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { getPendingOrders } from "../api/pending-orders";
 import type { PendingOrder } from "../types/pending-order";
@@ -8,6 +8,8 @@ export type JobTrackingEntry = {
   orderId: string;
   jobId: string;
   status: "queued" | "active" | "completed" | "failed";
+  progress?: number;
+  label?: string;
   error?: string;
   startedAt: number;
 };
@@ -96,7 +98,18 @@ export function usePendingSync(): UsePendingSyncReturn {
             return next;
           });
         } else if (eventType === "JOB_PROGRESS" && p.type === "submit-order") {
-          // Progress updates trigger a re-render to keep UI fresh
+          const jobId = p.jobId as string;
+          const progress = (p.progress as number) ?? 0;
+          const label = p.label as string | undefined;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: "active", progress, label });
+              }
+            }
+            return next;
+          });
         } else if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
           const jobId = p.jobId as string;
           setJobTracking((prev) => {
@@ -173,8 +186,32 @@ export function usePendingSync(): UsePendingSyncReturn {
     return () => clearInterval(interval);
   }, [fetchPendingOrders]);
 
+  const trackingStatusMap: Record<string, PendingOrder["jobStatus"]> = {
+    queued: "started",
+    active: "processing",
+    completed: "completed",
+    failed: "failed",
+  };
+
+  const enrichedOrders = useMemo(
+    () =>
+      pendingOrders.map((order) => {
+        const tracking = jobTracking.get(order.id!);
+        if (!tracking) return order;
+        return {
+          ...order,
+          jobId: tracking.jobId,
+          jobStatus: trackingStatusMap[tracking.status] ?? order.jobStatus,
+          jobProgress: tracking.progress ?? order.jobProgress,
+          jobOperation: tracking.label ?? order.jobOperation,
+          jobError: tracking.error ?? order.jobError,
+        };
+      }),
+    [pendingOrders, jobTracking],
+  );
+
   return {
-    pendingOrders,
+    pendingOrders: enrichedOrders,
     isConnected: state === "connected",
     isSyncing,
     staleJobIds,
