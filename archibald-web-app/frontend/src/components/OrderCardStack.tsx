@@ -9,12 +9,12 @@ import {
 import type { Order } from "../types/order";
 import { OrderCardNew } from "./OrderCardNew";
 
-const STACK_OFFSET = 16;
-const STACK_SCALE_STEP = 0.02;
-const STACK_ROTATE_STEP = -0.3;
-const SWIPE_THRESHOLD = 40;
-const TRANSITION_CSS = "transform 0.45s cubic-bezier(0.2, 0.9, 0.2, 1)";
-const DOTS_AREA_HEIGHT = 24;
+const STACK_PEEK = 8;
+const SWIPE_THRESHOLD = 80;
+const VELOCITY_THRESHOLD = 0.5;
+const SNAP_BACK_CSS = "transform 0.35s cubic-bezier(0.2, 0.9, 0.2, 1)";
+const FLY_OUT_MS = 200;
+const MAX_ROTATION_DEG = 15;
 
 type OrderCardStackProps = {
   orders: Order[];
@@ -32,6 +32,8 @@ type OrderCardStackProps = {
   sentToVeronaIds?: Set<string>;
   onUnstack?: (stackId: string, orderId: string) => void;
   onDissolve?: (stackId: string) => void;
+  onLabelChange?: (stackId: string, newLabel: string) => void;
+  reason?: string;
   noteSummaries?: Record<string, { total: number; checked: number }>;
   onNotesChanged?: () => void;
 };
@@ -52,6 +54,8 @@ function OrderCardStack({
   sentToVeronaIds,
   onUnstack,
   onDissolve,
+  onLabelChange,
+  reason,
   noteSummaries,
   onNotesChanged,
 }: OrderCardStackProps): ReactNode {
@@ -59,26 +63,25 @@ function OrderCardStack({
   const [cardOrder, setCardOrder] = useState<string[]>(() =>
     orders.map((o) => o.id),
   );
-  const [shuffleTransform, setShuffleTransform] = useState<string | null>(null);
-  const [shufflingId, setShufflingId] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const firstCardRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState(140);
-  const [animateIn, setAnimateIn] = useState(false);
+  const [topCardHeight, setTopCardHeight] = useState(140);
 
-  const pointerStart = useRef({ x: 0, y: 0 });
-  const moved = useRef(false);
+  const topCardRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const pointerDownPos = useRef({ x: 0, y: 0 });
+  const pointerDownTime = useRef(0);
+  const dragging = useRef(false);
+  const movedSignificantly = useRef(false);
+  const isAnimating = useRef(false);
 
   useEffect(() => {
     setCardOrder(orders.map((o) => o.id));
   }, [orders]);
 
   useLayoutEffect(() => {
-    if (!expanded && firstCardRef.current) {
-      const h =
-        firstCardRef.current.getBoundingClientRect().height +
-        (orders.length - 1) * STACK_OFFSET;
-      setContainerHeight(h);
+    if (!expanded && topCardRef.current) {
+      const h = topCardRef.current.getBoundingClientRect().height;
+      setTopCardHeight(h);
     }
   });
 
@@ -87,69 +90,110 @@ function OrderCardStack({
     .map((id) => orderById.get(id))
     .filter(Boolean) as Order[];
 
-  const activeIndex = orderedCards.length > 0
-    ? orders.findIndex((o) => o.id === orderedCards[0].id)
-    : 0;
+  const activeIndex =
+    orderedCards.length > 0
+      ? orders.findIndex((o) => o.id === orderedCards[0].id)
+      : 0;
+
+  const accentColor = source === "auto-nc" ? "#e65100" : "#1565c0";
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (expanded) return;
-      pointerStart.current = { x: e.clientX, y: e.clientY };
-      moved.current = false;
+      if (expanded || isAnimating.current) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pointerDownPos.current = { x: e.clientX, y: e.clientY };
+      pointerDownTime.current = Date.now();
+      dragging.current = true;
+      movedSignificantly.current = false;
+
+      if (topCardRef.current) {
+        topCardRef.current.style.transition = "none";
+      }
     },
     [expanded],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (expanded) return;
-      const dx = e.clientX - pointerStart.current.x;
-      const dy = e.clientY - pointerStart.current.y;
+      if (expanded || !dragging.current || !topCardRef.current) return;
+      const dx = e.clientX - pointerDownPos.current.x;
+      const dy = e.clientY - pointerDownPos.current.y;
+
       if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
-        moved.current = true;
+        movedSignificantly.current = true;
+      }
+
+      if (movedSignificantly.current) {
+        const rotation = Math.max(
+          -MAX_ROTATION_DEG,
+          Math.min(MAX_ROTATION_DEG, dx * 0.06),
+        );
+        topCardRef.current.style.transform = `translateX(${dx}px) rotate(${rotation}deg)`;
       }
     },
     [expanded],
   );
 
-  const shuffleNext = useCallback(() => {
-    if (orderedCards.length < 2) return;
-    const firstId = cardOrder[0];
-    setShufflingId(firstId);
-    setShuffleTransform("translateX(110%) rotate(8deg)");
-    setTimeout(() => {
-      setCardOrder((prev) => [...prev.slice(1), prev[0]]);
-      setShuffleTransform(null);
-      setShufflingId(null);
-    }, 150);
-  }, [cardOrder, orderedCards.length]);
+  const shuffleInDirection = useCallback(
+    (direction: 1 | -1) => {
+      if (orderedCards.length < 2 || !topCardRef.current) return;
+      isAnimating.current = true;
+      const card = topCardRef.current;
+      const exitX = direction * window.innerWidth;
+      const exitRotation = Math.max(
+        -MAX_ROTATION_DEG,
+        Math.min(MAX_ROTATION_DEG, direction * 12),
+      );
+      card.style.transition = `transform ${FLY_OUT_MS}ms ease-in`;
+      card.style.transform = `translateX(${exitX}px) rotate(${exitRotation}deg)`;
 
-  const shufflePrev = useCallback(() => {
-    if (orderedCards.length < 2) return;
-    const lastId = cardOrder[cardOrder.length - 1];
-    setShufflingId(lastId);
-    setCardOrder((prev) => [prev[prev.length - 1], ...prev.slice(0, -1)]);
-    setShuffleTransform("translateX(-110%) rotate(-8deg)");
-    requestAnimationFrame(() => {
-      setShuffleTransform(null);
-      setShufflingId(null);
-    });
-  }, [cardOrder, orderedCards.length]);
+      setTimeout(() => {
+        if (direction > 0) {
+          setCardOrder((prev) => [prev[prev.length - 1], ...prev.slice(0, -1)]);
+        } else {
+          setCardOrder((prev) => [...prev.slice(1), prev[0]]);
+        }
+        if (topCardRef.current) {
+          topCardRef.current.style.transition = "none";
+          topCardRef.current.style.transform = "";
+        }
+        isAnimating.current = false;
+      }, FLY_OUT_MS);
+    },
+    [orderedCards.length],
+  );
+
+  const snapBack = useCallback(() => {
+    if (!topCardRef.current) return;
+    topCardRef.current.style.transition = SNAP_BACK_CSS;
+    topCardRef.current.style.transform = "";
+  }, []);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (expanded) return;
-      const dx = e.clientX - pointerStart.current.x;
-      const dy = e.clientY - pointerStart.current.y;
+      if (expanded || !dragging.current) return;
+      dragging.current = false;
 
-      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
-        if (dx < 0) shuffleNext();
-        else shufflePrev();
-      } else if (!moved.current) {
+      const dx = e.clientX - pointerDownPos.current.x;
+      const dy = e.clientY - pointerDownPos.current.y;
+      const elapsed = Math.max(1, Date.now() - pointerDownTime.current);
+      const velocity = Math.abs(dx) / elapsed;
+      const isHorizontal = Math.abs(dx) > Math.abs(dy);
+
+      const flickTriggered = velocity > VELOCITY_THRESHOLD && Math.abs(dx) > 10;
+      const dragTriggered = Math.abs(dx) > SWIPE_THRESHOLD;
+
+      if ((flickTriggered || dragTriggered) && isHorizontal && orderedCards.length > 1) {
+        const direction: 1 | -1 = dx < 0 ? -1 : 1;
+        shuffleInDirection(direction);
+      } else if (!movedSignificantly.current) {
+        snapBack();
         setExpanded(true);
+      } else {
+        snapBack();
       }
     },
-    [expanded, shuffleNext, shufflePrev],
+    [expanded, orderedCards.length, shuffleInDirection, snapBack],
   );
 
   const close = useCallback(() => {
@@ -165,87 +209,81 @@ function OrderCardStack({
     return () => document.removeEventListener("keydown", handler);
   }, [expanded, close]);
 
-  useEffect(() => {
-    if (expanded) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
-    }
-  }, [expanded]);
-
-  useEffect(() => {
-    if (expanded) {
-      requestAnimationFrame(() => setAnimateIn(true));
-    } else {
-      setAnimateIn(false);
-    }
-  }, [expanded]);
+  const collapsedHeight = topCardHeight + (orders.length - 1) * STACK_PEEK;
 
   if (expanded) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 1000,
-          background: "#f5f5f5",
-          display: "flex",
-          flexDirection: "column",
-          transform: animateIn ? "translateY(0)" : "translateY(100%)",
-          transition: "transform 0.35s cubic-bezier(0.2, 0.9, 0.2, 1)",
-        }}
-      >
+      <div style={{ marginBottom: 12 }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10px",
-            padding: "12px 16px",
+            gap: 10,
+            padding: "10px 12px",
             background: "#fff",
-            borderBottom: "1px solid #e0e0e0",
-            flexShrink: 0,
+            borderRadius: "10px 10px 0 0",
+            borderBottom: "1px solid #eee",
           }}
         >
           <span
             style={{
               background: source === "auto-nc" ? "#fff3e0" : "#e3f2fd",
-              color: source === "auto-nc" ? "#e65100" : "#1565c0",
+              color: accentColor,
               padding: "3px 10px",
-              borderRadius: "10px",
+              borderRadius: 10,
               fontWeight: 700,
-              fontSize: "12px",
+              fontSize: 12,
             }}
           >
             {source === "auto-nc" ? "NC" : "Pila"}
           </span>
-          <span style={{ fontSize: "13px", color: "#555" }}>
+          <span style={{ fontSize: 13, color: "#555" }}>
             {orders.length} ordini
+            {reason ? ` \u2014 ${reason}` : ""}
           </span>
-          <button
-            onClick={close}
-            style={{
-              marginLeft: "auto",
-              background: "none",
-              border: "none",
-              fontSize: "22px",
-              cursor: "pointer",
-              color: "#888",
-              padding: "4px 8px",
-              lineHeight: 1,
-            }}
-          >
-            ✕
-          </button>
+          {onLabelChange && (
+            <button
+              onClick={() => {
+                const newLabel = prompt("Etichetta pila:", reason ?? "");
+                if (newLabel !== null) onLabelChange(stackId, newLabel);
+              }}
+              style={{
+                background: "none",
+                border: "1px solid #ddd",
+                borderRadius: 6,
+                padding: "2px 8px",
+                fontSize: 11,
+                cursor: "pointer",
+                color: "#888",
+              }}
+            >
+              Modifica
+            </button>
+          )}
+          {onDissolve && (
+            <button
+              onClick={() => onDissolve(stackId)}
+              style={{
+                marginLeft: "auto",
+                background: "none",
+                border: "1px solid #ddd",
+                borderRadius: 6,
+                padding: "2px 8px",
+                fontSize: 11,
+                cursor: "pointer",
+                color: "#c62828",
+              }}
+            >
+              Scollega pila
+            </button>
+          )}
         </div>
 
         <div
           style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "14px 12px",
             display: "flex",
             flexDirection: "column",
-            gap: "14px",
+            gap: 12,
           }}
         >
           {orderedCards.map((order) => (
@@ -273,13 +311,13 @@ function OrderCardStack({
                   }}
                   style={{
                     position: "absolute",
-                    top: "8px",
-                    right: "8px",
+                    top: 8,
+                    right: 8,
                     background: "rgba(255,255,255,0.9)",
                     border: "1px solid #ddd",
-                    borderRadius: "6px",
+                    borderRadius: 6,
                     padding: "2px 8px",
-                    fontSize: "10px",
+                    fontSize: 10,
                     cursor: "pointer",
                     color: "#888",
                     zIndex: 10,
@@ -293,38 +331,31 @@ function OrderCardStack({
           ))}
         </div>
 
-        {onDissolve && (
-          <div
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "10px 0 4px",
+          }}
+        >
+          <button
+            onClick={close}
             style={{
-              padding: "12px 16px",
-              background: "#fff",
-              borderTop: "1px solid #e0e0e0",
-              flexShrink: 0,
+              background: "none",
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              padding: "8px 24px",
+              fontSize: 13,
+              cursor: "pointer",
+              color: "#888",
             }}
           >
-            <button
-              onClick={() => onDissolve(stackId)}
-              style={{
-                width: "100%",
-                background: "none",
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                padding: "10px",
-                fontSize: "13px",
-                cursor: "pointer",
-                color: "#666",
-              }}
-            >
-              Scollega pila
-            </button>
-          </div>
-        )}
+            Richiudi pila
+          </button>
+        </div>
       </div>
     );
   }
-
-  const showDots = orders.length > 1;
-  const totalHeight = containerHeight + (showDots ? DOTS_AREA_HEIGHT : 0);
 
   return (
     <div
@@ -334,162 +365,105 @@ function OrderCardStack({
       onPointerUp={handlePointerUp}
       style={{
         position: "relative",
-        height: `${totalHeight}px`,
+        height: collapsedHeight,
         touchAction: "pan-y",
-        marginBottom: "12px",
+        marginBottom: 12,
         cursor: "pointer",
         isolation: "isolate",
-        borderLeft: `4px solid ${source === "auto-nc" ? "#e65100" : "#1565c0"}`,
-        borderRadius: "4px",
-        paddingLeft: "4px",
       }}
     >
       <div
         style={{
           position: "absolute",
-          top: "-10px",
-          right: "-6px",
-          backgroundColor: source === "auto-nc" ? "#e65100" : "#1565c0",
+          top: -8,
+          right: -4,
+          backgroundColor: accentColor,
           color: "#fff",
-          borderRadius: "14px",
-          padding: "4px 12px",
-          fontSize: "12px",
+          borderRadius: 14,
+          padding: "3px 10px",
+          fontSize: 11,
           fontWeight: 700,
           zIndex: 202,
           pointerEvents: "none",
           boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-          letterSpacing: "0.3px",
+          letterSpacing: 0.3,
         }}
       >
         {orders.length} {source === "auto-nc" ? "NC" : "ordini"}
       </div>
 
-      {orderedCards.map((order, i) => {
-        const isShuffling = shufflingId === order.id && shuffleTransform;
-        return (
+      <div
+        ref={topCardRef}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          zIndex: 100,
+          willChange: "transform",
+          userSelect: "none",
+        }}
+      >
+        <OrderCardNew
+          order={orderedCards[0]}
+          expanded={false}
+          onToggle={() => {}}
+          token={token}
+          searchQuery={searchQuery}
+          noteSummary={noteSummaries?.[orderedCards[0]?.id]}
+        />
+
+        {orders.length > 1 && (
           <div
-            key={order.id}
-            ref={i === 0 ? firstCardRef : undefined}
             style={{
               position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              transform: isShuffling
-                ? shuffleTransform
-                : `translateY(${i * STACK_OFFSET}px) scale(${1 - i * STACK_SCALE_STEP}) rotate(${i * STACK_ROTATE_STEP}deg)`,
-              zIndex: 100 - i,
-              transition: TRANSITION_CSS,
-              willChange: "transform",
-              userSelect: "none",
-              pointerEvents: i === 0 ? "auto" : "none",
-              boxShadow: i === 0
-                ? "0 2px 8px rgba(0,0,0,0.1)"
-                : `0 ${2 + i * 2}px ${8 + i * 4}px rgba(0,0,0,${0.06 + i * 0.03})`,
-              opacity: i === 0 ? 1 : Math.max(0.6, 1 - i * 0.15),
+              bottom: 8,
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              background: "rgba(0,0,0,0.25)",
+              borderRadius: 10,
+              padding: "3px 8px",
+              pointerEvents: "none",
+              zIndex: 10,
             }}
           >
-            <OrderCardNew
-              order={order}
-              expanded={false}
-              onToggle={() => {}}
-              token={token}
-              searchQuery={searchQuery}
-              noteSummary={noteSummaries?.[order.id]}
-            />
+            {orders.map((o, i) => (
+              <div
+                key={o.id}
+                style={{
+                  width: i === activeIndex ? 8 : 5,
+                  height: i === activeIndex ? 8 : 5,
+                  borderRadius: "50%",
+                  backgroundColor:
+                    i === activeIndex ? accentColor : "rgba(255,255,255,0.6)",
+                  transition: "all 0.3s ease",
+                }}
+              />
+            ))}
           </div>
-        );
-      })}
+        )}
+      </div>
 
-      {showDots && (
+      {orderedCards.slice(1).map((_, i) => (
         <div
+          key={`peek-${i}`}
           style={{
             position: "absolute",
-            top: `${containerHeight + 8}px`,
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: "6px",
+            left: 4,
+            right: 4,
+            top: topCardHeight + i * STACK_PEEK,
+            height: STACK_PEEK,
+            background: "#fff",
+            borderRadius: "0 0 8px 8px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            zIndex: 99 - i,
             pointerEvents: "none",
           }}
-        >
-          {orders.map((o, i) => (
-            <div
-              key={o.id}
-              style={{
-                width: i === activeIndex ? "10px" : "6px",
-                height: i === activeIndex ? "10px" : "6px",
-                borderRadius: "50%",
-                backgroundColor: i === activeIndex
-                  ? (source === "auto-nc" ? "#e65100" : "#1565c0")
-                  : "#ccc",
-                transition: "all 0.3s ease",
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {orders.length > 1 && (
-        <>
-          <button
-            onClick={(e) => { e.stopPropagation(); shufflePrev(); }}
-            style={{
-              position: "absolute",
-              left: "-14px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              background: "#fff",
-              border: "none",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              color: "#555",
-              pointerEvents: "auto",
-              zIndex: 201,
-              padding: 0,
-              lineHeight: 1,
-            }}
-          >
-            ‹
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); shuffleNext(); }}
-            style={{
-              position: "absolute",
-              right: "-14px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              background: "#fff",
-              border: "none",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              color: "#555",
-              pointerEvents: "auto",
-              zIndex: 201,
-              padding: 0,
-              lineHeight: 1,
-            }}
-          >
-            ›
-          </button>
-        </>
-      )}
+        />
+      ))}
     </div>
   );
 }
