@@ -6,6 +6,52 @@ import type { SyncSession, SyncStats } from '../db/repositories/sync-sessions';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
+function mapProductRow(row: ProductRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    groupCode: row.group_code,
+    searchName: row.search_name,
+    priceUnit: row.price_unit,
+    productGroupId: row.product_group_id,
+    productGroupDescription: row.product_group_description,
+    packageContent: row.package_content,
+    minQty: row.min_qty,
+    multipleQty: row.multiple_qty,
+    maxQty: row.max_qty,
+    price: row.price,
+    priceSource: row.price_source,
+    priceUpdatedAt: row.price_updated_at,
+    vat: row.vat,
+    vatSource: row.vat_source,
+    vatUpdatedAt: row.vat_updated_at,
+    hash: row.hash,
+    lastSync: row.last_sync,
+    figure: row.figure,
+    size: row.size,
+    bulkArticleId: row.bulk_article_id,
+    legPackage: row.leg_package,
+    configurationId: row.configuration_id,
+    createdBy: row.created_by,
+    createdDate: row.created_date_field,
+    dataAreaId: row.data_area_id,
+    defaultQty: row.default_qty,
+    displayProductNumber: row.display_product_number,
+    totalAbsoluteDiscount: row.total_absolute_discount,
+    productId: row.product_id_ext,
+    lineDiscount: row.line_discount,
+    modifiedBy: row.modified_by,
+    modifiedDatetime: row.modified_datetime,
+    orderableArticle: row.orderable_article,
+    stopped: row.stopped,
+    purchPrice: row.purch_price,
+    pcsStandardConfigurationId: row.pcs_standard_configuration_id,
+    standardQty: row.standard_qty,
+    unitId: row.unit_id,
+  };
+}
+
 type ProductChange = {
   productId: string;
   changeType: string;
@@ -92,7 +138,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
               getVariantPriceRange(p.name),
             ]);
             return {
-              ...p,
+              ...mapProductRow(p),
               variantPackages: packages,
               variantPriceMin: priceRange.min,
               variantPriceMax: priceRange.max,
@@ -124,7 +170,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       res.json({
         success: true,
         data: {
-          products,
+          products: products.map(mapProductRow),
           totalCount: products.length,
           returnedCount: products.length,
           limited: false,
@@ -295,7 +341,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       if (!product) {
         return res.status(404).json({ success: false, error: 'Prodotto non trovato' });
       }
-      res.json({ success: true, data: product });
+      res.json({ success: true, data: mapProductRow(product) });
     } catch (error) {
       logger.error('Error fetching product', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero prodotto' });
@@ -312,7 +358,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         data: {
           productName: articleName,
           variantCount: variants.length,
-          variants,
+          variants: variants.map(mapProductRow),
         },
       });
     } catch (error) {

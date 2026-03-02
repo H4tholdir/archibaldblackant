@@ -19,6 +19,24 @@ type ParsedProduct = {
   legPackage?: string;
   size?: string;
   vat?: number;
+  productGroupDescription?: string;
+  configurationId?: string;
+  createdBy?: string;
+  createdDateField?: string;
+  dataAreaId?: string;
+  defaultQty?: string;
+  displayProductNumber?: string;
+  totalAbsoluteDiscount?: string;
+  productIdExt?: string;
+  lineDiscount?: string;
+  modifiedBy?: string;
+  modifiedDatetime?: string;
+  orderableArticle?: string;
+  stopped?: string;
+  purchPrice?: string;
+  pcsStandardConfigurationId?: string;
+  standardQty?: string;
+  unitId?: string;
 };
 
 type ProductSyncDeps = {
@@ -76,15 +94,23 @@ async function syncProducts(
         await pool.query(
           `INSERT INTO shared.products (
             id, name, search_name, group_code, package_content,
-            description, price_unit, product_group_id,
+            description, price_unit, product_group_id, product_group_description,
             min_qty, multiple_qty, max_qty, figure,
-            bulk_article_id, leg_package, size, vat, last_sync
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+            bulk_article_id, leg_package, size, vat, last_sync,
+            configuration_id, created_by, created_date_field, data_area_id,
+            default_qty, display_product_number, total_absolute_discount, product_id_ext,
+            line_discount, modified_by, modified_datetime, orderable_article,
+            stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
           [
             p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
-            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null,
+            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
             p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
             p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, p.vat ?? null, now,
+            p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
+            p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
+            p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
+            p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
           ],
         );
         newProducts++;
@@ -92,15 +118,23 @@ async function syncProducts(
         await pool.query(
           `UPDATE shared.products SET
             name=$2, search_name=$3, group_code=$4, package_content=$5,
-            description=$6, price_unit=$7, product_group_id=$8,
-            min_qty=$9, multiple_qty=$10, max_qty=$11, figure=$12,
-            bulk_article_id=$13, leg_package=$14, size=$15, vat=$16, last_sync=$17
+            description=$6, price_unit=$7, product_group_id=$8, product_group_description=$9,
+            min_qty=$10, multiple_qty=$11, max_qty=$12, figure=$13,
+            bulk_article_id=$14, leg_package=$15, size=$16, vat=$17, last_sync=$18,
+            configuration_id=$19, created_by=$20, created_date_field=$21, data_area_id=$22,
+            default_qty=$23, display_product_number=$24, total_absolute_discount=$25, product_id_ext=$26,
+            line_discount=$27, modified_by=$28, modified_datetime=$29, orderable_article=$30,
+            stopped=$31, purch_price=$32, pcs_standard_configuration_id=$33, standard_qty=$34, unit_id=$35
           WHERE id=$1`,
           [
             p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
-            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null,
+            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
             p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
             p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, p.vat ?? null, now,
+            p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
+            p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
+            p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
+            p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
           ],
         );
         updatedProducts++;

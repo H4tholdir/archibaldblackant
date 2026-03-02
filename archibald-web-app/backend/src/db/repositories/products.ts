@@ -19,14 +19,29 @@ type ProductRow = {
   vat: number | null;
   vat_source: string | null;
   vat_updated_at: string | null;
-  image_url: string | null;
-  image_local_path: string | null;
-  image_downloaded_at: string | null;
-  deleted_at: string | null;
   hash: string;
   last_sync: number;
-  created_at: string | null;
-  updated_at: string | null;
+  figure: string | null;
+  bulk_article_id: string | null;
+  leg_package: string | null;
+  size: string | null;
+  configuration_id: string | null;
+  created_by: string | null;
+  created_date_field: string | null;
+  data_area_id: string | null;
+  default_qty: string | null;
+  display_product_number: string | null;
+  total_absolute_discount: string | null;
+  product_id_ext: string | null;
+  line_discount: string | null;
+  modified_by: string | null;
+  modified_datetime: string | null;
+  orderable_article: string | null;
+  stopped: string | null;
+  purch_price: string | null;
+  pcs_standard_configuration_id: string | null;
+  standard_qty: string | null;
+  unit_id: string | null;
 };
 
 type ProductUpsertInput = {
@@ -67,7 +82,12 @@ const PRODUCT_COLUMNS = `
   id, name, description, group_code, search_name, price_unit,
   product_group_id, product_group_description, package_content,
   min_qty, multiple_qty, max_qty, price, price_source, price_updated_at,
-  vat, vat_source, vat_updated_at, hash, last_sync
+  vat, vat_source, vat_updated_at, hash, last_sync,
+  figure, bulk_article_id, leg_package, size,
+  configuration_id, created_by, created_date_field, data_area_id,
+  default_qty, display_product_number, total_absolute_discount, product_id_ext,
+  line_discount, modified_by, modified_datetime, orderable_article,
+  stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id
 `;
 
 type ProductFilters = {
