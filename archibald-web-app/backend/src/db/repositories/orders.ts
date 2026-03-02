@@ -1040,7 +1040,7 @@ async function getOrderHistoryByCustomer(
        WHERE name = a.article_code AND deleted_at IS NULL AND vat IS NOT NULL
        LIMIT 1
      ) p ON TRUE
-     WHERE o.user_id = $1 AND o.customer_name = $2
+     WHERE o.user_id = $1 AND LOWER(o.customer_name) = LOWER($2)
        AND o.gross_amount NOT LIKE '-%'
        AND NOT EXISTS (
          SELECT 1 FROM agents.order_records cn

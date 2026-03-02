@@ -243,7 +243,10 @@ async function getCustomers(
            OR fiscal_code ILIKE $2
            OR street ILIKE $2
            OR postal_code ILIKE $2)
-       ORDER BY name ASC
+       ORDER BY
+         CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
+         CASE WHEN last_order_date > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END,
+         name ASC
        LIMIT 100`,
       [userId, pattern],
     );
