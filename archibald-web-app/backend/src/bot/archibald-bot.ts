@@ -2793,10 +2793,15 @@ export class ArchibaldBot {
               logger.info("✅ Navigated to orders list via direct URL");
               return;
             } catch (error) {
+              const currentUrl = this.page!.url();
+              const title = await this.page!.title().catch(() => "unknown");
               logger.warn(
                 "Direct navigation to orders list failed, falling back to menu",
                 {
                   error: error instanceof Error ? error.message : String(error),
+                  currentUrl,
+                  pageTitle: title,
+                  isLoginPage: currentUrl.includes("Login.aspx"),
                 },
               );
             }
