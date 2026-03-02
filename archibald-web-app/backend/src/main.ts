@@ -220,7 +220,8 @@ async function bootstrap(): Promise<void> {
 
   const pdfStore = {
     save: (buffer: Buffer, originalName: string, _req: unknown) => {
-      const id = `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const sanitizedName = originalName.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const id = `${Date.now()}_${sanitizedName}`;
       const pdfFile = `${id}.pdf`;
       fs.writeFileSync(path.join(PDF_DIR, pdfFile), buffer);
       fs.writeFileSync(path.join(PDF_DIR, `${id}.json`), JSON.stringify({
