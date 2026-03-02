@@ -72,6 +72,12 @@ function createOperationProcessor(deps: ProcessorDeps) {
         }
         await new Promise((resolve) => setTimeout(resolve, PREEMPTION_WAIT_MS));
         acquireResult = agentLock.acquire(userId, job.id, type);
+
+        // Force-release the sync lock if it didn't stop gracefully
+        if (!acquireResult.acquired) {
+          agentLock.release(userId);
+          acquireResult = agentLock.acquire(userId, job.id, type);
+        }
       }
 
       if (!acquireResult.acquired) {
