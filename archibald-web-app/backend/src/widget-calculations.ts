@@ -5,7 +5,7 @@ import {
   buildSameMonthLastYearComparison,
   buildYearlyProgressComparison,
   generateMonthlySparkline,
-  calculatePreviousMonthRevenue,
+  calculateSamePeriodPreviousMonthRevenue,
   calculateSameMonthLastYearRevenue,
   buildComparison,
   type TemporalComparison,
@@ -431,12 +431,12 @@ export async function calculateForecast(
   const requiredDailyRevenue =
     workingDaysRemaining > 0 ? missingToTarget / workingDaysRemaining : 0;
 
-  const previousMonthRevenue = await calculatePreviousMonthRevenue(pool, userId);
+  const samePeriodPrevMonthRevenue = await calculateSamePeriodPreviousMonthRevenue(pool, userId);
   const sameMonthLastYearRevenue = await calculateSameMonthLastYearRevenue(pool, userId);
 
   const comparisonPreviousMonth = buildComparison(
     projectedMonthRevenue,
-    previousMonthRevenue,
+    samePeriodPrevMonthRevenue,
     "vs Stesso Periodo Mese Scorso",
   );
   const comparisonSameMonthLastYear = buildComparison(

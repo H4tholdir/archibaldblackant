@@ -408,12 +408,31 @@ export function buildComparison(
   };
 }
 
+export async function calculateSamePeriodPreviousMonthRevenue(
+  pool: DbPool,
+  userId: string,
+  excludeFromMonthly = true,
+): Promise<number> {
+  const now = new Date();
+  const currentDay = now.getDate();
+  const prevMonth = now.getMonth() - 1;
+  const year = prevMonth < 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const month = prevMonth < 0 ? 11 : prevMonth;
+
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month, currentDay, 23, 59, 59);
+
+  return calculateRevenueInRange(pool, userId, start, end, {
+    excludeFromMonthly,
+  });
+}
+
 export async function buildPreviousMonthComparison(
   pool: DbPool,
   userId: string,
   currentValue: number,
 ): Promise<TemporalComparison> {
-  const previousValue = await calculatePreviousMonthRevenue(pool, userId);
+  const previousValue = await calculateSamePeriodPreviousMonthRevenue(pool, userId);
   return buildComparison(
     currentValue,
     previousValue,

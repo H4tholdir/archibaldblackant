@@ -291,47 +291,60 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           )}
 
           {/* vs Obiettivo Annuo */}
-          {data.comparisonYearlyProgress && (
-            <div
-              className="comparison-card comparison-card-yearly"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "14px 20px",
-                backgroundColor: colors.cardBg,
-                borderRadius: "12px",
-                backdropFilter: "blur(10px)",
-                border: `2px solid ${colors.accentColor}50`,
-                animation: "slideIn 0.6s ease-out 0.6s both",
-                boxShadow: `0 4px 12px ${colors.accentColor}30`,
-              }}
-            >
-              <span style={{ fontSize: "24px" }}>🎯</span>
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "clamp(14px, 2.5vw, 16px)",
-                    opacity: 0.95,
-                    fontWeight: "500",
-                  }}
-                >
-                  vs Obiettivo Annuo:
-                </div>
-                <div
-                  style={{
-                    fontSize: "clamp(16px, 3vw, 18px)",
-                    fontWeight: "700",
-                    marginTop: "4px",
-                  }}
-                >
-                  {formatCurrency(data.comparisonYearlyProgress.currentValue)} (
-                  {data.comparisonYearlyProgress.percentageDelta.toFixed(0)}%)
-                  ⚡
+          {data.comparisonYearlyProgress && (() => {
+            const yearlyTargetReached = data.comparisonYearlyProgress.percentageDelta >= 100;
+            return (
+              <div
+                className="comparison-card comparison-card-yearly"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "14px 20px",
+                  backgroundColor: yearlyTargetReached
+                    ? "rgba(255, 215, 0, 0.25)"
+                    : colors.cardBg,
+                  borderRadius: "12px",
+                  backdropFilter: "blur(10px)",
+                  border: yearlyTargetReached
+                    ? "2px solid #ffd700"
+                    : `2px solid ${colors.accentColor}50`,
+                  animation: yearlyTargetReached
+                    ? "slideIn 0.6s ease-out 0.6s both, yearlyGlow 2.5s ease-in-out infinite 1.2s"
+                    : "slideIn 0.6s ease-out 0.6s both, yearlyPulse 3s ease-in-out infinite 1.2s",
+                  boxShadow: yearlyTargetReached
+                    ? "0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.2)"
+                    : `0 4px 12px ${colors.accentColor}30`,
+                }}
+              >
+                <span style={{ fontSize: "24px" }}>{yearlyTargetReached ? "🏆" : "🎯"}</span>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: "clamp(14px, 2.5vw, 16px)",
+                      opacity: 0.95,
+                      fontWeight: yearlyTargetReached ? "700" : "500",
+                      color: yearlyTargetReached ? "#ffd700" : undefined,
+                    }}
+                  >
+                    vs Obiettivo Annuo:
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "clamp(16px, 3vw, 18px)",
+                      fontWeight: "700",
+                      marginTop: "4px",
+                      color: yearlyTargetReached ? "#ffd700" : undefined,
+                    }}
+                  >
+                    {formatCurrency(data.comparisonYearlyProgress.currentValue)} (
+                    {data.comparisonYearlyProgress.percentageDelta.toFixed(0)}%)
+                    {yearlyTargetReached ? "🏅" : "⚡"}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
@@ -365,6 +378,28 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           }
           50% {
             filter: drop-shadow(0 0 20px rgba(39,174,96,0.9));
+          }
+        }
+
+        @keyframes yearlyPulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.92;
+            transform: scale(1.01);
+          }
+        }
+
+        @keyframes yearlyGlow {
+          0%, 100% {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4), 0 0 30px rgba(255, 215, 0, 0.15);
+            border-color: #ffd700;
+          }
+          50% {
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.7), 0 0 50px rgba(255, 215, 0, 0.3);
+            border-color: #ffaa00;
           }
         }
 

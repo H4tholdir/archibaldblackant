@@ -159,11 +159,11 @@ export function GaugeChart({
             y1={center}
             x2={center}
             y2={center - radius + thickness / 2}
-            stroke={color}
+            stroke="#1a1a1a"
             strokeWidth="4"
             strokeLinecap="round"
           />
-          <circle cx={center} cy={center} r="8" fill={color} />
+          <circle cx={center} cy={center} r="8" fill="#1a1a1a" />
           <circle cx={center} cy={center} r="4" fill="#fff" />
         </g>
       </svg>
