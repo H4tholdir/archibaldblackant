@@ -82,10 +82,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
     lockAcquired = true;
 
-    let context: BrowserContext | null = null;
     try {
-      context = await browserPool.acquireContext(userId, { fromQueue: true });
-
       broadcast(userId, {
         event: 'JOB_STARTED',
         jobId: job.id,
@@ -103,10 +100,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
         });
       };
 
-      const result = await handler(context, data, userId, onProgress);
-
-      await browserPool.releaseContext(userId, context, true);
-      context = null;
+      const result = await handler(null, data, userId, onProgress);
 
       broadcast(userId, {
         event: 'JOB_COMPLETED',
@@ -122,9 +116,8 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       return { success: true, data: result, duration: Date.now() - startTime };
     } catch (error) {
-      if (context) {
-        await browserPool.releaseContext(userId, context, false);
-      }
+      // Invalidate browser context on failure so next operation gets a fresh session
+      await browserPool.releaseContext(userId, null as unknown as BrowserContext, false).catch(() => {});
 
       broadcast(userId, {
         event: 'JOB_FAILED',

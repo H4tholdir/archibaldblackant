@@ -97,17 +97,16 @@ describe('createOperationProcessor', () => {
     expect(agentLock.release).toHaveBeenCalledWith('user-a');
   });
 
-  test('acquires browser context and releases on success', async () => {
+  test('does not acquire browser context from processor (handlers manage their own)', async () => {
     const { processor, browserPool } = createProcessor();
     const job = createMockJob();
 
     await processor.processJob(job as any);
 
-    expect(browserPool.acquireContext).toHaveBeenCalledWith('user-a', { fromQueue: true });
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-a', { id: 'ctx-1' }, true);
+    expect(browserPool.acquireContext).not.toHaveBeenCalled();
   });
 
-  test('releases browser context with false on handler error', async () => {
+  test('invalidates browser context on handler error', async () => {
     const failingHandler = vi.fn().mockRejectedValue(new Error('oops'));
     const { processor, browserPool } = createProcessor({
       handlers: { 'submit-order': failingHandler },
@@ -115,7 +114,7 @@ describe('createOperationProcessor', () => {
     const job = createMockJob();
 
     await expect(processor.processJob(job as any)).rejects.toThrow('oops');
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-a', { id: 'ctx-1' }, false);
+    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-a', null, false);
   });
 
   test('re-enqueues job with delay when agent is busy and not preemptable', async () => {
@@ -209,7 +208,7 @@ describe('createOperationProcessor', () => {
     await processor.processJob(job as any);
 
     expect(handler).toHaveBeenCalledWith(
-      { id: 'ctx-1' },
+      null,
       { orderId: '1' },
       'user-a',
       expect.any(Function),
