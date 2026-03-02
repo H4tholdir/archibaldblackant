@@ -9,10 +9,13 @@ import {
 import type { Order } from "../types/order";
 import { OrderCardNew } from "./OrderCardNew";
 
-const STACK_PEEK = 12;
+const STACK_OFFSET = 12;
+const STACK_GAP = 14;
+const CARD_RADIUS = 16;
+const CARD_SHADOW = "0 12px 32px rgba(0,0,0,0.2)";
+const EASE = "cubic-bezier(0.2, 0.9, 0.2, 1)";
 const SWIPE_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 0.5;
-const SNAP_BACK_CSS = "transform 0.35s cubic-bezier(0.2, 0.9, 0.2, 1)";
 const FLY_OUT_MS = 200;
 const MAX_ROTATION_DEG = 15;
 
@@ -108,6 +111,12 @@ function OrderCardStack({
       : 0;
 
   const accentColor = source === "auto-nc" ? "#e65100" : "#1565c0";
+  const bannerGradient =
+    source === "auto-nc"
+      ? "linear-gradient(135deg, #e65100, #ff6d00)"
+      : "linear-gradient(135deg, #1565c0, #1976d2)";
+  const expandedBg = source === "auto-nc" ? "#fff3e0" : "#e3f2fd";
+  const expandedBorder = source === "auto-nc" ? "#ffcc80" : "#90caf9";
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -165,7 +174,10 @@ function OrderCardStack({
 
       setTimeout(() => {
         if (direction > 0) {
-          setCardOrder((prev) => [prev[prev.length - 1], ...prev.slice(0, -1)]);
+          setCardOrder((prev) => [
+            prev[prev.length - 1],
+            ...prev.slice(0, -1),
+          ]);
         } else {
           setCardOrder((prev) => [...prev.slice(1), prev[0]]);
         }
@@ -181,7 +193,7 @@ function OrderCardStack({
 
   const snapBack = useCallback(() => {
     if (!topCardRef.current) return;
-    topCardRef.current.style.transition = SNAP_BACK_CSS;
+    topCardRef.current.style.transition = `transform 0.35s ${EASE}`;
     topCardRef.current.style.transform = "";
   }, []);
 
@@ -198,10 +210,15 @@ function OrderCardStack({
       const velocity = Math.abs(dx) / elapsed;
       const isHorizontal = Math.abs(dx) > Math.abs(dy);
 
-      const flickTriggered = velocity > VELOCITY_THRESHOLD && Math.abs(dx) > 10;
+      const flickTriggered =
+        velocity > VELOCITY_THRESHOLD && Math.abs(dx) > 10;
       const dragTriggered = Math.abs(dx) > SWIPE_THRESHOLD;
 
-      if ((flickTriggered || dragTriggered) && isHorizontal && orderedCards.length > 1) {
+      if (
+        (flickTriggered || dragTriggered) &&
+        isHorizontal &&
+        orderedCards.length > 1
+      ) {
         const direction: 1 | -1 = dx < 0 ? -1 : 1;
         shuffleInDirection(direction);
       } else if (!movedSignificantly.current) {
@@ -227,23 +244,35 @@ function OrderCardStack({
     return () => document.removeEventListener("keydown", handler);
   }, [expanded, close]);
 
-  const collapsedHeight = topCardHeight + (orders.length - 1) * STACK_PEEK;
+  const collapsedHeight = topCardHeight + (orders.length - 1) * STACK_OFFSET;
+  const dotsHeight = orders.length > 1 ? 28 : 0;
 
   if (expanded) {
-    const bannerGradient = source === "auto-nc"
-      ? "linear-gradient(135deg, #e65100, #ff6d00)"
-      : "linear-gradient(135deg, #1565c0, #1976d2)";
-    const bannerBaseColor = source === "auto-nc" ? "#e65100" : "#1565c0";
+    const bannerButtonStyle: React.CSSProperties = {
+      background: "rgba(255,255,255,0.2)",
+      border: "1px solid rgba(255,255,255,0.4)",
+      borderRadius: 20,
+      padding: "4px 14px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      color: "#fff",
+    };
 
     return (
-      <div style={{ marginBottom: 12 }}>
+      <div
+        style={{
+          marginBottom: 12,
+          transition: "all 0.3s ease",
+        }}
+      >
+        {/* Top banner */}
         <div
           style={{
             background: bannerGradient,
             color: "#fff",
             padding: "14px 18px",
-            borderRadius: 12,
-            marginBottom: 12,
+            borderRadius: `${CARD_RADIUS}px ${CARD_RADIUS}px 0 0`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -252,78 +281,79 @@ function OrderCardStack({
         >
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
-              {source === "auto-nc" ? "Nota di Credito" : reason || "Pila manuale"}
+              {source === "auto-nc"
+                ? "Nota di Credito"
+                : reason || "Pila manuale"}
             </div>
             <div style={{ fontSize: 12, opacity: 0.85 }}>
               {orders.length} ordini collegati
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={close} style={bannerButtonStyle}>
+              Richiudi pila
+            </button>
+            {onDissolve && (
+              <button
+                onClick={() => onDissolve(stackId)}
+                style={bannerButtonStyle}
+              >
+                Scollega pila
+              </button>
+            )}
             {onLabelChange && (
               <button
                 onClick={() => {
                   const newLabel = prompt("Etichetta pila:", reason ?? "");
                   if (newLabel !== null) onLabelChange(stackId, newLabel);
                 }}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  borderRadius: 20,
-                  padding: "4px 14px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  color: "#fff",
-                }}
+                style={bannerButtonStyle}
               >
                 Modifica
-              </button>
-            )}
-            {onDissolve && (
-              <button
-                onClick={() => onDissolve(stackId)}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  borderRadius: 20,
-                  padding: "4px 14px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  color: "#fff",
-                }}
-              >
-                Scollega pila
               </button>
             )}
           </div>
         </div>
 
+        {/* Expanded cards wrapper */}
         <div
           style={{
+            background: expandedBg,
+            border: `2px solid ${expandedBorder}`,
+            borderTop: "none",
+            borderBottom: "none",
+            padding: 12,
             display: "flex",
             flexDirection: "column",
-            gap: 12,
+            gap: STACK_GAP,
           }}
         >
           {orderedCards.map((order) => (
             <div key={order.id} style={{ position: "relative" }}>
-              <OrderCardNew
-                order={order}
-                expanded={expandedOrderId === order.id}
-                onToggle={() => onToggleOrder(order.id)}
-                onSendToVerona={onSendToVerona}
-                onEdit={onEdit}
-                onDeleteDone={onDeleteDone}
-                token={token}
-                searchQuery={searchQuery}
-                editing={editingOrderId === order.id}
-                onEditDone={onEditDone}
-                justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
-                noteSummary={noteSummaries?.[order.id]}
-                notePreviews={notePreviews?.[order.id]}
-                onNotesChanged={onNotesChanged}
-              />
+              <div
+                style={{
+                  borderRadius: CARD_RADIUS,
+                  boxShadow: CARD_SHADOW,
+                  overflow: "hidden",
+                }}
+              >
+                <OrderCardNew
+                  order={order}
+                  expanded={expandedOrderId === order.id}
+                  onToggle={() => onToggleOrder(order.id)}
+                  onSendToVerona={onSendToVerona}
+                  onEdit={onEdit}
+                  onDeleteDone={onDeleteDone}
+                  token={token}
+                  searchQuery={searchQuery}
+                  editing={editingOrderId === order.id}
+                  onEditDone={onEditDone}
+                  justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
+                  noteSummary={noteSummaries?.[order.id]}
+                  notePreviews={notePreviews?.[order.id]}
+                  onNotesChanged={onNotesChanged}
+                />
+              </div>
               {onUnstack && (
                 <button
                   onClick={(e) => {
@@ -352,46 +382,42 @@ function OrderCardStack({
           ))}
         </div>
 
+        {/* Bottom banner */}
         <div
           style={{
-            marginTop: 12,
-            textAlign: "center",
+            background: bannerGradient,
+            color: "#fff",
+            padding: "12px 18px",
+            borderRadius: `0 0 ${CARD_RADIUS}px ${CARD_RADIUS}px`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           }}
         >
           <button
             onClick={close}
             style={{
-              background: bannerBaseColor,
-              color: "#fff",
-              border: "none",
+              background: "rgba(255,255,255,0.2)",
+              border: "1px solid rgba(255,255,255,0.4)",
               borderRadius: 10,
-              padding: "12px 32px",
+              padding: "8px 28px",
               fontSize: 14,
               fontWeight: 700,
               cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              color: "#fff",
             }}
           >
-            {"\u25B2"} Richiudi pila
+            Richiudi pila
           </button>
         </div>
       </div>
     );
   }
 
-  const totalPeekHeight = (orders.length - 1) * STACK_PEEK;
-  const dotsHeight = orders.length > 1 ? 28 : 0;
-
   return (
-    <div
-      style={{
-        border: `2px solid ${source === "auto-nc" ? "#ffcc80" : "#90caf9"}`,
-        borderRadius: 14,
-        padding: 2,
-        background: source === "auto-nc" ? "#fff8f0" : "#f0f7ff",
-        marginBottom: 12,
-      }}
-    >
+    <div style={{ marginBottom: 12 }}>
+      {/* Collapsed stack container */}
       <div
         ref={containerRef}
         onPointerDown={handlePointerDown}
@@ -399,12 +425,13 @@ function OrderCardStack({
         onPointerUp={handlePointerUp}
         style={{
           position: "relative",
-          height: collapsedHeight + dotsHeight,
+          height: collapsedHeight,
           touchAction: "pan-y",
           cursor: "pointer",
           isolation: "isolate",
         }}
       >
+        {/* Badge: count + source type */}
         <div
           style={{
             position: "absolute",
@@ -425,126 +452,136 @@ function OrderCardStack({
           {orders.length} {source === "auto-nc" ? "NC" : "ordini"}
         </div>
 
-        <div
-          ref={topCardRef}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            zIndex: 100,
-            willChange: "transform",
-            userSelect: "none",
-          }}
-        >
-          <OrderCardNew
-            order={orderedCards[0]}
-            expanded={false}
-            onToggle={() => {}}
-            token={token}
-            searchQuery={searchQuery}
-            noteSummary={noteSummaries?.[orderedCards[0]?.id]}
-            notePreviews={notePreviews?.[orderedCards[0]?.id]}
-          />
+        {/* All cards rendered as full OrderCardNew, stacked via absolute positioning */}
+        {orderedCards.map((order, i) => {
+          const isTop = i === 0;
+          const behindCardTransform = `translateY(${i * STACK_OFFSET}px) scale(${1 - i * 0.02}) rotate(${i * -0.3}deg)`;
 
-          {orderedCards.length > 1 && dragProgress > 0 && (
+          if (isTop) {
+            return (
+              <div
+                key={order.id}
+                ref={topCardRef}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  zIndex: 100,
+                  willChange: "transform",
+                  userSelect: "none",
+                  borderRadius: CARD_RADIUS,
+                  boxShadow: CARD_SHADOW,
+                  overflow: "hidden",
+                  transition: isDragging
+                    ? "none"
+                    : `transform 0.45s ${EASE}`,
+                }}
+              >
+                <OrderCardNew
+                  order={order}
+                  expanded={false}
+                  onToggle={() => {}}
+                  token={token}
+                  searchQuery={searchQuery}
+                  noteSummary={noteSummaries?.[order.id]}
+                  notePreviews={notePreviews?.[order.id]}
+                />
+              </div>
+            );
+          }
+
+          const behindDragTransform =
+            i === 1 && dragProgress > 0
+              ? `translateY(${i * STACK_OFFSET * (1 - dragProgress)}px) scale(${1 - i * 0.02 + dragProgress * i * 0.02}) rotate(${i * -0.3 * (1 - dragProgress)}deg)`
+              : behindCardTransform;
+
+          return (
             <div
+              key={order.id}
               style={{
                 position: "absolute",
                 left: 0,
                 right: 0,
                 top: 0,
-                zIndex: -1,
-                opacity: dragProgress,
-                transform: `scale(${0.95 + dragProgress * 0.05})`,
-                transition: isDragging ? "none" : "opacity 0.2s ease, transform 0.2s ease",
+                zIndex: 100 - i,
                 pointerEvents: "none",
+                borderRadius: CARD_RADIUS,
+                boxShadow: CARD_SHADOW,
+                overflow: "hidden",
+                transform: behindDragTransform,
+                transition:
+                  isDragging && i === 1
+                    ? "none"
+                    : `transform 0.45s ${EASE}`,
+                willChange: "transform",
+                userSelect: "none",
               }}
             >
               <OrderCardNew
-                order={orderedCards[1]}
+                order={order}
                 expanded={false}
                 onToggle={() => {}}
                 token={token}
                 searchQuery={searchQuery}
-                noteSummary={noteSummaries?.[orderedCards[1]?.id]}
-                notePreviews={notePreviews?.[orderedCards[1]?.id]}
+                noteSummary={noteSummaries?.[order.id]}
+                notePreviews={notePreviews?.[order.id]}
               />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Dots below the stack */}
+      {orders.length > 1 && (
+        <div
+          style={{
+            height: dotsHeight,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              background: "rgba(0,0,0,0.08)",
+              borderRadius: 10,
+              padding: "3px 8px",
+            }}
+          >
+            {orders.map((o, i) => (
+              <div
+                key={o.id}
+                style={{
+                  width: i === activeIndex ? 8 : 5,
+                  height: i === activeIndex ? 8 : 5,
+                  borderRadius: "50%",
+                  backgroundColor:
+                    i === activeIndex ? accentColor : "rgba(0,0,0,0.2)",
+                  transition: "all 0.3s ease",
+                }}
+              />
+            ))}
+          </div>
+          {showSwipeHint && (
+            <div
+              style={{
+                fontSize: 10,
+                color: "#888",
+                transition: "opacity 1s ease",
+              }}
+            >
+              Scorri per vedere le altre schede
             </div>
           )}
         </div>
-
-        {orderedCards.slice(1).map((_, i) => (
-          <div
-            key={`peek-${i}`}
-            style={{
-              position: "absolute",
-              left: 8 + i * 4,
-              right: 8 + i * 4,
-              top: topCardHeight + i * STACK_PEEK,
-              height: STACK_PEEK,
-              background: source === "auto-nc" ? "#ffe0b2" : "#bbdefb",
-              borderRadius: "0 0 12px 12px",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-              zIndex: 99 - i,
-              pointerEvents: "none",
-            }}
-          />
-        ))}
-
-        {orders.length > 1 && (
-          <div
-            style={{
-              position: "absolute",
-              top: topCardHeight + totalPeekHeight + 4,
-              left: 0,
-              right: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 4,
-              pointerEvents: "none",
-              zIndex: 10,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                background: "rgba(0,0,0,0.15)",
-                borderRadius: 10,
-                padding: "3px 8px",
-              }}
-            >
-              {orders.map((o, i) => (
-                <div
-                  key={o.id}
-                  style={{
-                    width: i === activeIndex ? 8 : 5,
-                    height: i === activeIndex ? 8 : 5,
-                    borderRadius: "50%",
-                    backgroundColor:
-                      i === activeIndex ? accentColor : "rgba(0,0,0,0.2)",
-                    transition: "all 0.3s ease",
-                  }}
-                />
-              ))}
-            </div>
-            {showSwipeHint && (
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#888",
-                  transition: "opacity 1s ease",
-                }}
-              >
-                Scorri per vedere le altre schede
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
