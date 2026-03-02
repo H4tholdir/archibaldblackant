@@ -3515,7 +3515,11 @@ export function OrderCardNew({
         marginBottom: "12px",
         overflow: "hidden",
         transition: "box-shadow 0.2s",
-        ...(expanded ? { border: "2px solid #333", borderLeft: `4px solid ${orderStatusStyle.borderColor}` } : {}),
+        ...(expanded ? {
+          borderTop: "2px solid #333",
+          borderRight: "2px solid #333",
+          borderBottom: "2px solid #333",
+        } : {}),
       }}
     >
       {/* ===== COLLAPSED STATE ===== */}

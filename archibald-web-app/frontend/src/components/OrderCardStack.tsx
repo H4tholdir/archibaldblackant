@@ -12,7 +12,6 @@ import { OrderCardNew } from "./OrderCardNew";
 const STACK_OFFSET = 12;
 const STACK_GAP = 14;
 const CARD_RADIUS = 16;
-const CARD_SHADOW = "0 12px 32px rgba(0,0,0,0.2)";
 const EASE = "cubic-bezier(0.2, 0.9, 0.2, 1)";
 const SWIPE_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 0.5;
@@ -105,13 +104,6 @@ function OrderCardStack({
     }
   });
 
-  useEffect(() => {
-    if (expanded) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
-    }
-  }, [expanded]);
 
   const orderById = new Map(orders.map((o) => [o.id, o]));
   const orderedCards = cardOrder
@@ -123,13 +115,10 @@ function OrderCardStack({
       ? orders.findIndex((o) => o.id === orderedCards[0].id)
       : 0;
 
-  const accentColor = source === "auto-nc" ? "#e65100" : "#1565c0";
-  const bannerGradient =
-    source === "auto-nc"
-      ? "linear-gradient(135deg, #e65100, #ff6d00)"
-      : "linear-gradient(135deg, #1565c0, #1976d2)";
-  const expandedBg = source === "auto-nc" ? "#fff3e0" : "#e3f2fd";
-  const expandedBorder = source === "auto-nc" ? "#ffcc80" : "#90caf9";
+  const accentColor = "#e65100";
+  const bannerGradient = "linear-gradient(135deg, #e65100, #ff6d00)";
+  const expandedBg = "#fff3e0";
+  const expandedBorder = "#ffcc80";
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -186,14 +175,7 @@ function OrderCardStack({
       card.style.transform = `translateX(${exitX}px) rotate(${exitRotation}deg)`;
 
       setTimeout(() => {
-        if (direction > 0) {
-          setCardOrder((prev) => [
-            prev[prev.length - 1],
-            ...prev.slice(0, -1),
-          ]);
-        } else {
-          setCardOrder((prev) => [...prev.slice(1), prev[0]]);
-        }
+        setCardOrder((prev) => [...prev.slice(1), prev[0]]);
         if (topCardRef.current) {
           topCardRef.current.style.transition = "none";
           topCardRef.current.style.transform = "";
@@ -284,7 +266,7 @@ function OrderCardStack({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgba(0,0,0,0.5)",
             zIndex: 50,
           }}
           onClick={close}
@@ -373,7 +355,6 @@ function OrderCardStack({
                 <div
                   style={{
                     borderRadius: CARD_RADIUS,
-                    boxShadow: CARD_SHADOW,
                   }}
                 >
                   <OrderCardNew
@@ -511,7 +492,6 @@ function OrderCardStack({
                   willChange: "transform",
                   userSelect: "none",
                   borderRadius: CARD_RADIUS,
-                  boxShadow: CARD_SHADOW,
                   transition: isDragging
                     ? "none"
                     : `transform 0.45s ${EASE}`,
