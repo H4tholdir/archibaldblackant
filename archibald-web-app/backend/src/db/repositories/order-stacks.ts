@@ -128,12 +128,37 @@ async function removeMember(
   });
 }
 
+async function reorderMembers(
+  pool: DbPool,
+  userId: string,
+  stackId: string,
+  orderIds: string[],
+): Promise<boolean> {
+  return pool.withTransaction(async (tx) => {
+    const { rows: [stack] } = await tx.query<{ id: number }>(
+      `SELECT id FROM agents.order_stacks WHERE user_id = $1 AND stack_id = $2`,
+      [userId, stackId],
+    );
+    if (!stack) return false;
+
+    for (let i = 0; i < orderIds.length; i++) {
+      await tx.query(
+        `UPDATE agents.order_stack_members SET position = $1 WHERE stack_id = $2 AND order_id = $3`,
+        [i, stack.id, orderIds[i]],
+      );
+    }
+
+    return true;
+  });
+}
+
 export {
   getStacks,
   createStack,
   dissolveStack,
   updateReason,
   removeMember,
+  reorderMembers,
   mapRowToStack,
   type OrderStack,
   type OrderStackRow,

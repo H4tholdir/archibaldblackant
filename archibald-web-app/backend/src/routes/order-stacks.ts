@@ -10,6 +10,7 @@ type OrderStacksRouterDeps = {
   dissolveStack: (userId: string, stackId: string) => Promise<boolean>;
   updateReason: (userId: string, stackId: string, reason: string) => Promise<boolean>;
   removeMember: (userId: string, stackId: string, orderId: string) => Promise<boolean>;
+  reorderMembers: (userId: string, stackId: string, orderIds: string[]) => Promise<boolean>;
 };
 
 const createStackSchema = z.object({
@@ -21,8 +22,12 @@ const updateReasonSchema = z.object({
   reason: z.string(),
 });
 
+const reorderSchema = z.object({
+  orderIds: z.array(z.string().min(1)).min(1),
+});
+
 function createOrderStacksRouter(deps: OrderStacksRouterDeps) {
-  const { getStacks, createStack, dissolveStack, updateReason, removeMember } = deps;
+  const { getStacks, createStack, dissolveStack, updateReason, removeMember, reorderMembers } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -74,6 +79,20 @@ function createOrderStacksRouter(deps: OrderStacksRouterDeps) {
     } catch (error) {
       logger.error('Error dissolving order stack', { error });
       res.status(500).json({ success: false, error: 'Errore nella dissoluzione stack ordini' });
+    }
+  });
+
+  router.patch('/:stackId/order', async (req: AuthRequest, res) => {
+    const parsed = reorderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues });
+    }
+    try {
+      const ok = await reorderMembers(req.user!.userId, req.params.stackId, parsed.data.orderIds);
+      res.json({ success: true, updated: ok });
+    } catch (error) {
+      logger.error('Error reordering stack members', { error });
+      res.status(500).json({ success: false, error: 'Errore nel riordinamento stack' });
     }
   });
 

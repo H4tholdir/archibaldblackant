@@ -45,4 +45,13 @@ async function updateOrderStackReason(stackId: string, reason: string): Promise<
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
-export { getOrderStacks, createOrderStack, dissolveOrderStack, removeFromOrderStack, updateOrderStackReason, type OrderStackResponse };
+async function reorderOrderStack(stackId: string, orderIds: string[]): Promise<void> {
+  const res = await fetchWithRetry(`/api/order-stacks/${stackId}/order`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export { getOrderStacks, createOrderStack, dissolveOrderStack, removeFromOrderStack, updateOrderStackReason, reorderOrderStack, type OrderStackResponse };

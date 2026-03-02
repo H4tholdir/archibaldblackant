@@ -188,7 +188,7 @@ export function OrderHistory() {
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { stackMap, orderIndex, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel } = useOrderStacks(orders);
+  const { stackMap, orderIndex, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel, reorderStack } = useOrderStacks(orders);
   const { hiddenOrderIds, hideOrder: handleHideOrder, unhideOrder: handleUnhideOrder } = useHiddenOrders();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -826,7 +826,7 @@ export function OrderHistory() {
     }
 
     return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
-  }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch]);
+  }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch, orderIndex]);
 
   const hasActiveFilters =
     selectedCustomer !== null ||
@@ -1953,6 +1953,7 @@ export function OrderHistory() {
                               onDissolve={handleDissolveStack}
                               onLabelChange={stack.source === "manual" ? updateLabel : undefined}
                               onStackClose={() => setExpandedOrderId(null)}
+                              onReorder={stack.source === "manual" ? reorderStack : undefined}
                               reason={stack.reason}
                               noteSummaries={noteSummaries}
                               notePreviews={notePreviews}

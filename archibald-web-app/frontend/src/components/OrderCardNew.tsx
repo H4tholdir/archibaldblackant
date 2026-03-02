@@ -3576,35 +3576,6 @@ export function OrderCardNew({
                 <HighlightText text={order.customerName} query={searchQuery} />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                {(onHide || onUnhide) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isHidden) {
-                        onUnhide?.(order.id);
-                      } else {
-                        onHide?.(order.id);
-                      }
-                    }}
-                    title={isHidden ? "Mostra ordine" : "Nascondi ordine"}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "50%",
-                      border: "1px solid #ddd",
-                      background: isHidden ? "#e0e0e0" : "rgba(255,255,255,0.8)",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      padding: 0,
-                      color: "#888",
-                    }}
-                  >
-                    {isHidden ? "\ud83d\udc41\ufe0f" : "\ud83d\udeab"}
-                  </button>
-                )}
                 <span
                   style={{
                     display: "inline-flex",
@@ -3619,6 +3590,32 @@ export function OrderCardNew({
                 >
                   {orderStatusStyle.label}
                 </span>
+                {expanded && (onHide || onUnhide) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isHidden) {
+                        onUnhide?.(order.id);
+                      } else {
+                        onHide?.(order.id);
+                      }
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 10px",
+                      borderRadius: "12px",
+                      border: "1px solid #ddd",
+                      background: isHidden ? "#e0e0e0" : "rgba(255,255,255,0.8)",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "#888",
+                    }}
+                  >
+                    {isHidden ? "Mostra" : "Nascondi"}
+                  </button>
+                )}
               </div>
             </div>
 

@@ -13,6 +13,7 @@ import {
   dissolveOrderStack,
   removeFromOrderStack,
   updateOrderStackReason,
+  reorderOrderStack,
 } from "../api/order-stacks";
 
 function useOrderStacks(orders: Order[]) {
@@ -132,6 +133,17 @@ function useOrderStacks(orders: Order[]) {
     [refreshStacks],
   );
 
+  const reorderStack = useCallback(
+    async (stackId: string, orderIds: string[]) => {
+      try {
+        await reorderOrderStack(stackId, orderIds);
+      } catch (err) {
+        console.error("Failed to reorder stack:", err);
+      }
+    },
+    [],
+  );
+
   return {
     stackMap,
     orderIndex,
@@ -140,6 +152,7 @@ function useOrderStacks(orders: Order[]) {
     removeFromStack,
     dissolveStack,
     updateLabel,
+    reorderStack,
   } as const;
 }
 

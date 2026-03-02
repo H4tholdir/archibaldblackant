@@ -36,6 +36,7 @@ type OrderCardStackProps = {
   onDissolve?: (stackId: string) => void;
   onLabelChange?: (stackId: string, newLabel: string) => void;
   onStackClose?: () => void;
+  onReorder?: (stackId: string, orderIds: string[]) => void;
   reason?: string;
   noteSummaries?: Record<string, { total: number; checked: number }>;
   notePreviews?: Record<string, Array<{ text: string; checked: boolean }>>;
@@ -60,6 +61,7 @@ function OrderCardStack({
   onDissolve,
   onLabelChange,
   onStackClose,
+  onReorder,
   reason,
   noteSummaries,
   notePreviews,
@@ -177,7 +179,11 @@ function OrderCardStack({
       card.style.transform = `translateX(${exitX}px) rotate(${exitRotation}deg)`;
 
       setTimeout(() => {
-        setCardOrder((prev) => [...prev.slice(1), prev[0]]);
+        setCardOrder((prev) => {
+          const newOrder = [...prev.slice(1), prev[0]];
+          onReorder?.(stackId, newOrder);
+          return newOrder;
+        });
         if (topCardRef.current) {
           topCardRef.current.style.transition = "none";
           topCardRef.current.style.transform = "";
@@ -185,7 +191,7 @@ function OrderCardStack({
         isAnimating.current = false;
       }, FLY_OUT_MS);
     },
-    [orderedCards.length],
+    [orderedCards.length, onReorder, stackId],
   );
 
   const snapBack = useCallback(() => {

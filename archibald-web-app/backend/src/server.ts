@@ -772,6 +772,7 @@ function createApp(deps: AppDeps): Express {
     dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
     updateReason: (userId, stackId, reason) => orderStacksRepo.updateReason(pool, userId, stackId, reason),
     removeMember: (userId, stackId, orderId) => orderStacksRepo.removeMember(pool, userId, stackId, orderId),
+    reorderMembers: (userId, stackId, orderIds) => orderStacksRepo.reorderMembers(pool, userId, stackId, orderIds),
   }));
 
   app.use('/api/hidden-orders', authenticateJWT, createHiddenOrdersRouter({
