@@ -367,6 +367,7 @@ async function batchMarkSold(
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET sold_in_order = $1,
+         reserved_for_order = NULL,
          customer_name = COALESCE($3, customer_name),
          sub_client_name = COALESCE($4, sub_client_name),
          order_date = COALESCE($5, order_date),

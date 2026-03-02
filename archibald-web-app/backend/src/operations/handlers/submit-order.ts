@@ -153,9 +153,9 @@ async function handleSubmitOrder(
     const articlePlaceholders: string[] = [];
 
     for (let i = 0; i < data.items.length; i++) {
-      const base = i * 10;
+      const base = i * 11;
       articlePlaceholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10})`,
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11})`,
       );
       const item = data.items[i];
       const lineAmount = item.price * item.quantity * (1 - (item.discount || 0) / 100);
@@ -169,6 +169,7 @@ async function handleSubmitOrder(
         item.discount ?? null,
         lineAmount,
         item.warehouseQuantity ?? 0,
+        item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
         now,
       );
     }
@@ -177,7 +178,7 @@ async function handleSubmitOrder(
       await tx.query(
         `INSERT INTO agents.order_articles (
           order_id, user_id, article_code, article_description, quantity,
-          unit_price, discount_percent, line_amount, warehouse_quantity, created_at
+          unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at
         ) VALUES ${articlePlaceholders.join(', ')}`,
         articleValues,
       );
