@@ -658,13 +658,26 @@ export function OrderHistory() {
     setExpandedOrderId(orderId);
   };
 
-  function handleLongPressStart(orderId: string) {
+  function handleLongPressStart(orderId: string, e: React.PointerEvent) {
+    const startX = e.clientX;
+    const startY = e.clientY;
     longPressTimer.current = setTimeout(() => {
       setSelectionMode(true);
       setSelectedOrderIds(new Set([orderId]));
       justEnteredSelectionMode.current = true;
       setTimeout(() => { justEnteredSelectionMode.current = false; }, 300);
     }, 500);
+    const moveHandler = (me: PointerEvent) => {
+      if (Math.abs(me.clientX - startX) > 10 || Math.abs(me.clientY - startY) > 10) {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+        window.removeEventListener("pointermove", moveHandler);
+      }
+    };
+    window.addEventListener("pointermove", moveHandler);
+    const upHandler = () => {
+      window.removeEventListener("pointermove", moveHandler);
+    };
+    window.addEventListener("pointerup", upHandler, { once: true });
   }
 
   function handleLongPressEnd() {
@@ -1987,9 +2000,10 @@ export function OrderHistory() {
                                 }
                               : {}),
                           }}
-                          onPointerDown={!selectionMode ? () => handleLongPressStart(order.id) : undefined}
+                          onPointerDown={!selectionMode ? (e) => handleLongPressStart(order.id, e) : undefined}
                           onPointerUp={!selectionMode ? handleLongPressEnd : undefined}
                           onPointerLeave={!selectionMode ? handleLongPressEnd : undefined}
+                          onPointerCancel={!selectionMode ? handleLongPressEnd : undefined}
                           onClick={selectionMode ? (e) => { e.stopPropagation(); if (justEnteredSelectionMode.current) return; handleToggleSelection(order.id); } : undefined}
                         >
                           {selectionMode && (

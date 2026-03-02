@@ -83,8 +83,13 @@ function OrderCardStack({
   const isAnimating = useRef(false);
 
   useEffect(() => {
-    setCardOrder(orders.map((o) => o.id));
-  }, [orders]);
+    const newIds = orders.map((o) => o.id);
+    const currentIds = new Set(cardOrder);
+    const hasChanged = newIds.length !== cardOrder.length || newIds.some(id => !currentIds.has(id));
+    if (hasChanged) {
+      setCardOrder(newIds);
+    }
+  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (showSwipeHint && orders.length > 1) {
@@ -99,6 +104,14 @@ function OrderCardStack({
       setTopCardHeight(h);
     }
   });
+
+  useEffect(() => {
+    if (expanded) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [expanded]);
 
   const orderById = new Map(orders.map((o) => [o.id, o]));
   const orderedCards = cardOrder
@@ -264,153 +277,179 @@ function OrderCardStack({
         data-order-card
         style={{
           marginBottom: 12,
-          transition: "all 0.3s ease",
         }}
       >
-        {/* Top banner */}
+        {/* Backdrop overlay */}
         <div
           style={{
-            background: bannerGradient,
-            color: "#fff",
-            padding: "14px 18px",
-            borderRadius: `${CARD_RADIUS}px ${CARD_RADIUS}px 0 0`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            zIndex: 50,
           }}
-        >
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>
-              {source === "auto-nc"
-                ? "Nota di Credito"
-                : reason || "Pila manuale"}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.85 }}>
-              {orders.length} ordini collegati
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={close} style={bannerButtonStyle}>
-              Richiudi pila
-            </button>
-            {onDissolve && (
-              <button
-                onClick={() => onDissolve(stackId)}
-                style={bannerButtonStyle}
-              >
-                Scollega pila
-              </button>
-            )}
-            {onLabelChange && (
-              <button
-                onClick={() => {
-                  const newLabel = prompt("Etichetta pila:", reason ?? "");
-                  if (newLabel !== null) onLabelChange(stackId, newLabel);
-                }}
-                style={bannerButtonStyle}
-              >
-                Modifica
-              </button>
-            )}
-          </div>
-        </div>
+          onClick={close}
+        />
 
-        {/* Expanded cards wrapper */}
+        {/* Expanded content wrapper */}
         <div
           style={{
-            background: expandedBg,
-            border: `2px solid ${expandedBorder}`,
-            borderTop: "none",
-            borderBottom: "none",
-            padding: 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: STACK_GAP,
+            position: "relative",
+            zIndex: 51,
+            maxHeight: "80vh",
+            overflowY: "auto",
+            transition: "all 0.3s ease",
           }}
         >
-          {orderedCards.map((order) => (
-            <div key={order.id} style={{ position: "relative" }}>
-              <div
-                style={{
-                  borderRadius: CARD_RADIUS,
-                  boxShadow: CARD_SHADOW,
-                  overflow: "hidden",
-                }}
-              >
-                <OrderCardNew
-                  order={order}
-                  expanded={expandedOrderId === order.id}
-                  onToggle={() => onToggleOrder(order.id)}
-                  onSendToVerona={onSendToVerona}
-                  onEdit={onEdit}
-                  onDeleteDone={onDeleteDone}
-                  token={token}
-                  searchQuery={searchQuery}
-                  editing={editingOrderId === order.id}
-                  onEditDone={onEditDone}
-                  justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
-                  noteSummary={noteSummaries?.[order.id]}
-                  notePreviews={notePreviews?.[order.id]}
-                  onNotesChanged={onNotesChanged}
-                />
+          {/* Top banner */}
+          <div
+            style={{
+              background: bannerGradient,
+              color: "#fff",
+              padding: "14px 18px",
+              borderRadius: `${CARD_RADIUS}px ${CARD_RADIUS}px 0 0`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>
+                {source === "auto-nc"
+                  ? "Nota di Credito"
+                  : reason || "Pila manuale"}
               </div>
-              {onUnstack && (
+              <div style={{ fontSize: 12, opacity: 0.85 }}>
+                {orders.length} ordini collegati
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={close} style={bannerButtonStyle}>
+                Richiudi pila
+              </button>
+              {onDissolve && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUnstack(stackId, order.id);
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    background: "rgba(255,255,255,0.9)",
-                    border: "1px solid #ddd",
-                    borderRadius: 6,
-                    padding: "2px 8px",
-                    fontSize: 10,
-                    cursor: "pointer",
-                    color: "#888",
-                    zIndex: 10,
-                  }}
-                  title="Rimuovi da pila"
+                  onClick={() => onDissolve(stackId)}
+                  style={bannerButtonStyle}
                 >
-                  Scollega
+                  Scollega pila
+                </button>
+              )}
+              {onLabelChange && (
+                <button
+                  onClick={() => {
+                    const newLabel = prompt("Etichetta pila:", reason ?? "");
+                    if (newLabel !== null) onLabelChange(stackId, newLabel);
+                  }}
+                  style={bannerButtonStyle}
+                >
+                  Modifica
                 </button>
               )}
             </div>
-          ))}
-        </div>
+          </div>
 
-        {/* Bottom banner */}
-        <div
-          style={{
-            background: bannerGradient,
-            color: "#fff",
-            padding: "12px 18px",
-            borderRadius: `0 0 ${CARD_RADIUS}px ${CARD_RADIUS}px`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-          }}
-        >
-          <button
-            onClick={close}
+          {/* Expanded cards wrapper */}
+          <div
             style={{
-              background: "rgba(255,255,255,0.2)",
-              border: "1px solid rgba(255,255,255,0.4)",
-              borderRadius: 10,
-              padding: "8px 28px",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-              color: "#fff",
+              background: expandedBg,
+              border: `2px solid ${expandedBorder}`,
+              borderTop: "none",
+              borderBottom: "none",
+              padding: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: STACK_GAP,
             }}
           >
-            Richiudi pila
-          </button>
+            {orderedCards.map((order) => (
+              <div
+                key={order.id}
+                style={{
+                  position: "relative",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: CARD_RADIUS,
+                    boxShadow: CARD_SHADOW,
+                  }}
+                >
+                  <OrderCardNew
+                    order={order}
+                    expanded={expandedOrderId === order.id}
+                    onToggle={() => onToggleOrder(order.id)}
+                    onSendToVerona={onSendToVerona}
+                    onEdit={onEdit}
+                    onDeleteDone={onDeleteDone}
+                    token={token}
+                    searchQuery={searchQuery}
+                    editing={editingOrderId === order.id}
+                    onEditDone={onEditDone}
+                    justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
+                    noteSummary={noteSummaries?.[order.id]}
+                    notePreviews={notePreviews?.[order.id]}
+                    onNotesChanged={onNotesChanged}
+                  />
+                </div>
+                {onUnstack && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUnstack(stackId, order.id);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      background: "rgba(255,255,255,0.9)",
+                      border: "1px solid #ddd",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      fontSize: 10,
+                      cursor: "pointer",
+                      color: "#888",
+                      zIndex: 10,
+                    }}
+                    title="Rimuovi da pila"
+                  >
+                    Scollega
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom banner */}
+          <div
+            style={{
+              background: bannerGradient,
+              color: "#fff",
+              padding: "12px 18px",
+              borderRadius: `0 0 ${CARD_RADIUS}px ${CARD_RADIUS}px`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}
+          >
+            <button
+              onClick={close}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "1px solid rgba(255,255,255,0.4)",
+                borderRadius: 10,
+                padding: "8px 28px",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                color: "#fff",
+              }}
+            >
+              Richiudi pila
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -456,7 +495,7 @@ function OrderCardStack({
         {/* All cards rendered as full OrderCardNew, stacked via absolute positioning */}
         {orderedCards.map((order, i) => {
           const isTop = i === 0;
-          const behindCardTransform = `translateY(${i * STACK_OFFSET}px) scale(${1 - i * 0.02}) rotate(${i * -0.3}deg)`;
+          const behindCardTransform = `translateY(${i * STACK_OFFSET}px) scale(${1 - i * 0.02})`;
 
           if (isTop) {
             return (
@@ -473,7 +512,6 @@ function OrderCardStack({
                   userSelect: "none",
                   borderRadius: CARD_RADIUS,
                   boxShadow: CARD_SHADOW,
-                  overflow: "hidden",
                   transition: isDragging
                     ? "none"
                     : `transform 0.45s ${EASE}`,
@@ -494,7 +532,7 @@ function OrderCardStack({
 
           const behindDragTransform =
             i === 1 && dragProgress > 0
-              ? `translateY(${i * STACK_OFFSET * (1 - dragProgress)}px) scale(${1 - i * 0.02 + dragProgress * i * 0.02}) rotate(${i * -0.3 * (1 - dragProgress)}deg)`
+              ? `translateY(${i * STACK_OFFSET * (1 - dragProgress)}px) scale(${1 - i * 0.02 + dragProgress * i * 0.02})`
               : behindCardTransform;
 
           return (
@@ -508,8 +546,6 @@ function OrderCardStack({
                 zIndex: 100 - i,
                 pointerEvents: "none",
                 borderRadius: CARD_RADIUS,
-                boxShadow: CARD_SHADOW,
-                overflow: "hidden",
                 transform: behindDragTransform,
                 transition:
                   isDragging && i === 1

@@ -3602,7 +3602,7 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
-            {/* Total Amount + Lordo/Sconto inline */}
+            {/* Total Amount */}
             <div style={{ marginBottom: "4px" }}>
               <div
                 style={{
@@ -3621,20 +3621,6 @@ export function OrderCardNew({
                 >
                   <HighlightText text={order.total || ""} query={searchQuery} />
                 </span>
-                {order.grossAmount && (
-                  <span style={{ fontSize: "13px", color: "#666" }}>
-                    Lordo:{" "}
-                    <HighlightText
-                      text={order.grossAmount}
-                      query={searchQuery}
-                    />
-                  </span>
-                )}
-                {order.discountPercent && (
-                  <span style={{ fontSize: "13px", color: "#e65100" }}>
-                    Sconto: {order.discountPercent}
-                  </span>
-                )}
               </div>
               {!order.invoiceNumber &&
                 (() => {
