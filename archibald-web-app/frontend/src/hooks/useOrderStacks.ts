@@ -62,6 +62,14 @@ function useOrderStacks(orders: Order[]) {
     migrateAndLoad();
   }, [refreshStacks]);
 
+  const prevOrdersRef = useRef(orders);
+  useEffect(() => {
+    if (prevOrdersRef.current !== orders) {
+      prevOrdersRef.current = orders;
+      refreshStacks();
+    }
+  }, [orders, refreshStacks]);
+
   const { stackMap, orderIndex } = useMemo(
     () => buildStackMap(orders, manualStacks),
     [orders, manualStacks],

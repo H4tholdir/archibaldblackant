@@ -328,10 +328,15 @@ export function OrderHistory() {
     }
   }, [highlightedCustomerIndex]);
 
-  // Fetch orders
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  // Fetch orders — background=true skips loading spinner and preserves scroll
+  const fetchOrders = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background ?? false;
+    if (!background) {
+      setLoading(true);
+    }
     setError(null);
+
+    const scrollY = background ? window.scrollY : 0;
 
     try {
       const params = new URLSearchParams();
@@ -358,12 +363,20 @@ export function OrderHistory() {
       }
 
       setOrders(data.data.orders);
-      setBackorderDismissed(false);
+      if (!background) {
+        setBackorderDismissed(false);
+      }
+
+      if (background) {
+        requestAnimationFrame(() => window.scrollTo(0, scrollY));
+      }
     } catch (err) {
       console.error("Error fetching orders:", err);
       setError(err instanceof Error ? err.message : "Errore di rete. Riprova.");
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   }, [selectedCustomer, filters.dateFrom, filters.dateTo]);
 
@@ -372,10 +385,11 @@ export function OrderHistory() {
   }, [fetchOrders]);
 
   useEffect(() => {
+    const backgroundRefresh = () => { fetchOrders({ background: true }); };
     const unsubs = [
-      subscribe("JOB_COMPLETED", () => { fetchOrders(); }),
-      subscribe("ORDER_EDIT_COMPLETE", () => { fetchOrders(); }),
-      subscribe("ORDER_DELETE_COMPLETE", () => { fetchOrders(); }),
+      subscribe("JOB_COMPLETED", backgroundRefresh),
+      subscribe("ORDER_EDIT_COMPLETE", backgroundRefresh),
+      subscribe("ORDER_DELETE_COMPLETE", backgroundRefresh),
     ];
     return () => { unsubs.forEach((u) => u()); };
   }, [subscribe, fetchOrders]);
@@ -614,7 +628,7 @@ export function OrderHistory() {
       setModalOrderId(null);
       setModalCustomerName("");
 
-      await fetchOrders();
+      await fetchOrders({ background: true });
 
       toastService.success("Ordine inviato a Verona con successo!");
     } catch (err) {
@@ -1612,7 +1626,7 @@ export function OrderHistory() {
           </p>
           <div style={{ textAlign: "center" }}>
             <button
-              onClick={fetchOrders}
+              onClick={() => fetchOrders()}
               style={{
                 padding: "10px 20px",
                 fontSize: "14px",
@@ -1897,13 +1911,13 @@ export function OrderHistory() {
                               onToggleOrder={(id) => handleToggle(id)}
                               onSendToVerona={handleSendToVerona}
                               onEdit={handleEdit}
-                              onDeleteDone={fetchOrders}
+                              onDeleteDone={() => fetchOrders({ background: true })}
                               token={token}
                               searchQuery={debouncedSearch}
                               editingOrderId={editingOrderId}
                               onEditDone={() => {
                                 setEditingOrderId(null);
-                                fetchOrders();
+                                fetchOrders({ background: true });
                               }}
                               sentToVeronaIds={sentToVeronaIds}
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
@@ -2008,9 +2022,9 @@ export function OrderHistory() {
                               editing={editingOrderId === order.id}
                               onEditDone={() => {
                                 setEditingOrderId(null);
-                                fetchOrders();
+                                fetchOrders({ background: true });
                               }}
-                              onDeleteDone={fetchOrders}
+                              onDeleteDone={() => fetchOrders({ background: true })}
                               justSentToVerona={sentToVeronaIds.has(order.id)}
                               noteSummary={noteSummaries[order.id]}
                               notePreviews={notePreviews[order.id]}
