@@ -261,6 +261,7 @@ function OrderCardStack({
 
     return (
       <div
+        data-order-card
         style={{
           marginBottom: 12,
           transition: "all 0.3s ease",
@@ -416,7 +417,7 @@ function OrderCardStack({
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div data-order-card style={{ marginBottom: 12 }}>
       {/* Collapsed stack container */}
       <div
         ref={containerRef}

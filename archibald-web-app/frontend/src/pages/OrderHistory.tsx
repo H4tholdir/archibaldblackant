@@ -564,6 +564,15 @@ export function OrderHistory() {
     setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
   };
 
+  // Close expanded card when clicking outside
+  const handleBackgroundClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!expandedOrderId) return;
+    const target = e.target as HTMLElement;
+    // Only close if clicking directly on the background (not on a card)
+    if (target.closest('[data-order-card]')) return;
+    setExpandedOrderId(null);
+  }, [expandedOrderId]);
+
   // Clear all filters
   const handleClearFilters = () => {
     setFilters({
@@ -1792,7 +1801,7 @@ export function OrderHistory() {
 
       {/* Timeline content */}
       {!loading && !error && filteredOrders.length > 0 && (
-        <div>
+        <div onClick={handleBackgroundClick}>
           {/* Results summary */}
           <div
             style={{
@@ -1942,6 +1951,7 @@ export function OrderHistory() {
                         <div
                           key={order.id}
                           id={`order-${order.id}`}
+                          data-order-card
                           style={{
                             borderRadius: "12px",
                             transition: "box-shadow 0.5s ease, outline 0.5s ease, opacity 0.3s ease",
