@@ -44,6 +44,17 @@ function calculateAmounts(
   return { grossAmount, total };
 }
 
+const BOT_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
+  'navigation.ordini': { progress: 15, label: 'Navigazione lista ordini' },
+  'form.nuovo': { progress: 20, label: 'Apertura nuovo ordine' },
+  'form.customer': { progress: 25, label: 'Selezione cliente' },
+  'form.articles.start': { progress: 30, label: 'Inserimento articoli' },
+  'form.articles.progress': { progress: 40, label: 'Inserimento articoli' },
+  'form.discount': { progress: 50, label: 'Applicazione sconto' },
+  'form.save': { progress: 55, label: 'Salvataggio ordine' },
+  'form.confirm': { progress: 60, label: 'Conferma ordine' },
+};
+
 async function handleSubmitOrder(
   pool: DbPool,
   bot: SubmitOrderBot,
@@ -51,8 +62,11 @@ async function handleSubmitOrder(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ orderId: string }> {
-  bot.setProgressCallback(async (category, metadata) => {
-    onProgress(50, category);
+  bot.setProgressCallback(async (category) => {
+    const mapped = BOT_PROGRESS_MAP[category];
+    if (mapped) {
+      onProgress(mapped.progress, mapped.label);
+    }
   });
 
   onProgress(10, 'Creazione ordine su Archibald');

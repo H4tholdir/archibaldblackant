@@ -11,7 +11,7 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
-import { getProductVariants } from './db/repositories/products';
+import { getProductVariants, getAllProducts } from './db/repositories/products';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
@@ -329,12 +329,42 @@ async function bootstrap(): Promise<void> {
     sharedSyncMs: DEFAULT_SHARED_SYNC_MS,
   });
 
+  // In-memory product cache for bot variant lookups (refreshed periodically)
+  type CachedProduct = { id: string; name: string; packageContent?: string; multipleQty?: number };
+  let productCache: CachedProduct[] = [];
+  async function refreshProductCache(): Promise<void> {
+    const rows = await getAllProducts(pool);
+    productCache = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      packageContent: r.package_content ?? undefined,
+      multipleQty: r.multiple_qty ?? undefined,
+    }));
+    logger.info('Product cache refreshed', { count: productCache.length });
+  }
+  await refreshProductCache();
+  setInterval(() => { refreshProductCache().catch(e => logger.warn('Product cache refresh failed', { error: String(e) })); }, 10 * 60 * 1000);
+
+  const botProductDb = {
+    getProductById: (code: string) => productCache.find(p => p.id === code),
+    selectPackageVariant: (name: string, quantity: number) => {
+      const variants = productCache
+        .filter(p => p.name === name)
+        .sort((a, b) => (b.multipleQty ?? 1) - (a.multipleQty ?? 1));
+      if (variants.length === 0) return undefined;
+      if (variants.length === 1) return variants[0];
+      const valid = variants.filter(v => quantity % (v.multipleQty || 1) === 0);
+      return valid.length > 0 ? valid[0] : variants[variants.length - 1];
+    },
+  };
+
   function createBotForUser(userId: string): ArchibaldBot {
     return new ArchibaldBot(userId, {
       browserPool: {
         acquireContext: (uid) => browserPool.acquireContext(uid, { fromQueue: true }) as unknown as Promise<BrowserContext>,
         releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
       },
+      productDb: botProductDb,
       getUserById: (uid) => usersRepo.getUserById(pool, uid)
         .then(u => u ? { username: u.username } : null),
     });
