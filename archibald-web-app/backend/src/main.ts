@@ -329,42 +329,48 @@ async function bootstrap(): Promise<void> {
     sharedSyncMs: DEFAULT_SHARED_SYNC_MS,
   });
 
-  // In-memory product cache for bot variant lookups (refreshed periodically)
   type CachedProduct = { id: string; name: string; packageContent?: string; multipleQty?: number };
-  let productCache: CachedProduct[] = [];
-  async function refreshProductCache(): Promise<void> {
+
+  async function loadProductDb(): Promise<{
+    getProductById: (code: string) => CachedProduct | undefined;
+    selectPackageVariant: (name: string, quantity: number) => CachedProduct | undefined;
+  }> {
     const rows = await getAllProducts(pool);
-    productCache = rows.map(r => ({
+    const products = rows.map(r => ({
       id: r.id,
       name: r.name,
       packageContent: r.package_content ?? undefined,
       multipleQty: r.multiple_qty ?? undefined,
     }));
-    logger.info('Product cache refreshed', { count: productCache.length });
+    const byId = new Map(products.map(p => [p.id, p]));
+    const byName = new Map<string, CachedProduct[]>();
+    for (const p of products) {
+      const arr = byName.get(p.name) ?? [];
+      arr.push(p);
+      byName.set(p.name, arr);
+    }
+    for (const [, arr] of byName) {
+      arr.sort((a, b) => (b.multipleQty ?? 1) - (a.multipleQty ?? 1));
+    }
+    return {
+      getProductById: (code) => byId.get(code),
+      selectPackageVariant: (name, quantity) => {
+        const variants = byName.get(name);
+        if (!variants || variants.length === 0) return undefined;
+        if (variants.length === 1) return variants[0];
+        const valid = variants.filter(v => quantity % (v.multipleQty || 1) === 0);
+        return valid.length > 0 ? valid[0] : variants[variants.length - 1];
+      },
+    };
   }
-  await refreshProductCache();
-  setInterval(() => { refreshProductCache().catch(e => logger.warn('Product cache refresh failed', { error: String(e) })); }, 10 * 60 * 1000);
 
-  const botProductDb = {
-    getProductById: (code: string) => productCache.find(p => p.id === code),
-    selectPackageVariant: (name: string, quantity: number) => {
-      const variants = productCache
-        .filter(p => p.name === name)
-        .sort((a, b) => (b.multipleQty ?? 1) - (a.multipleQty ?? 1));
-      if (variants.length === 0) return undefined;
-      if (variants.length === 1) return variants[0];
-      const valid = variants.filter(v => quantity % (v.multipleQty || 1) === 0);
-      return valid.length > 0 ? valid[0] : variants[variants.length - 1];
-    },
-  };
-
-  function createBotForUser(userId: string): ArchibaldBot {
+  function createBotForUser(userId: string, productDb?: Awaited<ReturnType<typeof loadProductDb>>): ArchibaldBot {
     return new ArchibaldBot(userId, {
       browserPool: {
         acquireContext: (uid) => browserPool.acquireContext(uid, { fromQueue: true }) as unknown as Promise<BrowserContext>,
         releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
       },
-      productDb: botProductDb,
+      productDb,
       getUserById: (uid) => usersRepo.getUserById(pool, uid)
         .then(u => u ? { username: u.username } : null),
     });
@@ -383,14 +389,19 @@ async function bootstrap(): Promise<void> {
 
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
+      let bot: ArchibaldBot | null = null;
+      let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
       const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
+        if (!bot) {
+          const productDb = await loadProductDb();
+          bot = createBotForUser(userId, productDb);
+          await bot.initialize();
+          if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
+        }
       };
       return {
-        createOrder: async (data) => { await ensureInit(); return bot.createOrder(data); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        createOrder: async (data) => { await ensureInit(); return bot!.createOrder(data); },
+        setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
     }),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {
