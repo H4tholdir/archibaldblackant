@@ -30,6 +30,7 @@ interface OrderCardProps {
   onEditDone?: () => void;
   justSentToVerona?: boolean;
   noteSummary?: { total: number; checked: number };
+  notePreviews?: Array<{ text: string; checked: boolean }>;
   onNotesChanged?: () => void;
 }
 
@@ -3333,6 +3334,7 @@ export function OrderCardNew({
   onEditDone,
   justSentToVerona = false,
   noteSummary,
+  notePreviews,
   onNotesChanged,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
@@ -3590,23 +3592,6 @@ export function OrderCardNew({
                 </>
               ) : null}
               {formatDate(order.orderDate || order.date)}
-              {noteSummary && noteSummary.total > 0 && (
-                <span style={{
-                  marginLeft: '8px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '1px 7px',
-                  borderRadius: '8px',
-                  backgroundColor: noteSummary.checked === noteSummary.total ? '#e8f5e9' : '#fff3e0',
-                  color: noteSummary.checked === noteSummary.total ? '#2e7d32' : '#e65100',
-                }}>
-                  <span style={{ fontSize: '12px' }}>&#9745;</span>
-                  {noteSummary.checked}/{noteSummary.total}
-                </span>
-              )}
             </div>
 
             {/* Total Amount + Lordo/Sconto inline */}
@@ -4230,6 +4215,46 @@ export function OrderCardNew({
           </div>
         )}
 
+        {/* Notes preview in collapsed header */}
+        {!expanded && notePreviews && notePreviews.length > 0 && (
+          <div style={{
+            margin: '8px 0 4px',
+            padding: '8px 12px',
+            backgroundColor: '#fafafa',
+            borderRadius: '8px',
+            border: '1px solid #f0f0f0',
+          }}>
+            {notePreviews.map((note, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '6px',
+                fontSize: '12px',
+                lineHeight: '1.4',
+                padding: '2px 0',
+                color: note.checked ? '#999' : '#444',
+                textDecoration: note.checked ? 'line-through' : 'none',
+              }}>
+                <span style={{ fontSize: '13px', flexShrink: 0 }}>
+                  {note.checked ? '\u2611' : '\u2610'}
+                </span>
+                <span style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {note.text}
+                </span>
+              </div>
+            ))}
+            {noteSummary && noteSummary.total > 3 && (
+              <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
+                ...e altre {noteSummary.total - 3}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Expand/collapse icon */}
         <div
           style={{
@@ -4239,7 +4264,7 @@ export function OrderCardNew({
             color: "#999",
           }}
         >
-          {expanded ? "▲" : "▼"}
+          {expanded ? "\u25B2" : "\u25BC"}
         </div>
       </div>
 

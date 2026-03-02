@@ -10,7 +10,14 @@ type OrderNote = {
   updatedAt: number;
 };
 
+type NotePreview = { text: string; checked: boolean };
+
 type NoteSummary = Record<string, { total: number; checked: number }>;
+
+type NoteSummaryResponse = {
+  summary: NoteSummary;
+  previews: Record<string, NotePreview[]>;
+};
 
 async function getOrderNotes(orderId: string): Promise<OrderNote[]> {
   const res = await fetchWithRetry(`/api/order-notes/${orderId}/notes`);
@@ -18,14 +25,15 @@ async function getOrderNotes(orderId: string): Promise<OrderNote[]> {
   return (await res.json()).notes;
 }
 
-async function getNotesSummary(orderIds: string[]): Promise<NoteSummary> {
+async function getNotesSummary(orderIds: string[]): Promise<NoteSummaryResponse> {
   const res = await fetchWithRetry('/api/order-notes/notes-summary', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderIds }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()).summary;
+  const data = await res.json();
+  return { summary: data.summary, previews: data.previews || {} };
 }
 
 async function createOrderNote(orderId: string, text: string): Promise<OrderNote> {
@@ -54,4 +62,4 @@ async function deleteOrderNote(orderId: string, noteId: number): Promise<void> {
 }
 
 export { getOrderNotes, getNotesSummary, createOrderNote, updateOrderNote, deleteOrderNote };
-export type { OrderNote, NoteSummary };
+export type { OrderNote, NoteSummary, NotePreview, NoteSummaryResponse };

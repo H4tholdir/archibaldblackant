@@ -233,15 +233,17 @@ export function OrderHistory() {
   // Hide zero amount toggle
   const [hideZeroAmount, setHideZeroAmount] = useState(true);
 
-  // Note summaries for collapsed badges
+  // Note summaries and previews for collapsed badges
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
+  const [notePreviews, setNotePreviews] = useState<Record<string, Array<{ text: string; checked: boolean }>>>({});
 
   const refreshNoteSummaries = useCallback(async (orderList?: Order[]) => {
     const target = orderList ?? orders;
     if (target.length === 0) return;
     try {
-      const summary = await getNotesSummary(target.map(o => o.id));
+      const { summary, previews } = await getNotesSummary(target.map(o => o.id));
       setNoteSummaries(summary);
+      setNotePreviews(previews);
     } catch {
       // silent - badge is non-critical
     }
@@ -1873,6 +1875,7 @@ export function OrderHistory() {
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
                               onDissolve={stack.source === "manual" ? dissolveStack : undefined}
                               noteSummaries={noteSummaries}
+                              notePreviews={notePreviews}
                               onNotesChanged={() => refreshNoteSummaries()}
                             />
                           );
@@ -1954,6 +1957,7 @@ export function OrderHistory() {
                               onDeleteDone={fetchOrders}
                               justSentToVerona={sentToVeronaIds.has(order.id)}
                               noteSummary={noteSummaries[order.id]}
+                              notePreviews={notePreviews[order.id]}
                               onNotesChanged={() => refreshNoteSummaries()}
                             />
                           </div>

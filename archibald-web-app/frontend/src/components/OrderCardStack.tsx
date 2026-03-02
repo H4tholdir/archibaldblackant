@@ -35,6 +35,7 @@ type OrderCardStackProps = {
   onLabelChange?: (stackId: string, newLabel: string) => void;
   reason?: string;
   noteSummaries?: Record<string, { total: number; checked: number }>;
+  notePreviews?: Record<string, Array<{ text: string; checked: boolean }>>;
   onNotesChanged?: () => void;
 };
 
@@ -57,6 +58,7 @@ function OrderCardStack({
   onLabelChange,
   reason,
   noteSummaries,
+  notePreviews,
   onNotesChanged,
 }: OrderCardStackProps): ReactNode {
   const [expanded, setExpanded] = useState(false);
@@ -301,6 +303,7 @@ function OrderCardStack({
                 onEditDone={onEditDone}
                 justSentToVerona={sentToVeronaIds?.has(order.id) ?? false}
                 noteSummary={noteSummaries?.[order.id]}
+                notePreviews={notePreviews?.[order.id]}
                 onNotesChanged={onNotesChanged}
               />
               {onUnstack && (
@@ -411,6 +414,7 @@ function OrderCardStack({
           token={token}
           searchQuery={searchQuery}
           noteSummary={noteSummaries?.[orderedCards[0]?.id]}
+          notePreviews={notePreviews?.[orderedCards[0]?.id]}
         />
 
         {orders.length > 1 && (

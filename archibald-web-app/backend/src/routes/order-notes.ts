@@ -7,6 +7,7 @@ import { logger } from '../logger';
 type OrderNotesRouterDeps = {
   getNotes: (userId: string, orderId: string) => Promise<OrderNote[]>;
   getNotesSummary: (userId: string, orderIds: string[]) => Promise<Map<string, { total: number; checked: number }>>;
+  getNotesPreviews: (userId: string, orderIds: string[]) => Promise<Map<string, Array<{ text: string; checked: boolean }>>>;
   createNote: (userId: string, orderId: string, text: string) => Promise<OrderNote>;
   updateNote: (userId: string, noteId: number, updates: { text?: string; checked?: boolean }) => Promise<OrderNote | null>;
   deleteNote: (userId: string, noteId: number) => Promise<boolean>;
@@ -28,7 +29,7 @@ const notesSummarySchema = z.object({
 });
 
 function createOrderNotesRouter(deps: OrderNotesRouterDeps) {
-  const { getNotes, getNotesSummary, createNote, updateNote, deleteNote } = deps;
+  const { getNotes, getNotesSummary, getNotesPreviews, createNote, updateNote, deleteNote } = deps;
   const router = Router();
 
   router.get('/:orderId/notes', async (req: AuthRequest, res) => {
@@ -47,12 +48,21 @@ function createOrderNotesRouter(deps: OrderNotesRouterDeps) {
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
-      const summaryMap = await getNotesSummary(req.user!.userId, parsed.data.orderIds);
+      const userId = req.user!.userId;
+      const orderIds = parsed.data.orderIds;
+      const [summaryMap, previewsMap] = await Promise.all([
+        getNotesSummary(userId, orderIds),
+        getNotesPreviews(userId, orderIds),
+      ]);
       const summary: Record<string, { total: number; checked: number }> = {};
       for (const [orderId, counts] of summaryMap) {
         summary[orderId] = counts;
       }
-      res.json({ success: true, summary });
+      const previews: Record<string, Array<{ text: string; checked: boolean }>> = {};
+      for (const [orderId, items] of previewsMap) {
+        previews[orderId] = items;
+      }
+      res.json({ success: true, summary, previews });
     } catch (error) {
       logger.error('Error fetching notes summary', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero riepilogo note' });

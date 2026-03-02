@@ -27,6 +27,12 @@ type NoteSummaryRow = {
   checked: string;
 };
 
+type NotePreviewRow = {
+  order_id: string;
+  text: string;
+  checked: boolean;
+};
+
 function mapRowToNote(row: OrderNoteRow): OrderNote {
   return {
     id: row.id,
@@ -75,6 +81,33 @@ async function getNotesSummary(
     });
   }
   return result;
+}
+
+async function getNotesPreviews(
+  pool: DbPool,
+  userId: string,
+  orderIds: string[],
+): Promise<Map<string, Array<{ text: string; checked: boolean }>>> {
+  if (orderIds.length === 0) return new Map();
+
+  const { rows } = await pool.query<NotePreviewRow>(
+    `SELECT order_id, text, checked
+     FROM (
+       SELECT order_id, text, checked, position,
+              ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY checked ASC, position ASC) AS rn
+       FROM agents.order_notes
+       WHERE user_id = $1 AND order_id = ANY($2)
+     ) sub
+     WHERE rn <= 3`,
+    [userId, orderIds],
+  );
+
+  const map = new Map<string, Array<{ text: string; checked: boolean }>>();
+  for (const r of rows) {
+    if (!map.has(r.order_id)) map.set(r.order_id, []);
+    map.get(r.order_id)!.push({ text: r.text, checked: r.checked });
+  }
+  return map;
 }
 
 async function createNote(
@@ -142,6 +175,7 @@ async function deleteNote(pool: DbPool, userId: string, noteId: number): Promise
 export {
   getNotes,
   getNotesSummary,
+  getNotesPreviews,
   createNote,
   updateNote,
   deleteNote,
@@ -149,4 +183,5 @@ export {
   type OrderNote,
   type OrderNoteRow,
   type NoteSummaryRow,
+  type NotePreviewRow,
 };

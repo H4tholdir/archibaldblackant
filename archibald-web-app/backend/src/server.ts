@@ -774,6 +774,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/order-notes', authenticateJWT, createOrderNotesRouter({
     getNotes: (userId, orderId) => orderNotesRepo.getNotes(pool, userId, orderId),
     getNotesSummary: (userId, orderIds) => orderNotesRepo.getNotesSummary(pool, userId, orderIds),
+    getNotesPreviews: (userId, orderIds) => orderNotesRepo.getNotesPreviews(pool, userId, orderIds),
     createNote: (userId, orderId, text) => orderNotesRepo.createNote(pool, userId, orderId, text),
     updateNote: (userId, noteId, updates) => orderNotesRepo.updateNote(pool, userId, noteId, updates),
     deleteNote: (userId, noteId) => orderNotesRepo.deleteNote(pool, userId, noteId),
