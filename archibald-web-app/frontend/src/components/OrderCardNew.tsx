@@ -4281,7 +4281,8 @@ export function OrderCardNew({
               paddingRight: "12px",
               paddingTop: "8px",
               backgroundColor: "transparent",
-              overflowX: "auto",
+              overflowX: "hidden",
+              flexWrap: "wrap",
             }}
           >
             {tabs.map((tab) => {
