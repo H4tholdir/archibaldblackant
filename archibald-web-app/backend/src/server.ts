@@ -672,19 +672,28 @@ function createApp(deps: AppDeps): Express {
     getAllJobs: async (limit, status) => {
       const states = status ? [status] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
       const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
+      const userCache = new Map<string, string>();
       const result = [];
       for (const job of jobs) {
         const state = await job.getState();
+        const userId = job.data.userId;
+        if (!userCache.has(userId)) {
+          const user = await usersRepo.getUserById(pool, userId);
+          userCache.set(userId, user?.username ?? userId);
+        }
         result.push({
           jobId: job.id!,
           type: job.data.type,
-          userId: job.data.userId,
-          state,
-          progress: typeof job.progress === 'number' ? job.progress : 0,
+          status: state,
+          userId,
+          username: userCache.get(userId) ?? userId,
+          orderData: job.data.data ?? {},
           createdAt: job.timestamp ?? 0,
           processedAt: job.processedOn ?? null,
           finishedAt: job.finishedOn ?? null,
-          failedReason: job.failedReason,
+          result: job.returnvalue ?? null,
+          error: job.failedReason ?? null,
+          progress: typeof job.progress === 'number' ? job.progress : 0,
         });
       }
       return result;

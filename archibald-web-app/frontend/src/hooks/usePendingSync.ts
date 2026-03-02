@@ -116,11 +116,14 @@ export function usePendingSync(): UsePendingSyncReturn {
             const next = new Map(prev);
             for (const [orderId, entry] of next) {
               if (entry.jobId === jobId) {
-                next.set(orderId, { ...entry, status: "completed" });
+                next.set(orderId, { ...entry, status: "completed", progress: 100, label: "Ordine completato" });
               }
             }
             return next;
           });
+          // Delay refetch so user sees the "completed" state before the order disappears
+          setTimeout(() => fetchPendingOrders(), 4000);
+          return;
         } else if (eventType === "JOB_FAILED" && p.type === "submit-order") {
           const jobId = p.jobId as string;
           const error = p.error as string | undefined;

@@ -10,13 +10,16 @@ import { logger } from '../logger';
 type AdminJob = {
   jobId: string;
   type: string;
+  status: string;
   userId: string;
-  state: string;
-  progress: number;
+  username: string;
+  orderData: Record<string, unknown>;
   createdAt: number;
   processedAt: number | null;
   finishedAt: number | null;
-  failedReason: string | undefined;
+  result: unknown;
+  error: string | null;
+  progress: number;
 };
 
 type AdminRouterDeps = {
