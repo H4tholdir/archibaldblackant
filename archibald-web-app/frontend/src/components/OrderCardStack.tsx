@@ -501,6 +501,7 @@ function OrderCardStack({
                   left: 0,
                   right: 0,
                   top: 0,
+                  minHeight: topCardHeight,
                   zIndex: 100 - i,
                   pointerEvents: "none",
                   borderRadius: CARD_RADIUS,
