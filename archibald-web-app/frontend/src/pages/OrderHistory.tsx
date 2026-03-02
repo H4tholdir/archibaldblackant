@@ -21,6 +21,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
 import { useOrderStacks } from "../hooks/useOrderStacks";
+import { useHiddenOrders } from "../hooks/useHiddenOrders";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { getNotesSummary } from "../api/order-notes";
 import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
@@ -41,7 +42,8 @@ type QuickFilterType =
   | "delivered"
   | "invoiced"
   | "overdue"
-  | "paid";
+  | "paid"
+  | "stacked";
 
 type TimePreset =
   | "today"
@@ -186,7 +188,8 @@ export function OrderHistory() {
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { stackMap, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel } = useOrderStacks(orders);
+  const { stackMap, orderIndex, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel } = useOrderStacks(orders);
+  const { hiddenOrderIds, hideOrder: handleHideOrder, unhideOrder: handleUnhideOrder } = useHiddenOrders();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -231,8 +234,8 @@ export function OrderHistory() {
   // Time presets
   const [activeTimePreset, setActiveTimePreset] = useState<TimePreset>(null);
 
-  // Hide zero amount toggle
-  const [hideZeroAmount, setHideZeroAmount] = useState(true);
+  // Show hidden orders toggle
+  const [showHidden, setShowHidden] = useState(false);
 
   // Note summaries and previews for collapsed badges
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
@@ -583,7 +586,7 @@ export function OrderHistory() {
     });
     handleClearCustomer();
     setActiveTimePreset(null);
-    setHideZeroAmount(true);
+    setShowHidden(false);
   };
 
   const handleSendToVerona = (orderId: string, customerName: string) => {
@@ -780,6 +783,10 @@ export function OrderHistory() {
           case "overdue":
             matches = isOverdue(order);
             break;
+
+          case "stacked":
+            matches = orderIndex.has(order.id);
+            break;
         }
 
         if (matches) return true;
@@ -790,7 +797,7 @@ export function OrderHistory() {
   };
 
   // Reset visibleCount when filters change
-  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${hideZeroAmount}`;
+  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${showHidden}_${[...hiddenOrderIds].sort().join(",")}`;
   const prevFilterKeyRef = useRef(filterKey);
   if (prevFilterKeyRef.current !== filterKey) {
     prevFilterKeyRef.current = filterKey;
@@ -799,18 +806,11 @@ export function OrderHistory() {
     }
   }
 
-  // Filtering pipeline: hideZeroAmount → quick filters → global search
+  // Filtering pipeline: hidden orders → quick filters → global search
   const { filteredOrders, backorderCount, ordersForCounts } = useMemo(() => {
     let result = orders;
-    if (hideZeroAmount) {
-      result = result.filter((o) => {
-        const t = parseFloat(
-          String(o.total)
-            .replace(/[^\d.,-]/g, "")
-            .replace(",", "."),
-        );
-        return isNaN(t) || t !== 0;
-      });
+    if (!showHidden) {
+      result = result.filter((o) => !hiddenOrderIds.has(o.id));
     }
 
     const forCounts = result;
@@ -826,7 +826,7 @@ export function OrderHistory() {
     }
 
     return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
-  }, [orders, hideZeroAmount, filters.quickFilters, debouncedSearch]);
+  }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch]);
 
   const hasActiveFilters =
     selectedCustomer !== null ||
@@ -834,7 +834,7 @@ export function OrderHistory() {
     filters.dateTo !== "" ||
     filters.quickFilters.size > 0 ||
     filters.search !== "" ||
-    !hideZeroAmount;
+    showHidden;
 
   const visibleOrders = filteredOrders.slice(0, visibleCount);
   const hasMoreOrders = visibleCount < filteredOrders.length;
@@ -935,7 +935,14 @@ export function OrderHistory() {
       bgColor: "#FFE0B2",
       count: ordersForCounts.filter((o) => isOverdue(o)).length,
     },
-  ], [ordersForCounts]);
+    {
+      id: "stacked",
+      label: "\ud83d\udcda Impilati",
+      color: "#e65100",
+      bgColor: "#FFF3E0",
+      count: ordersForCounts.filter((o) => orderIndex.has(o.id)).length,
+    },
+  ], [ordersForCounts, orderIndex]);
 
   const timePresets: { id: TimePreset; label: string }[] = [
     { id: "today", label: "Oggi" },
@@ -1501,16 +1508,16 @@ export function OrderHistory() {
             flexWrap: "wrap",
           }}
         >
-          {/* Hide zero amount toggle */}
+          {/* Show hidden orders toggle */}
           <div
-            onClick={() => setHideZeroAmount(!hideZeroAmount)}
+            onClick={() => setShowHidden(!showHidden)}
             role="switch"
-            aria-checked={hideZeroAmount}
+            aria-checked={showHidden}
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === " " || e.key === "Enter") {
                 e.preventDefault();
-                setHideZeroAmount(!hideZeroAmount);
+                setShowHidden(!showHidden);
               }
             }}
             style={{
@@ -1528,7 +1535,7 @@ export function OrderHistory() {
                 width: "40px",
                 height: "22px",
                 borderRadius: "11px",
-                backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
+                backgroundColor: showHidden ? "#1976d2" : "#ccc",
                 position: "relative",
                 transition: "background-color 0.2s",
                 flexShrink: 0,
@@ -1542,13 +1549,13 @@ export function OrderHistory() {
                   backgroundColor: "#fff",
                   position: "absolute",
                   top: "2px",
-                  left: hideZeroAmount ? "20px" : "2px",
+                  left: showHidden ? "20px" : "2px",
                   transition: "left 0.2s",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                 }}
               />
             </div>
-            <span>{"Nascondi importo 0 \u20ac"}</span>
+            <span>Mostra ordini nascosti{hiddenOrderIds.size > 0 ? ` (${hiddenOrderIds.size})` : ""}</span>
           </div>
 
           {/* Clear filters button */}
@@ -1945,6 +1952,7 @@ export function OrderHistory() {
                               onUnstack={stack.source === "manual" ? removeFromStack : undefined}
                               onDissolve={handleDissolveStack}
                               onLabelChange={stack.source === "manual" ? updateLabel : undefined}
+                              onStackClose={() => setExpandedOrderId(null)}
                               reason={stack.reason}
                               noteSummaries={noteSummaries}
                               notePreviews={notePreviews}
@@ -1959,6 +1967,7 @@ export function OrderHistory() {
                       const isSelected = selectedOrderIds.has(order.id);
                       const someCardExpanded = expandedOrderId !== null && !selectionMode;
                       const isDimmed = someCardExpanded && !isExpanded;
+                      const orderIsHidden = hiddenOrderIds.has(order.id);
 
                       return (
                         <div
@@ -1973,6 +1982,12 @@ export function OrderHistory() {
                               ? {
                                   opacity: 0.3,
                                   pointerEvents: "none" as const,
+                                }
+                              : {}),
+                            ...(orderIsHidden && showHidden
+                              ? {
+                                  opacity: 0.5,
+                                  border: "2px dashed #999",
                                 }
                               : {}),
                             ...(isExpanded && someCardExpanded
@@ -2053,6 +2068,9 @@ export function OrderHistory() {
                               noteSummary={noteSummaries[order.id]}
                               notePreviews={notePreviews[order.id]}
                               onNotesChanged={() => refreshNoteSummaries()}
+                              onHide={handleHideOrder}
+                              onUnhide={handleUnhideOrder}
+                              isHidden={hiddenOrderIds.has(order.id)}
                             />
                           </div>
                         </div>

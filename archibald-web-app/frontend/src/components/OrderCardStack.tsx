@@ -35,6 +35,7 @@ type OrderCardStackProps = {
   onUnstack?: (stackId: string, orderId: string) => void;
   onDissolve?: (stackId: string) => void;
   onLabelChange?: (stackId: string, newLabel: string) => void;
+  onStackClose?: () => void;
   reason?: string;
   noteSummaries?: Record<string, { total: number; checked: number }>;
   notePreviews?: Record<string, Array<{ text: string; checked: boolean }>>;
@@ -55,9 +56,10 @@ function OrderCardStack({
   editingOrderId,
   onEditDone,
   sentToVeronaIds,
-  onUnstack,
+  // onUnstack not destructured — per-card unlink button removed
   onDissolve,
   onLabelChange,
+  onStackClose,
   reason,
   noteSummaries,
   notePreviews,
@@ -228,7 +230,8 @@ function OrderCardStack({
 
   const close = useCallback(() => {
     setExpanded(false);
-  }, []);
+    onStackClose?.();
+  }, [onStackClose]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -277,8 +280,6 @@ function OrderCardStack({
           style={{
             position: "relative",
             zIndex: 51,
-            maxHeight: "80vh",
-            overflowY: "auto",
             transition: "all 0.3s ease",
           }}
         >
@@ -374,30 +375,6 @@ function OrderCardStack({
                     onNotesChanged={onNotesChanged}
                   />
                 </div>
-                {onUnstack && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUnstack(stackId, order.id);
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      background: "rgba(255,255,255,0.9)",
-                      border: "1px solid #ddd",
-                      borderRadius: 6,
-                      padding: "2px 8px",
-                      fontSize: 10,
-                      cursor: "pointer",
-                      color: "#888",
-                      zIndex: 10,
-                    }}
-                    title="Rimuovi da pila"
-                  >
-                    Scollega
-                  </button>
-                )}
               </div>
             ))}
           </div>
@@ -473,28 +450,67 @@ function OrderCardStack({
           {orders.length} {source === "auto-nc" ? "NC" : "ordini"}
         </div>
 
-        {/* All cards rendered as full OrderCardNew, stacked via absolute positioning */}
-        {orderedCards.map((order, i) => {
-          const isTop = i === 0;
-          const behindCardTransform = `translateY(${i * STACK_OFFSET}px) scale(${1 - i * 0.02})`;
+        {/* Cards wrapper with overflow hidden to clip behind cards of different heights */}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: CARD_RADIUS }}>
+          {orderedCards.map((order, i) => {
+            const isTop = i === 0;
+            const behindCardTransform = `translateY(${i * STACK_OFFSET}px) scale(${1 - i * 0.02})`;
 
-          if (isTop) {
+            if (isTop) {
+              return (
+                <div
+                  key={order.id}
+                  ref={topCardRef}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    zIndex: 100,
+                    willChange: "transform",
+                    userSelect: "none",
+                    borderRadius: CARD_RADIUS,
+                    transition: isDragging
+                      ? "none"
+                      : `transform 0.45s ${EASE}`,
+                  }}
+                >
+                  <OrderCardNew
+                    order={order}
+                    expanded={false}
+                    onToggle={() => {}}
+                    token={token}
+                    searchQuery={searchQuery}
+                    noteSummary={noteSummaries?.[order.id]}
+                    notePreviews={notePreviews?.[order.id]}
+                  />
+                </div>
+              );
+            }
+
+            const behindDragTransform =
+              i === 1 && dragProgress > 0
+                ? `translateY(${i * STACK_OFFSET * (1 - dragProgress)}px) scale(${1 - i * 0.02 + dragProgress * i * 0.02})`
+                : behindCardTransform;
+
             return (
               <div
                 key={order.id}
-                ref={topCardRef}
                 style={{
                   position: "absolute",
                   left: 0,
                   right: 0,
                   top: 0,
-                  zIndex: 100,
+                  zIndex: 100 - i,
+                  pointerEvents: "none",
+                  borderRadius: CARD_RADIUS,
+                  transform: behindDragTransform,
+                  transition:
+                    isDragging && i === 1
+                      ? "none"
+                      : `transform 0.45s ${EASE}`,
                   willChange: "transform",
                   userSelect: "none",
-                  borderRadius: CARD_RADIUS,
-                  transition: isDragging
-                    ? "none"
-                    : `transform 0.45s ${EASE}`,
                 }}
               >
                 <OrderCardNew
@@ -508,45 +524,8 @@ function OrderCardStack({
                 />
               </div>
             );
-          }
-
-          const behindDragTransform =
-            i === 1 && dragProgress > 0
-              ? `translateY(${i * STACK_OFFSET * (1 - dragProgress)}px) scale(${1 - i * 0.02 + dragProgress * i * 0.02})`
-              : behindCardTransform;
-
-          return (
-            <div
-              key={order.id}
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: 0,
-                zIndex: 100 - i,
-                pointerEvents: "none",
-                borderRadius: CARD_RADIUS,
-                transform: behindDragTransform,
-                transition:
-                  isDragging && i === 1
-                    ? "none"
-                    : `transform 0.45s ${EASE}`,
-                willChange: "transform",
-                userSelect: "none",
-              }}
-            >
-              <OrderCardNew
-                order={order}
-                expanded={false}
-                onToggle={() => {}}
-                token={token}
-                searchQuery={searchQuery}
-                noteSummary={noteSummaries?.[order.id]}
-                notePreviews={notePreviews?.[order.id]}
-              />
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
 
       {/* Dots below the stack */}

@@ -30,9 +30,11 @@ import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/
 import { createSubclientsRouter } from './routes/subclients';
 import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
+import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
 import * as orderNotesRepo from './db/repositories/order-notes';
+import * as hiddenOrdersRepo from './db/repositories/hidden-orders';
 import { importSubClients } from './services/subclient-excel-importer';
 import { importExcelVat } from './services/excel-vat-importer';
 import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
@@ -770,6 +772,12 @@ function createApp(deps: AppDeps): Express {
     dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
     updateReason: (userId, stackId, reason) => orderStacksRepo.updateReason(pool, userId, stackId, reason),
     removeMember: (userId, stackId, orderId) => orderStacksRepo.removeMember(pool, userId, stackId, orderId),
+  }));
+
+  app.use('/api/hidden-orders', authenticateJWT, createHiddenOrdersRouter({
+    getHiddenOrderIds: (userId) => hiddenOrdersRepo.getHiddenOrderIds(pool, userId),
+    hideOrder: (userId, orderId) => hiddenOrdersRepo.hideOrder(pool, userId, orderId),
+    unhideOrder: (userId, orderId) => hiddenOrdersRepo.unhideOrder(pool, userId, orderId),
   }));
 
   app.use('/api/order-notes', authenticateJWT, createOrderNotesRouter({

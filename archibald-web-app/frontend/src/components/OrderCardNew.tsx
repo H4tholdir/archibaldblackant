@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Order, OrderArticle } from "../types/order";
 
-import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
+import { getOrderStatus, getStatusTabColors, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
 import type { OperationType, SubscribeFn } from "../api/operations";
@@ -32,6 +32,9 @@ interface OrderCardProps {
   noteSummary?: { total: number; checked: number };
   notePreviews?: Array<{ text: string; checked: boolean }>;
   onNotesChanged?: () => void;
+  onHide?: (orderId: string) => void;
+  onUnhide?: (orderId: string) => void;
+  isHidden?: boolean;
 }
 
 // ============================================================================
@@ -3343,6 +3346,9 @@ export function OrderCardNew({
   noteSummary,
   notePreviews,
   onNotesChanged,
+  onHide,
+  onUnhide,
+  isHidden = false,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -3504,6 +3510,7 @@ export function OrderCardNew({
 
   // Get order status styling (border + background colors)
   const orderStatusStyle = getOrderStatus(order);
+  const tabColors = getStatusTabColors(orderStatusStyle);
 
   return (
     <div
@@ -3568,20 +3575,51 @@ export function OrderCardNew({
               >
                 <HighlightText text={order.customerName} query={searchQuery} />
               </div>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "4px 10px",
-                  borderRadius: "12px",
-                  backgroundColor: orderStatusStyle.borderColor,
-                  color: "#fff",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                }}
-              >
-                {orderStatusStyle.label}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {(onHide || onUnhide) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isHidden) {
+                        onUnhide?.(order.id);
+                      } else {
+                        onHide?.(order.id);
+                      }
+                    }}
+                    title={isHidden ? "Mostra ordine" : "Nascondi ordine"}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      border: "1px solid #ddd",
+                      background: isHidden ? "#e0e0e0" : "rgba(255,255,255,0.8)",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      padding: 0,
+                      color: "#888",
+                    }}
+                  >
+                    {isHidden ? "\ud83d\udc41\ufe0f" : "\ud83d\udeab"}
+                  </button>
+                )}
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    backgroundColor: orderStatusStyle.borderColor,
+                    color: "#fff",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {orderStatusStyle.label}
+                </span>
+              </div>
             </div>
 
             {/* Order Number + Date */}
@@ -4285,8 +4323,9 @@ export function OrderCardNew({
               flexWrap: "wrap",
             }}
           >
-            {tabs.map((tab) => {
+            {tabs.map((tab, tabIndex) => {
               const isActive = activeTab === tab.id;
+              const tabColor = tabColors[tabIndex];
               return (
                 <button
                   key={tab.id}
@@ -4297,14 +4336,16 @@ export function OrderCardNew({
                   style={{
                     flex: "0 0 auto",
                     padding: "10px 16px",
-                    background: isActive ? "#fff" : "#f5f5f5",
-                    borderTop: isActive ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                    background: isActive ? tabColor : "#f5f5f5",
+                    borderTop: isActive
+                      ? `2px solid ${orderStatusStyle.borderColor}`
+                      : "1px solid #e0e0e0",
                     borderLeft: isActive ? "1px solid #ddd" : "1px solid #e0e0e0",
                     borderRight: isActive ? "1px solid #ddd" : "1px solid #e0e0e0",
                     borderBottom: "none",
                     borderRadius: "8px 8px 0 0",
                     marginBottom: isActive ? "-1px" : "0",
-                    color: isActive ? "#1976d2" : "#888",
+                    color: isActive ? orderStatusStyle.borderColor : "#888",
                     fontSize: "14px",
                     fontWeight: isActive ? 700 : 600,
                     cursor: "pointer",
@@ -4315,12 +4356,14 @@ export function OrderCardNew({
                   }}
                   onMouseEnter={(e) => {
                     if (!isActive) {
-                      e.currentTarget.style.background = "#eeeeee";
+                      e.currentTarget.style.background = tabColors[tabIndex];
+                      e.currentTarget.style.opacity = "0.7";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.background = "#f5f5f5";
+                      e.currentTarget.style.opacity = "1";
                     }
                   }}
                 >
@@ -4331,7 +4374,7 @@ export function OrderCardNew({
           </div>
 
           {/* Tab Content */}
-          <div style={{ minHeight: "300px", borderTop: "1px solid #ddd" }}>
+          <div style={{ minHeight: "300px", borderTop: "1px solid #ddd", backgroundColor: tabColors[tabs.findIndex(t => t.id === activeTab)] + "22" }}>
             {activeTab === "panoramica" && (
               <TabPanoramica order={order} searchQuery={searchQuery} />
             )}
