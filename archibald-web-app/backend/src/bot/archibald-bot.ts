@@ -2124,6 +2124,14 @@ export class ArchibaldBot {
         "login",
       );
 
+      // Close orphan pages from previous operations to avoid ASP.NET session conflicts
+      const existingPages = await this.context!.pages();
+      for (const p of existingPages) {
+        if (!p.isClosed()) {
+          await p.close().catch(() => {});
+        }
+      }
+
       this.page = await this.runOp(
         "context.newPage",
         async () => {

@@ -8,6 +8,7 @@ type BrowserLike = {
 
 type BrowserContextLike = {
   newPage: () => Promise<PageLike>;
+  pages: () => Promise<PageLike[]>;
   close: () => Promise<void>;
 };
 
