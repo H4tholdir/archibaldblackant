@@ -10,10 +10,6 @@ export default defineConfig({
     testTimeout: 20000,
     hookTimeout: 20000,
     exclude: ["e2e/**", "node_modules/**"],
-    poolOptions: {
-      forks: {
-        execArgv: ["--max-old-space-size=4096"],
-      },
-    },
+    execArgv: ["--max-old-space-size=4096"],
   },
 });
