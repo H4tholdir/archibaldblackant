@@ -46,7 +46,7 @@ export function JobProgressBar({
     height: "100%",
     width: `${progress}%`,
     backgroundColor: colors.bar,
-    transition: "width 0.3s ease, background-color 0.3s ease",
+    transition: "width 1.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease",
     position: "absolute",
     left: 0,
     top: 0,

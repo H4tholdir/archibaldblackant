@@ -703,8 +703,14 @@ function createApp(deps: AppDeps): Express {
       if (!job) return { success: false, error: 'Job non trovato' };
       const state = await job.getState();
       if (state !== 'failed') return { success: false, error: `Job in stato ${state}, solo jobs falliti possono essere ritentati` };
-      await job.retry();
-      return { success: true, newJobId: job.id! };
+      const newJobId = await queue.enqueue(
+        job.data.type,
+        job.data.userId,
+        job.data.data,
+        job.data.idempotencyKey,
+      );
+      await job.remove();
+      return { success: true, newJobId };
     },
     cancelJob: async (jobId) => {
       const job = await queue.queue.getJob(jobId);

@@ -31,12 +31,15 @@ type JobLike = {
   updateProgress: (progress: number | object) => Promise<void>;
 };
 
+type OnJobFailedFn = (type: OperationType, data: Record<string, unknown>, userId: string, error: string) => Promise<void>;
+
 type ProcessorDeps = {
   agentLock: AgentLock;
   browserPool: BrowserPoolLike;
   broadcast: BroadcastFn;
   enqueue: EnqueueFn;
   handlers: Partial<Record<OperationType, OperationHandler>>;
+  onJobFailed?: OnJobFailedFn;
 };
 
 type ProcessJobResult = {
@@ -50,7 +53,7 @@ const PREEMPTION_WAIT_MS = 2000;
 const REQUEUE_DELAY_MS = 2000;
 
 function createOperationProcessor(deps: ProcessorDeps) {
-  const { agentLock, browserPool, broadcast, enqueue, handlers } = deps;
+  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed } = deps;
 
   async function processJob(job: JobLike): Promise<ProcessJobResult> {
     const startTime = Date.now();
@@ -125,11 +128,18 @@ function createOperationProcessor(deps: ProcessorDeps) {
       // Invalidate browser context on failure so next operation gets a fresh session
       await browserPool.releaseContext(userId, null as unknown as BrowserContext, false).catch(() => {});
 
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Persist error in DB (e.g., update pending_orders.status='error')
+      if (onJobFailed) {
+        await onJobFailed(type, data, userId, errorMessage).catch(() => {});
+      }
+
       broadcast(userId, {
         event: 'JOB_FAILED',
         jobId: job.id,
         type,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
 
       const nextSync = getNextSyncInChain(type);

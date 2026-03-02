@@ -45,15 +45,30 @@ function calculateAmounts(
 }
 
 const BOT_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
-  'navigation.ordini': { progress: 15, label: 'Navigazione lista ordini' },
-  'form.nuovo': { progress: 20, label: 'Apertura nuovo ordine' },
-  'form.customer': { progress: 25, label: 'Selezione cliente' },
-  'form.articles.start': { progress: 30, label: 'Inserimento articoli' },
-  'form.articles.progress': { progress: 40, label: 'Inserimento articoli' },
-  'form.discount': { progress: 50, label: 'Applicazione sconto' },
-  'form.save': { progress: 55, label: 'Salvataggio ordine' },
-  'form.confirm': { progress: 60, label: 'Conferma ordine' },
+  'navigation.ordini': { progress: 10, label: 'Apertura sezione ordini' },
+  'form.nuovo': { progress: 15, label: 'Apertura nuovo ordine' },
+  'form.customer': { progress: 25, label: 'Inserimento cliente' },
+  'form.articles.start': { progress: 30, label: 'Inizio inserimento articoli' },
+  'form.articles.complete': { progress: 65, label: 'Articoli inseriti' },
+  'form.discount': { progress: 70, label: 'Applicazione sconto globale' },
+  'form.submit.start': { progress: 75, label: 'Salvataggio ordine in corso' },
+  'form.submit.complete': { progress: 80, label: 'Ordine salvato' },
 };
+
+function calculateArticleProgress(current: number, total: number): number {
+  const start = 30;
+  const end = 65;
+  return Math.round(start + (end - start) * (current / total));
+}
+
+function formatLabel(template: string, metadata?: Record<string, unknown>): string {
+  if (!metadata) return template;
+  let result = template;
+  for (const [key, value] of Object.entries(metadata)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
+  }
+  return result;
+}
 
 async function handleSubmitOrder(
   pool: DbPool,
@@ -62,17 +77,27 @@ async function handleSubmitOrder(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ orderId: string }> {
-  bot.setProgressCallback(async (category) => {
+  bot.setProgressCallback(async (category, metadata) => {
+    if (category === 'form.articles.progress' && metadata) {
+      const current = metadata.currentArticle as number;
+      const total = metadata.totalArticles as number;
+      if (current && total) {
+        const progress = calculateArticleProgress(current, total);
+        const label = formatLabel('Inserimento articolo {currentArticle} di {totalArticles}', metadata);
+        onProgress(progress, label);
+        return;
+      }
+    }
     const mapped = BOT_PROGRESS_MAP[category];
     if (mapped) {
       onProgress(mapped.progress, mapped.label);
     }
   });
 
-  onProgress(10, 'Creazione ordine su Archibald');
+  onProgress(5, 'Creazione ordine su Archibald');
   const orderId = await bot.createOrder(data);
 
-  onProgress(70, 'Salvataggio ordine nel database');
+  onProgress(85, 'Salvataggio nel database');
 
   const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
 
@@ -122,7 +147,7 @@ async function handleSubmitOrder(
       ],
     );
 
-    onProgress(80, 'Salvataggio articoli');
+    onProgress(90, 'Salvataggio articoli');
 
     const articleValues: unknown[] = [];
     const articlePlaceholders: string[] = [];
@@ -158,7 +183,7 @@ async function handleSubmitOrder(
       );
     }
 
-    onProgress(90, 'Aggiornamento storico');
+    onProgress(95, 'Aggiornamento storico');
 
     await tx.query(
       `UPDATE agents.fresis_history

@@ -14,6 +14,7 @@ interface AdminPageProps {
 
 interface Job {
   jobId: string;
+  type?: string;
   status: string;
   userId: string;
   username: string;
@@ -31,6 +32,32 @@ interface Job {
   error?: string;
 }
 
+const TYPE_GROUPS: Record<string, string[]> = {
+  Ordini: ["submit-order", "edit-order", "delete-order", "send-to-verona"],
+  Clienti: ["create-customer", "update-customer"],
+  Download: ["download-ddt-pdf", "download-invoice-pdf"],
+};
+
+function getTypeLabel(type?: string): string {
+  if (!type) return "—";
+  for (const [group] of Object.entries(TYPE_GROUPS)) {
+    if (TYPE_GROUPS[group].includes(type)) return group;
+  }
+  if (type.startsWith("sync-")) return "Sync";
+  return type;
+}
+
+function getTypeBadgeColor(type?: string): string {
+  const label = getTypeLabel(type);
+  switch (label) {
+    case "Ordini": return "#2563eb";
+    case "Clienti": return "#7c3aed";
+    case "Download": return "#0891b2";
+    case "Sync": return "#6b7280";
+    default: return "#6b7280";
+  }
+}
+
 interface RetentionConfig {
   keepCompleted: number;
   keepFailed: number;
@@ -41,6 +68,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
@@ -137,17 +165,26 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   };
 
   const filteredJobs = useMemo(() => {
-    if (!searchQuery.trim()) return jobs;
-    const q = searchQuery.toLowerCase();
-    return jobs.filter(
-      (job) =>
-        job.jobId.toLowerCase().includes(q) ||
-        job.username.toLowerCase().includes(q) ||
-        job.orderData.customerName.toLowerCase().includes(q) ||
-        job.result?.orderId?.toLowerCase().includes(q) ||
-        job.error?.toLowerCase().includes(q),
-    );
-  }, [jobs, searchQuery]);
+    let filtered = jobs;
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((job) => {
+        const label = getTypeLabel(job.type);
+        return label === typeFilter;
+      });
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (job) =>
+          job.jobId.toLowerCase().includes(q) ||
+          (job.username ?? "").toLowerCase().includes(q) ||
+          (job.orderData?.customerName ?? "").toLowerCase().includes(q) ||
+          job.result?.orderId?.toLowerCase().includes(q) ||
+          job.error?.toLowerCase().includes(q),
+      );
+    }
+    return filtered;
+  }, [jobs, searchQuery, typeFilter]);
 
   const handleRetry = async (jobId: string) => {
     const jwt = localStorage.getItem("archibald_jwt");
@@ -698,6 +735,25 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                 }}
               />
               <select
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #ddd",
+                  fontSize: "14px",
+                }}
+              >
+                <option value="all">Tutti i tipi</option>
+                <option value="Ordini">Ordini</option>
+                <option value="Clienti">Clienti</option>
+                <option value="Download">Download</option>
+                <option value="Sync">Sync</option>
+              </select>
+              <select
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
@@ -790,6 +846,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                     >
                       <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd", width: "30px" }}></th>
                       <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Job ID</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Tipo</th>
                       <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>User</th>
                       <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Cliente</th>
                       <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Status</th>
@@ -825,9 +882,19 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                             >
                               {job.jobId.substring(0, 12)}
                             </td>
-                            <td style={{ padding: "10px 12px" }}>{job.username}</td>
                             <td style={{ padding: "10px 12px" }}>
-                              {job.orderData.customerName}
+                              <span style={{
+                                padding: "2px 8px",
+                                borderRadius: "4px",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                color: "#fff",
+                                backgroundColor: getTypeBadgeColor(job.type),
+                              }}>{getTypeLabel(job.type)}</span>
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>{job.username ?? "—"}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {job.orderData?.customerName ?? "—"}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
                               {getStatusBadge(job.status)}

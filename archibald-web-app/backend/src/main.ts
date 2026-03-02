@@ -630,6 +630,15 @@ async function bootstrap(): Promise<void> {
     },
     enqueue: queue.enqueue,
     handlers,
+    onJobFailed: async (type, data, _userId, errorMessage) => {
+      if (type === 'submit-order') {
+        const pendingOrderId = (data as Record<string, unknown>).pendingOrderId as string | undefined;
+        if (pendingOrderId) {
+          const { updatePendingOrderError } = await import('./db/repositories/pending-orders');
+          await updatePendingOrderError(pool, pendingOrderId, errorMessage);
+        }
+      }
+    },
   });
 
   const workerConnection = new Redis({
