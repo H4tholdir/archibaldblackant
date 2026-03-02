@@ -1878,7 +1878,7 @@ function TabArticoli({
               const lineTotalWithVat = item.lineTotalWithVat ?? lineAmount;
 
               return (
-                <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
+                <tr key={index} style={{ borderBottom: "1px solid #e0e0e0", backgroundColor: index % 2 === 0 ? "#fff" : "#f8f9fa" }}>
                   <td style={tableCellStyle}>
                     <div style={{ fontWeight: 600 }}>
                       <HighlightText
@@ -1944,7 +1944,10 @@ function TabArticoli({
               style={{
                 marginTop: "24px",
                 paddingTop: "16px",
-                borderTop: "2px solid #e0e0e0",
+                padding: "16px",
+                borderTop: "2px solid #333",
+                backgroundColor: "#f0f4f8",
+                borderRadius: "0 0 8px 8px",
               }}
             >
               <div
@@ -2023,18 +2026,21 @@ function TabArticoli({
                     display: "flex",
                     justifyContent: "space-between",
                     width: "300px",
-                    paddingTop: "8px",
-                    borderTop: "1px solid #e0e0e0",
+                    padding: "10px 12px",
+                    marginTop: "8px",
+                    borderTop: "2px solid #333",
+                    backgroundColor: "#263238",
+                    borderRadius: "4px",
                   }}
                 >
-                  <span style={{ fontWeight: 700, fontSize: "18px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "18px", color: "#fff" }}>
                     TOTALE:
                   </span>
                   <span
                     style={{
                       fontWeight: 700,
                       fontSize: "18px",
-                      color: "#2e7d32",
+                      color: "#81c784",
                     }}
                   >
                     {formatCurrency(
@@ -3505,10 +3511,11 @@ export function OrderCardNew({
         backgroundColor: orderStatusStyle.backgroundColor,
         borderLeft: `4px solid ${orderStatusStyle.borderColor}`,
         borderRadius: "12px",
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+        boxShadow: expanded ? "0 8px 32px rgba(0,0,0,0.2)" : "0 2px 8px rgba(0, 0, 0, 0.1)",
         marginBottom: "12px",
         overflow: "hidden",
         transition: "box-shadow 0.2s",
+        ...(expanded ? { border: "2px solid #333", borderLeft: `4px solid ${orderStatusStyle.borderColor}` } : {}),
       }}
     >
       {/* ===== COLLAPSED STATE ===== */}
@@ -4279,53 +4286,61 @@ export function OrderCardNew({
           <div
             style={{
               display: "flex",
-              borderBottom: "1px solid #e0e0e0",
-              backgroundColor: "#f5f5f5",
+              gap: "4px",
+              paddingLeft: "12px",
+              paddingRight: "12px",
+              paddingTop: "8px",
+              backgroundColor: "transparent",
               overflowX: "auto",
             }}
           >
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveTab(tab.id);
-                }}
-                style={{
-                  flex: "1 0 auto",
-                  padding: "12px 16px",
-                  border: "none",
-                  backgroundColor:
-                    activeTab === tab.id ? "#fff" : "transparent",
-                  borderBottom:
-                    activeTab === tab.id
-                      ? "2px solid #1976d2"
-                      : "2px solid transparent",
-                  color: activeTab === tab.id ? "#1976d2" : "#666",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== tab.id) {
-                    e.currentTarget.style.backgroundColor = "#eeeeee";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== tab.id) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }
-                }}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveTab(tab.id);
+                  }}
+                  style={{
+                    flex: "0 0 auto",
+                    padding: "10px 16px",
+                    background: isActive ? "#fff" : "#f5f5f5",
+                    borderTop: isActive ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                    borderLeft: isActive ? "1px solid #ddd" : "1px solid #e0e0e0",
+                    borderRight: isActive ? "1px solid #ddd" : "1px solid #e0e0e0",
+                    borderBottom: "none",
+                    borderRadius: "8px 8px 0 0",
+                    marginBottom: isActive ? "-1px" : "0",
+                    color: isActive ? "#1976d2" : "#888",
+                    fontSize: "14px",
+                    fontWeight: isActive ? 700 : 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    whiteSpace: "nowrap",
+                    position: isActive ? "relative" : undefined,
+                    zIndex: isActive ? 1 : undefined,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = "#eeeeee";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = "#f5f5f5";
+                    }
+                  }}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Tab Content */}
-          <div style={{ minHeight: "300px" }}>
+          <div style={{ minHeight: "300px", borderTop: "1px solid #ddd" }}>
             {activeTab === "panoramica" && (
               <TabPanoramica order={order} searchQuery={searchQuery} />
             )}
