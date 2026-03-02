@@ -20,7 +20,7 @@ function createAgentLock() {
       activeJobs.set(userId, { jobId, type });
       return { acquired: true };
     }
-    const preemptable = !isWriteOperation(existing.type) && isWriteOperation(type);
+    const preemptable = isScheduledSync(existing.type) && !isScheduledSync(type);
     return {
       acquired: false,
       activeJob: { jobId: existing.jobId, type: existing.type, requestStop: existing.requestStop },
