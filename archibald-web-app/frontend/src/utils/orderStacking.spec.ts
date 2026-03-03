@@ -3,6 +3,8 @@ import type { Order } from "../types/order";
 import {
   isCreditNote,
   normalizeAmount,
+  parseAmount,
+  amountsMatch,
   getOrderDate,
   detectNcTriads,
   buildStackMap,
@@ -61,6 +63,60 @@ describe(normalizeAmount, () => {
   });
 });
 
+describe(parseAmount, () => {
+  test("parses Italian-formatted positive amount", () => {
+    expect(parseAmount("4.264,48 €")).toBe(4264.48);
+  });
+
+  test("parses negative amount", () => {
+    expect(parseAmount("-213,11 €")).toBe(-213.11);
+  });
+
+  test("parses amount without thousands separator", () => {
+    expect(parseAmount("250,00 €")).toBe(250);
+  });
+
+  test("returns null for empty string", () => {
+    expect(parseAmount("")).toBeNull();
+  });
+
+  test("returns null for non-numeric string", () => {
+    expect(parseAmount("abc")).toBeNull();
+  });
+
+  test("parses amount without currency symbol", () => {
+    expect(parseAmount("1.234,56")).toBe(1234.56);
+  });
+});
+
+describe(amountsMatch, () => {
+  test("matches identical amounts", () => {
+    expect(amountsMatch("213,11 €", "213,11 €")).toBe(true);
+  });
+
+  test("matches positive and negative with same absolute value", () => {
+    expect(amountsMatch("-213,11 €", "213,11 €")).toBe(true);
+  });
+
+  test("matches amounts within default tolerance of 1€", () => {
+    expect(amountsMatch("-338,96 €", "338,94 €")).toBe(true);
+  });
+
+  test("rejects amounts differing by more than tolerance", () => {
+    expect(amountsMatch("-250,00 €", "402,80 €")).toBe(false);
+  });
+
+  test("returns false when either amount is empty", () => {
+    expect(amountsMatch("", "213,11 €")).toBe(false);
+    expect(amountsMatch("213,11 €", "")).toBe(false);
+  });
+
+  test("supports custom tolerance", () => {
+    expect(amountsMatch("100,00 €", "102,00 €", 5)).toBe(true);
+    expect(amountsMatch("100,00 €", "102,00 €", 1)).toBe(false);
+  });
+});
+
 describe(getOrderDate, () => {
   test("uses order.date as primary source", () => {
     const order = makeOrder({ id: "1", date: "2026-02-15T10:00:00" });
@@ -77,21 +133,24 @@ describe(detectNcTriads, () => {
   const original = makeOrder({
     id: "47.761",
     customerName: "Cupo",
-    grossAmount: "4.264,48 €",
+    total: "4.264,48 €",
+    grossAmount: "5.000,00 €",
     date: "2026-02-04T17:33:14",
   });
 
   const creditNote = makeOrder({
     id: "48.068",
     customerName: "Cupo",
-    grossAmount: "-4.264,48 €",
+    total: "-4.264,48 €",
+    grossAmount: "-5.000,00 €",
     date: "2026-02-10T10:41:57",
   });
 
   const replacement = makeOrder({
     id: "48.070",
     customerName: "Cupo",
-    grossAmount: "4.264,48 €",
+    total: "4.264,48 €",
+    grossAmount: "5.000,00 €",
     date: "2026-02-10T11:07:05",
   });
 
@@ -114,10 +173,63 @@ describe(detectNcTriads, () => {
     expect(triads[0].replacement).toBeNull();
   });
 
+  test("matches on total field, not grossAmount", () => {
+    const orig = makeOrder({
+      id: "orig",
+      customerName: "Test",
+      total: "250,00 €",
+      grossAmount: "402,80 €",
+      date: "2026-01-22T12:00:00",
+    });
+    const nc = makeOrder({
+      id: "nc",
+      customerName: "Test",
+      total: "-250,00 €",
+      grossAmount: "-250,00 €",
+      date: "2026-01-26T12:00:00",
+    });
+    const triads = detectNcTriads([orig, nc]);
+
+    expect(triads).toHaveLength(1);
+    expect(triads[0].original.id).toBe("orig");
+    expect(triads[0].creditNote.id).toBe("nc");
+  });
+
+  test("matches amounts within tolerance of 1€", () => {
+    const orig = makeOrder({
+      id: "orig",
+      customerName: "Test",
+      total: "213,11 €",
+      grossAmount: "338,94 €",
+      date: "2026-02-04T17:00:00",
+    });
+    const nc = makeOrder({
+      id: "nc",
+      customerName: "Test",
+      total: "-213,11 €",
+      grossAmount: "-338,96 €",
+      date: "2026-02-10T11:00:00",
+    });
+    const repl = makeOrder({
+      id: "repl",
+      customerName: "Test",
+      total: "213,09 €",
+      grossAmount: "338,94 €",
+      date: "2026-02-10T11:30:00",
+    });
+    const triads = detectNcTriads([orig, nc, repl]);
+
+    expect(triads).toHaveLength(1);
+    expect(triads[0].original.id).toBe("orig");
+    expect(triads[0].creditNote.id).toBe("nc");
+    expect(triads[0].replacement?.id).toBe("repl");
+  });
+
   test("returns empty for orders without matching NC", () => {
     const unrelatedOrder = makeOrder({
       id: "99",
       customerName: "Other",
+      total: "500,00 €",
       grossAmount: "500,00 €",
       date: "2026-01-01",
     });
@@ -128,7 +240,8 @@ describe(detectNcTriads, () => {
     const ncDiffCustomer = makeOrder({
       id: "nc-1",
       customerName: "Other",
-      grossAmount: "-4.264,48 €",
+      total: "-4.264,48 €",
+      grossAmount: "-5.000,00 €",
       date: "2026-02-10T10:00:00",
     });
     expect(detectNcTriads([original, ncDiffCustomer])).toEqual([]);
@@ -138,6 +251,7 @@ describe(detectNcTriads, () => {
     const ncDiffAmount = makeOrder({
       id: "nc-1",
       customerName: "Cupo",
+      total: "-999,99 €",
       grossAmount: "-999,99 €",
       date: "2026-02-10T10:00:00",
     });
@@ -148,7 +262,8 @@ describe(detectNcTriads, () => {
     const nc2 = makeOrder({
       id: "nc-2",
       customerName: "Cupo",
-      grossAmount: "-4.264,48 €",
+      total: "-4.264,48 €",
+      grossAmount: "-5.000,00 €",
       date: "2026-02-12T10:00:00",
     });
     const triads = detectNcTriads([original, creditNote, nc2, replacement]);
@@ -165,7 +280,8 @@ describe(detectNcTriads, () => {
     const olderOriginal = makeOrder({
       id: "old",
       customerName: "Cupo",
-      grossAmount: "4.264,48 €",
+      total: "4.264,48 €",
+      grossAmount: "5.000,00 €",
       date: "2026-01-01T10:00:00",
     });
     const triads = detectNcTriads([olderOriginal, original, creditNote]);
@@ -173,13 +289,73 @@ describe(detectNcTriads, () => {
     expect(triads).toHaveLength(1);
     expect(triads[0].original.id).toBe("47.761");
   });
+
+  test("production case: Dragonetti - NC gross differs from original gross", () => {
+    const orig = makeOrder({
+      id: "ORD/26001077",
+      customerName: "Dragonetti Antonio",
+      total: "250,00 €",
+      grossAmount: "402,80 €",
+      date: "2026-01-22T12:04:50",
+    });
+    const nc = makeOrder({
+      id: "ORD/26001267",
+      customerName: "Dragonetti Antonio",
+      total: "-250,00 €",
+      grossAmount: "-250,00 €",
+      date: "2026-01-26T12:18:13",
+    });
+    const repl = makeOrder({
+      id: "ORD/26001266",
+      customerName: "Dragonetti Antonio",
+      total: "249,98 €",
+      grossAmount: "402,80 €",
+      date: "2026-01-26T12:14:55",
+    });
+    const triads = detectNcTriads([orig, nc, repl]);
+
+    expect(triads).toHaveLength(1);
+    expect(triads[0].original.id).toBe("ORD/26001077");
+    expect(triads[0].creditNote.id).toBe("ORD/26001267");
+    expect(triads[0].replacement?.id).toBe("ORD/26001266");
+  });
+
+  test("production case: Magma Center - NC gross differs from original gross", () => {
+    const orig = makeOrder({
+      id: "ORD/26001076",
+      customerName: "Magma Center S.R.L.",
+      total: "491,80 €",
+      grossAmount: "540,40 €",
+      date: "2026-01-22T12:04:49",
+    });
+    const nc = makeOrder({
+      id: "ORD/26001271",
+      customerName: "Magma Center S.R.L.",
+      total: "-491,80 €",
+      grossAmount: "-491,80 €",
+      date: "2026-01-26T12:27:19",
+    });
+    const repl = makeOrder({
+      id: "ORD/26001269",
+      customerName: "Magma Center S.R.L.",
+      total: "491,82 €",
+      grossAmount: "540,40 €",
+      date: "2026-01-26T12:23:54",
+    });
+    const triads = detectNcTriads([orig, nc, repl]);
+
+    expect(triads).toHaveLength(1);
+    expect(triads[0].original.id).toBe("ORD/26001076");
+    expect(triads[0].creditNote.id).toBe("ORD/26001271");
+    expect(triads[0].replacement?.id).toBe("ORD/26001269");
+  });
 });
 
 describe(buildStackMap, () => {
-  const original = makeOrder({ id: "47.761", customerName: "Cupo", grossAmount: "4.264,48 €", date: "2026-02-04" });
-  const creditNote = makeOrder({ id: "48.068", customerName: "Cupo", grossAmount: "-4.264,48 €", date: "2026-02-10" });
-  const replacement = makeOrder({ id: "48.070", customerName: "Cupo", grossAmount: "4.264,48 €", date: "2026-02-10T11:00:00" });
-  const standalone = makeOrder({ id: "99", customerName: "Other", grossAmount: "100,00 €", date: "2026-02-15" });
+  const original = makeOrder({ id: "47.761", customerName: "Cupo", total: "4.264,48 €", grossAmount: "5.000,00 €", date: "2026-02-04" });
+  const creditNote = makeOrder({ id: "48.068", customerName: "Cupo", total: "-4.264,48 €", grossAmount: "-5.000,00 €", date: "2026-02-10" });
+  const replacement = makeOrder({ id: "48.070", customerName: "Cupo", total: "4.264,48 €", grossAmount: "5.000,00 €", date: "2026-02-10T11:00:00" });
+  const standalone = makeOrder({ id: "99", customerName: "Other", total: "100,00 €", grossAmount: "100,00 €", date: "2026-02-15" });
 
   test("creates auto-nc stacks from triads", () => {
     const { stackMap, orderIndex } = buildStackMap(

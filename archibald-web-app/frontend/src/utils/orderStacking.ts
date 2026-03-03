@@ -40,6 +40,21 @@ function normalizeAmount(grossAmount: string): string {
   return grossAmount.trimStart().replace(/^-/, "").trim();
 }
 
+function parseAmount(amount: string): number | null {
+  const cleaned = amount.replace(/[€\s]/g, "").trim();
+  if (!cleaned) return null;
+  const normalized = cleaned.replace(/\./g, "").replace(",", ".");
+  const num = parseFloat(normalized);
+  return isNaN(num) ? null : num;
+}
+
+function amountsMatch(a: string, b: string, tolerance = 1.0): boolean {
+  const numA = parseAmount(a);
+  const numB = parseAmount(b);
+  if (numA === null || numB === null) return false;
+  return Math.abs(Math.abs(numA) - Math.abs(numB)) < tolerance;
+}
+
 function getOrderDate(order: Order): Date {
   return new Date(order.date || "");
 }
@@ -54,42 +69,45 @@ function detectNcTriads(orders: Order[]): NcTriad[] {
   for (const nc of creditNotes) {
     if (consumed.has(nc.id)) continue;
 
-    const ncAbsAmount = normalizeAmount(
-      (nc.grossAmount as string | undefined) ?? "",
-    );
-    if (!ncAbsAmount) continue;
+    const ncTotal = nc.total ?? "";
+    const ncNum = parseAmount(ncTotal);
+    if (ncNum === null) continue;
 
     const ncDate = getOrderDate(nc);
+    const ncAbs = Math.abs(ncNum);
 
-    const originalCandidates = regularOrders
-      .filter(
-        (o) =>
-          !consumed.has(o.id) &&
-          o.customerName === nc.customerName &&
-          normalizeAmount((o.grossAmount as string | undefined) ?? "") ===
-            ncAbsAmount &&
-          getOrderDate(o) <= ncDate,
-      )
-      .sort(
-        (a, b) => getOrderDate(b).getTime() - getOrderDate(a).getTime(),
-      );
+    const amountDiff = (o: Order): number => {
+      const num = parseAmount(o.total ?? "");
+      return num === null ? Infinity : Math.abs(Math.abs(num) - ncAbs);
+    };
+
+    const matchingCandidates = regularOrders.filter(
+      (o) =>
+        !consumed.has(o.id) &&
+        o.customerName === nc.customerName &&
+        amountsMatch(o.total ?? "", ncTotal),
+    );
+
+    const originalCandidates = matchingCandidates
+      .filter((o) => getOrderDate(o) <= ncDate)
+      .sort((a, b) => {
+        const diffCmp = amountDiff(a) - amountDiff(b);
+        if (diffCmp !== 0) return diffCmp;
+        return getOrderDate(b).getTime() - getOrderDate(a).getTime();
+      });
 
     const original = originalCandidates[0];
     if (!original) continue;
 
-    const replacementCandidates = regularOrders
-      .filter(
-        (o) =>
-          !consumed.has(o.id) &&
-          o.id !== original.id &&
-          o.customerName === nc.customerName &&
-          normalizeAmount((o.grossAmount as string | undefined) ?? "") ===
-            ncAbsAmount &&
-          getOrderDate(o) >= ncDate,
-      )
-      .sort(
-        (a, b) => getOrderDate(a).getTime() - getOrderDate(b).getTime(),
-      );
+    const replacementCandidates = matchingCandidates
+      .filter((o) => o.id !== original.id)
+      .sort((a, b) => {
+        const diffCmp = amountDiff(a) - amountDiff(b);
+        if (diffCmp !== 0) return diffCmp;
+        const aProximity = Math.abs(getOrderDate(a).getTime() - ncDate.getTime());
+        const bProximity = Math.abs(getOrderDate(b).getTime() - ncDate.getTime());
+        return aProximity - bProximity;
+      });
 
     const replacement = replacementCandidates[0] ?? null;
 
@@ -206,6 +224,8 @@ function dissolveManualStack(stackId: string): void {
 export {
   isCreditNote,
   normalizeAmount,
+  parseAmount,
+  amountsMatch,
   getOrderDate,
   detectNcTriads,
   buildStackMap,
