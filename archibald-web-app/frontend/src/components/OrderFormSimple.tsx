@@ -955,9 +955,9 @@ export default function OrderFormSimple() {
       }
 
       try {
-        // Find all products (variants) with the same name
-        const allVariantsWithDetails = await productService.searchProducts(selectedProduct.name, 100);
-        const allVariants = allVariantsWithDetails.filter(p => p.name === selectedProduct.name);
+        // Find all variants via the /variants endpoint (not grouped search)
+        const productWithDetails = await productService.getProductById(selectedProduct.name);
+        const allVariants = productWithDetails?.variants ?? [];
 
         console.log(
           `[OrderForm] Found ${allVariants.length} variants for: ${selectedProduct.name}`,
@@ -967,20 +967,20 @@ export default function OrderFormSimple() {
         const variantsWithDetails: ProductVariantInfo[] = [];
 
         for (const variant of allVariants) {
-          const priceAndVat = await priceService.getPriceAndVat(variant.id);
+          const priceAndVat = await priceService.getPriceAndVat(variant.variantId);
           const price = priceAndVat?.price || null;
           const vat = normalizeVatRate(priceAndVat?.vat) ?? 0;
 
           variantsWithDetails.push({
-            variantId: variant.id,
-            productId: selectedProduct.name, // Product name is the grouping key
+            variantId: variant.variantId,
+            productId: selectedProduct.name,
             packageContent: variant.packageContent || "N/A",
             price: price,
             vat: vat,
           });
 
           console.log(
-            `[OrderForm] Variant ${variant.id}: package=${variant.packageContent}, price=${price === null ? "NOT FOUND" : `€${price}`}, vat=${vat}%`,
+            `[OrderForm] Variant ${variant.variantId}: package=${variant.packageContent}, price=${price === null ? "NOT FOUND" : `€${price}`}, vat=${vat}%`,
           );
         }
 
@@ -1005,16 +1005,15 @@ export default function OrderFormSimple() {
         }
 
         // Update selectedProduct to first variant with a price (for backward compatibility)
-        const firstWithPrice = allVariants.find(
-          (v) =>
-            variantsWithDetails.find((d) => d.variantId === v.id)?.price !==
-            null,
-        );
-        if (firstWithPrice && firstWithPrice.id !== selectedProduct.id) {
-          console.log(
-            `[OrderForm] Switching to variant ${firstWithPrice.id} (has price)`,
-          );
-          setSelectedProduct(firstWithPrice);
+        const firstWithPrice = variantsWithDetails.find((d) => d.price !== null);
+        if (firstWithPrice && firstWithPrice.variantId !== selectedProduct.id) {
+          const variantProduct = await productService.getProductById(firstWithPrice.variantId);
+          if (variantProduct) {
+            console.log(
+              `[OrderForm] Switching to variant ${firstWithPrice.variantId} (has price)`,
+            );
+            setSelectedProduct(variantProduct);
+          }
         }
       } catch (error) {
         console.error("[OrderForm] Failed to load product details:", error);

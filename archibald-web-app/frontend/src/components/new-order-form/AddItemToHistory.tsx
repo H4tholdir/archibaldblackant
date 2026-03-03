@@ -112,16 +112,16 @@ export function AddItemToHistory({
 
     const loadVariants = async () => {
       const productName = selectedProduct.name;
-      const allProductsWithDetails = await productService.searchProducts(productName, 100);
-      const allProducts = allProductsWithDetails.filter(p => p.name === productName);
+      const productWithDetails = await productService.getProductById(productName);
+      const allVariants = productWithDetails?.variants ?? [];
 
       const variants: VariantInfo[] = [];
-      for (const p of allProducts) {
-        const priceData = await priceService.getPriceAndVat(p.id);
+      for (const v of allVariants) {
+        const priceData = await priceService.getPriceAndVat(v.variantId);
         variants.push({
-          variantId: p.id,
-          productId: p.id,
-          packageContent: p.packageContent || "",
+          variantId: v.variantId,
+          productId: v.productId,
+          packageContent: v.packageContent || "",
           price: priceData?.price ?? null,
           vat: normalizeVatRate(priceData?.vat) ?? 0,
         });
