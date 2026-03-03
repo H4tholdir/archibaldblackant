@@ -800,6 +800,99 @@ export class ArchibaldBot {
     return clicked;
   }
 
+  private async clickSaveOnly(): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    // Open the "Salvare" dropdown menu
+    const dropdownOpened = await this.page.evaluate(() => {
+      const allElements = Array.from(
+        document.querySelectorAll("span, button, a"),
+      );
+      const salvareBtn = allElements.find((el) => {
+        const text = el.textContent?.trim() || "";
+        return text.toLowerCase().includes("salvare");
+      });
+
+      if (!salvareBtn) return false;
+
+      const parent = salvareBtn.closest("li") || salvareBtn.parentElement;
+      if (!parent) return false;
+
+      const popOut =
+        parent.querySelector("div.dxm-popOut") ||
+        parent.querySelector('[id*="_P"]');
+      if (popOut && (popOut as HTMLElement).offsetParent !== null) {
+        (popOut as HTMLElement).click();
+        return true;
+      }
+
+      const arrow = parent.querySelector(
+        'img[id*="_B-1"], img[alt*="down"]',
+      );
+      if (arrow) {
+        (arrow as HTMLElement).click();
+        return true;
+      }
+
+      (salvareBtn as HTMLElement).click();
+      return true;
+    });
+
+    if (!dropdownOpened) {
+      throw new Error('Button "Salvare" not found');
+    }
+
+    await this.wait(500);
+
+    // Click "Salvare" item inside the dropdown popup (not "Salva e chiudi")
+    const saveClicked = await this.page.evaluate(() => {
+      // Search in popup/submenu containers for the exact "Salvare" text
+      const popups = Array.from(
+        document.querySelectorAll(
+          '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"]',
+        ),
+      );
+      for (const popup of popups) {
+        const items = Array.from(popup.querySelectorAll("a, span"));
+        for (const item of items) {
+          const text = item.textContent?.trim() || "";
+          if (
+            text === "Salvare" &&
+            (item as HTMLElement).offsetParent !== null
+          ) {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+      }
+
+      // Fallback: search all visible elements with exact "Salvare" text
+      // but exclude the main toolbar button (which is inside an LI with dropdown)
+      const allItems = Array.from(document.querySelectorAll("a, span, li"));
+      for (const item of allItems) {
+        const text = item.textContent?.trim() || "";
+        if (text === "Salvare" && (item as HTMLElement).offsetParent !== null) {
+          const isMenuPopupItem =
+            item.closest('[class*="dxm-popup"]') ||
+            item.closest('[class*="subMenu"]') ||
+            item.closest('[id*="_DXI"]');
+          if (isMenuPopupItem) {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+
+    if (!saveClicked) {
+      throw new Error('"Salvare" option not found in dropdown');
+    }
+
+    logger.info('Clicked "Salvare" (save only)');
+    await this.wait(1000);
+  }
+
   /**
    * Find DevExpress dropdown by label text and click arrow
    * @param labelText - Label text to search for (e.g., "PROFILO CLIENTE")
@@ -5511,6 +5604,129 @@ export class ArchibaldBot {
         );
 
         await this.emitProgress("form.discount");
+      }
+
+      // STEP 9.7: Workaround for Archibald N/A line discount bug.
+      // When SCONTO LINEA is set to N/A, the ERP sometimes fails to clear
+      // the pre-set SCONTO % from all article rows (only the first row is
+      // cleared). The fix is: save → detect leftover discounts → re-set N/A → save.
+      if (hasAnyLineDiscount) {
+        await this.runOp(
+          "order.na_discount_workaround",
+          async () => {
+            // Save order first (just "Salvare", not "Salva e chiudi")
+            logger.debug("Saving order before N/A discount verification...");
+            await this.clickSaveOnly();
+            await this.waitForDevExpressIdle({
+              timeout: 10000,
+              label: "save-before-na-check",
+            });
+
+            // Check if any article row still has a non-zero SCONTO %
+            const discountBugDetected = await this.page!.evaluate(() => {
+              const grid = document.querySelector(
+                'table[id*="GridView"], table[id*="gridView"]',
+              );
+              if (!grid) return false;
+
+              // Find the SCONTO % column index from headers
+              const headers = Array.from(
+                grid.querySelectorAll("th, td.dxgvHeader_Office2003Blue"),
+              );
+              let scontoColIndex = -1;
+              for (let i = 0; i < headers.length; i++) {
+                const text = headers[i].textContent?.trim() || "";
+                if (/^SCONTO\s*%/i.test(text)) {
+                  scontoColIndex = i;
+                  break;
+                }
+              }
+              if (scontoColIndex < 0) return false;
+
+              // Check data rows (skip header, skip edit rows)
+              const rows = Array.from(
+                grid.querySelectorAll(
+                  'tr.dxgvDataRow_Office2003Blue, tr[id*="DXDataRow"]',
+                ),
+              );
+              for (let r = 1; r < rows.length; r++) {
+                const cells = Array.from(rows[r].querySelectorAll("td"));
+                if (scontoColIndex < cells.length) {
+                  const cellText = cells[scontoColIndex].textContent?.trim() || "";
+                  const numericValue = parseFloat(
+                    cellText.replace("%", "").replace(",", ".").trim(),
+                  );
+                  if (!isNaN(numericValue) && numericValue > 0) {
+                    return true;
+                  }
+                }
+              }
+              return false;
+            });
+
+            if (!discountBugDetected) {
+              logger.info(
+                "N/A discount applied correctly on all rows, no workaround needed",
+              );
+              return;
+            }
+
+            logger.warn(
+              "N/A discount bug detected: rows still have non-zero SCONTO %. Applying workaround...",
+            );
+
+            // Re-open Prezzi e sconti tab
+            await openPrezziEScontiTab();
+
+            // Re-set SCONTO LINEA to N/A
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const input = document.querySelector(
+                    'input[id*="LINEDISC"][id$="_I"]',
+                  ) as HTMLInputElement | null;
+                  return input && input.offsetParent !== null;
+                },
+                { timeout: 10000, polling: 200 },
+              );
+            } catch {
+              await openPrezziEScontiTab();
+              await this.wait(1000);
+            }
+
+            await this.page!.evaluate(() => {
+              const input = document.querySelector(
+                'input[id*="LINEDISC"][id$="_I"]',
+              ) as HTMLInputElement | null;
+              if (input) {
+                input.scrollIntoView({ block: "center" });
+                input.focus();
+                input.click();
+                input.value = "N/A";
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            });
+            await this.page!.keyboard.press("Tab");
+            await this.waitForDevExpressIdle({
+              timeout: 5000,
+              label: "na-workaround-set",
+            });
+
+            // Save again
+            logger.debug("Saving order after N/A workaround re-apply...");
+            await this.clickSaveOnly();
+            await this.waitForDevExpressIdle({
+              timeout: 10000,
+              label: "save-after-na-workaround",
+            });
+
+            logger.info(
+              "N/A discount workaround applied successfully (double save)",
+            );
+          },
+          "form.discount",
+        );
       }
 
       // STEP 10: Save and close order
