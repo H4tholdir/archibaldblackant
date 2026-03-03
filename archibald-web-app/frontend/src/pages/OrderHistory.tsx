@@ -1943,13 +1943,16 @@ export function OrderHistory() {
             {hasMoreOrders && ` (${visibleCount} visualizzati)`}
           </div>
 
-          {/* Sticky search bar that follows the user */}
+          {/* Fixed search bar that follows the user */}
           {showSearchBar && (
             <div
               style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 100,
+                position: "fixed",
+                top: "60px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "min(calc(100% - 32px), 1160px)",
+                zIndex: 99,
                 display: "flex",
                 alignItems: "center",
                 flexWrap: "wrap" as const,
@@ -1958,8 +1961,7 @@ export function OrderHistory() {
                 backgroundColor: "#fff",
                 border: "1px solid #e5e7eb",
                 borderRadius: "8px",
-                marginBottom: "12px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                 opacity: debouncedSearch ? 1 : 0.6,
                 transition: "opacity 0.3s",
               }}
@@ -2128,7 +2130,8 @@ export function OrderHistory() {
                       const isExpanded = expandedOrderId === order.id;
                       const isHighlighted = highlightFlash === order.id;
                       const isSelected = selectedOrderIds.has(order.id);
-                      const someCardExpanded = expandedOrderId !== null && !selectionMode;
+                      const isSearchAutoExpand = !!debouncedSearch && searchExpandedRef.current !== null;
+                      const someCardExpanded = expandedOrderId !== null && !selectionMode && !isSearchAutoExpand;
                       const isDimmed = someCardExpanded && !isExpanded;
                       const orderIsHidden = hiddenOrderIds.has(order.id);
 
