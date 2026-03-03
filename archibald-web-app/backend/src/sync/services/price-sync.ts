@@ -68,6 +68,11 @@ async function syncPrices(
     const now = Math.floor(Date.now() / 1000);
 
     for (const p of prices) {
+      if (!p.productId) {
+        pricesSkipped++;
+        continue;
+      }
+
       const hash = require('crypto').createHash('md5')
         .update([p.productId, p.unitPrice, p.priceValidFrom, p.priceValidTo, p.priceQtyFrom, p.priceQtyTo].join('|'))
         .digest('hex');
