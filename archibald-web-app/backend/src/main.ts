@@ -102,7 +102,7 @@ async function bootstrap(): Promise<void> {
       },
       sessionValidationUrl: config.archibald.url,
       loginFn: async (context, userId) => {
-        const isServiceUser = userId.endsWith('-service') || userId === 'sync-orchestrator';
+        const isServiceUser = userId === 'service-account' || userId.endsWith('-service') || userId === 'sync-orchestrator';
         let username: string;
         let password: string;
 
