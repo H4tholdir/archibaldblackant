@@ -15,6 +15,7 @@ export interface ParsedCustomer {
   // Primary identification
   customer_profile: string;
   name: string;
+  internal_id?: string | null;
 
   // Italian fiscal data
   vat_number?: string | null;

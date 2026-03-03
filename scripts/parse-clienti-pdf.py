@@ -29,8 +29,9 @@ except ImportError:
 @dataclass
 class ParsedCustomer:
     """Structured customer data from PDF"""
-    customer_profile: str  # ID PROFILO CLIENTE
+    customer_profile: str  # ID
     name: str  # NOME
+    internal_id: Optional[str] = None  # PROFILO CLIENTE
     vat_number: Optional[str] = None  # PARTITA IVA
     pec: Optional[str] = None  # PEC
     sdi: Optional[str] = None  # SDI
@@ -206,6 +207,7 @@ class CustomerPDFParser:
             customer = ParsedCustomer(
                 customer_profile=ids_data.get('customer_profile', ''),
                 name=ids_data.get('name', ''),
+                internal_id=ids_data.get('internal_id'),
                 vat_number=ids_data.get('vat_number'),
                 pec=fiscal_data.get('pec'),
                 sdi=fiscal_data.get('sdi'),
@@ -253,8 +255,9 @@ class CustomerPDFParser:
         # ID is the primary identifier (column 0)
         customer_profile = (row[0] or '').strip()
 
-        # PROFILO CLIENTE is optional (column 1) - rarely used
-        # We don't store it separately for now as it's rarely populated
+        # PROFILO CLIENTE (column 1) - used to match with order's customer_profile_id
+        internal_id = (row[1] or '').strip() if len(row) > 1 else None
+        internal_id = internal_id if internal_id else None
 
         name = ' '.join((row[2] or '').split())
         vat_number = (row[3] or '').strip() if len(row) > 3 else None
@@ -264,6 +267,7 @@ class CustomerPDFParser:
 
         return {
             'customer_profile': customer_profile,
+            'internal_id': internal_id,
             'name': name,
             'vat_number': vat_number
         }

@@ -31,6 +31,7 @@ function adaptCustomer(p: ParserCustomer): ParsedCustomer {
   return {
     customerProfile: p.customer_profile,
     name: p.name,
+    internalId: n(p.internal_id),
     vatNumber: n(p.vat_number),
     fiscalCode: n(p.fiscal_code),
     sdi: n(p.sdi),
