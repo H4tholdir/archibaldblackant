@@ -376,7 +376,7 @@ export function OrderHistory() {
     const filterEl = filterBarRef.current;
     if (!filterEl) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setFilterBarVisible(!entry.isIntersecting),
+      ([entry]) => setFilterBarVisible(entry.isIntersecting),
       { threshold: 0, rootMargin: "-60px 0px 0px 0px" },
     );
     observer.observe(filterEl);
