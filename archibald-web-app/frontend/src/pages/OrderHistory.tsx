@@ -313,10 +313,7 @@ export function OrderHistory() {
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
-    resultsContainerRef,
-    debouncedSearch,
-  );
+  useSearchMatches(resultsContainerRef, debouncedSearch);
 
   const { subscribe } = useWebSocketContext();
 
@@ -328,34 +325,24 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Track which card was auto-expanded by search so we can collapse it on clear
-  const searchExpandedRef = useRef<string | null>(null);
+  // Order-level search navigation: tracks which order is currently focused
+  const [searchFocusIndex, setSearchFocusIndex] = useState(-1);
+  const searchActiveRef = useRef(false);
 
-  // Auto-expand first order with an internal tab match
-  const prevSearchRef = useRef("");
+  // When search query changes, focus the first matching order
   useEffect(() => {
-    if (debouncedSearch && debouncedSearch !== prevSearchRef.current) {
-      prevSearchRef.current = debouncedSearch;
-      // Collapse previously auto-expanded card when search query changes
-      if (searchExpandedRef.current && searchExpandedRef.current !== expandedOrderId) {
-        searchExpandedRef.current = null;
-      }
-      const matchedOrders = orders.filter((o) => matchesGlobalSearch(o, debouncedSearch));
-      const firstWithTab = matchedOrders.find((o) => getMatchingTab(o, debouncedSearch) !== null);
-      if (firstWithTab) {
-        setExpandedOrderId(firstWithTab.id);
-        searchExpandedRef.current = firstWithTab.id;
-      }
-    }
-    // Collapse auto-expanded card and reset dimming when search is cleared
-    if (!debouncedSearch) {
-      prevSearchRef.current = "";
-      if (searchExpandedRef.current) {
+    if (debouncedSearch) {
+      searchActiveRef.current = true;
+      setSearchFocusIndex(0);
+    } else {
+      // Search cleared: collapse and reset
+      if (searchActiveRef.current) {
         setExpandedOrderId(null);
-        searchExpandedRef.current = null;
+        searchActiveRef.current = false;
       }
+      setSearchFocusIndex(-1);
     }
-  }, [debouncedSearch, orders]);
+  }, [debouncedSearch]);
 
   // Keep the search navigation bar visible for a short time after clearing
   const [showSearchBar, setShowSearchBar] = useState(false);
@@ -936,6 +923,30 @@ export function OrderHistory() {
     filters.search !== "" ||
     showHidden;
 
+  // When searchFocusIndex changes, expand that order + open the right tab + scroll
+  useEffect(() => {
+    if (searchFocusIndex < 0 || !debouncedSearch || filteredOrders.length === 0) return;
+    const idx = searchFocusIndex % filteredOrders.length;
+    const order = filteredOrders[idx];
+    if (!order) return;
+    setExpandedOrderId(order.id);
+    // Scroll the card into view
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`order-${order.id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [searchFocusIndex, debouncedSearch, filteredOrders]);
+
+  const searchGoNext = useCallback(() => {
+    if (filteredOrders.length === 0) return;
+    setSearchFocusIndex((i) => (i + 1) % filteredOrders.length);
+  }, [filteredOrders.length]);
+
+  const searchGoPrev = useCallback(() => {
+    if (filteredOrders.length === 0) return;
+    setSearchFocusIndex((i) => (i - 1 + filteredOrders.length) % filteredOrders.length);
+  }, [filteredOrders.length]);
+
   const visibleOrders = filteredOrders.slice(0, visibleCount);
   const hasMoreOrders = visibleCount < filteredOrders.length;
   const orderGroups = useMemo(() => groupOrdersByPeriod(visibleOrders), [visibleOrders]);
@@ -1381,7 +1392,7 @@ export function OrderHistory() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (e.shiftKey) { goPrev(); } else { goNext(); }
+                  if (e.shiftKey) { searchGoPrev(); } else { searchGoNext(); }
                 }
               }}
               style={{
@@ -1976,7 +1987,7 @@ export function OrderHistory() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    if (e.shiftKey) { goPrev(); } else { goNext(); }
+                    if (e.shiftKey) { searchGoPrev(); } else { searchGoNext(); }
                   }
                 }}
                 style={{
@@ -1996,10 +2007,10 @@ export function OrderHistory() {
                   e.currentTarget.style.borderColor = "#d1d5db";
                 }}
               />
-              {totalMatches > 0 && (
+              {debouncedSearch && filteredOrders.length > 0 && (
                 <>
                   <button
-                    onClick={goPrev}
+                    onClick={searchGoPrev}
                     style={{
                       padding: "4px 10px",
                       fontSize: "14px",
@@ -2014,10 +2025,10 @@ export function OrderHistory() {
                   <span
                     style={{ fontSize: "13px", fontWeight: 500, color: "#333", whiteSpace: "nowrap" }}
                   >
-                    {currentIndex + 1}/{totalMatches}
+                    {(searchFocusIndex % filteredOrders.length) + 1}/{filteredOrders.length}
                   </span>
                   <button
-                    onClick={goNext}
+                    onClick={searchGoNext}
                     style={{
                       padding: "4px 10px",
                       fontSize: "14px",
@@ -2130,8 +2141,7 @@ export function OrderHistory() {
                       const isExpanded = expandedOrderId === order.id;
                       const isHighlighted = highlightFlash === order.id;
                       const isSelected = selectedOrderIds.has(order.id);
-                      const isSearchAutoExpand = !!debouncedSearch && searchExpandedRef.current !== null;
-                      const someCardExpanded = expandedOrderId !== null && !selectionMode && !isSearchAutoExpand;
+                      const someCardExpanded = expandedOrderId !== null && !selectionMode;
                       const isDimmed = someCardExpanded && !isExpanded;
                       const orderIsHidden = hiddenOrderIds.has(order.id);
 
