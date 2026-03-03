@@ -145,16 +145,39 @@ async function bootstrap(): Promise<void> {
               ) || inputs[0];
               const passwordField = document.querySelector<HTMLInputElement>('input[type="password"]');
               if (!userInput || !passwordField) return false;
-              userInput.value = user;
-              passwordField.value = pass;
+
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+
+              userInput.focus();
+              userInput.click();
+              if (setter) setter.call(userInput, user);
+              else userInput.value = user;
               userInput.dispatchEvent(new Event('input', { bubbles: true }));
+              userInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+              passwordField.focus();
+              passwordField.click();
+              if (setter) setter.call(passwordField, pass);
+              else passwordField.value = pass;
               passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+
+              const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a, div[role="button"]'));
+              const loginBtn = buttons.find(btn => {
+                const text = (btn.textContent || '').toLowerCase().replace(/\s+/g, '');
+                return text.includes('accedi') || text === 'login';
+              }) || buttons.find(btn => {
+                const id = ((btn as HTMLElement).id || '').toLowerCase();
+                if (id.includes('logo')) return false;
+                return id.includes('login') || id.includes('logon');
+              });
+              if (loginBtn) (loginBtn as HTMLElement).click();
+
               return true;
             }) as never, username, password) as boolean;
 
             if (!filled) throw new Error('Login form fields not found');
 
-            await page.keyboard.press('Enter');
             await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 } as never);
 
             const finalUrl = page.url();
