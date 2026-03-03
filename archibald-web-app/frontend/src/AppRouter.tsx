@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
-import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { useToast } from "./hooks/useToast";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
@@ -37,7 +36,6 @@ import WebSocketSync from "./components/WebSocketSync";
 
 function AppRouter() {
   const auth = useAuth();
-  const { isOffline } = useNetworkStatus();
   const toasts = useToast();
 
   const [tempCredentials, setTempCredentials] = useState<{
@@ -250,10 +248,7 @@ function AppRouter() {
             <Route
               path="/"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <Dashboard />
                   </main>
@@ -284,10 +279,7 @@ function AppRouter() {
             <Route
               path="/orders"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderHistory />
                   </main>
@@ -305,10 +297,7 @@ function AppRouter() {
             <Route
               path="/pending-orders"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <PendingOrdersPage />
                   </main>
@@ -326,10 +315,7 @@ function AppRouter() {
             <Route
               path="/customers"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <CustomerList />
                   </main>
@@ -347,10 +333,7 @@ function AppRouter() {
             <Route
               path="/products"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ArticoliList />
                   </main>
@@ -368,10 +351,7 @@ function AppRouter() {
             <Route
               path="/profile"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProfilePage />
                   </main>
@@ -389,10 +369,7 @@ function AppRouter() {
             <Route
               path="/prezzi-variazioni"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <PriceVariationsPage />
                   </main>
@@ -410,10 +387,7 @@ function AppRouter() {
             <Route
               path="/prodotti-variazioni"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProductVariationsPage />
                   </main>
@@ -428,10 +402,7 @@ function AppRouter() {
             <Route
               path="/order"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderFormNew />
                   </main>
@@ -449,10 +420,7 @@ function AppRouter() {
             <Route
               path="/warehouse-management"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <WarehouseManagementView />
                   </main>
@@ -470,10 +438,7 @@ function AppRouter() {
             <Route
               path="/fresis-history"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <FresisHistoryPage />
                   </main>
@@ -488,10 +453,7 @@ function AppRouter() {
             <Route
               path="/revenue-report"
               element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
+                <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <RevenueReportPage />
                   </main>

@@ -10,17 +10,12 @@ export function OfflineBanner() {
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: "#ffc107", // Yellow (banking app standard)
+        backgroundColor: "#ffc107",
         color: "#000",
         padding: "12px 16px",
         textAlign: "center",
         fontWeight: 600,
         fontSize: "14px",
-        zIndex: 9999,
         boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         borderBottom: "2px solid #ff9800",
       }}
