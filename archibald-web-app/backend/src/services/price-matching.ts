@@ -30,11 +30,23 @@ function matchVariant(
   if (products.length === 0) return null;
   if (itemSelection == null) return products[0];
 
+  const idMatch = products.find((p) => p.id === itemSelection);
+  if (idMatch) return idMatch;
+
   const expectedContent = VARIANT_PACKAGE_CONTENT[itemSelection];
 
   if (expectedContent) {
     const contentMatch = products.find((p) => p.package_content === expectedContent);
     if (contentMatch) return contentMatch;
+  }
+
+  const variantSuffix = itemSelection.match(/[KR]\d+$/)?.[0];
+  if (variantSuffix) {
+    const contentByVariant = VARIANT_PACKAGE_CONTENT[variantSuffix];
+    if (contentByVariant) {
+      const contentMatch = products.find((p) => p.package_content === contentByVariant);
+      if (contentMatch) return contentMatch;
+    }
   }
 
   const suffixMatch = products.find((p) => p.id.endsWith(`.${itemSelection}`));
