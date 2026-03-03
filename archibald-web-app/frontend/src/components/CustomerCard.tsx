@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { Customer } from "../types/customer";
 import { formatCurrency } from "../utils/format-currency";
+import { PhotoCropModal } from "./PhotoCropModal";
 
 interface CustomerCardProps {
   customer: Customer;
@@ -28,6 +29,23 @@ export function CustomerCard({
   const hasSwipeAction =
     customer.botStatus === "failed" || customer.botStatus === "pending";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+  const handleFileSelected = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropConfirm = (blob: Blob) => {
+    setCropImageSrc(null);
+    if (onPhotoUpload) {
+      const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
+      onPhotoUpload(customer.customerProfile, file);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -157,6 +175,14 @@ export function CustomerCard({
             Riprova
           </button>
         </div>
+      )}
+
+      {cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropImageSrc(null)}
+        />
       )}
 
       {/* Main card */}
@@ -399,8 +425,8 @@ export function CustomerCard({
                     style={{ display: "none" }}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file && onPhotoUpload) {
-                        onPhotoUpload(customer.customerProfile, file);
+                      if (file) {
+                        handleFileSelected(file);
                       }
                       e.target.value = "";
                     }}
@@ -425,8 +451,8 @@ export function CustomerCard({
                     style={{ display: "none" }}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file && onPhotoUpload) {
-                        onPhotoUpload(customer.customerProfile, file);
+                      if (file) {
+                        handleFileSelected(file);
                       }
                       e.target.value = "";
                     }}
