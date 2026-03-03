@@ -124,44 +124,62 @@ async function bootstrap(): Promise<void> {
           password = cachedPassword;
         }
 
-        const page = await context.newPage();
-        try {
-          await (page as any).setExtraHTTPHeaders({ 'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' });
-          const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
-          await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 } as never);
-          await page.waitForSelector('input[type="text"]', { timeout: 5000 } as never);
-          await page.waitForSelector('input[type="password"]', { timeout: 5000 } as never);
+        const maxLoginAttempts = 3;
+        const loginRetryDelayMs = 3000;
 
-          const filled = await page.evaluate(((user: string, pass: string) => {
-            const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"]'));
-            const userInput = inputs.find(i =>
-              i.name?.includes('UserName') ||
-              i.placeholder?.toLowerCase().includes('account') ||
-              i.placeholder?.toLowerCase().includes('username'),
-            ) || inputs[0];
-            const passwordField = document.querySelector<HTMLInputElement>('input[type="password"]');
-            if (!userInput || !passwordField) return false;
-            userInput.value = user;
-            passwordField.value = pass;
-            userInput.dispatchEvent(new Event('input', { bubbles: true }));
-            passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-            return true;
-          }) as never, username, password) as boolean;
+        for (let attempt = 1; attempt <= maxLoginAttempts; attempt++) {
+          const page = await context.newPage();
+          try {
+            await (page as any).setExtraHTTPHeaders({ 'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' });
+            const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
+            await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 } as never);
+            await page.waitForSelector('input[type="text"]', { timeout: 5000 } as never);
+            await page.waitForSelector('input[type="password"]', { timeout: 5000 } as never);
 
-          if (!filled) throw new Error('Login form fields not found');
+            const filled = await page.evaluate(((user: string, pass: string) => {
+              const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"]'));
+              const userInput = inputs.find(i =>
+                i.name?.includes('UserName') ||
+                i.placeholder?.toLowerCase().includes('account') ||
+                i.placeholder?.toLowerCase().includes('username'),
+              ) || inputs[0];
+              const passwordField = document.querySelector<HTMLInputElement>('input[type="password"]');
+              if (!userInput || !passwordField) return false;
+              userInput.value = user;
+              passwordField.value = pass;
+              userInput.dispatchEvent(new Event('input', { bubbles: true }));
+              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              return true;
+            }) as never, username, password) as boolean;
 
-          await page.keyboard.press('Enter');
-          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 } as never);
+            if (!filled) throw new Error('Login form fields not found');
 
-          const finalUrl = page.url();
-          if (finalUrl.includes('Login.aspx')) {
-            throw new Error('Login failed - still on login page');
-          }
+            await page.keyboard.press('Enter');
+            await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 } as never);
 
-          logger.info('Browser pool login successful', { userId, url: finalUrl });
-        } finally {
-          if (!page.isClosed()) {
-            await page.close().catch(() => {});
+            const finalUrl = page.url();
+            if (finalUrl.includes('Login.aspx')) {
+              throw new Error('Login failed - still on login page');
+            }
+
+            logger.info('Browser pool login successful', { userId, url: finalUrl });
+            return;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isTimeout = message.toLowerCase().includes('timeout');
+
+            if (!isTimeout || attempt === maxLoginAttempts) {
+              throw error;
+            }
+
+            logger.warn('Login navigation timeout, retrying', {
+              userId, attempt, maxAttempts: maxLoginAttempts, error: message,
+            });
+            await new Promise(resolve => setTimeout(resolve, loginRetryDelayMs));
+          } finally {
+            if (!page.isClosed()) {
+              await page.close().catch(() => {});
+            }
           }
         }
       },
