@@ -14,7 +14,7 @@ import {
   formatCurrency,
   formatPriceFromString,
 } from "../utils/format-currency";
-import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
@@ -616,7 +616,7 @@ function TabArticoli({
   onEditDone,
   editProgress,
   onEditProgress,
-  customerProfileId,
+  customerName,
 }: {
   orderId: string;
   archibaldOrderId?: string;
@@ -630,7 +630,7 @@ function TabArticoli({
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
-  customerProfileId?: string;
+  customerName?: string;
 }) {
   const [articles, setArticles] = useState<OrderArticle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -856,7 +856,7 @@ function TabArticoli({
         currentQty,
       );
 
-      const isFresisCustomer = isFresis({ id: customerProfileId || "" });
+      const isFresisCustomer = customerName?.toLowerCase().includes("fresis") ?? false;
 
       const hasBreakdown =
         packaging.success &&
@@ -936,7 +936,7 @@ function TabArticoli({
         }
       }, 50);
     },
-    [editItems, customerProfileId],
+    [editItems, customerName],
   );
 
   const handleArticleKeyDown = useCallback(
@@ -1022,24 +1022,62 @@ function TabArticoli({
             );
           }
           if (packaging.breakdown && packaging.breakdown.length > 0) {
-            const bestVariant = packaging.breakdown[0].variant;
-            const currentArticle = newItems[idx].articleCode;
-            if (
-              bestVariant.variantId &&
-              bestVariant.variantId !== currentArticle
-            ) {
-              const priceData = await priceService.getPriceAndVat(
-                bestVariant.variantId,
-              );
+            const isFresisCustomer = customerName?.toLowerCase().includes("fresis") ?? false;
+
+            if (packaging.breakdown.length > 1) {
+              const breakdownItems: EditItem[] = [];
+              for (const pkg of packaging.breakdown) {
+                const variantArticleCode = pkg.variant.variantId || item.articleCode;
+                const priceData = await priceService.getPriceAndVat(variantArticleCode);
+
+                let discountPercent = item.discountPercent;
+                if (isFresisCustomer) {
+                  const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+                  discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
+                }
+
+                breakdownItems.push(
+                  recalcLineAmounts({
+                    articleCode: variantArticleCode,
+                    productName: item.productName,
+                    unitPrice: priceData?.price ?? item.unitPrice,
+                    vatPercent: normalizeVatRate(priceData?.vat ?? item.vatPercent) ?? 0,
+                    articleDescription: item.articleDescription,
+                    quantity: pkg.totalPieces,
+                    discountPercent,
+                    vatAmount: 0,
+                    lineAmount: 0,
+                    lineTotalWithVat: 0,
+                  }),
+                );
+              }
+              setEditItems((prev) => {
+                const updated = [...prev];
+                updated.splice(idx, 1, ...breakdownItems);
+                return updated;
+              });
+            } else {
+              const bestVariant = packaging.breakdown[0].variant;
+              const variantArticleCode = bestVariant.variantId || item.articleCode;
+              const priceData = await priceService.getPriceAndVat(variantArticleCode);
+
+              let discountPercent = item.discountPercent;
+              if (isFresisCustomer) {
+                const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+                discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
+              }
+
               setEditItems((prev) => {
                 const updated = [...prev];
                 updated[idx] = recalcLineAmounts({
                   ...updated[idx],
-                  articleCode: bestVariant.variantId,
+                  articleCode: variantArticleCode,
                   unitPrice: priceData?.price ?? updated[idx].unitPrice,
                   vatPercent: normalizeVatRate(
                     priceData?.vat ?? updated[idx].vatPercent,
                   ) ?? 0,
+                  quantity: packaging.breakdown![0].totalPieces,
+                  discountPercent,
                 });
                 return updated;
               });
@@ -1056,7 +1094,7 @@ function TabArticoli({
       }, 500);
       qtyTimeoutRef.current.set(idx, timeout);
     },
-    [editItems],
+    [editItems, customerName],
   );
 
   const handleDiscountChange = useCallback(
@@ -1595,13 +1633,13 @@ function TabArticoli({
                       >
                         <input
                           type="text"
-                          value={isSearching ? articleSearch : item.productName}
+                          value={isSearching ? articleSearch : (item.productName || item.articleCode)}
                           onChange={(e) =>
                             handleArticleSearchChange(idx, e.target.value)
                           }
                           onFocus={() => {
                             setEditingArticleIdx(idx);
-                            setArticleSearch(item.productName);
+                            setArticleSearch(item.productName || item.articleCode);
                           }}
                           onKeyDown={(e) => handleArticleKeyDown(e, idx)}
                           placeholder="Cerca articolo..."
@@ -4533,7 +4571,7 @@ export function OrderCardNew({
                   onEditDone={onEditDone}
                   editProgress={editProgress}
                   onEditProgress={setEditProgress}
-                  customerProfileId={order.customerProfileId}
+                  customerName={order.customerName}
                 />
               </>
             )}
