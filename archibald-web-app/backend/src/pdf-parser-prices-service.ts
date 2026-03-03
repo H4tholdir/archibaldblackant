@@ -90,7 +90,22 @@ export class PDFParserPricesService {
 
         if (code === 0) {
           try {
-            const prices = JSON.parse(stdout) as ParsedPrice[];
+            const rawPrices = JSON.parse(stdout) as Record<string, unknown>[];
+            const prices: ParsedPrice[] = rawPrices.map((p) => ({
+              product_id: (p.item_selection ?? p.id) as string,
+              product_name: (p.item_description ?? null) as string | null,
+              unit_price: (p.importo_unitario ?? null) as string | null,
+              item_selection: (p.item_selection ?? null) as string | null,
+              account_code: (p.codice_conto ?? null) as string | null,
+              account_description: (p.descrizione_account ?? null) as string | null,
+              price_valid_from: (p.da_data ?? null) as string | null,
+              price_valid_to: (p.data ?? null) as string | null,
+              quantity_from: (p.quantita_p2 ?? null) as string | null,
+              quantity_to: (p.quantita_p3 ?? null) as string | null,
+              currency: (p.valuta ?? null) as string | null,
+              price_unit: (p.unita_di_prezzo ?? null) as string | null,
+              net_price_brasseler: (p.prezzo_netto_brasseler ?? null) as string | null,
+            }));
             logger.info(
               `[PDFParserPricesService] Parsed ${prices.length} prices in ${duration}ms (3-page cycles)`,
             );
