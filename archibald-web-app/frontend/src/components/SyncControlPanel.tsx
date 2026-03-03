@@ -9,7 +9,8 @@ type SyncType =
   | "prices"
   | "orders"
   | "ddt"
-  | "invoices";
+  | "invoices"
+  | "order-articles";
 
 type QueueStats = {
   waiting: number;
@@ -38,15 +39,16 @@ interface SyncSection {
 }
 
 const syncSections: SyncSection[] = [
-  { type: "orders", label: "Ordini", icon: "📦", priority: 6 },
-  { type: "customers", label: "Clienti", icon: "👥", priority: 5 },
-  { type: "ddt", label: "DDT", icon: "🚚", priority: 4 },
-  { type: "invoices", label: "Fatture", icon: "📄", priority: 3 },
-  { type: "products", label: "Prodotti", icon: "🏷️", priority: 2 },
-  { type: "prices", label: "Prezzi", icon: "💰", priority: 1 },
+  { type: "orders", label: "Ordini", icon: "📦", priority: 7 },
+  { type: "customers", label: "Clienti", icon: "👥", priority: 6 },
+  { type: "ddt", label: "DDT", icon: "🚚", priority: 5 },
+  { type: "invoices", label: "Fatture", icon: "📄", priority: 4 },
+  { type: "products", label: "Prodotti", icon: "🏷️", priority: 3 },
+  { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
+  { type: "order-articles", label: "Articoli Ordini", icon: "📋", priority: 1 },
 ];
 
-const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices"];
+const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices", "order-articles"];
 
 function formatLastSync(iso: string | null, isLoading: boolean): string {
   if (isLoading) return "...";
@@ -82,12 +84,14 @@ export default function SyncControlPanel() {
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
+    "order-articles": false,
   });
   const [syncingAll, setSyncingAll] = useState(false);
   const [enqueuedTypes, setEnqueuedTypes] = useState<Set<SyncType>>(new Set());
   const [deletingDb, setDeletingDb] = useState<Record<SyncType, boolean>>({
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
+    "order-articles": false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
   const [togglingAutoSync, setTogglingAutoSync] = useState(false);
@@ -608,7 +612,7 @@ export default function SyncControlPanel() {
 
               <div style={{ fontSize: "12px", color: "#666" }}>
                 <div>
-                  <strong>Priorità:</strong> {section.priority}/6
+                  <strong>Priorità:</strong> {section.priority}/7
                 </div>
                 <div>
                   <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null, !lastSyncTimesLoaded)}
