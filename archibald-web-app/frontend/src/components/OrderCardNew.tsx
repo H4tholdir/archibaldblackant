@@ -784,7 +784,7 @@ function TabArticoli({
 
       // 3. Initialize edit items from fresh articles
       const mapped: EditItem[] = freshArticles.map((item: OrderArticle) => ({
-        articleCode: item.articleCode || "",
+        articleCode: item.productName || item.articleCode || "",
         productName: item.productName || "",
         quantity: item.quantity || 0,
         unitPrice: item.unitPrice ?? 0,
@@ -867,7 +867,7 @@ function TabArticoli({
 
       if (hasBreakdown) {
         for (const pkg of packaging.breakdown!) {
-          const variantArticleCode = pkg.variant.variantId || product.id;
+          const variantArticleCode = pkg.variant.variantId || product.name;
           const priceData = await priceService.getPriceAndVat(variantArticleCode);
           const unitPrice = priceData?.price ?? product.price ?? 0;
           const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
@@ -901,13 +901,13 @@ function TabArticoli({
 
         let discountPercent = editItems[idx]?.discountPercent ?? 0;
         if (isFresisCustomer) {
-          const fresisDiscount = await getDiscountForArticle(variantId);
+          const fresisDiscount = await getDiscountForArticle(product.name);
           discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
         }
 
         breakdownItems.push(
           recalcLineAmounts({
-            articleCode: product.article,
+            articleCode: product.name,
             productName: product.name,
             unitPrice,
             vatPercent,
@@ -1027,7 +1027,7 @@ function TabArticoli({
             if (packaging.breakdown.length > 1) {
               const breakdownItems: EditItem[] = [];
               for (const pkg of packaging.breakdown) {
-                const variantArticleCode = pkg.variant.variantId || item.articleCode;
+                const variantArticleCode = pkg.variant.variantId || item.productName;
                 const priceData = await priceService.getPriceAndVat(variantArticleCode);
 
                 let discountPercent = item.discountPercent;
@@ -1058,7 +1058,7 @@ function TabArticoli({
               });
             } else {
               const bestVariant = packaging.breakdown[0].variant;
-              const variantArticleCode = bestVariant.variantId || item.articleCode;
+              const variantArticleCode = bestVariant.variantId || item.productName;
               const priceData = await priceService.getPriceAndVat(variantArticleCode);
 
               let discountPercent = item.discountPercent;
