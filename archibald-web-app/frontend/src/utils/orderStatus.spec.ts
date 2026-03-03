@@ -4,6 +4,7 @@ import {
   getOrderStatus,
   getAllStatusStyles,
   getStatusStyleByCategory,
+  isNotSentToVerona,
   type OrderStatusCategory,
 } from "./orderStatus";
 
@@ -508,5 +509,68 @@ describe("getStatusStyleByCategory", () => {
 
     expect(style.borderColor).toBe("#5D4037");
     expect(style.backgroundColor).toBe("#D7CCC8");
+  });
+});
+
+describe("isNotSentToVerona", () => {
+  test("returns true when transferStatus is Modifica with real order number", () => {
+    const order = {
+      id: "order-1",
+      customerName: "Test",
+      date: "2026-03-03",
+      total: "100.00",
+      orderNumber: "49.783",
+      transferStatus: "Modifica",
+    } as Order;
+
+    expect(isNotSentToVerona(order)).toBe(true);
+  });
+
+  test("returns true when transferStatus is Modifica with PENDING order number", () => {
+    const order = {
+      id: "order-2",
+      customerName: "Test",
+      date: "2026-03-03",
+      total: "100.00",
+      orderNumber: "PENDING-49.783",
+      transferStatus: "Modifica",
+    } as Order;
+
+    expect(isNotSentToVerona(order)).toBe(true);
+  });
+
+  test("returns true case-insensitive", () => {
+    const order = {
+      id: "order-3",
+      customerName: "Test",
+      date: "2026-03-03",
+      total: "100.00",
+      transferStatus: "modifica",
+    } as Order;
+
+    expect(isNotSentToVerona(order)).toBe(true);
+  });
+
+  test("returns false when transferStatus is Trasferito", () => {
+    const order = {
+      id: "order-4",
+      customerName: "Test",
+      date: "2026-03-03",
+      total: "100.00",
+      transferStatus: "Trasferito",
+    } as Order;
+
+    expect(isNotSentToVerona(order)).toBe(false);
+  });
+
+  test("returns false when transferStatus is undefined", () => {
+    const order = {
+      id: "order-5",
+      customerName: "Test",
+      date: "2026-03-03",
+      total: "100.00",
+    } as Order;
+
+    expect(isNotSentToVerona(order)).toBe(false);
   });
 });

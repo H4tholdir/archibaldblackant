@@ -145,10 +145,7 @@ export function isInTransit(order: Order): boolean {
 }
 
 export function isNotSentToVerona(order: Order): boolean {
-  return (
-    (!order.orderNumber || order.orderNumber.startsWith("PENDING-")) &&
-    order.transferStatus?.toLowerCase() === "modifica"
-  );
+  return order.transferStatus?.toLowerCase() === "modifica";
 }
 
 export function isOverdue(order: Order): boolean {
