@@ -315,6 +315,8 @@ async function bootstrap(): Promise<void> {
     sendEmail,
     uploadToDropbox,
     onJobEvent: jobEventBus.onJobEvent,
+    createCustomerBot: (userId) => createBotForUser(userId),
+    broadcast: (userId, msg) => wsServer.broadcast(userId, msg),
   });
 
   const server = http.createServer(app);
