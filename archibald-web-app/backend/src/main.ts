@@ -181,12 +181,12 @@ async function bootstrap(): Promise<void> {
 
             if (!filled) throw new Error('Login form fields not found');
 
-            await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 } as never);
+            await (page as any).waitForFunction(
+              () => !window.location.href.includes('Login.aspx'),
+              { timeout: 30000 },
+            );
 
             const finalUrl = page.url();
-            if (finalUrl.includes('Login.aspx')) {
-              throw new Error('Login failed - still on login page');
-            }
 
             logger.info('Browser pool login successful', { userId, url: finalUrl });
             return;
