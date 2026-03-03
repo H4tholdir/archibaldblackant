@@ -27,6 +27,7 @@ export interface ParsedOrder {
   gross_amount: string | null;
   total_amount: string | null;
   is_gift_order: string | null;
+  email: string | null;
 }
 
 export class PDFParserOrdersService {

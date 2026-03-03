@@ -82,6 +82,7 @@ function adaptOrder(p: ParserOrder): ParsedOrder {
     deliveryAddress: n(p.delivery_address),
     remainingSalesFinancial: n(p.remaining_sales_financial),
     customerReference: n(p.customer_reference),
+    email: n(p.email),
   };
 }
 

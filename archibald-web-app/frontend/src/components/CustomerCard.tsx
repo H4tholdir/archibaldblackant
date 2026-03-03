@@ -578,6 +578,20 @@ export function CustomerCard({
                   )}
                 </div>
                 <div>
+                  <strong style={{ color: "#666" }}>Email:</strong>{" "}
+                  {customer.email ? (
+                    <a
+                      href={`mailto:${customer.email}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: "#1976d2" }}
+                    >
+                      {customer.email}
+                    </a>
+                  ) : (
+                    "N/A"
+                  )}
+                </div>
+                <div>
                   <strong style={{ color: "#666" }}>URL:</strong>{" "}
                   {customer.url ? (
                     <a

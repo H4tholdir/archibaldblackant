@@ -6,6 +6,7 @@ export interface Customer {
   fiscalCode: string | null;
   sdi: string | null;
   pec: string | null;
+  email: string | null;
   phone: string | null;
   mobile: string | null;
   url: string | null;

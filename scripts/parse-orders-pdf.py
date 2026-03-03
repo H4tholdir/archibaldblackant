@@ -52,6 +52,7 @@ class ParsedOrder:
     # Page 7/7: Total
     total_amount: Optional[str]  # Italian format: "82,91 €"
     is_gift_order: Optional[str]  # "Checked"/"Unchecked" (ORDINE OMAGGIO)
+    email: Optional[str] = None  # E-MAIL (customer email from order)
 
 
 def parse_italian_datetime(date_str: str) -> Optional[str]:
@@ -306,12 +307,15 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     gross_amount = get_column_value(tables[5], row_idx, "IMPORTO LORDO")
 
-                    # Page 7/7: IMPORTO TOTALE, ORDINE OMAGGIO (2 columns)
+                    # Page 7/7: IMPORTO TOTALE, ORDINE OMAGGIO, E-MAIL (2-3 columns)
                     total_amount = get_column_value(
                         tables[6], row_idx, "IMPORTO TOTALE"
                     )
                     is_gift_order = get_column_value(
                         tables[6], row_idx, "ORDINE OMAGGIO"
+                    )
+                    email = get_column_value(
+                        tables[6], row_idx, "E-MAIL"
                     )
 
                     # Create ParsedOrder
@@ -338,6 +342,7 @@ def parse_orders_pdf(pdf_path: str):
                         gross_amount=gross_amount,
                         total_amount=total_amount,
                         is_gift_order=is_gift_order,
+                        email=email,
                     )
 
                     yield order
