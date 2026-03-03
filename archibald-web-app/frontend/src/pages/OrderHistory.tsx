@@ -2069,7 +2069,7 @@ export function OrderHistory() {
                               noteSummary={noteSummaries[order.id]}
                               notePreviews={notePreviews[order.id]}
                               onNotesChanged={() => refreshNoteSummaries()}
-                              onHide={handleHideOrder}
+                              onHide={(id) => { setExpandedOrderId(null); handleHideOrder(id); }}
                               onUnhide={handleUnhideOrder}
                               isHidden={hiddenOrderIds.has(order.id)}
                             />
