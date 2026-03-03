@@ -14,6 +14,8 @@ import {
   formatCurrency,
   formatPriceFromString,
 } from "../utils/format-currency";
+import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
 
@@ -614,6 +616,7 @@ function TabArticoli({
   onEditDone,
   editProgress,
   onEditProgress,
+  customerProfileId,
 }: {
   orderId: string;
   archibaldOrderId?: string;
@@ -627,6 +630,7 @@ function TabArticoli({
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
+  customerProfileId?: string;
 }) {
   const [articles, setArticles] = useState<OrderArticle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -852,36 +856,73 @@ function TabArticoli({
         currentQty,
       );
 
-      let variantId = product.id;
-      let variantArticle = product.article;
-      if (
+      const isFresisCustomer = isFresis({ id: customerProfileId || "" });
+
+      const hasBreakdown =
         packaging.success &&
         packaging.breakdown &&
-        packaging.breakdown.length > 0
-      ) {
-        variantId = packaging.breakdown[0].variant.variantId || product.id;
-        variantArticle =
-          packaging.breakdown[0].variant.variantId || product.article;
+        packaging.breakdown.length > 0;
+
+      const breakdownItems: EditItem[] = [];
+
+      if (hasBreakdown) {
+        for (const pkg of packaging.breakdown!) {
+          const variantArticleCode = pkg.variant.variantId || product.id;
+          const priceData = await priceService.getPriceAndVat(variantArticleCode);
+          const unitPrice = priceData?.price ?? product.price ?? 0;
+          const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
+
+          let discountPercent = editItems[idx]?.discountPercent ?? 0;
+          if (isFresisCustomer) {
+            const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+            discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
+          }
+
+          breakdownItems.push(
+            recalcLineAmounts({
+              articleCode: variantArticleCode,
+              productName: product.name,
+              unitPrice,
+              vatPercent,
+              articleDescription: product.description || product.name,
+              quantity: pkg.totalPieces,
+              discountPercent,
+              vatAmount: 0,
+              lineAmount: 0,
+              lineTotalWithVat: 0,
+            }),
+          );
+        }
+      } else {
+        const variantId = product.id;
+        const priceData = await priceService.getPriceAndVat(variantId);
+        const unitPrice = priceData?.price ?? product.price ?? 0;
+        const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
+
+        let discountPercent = editItems[idx]?.discountPercent ?? 0;
+        if (isFresisCustomer) {
+          const fresisDiscount = await getDiscountForArticle(variantId);
+          discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
+        }
+
+        breakdownItems.push(
+          recalcLineAmounts({
+            articleCode: product.article,
+            productName: product.name,
+            unitPrice,
+            vatPercent,
+            articleDescription: product.description || product.name,
+            quantity: packaging.suggestedQuantity ?? currentQty,
+            discountPercent,
+            vatAmount: 0,
+            lineAmount: 0,
+            lineTotalWithVat: 0,
+          }),
+        );
       }
 
-      const priceData = await priceService.getPriceAndVat(variantId);
-      const unitPrice = priceData?.price ?? product.price ?? 0;
-      const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
-
       const newItems = [...editItems];
-      newItems[idx] = recalcLineAmounts({
-        ...newItems[idx],
-        articleCode: variantArticle,
-        productName: product.name,
-        unitPrice,
-        vatPercent,
-        articleDescription: product.description || product.name,
-        quantity: packaging.suggestedQuantity ?? currentQty,
-        discountPercent: newItems[idx]?.discountPercent ?? 0,
-        vatAmount: 0,
-        lineAmount: 0,
-        lineTotalWithVat: 0,
-      });
+      newItems.splice(idx, 1, ...breakdownItems);
       setEditItems(newItems);
       setEditingArticleIdx(null);
       setArticleSearch("");
@@ -895,7 +936,7 @@ function TabArticoli({
         }
       }, 50);
     },
-    [editItems],
+    [editItems, customerProfileId],
   );
 
   const handleArticleKeyDown = useCallback(
@@ -1554,13 +1595,13 @@ function TabArticoli({
                       >
                         <input
                           type="text"
-                          value={isSearching ? articleSearch : item.articleCode}
+                          value={isSearching ? articleSearch : item.productName}
                           onChange={(e) =>
                             handleArticleSearchChange(idx, e.target.value)
                           }
                           onFocus={() => {
                             setEditingArticleIdx(idx);
-                            setArticleSearch(item.articleCode);
+                            setArticleSearch(item.productName);
                           }}
                           onKeyDown={(e) => handleArticleKeyDown(e, idx)}
                           placeholder="Cerca articolo..."
@@ -1574,17 +1615,6 @@ function TabArticoli({
                             boxSizing: "border-box",
                           }}
                         />
-                        {item.productName && !isSearching && (
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "#666",
-                              marginTop: "2px",
-                            }}
-                          >
-                            {item.productName}
-                          </div>
-                        )}
                         {/* Dropdown */}
                         {isSearching && articleResults.length > 0 && (
                           <div
@@ -4487,7 +4517,7 @@ export function OrderCardNew({
           </div>
 
           {/* Tab Content */}
-          <div style={{ minHeight: "300px", borderTop: "1px solid #ddd", backgroundColor: tabColors[tabs.findIndex(t => t.id === activeTab)] + "22" }}>
+          <div style={{ minHeight: "300px", borderTop: "1px solid #ddd", backgroundColor: tabColors[tabs.findIndex(t => t.id === activeTab)] + "22", overflow: "visible" }}>
             {activeTab === "panoramica" && (
               <TabPanoramica order={order} searchQuery={searchQuery} />
             )}
@@ -4503,6 +4533,7 @@ export function OrderCardNew({
                   onEditDone={onEditDone}
                   editProgress={editProgress}
                   onEditProgress={setEditProgress}
+                  customerProfileId={order.customerProfileId}
                 />
               </>
             )}
