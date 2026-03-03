@@ -179,11 +179,14 @@ function OrderCardStack({
       card.style.transform = `translateX(${exitX}px) rotate(${exitRotation}deg)`;
 
       setTimeout(() => {
+        let reordered: string[] | undefined;
         setCardOrder((prev) => {
-          const newOrder = [...prev.slice(1), prev[0]];
-          onReorder?.(stackId, newOrder);
-          return newOrder;
+          reordered = [...prev.slice(1), prev[0]];
+          return reordered;
         });
+        if (reordered) {
+          onReorder?.(stackId, reordered);
+        }
         if (topCardRef.current) {
           topCardRef.current.style.transition = "none";
           topCardRef.current.style.transform = "";
