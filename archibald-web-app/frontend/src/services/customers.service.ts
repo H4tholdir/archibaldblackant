@@ -293,7 +293,7 @@ export class CustomerService {
       const response = await fetchWithRetry(
         `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
       );
-      if (!response.ok) return null;
+      if (!response.ok || response.status === 204) return null;
 
       const blob = await response.blob();
       return await this.blobToDataUri(blob);

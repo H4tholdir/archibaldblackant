@@ -300,7 +300,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     try {
       const photo = await getCustomerPhoto(req.user!.userId, req.params.customerProfile);
       if (!photo) {
-        return res.status(404).json({ success: false, error: 'Foto non trovata' });
+        return res.status(204).end();
       }
       const dataUriMatch = photo.match(/^data:([^;]+);base64,(.+)$/);
       if (dataUriMatch) {

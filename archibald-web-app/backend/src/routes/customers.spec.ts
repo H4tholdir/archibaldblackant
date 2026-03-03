@@ -474,10 +474,10 @@ describe('createCustomersRouter', () => {
       expect(Buffer.from(res.body).toString()).toBe('fake-jpeg-bytes');
     });
 
-    test('returns 404 when no photo', async () => {
+    test('returns 204 when no photo', async () => {
       const res = await request(app).get('/api/customers/CUST-001/photo');
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(204);
     });
   });
 
