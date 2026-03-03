@@ -133,20 +133,20 @@ async function syncOrders(
       }
     }
 
-    // Propagate emails from orders to customers
-    const emailMap = new Map<string, string>();
+    // Propagate emails from orders to customers (match by customer name)
+    const emailByName = new Map<string, string>();
     for (const order of parsedOrders) {
-      if (order.email && order.customerProfileId) {
-        emailMap.set(order.customerProfileId, order.email);
+      if (order.email && order.customerName) {
+        emailByName.set(order.customerName, order.email);
       }
     }
-    if (emailMap.size > 0) {
-      for (const [profileId, email] of emailMap) {
+    if (emailByName.size > 0) {
+      for (const [customerName, email] of emailByName) {
         await pool.query(
           `UPDATE agents.customers SET email = $1
-           WHERE user_id = $2 AND customer_profile LIKE '%' || $3
+           WHERE user_id = $2 AND LOWER(name) = LOWER($3)
            AND (email IS NULL OR email = '' OR email != $1)`,
-          [email, userId, profileId],
+          [email, userId, customerName],
         );
       }
     }
