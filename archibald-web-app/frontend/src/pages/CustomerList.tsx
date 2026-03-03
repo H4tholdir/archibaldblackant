@@ -22,7 +22,8 @@ interface CustomerListResponse {
 export function CustomerList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(
     null,
@@ -48,10 +49,17 @@ export function CustomerList() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Fetch customers on mount and when filters change
+  // Fetch customers only when search is active
   const fetchCustomers = useCallback(async () => {
+    if (!debouncedSearch && !filters.city && !filters.customerType) {
+      setCustomers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setHasSearched(true);
 
     try {
       const token = localStorage.getItem("archibald_jwt");
@@ -169,6 +177,7 @@ export function CustomerList() {
       city: "",
       customerType: "",
     });
+    setHasSearched(false);
   };
 
   const handleRetry = async (customerProfile: string) => {
@@ -255,7 +264,7 @@ export function CustomerList() {
             <input
               id="customer-search"
               type="text"
-              placeholder="Nome, P.IVA, Città..."
+              placeholder="Nome, P.IVA, telefono, citt\u00e0, email..."
               value={filters.search}
               onChange={(e) =>
                 setFilters((prev) => ({ ...prev, search: e.target.value }))
@@ -441,7 +450,9 @@ export function CustomerList() {
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
           }}
         >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>👤</div>
+          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
+            {hasSearched ? "👤" : "🔍"}
+          </div>
           <p
             style={{
               fontSize: "18px",
@@ -450,12 +461,12 @@ export function CustomerList() {
               marginBottom: "8px",
             }}
           >
-            Nessun cliente trovato
+            {hasSearched ? "Nessun cliente trovato" : "Cerca un cliente"}
           </p>
           <p style={{ fontSize: "14px", color: "#666" }}>
-            {hasActiveFilters
+            {hasSearched
               ? "Prova a modificare i filtri di ricerca"
-              : "Nessun cliente nel database"}
+              : "Usa il campo di ricerca per trovare clienti per nome, P.IVA, telefono, citt\u00e0..."}
           </p>
         </div>
       )}

@@ -242,7 +242,12 @@ async function getCustomers(
            OR city ILIKE $2
            OR fiscal_code ILIKE $2
            OR street ILIKE $2
-           OR postal_code ILIKE $2)
+           OR postal_code ILIKE $2
+           OR phone ILIKE $2
+           OR mobile ILIKE $2
+           OR email ILIKE $2
+           OR pec ILIKE $2
+           OR sdi ILIKE $2)
        ORDER BY
          CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
          CASE WHEN TO_DATE(NULLIF(last_order_date, ''), 'DD/MM/YYYY') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END,
