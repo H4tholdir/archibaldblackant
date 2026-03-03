@@ -302,13 +302,11 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
                 const milestone = getCustomerProgressMilestone(category);
                 if (milestone) {
                   broadcast(userId, {
-                    type: 'CUSTOMER_UPDATE_PROGRESS',
+                    type: 'JOB_PROGRESS',
                     payload: {
-                      taskId,
-                      customerProfile: tempProfile,
+                      jobId: taskId,
                       progress: milestone.progress,
                       label: milestone.label,
-                      operation: 'create',
                     },
                     timestamp: now(),
                   });
@@ -346,8 +344,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           }
 
           broadcast(userId, {
-            type: 'CUSTOMER_UPDATE_COMPLETED',
-            payload: { taskId, customerProfile: customerProfileId },
+            type: 'JOB_COMPLETED',
+            payload: { jobId: taskId, result: { customerProfile: customerProfileId } },
             timestamp: now(),
           });
         } catch (error) {
@@ -362,10 +360,9 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           await sessionManager.removeBot(sessionId);
 
           broadcast(userId, {
-            type: 'CUSTOMER_UPDATE_FAILED',
+            type: 'JOB_FAILED',
             payload: {
-              taskId,
-              customerProfile: tempProfile,
+              jobId: taskId,
               error: error instanceof Error ? error.message : 'Errore sconosciuto',
             },
             timestamp: now(),

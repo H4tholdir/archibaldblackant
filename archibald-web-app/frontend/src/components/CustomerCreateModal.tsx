@@ -236,6 +236,7 @@ export function CustomerCreateModal({
   const earlyVatInputRef = useRef("");
   const [vatError, setVatError] = useState<string | null>(null);
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
+  const pollingProfileRef = useRef<string | null>(null);
 
   const { subscribe } = useWebSocketContext();
   const {
@@ -326,6 +327,7 @@ export function CustomerCreateModal({
       setEarlyVatInput("");
       setVatError(null);
       setChangedFields(new Set());
+      pollingProfileRef.current = null;
 
       if (editCustomer) {
         setFormData(customerToFormData(editCustomer));
@@ -397,8 +399,8 @@ export function CustomerCreateModal({
       if (!cancelled) markFailed(err instanceof Error ? err.message : "Operazione fallita");
     });
 
-    // Secondary fallback: poll botStatus for updates (has customerProfile)
-    const customerProfile = editCustomer?.customerProfile;
+    // Secondary fallback: poll botStatus for updates
+    const customerProfile = editCustomer?.customerProfile ?? pollingProfileRef.current;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     if (customerProfile) {
@@ -872,6 +874,9 @@ export function CustomerCreateModal({
           dataToSend,
         );
         resultTaskId = result.taskId;
+        if (result.customer?.id) {
+          pollingProfileRef.current = result.customer.id;
+        }
       } else {
         const result = await customerService.createCustomer(dataToSend);
         resultTaskId = result.taskId;

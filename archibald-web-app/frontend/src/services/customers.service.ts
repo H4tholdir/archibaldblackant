@@ -1,7 +1,6 @@
 import type { Customer } from "../types/local-customer";
 import type { CacheMetadata } from "../types/cache";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { enqueueOperation } from "../api/operations";
 
 function parseLastOrderDate(raw: string | undefined | null): string {
   if (!raw) return "";
@@ -99,9 +98,20 @@ export class CustomerService {
     postalCodeCountry?: string;
     deliveryPostalCodeCity?: string;
     deliveryPostalCodeCountry?: string;
-  }): Promise<{ taskId: string }> {
-    const result = await enqueueOperation('create-customer', formData as Record<string, unknown>);
-    return { taskId: result.jobId };
+  }): Promise<{ taskId: string | null }> {
+    const response = await fetchWithRetry("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const taskId: string | undefined = data.data?.jobId;
+    return { taskId: taskId ?? null };
   }
 
   async updateCustomer(
@@ -125,11 +135,22 @@ export class CustomerService {
       deliveryPostalCodeCountry?: string;
     },
   ): Promise<{ taskId: string | null }> {
-    const result = await enqueueOperation('update-customer', {
-      customerProfile,
-      ...formData,
-    } as Record<string, unknown>);
-    return { taskId: result.jobId };
+    const response = await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Update failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const taskId: string | undefined = data.data?.jobId;
+    return { taskId: taskId ?? null };
   }
 
   async getCustomerBotStatus(customerProfile: string): Promise<string> {

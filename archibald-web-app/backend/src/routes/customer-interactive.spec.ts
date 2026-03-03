@@ -390,7 +390,7 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
-    test('broadcasts CUSTOMER_UPDATE_COMPLETED with taskId', async () => {
+    test('broadcasts JOB_COMPLETED with jobId', async () => {
       await request(app)
         .post(`/api/customers/interactive/${sessionId}/save`)
         .send(validPayload);
@@ -399,10 +399,12 @@ describe('createCustomerInteractiveRouter', () => {
         expect(deps.broadcast).toHaveBeenCalledWith(
           'user-1',
           expect.objectContaining({
-            type: 'CUSTOMER_UPDATE_COMPLETED',
+            type: 'JOB_COMPLETED',
             payload: expect.objectContaining({
-              taskId: expect.any(String),
-              customerProfile: expect.any(String),
+              jobId: expect.any(String),
+              result: expect.objectContaining({
+                customerProfile: expect.any(String),
+              }),
             }),
           }),
         );
