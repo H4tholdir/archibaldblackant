@@ -133,20 +133,38 @@ async function syncOrders(
       }
     }
 
-    // Propagate emails from orders to customers (match by customer name)
-    const emailByName = new Map<string, string>();
+    // Propagate emails from orders to customers
+    // Match by internal_id (PROFILO CLIENTE) first, fallback to name
+    const emailEntries: Array<{ profileId?: string; name: string; email: string }> = [];
+    const seen = new Set<string>();
     for (const order of parsedOrders) {
-      if (order.email && order.customerName) {
-        emailByName.set(order.customerName, order.email);
-      }
+      if (!order.email || !order.customerName) continue;
+      const key = order.customerProfileId ?? order.customerName;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      emailEntries.push({
+        profileId: order.customerProfileId ?? undefined,
+        name: order.customerName,
+        email: order.email,
+      });
     }
-    if (emailByName.size > 0) {
-      for (const [customerName, email] of emailByName) {
+    for (const entry of emailEntries) {
+      let updated = 0;
+      if (entry.profileId) {
+        const res = await pool.query(
+          `UPDATE agents.customers SET email = $1
+           WHERE user_id = $2 AND internal_id = $3
+           AND (email IS NULL OR email = '' OR email != $1)`,
+          [entry.email, userId, entry.profileId],
+        );
+        updated = res.rowCount ?? 0;
+      }
+      if (updated === 0) {
         await pool.query(
           `UPDATE agents.customers SET email = $1
            WHERE user_id = $2 AND LOWER(name) = LOWER($3)
            AND (email IS NULL OR email = '' OR email != $1)`,
-          [email, userId, customerName],
+          [entry.email, userId, entry.name],
         );
       }
     }
