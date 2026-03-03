@@ -383,22 +383,18 @@ export function OrderHistory() {
     return () => observer.disconnect();
   }, []);
 
-  // Hide navbar during active search
+  // Hide navbar only when floating search bar is visible (scrolled past filters)
   useEffect(() => {
     const nav = document.querySelector("nav");
     if (!nav) return;
-    if (debouncedSearch) {
-      nav.style.transform = "translateY(-100%)";
-      nav.style.transition = "transform 0.3s ease";
-    } else {
-      nav.style.transform = "";
-      nav.style.transition = "transform 0.3s ease";
-    }
+    const shouldHide = !!debouncedSearch && !filterBarVisible;
+    nav.style.transform = shouldHide ? "translateY(-100%)" : "";
+    nav.style.transition = "transform 0.3s ease";
     return () => {
       nav.style.transform = "";
       nav.style.transition = "";
     };
-  }, [debouncedSearch]);
+  }, [debouncedSearch, filterBarVisible]);
 
   // Clear search helper
   const clearSearch = useCallback(() => {
