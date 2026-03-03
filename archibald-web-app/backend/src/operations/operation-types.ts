@@ -72,10 +72,17 @@ const AGENT_SYNC_CHAIN: readonly OperationType[] = [
   'sync-invoices',
 ];
 
+const SHARED_SYNC_CHAIN: readonly OperationType[] = [
+  'sync-products',
+  'sync-prices',
+];
+
 function getNextSyncInChain(type: OperationType): OperationType | null {
-  const idx = AGENT_SYNC_CHAIN.indexOf(type);
-  if (idx >= 0 && idx < AGENT_SYNC_CHAIN.length - 1) {
-    return AGENT_SYNC_CHAIN[idx + 1];
+  for (const chain of [AGENT_SYNC_CHAIN, SHARED_SYNC_CHAIN]) {
+    const idx = chain.indexOf(type);
+    if (idx >= 0 && idx < chain.length - 1) {
+      return chain[idx + 1];
+    }
   }
   return null;
 }
@@ -100,6 +107,7 @@ export {
   WRITE_OPERATIONS,
   SCHEDULED_SYNCS,
   AGENT_SYNC_CHAIN,
+  SHARED_SYNC_CHAIN,
   isWriteOperation,
   isScheduledSync,
   getNextSyncInChain,

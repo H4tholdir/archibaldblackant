@@ -50,7 +50,7 @@ describe('createSyncScheduler', () => {
     scheduler.stop();
   });
 
-  test('enqueues shared syncs with service-account userId', () => {
+  test('enqueues only sync-products for shared syncs (sync-prices is chained after)', () => {
     const enqueue = createMockEnqueue();
     const scheduler = createSyncScheduler(enqueue, () => []);
 
@@ -58,7 +58,7 @@ describe('createSyncScheduler', () => {
     vi.advanceTimersByTime(200);
 
     expect(enqueue).toHaveBeenCalledWith('sync-products', 'service-account', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-prices', 'service-account', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-prices', 'service-account', {});
 
     scheduler.stop();
   });

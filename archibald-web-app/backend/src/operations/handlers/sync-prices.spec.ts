@@ -36,7 +36,7 @@ const sampleResult: PriceSyncResult = {
 };
 
 describe('createSyncPricesHandler', () => {
-  test('calls syncPrices with correct deps and returns result', async () => {
+  test('calls syncPrices with correct deps and returns result without matching when no matchFn', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn<(pdfPath: string) => Promise<ParsedPrice[]>>().mockResolvedValue([]);
     const cleanupFile = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined);
@@ -61,6 +61,44 @@ describe('createSyncPricesHandler', () => {
       expect.any(Function),
     );
     expect(result).toEqual(sampleResult);
+  });
+
+  test('runs matchPricesToProducts after successful sync', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn<(pdfPath: string) => Promise<ParsedPrice[]>>().mockResolvedValue([]);
+    const cleanupFile = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined);
+    const bot = createMockBot();
+    const createBot = vi.fn<(userId: string) => SyncPricesBot>().mockReturnValue(bot);
+    const matchResult = { matched: 10, unmatched: 2, skipped: 1 };
+    const matchFn = vi.fn().mockResolvedValue({ result: matchResult, unmatchedPrices: [] });
+
+    syncPricesMock.mockResolvedValue(sampleResult);
+
+    const handler = createSyncPricesHandler(pool, parsePdf, cleanupFile, createBot, matchFn);
+    const onProgress = vi.fn();
+    const result = await handler(null, {}, 'user-1', onProgress);
+
+    expect(matchFn).toHaveBeenCalled();
+    expect(onProgress).toHaveBeenCalledWith(90, 'Associazione prezzi ai prodotti');
+    expect(result).toEqual({ ...sampleResult, priceMatching: matchResult });
+  });
+
+  test('skips matchPricesToProducts when sync fails', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn<(pdfPath: string) => Promise<ParsedPrice[]>>().mockResolvedValue([]);
+    const cleanupFile = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined);
+    const bot = createMockBot();
+    const createBot = vi.fn<(userId: string) => SyncPricesBot>().mockReturnValue(bot);
+    const matchFn = vi.fn();
+
+    const failResult: PriceSyncResult = { ...sampleResult, success: false, error: 'PDF failed' };
+    syncPricesMock.mockResolvedValue(failResult);
+
+    const handler = createSyncPricesHandler(pool, parsePdf, cleanupFile, createBot, matchFn);
+    const result = await handler(null, {}, 'user-1', vi.fn());
+
+    expect(matchFn).not.toHaveBeenCalled();
+    expect(result).toEqual(failResult);
   });
 
   test('passes a downloadPdf that delegates to bot.downloadPricePdf', async () => {

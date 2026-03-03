@@ -11,7 +11,10 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
-import { getProductVariants, getAllProducts } from './db/repositories/products';
+import { getProductVariants, getAllProducts, updateProductPrice } from './db/repositories/products';
+import { getAllPrices } from './db/repositories/prices';
+import { recordPriceChange } from './db/repositories/prices-history';
+import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
@@ -569,6 +572,12 @@ async function bootstrap(): Promise<void> {
             await browserPool.releaseContext(userId, ctx as never, true);
           }
         },
+      }),
+      () => matchPricesToProducts({
+        getAllPrices: () => getAllPrices(pool),
+        getProductVariants: (name) => getProductVariants(pool, name),
+        updateProductPrice: (id, price, vat, priceSource, vatSource) => updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+        recordPriceChange: (data) => recordPriceChange(pool, data).then(() => {}),
       }),
     ),
     'sync-customers': createSyncCustomersHandler(
