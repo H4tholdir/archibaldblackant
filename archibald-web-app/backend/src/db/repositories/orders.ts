@@ -998,10 +998,7 @@ async function getOrdersNeedingArticleSync(
        AND order_number LIKE 'ORD/%'
        AND (
          articles_synced_at IS NULL
-         OR (
-           creation_date >= (CURRENT_DATE - INTERVAL '90 days')::text
-           AND articles_synced_at::timestamptz < NOW() - INTERVAL '7 days'
-         )
+         OR articles_synced_at::timestamptz < NOW() - INTERVAL '7 days'
        )
      ORDER BY articles_synced_at NULLS FIRST, creation_date DESC
      LIMIT $2`,
