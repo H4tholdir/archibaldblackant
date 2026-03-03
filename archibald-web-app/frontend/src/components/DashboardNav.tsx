@@ -32,7 +32,12 @@ export function DashboardNav() {
     window.location.href = "/";
   };
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (e: React.MouseEvent, path: string) => {
+    if (location.pathname === path) {
+      e.preventDefault();
+      window.location.reload();
+      return;
+    }
     if (isMobile) {
       setIsMenuOpen(false);
     }
@@ -97,7 +102,7 @@ export function DashboardNav() {
             <Link
               key={link.path}
               to={link.path}
-              onClick={handleLinkClick}
+              onClick={(e) => handleLinkClick(e, link.path)}
               style={{
                 textDecoration: "none",
                 color: "#fff",
@@ -253,7 +258,7 @@ export function DashboardNav() {
                   <Link
                     key={link.path}
                     to={link.path}
-                    onClick={handleLinkClick}
+                    onClick={(e) => handleLinkClick(e, link.path)}
                     style={{
                       textDecoration: "none",
                       color: "#fff",

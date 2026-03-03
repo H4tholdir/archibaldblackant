@@ -4462,7 +4462,7 @@ export function OrderCardNew({
               paddingRight: "12px",
               paddingTop: "8px",
               backgroundColor: "transparent",
-              overflowX: "hidden",
+              overflow: "hidden",
               flexWrap: "wrap",
             }}
           >
