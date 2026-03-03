@@ -3531,7 +3531,11 @@ export function OrderCardNew({
     >
       {/* ===== COLLAPSED STATE ===== */}
       <div
-        onClick={onToggle}
+        onClick={() => {
+          const sel = window.getSelection();
+          if (sel && sel.toString().length > 0) return;
+          onToggle();
+        }}
         style={{
           padding: "16px",
           cursor: "pointer",
