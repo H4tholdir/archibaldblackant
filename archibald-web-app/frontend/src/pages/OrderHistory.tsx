@@ -328,21 +328,58 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  // Track which card was auto-expanded by search so we can collapse it on clear
+  const searchExpandedRef = useRef<string | null>(null);
+
   // Auto-expand first order with an internal tab match
   const prevSearchRef = useRef("");
   useEffect(() => {
     if (debouncedSearch && debouncedSearch !== prevSearchRef.current) {
       prevSearchRef.current = debouncedSearch;
+      // Collapse previously auto-expanded card when search query changes
+      if (searchExpandedRef.current && searchExpandedRef.current !== expandedOrderId) {
+        searchExpandedRef.current = null;
+      }
       const matchedOrders = orders.filter((o) => matchesGlobalSearch(o, debouncedSearch));
       const firstWithTab = matchedOrders.find((o) => getMatchingTab(o, debouncedSearch) !== null);
       if (firstWithTab) {
         setExpandedOrderId(firstWithTab.id);
+        searchExpandedRef.current = firstWithTab.id;
       }
     }
+    // Collapse auto-expanded card and reset dimming when search is cleared
     if (!debouncedSearch) {
       prevSearchRef.current = "";
+      if (searchExpandedRef.current) {
+        setExpandedOrderId(null);
+        searchExpandedRef.current = null;
+      }
     }
   }, [debouncedSearch, orders]);
+
+  // Keep the search navigation bar visible for a short time after clearing
+  const [showSearchBar, setShowSearchBar] = useState(false);
+  const [lastSearch, setLastSearch] = useState("");
+  const searchBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debouncedSearch) {
+      setShowSearchBar(true);
+      setLastSearch(debouncedSearch);
+      if (searchBarTimerRef.current) {
+        clearTimeout(searchBarTimerRef.current);
+        searchBarTimerRef.current = null;
+      }
+    } else if (showSearchBar) {
+      // Keep bar visible for 3 seconds after clearing
+      searchBarTimerRef.current = setTimeout(() => {
+        setShowSearchBar(false);
+        searchBarTimerRef.current = null;
+      }, 3000);
+    }
+    return () => {
+      if (searchBarTimerRef.current) clearTimeout(searchBarTimerRef.current);
+    };
+  }, [debouncedSearch]);
 
   // Scroll listener for scroll-to-top button
   useEffect(() => {
@@ -1341,6 +1378,12 @@ export function OrderHistory() {
               onChange={(e) =>
                 setFilters((prev) => ({ ...prev, search: e.target.value }))
               }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (e.shiftKey) { goPrev(); } else { goNext(); }
+                }
+              }}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -1900,8 +1943,8 @@ export function OrderHistory() {
             {hasMoreOrders && ` (${visibleCount} visualizzati)`}
           </div>
 
-          {/* Search navigation bar */}
-          {debouncedSearch && totalMatches > 0 && (
+          {/* Sticky search bar that follows the user */}
+          {showSearchBar && (
             <div
               style={{
                 position: "sticky",
@@ -1911,55 +1954,108 @@ export function OrderHistory() {
                 alignItems: "center",
                 flexWrap: "wrap" as const,
                 gap: "8px 12px",
-                padding: "8px 16px",
+                padding: "8px 12px",
                 backgroundColor: "#fff",
                 border: "1px solid #e5e7eb",
                 borderRadius: "8px",
                 marginBottom: "12px",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                opacity: debouncedSearch ? 1 : 0.6,
+                transition: "opacity 0.3s",
               }}
             >
-              <button
-                onClick={goPrev}
+              <input
+                type="text"
+                placeholder="Ricerca..."
+                value={filters.search}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, search: e.target.value }))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (e.shiftKey) { goPrev(); } else { goNext(); }
+                  }
+                }}
                 style={{
-                  padding: "4px 10px",
-                  fontSize: "14px",
+                  flex: "1 1 120px",
+                  minWidth: "120px",
+                  padding: "6px 10px",
+                  fontSize: "13px",
                   border: "1px solid #d1d5db",
                   borderRadius: "6px",
-                  backgroundColor: "#fff",
-                  cursor: "pointer",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
-              >
-                {"\u25C0"}
-              </button>
-              <span
-                style={{ fontSize: "13px", fontWeight: 500, color: "#333" }}
-              >
-                Risultato {currentIndex + 1} di {totalMatches}
-              </span>
-              <button
-                onClick={goNext}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: "14px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#fff",
-                  cursor: "pointer",
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#1976d2";
                 }}
-              >
-                {"\u25B6"}
-              </button>
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+              />
+              {totalMatches > 0 && (
+                <>
+                  <button
+                    onClick={goPrev}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "14px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      backgroundColor: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {"\u25C0"}
+                  </button>
+                  <span
+                    style={{ fontSize: "13px", fontWeight: 500, color: "#333", whiteSpace: "nowrap" }}
+                  >
+                    {currentIndex + 1}/{totalMatches}
+                  </span>
+                  <button
+                    onClick={goNext}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "14px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      backgroundColor: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {"\u25B6"}
+                  </button>
+                </>
+              )}
               <span
                 style={{
                   fontSize: "12px",
                   color: "#888",
-                  borderLeft: "1px solid #e5e7eb",
-                  paddingLeft: "12px",
+                  whiteSpace: "nowrap",
                 }}
               >
-                &quot;{debouncedSearch}&quot; in {filteredOrders.length} ordini
+                {debouncedSearch
+                  ? `"${debouncedSearch}" in ${filteredOrders.length} ordini`
+                  : `"${lastSearch}" - ricerca cancellata`}
               </span>
+              {!debouncedSearch && (
+                <button
+                  onClick={() => setShowSearchBar(false)}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: "12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                    color: "#888",
+                  }}
+                >
+                  {"\u2715"}
+                </button>
+              )}
             </div>
           )}
 
