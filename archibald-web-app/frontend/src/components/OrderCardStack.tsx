@@ -42,6 +42,7 @@ type OrderCardStackProps = {
   notePreviews?: Record<string, Array<{ text: string; checked: boolean }>>;
   onNotesChanged?: () => void;
   getSuggestedTab?: (order: Order) => "panoramica" | "articoli" | "logistica" | "finanziario" | null;
+  forceExpand?: boolean;
 };
 
 function OrderCardStack({
@@ -68,8 +69,19 @@ function OrderCardStack({
   notePreviews,
   onNotesChanged,
   getSuggestedTab,
+  forceExpand = false,
 }: OrderCardStackProps): ReactNode {
   const [expanded, setExpanded] = useState(false);
+
+  // Force expand when parent requests it (e.g., search navigation)
+  useEffect(() => {
+    if (forceExpand && !expanded) {
+      setExpanded(true);
+    }
+    if (!forceExpand && expanded && searchQuery) {
+      // Search moved to a different stack, collapse this one
+    }
+  }, [forceExpand]);
   const [cardOrder, setCardOrder] = useState<string[]>(() =>
     orders.map((o) => o.id),
   );

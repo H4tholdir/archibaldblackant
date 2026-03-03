@@ -312,6 +312,7 @@ export function OrderHistory() {
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   useSearchMatches(resultsContainerRef, debouncedSearch);
 
@@ -338,6 +339,7 @@ export function OrderHistory() {
       // Search cleared: collapse and reset
       if (searchActiveRef.current) {
         setExpandedOrderId(null);
+        setSearchExpandedStackId(null);
         searchActiveRef.current = false;
       }
       setSearchFocusIndex(-1);
@@ -367,6 +369,42 @@ export function OrderHistory() {
       if (searchBarTimerRef.current) clearTimeout(searchBarTimerRef.current);
     };
   }, [debouncedSearch]);
+
+  // Hide floating bar when it would overlap the filter section
+  const [filterBarVisible, setFilterBarVisible] = useState(true);
+  useEffect(() => {
+    const filterEl = filterBarRef.current;
+    if (!filterEl) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setFilterBarVisible(!entry.isIntersecting),
+      { threshold: 0, rootMargin: "-60px 0px 0px 0px" },
+    );
+    observer.observe(filterEl);
+    return () => observer.disconnect();
+  }, []);
+
+  // Hide navbar during active search
+  useEffect(() => {
+    const nav = document.querySelector("nav");
+    if (!nav) return;
+    if (debouncedSearch) {
+      nav.style.transform = "translateY(-100%)";
+      nav.style.transition = "transform 0.3s ease";
+    } else {
+      nav.style.transform = "";
+      nav.style.transition = "transform 0.3s ease";
+    }
+    return () => {
+      nav.style.transform = "";
+      nav.style.transition = "";
+    };
+  }, [debouncedSearch]);
+
+  // Clear search helper
+  const clearSearch = useCallback(() => {
+    setFilters((prev) => ({ ...prev, search: "" }));
+    setShowSearchBar(false);
+  }, []);
 
   // Scroll listener for scroll-to-top button
   useEffect(() => {
@@ -923,18 +961,39 @@ export function OrderHistory() {
     filters.search !== "" ||
     showHidden;
 
+  // Track which stack was force-expanded by search so we can close it
+  const [searchExpandedStackId, setSearchExpandedStackId] = useState<string | null>(null);
+
   // When searchFocusIndex changes, expand that order + open the right tab + scroll
   useEffect(() => {
     if (searchFocusIndex < 0 || !debouncedSearch || filteredOrders.length === 0) return;
     const idx = searchFocusIndex % filteredOrders.length;
     const order = filteredOrders[idx];
     if (!order) return;
+
+    // Ensure the order is in the visible set (may need more loaded for lazy scroll)
+    const orderIdxInFiltered = filteredOrders.indexOf(order);
+    if (orderIdxInFiltered >= visibleCount) {
+      setVisibleCount(orderIdxInFiltered + 10);
+    }
+
+    // Check if order is inside a stack
+    const stack = getStackForOrder(order.id);
+    if (stack && stack.orderIds.length > 1) {
+      setSearchExpandedStackId(stack.stackId);
+    } else if (searchExpandedStackId) {
+      setSearchExpandedStackId(null);
+    }
+
     setExpandedOrderId(order.id);
-    // Scroll the card into view
-    requestAnimationFrame(() => {
+
+    // Scroll with delay to allow DOM to update after expansion
+    setTimeout(() => {
       const el = document.getElementById(`order-${order.id}`);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 150);
   }, [searchFocusIndex, debouncedSearch, filteredOrders]);
 
   const searchGoNext = useCallback(() => {
@@ -1134,6 +1193,7 @@ export function OrderHistory() {
 
       {/* Filter bar */}
       <div
+        ref={filterBarRef}
         style={{
           backgroundColor: "#fff",
           borderRadius: "12px",
@@ -1955,11 +2015,11 @@ export function OrderHistory() {
           </div>
 
           {/* Fixed search bar that follows the user */}
-          {showSearchBar && (
+          {showSearchBar && !filterBarVisible && (
             <div
               style={{
                 position: "fixed",
-                top: "60px",
+                top: debouncedSearch ? "8px" : "60px",
                 left: "50%",
                 transform: "translateX(-50%)",
                 width: "min(calc(100% - 32px), 1160px)",
@@ -2053,22 +2113,22 @@ export function OrderHistory() {
                   ? `"${debouncedSearch}" in ${filteredOrders.length} ordini`
                   : `"${lastSearch}" - ricerca cancellata`}
               </span>
-              {!debouncedSearch && (
-                <button
-                  onClick={() => setShowSearchBar(false)}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: "12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "6px",
-                    backgroundColor: "#fff",
-                    cursor: "pointer",
-                    color: "#888",
-                  }}
-                >
-                  {"\u2715"}
-                </button>
-              )}
+              <button
+                onClick={clearSearch}
+                title="Chiudi ricerca"
+                style={{
+                  padding: "2px 8px",
+                  fontSize: "12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                  color: "#888",
+                  marginLeft: "auto",
+                }}
+              >
+                {"\u2715"}
+              </button>
             </div>
           )}
 
@@ -2133,6 +2193,7 @@ export function OrderHistory() {
                               notePreviews={notePreviews}
                               onNotesChanged={() => refreshNoteSummaries()}
                               getSuggestedTab={debouncedSearch ? (o) => getMatchingTab(o, debouncedSearch) : undefined}
+                              forceExpand={searchExpandedStackId === stack.stackId}
                             />
                           );
                         }
