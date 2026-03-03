@@ -264,7 +264,7 @@ export function CustomerList() {
             <input
               id="customer-search"
               type="text"
-              placeholder="Nome, P.IVA, telefono, citt\u00e0, email..."
+              placeholder="Nome, P.IVA, telefono, città, email..."
               value={filters.search}
               onChange={(e) =>
                 setFilters((prev) => ({ ...prev, search: e.target.value }))
@@ -466,7 +466,7 @@ export function CustomerList() {
           <p style={{ fontSize: "14px", color: "#666" }}>
             {hasSearched
               ? "Prova a modificare i filtri di ricerca"
-              : "Usa il campo di ricerca per trovare clienti per nome, P.IVA, telefono, citt\u00e0..."}
+              : "Usa il campo di ricerca per trovare clienti per nome, P.IVA, telefono, città..."}
           </p>
         </div>
       )}
