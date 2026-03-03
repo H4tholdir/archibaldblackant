@@ -11200,33 +11200,8 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    const mobileValue = customerData.mobile || customerData.phone || "";
-    if (mobileValue) {
-      try {
-        await this.typeDevExpressField(
-          /xaf_dviCELLULARPHONE_Edit_I$/,
-          mobileValue,
-        );
-      } catch {
-        logger.warn(
-          "CELLULARPHONE field not found, dumping visible input IDs for diagnostics",
-        );
-        await this.dumpVisibleInputIds();
-      }
-    }
-
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-    }
-
-    const urlValue = customerData.url || "https://www.example.com/";
-    try {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, urlValue);
-    } catch {
-      logger.warn(
-        "URL field not found, dumping visible input IDs for diagnostics",
-      );
-      await this.dumpVisibleInputIds();
     }
 
     await this.emitProgress("customer.save");
@@ -11664,33 +11639,8 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    if (customerData.mobile) {
-      try {
-        await this.typeDevExpressField(
-          /xaf_dviCELLULARPHONE_Edit_I$/,
-          customerData.mobile,
-        );
-      } catch {
-        logger.warn(
-          "CELLULARPHONE field not found (update), dumping visible input IDs",
-        );
-        await this.dumpVisibleInputIds();
-      }
-    }
-
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-    }
-
-    if (customerData.url) {
-      try {
-        await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
-      } catch {
-        logger.warn(
-          "URL field not found (update), dumping visible input IDs",
-        );
-        await this.dumpVisibleInputIds();
-      }
     }
 
     if (customerData.lineDiscount) {
@@ -12133,33 +12083,8 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    const interactiveMobile = customerData.mobile || customerData.phone || "";
-    if (interactiveMobile) {
-      try {
-        await this.typeDevExpressField(
-          /xaf_dviCELLULARPHONE_Edit_I$/,
-          interactiveMobile,
-        );
-      } catch {
-        logger.warn(
-          "CELLULARPHONE field not found (interactive), dumping visible input IDs",
-        );
-        await this.dumpVisibleInputIds();
-      }
-    }
-
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-    }
-
-    const interactiveUrl = customerData.url || "https://www.example.com/";
-    try {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, interactiveUrl);
-    } catch {
-      logger.warn(
-        "URL field not found (interactive), dumping visible input IDs",
-      );
-      await this.dumpVisibleInputIds();
     }
 
     await this.emitProgress("customer.save");

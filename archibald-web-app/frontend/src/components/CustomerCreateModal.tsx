@@ -95,9 +95,7 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
     fieldType: "cap",
   },
   { key: "phone", label: "Telefono", defaultValue: "+39", type: "tel" },
-  { key: "mobile", label: "Cellulare *", defaultValue: "+39", type: "tel" },
   { key: "email", label: "Email", defaultValue: "", type: "email" },
-  { key: "url", label: "Sito web *", defaultValue: "" },
 ];
 
 const DELIVERY_ADDRESS_FIELDS: FieldDef[] = [
@@ -845,15 +843,10 @@ export function CustomerCreateModal({
     setError(null);
     setBotError(null);
     try {
-      const isEmptyPhone = !formData.phone || formData.phone.trim() === "+39";
-      const isEmptyMobile =
-        !formData.mobile || formData.mobile.trim() === "+39";
-
       const dataToSend: CustomerFormData = {
         ...formData,
-        phone: isEmptyPhone && !isEmptyMobile ? formData.mobile : formData.phone,
-        mobile: isEmptyMobile && !isEmptyPhone ? formData.phone : formData.mobile,
-        url: formData.url.trim() || "https://www.example.com/",
+        mobile: "",
+        url: "",
       };
 
       let resultTaskId: string | null = null;

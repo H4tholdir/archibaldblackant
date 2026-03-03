@@ -164,19 +164,28 @@ async function pollJobUntilDone(
   const deadline = Date.now() + maxWaitMs;
 
   while (Date.now() < deadline) {
-    const { job } = await getJobStatus(jobId);
+    try {
+      const { job } = await getJobStatus(jobId);
 
-    if (job.state === 'completed') {
-      onProgress?.(100, 'Completato');
-      return job.result ?? {};
-    }
+      if (job.state === 'completed') {
+        onProgress?.(100, 'Completato');
+        return job.result ?? {};
+      }
 
-    if (job.state === 'failed') {
-      throw new Error(job.failedReason ?? 'Operazione fallita');
-    }
+      if (job.state === 'failed') {
+        throw new Error(job.failedReason ?? 'Operazione fallita');
+      }
 
-    if (typeof job.progress === 'number') {
-      onProgress?.(job.progress);
+      if (typeof job.progress === 'number') {
+        onProgress?.(job.progress);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('404')) {
+        // Job not found in queue (e.g. interactive session) — keep waiting
+      } else {
+        throw err;
+      }
     }
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
