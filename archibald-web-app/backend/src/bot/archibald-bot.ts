@@ -6772,6 +6772,7 @@ export class ArchibaldBot {
           quantity: number;
           discount?: number;
           productName?: string;
+          articleChanged?: boolean;
         }
       | {
           type: "add";
@@ -7044,6 +7045,7 @@ export class ArchibaldBot {
         quantity: number;
         discount?: number;
         productName?: string;
+        articleChanged?: boolean;
       }>;
       const adds = modifications.filter((m) => m.type === "add") as Array<{
         type: "add";
@@ -7291,8 +7293,10 @@ export class ArchibaldBot {
           );
         }
 
-        // Focus INVENTTABLE and type article code
-        await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
+        // Only re-type article code if the article actually changed
+        if (mod.articleChanged !== false) {
+          await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
+        }
 
         // Set quantity
         await this.setEditRowQuantity(mod.quantity);
@@ -7304,7 +7308,7 @@ export class ArchibaldBot {
 
         // Save the row
         await this.saveEditRow();
-        logger.info(`[editOrder] Row ${mod.rowIndex} updated`);
+        logger.info(`[editOrder] Row ${mod.rowIndex} updated (articleChanged: ${mod.articleChanged !== false})`);
       }
 
       // Process ADDS
@@ -7690,10 +7694,19 @@ export class ArchibaldBot {
 
     // Step 1: Look up the correct variant from the product database
     const variantLookupName = productName?.trim() || articleCode;
-    const directVariant = this.productDb?.getProductById(articleCode);
-    const selectedVariant =
-      directVariant ||
+    let selectedVariant =
+      this.productDb?.getProductById(articleCode) ||
       this.productDb?.selectPackageVariant(variantLookupName, quantity);
+
+    // Fallback: strip variant suffix (e.g., "016869K2" → "016869") and retry
+    if (!selectedVariant && articleCode.length > 2) {
+      const baseCode = articleCode.replace(/[A-Z]\d+$/, "");
+      if (baseCode !== articleCode) {
+        selectedVariant =
+          this.productDb?.getProductById(baseCode) ||
+          this.productDb?.selectPackageVariant(baseCode, quantity);
+      }
+    }
 
     if (!selectedVariant) {
       throw new Error(

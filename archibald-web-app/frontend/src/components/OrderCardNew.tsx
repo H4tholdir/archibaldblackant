@@ -535,6 +535,7 @@ interface EditModification {
   rowIndex?: number;
   articleCode?: string;
   productName?: string;
+  articleChanged?: boolean;
   quantity?: number;
   discount?: number;
   oldArticleCode?: string;
@@ -564,6 +565,7 @@ function computeModifications(
           rowIndex: i,
           articleCode: edit.articleCode,
           productName: edit.productName || edit.articleDescription || undefined,
+          articleChanged: orig.articleCode !== edit.articleCode,
           quantity: edit.quantity,
           discount: edit.discountPercent,
           oldArticleCode: orig.articleCode,
@@ -844,7 +846,7 @@ function TabArticoli({
 
   const handleSelectArticle = useCallback(
     async (idx: number, product: ProductWithDetails) => {
-      const currentQty = editItems[idx]?.quantity || 1;
+      const currentQty = editItems[idx]?.quantity || 0;
       const packaging = await productService.calculateOptimalPackaging(
         product.name,
         currentQty,
@@ -884,6 +886,14 @@ function TabArticoli({
       setEditingArticleIdx(null);
       setArticleSearch("");
       setArticleResults([]);
+
+      setTimeout(() => {
+        const qtyInput = document.querySelector(`[data-field="qty-${idx}"]`) as HTMLInputElement;
+        if (qtyInput) {
+          qtyInput.focus();
+          qtyInput.select();
+        }
+      }, 50);
     },
     [editItems],
   );
@@ -931,22 +941,24 @@ function TabArticoli({
       const existing = qtyTimeoutRef.current.get(idx);
       if (existing) clearTimeout(existing);
 
+      if (qty <= 0) {
+        setQtyValidation((prev) =>
+          new Map(prev).set(idx, "error:Quantita' deve essere > 0"),
+        );
+        return;
+      }
+
+      const item = newItems[idx];
+      if (!item.productName) {
+        setQtyValidation((prev) => {
+          const m = new Map(prev);
+          m.delete(idx);
+          return m;
+        });
+        return;
+      }
+
       const timeout = setTimeout(async () => {
-        if (qty <= 0) {
-          setQtyValidation((prev) =>
-            new Map(prev).set(idx, "Quantita' deve essere > 0"),
-          );
-          return;
-        }
-        const item = newItems[idx];
-        if (!item.productName) {
-          setQtyValidation((prev) => {
-            const m = new Map(prev);
-            m.delete(idx);
-            return m;
-          });
-          return;
-        }
         const packaging = await productService.calculateOptimalPackaging(
           item.productName,
           qty,
@@ -964,7 +976,7 @@ function TabArticoli({
             setQtyValidation((prev) =>
               new Map(prev).set(
                 idx,
-                `Quantita' suggerita: ${packaging.suggestedQuantity}`,
+                `suggest:${packaging.suggestedQuantity}`,
               ),
             );
           }
@@ -996,7 +1008,7 @@ function TabArticoli({
           setQtyValidation((prev) =>
             new Map(prev).set(
               idx,
-              packaging.error || "Quantita' non valida per il packaging",
+              `error:${packaging.error || "Quantita' non valida per il packaging"}`,
             ),
           );
         }
@@ -1037,7 +1049,7 @@ function TabArticoli({
       {
         articleCode: "",
         productName: "",
-        quantity: 1,
+        quantity: 0,
         unitPrice: 0,
         discountPercent: 0,
         vatPercent: 22,
@@ -1049,7 +1061,15 @@ function TabArticoli({
     ]);
   }, []);
 
+  const hasPackagingErrors = Array.from(qtyValidation.values()).some(
+    (msg) => msg?.startsWith("error:"),
+  );
+
   const handleSaveClick = () => {
+    if (hasPackagingErrors) {
+      setError("Correggere gli errori di confezionamento prima di salvare");
+      return;
+    }
     const mods = computeModifications(originalItems, editItems);
     if (mods.length === 0) {
       onEditDone?.();
@@ -1442,26 +1462,33 @@ function TabArticoli({
             </button>
             <button
               onClick={handleSaveClick}
-              disabled={editItems.some(
-                (item) => !item.articleCode || item.quantity <= 0,
-              )}
+              disabled={
+                hasPackagingErrors ||
+                editItems.some(
+                  (item) => !item.articleCode || item.quantity <= 0,
+                )
+              }
               style={{
                 padding: "8px 16px",
                 fontSize: "13px",
                 fontWeight: 600,
-                backgroundColor: editItems.some(
-                  (item) => !item.articleCode || item.quantity <= 0,
-                )
-                  ? "#ccc"
-                  : "#1976d2",
+                backgroundColor:
+                  hasPackagingErrors ||
+                  editItems.some(
+                    (item) => !item.articleCode || item.quantity <= 0,
+                  )
+                    ? "#ccc"
+                    : "#1976d2",
                 color: "#fff",
                 border: "none",
                 borderRadius: "6px",
-                cursor: editItems.some(
-                  (item) => !item.articleCode || item.quantity <= 0,
-                )
-                  ? "not-allowed"
-                  : "pointer",
+                cursor:
+                  hasPackagingErrors ||
+                  editItems.some(
+                    (item) => !item.articleCode || item.quantity <= 0,
+                  )
+                    ? "not-allowed"
+                    : "pointer",
               }}
             >
               Salva modifiche
@@ -1484,8 +1511,8 @@ function TabArticoli({
         )}
 
         {/* Edit table */}
-        <div className="edit-table" style={{ position: "relative" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div className="edit-table" style={{ position: "relative", overflow: "visible" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", overflow: "visible" }}>
             <thead>
               <tr>
                 <th style={tableHeaderStyle}>Codice Articolo</th>
@@ -1626,23 +1653,35 @@ function TabArticoli({
                     {/* Quantity */}
                     <td style={tableCellStyle}>
                       <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleQtyChange(idx, parseInt(e.target.value) || 0)
-                        }
+                        data-field={`qty-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        value={item.quantity || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const parsed = parseInt(val, 10);
+                          handleQtyChange(idx, isNaN(parsed) ? 0 : parsed);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const discountInput = document.querySelector(
+                              `[data-field="discount-${idx}"]`,
+                            ) as HTMLInputElement;
+                            discountInput?.focus();
+                          }
+                        }}
                         style={{
                           width: "80px",
                           padding: "6px 8px",
                           fontSize: "13px",
-                          border: `1px solid ${qtyError ? "#d32f2f" : "#ddd"}`,
+                          border: `1px solid ${qtyError?.startsWith("error:") ? "#d32f2f" : qtyError?.startsWith("suggest:") ? "#1976d2" : "#ddd"}`,
                           borderRadius: "4px",
                           outline: "none",
                           boxSizing: "border-box",
                         }}
                       />
-                      {qtyError && (
+                      {qtyError && qtyError.startsWith("error:") && (
                         <div
                           style={{
                             fontSize: "10px",
@@ -1650,8 +1689,31 @@ function TabArticoli({
                             marginTop: "2px",
                           }}
                         >
-                          {qtyError}
+                          {qtyError.replace("error:", "")}
                         </div>
+                      )}
+                      {qtyError && qtyError.startsWith("suggest:") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const suggested = parseInt(qtyError.replace("suggest:", ""), 10);
+                            if (!isNaN(suggested)) {
+                              handleQtyChange(idx, suggested);
+                            }
+                          }}
+                          style={{
+                            fontSize: "10px",
+                            color: "#1976d2",
+                            marginTop: "2px",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          Usa {qtyError.replace("suggest:", "")} pz
+                        </button>
                       )}
                     </td>
 
@@ -1667,17 +1729,22 @@ function TabArticoli({
                     {/* Discount */}
                     <td style={tableCellStyle}>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={item.discountPercent}
-                        onChange={(e) =>
-                          handleDiscountChange(
-                            idx,
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
+                        data-field={`discount-${idx}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={item.discountPercent || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const parsed = parseFloat(val.replace(",", "."));
+                          if (val === "" || (!isNaN(parsed) && parsed <= 100)) {
+                            handleDiscountChange(idx, isNaN(parsed) ? 0 : parsed);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                          }
+                        }}
                         style={{
                           width: "70px",
                           padding: "6px 8px",
