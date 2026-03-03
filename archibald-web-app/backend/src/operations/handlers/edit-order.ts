@@ -27,6 +27,22 @@ type EditOrderBot = {
   ) => void;
 };
 
+const BOT_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
+  'edit.navigation': { progress: 10, label: 'Apertura sezione ordini' },
+  'edit.filter': { progress: 15, label: 'Impostazione filtro' },
+  'edit.search': { progress: 25, label: 'Ricerca ordine' },
+  'edit.open': { progress: 35, label: 'Apertura ordine' },
+  'edit.save': { progress: 80, label: 'Salvataggio ordine' },
+  'edit.complete': { progress: 85, label: 'Ordine modificato' },
+};
+
+function calculateEditModifyProgress(current: number, total: number): number {
+  const start = 40;
+  const end = 75;
+  if (total <= 1) return start;
+  return Math.round(start + ((current - 1) / (total - 1)) * (end - start));
+}
+
 async function handleEditOrder(
   pool: DbPool,
   bot: EditOrderBot,
@@ -34,11 +50,21 @@ async function handleEditOrder(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ success: boolean; message: string }> {
-  bot.setProgressCallback(async (category) => {
-    onProgress(50, category);
+  bot.setProgressCallback(async (category, metadata) => {
+    if (category === 'edit.modify' && metadata) {
+      const current = metadata.current as number;
+      const total = metadata.total as number;
+      const progress = calculateEditModifyProgress(current, total);
+      onProgress(progress, `Modifica articolo ${current} di ${total}`);
+    } else {
+      const mapped = BOT_PROGRESS_MAP[category];
+      if (mapped) {
+        onProgress(mapped.progress, mapped.label);
+      }
+    }
   });
 
-  onProgress(10, 'Modifica ordine su Archibald');
+  onProgress(5, 'Modifica ordine su Archibald');
   const result = await bot.editOrderInArchibald(data.orderId, data.modifications);
 
   if (!result.success) {
@@ -46,7 +72,7 @@ async function handleEditOrder(
   }
 
   if (data.updatedItems && data.updatedItems.length > 0) {
-    onProgress(70, 'Aggiornamento articoli nel database');
+    onProgress(90, 'Aggiornamento articoli nel database');
 
     const itemsToUpdate = data.updatedItems;
     await pool.withTransaction(async (tx) => {
@@ -115,4 +141,4 @@ function createEditOrderHandler(pool: DbPool, createBot: (userId: string) => Edi
   };
 }
 
-export { handleEditOrder, createEditOrderHandler, type EditOrderData, type EditOrderBot, type EditOrderArticle };
+export { handleEditOrder, createEditOrderHandler, calculateEditModifyProgress, type EditOrderData, type EditOrderBot, type EditOrderArticle };

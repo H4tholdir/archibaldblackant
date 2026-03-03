@@ -534,6 +534,7 @@ interface EditModification {
   type: "update" | "add" | "delete";
   rowIndex?: number;
   articleCode?: string;
+  productName?: string;
   quantity?: number;
   discount?: number;
   oldArticleCode?: string;
@@ -562,6 +563,7 @@ function computeModifications(
           type: "update",
           rowIndex: i,
           articleCode: edit.articleCode,
+          productName: edit.productName || edit.articleDescription || undefined,
           quantity: edit.quantity,
           discount: edit.discountPercent,
           oldArticleCode: orig.articleCode,
@@ -573,6 +575,7 @@ function computeModifications(
       mods.push({
         type: "add",
         articleCode: editItems[i].articleCode,
+        productName: editItems[i].productName || editItems[i].articleDescription || undefined,
         quantity: editItems[i].quantity,
         discount: editItems[i].discountPercent,
       });
@@ -608,6 +611,7 @@ function TabArticoli({
   editing = false,
   onEditDone,
   editProgress,
+  onEditProgress,
 }: {
   orderId: string;
   archibaldOrderId?: string;
@@ -620,6 +624,7 @@ function TabArticoli({
   editing?: boolean;
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
+  onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
 }) {
   const [articles, setArticles] = useState<OrderArticle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1058,6 +1063,7 @@ function TabArticoli({
     const modifications = confirmModal;
     setConfirmModal(null);
     setSubmittingEdit(true);
+    onEditProgress?.(null);
 
     try {
       const result = await enqueueOperation('edit-order', {
@@ -1075,13 +1081,21 @@ function TabArticoli({
       await waitForJobViaWebSocket(result.jobId, {
         subscribe,
         maxWaitMs: 120_000,
+        onProgress: (progress, label) => {
+          onEditProgress?.({
+            progress,
+            operation: label ?? `Modifica in corso... ${progress}%`,
+          });
+        },
       });
 
       setSubmittingEdit(false);
+      onEditProgress?.(null);
       onEditDone?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di rete");
       setSubmittingEdit(false);
+      onEditProgress?.(null);
     }
   };
 
@@ -4421,6 +4435,7 @@ export function OrderCardNew({
                   editing={editing}
                   onEditDone={onEditDone}
                   editProgress={editProgress}
+                  onEditProgress={setEditProgress}
                 />
               </>
             )}

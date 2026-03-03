@@ -6771,12 +6771,14 @@ export class ArchibaldBot {
           articleCode: string;
           quantity: number;
           discount?: number;
+          productName?: string;
         }
       | {
           type: "add";
           articleCode: string;
           quantity: number;
           discount?: number;
+          productName?: string;
         }
       | { type: "delete"; rowIndex: number }
     >,
@@ -7041,12 +7043,14 @@ export class ArchibaldBot {
         articleCode: string;
         quantity: number;
         discount?: number;
+        productName?: string;
       }>;
       const adds = modifications.filter((m) => m.type === "add") as Array<{
         type: "add";
         articleCode: string;
         quantity: number;
         discount?: number;
+        productName?: string;
       }>;
       const deletes = modifications
         .filter((m) => m.type === "delete")
@@ -7288,7 +7292,7 @@ export class ArchibaldBot {
         }
 
         // Focus INVENTTABLE and type article code
-        await this.focusAndTypeArticle(mod.articleCode, mod.quantity);
+        await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
 
         // Set quantity
         await this.setEditRowQuantity(mod.quantity);
@@ -7360,7 +7364,7 @@ export class ArchibaldBot {
         await this.wait(300);
 
         // Focus INVENTTABLE and type article code
-        await this.focusAndTypeArticle(mod.articleCode, mod.quantity);
+        await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
 
         // Set quantity
         await this.setEditRowQuantity(mod.quantity);
@@ -7680,18 +7684,22 @@ export class ArchibaldBot {
   private async focusAndTypeArticle(
     articleCode: string,
     quantity: number,
+    productName?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Page not initialized");
 
     // Step 1: Look up the correct variant from the product database
+    const variantLookupName = productName?.trim() || articleCode;
     const directVariant = this.productDb?.getProductById(articleCode);
     const selectedVariant =
       directVariant ||
-      this.productDb?.selectPackageVariant(articleCode, quantity);
+      this.productDb?.selectPackageVariant(variantLookupName, quantity);
 
     if (!selectedVariant) {
       throw new Error(
-        `Article ${articleCode} not found in product database. Ensure product sync has run.`,
+        `Article ${articleCode} not found in product database` +
+          (productName ? ` (product name: ${productName}). ` : '. ') +
+          `Ensure product sync has run.`,
       );
     }
 
