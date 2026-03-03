@@ -205,6 +205,29 @@ describe('createSyncStatusRouter', () => {
         triggeredBy: 'user-1',
       });
     });
+
+    test('triggers order-articles sync by enqueuing batch of order article jobs', async () => {
+      deps.getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1', 'order-2', 'order-3']);
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-order-articles');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobsEnqueued).toBe(3);
+      expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-2' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-3' });
+    });
+
+    test('returns 0 jobsEnqueued when no orders need article sync', async () => {
+      deps.getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger/sync-order-articles');
+
+      expect(res.status).toBe(200);
+      expect(res.body.jobsEnqueued).toBe(0);
+    });
   });
 
   describe('POST /api/sync/trigger-all', () => {
@@ -223,6 +246,17 @@ describe('createSyncStatusRouter', () => {
       const res = await request(app).post('/api/sync/trigger-all');
 
       expect(res.status).toBe(403);
+    });
+
+    test('trigger-all also enqueues order-articles jobs', async () => {
+      deps.getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1']);
+      const app = createApp(deps, 'admin');
+      const res = await request(app).post('/api/sync/trigger-all');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
     });
   });
 

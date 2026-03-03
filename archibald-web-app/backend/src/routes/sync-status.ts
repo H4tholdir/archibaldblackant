@@ -31,6 +31,7 @@ type SyncStatusRouterDeps = {
   getProductCount?: () => Promise<number>;
   getProductLastSyncTime?: () => Promise<number | null>;
   getSessionCount?: () => number;
+  getOrdersNeedingArticleSync?: (userId: string, limit: number) => Promise<string[]>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -229,6 +230,19 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         }
       }
 
+      if (syncType === 'sync-order-articles') {
+        if (!deps.getOrdersNeedingArticleSync) {
+          return res.status(501).json({ success: false, error: 'getOrdersNeedingArticleSync non disponibile' });
+        }
+        const orderIds = await deps.getOrdersNeedingArticleSync(userId, 200);
+        const jobIds: string[] = [];
+        for (const orderId of orderIds) {
+          const jobId = await queue.enqueue('sync-order-articles', userId, { orderId });
+          jobIds.push(jobId);
+        }
+        return res.json({ success: true, jobIds, jobsEnqueued: orderIds.length });
+      }
+
       const jobData: Record<string, unknown> = {};
       if (mode === 'delta') {
         jobData.syncMode = 'delta';
@@ -258,6 +272,14 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
       for (const syncType of ALL_SYNC_TYPES) {
         const jobId = await queue.enqueue(syncType, userId, {});
         jobIds.push(jobId);
+      }
+
+      if (deps.getOrdersNeedingArticleSync) {
+        const orderIds = await deps.getOrdersNeedingArticleSync(userId, 200);
+        for (const orderId of orderIds) {
+          const jobId = await queue.enqueue('sync-order-articles', userId, { orderId });
+          jobIds.push(jobId);
+        }
       }
 
       res.json({ success: true, jobIds, message: `Triggered ${ALL_SYNC_TYPES.length} sync operations` });

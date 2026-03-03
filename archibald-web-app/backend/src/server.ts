@@ -645,6 +645,7 @@ function createApp(deps: AppDeps): Express {
     getProductCount: () => productsRepo.getProductCount(pool),
     getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
     getSessionCount: () => syncScheduler.getSessionCount(),
+    getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
