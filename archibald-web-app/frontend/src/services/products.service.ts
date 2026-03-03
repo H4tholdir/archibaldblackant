@@ -104,7 +104,7 @@ export class ProductService {
       const data = await response.json();
       const apiProducts: any[] = data.data?.products || [];
 
-      const match = apiProducts.find((p: any) => p.id === id);
+      const match = apiProducts.find((p: any) => p.id === id || p.name === id);
       if (!match) return null;
 
       const product = mapApiProductToLocal(match);
