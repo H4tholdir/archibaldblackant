@@ -3646,6 +3646,27 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
+            {/* Residuo Finanziario (used as order notes) */}
+            {order.remainingSalesFinancial && (
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#5a3e00",
+                  backgroundColor: "#fff8e1",
+                  border: "1px solid #ffe082",
+                  borderRadius: "6px",
+                  padding: "4px 10px",
+                  marginBottom: "8px",
+                  lineHeight: "1.4",
+                }}
+              >
+                <HighlightText
+                  text={order.remainingSalesFinancial}
+                  query={searchQuery}
+                />
+              </div>
+            )}
+
             {/* Total Amount */}
             <div style={{ marginBottom: "4px" }}>
               <div
