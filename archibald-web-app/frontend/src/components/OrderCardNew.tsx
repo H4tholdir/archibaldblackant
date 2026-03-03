@@ -3531,7 +3531,8 @@ export function OrderCardNew({
     >
       {/* ===== COLLAPSED STATE ===== */}
       <div
-        onClick={() => {
+        onClick={(e) => {
+          if (e.detail >= 2) return;
           const sel = window.getSelection();
           if (sel && sel.toString().length > 0) return;
           onToggle();
