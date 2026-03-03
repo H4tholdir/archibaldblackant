@@ -484,14 +484,19 @@ async function bootstrap(): Promise<void> {
       };
     }),
     'edit-order': createEditOrderHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
+      let bot: ArchibaldBot | null = null;
+      let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
       const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
+        if (!bot) {
+          const productDb = await loadProductDb();
+          bot = createBotForUser(userId, productDb);
+          await bot.initialize();
+          if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
+        }
       };
       return {
-        editOrderInArchibald: async (id, data) => { await ensureInit(); return bot.editOrderInArchibald(id, data as never); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        editOrderInArchibald: async (id, data) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never); },
+        setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
     }),
     'send-to-verona': createSendToVeronaHandler(pool, (userId) => {

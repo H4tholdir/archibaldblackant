@@ -867,20 +867,21 @@ function TabArticoli({
 
       if (hasBreakdown) {
         for (const pkg of packaging.breakdown!) {
-          const variantArticleCode = pkg.variant.variantId || product.name;
-          const priceData = await priceService.getPriceAndVat(variantArticleCode);
+          const variantPriceId = pkg.variant.variantId || product.id;
+          const variantName = pkg.variant.productId || product.name;
+          const priceData = await priceService.getPriceAndVat(variantPriceId);
           const unitPrice = priceData?.price ?? product.price ?? 0;
           const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
 
           let discountPercent = editItems[idx]?.discountPercent ?? 0;
           if (isFresisCustomer) {
-            const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+            const fresisDiscount = await getDiscountForArticle(variantName);
             discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
           }
 
           breakdownItems.push(
             recalcLineAmounts({
-              articleCode: variantArticleCode,
+              articleCode: variantName,
               productName: product.name,
               unitPrice,
               vatPercent,
@@ -1027,18 +1028,19 @@ function TabArticoli({
             if (packaging.breakdown.length > 1) {
               const breakdownItems: EditItem[] = [];
               for (const pkg of packaging.breakdown) {
-                const variantArticleCode = pkg.variant.variantId || item.productName;
-                const priceData = await priceService.getPriceAndVat(variantArticleCode);
+                const variantPriceId = pkg.variant.variantId;
+                const variantName = pkg.variant.productId || item.productName;
+                const priceData = await priceService.getPriceAndVat(variantPriceId);
 
                 let discountPercent = item.discountPercent;
                 if (isFresisCustomer) {
-                  const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+                  const fresisDiscount = await getDiscountForArticle(variantName);
                   discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
                 }
 
                 breakdownItems.push(
                   recalcLineAmounts({
-                    articleCode: variantArticleCode,
+                    articleCode: variantName,
                     productName: item.productName,
                     unitPrice: priceData?.price ?? item.unitPrice,
                     vatPercent: normalizeVatRate(priceData?.vat ?? item.vatPercent) ?? 0,
@@ -1058,12 +1060,13 @@ function TabArticoli({
               });
             } else {
               const bestVariant = packaging.breakdown[0].variant;
-              const variantArticleCode = bestVariant.variantId || item.productName;
-              const priceData = await priceService.getPriceAndVat(variantArticleCode);
+              const variantPriceId = bestVariant.variantId;
+              const variantName = bestVariant.productId || item.productName;
+              const priceData = await priceService.getPriceAndVat(variantPriceId);
 
               let discountPercent = item.discountPercent;
               if (isFresisCustomer) {
-                const fresisDiscount = await getDiscountForArticle(variantArticleCode);
+                const fresisDiscount = await getDiscountForArticle(variantName);
                 discountPercent = fresisDiscount?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
               }
 
@@ -1071,7 +1074,7 @@ function TabArticoli({
                 const updated = [...prev];
                 updated[idx] = recalcLineAmounts({
                   ...updated[idx],
-                  articleCode: variantArticleCode,
+                  articleCode: variantName,
                   unitPrice: priceData?.price ?? updated[idx].unitPrice,
                   vatPercent: normalizeVatRate(
                     priceData?.vat ?? updated[idx].vatPercent,
