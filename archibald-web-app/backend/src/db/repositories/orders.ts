@@ -73,6 +73,7 @@ type OrderRow = {
   articles_synced_at: string | null;
   shipping_cost: number | null;
   shipping_tax: number | null;
+  article_search_text: string | null;
 };
 
 type DdtInfo = {
@@ -173,6 +174,7 @@ type Order = {
   articlesSyncedAt: string | null;
   shippingCost: number | null;
   shippingTax: number | null;
+  articleSearchText: string | null;
   ddt: DdtInfo | undefined;
   tracking: TrackingInfo | undefined;
 };
@@ -412,6 +414,7 @@ function mapRowToOrder(row: OrderRow): Order {
     articlesSyncedAt: row.articles_synced_at,
     shippingCost: row.shipping_cost,
     shippingTax: row.shipping_tax,
+    articleSearchText: row.article_search_text,
     ddt: row.ddt_number ? {
       ddtId: row.ddt_id,
       ddtNumber: row.ddt_number,

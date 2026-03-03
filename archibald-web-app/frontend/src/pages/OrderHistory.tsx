@@ -78,25 +78,40 @@ function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+type TabId = "panoramica" | "articoli" | "logistica" | "finanziario";
+
+function anyFieldMatches(fields: (string | undefined | null)[], lower: string): boolean {
+  for (const val of fields) {
+    if (val && String(val).toLowerCase().includes(lower)) return true;
+  }
+  return false;
+}
+
 function matchesGlobalSearch(order: Order, query: string): boolean {
   const lower = query.toLowerCase();
 
-  const topFields: (string | undefined | null)[] = [
+  // Header fields (visible in collapsed card)
+  const headerFields: (string | undefined | null)[] = [
     order.orderNumber,
     order.customerName,
+    order.total,
+    order.remainingSalesFinancial,
+  ];
+  if (anyFieldMatches(headerFields, lower)) return true;
+
+  // Panoramica tab fields
+  const panoramicaFields: (string | undefined | null)[] = [
     order.customerProfileId,
     order.orderDate,
     order.date,
     order.deliveryDate,
     order.orderType,
     order.salesOrigin,
-    order.total,
     order.grossAmount,
     order.discountPercent,
     order.deliveryName,
     order.deliveryAddress,
     order.customerReference,
-    order.remainingSalesFinancial,
     order.state,
     order.status,
     order.documentState,
@@ -104,82 +119,114 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
     order.transferDate,
     order.completionDate,
     order.deliveryCompletedDate,
-    order.articleSearchText,
+    order.notes,
+    order.customerNotes,
   ];
+  if (anyFieldMatches(panoramicaFields, lower)) return true;
 
-  for (const val of topFields) {
-    if (val && String(val).toLowerCase().includes(lower)) return true;
-  }
-
-  if (order.ddt) {
-    const ddtFields: (string | undefined | null)[] = [
-      order.ddt.trackingNumber,
-      order.ddt.trackingCourier,
-      order.ddt.ddtNumber,
-      order.ddt.ddtDeliveryDate,
-      order.ddt.ddtCustomerAccount,
-      order.ddt.orderId,
-      order.ddt.ddtSalesName,
-      order.ddt.ddtDeliveryName,
-      order.ddt.deliveryMethod,
-      order.ddt.deliveryTerms,
-      order.ddt.deliveryCity,
-      order.ddt.attentionTo,
-      order.ddt.deliveryAddress,
-      order.ddt.ddtTotal,
-      order.ddt.customerReference,
-      order.ddt.description,
-    ];
-    for (const val of ddtFields) {
-      if (val && String(val).toLowerCase().includes(lower)) return true;
-    }
-  }
-
-  if (order.tracking) {
-    if (
-      order.tracking.trackingNumber &&
-      order.tracking.trackingNumber.toLowerCase().includes(lower)
-    )
-      return true;
-    if (
-      order.tracking.trackingCourier &&
-      order.tracking.trackingCourier.toLowerCase().includes(lower)
-    )
-      return true;
-  }
-
-  const invoiceFields: (string | undefined | null)[] = [
-    order.invoiceNumber,
-    order.invoiceDate,
-    order.invoiceAmount,
-    order.invoiceCustomerAccount,
-    order.invoiceBillingName,
-    order.invoiceRemainingAmount,
-    order.invoiceTaxAmount,
-    order.invoiceLineDiscount,
-    order.invoiceTotalDiscount,
-    order.invoicePurchaseOrder,
-    order.invoiceDueDate,
-    order.invoiceSettledAmount,
-    order.invoiceLastPaymentId,
-    order.invoiceLastSettlementDate,
-  ];
-  for (const val of invoiceFields) {
-    if (val && String(val).toLowerCase().includes(lower)) return true;
-  }
+  // Articles
+  if (order.articleSearchText && order.articleSearchText.toLowerCase().includes(lower)) return true;
 
   if (order.items) {
     for (const item of order.items) {
-      if (item.article && item.article.toLowerCase().includes(lower))
-        return true;
-      if (item.productName && item.productName.toLowerCase().includes(lower))
-        return true;
-      if (item.description && item.description.toLowerCase().includes(lower))
-        return true;
+      if (item.article && item.article.toLowerCase().includes(lower)) return true;
+      if (item.productName && item.productName.toLowerCase().includes(lower)) return true;
+      if (item.description && item.description.toLowerCase().includes(lower)) return true;
     }
   }
 
+  // DDT + tracking (logistica tab)
+  if (order.ddt) {
+    const ddtFields: (string | undefined | null)[] = [
+      order.ddt.trackingNumber, order.ddt.trackingCourier, order.ddt.ddtNumber,
+      order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
+      order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
+      order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
+      order.ddt.deliveryAddress, order.ddt.ddtTotal, order.ddt.customerReference,
+      order.ddt.description,
+    ];
+    if (anyFieldMatches(ddtFields, lower)) return true;
+  }
+
+  if (order.tracking) {
+    if (order.tracking.trackingNumber?.toLowerCase().includes(lower)) return true;
+    if (order.tracking.trackingCourier?.toLowerCase().includes(lower)) return true;
+  }
+
+  // Invoice (finanziario tab)
+  const invoiceFields: (string | undefined | null)[] = [
+    order.invoiceNumber, order.invoiceDate, order.invoiceAmount,
+    order.invoiceCustomerAccount, order.invoiceBillingName,
+    order.invoiceRemainingAmount, order.invoiceTaxAmount,
+    order.invoiceLineDiscount, order.invoiceTotalDiscount,
+    order.invoicePurchaseOrder, order.invoiceDueDate,
+    order.invoiceSettledAmount, order.invoiceLastPaymentId,
+    order.invoiceLastSettlementDate,
+  ];
+  if (anyFieldMatches(invoiceFields, lower)) return true;
+
   return false;
+}
+
+function getMatchingTab(order: Order, query: string): TabId | null {
+  if (!query) return null;
+  const lower = query.toLowerCase();
+
+  // Header fields — no tab switch needed
+  const headerFields: (string | undefined | null)[] = [
+    order.orderNumber, order.customerName, order.total, order.remainingSalesFinancial,
+  ];
+  if (anyFieldMatches(headerFields, lower)) return null;
+
+  // Panoramica
+  const panoramicaFields: (string | undefined | null)[] = [
+    order.customerProfileId, order.orderDate, order.date, order.deliveryDate,
+    order.orderType, order.salesOrigin, order.grossAmount, order.discountPercent,
+    order.deliveryName, order.deliveryAddress, order.customerReference,
+    order.state, order.status, order.documentState, order.transferStatus,
+    order.transferDate, order.completionDate, order.deliveryCompletedDate,
+    order.notes, order.customerNotes,
+  ];
+  if (anyFieldMatches(panoramicaFields, lower)) return "panoramica";
+
+  // Articles
+  if (order.articleSearchText?.toLowerCase().includes(lower)) return "articoli";
+  if (order.items) {
+    for (const item of order.items) {
+      if (item.article?.toLowerCase().includes(lower)) return "articoli";
+      if (item.productName?.toLowerCase().includes(lower)) return "articoli";
+      if (item.description?.toLowerCase().includes(lower)) return "articoli";
+    }
+  }
+
+  // DDT + tracking → logistica
+  if (order.ddt) {
+    const ddtFields: (string | undefined | null)[] = [
+      order.ddt.trackingNumber, order.ddt.trackingCourier, order.ddt.ddtNumber,
+      order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
+      order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
+      order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
+      order.ddt.deliveryAddress, order.ddt.ddtTotal, order.ddt.customerReference,
+      order.ddt.description,
+    ];
+    if (anyFieldMatches(ddtFields, lower)) return "logistica";
+  }
+  if (order.tracking?.trackingNumber?.toLowerCase().includes(lower)) return "logistica";
+  if (order.tracking?.trackingCourier?.toLowerCase().includes(lower)) return "logistica";
+
+  // Invoice → finanziario
+  const invoiceFields: (string | undefined | null)[] = [
+    order.invoiceNumber, order.invoiceDate, order.invoiceAmount,
+    order.invoiceCustomerAccount, order.invoiceBillingName,
+    order.invoiceRemainingAmount, order.invoiceTaxAmount,
+    order.invoiceLineDiscount, order.invoiceTotalDiscount,
+    order.invoicePurchaseOrder, order.invoiceDueDate,
+    order.invoiceSettledAmount, order.invoiceLastPaymentId,
+    order.invoiceLastSettlementDate,
+  ];
+  if (anyFieldMatches(invoiceFields, lower)) return "finanziario";
+
+  return null;
 }
 
 export function OrderHistory() {
@@ -280,6 +327,22 @@ export function OrderHistory() {
     }, 300);
     return () => clearTimeout(timer);
   }, [filters.search]);
+
+  // Auto-expand first order with an internal tab match
+  const prevSearchRef = useRef("");
+  useEffect(() => {
+    if (debouncedSearch && debouncedSearch !== prevSearchRef.current) {
+      prevSearchRef.current = debouncedSearch;
+      const matchedOrders = orders.filter((o) => matchesGlobalSearch(o, debouncedSearch));
+      const firstWithTab = matchedOrders.find((o) => getMatchingTab(o, debouncedSearch) !== null);
+      if (firstWithTab) {
+        setExpandedOrderId(firstWithTab.id);
+      }
+    }
+    if (!debouncedSearch) {
+      prevSearchRef.current = "";
+    }
+  }, [debouncedSearch, orders]);
 
   // Scroll listener for scroll-to-top button
   useEffect(() => {
@@ -1846,7 +1909,8 @@ export function OrderHistory() {
                 zIndex: 100,
                 display: "flex",
                 alignItems: "center",
-                gap: "12px",
+                flexWrap: "wrap" as const,
+                gap: "8px 12px",
                 padding: "8px 16px",
                 backgroundColor: "#fff",
                 border: "1px solid #e5e7eb",
@@ -1959,6 +2023,7 @@ export function OrderHistory() {
                               noteSummaries={noteSummaries}
                               notePreviews={notePreviews}
                               onNotesChanged={() => refreshNoteSummaries()}
+                              getSuggestedTab={debouncedSearch ? (o) => getMatchingTab(o, debouncedSearch) : undefined}
                             />
                           );
                         }
@@ -2073,6 +2138,7 @@ export function OrderHistory() {
                               onHide={(id) => { setExpandedOrderId(null); handleHideOrder(id); }}
                               onUnhide={handleUnhideOrder}
                               isHidden={hiddenOrderIds.has(order.id)}
+                              suggestedTab={debouncedSearch ? getMatchingTab(order, debouncedSearch) : null}
                             />
                           </div>
                         </div>

@@ -89,6 +89,15 @@ async function handleEditOrder(
         ) VALUES ${placeholders.join(', ')}`,
         values,
       );
+
+      const articleSearchText = itemsToUpdate
+        .map(item => `${item.articleCode} ${item.articleDescription ?? item.productName ?? ''}`.trim())
+        .join(' | ');
+
+      await tx.query(
+        'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
+        [articleSearchText, data.orderId, userId],
+      );
     });
   }
 

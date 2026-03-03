@@ -41,6 +41,7 @@ type OrderCardStackProps = {
   noteSummaries?: Record<string, { total: number; checked: number }>;
   notePreviews?: Record<string, Array<{ text: string; checked: boolean }>>;
   onNotesChanged?: () => void;
+  getSuggestedTab?: (order: Order) => "panoramica" | "articoli" | "logistica" | "finanziario" | null;
 };
 
 function OrderCardStack({
@@ -66,6 +67,7 @@ function OrderCardStack({
   noteSummaries,
   notePreviews,
   onNotesChanged,
+  getSuggestedTab,
 }: OrderCardStackProps): ReactNode {
   const [expanded, setExpanded] = useState(false);
   const [cardOrder, setCardOrder] = useState<string[]>(() =>
@@ -382,6 +384,7 @@ function OrderCardStack({
                     noteSummary={noteSummaries?.[order.id]}
                     notePreviews={notePreviews?.[order.id]}
                     onNotesChanged={onNotesChanged}
+                    suggestedTab={getSuggestedTab?.(order) ?? null}
                   />
                 </div>
               </div>

@@ -123,11 +123,15 @@ async function handleSyncOrderArticles(
 
     onProgress(90, 'Aggiornamento totali ordine');
 
+    const articleSearchText = enrichedArticles
+      .map(a => `${a.articleCode} ${a.description ?? ''}`.trim())
+      .join(' | ');
+
     await pool.query(
       `UPDATE agents.order_records
-       SET total_vat_amount = $1, total_with_vat = $2, articles_synced_at = $3, last_sync = $4
-       WHERE id = $5 AND user_id = $6`,
-      [totalVatAmount.toString(), totalWithVat.toString(), new Date().toISOString(), Math.floor(Date.now() / 1000), data.orderId, userId],
+       SET total_vat_amount = $1, total_with_vat = $2, articles_synced_at = $3, last_sync = $4, article_search_text = $5
+       WHERE id = $6 AND user_id = $7`,
+      [totalVatAmount.toString(), totalWithVat.toString(), new Date().toISOString(), Math.floor(Date.now() / 1000), articleSearchText, data.orderId, userId],
     );
 
     onProgress(100, 'Sincronizzazione articoli completata');

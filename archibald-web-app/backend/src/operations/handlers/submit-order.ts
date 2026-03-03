@@ -190,6 +190,15 @@ async function handleSubmitOrder(
         ) VALUES ${articlePlaceholders.join(', ')}`,
         articleValues,
       );
+
+      const articleSearchText = data.items
+        .map(item => `${item.articleCode} ${item.description ?? item.productName ?? ''}`.trim())
+        .join(' | ');
+
+      await tx.query(
+        'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
+        [articleSearchText, orderId, userId],
+      );
     }
 
     onProgress(95, 'Aggiornamento storico');

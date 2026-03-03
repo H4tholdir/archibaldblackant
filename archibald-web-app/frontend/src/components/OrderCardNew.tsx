@@ -35,6 +35,7 @@ interface OrderCardProps {
   onHide?: (orderId: string) => void;
   onUnhide?: (orderId: string) => void;
   isHidden?: boolean;
+  suggestedTab?: "panoramica" | "articoli" | "logistica" | "finanziario" | null;
 }
 
 // ============================================================================
@@ -3349,6 +3350,7 @@ export function OrderCardNew({
   onHide,
   onUnhide,
   isHidden = false,
+  suggestedTab,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -3358,6 +3360,13 @@ export function OrderCardNew({
     progress: number;
     operation: string;
   } | null>(null);
+
+  // Switch to suggested tab from search
+  useEffect(() => {
+    if (suggestedTab && expanded && !editing) {
+      setActiveTab(suggestedTab);
+    }
+  }, [suggestedTab, expanded, editing]);
 
   // Force articoli tab when entering edit mode
   useEffect(() => {
