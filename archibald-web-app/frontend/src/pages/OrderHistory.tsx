@@ -839,6 +839,7 @@ export function OrderHistory() {
   const visibleOrders = filteredOrders.slice(0, visibleCount);
   const hasMoreOrders = visibleCount < filteredOrders.length;
   const orderGroups = useMemo(() => groupOrdersByPeriod(visibleOrders), [visibleOrders]);
+  const visibleOrdersById = useMemo(() => new Map(visibleOrders.map((o) => [o.id, o])), [visibleOrders]);
 
   // Infinite scroll: re-create observer after each batch so it fires again
   useEffect(() => {
@@ -1899,7 +1900,9 @@ export function OrderHistory() {
           )}
 
           <div ref={resultsContainerRef}>
-            {orderGroups.map((group) => (
+            {(() => {
+              const renderedStackIds = new Set<string>();
+              return orderGroups.map((group) => (
               <div key={group.period} style={{ marginBottom: "32px" }}>
                 <h2
                   style={{
@@ -1914,9 +1917,7 @@ export function OrderHistory() {
                 </h2>
 
                 <div>
-                  {(() => {
-                    const renderedStackIds = new Set<string>();
-                    return group.orders.map((order, orderIndex) => {
+                  {group.orders.map((order, orderIndex) => {
                       const stack = getStackForOrder(order.id);
 
                       if (stack && renderedStackIds.has(stack.stackId)) {
@@ -1924,16 +1925,16 @@ export function OrderHistory() {
                       }
 
                       if (stack) {
-                        const stackOrdersInGroup = stack.orderIds
-                          .map((id) => group.orders.find((o) => o.id === id))
+                        const stackOrders = stack.orderIds
+                          .map((id) => visibleOrdersById.get(id))
                           .filter(Boolean) as Order[];
 
-                        if (stackOrdersInGroup.length > 1) {
+                        if (stackOrders.length > 1) {
                           renderedStackIds.add(stack.stackId);
                           return (
                             <OrderCardStack
                               key={`stack-${stack.stackId}`}
-                              orders={stackOrdersInGroup}
+                              orders={stackOrders}
                               stackId={stack.stackId}
                               source={stack.source}
                               expandedOrderId={expandedOrderId}
@@ -2076,11 +2077,11 @@ export function OrderHistory() {
                           </div>
                         </div>
                       );
-                    });
-                  })()}
+                    })}
                 </div>
               </div>
-            ))}
+            ));
+            })()}
           </div>
 
           {/* Infinite scroll sentinel */}
