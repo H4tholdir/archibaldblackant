@@ -162,6 +162,40 @@ describe('handleSubmitOrder', () => {
     expect(params).toContain('WAREHOUSE_FULFILLED');
   });
 
+  test('saves vat_percent, vat_amount, and line_total_with_vat for articles', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-001');
+    const onProgress = vi.fn();
+
+    const dataWithVat: SubmitOrderData = {
+      pendingOrderId: 'pending-vat',
+      customerId: 'CUST-001',
+      customerName: 'Acme Corp',
+      items: [
+        { articleCode: 'ART-01', productName: 'Widget', quantity: 2, price: 100, discount: 10, vat: 22 },
+      ],
+    };
+
+    await handleSubmitOrder(pool, bot, dataWithVat, 'user-1', onProgress);
+
+    const articleCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_articles'));
+    expect(articleCalls).toHaveLength(1);
+
+    const sql = articleCalls[0][0] as string;
+    expect(sql).toContain('vat_percent');
+    expect(sql).toContain('vat_amount');
+    expect(sql).toContain('line_total_with_vat');
+
+    const params = articleCalls[0][1] as unknown[];
+    // lineAmount = 2 * 100 * (1 - 10/100) = 180
+    // vatAmount = 180 * 22 / 100 = 39.6
+    // lineTotalWithVat = 180 + 39.6 = 219.6
+    expect(params).toContain(22);    // vat_percent
+    expect(params).toContain(39.6);  // vat_amount
+    expect(params).toContain(219.6); // line_total_with_vat
+  });
+
   test('wires bot progress callback via setProgressCallback', async () => {
     const pool = createMockPool();
     const bot = createMockBot();

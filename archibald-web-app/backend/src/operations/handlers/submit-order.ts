@@ -8,6 +8,7 @@ type SubmitOrderItem = {
   quantity: number;
   price: number;
   discount?: number;
+  vat?: number;
   warehouseQuantity?: number;
   warehouseSources?: Array<{ warehouseItemId: number; boxName: string; quantity: number }>;
 };
@@ -153,12 +154,15 @@ async function handleSubmitOrder(
     const articlePlaceholders: string[] = [];
 
     for (let i = 0; i < data.items.length; i++) {
-      const base = i * 11;
+      const base = i * 14;
       articlePlaceholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11})`,
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14})`,
       );
       const item = data.items[i];
       const lineAmount = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+      const vatPercent = item.vat ?? 0;
+      const vatAmount = lineAmount * vatPercent / 100;
+      const lineTotalWithVat = lineAmount + vatAmount;
       articleValues.push(
         orderId,
         userId,
@@ -171,6 +175,9 @@ async function handleSubmitOrder(
         item.warehouseQuantity ?? 0,
         item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
         now,
+        vatPercent,
+        vatAmount,
+        lineTotalWithVat,
       );
     }
 
@@ -178,7 +185,8 @@ async function handleSubmitOrder(
       await tx.query(
         `INSERT INTO agents.order_articles (
           order_id, user_id, article_code, article_description, quantity,
-          unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at
+          unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
+          vat_percent, vat_amount, line_total_with_vat
         ) VALUES ${articlePlaceholders.join(', ')}`,
         articleValues,
       );
