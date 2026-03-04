@@ -53,7 +53,8 @@ Plans:
 **Research**: Unlikely (edit-order handler e bot già esistenti)
 
 Plans:
-- [ ] 03-01: TBD (run /gsd:plan-phase 3 to break down)
+- [ ] 03-01: Build Corrections Logic — TDD (buildCorrections + mapping mismatches → modifications)
+- [ ] 03-02: Integration Correction + Re-verify (performAutoCorrection + submit-order + main.ts)
 
 #### Phase 4: User Notification System
 
@@ -90,7 +91,7 @@ Plans:
 |-------|-----------|-------|--------|-----------|
 | 1. Order Snapshot Schema & Storage | v1.0 | 1/1 | Complete | 2026-03-05 |
 | 2. Verification Engine | v1.0 | 2/2 | Complete | 2026-03-05 |
-| 3. Auto-Correction via Bot | v1.0 | 0/? | Not started | - |
+| 3. Auto-Correction via Bot | v1.0 | 0/2 | Not started | - |
 | 4. User Notification System | v1.0 | 0/? | Not started | - |
 | 5. Verification Status Tracking | v1.0 | 0/? | Not started | - |
 | 6. Integration Testing | v1.0 | 0/? | Not started | - |
