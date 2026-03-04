@@ -19,7 +19,7 @@ import { batchRelease } from "../api/warehouse";
 import { getFresisHistory } from "../api/fresis-history";
 import { getOrderHistory } from "../api/orders-history";
 import { getDiscountForArticle } from "../api/fresis-discounts";
-import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
+import { calculateShippingCosts } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../types/sub-client";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
@@ -1432,9 +1432,11 @@ export default function OrderFormSimple() {
         customListPrice != null && !isNaN(customListPrice)
           ? customListPrice
           : price;
-      const lineSubtotal = effectivePrice * finalQty * (1 - disc / 100);
-      const lineVat = lineSubtotal * (vatRate / 100);
-      const lineTotal = lineSubtotal + lineVat;
+      const lineSubtotal =
+        Math.round(effectivePrice * finalQty * (1 - disc / 100) * 100) / 100;
+      const lineVat =
+        Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+      const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
       // 🔧 FIX #2: Use warehouse article code if substituting
       newItems.push({
@@ -1495,9 +1497,12 @@ export default function OrderFormSimple() {
             ? customListPrice
             : price;
         const lineSubtotal =
-          effectivePrice * pkg.totalPieces * (1 - disc / 100);
-        const lineVat = lineSubtotal * (vatRate / 100);
-        const lineTotal = lineSubtotal + lineVat;
+          Math.round(
+            effectivePrice * pkg.totalPieces * (1 - disc / 100) * 100,
+          ) / 100;
+        const lineVat =
+          Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+        const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
         newItems.push({
           id: crypto.randomUUID(),
@@ -1559,9 +1564,12 @@ export default function OrderFormSimple() {
             ? customListPrice
             : price;
         const lineSubtotal =
-          effectivePrice * pkg.totalPieces * (1 - disc / 100);
-        const lineVat = lineSubtotal * (vatRate / 100);
-        const lineTotal = lineSubtotal + lineVat;
+          Math.round(
+            effectivePrice * pkg.totalPieces * (1 - disc / 100) * 100,
+          ) / 100;
+        const lineVat =
+          Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+        const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
         newItems.push({
           id: crypto.randomUUID(),
@@ -1669,8 +1677,8 @@ export default function OrderFormSimple() {
       return;
     }
 
-    setItems(
-      items.map((item) => {
+    setItems((prev) =>
+      prev.map((item) => {
         if (item.id !== itemId) return item;
 
         let updated = { ...item };
@@ -1681,9 +1689,15 @@ export default function OrderFormSimple() {
         }
 
         updated.subtotal =
-          updated.unitPrice * updated.quantity * (1 - updated.discount / 100);
-        updated.vat = updated.subtotal * (updated.vatRate / 100);
-        updated.total = updated.subtotal + updated.vat;
+          Math.round(
+            updated.unitPrice *
+              updated.quantity *
+              (1 - updated.discount / 100) *
+              100,
+          ) / 100;
+        updated.vat =
+          Math.round(updated.subtotal * (updated.vatRate / 100) * 100) / 100;
+        updated.total = Math.round((updated.subtotal + updated.vat) * 100) / 100;
         return updated;
       }),
     );
@@ -1914,8 +1928,11 @@ export default function OrderFormSimple() {
       const effectivePrice =
         originalListPrice != null ? unitPrice : systemPrice;
       const lineSubtotal =
-        effectivePrice * pkg.totalPieces * (1 - discount / 100);
-      const lineVat = lineSubtotal * (vatRate / 100);
+        Math.round(
+          effectivePrice * pkg.totalPieces * (1 - discount / 100) * 100,
+        ) / 100;
+      const lineVat =
+        Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
 
       newItems.push({
         id: crypto.randomUUID(),
@@ -1929,7 +1946,7 @@ export default function OrderFormSimple() {
         discount,
         subtotal: lineSubtotal,
         vat: lineVat,
-        total: lineSubtotal + lineVat,
+        total: Math.round((lineSubtotal + lineVat) * 100) / 100,
         originalListPrice: isFresisSubclient
           ? (originalListPrice ?? systemPrice)
           : undefined,
@@ -1988,25 +2005,42 @@ export default function OrderFormSimple() {
     const computeImponibile = (disc: number) =>
       items.reduce((sum, item) => {
         if (!imponibileSelectedItems.has(item.id)) return sum + item.subtotal;
-        return sum + item.unitPrice * item.quantity * (1 - disc / 100);
+        return (
+          sum +
+          Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) /
+            100
+        );
       }, 0);
 
-    if (computeImponibile(newDiscount) < target) {
-      newDiscount = Math.floor(scontoNecessario * 100) / 100;
+    // Ensure imponibile >= target: use Math.floor (less discount = higher imponibile)
+    newDiscount = Math.floor(scontoNecessario * 100) / 100;
+
+    // If still below target, keep reducing discount
+    while (computeImponibile(newDiscount) < target && newDiscount > 0) {
+      newDiscount = Math.round((newDiscount - 0.01) * 100) / 100;
+    }
+
+    // Try stepping up (more discount) to get closer, only if imponibile stays >= target
+    const stepped = Math.round((newDiscount + 0.01) * 100) / 100;
+    if (computeImponibile(stepped) >= target) {
+      newDiscount = stepped;
     }
 
     setItems(
       items.map((item) => {
         if (!imponibileSelectedItems.has(item.id)) return item;
         const newSubtotal =
-          item.unitPrice * item.quantity * (1 - newDiscount / 100);
-        const newVat = newSubtotal * (item.vatRate / 100);
+          Math.round(
+            item.unitPrice * item.quantity * (1 - newDiscount / 100) * 100,
+          ) / 100;
+        const newVat =
+          Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
         return {
           ...item,
           discount: newDiscount,
           subtotal: newSubtotal,
           vat: newVat,
-          total: newSubtotal + newVat,
+          total: Math.round((newSubtotal + newVat) * 100) / 100,
         };
       }),
     );
@@ -2043,14 +2077,17 @@ export default function OrderFormSimple() {
 
     const recalcItemPrice = (item: OrderItem, unitPrice: number) => {
       const newSubtotal =
-        unitPrice * item.quantity * (1 - item.discount / 100);
-      const newVat = newSubtotal * (item.vatRate / 100);
+        Math.round(
+          unitPrice * item.quantity * (1 - item.discount / 100) * 100,
+        ) / 100;
+      const newVat =
+        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
       return {
         ...item,
         unitPrice,
         subtotal: newSubtotal,
         vat: newVat,
-        total: newSubtotal + newVat,
+        total: Math.round((newSubtotal + newVat) * 100) / 100,
       };
     };
 
@@ -2154,30 +2191,29 @@ export default function OrderFormSimple() {
     let high = 100;
     let bestDiscount = 0;
 
+    // Compute total matching forward calculation rounding
+    const computeDiscountedTotal = (disc: number) => {
+      let testSub = 0;
+      let testVAT = 0;
+      for (const i of selectedItems) {
+        const itemSub =
+          Math.round(i.unitPrice * i.quantity * (1 - disc / 100) * 100) / 100;
+        const itemSubAfterGlobal =
+          Math.round(itemSub * (1 - discountPercent / 100) * 100) / 100;
+        testSub += itemSubAfterGlobal;
+        testVAT +=
+          Math.round(itemSubAfterGlobal * (i.vatRate / 100) * 100) / 100;
+      }
+      return (
+        Math.round((testSub + testVAT + fixedPortion) * 100) / 100
+      );
+    };
+
     for (let iter = 0; iter < 100; iter++) {
       const mid = (low + high) / 2;
-      const testSubAfterGlobal = selectedItems.reduce(
-        (sum, i) =>
-          sum +
-          i.unitPrice *
-            i.quantity *
-            (1 - mid / 100) *
-            (1 - discountPercent / 100),
-        0,
-      );
-      const testVAT = selectedItems.reduce(
-        (sum, i) =>
-          sum +
-          i.unitPrice *
-            i.quantity *
-            (1 - mid / 100) *
-            (1 - discountPercent / 100) *
-            (i.vatRate / 100),
-        0,
-      );
-      const testTotal = testSubAfterGlobal + testVAT + fixedPortion;
+      const testTotal = computeDiscountedTotal(mid);
 
-      if (Math.abs(testTotal - target) < 0.01) {
+      if (Math.abs(testTotal - target) < 0.005) {
         bestDiscount = mid;
         break;
       }
@@ -2189,52 +2225,46 @@ export default function OrderFormSimple() {
       bestDiscount = mid;
     }
 
-    // Round discount, but ensure total never falls below target:
-    // try Math.round first, fall back to Math.floor (less discount = higher total)
-    let finalDiscount = Math.round(bestDiscount * 100) / 100;
+    // Round discount ensuring total >= target (never below).
+    // Math.floor gives less discount = higher total.
+    // Then step down by 0.01 if we can get closer while staying >= target.
+    let finalDiscount = Math.floor(bestDiscount * 100) / 100;
 
-    const computeDiscountedTotal = (disc: number) => {
-      const testSub = selectedItems.reduce(
-        (sum, i) =>
-          sum +
-          i.unitPrice *
-            i.quantity *
-            (1 - disc / 100) *
-            (1 - discountPercent / 100),
-        0,
-      );
-      const testVAT = selectedItems.reduce(
-        (sum, i) =>
-          sum +
-          i.unitPrice *
-            i.quantity *
-            (1 - disc / 100) *
-            (1 - discountPercent / 100) *
-            (i.vatRate / 100),
-        0,
-      );
-      return testSub + testVAT + fixedPortion;
-    };
-
-    if (computeDiscountedTotal(finalDiscount) < target) {
-      finalDiscount = Math.floor(bestDiscount * 100) / 100;
+    // If Math.floor still gives total < target (edge case from rounding),
+    // keep reducing discount by 0.01 until total >= target
+    while (
+      computeDiscountedTotal(finalDiscount) < target &&
+      finalDiscount > 0
+    ) {
+      finalDiscount = Math.round((finalDiscount - 0.01) * 100) / 100;
     }
 
-    setItems(
+    // Try stepping up by 0.01 (more discount) to get closer to target,
+    // but only if the total stays >= target
+    const stepped = Math.round((finalDiscount + 0.01) * 100) / 100;
+    if (computeDiscountedTotal(stepped) >= target) {
+      finalDiscount = stepped;
+    }
+
+    const applyDiscount = (disc: number) =>
       items.map((item) => {
         if (!totaleSelectedItems.has(item.id)) return item;
         const newSubtotal =
-          item.unitPrice * item.quantity * (1 - finalDiscount / 100);
-        const newVat = newSubtotal * (item.vatRate / 100);
+          Math.round(
+            item.unitPrice * item.quantity * (1 - disc / 100) * 100,
+          ) / 100;
+        const newVat =
+          Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
         return {
           ...item,
-          discount: finalDiscount,
+          discount: disc,
           subtotal: newSubtotal,
           vat: newVat,
-          total: newSubtotal + newVat,
+          total: Math.round((newSubtotal + newVat) * 100) / 100,
         };
-      }),
-    );
+      });
+
+    setItems(applyDiscount(finalDiscount));
     setShowTotaleDialog(false);
     toastService.success(
       `Sconto ${finalDiscount}% applicato sugli articoli selezionati`,
@@ -2306,8 +2336,10 @@ export default function OrderFormSimple() {
     // Calculate discount as percentage of subtotal
     const discountPercent =
       parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
-    const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
-    const finalSubtotal = itemsSubtotal - globalDiscAmount;
+    const globalDiscAmount =
+      Math.round(((itemsSubtotal * discountPercent) / 100) * 100) / 100;
+    const finalSubtotal =
+      Math.round((itemsSubtotal - globalDiscAmount) * 100) / 100;
 
     // Calculate shipping costs based on imponibile AFTER discount
     const shippingCosts = calculateShippingCosts(finalSubtotal);
@@ -2317,13 +2349,18 @@ export default function OrderFormSimple() {
     // Calculate VAT proportionally based on each item's VAT rate + shipping tax
     const itemsVATAfterDiscount = items.reduce((sum, item) => {
       const itemSubtotalAfterDiscount =
-        item.subtotal * (1 - discountPercent / 100);
-      return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
+        Math.round(item.subtotal * (1 - discountPercent / 100) * 100) / 100;
+      return (
+        sum +
+        Math.round(itemSubtotalAfterDiscount * (item.vatRate / 100) * 100) / 100
+      );
     }, 0);
-    const finalVAT = itemsVATAfterDiscount + shippingTax;
+    const finalVAT =
+      Math.round((itemsVATAfterDiscount + shippingTax) * 100) / 100;
 
-    // Total includes items + shipping cost + total VAT (rounded up)
-    const finalTotal = roundUp(finalSubtotal + shippingCost + finalVAT);
+    // Total includes items + shipping cost + total VAT (rounded to nearest cent)
+    const finalTotal =
+      Math.round((finalSubtotal + shippingCost + finalVAT) * 100) / 100;
 
     return {
       itemsSubtotal,
@@ -2402,7 +2439,9 @@ export default function OrderFormSimple() {
           sum + i.subtotal * (1 - discPercent / 100) * (i.vatRate / 100),
         0,
       );
-      return roundUp(finalSub + shipping.cost + vatAfterDisc + shipping.tax);
+      return Math.round(
+        (finalSub + shipping.cost + vatAfterDisc + shipping.tax) * 100,
+      ) / 100;
     };
 
     // Correction: if total < target, bump unit prices of selected items
