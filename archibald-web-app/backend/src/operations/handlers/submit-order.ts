@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { saveOrderVerificationSnapshot } from '../../db/repositories/order-verification';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -199,6 +200,22 @@ async function handleSubmitOrder(
         'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
         [articleSearchText, orderId, userId],
       );
+    }
+
+    if (!isWarehouseOnly) {
+      await saveOrderVerificationSnapshot(tx, orderId, userId, {
+        globalDiscountPercent: data.discountPercent,
+        expectedGrossAmount: grossAmount,
+        expectedTotalAmount: total,
+        items: data.items.map(item => ({
+          articleCode: item.articleCode,
+          articleDescription: item.description ?? item.productName ?? null,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          lineDiscountPercent: item.discount ?? null,
+          expectedLineAmount: item.price * item.quantity * (1 - (item.discount || 0) / 100),
+        })),
+      });
     }
 
     onProgress(95, 'Aggiornamento storico');

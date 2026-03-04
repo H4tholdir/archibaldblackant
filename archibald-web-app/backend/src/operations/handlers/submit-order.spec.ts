@@ -3,7 +3,12 @@ import { handleSubmitOrder, type SubmitOrderBot, type SubmitOrderData } from './
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
-  const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+  const query = vi.fn().mockImplementation((sql: string) => {
+    if (typeof sql === 'string' && sql.includes('RETURNING id')) {
+      return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
+    }
+    return Promise.resolve({ rows: [], rowCount: 0 });
+  });
   return {
     query,
     withTransaction: vi.fn(async (fn) => fn({ query })),
