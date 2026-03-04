@@ -2664,6 +2664,7 @@ function TabFinanziario({
     setInvoiceProgress({ active: true, percent: 0, stage: "Avvio..." });
     setInvoiceError(null);
 
+    const isNC = order.invoiceNumber?.startsWith("NC/");
     downloadPdfWithProgress(
       order.orderNumber || order.id,
       "invoice",
@@ -2679,6 +2680,7 @@ function TabFinanziario({
         setInvoiceProgress({ active: false, percent: 0, stage: "" });
       },
       subscribe,
+      isNC ? "NC" : "Fattura",
     );
   };
 
@@ -3145,7 +3147,7 @@ function TabFinanziario({
         ) : (
           <>
             <span>📄</span>
-            <span>Scarica Fattura {order.invoiceNumber}</span>
+            <span>Scarica {order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"} {order.invoiceNumber}</span>
           </>
         )}
       </button>
@@ -3375,6 +3377,7 @@ function downloadPdfWithProgress(
   onComplete: () => void,
   onError: (error: string) => void,
   subscribe: SubscribeFn,
+  docLabel?: string,
 ): () => void {
   let cancelled = false;
 
@@ -3421,7 +3424,7 @@ function downloadPdfWithProgress(
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = `${type === "ddt" ? "DDT" : "Fattura"}_${orderId}.pdf`;
+      a.download = `${type === "ddt" ? "DDT" : docLabel ?? "Fattura"}_${orderId}.pdf`;
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
 
@@ -4118,6 +4121,7 @@ export function OrderCardNew({
                           percent: 0,
                           stage: "Avvio...",
                         });
+                        const isNC = order.invoiceNumber?.startsWith("NC/");
                         downloadPdfWithProgress(
                           order.orderNumber || order.id,
                           "invoice",
@@ -4147,6 +4151,7 @@ export function OrderCardNew({
                             });
                           },
                           subscribe,
+                          isNC ? "NC" : "Fattura",
                         );
                       }}
                       style={{
@@ -4184,8 +4189,8 @@ export function OrderCardNew({
                       }}
                     >
                       {invoiceQuickProgress.active
-                        ? "⏳ Fattura..."
-                        : "📑 Fattura"}
+                        ? `⏳ ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}...`
+                        : `📑 ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
                     </button>
                     {invoiceQuickProgress.active && (
                       <ProgressBar
