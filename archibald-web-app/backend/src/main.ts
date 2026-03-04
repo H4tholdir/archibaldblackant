@@ -449,6 +449,22 @@ async function bootstrap(): Promise<void> {
         createOrder: async (data) => { await ensureInit(); return bot!.createOrder(data); },
         setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
+    }, {
+      downloadOrderArticlesPDF: async (archibaldOrderId) => {
+        const syncBot = createBotForUser('sync-orchestrator');
+        const ctx = await browserPool.acquireContext('sync-orchestrator', { fromQueue: true });
+        try {
+          return await syncBot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+        } finally {
+          await browserPool.releaseContext('sync-orchestrator', ctx as never, true);
+        }
+      },
+      parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
+      getProductVat: async (articleCode: string) => {
+        const variants = await getProductVariants(pool, articleCode);
+        return variants[0]?.vat ?? 0;
+      },
+      cleanupFile,
     }),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {
       const bot = createBotForUser(userId);

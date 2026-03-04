@@ -1,6 +1,10 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
-import { saveOrderVerificationSnapshot } from '../../db/repositories/order-verification';
+import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
+import { performInlineOrderSync } from '../../verification/inline-order-sync';
+import { verifyOrderArticles } from '../../verification/verify-order-articles';
+import { logger } from '../../logger';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -47,19 +51,19 @@ function calculateAmounts(
 }
 
 const BOT_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
-  'navigation.ordini': { progress: 10, label: 'Apertura sezione ordini' },
-  'form.nuovo': { progress: 15, label: 'Apertura nuovo ordine' },
-  'form.customer': { progress: 25, label: 'Inserimento cliente' },
-  'form.articles.start': { progress: 30, label: 'Inizio inserimento articoli' },
-  'form.articles.complete': { progress: 65, label: 'Articoli inseriti' },
-  'form.discount': { progress: 70, label: 'Applicazione sconto globale' },
-  'form.submit.start': { progress: 75, label: 'Salvataggio ordine in corso' },
-  'form.submit.complete': { progress: 80, label: 'Ordine salvato' },
+  'navigation.ordini': { progress: 7, label: 'Apertura sezione ordini' },
+  'form.nuovo': { progress: 11, label: 'Apertura nuovo ordine' },
+  'form.customer': { progress: 18, label: 'Inserimento cliente' },
+  'form.articles.start': { progress: 21, label: 'Inizio inserimento articoli' },
+  'form.articles.complete': { progress: 46, label: 'Articoli inseriti' },
+  'form.discount': { progress: 49, label: 'Applicazione sconto globale' },
+  'form.submit.start': { progress: 53, label: 'Salvataggio ordine in corso' },
+  'form.submit.complete': { progress: 56, label: 'Ordine salvato' },
 };
 
 function calculateArticleProgress(current: number, total: number): number {
-  const start = 30;
-  const end = 65;
+  const start = 21;
+  const end = 46;
   return Math.round(start + (end - start) * (current / total));
 }
 
@@ -78,7 +82,8 @@ async function handleSubmitOrder(
   data: SubmitOrderData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ orderId: string }> {
+  inlineSyncDeps?: InlineSyncDeps,
+): Promise<{ orderId: string; verificationStatus?: string }> {
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
       const current = metadata.currentArticle as number;
@@ -96,10 +101,10 @@ async function handleSubmitOrder(
     }
   });
 
-  onProgress(5, 'Creazione ordine su Archibald');
+  onProgress(4, 'Creazione ordine su Archibald');
   const orderId = await bot.createOrder(data);
 
-  onProgress(85, 'Salvataggio nel database');
+  onProgress(60, 'Salvataggio nel database');
 
   const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
 
@@ -149,7 +154,7 @@ async function handleSubmitOrder(
       ],
     );
 
-    onProgress(90, 'Salvataggio articoli');
+    onProgress(63, 'Salvataggio articoli');
 
     const articleValues: unknown[] = [];
     const articlePlaceholders: string[] = [];
@@ -218,7 +223,7 @@ async function handleSubmitOrder(
       });
     }
 
-    onProgress(95, 'Aggiornamento storico');
+    onProgress(67, 'Aggiornamento storico');
 
     await tx.query(
       `UPDATE agents.fresis_history
@@ -233,18 +238,63 @@ async function handleSubmitOrder(
     );
   });
 
+  let verificationStatus: string | undefined;
+
+  if (!isWarehouseOnly && inlineSyncDeps) {
+    try {
+      onProgress(70, 'Sincronizzazione articoli da Archibald...');
+      const syncedArticles = await performInlineOrderSync(
+        inlineSyncDeps, orderId, userId, onProgress,
+      );
+
+      if (syncedArticles) {
+        onProgress(87, 'Verifica ordine in corso...');
+        const snapshot = await getOrderVerificationSnapshot(inlineSyncDeps.pool, orderId, userId);
+        if (snapshot) {
+          const result = verifyOrderArticles(snapshot.items, syncedArticles);
+
+          await updateVerificationStatus(
+            inlineSyncDeps.pool, orderId, userId,
+            result.status,
+            result.mismatches.length > 0 ? JSON.stringify(result.mismatches) : null,
+          );
+
+          verificationStatus = result.status;
+          onProgress(95, result.status === 'verified'
+            ? 'Ordine verificato correttamente'
+            : 'Discrepanze rilevate nell\'ordine');
+        }
+      } else {
+        onProgress(95, 'Verifica posticipata');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('[SubmitOrder] Inline verification failed, continuing', {
+        orderId,
+        error: message,
+      });
+      onProgress(95, 'Verifica posticipata');
+    }
+  }
+
   onProgress(100, 'Ordine completato');
 
-  return { orderId };
+  return { orderId, verificationStatus };
 }
 
-function createSubmitOrderHandler(pool: DbPool, createBot: (userId: string) => SubmitOrderBot): OperationHandler {
+function createSubmitOrderHandler(
+  pool: DbPool,
+  createBot: (userId: string) => SubmitOrderBot,
+  inlineSyncDeps?: Omit<InlineSyncDeps, 'pool'>,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as SubmitOrderData;
-    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress);
+    const deps = inlineSyncDeps ? { ...inlineSyncDeps, pool } : undefined;
+    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps);
     return result as unknown as Record<string, unknown>;
   };
 }
 
 export { handleSubmitOrder, createSubmitOrderHandler, calculateAmounts, type SubmitOrderData, type SubmitOrderBot, type SubmitOrderItem };
+export type { InlineSyncDeps } from '../../verification/inline-order-sync';
