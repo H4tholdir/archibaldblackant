@@ -177,10 +177,32 @@ async function getOrderVerificationSnapshot(
   };
 }
 
+type VerificationStatus = 'pending_verification' | 'verified' | 'mismatch_detected';
+
+async function updateVerificationStatus(
+  pool: DbPool,
+  orderId: string,
+  userId: string,
+  status: VerificationStatus,
+  notes: string | null,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.order_verification_snapshots
+     SET verification_status = $1,
+         verified_at = NOW(),
+         verification_notes = $2
+     WHERE order_id = $3 AND user_id = $4`,
+    [status, notes, orderId, userId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 export {
   saveOrderVerificationSnapshot,
   getOrderVerificationSnapshot,
+  updateVerificationStatus,
   type SnapshotData,
   type SnapshotItem,
   type OrderVerificationSnapshot,
+  type VerificationStatus,
 };
