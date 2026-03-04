@@ -233,9 +233,9 @@ async function waitForJobViaWebSocket(
       if (fallbackTimer) clearTimeout(fallbackTimer);
       fallbackTimer = setTimeout(() => {
         if (resolved) return;
-        cleanup();
         pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress })
-          .then(resolve).catch(reject);
+          .then((result) => { if (!resolved) { cleanup(); resolve(result); } })
+          .catch((err) => { if (!resolved) { cleanup(); reject(err); } });
       }, wsFallbackMs);
     };
 
