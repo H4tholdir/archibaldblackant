@@ -3,6 +3,7 @@ import type { OperationHandler } from '../operation-processor';
 type DownloadInvoicePdfData = {
   orderId: string;
   invoiceNumber?: string;
+  searchTerm?: string;
 };
 
 type DownloadInvoicePdfBot = {
@@ -23,7 +24,7 @@ async function handleDownloadInvoicePdf(
   });
 
   onProgress(10, 'Download fattura PDF');
-  const pdf = await bot.downloadInvoicePDF(data.orderId, data.invoiceNumber ?? '');
+  const pdf = await bot.downloadInvoicePDF(data.orderId, data.searchTerm ?? data.invoiceNumber ?? '');
 
   onProgress(100, 'Download completato');
 

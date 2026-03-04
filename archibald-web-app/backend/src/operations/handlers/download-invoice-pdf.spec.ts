@@ -11,13 +11,22 @@ function createMockBot(): DownloadInvoicePdfBot {
 const sampleData: DownloadInvoicePdfData = {
   orderId: 'ORD-001',
   invoiceNumber: 'INV-2026-001',
+  searchTerm: 'ORD/26002419',
 };
 
 describe('handleDownloadInvoicePdf', () => {
-  test('calls bot.downloadInvoicePDF with orderId', async () => {
+  test('uses searchTerm over invoiceNumber when both present', async () => {
     const bot = createMockBot();
 
     await handleDownloadInvoicePdf(bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.downloadInvoicePDF).toHaveBeenCalledWith('ORD-001', 'ORD/26002419');
+  });
+
+  test('falls back to invoiceNumber when searchTerm is absent', async () => {
+    const bot = createMockBot();
+
+    await handleDownloadInvoicePdf(bot, { orderId: 'ORD-001', invoiceNumber: 'INV-2026-001' }, 'user-1', vi.fn());
 
     expect(bot.downloadInvoicePDF).toHaveBeenCalledWith('ORD-001', 'INV-2026-001');
   });

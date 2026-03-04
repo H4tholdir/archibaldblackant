@@ -12342,7 +12342,6 @@ export class ArchibaldBot {
     context: BrowserContext,
     pageUrl: string,
     searchTerm: string,
-    pdfLinkSelector: string,
     tmpDir: string,
     timeout: number,
   ): Promise<Buffer> {
@@ -12351,6 +12350,10 @@ export class ArchibaldBot {
     try {
       logger.info("[ArchibaldBot] downloadSingleDocumentPDF: navigating", { pageUrl, searchTerm });
 
+      if (!searchTerm) {
+        throw new Error("Search term is required for PDF download");
+      }
+
       await page.setExtraHTTPHeaders({
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       });
@@ -12358,40 +12361,90 @@ export class ArchibaldBot {
       await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
       await this.waitForDevExpressReadyOnPage(page);
 
-      const searchInput = await page.waitForSelector(
-        'input[id*="SearchAC"][id*="Ed_I"]',
-        { timeout: 15000 },
-      );
+      // Step 1: Find and fill search bar with paste (DevExpress-compatible)
+      const searchInputSelector = 'input[id*="SearchAC"][id*="Ed_I"]';
+      const searchInput = await page.waitForSelector(searchInputSelector, { timeout: 15000 });
       if (!searchInput) throw new Error("Search input not found");
+
+      await page.click(searchInputSelector);
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       await page.evaluate((sel: string, term: string) => {
         const input = document.querySelector(sel) as HTMLInputElement;
         if (!input) return;
+        input.value = "";
+        input.focus();
         input.value = term;
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
-        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
-      }, 'input[id*="SearchAC"][id*="Ed_I"]', searchTerm);
+        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", keyCode: 13 }));
+        if (typeof (window as any).ASPx !== "undefined") {
+          const aspx = (window as any).ASPx;
+          if (aspx.EValueChanged) {
+            aspx.EValueChanged(input.id);
+          }
+        }
+      }, searchInputSelector, searchTerm);
 
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Step 2: Press Enter to trigger search
       await page.keyboard.press("Enter");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      const selectCell = await page.waitForSelector(
+      // Step 3: Verify results
+      const rowCount = await page.evaluate(() =>
+        document.querySelectorAll("tr.dxgvDataRow_XafTheme").length,
+      );
+      logger.info("[ArchibaldBot] downloadSingleDocumentPDF: search results", { searchTerm, rowCount });
+
+      if (rowCount === 0) {
+        throw new Error(`No results found for search term: ${searchTerm}`);
+      }
+
+      // Step 4: Select the first row via DevExpress checkbox
+      const checkboxCell = await page.waitForSelector(
         'td.dxgvCommandColumn_XafTheme[onclick*="Select"]',
         { timeout: 10000 },
       );
-      if (!selectCell) throw new Error("No row found for search term");
-      await selectCell.click();
+      if (!checkboxCell) throw new Error("Checkbox cell not found");
+      await checkboxCell.click();
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const downloadBtn = await page.waitForSelector(
+      // Step 5: Click "Scarica PDF" button
+      const scaricaPdfBtn = await page.waitForSelector(
         'li[title="Scarica PDF"] a.dxm-content',
         { timeout: 10000 },
       );
-      if (!downloadBtn) throw new Error("Download PDF button not found");
+      if (!scaricaPdfBtn) throw new Error("Scarica PDF button not found");
 
-      await page.waitForSelector(pdfLinkSelector, { timeout });
+      const isDisabled = await page.evaluate(() => {
+        const btn = document.querySelector('li[title*="Scarica PDF"] a.dxm-content');
+        return btn?.classList.contains("dxm-disabled") ?? true;
+      });
+      if (isDisabled) {
+        throw new Error("Scarica PDF button is still disabled after selecting row");
+      }
 
+      await scaricaPdfBtn.click();
+      logger.info("[ArchibaldBot] downloadSingleDocumentPDF: clicked Scarica PDF");
+
+      // Step 6: Wait for PDF link to appear in the row
+      const pdfLinkSelector = 'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor';
+      const pdfLink = await page.waitForSelector(pdfLinkSelector, { timeout }).catch(() => null);
+
+      if (!pdfLink) {
+        const cellContent = await page.evaluate(() => {
+          const div = document.querySelector('div[id$="_xaf_InvoicePDF"]');
+          return div?.textContent?.trim() ?? "element not found";
+        });
+        if (cellContent === "N/A" || cellContent.includes("N/A")) {
+          throw new Error("PDF non disponibile per questo documento (N/A)");
+        }
+        throw new Error(`PDF link not found after ${timeout}ms (cell content: ${cellContent})`);
+      }
+
+      // Step 7: Setup download and click PDF link
       await fsp.mkdir(tmpDir, { recursive: true });
 
       const client = await page.target().createCDPSession();
@@ -12443,7 +12496,6 @@ export class ArchibaldBot {
       context,
       `${config.archibald.url}/CUSTPACKINGSLIPJOUR_ListView/`,
       orderNumber,
-      'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
       "/tmp/archibald-ddt",
       15000,
     );
@@ -12457,7 +12509,6 @@ export class ArchibaldBot {
       context,
       `${config.archibald.url}/CUSTINVOICEJOUR_ListView/`,
       orderNumber,
-      'a.XafFileDataAnchor[id*="_xaf_InvoicePDF"]',
       "/tmp/archibald-invoices",
       30000,
     );

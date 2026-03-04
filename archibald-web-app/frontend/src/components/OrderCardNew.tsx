@@ -3383,7 +3383,7 @@ function downloadPdfWithProgress(
       onProgress("Avvio download...", 5);
 
       const operationType: OperationType = type === "invoice" ? "download-invoice-pdf" : "download-ddt-pdf";
-      const { jobId } = await enqueueOperation(operationType, { orderId });
+      const { jobId } = await enqueueOperation(operationType, { orderId, searchTerm: orderId });
 
       if (cancelled) return;
 

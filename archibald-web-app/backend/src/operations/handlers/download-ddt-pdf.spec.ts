@@ -11,13 +11,22 @@ function createMockBot(): DownloadDdtPdfBot {
 const sampleData: DownloadDdtPdfData = {
   orderId: 'ORD-001',
   ddtNumber: 'DDT-2026-001',
+  searchTerm: 'ORD/26003540',
 };
 
 describe('handleDownloadDdtPdf', () => {
-  test('calls bot.downloadDDTPDF with orderId', async () => {
+  test('uses searchTerm over ddtNumber when both present', async () => {
     const bot = createMockBot();
 
     await handleDownloadDdtPdf(bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.downloadDDTPDF).toHaveBeenCalledWith('ORD-001', 'ORD/26003540');
+  });
+
+  test('falls back to ddtNumber when searchTerm is absent', async () => {
+    const bot = createMockBot();
+
+    await handleDownloadDdtPdf(bot, { orderId: 'ORD-001', ddtNumber: 'DDT-2026-001' }, 'user-1', vi.fn());
 
     expect(bot.downloadDDTPDF).toHaveBeenCalledWith('ORD-001', 'DDT-2026-001');
   });
