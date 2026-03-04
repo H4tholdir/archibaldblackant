@@ -43,7 +43,8 @@ Plans:
 **Research**: Unlikely (logica di confronto pura, nessuna dipendenza esterna)
 
 Plans:
-- [ ] 02-01: TBD (run /gsd:plan-phase 2 to break down)
+- [ ] 02-01: Verification Engine Logic — TDD (verifyOrderArticles + updateVerificationStatus)
+- [ ] 02-02: Inline Sync + Integration (submit-order + progress bar + main.ts wiring)
 
 #### Phase 3: Auto-Correction via Bot
 
@@ -88,7 +89,7 @@ Plans:
 | Phase | Milestone | Plans | Status | Completed |
 |-------|-----------|-------|--------|-----------|
 | 1. Order Snapshot Schema & Storage | v1.0 | 1/1 | Complete | 2026-03-05 |
-| 2. Verification Engine | v1.0 | 0/? | Not started | - |
+| 2. Verification Engine | v1.0 | 0/2 | Not started | - |
 | 3. Auto-Correction via Bot | v1.0 | 0/? | Not started | - |
 | 4. User Notification System | v1.0 | 0/? | Not started | - |
 | 5. Verification Status Tracking | v1.0 | 0/? | Not started | - |
