@@ -1,5 +1,5 @@
 import type { OperationType, OperationJobData, OperationJobResult } from './operation-types';
-import { getNextSyncInChain } from './operation-types';
+import { getNextSyncInChain, isWriteOperation, isScheduledSync } from './operation-types';
 import type { AgentLock } from './agent-lock';
 
 type BrowserContext = unknown;
@@ -51,6 +51,36 @@ type ProcessJobResult = {
 
 const PREEMPTION_WAIT_MS = 2000;
 const REQUEUE_DELAY_MS = 2000;
+
+const SUBMIT_ORDER_BASE_TIMEOUT_MS = 60_000;
+const SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS = 30_000;
+const DEFAULT_WRITE_TIMEOUT_MS = 180_000;
+const SYNC_TIMEOUT_MS = 300_000;
+const PDF_TIMEOUT_MS = 60_000;
+
+function calculateJobTimeout(type: OperationType, data: Record<string, unknown>): number {
+  if (type === 'submit-order') {
+    const items = data.items as unknown[] | undefined;
+    const numArticles = items?.length ?? 1;
+    return SUBMIT_ORDER_BASE_TIMEOUT_MS + (SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS * numArticles);
+  }
+  if (type === 'download-ddt-pdf' || type === 'download-invoice-pdf') return PDF_TIMEOUT_MS;
+  if (isScheduledSync(type)) return SYNC_TIMEOUT_MS;
+  if (isWriteOperation(type)) return DEFAULT_WRITE_TIMEOUT_MS;
+  return DEFAULT_WRITE_TIMEOUT_MS;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationType: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Operazione "${operationType}" timeout dopo ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+    promise.then(
+      (result) => { clearTimeout(timer); resolve(result); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
 
 function createOperationProcessor(deps: ProcessorDeps) {
   const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed } = deps;
@@ -109,7 +139,12 @@ function createOperationProcessor(deps: ProcessorDeps) {
         });
       };
 
-      const result = await handler(null, data, userId, onProgress);
+      const timeoutMs = calculateJobTimeout(type, data);
+      const result = await withTimeout(
+        handler(null, data, userId, onProgress),
+        timeoutMs,
+        type,
+      );
 
       broadcast(userId, {
         event: 'JOB_COMPLETED',

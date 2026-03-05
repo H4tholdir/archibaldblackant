@@ -36,6 +36,7 @@ type SubmitOrderData = {
 
 type SubmitOrderBot = {
   createOrder: (orderData: SubmitOrderData) => Promise<string>;
+  deleteOrderFromArchibald: (orderId: string) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -137,6 +138,51 @@ async function handleSubmitOrder(
       onProgress(mapped.progress, mapped.label);
     }
   });
+
+  // Pre-retry cleanup: check if a previous attempt left a partial order
+  const { rows: [previousOrder] } = await pool.query<{ id: string }>(
+    `SELECT id FROM agents.order_records
+     WHERE user_id = $1 AND id IN (
+       SELECT archibald_order_id FROM agents.pending_orders
+       WHERE id = $2 AND archibald_order_id IS NOT NULL
+     )`,
+    [userId, data.pendingOrderId],
+  );
+
+  if (!previousOrder) {
+    // Also check order_records created from a previous attempt with this pendingOrderId
+    const { rows: [prevByPending] } = await pool.query<{ id: string }>(
+      `SELECT o.id FROM agents.order_records o
+       WHERE o.user_id = $1
+         AND o.order_number LIKE 'PENDING-%'
+         AND EXISTS (
+           SELECT 1 FROM agents.order_articles oa
+           WHERE oa.order_id = o.id AND oa.user_id = $1
+         )
+         AND o.created_at > NOW() - INTERVAL '1 hour'
+         AND o.customer_name = $2
+       ORDER BY o.created_at DESC LIMIT 1`,
+      [userId, data.customerName],
+    );
+    if (prevByPending) {
+      onProgress(2, 'Pulizia ordine parziale precedente...');
+      try {
+        const deleteResult = await bot.deleteOrderFromArchibald(prevByPending.id);
+        if (deleteResult.success) {
+          logger.info('[SubmitOrder] Deleted partial order from previous attempt', {
+            deletedOrderId: prevByPending.id, pendingOrderId: data.pendingOrderId,
+          });
+          await pool.query('DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2', [prevByPending.id, userId]);
+          await pool.query('DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2', [prevByPending.id, userId]);
+        }
+      } catch (cleanupError) {
+        logger.warn('[SubmitOrder] Failed to cleanup partial order, proceeding anyway', {
+          orderId: prevByPending.id,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        });
+      }
+    }
+  }
 
   onProgress(4, 'Creazione ordine su Archibald');
   const orderId = await bot.createOrder(data);
