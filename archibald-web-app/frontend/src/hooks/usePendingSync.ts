@@ -50,6 +50,8 @@ export function usePendingSync(): UsePendingSyncReturn {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [staleJobIds, setStaleJobIds] = useState<Set<string>>(new Set());
   const [jobTracking, setJobTracking] = useState<Map<string, JobTrackingEntry>>(new Map());
+  const completedOrderIdsRef = useRef<Map<string, string>>(new Map());
+  const verificationCacheRef = useRef<Map<string, VerificationNotification>>(new Map());
 
   const fetchVerificationForOrders = useCallback(async (orders: PendingOrder[]) => {
     const ordersNeedingVerification = orders.filter(
@@ -100,8 +102,17 @@ export function usePendingSync(): UsePendingSyncReturn {
         return bTime - aTime;
       });
 
-      setPendingOrders(orders);
-      fetchVerificationForOrders(orders);
+      const enrichedOrders = orders.map((order) => {
+        const jobOrderId = order.jobOrderId ?? (order.jobId ? completedOrderIdsRef.current.get(order.jobId) : undefined);
+        const cachedNotification = jobOrderId ? verificationCacheRef.current.get(jobOrderId) : undefined;
+        return {
+          ...order,
+          ...(jobOrderId && { jobOrderId }),
+          ...(cachedNotification && { verificationNotification: cachedNotification }),
+        };
+      });
+      setPendingOrders(enrichedOrders);
+      fetchVerificationForOrders(enrichedOrders);
     } catch (error) {
       console.error("[usePendingSync] Error fetching pending orders:", error);
     } finally {
@@ -162,6 +173,8 @@ export function usePendingSync(): UsePendingSyncReturn {
           return; // No refetch — progress comes from local tracking, not server
         } else if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
           const jobId = p.jobId as string;
+          const result = p.result as Record<string, unknown> | undefined;
+          const archibaldOrderId = result?.orderId as string | undefined;
           setJobTracking((prev) => {
             const next = new Map(prev);
             for (const [orderId, entry] of next) {
@@ -171,6 +184,16 @@ export function usePendingSync(): UsePendingSyncReturn {
             }
             return next;
           });
+          if (archibaldOrderId) {
+            completedOrderIdsRef.current.set(jobId, archibaldOrderId);
+            setPendingOrders((prev) =>
+              prev.map((order) =>
+                order.jobId === jobId
+                  ? { ...order, jobOrderId: archibaldOrderId }
+                  : order,
+              ),
+            );
+          }
           setTimeout(() => fetchPendingOrders(), 4000);
           return;
         } else if (eventType === "JOB_FAILED" && p.type === "submit-order") {
@@ -191,12 +214,14 @@ export function usePendingSync(): UsePendingSyncReturn {
           const orderId = p.orderId as string | undefined;
           const notification = p.notification as VerificationNotification | undefined;
           if (orderId && notification) {
+            verificationCacheRef.current.set(orderId, notification);
             setPendingOrders((prev) =>
-              prev.map((order) =>
-                order.jobOrderId === orderId
-                  ? { ...order, verificationNotification: notification }
-                  : order,
-              ),
+              prev.map((order) => {
+                const jobOrderId = order.jobOrderId ?? (order.jobId ? completedOrderIdsRef.current.get(order.jobId) : undefined);
+                return jobOrderId === orderId
+                  ? { ...order, verificationNotification: notification, jobOrderId }
+                  : order;
+              }),
             );
           }
           return;
