@@ -23,7 +23,7 @@ import { calculateShippingCosts } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../types/sub-client";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
-import { isFresis, isSubClientFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
 
@@ -319,9 +319,6 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const discountPercent =
-      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
-
     const calculateRevenue = async () => {
       let totalRevenue = 0;
       let totalPrezzoCliente = 0;
@@ -333,8 +330,7 @@ export default function OrderFormSimple() {
         const prezzoCliente =
           item.unitPrice *
           item.quantity *
-          (1 - item.discount / 100) *
-          (1 - discountPercent / 100);
+          (1 - item.discount / 100);
         const costoFresis =
           originalPrice * item.quantity * (1 - fresisDiscount / 100);
         totalPrezzoCliente += prezzoCliente;
@@ -346,7 +342,7 @@ export default function OrderFormSimple() {
     };
 
     calculateRevenue();
-  }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
+  }, [items, selectedCustomer, selectedSubClient]);
 
   // Load order history from the right source (Fresis or general)
   const loadOrderHistory = useCallback(async (): Promise<Array<{ id: string; createdAt: string; updatedAt?: string; discountPercent?: number; items: Array<{ articleCode: string; productName?: string; description?: string; quantity: number; price: number; discount?: number; vat: number }> }>> => {
@@ -587,10 +583,6 @@ export default function OrderFormSimple() {
         }
 
         setItems(loadedItems);
-
-        if (order.discountPercent) {
-          setGlobalDiscountPercent(order.discountPercent.toString());
-        }
       } catch (error) {
         console.error("[OrderForm] Failed to load order:", error);
         toastService.error("Errore durante il caricamento dell'ordine");
@@ -1755,6 +1747,9 @@ export default function OrderFormSimple() {
         return updated;
       }),
     );
+    if (field === "discount") {
+      setGlobalDiscountPercent("");
+    }
     setEditingCell(null);
   };
 
@@ -2265,23 +2260,17 @@ export default function OrderFormSimple() {
     const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
     const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
 
-    // Calculate total of unselected items (after global discount + shipping + VAT)
-    const discountPercent =
-      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
     const unselectedSubtotal = unselectedItems.reduce(
       (sum, i) => sum + i.subtotal,
       0,
     );
-    const unselectedSubtotalAfterGlobal =
-      unselectedSubtotal * (1 - discountPercent / 100);
     const unselectedVAT = unselectedItems.reduce(
-      (sum, i) =>
-        sum + i.subtotal * (1 - discountPercent / 100) * (i.vatRate / 100),
+      (sum, i) => sum + i.vat,
       0,
     );
     const shippingCosts = calculateShippingCosts(currentTotals.finalSubtotal);
     const fixedPortion =
-      unselectedSubtotalAfterGlobal +
+      unselectedSubtotal +
       unselectedVAT +
       shippingCosts.cost +
       shippingCosts.tax;
@@ -2309,11 +2298,9 @@ export default function OrderFormSimple() {
       for (const i of selectedItems) {
         const itemSub =
           Math.round(i.unitPrice * i.quantity * (1 - disc / 100) * 100) / 100;
-        const itemSubAfterGlobal =
-          Math.round(itemSub * (1 - discountPercent / 100) * 100) / 100;
-        testSub += itemSubAfterGlobal;
+        testSub += itemSub;
         testVAT +=
-          Math.round(itemSubAfterGlobal * (i.vatRate / 100) * 100) / 100;
+          Math.round(itemSub * (i.vatRate / 100) * 100) / 100;
       }
       return (
         Math.round((testSub + testVAT + fixedPortion) * 100) / 100
@@ -2382,16 +2369,10 @@ export default function OrderFormSimple() {
     // Compute forward total with the applied items to check for residual.
     const computeForwardTotal = (testItems: OrderItem[]) => {
       const sub = testItems.reduce((s, i) => s + i.subtotal, 0);
-      const discP =
-        parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
-      const finalSub = Math.round((sub - (sub * discP) / 100) * 100) / 100;
-      const shipping = calculateShippingCosts(finalSub);
-      const vat = testItems.reduce((s, i) => {
-        const iSub = Math.round(i.subtotal * (1 - discP / 100) * 100) / 100;
-        return s + Math.round(iSub * (i.vatRate / 100) * 100) / 100;
-      }, 0);
+      const shipping = calculateShippingCosts(sub);
+      const vat = testItems.reduce((s, i) => s + i.vat, 0);
       const finalVat = Math.round((vat + shipping.tax) * 100) / 100;
-      return Math.round((finalSub + shipping.cost + finalVat) * 100) / 100;
+      return Math.round((sub + shipping.cost + finalVat) * 100) / 100;
     };
 
     const forwardTotal = computeForwardTotal(updatedItems);
@@ -2516,32 +2497,15 @@ export default function OrderFormSimple() {
     const itemsVAT = items.reduce((sum, item) => sum + item.vat, 0);
     const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
-    // Calculate discount as percentage of subtotal
-    const discountPercent =
-      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
-    const globalDiscAmount =
-      Math.round(((itemsSubtotal * discountPercent) / 100) * 100) / 100;
-    const finalSubtotal =
-      Math.round((itemsSubtotal - globalDiscAmount) * 100) / 100;
+    const finalSubtotal = itemsSubtotal;
 
-    // Calculate shipping costs based on imponibile AFTER discount
     const shippingCosts = calculateShippingCosts(finalSubtotal);
     const shippingCost = shippingCosts.cost;
     const shippingTax = shippingCosts.tax;
 
-    // Calculate VAT proportionally based on each item's VAT rate + shipping tax
-    const itemsVATAfterDiscount = items.reduce((sum, item) => {
-      const itemSubtotalAfterDiscount =
-        Math.round(item.subtotal * (1 - discountPercent / 100) * 100) / 100;
-      return (
-        sum +
-        Math.round(itemSubtotalAfterDiscount * (item.vatRate / 100) * 100) / 100
-      );
-    }, 0);
     const finalVAT =
-      Math.round((itemsVATAfterDiscount + shippingTax) * 100) / 100;
+      Math.round((itemsVAT + shippingTax) * 100) / 100;
 
-    // Total includes items + shipping cost + total VAT (rounded to nearest cent)
     const finalTotal =
       Math.round((finalSubtotal + shippingCost + finalVAT) * 100) / 100;
 
@@ -2549,8 +2513,6 @@ export default function OrderFormSimple() {
       itemsSubtotal,
       itemsVAT,
       itemsTotal,
-      globalDiscPercent: discountPercent,
-      globalDiscAmount,
       finalSubtotal,
       shippingCost,
       shippingTax,
@@ -2612,18 +2574,11 @@ export default function OrderFormSimple() {
 
     // Compute total using same logic as calculateTotals
     const computeTotal = (testItems: OrderItem[]) => {
-      const discPercent =
-        parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
       const sub = testItems.reduce((sum, i) => sum + i.subtotal, 0);
-      const finalSub = sub - (sub * discPercent) / 100;
-      const shipping = calculateShippingCosts(finalSub);
-      const vatAfterDisc = testItems.reduce(
-        (sum, i) =>
-          sum + i.subtotal * (1 - discPercent / 100) * (i.vatRate / 100),
-        0,
-      );
+      const shipping = calculateShippingCosts(sub);
+      const vat = testItems.reduce((sum, i) => sum + i.vat, 0);
       return Math.round(
-        (finalSub + shipping.cost + vatAfterDisc + shipping.tax) * 100,
+        (sub + shipping.cost + vat + shipping.tax) * 100,
       ) / 100;
     };
 
@@ -2711,8 +2666,7 @@ export default function OrderFormSimple() {
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         items: orderItems,
-        discountPercent:
-          parseFloat(globalDiscountPercent.replace(",", ".")) || undefined,
+        discountPercent: undefined,
         targetTotalWithVAT: totals.finalTotal,
         revenue: estimatedRevenue ?? undefined,
         subClientCodice: selectedSubClient?.codice,
@@ -3051,9 +3005,6 @@ export default function OrderFormSimple() {
             <SubClientSelector
               onSelect={(sc) => {
                 setSelectedSubClient(sc);
-                if (isSubClientFresis(sc)) {
-                  setGlobalDiscountPercent(String(FRESIS_DEFAULT_DISCOUNT));
-                }
               }}
               onClear={() => {
                 setSelectedSubClient(null);
@@ -4426,7 +4377,7 @@ export default function OrderFormSimple() {
                   fontSize: isMobile ? "0.875rem" : "1rem",
                 }}
               >
-                Sconto Globale (%)
+                Sconto su tutte le righe (%)
               </label>
               <input
                 type="text"
@@ -4437,6 +4388,16 @@ export default function OrderFormSimple() {
                   const val = e.target.value;
                   if (val === "" || /^\d*[.,]?\d{0,2}$/.test(val)) {
                     setGlobalDiscountPercent(val);
+                    const disc = parseFloat(val.replace(",", ".")) || 0;
+                    setItems((prev) =>
+                      prev.map((item) => {
+                        const subtotal =
+                          Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
+                        const vat =
+                          Math.round(subtotal * (item.vatRate / 100) * 100) / 100;
+                        return { ...item, discount: disc, subtotal, vat, total: Math.round((subtotal + vat) * 100) / 100 };
+                      }),
+                    );
                   }
                 }}
                 style={{
@@ -4630,20 +4591,6 @@ export default function OrderFormSimple() {
               <span>Subtotale articoli:</span>
               <strong>{formatCurrency(totals.itemsSubtotal)}</strong>
             </div>
-            {totals.globalDiscAmount > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "0.5rem",
-                  color: "#dc2626",
-                  fontSize: isMobile ? "0.875rem" : "1rem",
-                }}
-              >
-                <span>Sconto globale ({totals.globalDiscPercent}%):</span>
-                <strong>-{formatCurrency(totals.globalDiscAmount)}</strong>
-              </div>
-            )}
             <div
               style={{
                 display: "flex",
@@ -4756,7 +4703,7 @@ export default function OrderFormSimple() {
                   fontSize: isMobile ? "0.875rem" : "1rem",
                   color: "#059669",
                 }}
-                title={`Differenza tra prezzo cliente (sconto ${globalDiscountPercent || 0}%) e prezzo Fresis (sconto articolo o default ${FRESIS_DEFAULT_DISCOUNT}%)`}
+                title={`Differenza tra prezzo cliente (con sconti per-riga) e prezzo Fresis (sconto articolo o default ${FRESIS_DEFAULT_DISCOUNT}%)`}
               >
                 <span style={{ fontWeight: "500" }}>Ricavo stimato:</span>
                 <strong>{formatCurrency(estimatedRevenue)}</strong>
