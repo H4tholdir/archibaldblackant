@@ -4382,7 +4382,7 @@ export class ArchibaldBot {
                   const { chosen, reason } =
                     chooseBestVariantCandidate(candidates);
 
-                  logger.debug("Variant selection diagnostics", {
+                  logger.info("Variant selection diagnostics", {
                     inputs: variantInputs,
                     headerTexts: snapshot.headerTexts,
                     headerIndices,
