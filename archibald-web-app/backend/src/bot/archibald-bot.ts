@@ -4367,19 +4367,39 @@ export class ArchibaldBot {
                   const headerIndices = computeVariantHeaderIndices(
                     snapshot.headerTexts,
                   );
+                  const variantInputs = {
+                    variantId: selectedVariant.id,
+                    variantSuffix,
+                    packageContent: selectedVariant.packageContent,
+                    multipleQty: selectedVariant.multipleQty,
+                    articleName: item.articleCode,
+                  };
                   const candidates = buildVariantCandidates(
                     snapshot.rows,
                     headerIndices,
-                    {
-                      variantId: selectedVariant.id,
-                      variantSuffix,
-                      packageContent: selectedVariant.packageContent,
-                      multipleQty: selectedVariant.multipleQty,
-                      articleName: item.articleCode,
-                    },
+                    variantInputs,
                   );
                   const { chosen, reason } =
                     chooseBestVariantCandidate(candidates);
+
+                  logger.debug("Variant selection diagnostics", {
+                    inputs: variantInputs,
+                    headerTexts: snapshot.headerTexts,
+                    headerIndices,
+                    candidateCount: candidates.length,
+                    rawRowCount: snapshot.rows.length,
+                    candidates: candidates.slice(0, 5).map((c) => ({
+                      idx: c.index,
+                      cells: c.cellTexts,
+                      fullId: c.fullIdMatch,
+                      article: c.articleNameMatch,
+                      suffix: c.suffixMatch,
+                      pkg: c.packageMatch,
+                      mult: c.multipleMatch,
+                    })),
+                    chosenIndex: chosen?.index ?? null,
+                    reason,
+                  });
 
                   let selection: VariantDomSelection | null = null;
 
