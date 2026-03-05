@@ -245,11 +245,22 @@ async function handleSubmitOrder(
     }
 
     if (!isWarehouseOnly) {
+      const kometItems = data.items.filter(item => {
+        const whQty = item.warehouseQuantity ?? 0;
+        return whQty === 0 || whQty < item.quantity;
+      }).map(item => {
+        const whQty = item.warehouseQuantity ?? 0;
+        const kometQty = whQty > 0 ? item.quantity - whQty : item.quantity;
+        return { ...item, quantity: kometQty };
+      });
+
+      const { grossAmount: kometGross, total: kometTotal } = calculateAmounts(kometItems, data.discountPercent);
+
       await saveOrderVerificationSnapshot(tx, orderId, userId, {
         globalDiscountPercent: data.discountPercent,
-        expectedGrossAmount: grossAmount,
-        expectedTotalAmount: total,
-        items: data.items.map(item => ({
+        expectedGrossAmount: kometGross,
+        expectedTotalAmount: kometTotal,
+        items: kometItems.map(item => ({
           articleCode: item.articleCode,
           articleDescription: item.description ?? item.productName ?? null,
           quantity: item.quantity,
