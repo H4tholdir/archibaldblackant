@@ -1014,7 +1014,7 @@ async function getOrdersNeedingArticleSync(
   const { rows } = await pool.query<{ id: string }>(
     `SELECT id FROM agents.order_records
      WHERE user_id = $1
-       AND order_number LIKE 'ORD/%'
+       AND order_number NOT LIKE 'NC/%'
        AND (
          articles_synced_at IS NULL
          OR articles_synced_at::timestamptz < NOW() - INTERVAL '7 days'

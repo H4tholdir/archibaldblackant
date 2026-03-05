@@ -82,8 +82,10 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
             article_code = (row1[1] or '').strip() if len(row1) > 1 else None
             quantity = parse_italian_decimal(row1[2]) if len(row1) > 2 else None
             unit_price = parse_italian_decimal(row1[3]) if len(row1) > 3 else None
-            # APPLICA SCONTO % is in column 5, not column 4 (SCONTO % is always 0)
-            discount_percent = parse_italian_decimal(row1[5]) if len(row1) > 5 else None
+            # Both SCONTO % (col 4, system discount) and APPLICA SCONTO % (col 5, line discount)
+            # are applied cumulatively. Compute effective discount from actual amounts.
+            raw_discount_col4 = parse_italian_decimal(row1[4]) if len(row1) > 4 else None
+            raw_discount_col5 = parse_italian_decimal(row1[5]) if len(row1) > 5 else None
 
             # Table 2: [IMPORTO DELLA LINEA, PREZZO NETTO (skip), NOME]
             row2 = table2[row_idx] if row_idx < len(table2) else []
@@ -108,7 +110,18 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
             if unit_price < 0:
                 print(f"Warning: Invalid unit price {unit_price} at pair {pair_idx} row {row_idx}, skipping", file=sys.stderr)
                 continue
-            if discount_percent is not None and (discount_percent < 0 or discount_percent > 100):
+
+            # Compute effective discount from actual amounts (captures both system + line discounts)
+            gross = unit_price * quantity
+            if line_amount is not None and gross > 0:
+                discount_percent = round((1 - line_amount / gross) * 100, 2)
+            else:
+                # Fallback: combine both columns multiplicatively
+                d4 = (raw_discount_col4 or 0) / 100
+                d5 = (raw_discount_col5 or 0) / 100
+                discount_percent = round((1 - (1 - d4) * (1 - d5)) * 100, 2)
+
+            if discount_percent < 0 or discount_percent > 100:
                 print(f"Warning: Invalid discount {discount_percent}% at pair {pair_idx} row {row_idx}, clamping to 0-100", file=sys.stderr)
                 discount_percent = max(0.0, min(100.0, discount_percent))
 
@@ -117,8 +130,8 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
                 article_code=article_code,
                 quantity=quantity,
                 unit_price=unit_price,
-                discount_percent=discount_percent or 0.0,
-                line_amount=line_amount or (quantity * unit_price * (1 - (discount_percent or 0) / 100)),
+                discount_percent=discount_percent,
+                line_amount=line_amount or (quantity * unit_price * (1 - discount_percent / 100)),
                 description=description
             )
 
