@@ -21,6 +21,7 @@ type PendingOrderRow = {
   sub_client_codice: string | null;
   sub_client_name: string | null;
   sub_client_data_json: unknown | null;
+  archibald_order_id: string | null;
 };
 
 type PendingOrder = {
@@ -44,6 +45,7 @@ type PendingOrder = {
   subClientCodice: string | null;
   subClientName: string | null;
   subClientDataJson: unknown | null;
+  archibaldOrderId: string | null;
 };
 
 type PendingOrderInput = {
@@ -92,6 +94,7 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     subClientCodice: row.sub_client_codice,
     subClientName: row.sub_client_name,
     subClientDataJson: row.sub_client_data_json,
+    archibaldOrderId: row.archibald_order_id,
   };
 }
 

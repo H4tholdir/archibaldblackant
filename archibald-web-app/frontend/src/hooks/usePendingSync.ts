@@ -55,7 +55,9 @@ export function usePendingSync(): UsePendingSyncReturn {
 
   const fetchVerificationForOrders = useCallback(async (orders: PendingOrder[]) => {
     const ordersNeedingVerification = orders.filter(
-      (o) => o.jobStatus === "completed" && o.jobOrderId && !o.verificationNotification,
+      (o) => o.jobOrderId && !o.verificationNotification && (
+        o.jobStatus === "completed" || o.status === "error"
+      ),
     );
 
     if (ordersNeedingVerification.length === 0) return;

@@ -60,7 +60,7 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     jobError: raw.jobError as string | undefined,
     jobStartedAt: raw.jobStartedAt as string | undefined,
     jobCompletedAt: raw.jobCompletedAt as string | undefined,
-    jobOrderId: raw.jobOrderId as string | undefined,
+    jobOrderId: (raw.jobOrderId ?? raw.archibaldOrderId) as string | undefined,
     subClientCodice: raw.subClientCodice as string | undefined,
     subClientName: raw.subClientName as string | undefined,
     subClientData,

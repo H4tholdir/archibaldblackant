@@ -268,13 +268,10 @@ async function handleSubmitOrder(
       [orderId, now, userId, data.pendingOrderId],
     );
 
-    await tx.query(
-      'DELETE FROM agents.pending_orders WHERE id = $1',
-      [data.pendingOrderId],
-    );
   });
 
   let verificationStatus: string | undefined;
+  let verificationPassed = true;
 
   if (!isWarehouseOnly && inlineSyncDeps) {
     try {
@@ -326,6 +323,7 @@ async function handleSubmitOrder(
                 correctionResult.status,
                 JSON.stringify(failedMismatches),
               );
+              verificationPassed = false;
               onProgress(99, 'Correzione non riuscita - intervento necessario');
               emitVerificationNotification(
                 broadcastVerification, orderId,
@@ -338,6 +336,7 @@ async function handleSubmitOrder(
               ? 'Ordine verificato correttamente'
               : 'Discrepanze rilevate nell\'ordine');
             if (result.status === 'mismatch_detected') {
+              verificationPassed = false;
               emitVerificationNotification(
                 broadcastVerification, orderId,
                 result.status, result.mismatches,
@@ -358,7 +357,18 @@ async function handleSubmitOrder(
     }
   }
 
-  onProgress(100, 'Ordine completato');
+  if (verificationPassed) {
+    await pool.query('DELETE FROM agents.pending_orders WHERE id = $1', [data.pendingOrderId]);
+    onProgress(100, 'Ordine completato');
+  } else {
+    await pool.query(
+      `UPDATE agents.pending_orders
+       SET status = 'error', error_message = $1, archibald_order_id = $2, updated_at = $3
+       WHERE id = $4`,
+      ['Discrepanze rilevate nell\'ordine - verifica necessaria', orderId, Date.now(), data.pendingOrderId],
+    );
+    onProgress(100, 'Ordine creato con discrepanze');
+  }
 
   return { orderId, verificationStatus };
 }
