@@ -301,22 +301,26 @@ async function handleSubmitOrder(
               onProgress,
             );
 
-            await updateVerificationStatus(
-              inlineSyncDeps.pool, orderId, userId,
-              correctionResult.status,
-              correctionResult.details,
-            );
-
             verificationStatus = correctionResult.status;
 
             if (correctionResult.status === 'auto_corrected') {
+              await updateVerificationStatus(
+                inlineSyncDeps.pool, orderId, userId,
+                correctionResult.status,
+                correctionResult.details,
+              );
               onProgress(99, 'Ordine corretto e verificato');
             } else {
-              onProgress(99, 'Correzione non riuscita - intervento necessario');
               const parsedDetails = correctionResult.details ? JSON.parse(correctionResult.details) : null;
               const failedMismatches = Array.isArray(parsedDetails?.remainingMismatches)
                 ? parsedDetails.remainingMismatches
                 : result.mismatches;
+              await updateVerificationStatus(
+                inlineSyncDeps.pool, orderId, userId,
+                correctionResult.status,
+                JSON.stringify(failedMismatches),
+              );
+              onProgress(99, 'Correzione non riuscita - intervento necessario');
               emitVerificationNotification(
                 broadcastVerification, orderId,
                 correctionResult.status as VerificationStatus,

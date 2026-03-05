@@ -32,9 +32,11 @@ function createOrderVerificationRouter(deps: OrderVerificationRouterDeps) {
         return res.json({ notification: null });
       }
 
-      const mismatches: ArticleMismatch[] = snapshot.verificationNotes
-        ? JSON.parse(snapshot.verificationNotes)
-        : [];
+      let mismatches: ArticleMismatch[] = [];
+      if (snapshot.verificationNotes) {
+        const parsed = JSON.parse(snapshot.verificationNotes);
+        mismatches = Array.isArray(parsed) ? parsed : [];
+      }
 
       const notification = formatVerificationNotification(status, mismatches);
 
