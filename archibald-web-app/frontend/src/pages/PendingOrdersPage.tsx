@@ -13,7 +13,7 @@ import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { VerificationAlert } from "../components/VerificationAlert";
 import { isFresis } from "../utils/fresis-constants";
-import { mergeFresisPendingOrders } from "../utils/order-merge";
+import { mergeFresisPendingOrders, applyFresisLineDiscounts } from "../utils/order-merge";
 import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
 import { formatCurrency } from "../utils/format-currency";
@@ -123,13 +123,40 @@ export function PendingOrdersPage() {
 
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
+      // Pre-load Fresis discounts if any selected order is a Fresis sub-client order
+      const hasFresisSubclient = selectedOrders.some(
+        (o) => isFresis({ id: o.customerId }) && o.subClientCodice,
+      );
+      let fresisDiscountMap: Map<string, number> | null = null;
+      if (hasFresisSubclient) {
+        const allDiscounts = await getFresisDiscounts();
+        fresisDiscountMap = new Map<string, number>();
+        for (const d of allDiscounts) {
+          fresisDiscountMap.set(d.id, d.discountPercent);
+          fresisDiscountMap.set(d.articleCode, d.discountPercent);
+        }
+      }
+
       const results = await Promise.all(
-        selectedOrders.map((order) =>
-          enqueueOperation('submit-order', {
+        selectedOrders.map(async (order) => {
+          const isFresisSubclient =
+            isFresis({ id: order.customerId }) && !!order.subClientCodice;
+
+          // Archive Fresis sub-client orders to history before transforming
+          if (isFresisSubclient) {
+            await archiveOrders([order]);
+          }
+
+          // Transform items for Fresis sub-client: list price + dealer discounts
+          const items = isFresisSubclient && fresisDiscountMap
+            ? applyFresisLineDiscounts(order.items, fresisDiscountMap)
+            : order.items;
+
+          return enqueueOperation('submit-order', {
             pendingOrderId: order.id,
             customerId: order.customerId,
             customerName: order.customerName,
-            items: order.items.map((item) => ({
+            items: items.map((item) => ({
               articleCode: item.articleCode,
               productName: item.productName,
               description: item.description,
@@ -140,10 +167,10 @@ export function PendingOrdersPage() {
               warehouseQuantity: item.warehouseQuantity || 0,
               warehouseSources: item.warehouseSources || [],
             })),
-            discountPercent: order.discountPercent,
-            targetTotalWithVAT: order.targetTotalWithVAT,
-          }),
-        ),
+            discountPercent: isFresisSubclient ? undefined : order.discountPercent,
+            targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
+          });
+        }),
       );
       const jobIds = results.map((r) => r.jobId);
 
