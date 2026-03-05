@@ -184,8 +184,24 @@ async function handleSubmitOrder(
     }
   }
 
+  // Filter out warehouse-only items — only send Komet items to Archibald
+  const botItems = data.items
+    .filter(item => {
+      const whQty = item.warehouseQuantity ?? 0;
+      return whQty < item.quantity; // Keep items that have Komet quantity
+    })
+    .map(item => {
+      const whQty = item.warehouseQuantity ?? 0;
+      if (whQty > 0) {
+        return { ...item, quantity: item.quantity - whQty, warehouseQuantity: 0, warehouseSources: undefined };
+      }
+      return item;
+    });
+
+  const botData = { ...data, items: botItems };
+
   onProgress(4, 'Creazione ordine su Archibald');
-  const orderId = await bot.createOrder(data);
+  const orderId = await bot.createOrder(botData);
 
   onProgress(60, 'Salvataggio nel database');
 

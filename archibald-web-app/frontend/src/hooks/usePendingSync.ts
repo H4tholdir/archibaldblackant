@@ -52,6 +52,7 @@ export function usePendingSync(): UsePendingSyncReturn {
   const [jobTracking, setJobTracking] = useState<Map<string, JobTrackingEntry>>(new Map());
   const completedOrderIdsRef = useRef<Map<string, string>>(new Map());
   const verificationCacheRef = useRef<Map<string, VerificationNotification>>(new Map());
+  const debouncedFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchVerificationForOrders = useCallback(async (orders: PendingOrder[]) => {
     const ordersNeedingVerification = orders.filter(
@@ -228,7 +229,10 @@ export function usePendingSync(): UsePendingSyncReturn {
           }
           return;
         }
-        fetchPendingOrders();
+        if (eventType.startsWith("PENDING_")) {
+          if (debouncedFetchRef.current) clearTimeout(debouncedFetchRef.current);
+          debouncedFetchRef.current = setTimeout(() => fetchPendingOrders(), 500);
+        }
       }),
     );
 
