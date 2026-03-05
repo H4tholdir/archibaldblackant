@@ -31,6 +31,7 @@ import { createSubclientsRouter } from './routes/subclients';
 import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
 import { createHiddenOrdersRouter } from './routes/hidden-orders';
+import { createOrderVerificationRouter } from './routes/order-verification-router';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
 import * as orderNotesRepo from './db/repositories/order-notes';
@@ -463,6 +464,8 @@ function createApp(deps: AppDeps): Express {
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
   }));
+
+  app.use('/api/orders', authenticateJWT, createOrderVerificationRouter({ pool }));
 
   app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({
     getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),

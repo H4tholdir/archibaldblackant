@@ -433,6 +433,15 @@ async function bootstrap(): Promise<void> {
   const invoicesParser = PDFParserInvoicesService.getInstance();
   const saleslinesParser = PDFParserSaleslinesService.getInstance();
 
+  const broadcastEvent = (userId: string, event: Record<string, unknown>) => {
+    wsServer.broadcast(userId, {
+      type: event.event as string,
+      payload: event,
+      timestamp: new Date().toISOString(),
+    });
+    jobEventBus.publish(userId, { event: event.event as string, data: event });
+  };
+
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
@@ -471,7 +480,7 @@ async function bootstrap(): Promise<void> {
         await correctionBot.initialize();
         return correctionBot.editOrderInArchibald(archibaldOrderId, modifications);
       },
-    }),
+    }, broadcastEvent),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {
       const bot = createBotForUser(userId);
       let initialized = false;

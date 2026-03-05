@@ -3,9 +3,13 @@ import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
 import type { AutoCorrectionDeps } from '../../verification/auto-correction';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
+import type { VerificationStatus } from '../../db/repositories/order-verification';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
 import { verifyOrderArticles } from '../../verification/verify-order-articles';
+import type { ArticleMismatch } from '../../verification/verify-order-articles';
 import { performAutoCorrection } from '../../verification/auto-correction';
+import { formatVerificationNotification } from '../../verification/format-notification';
+import type { VerificationNotification } from '../../verification/format-notification';
 import { logger } from '../../logger';
 
 type SubmitOrderItem = {
@@ -78,6 +82,21 @@ function formatLabel(template: string, metadata?: Record<string, unknown>): stri
   return result;
 }
 
+type BroadcastVerificationFn = (orderId: string, notification: VerificationNotification) => void;
+
+function emitVerificationNotification(
+  broadcastVerification: BroadcastVerificationFn | undefined,
+  orderId: string,
+  status: VerificationStatus,
+  mismatches: ArticleMismatch[],
+): void {
+  if (!broadcastVerification) return;
+  const notification = formatVerificationNotification(status, mismatches);
+  if (notification) {
+    broadcastVerification(orderId, notification);
+  }
+}
+
 async function handleSubmitOrder(
   pool: DbPool,
   bot: SubmitOrderBot,
@@ -86,6 +105,7 @@ async function handleSubmitOrder(
   onProgress: (progress: number, label?: string) => void,
   inlineSyncDeps?: InlineSyncDeps,
   autoCorrectionDeps?: AutoCorrectionDeps,
+  broadcastVerification?: BroadcastVerificationFn,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
@@ -286,11 +306,22 @@ async function handleSubmitOrder(
               onProgress(99, 'Ordine corretto e verificato');
             } else {
               onProgress(99, 'Correzione non riuscita - intervento necessario');
+              emitVerificationNotification(
+                broadcastVerification, orderId,
+                correctionResult.status as VerificationStatus,
+                correctionResult.details ? JSON.parse(correctionResult.details) : result.mismatches,
+              );
             }
           } else {
             onProgress(95, result.status === 'verified'
               ? 'Ordine verificato correttamente'
               : 'Discrepanze rilevate nell\'ordine');
+            if (result.status === 'mismatch_detected') {
+              emitVerificationNotification(
+                broadcastVerification, orderId,
+                result.status, result.mismatches,
+              );
+            }
           }
         }
       } else {
@@ -313,11 +344,14 @@ async function handleSubmitOrder(
 
 type AutoCorrectionDepsWithoutPool = Omit<AutoCorrectionDeps, 'pool' | 'inlineSyncDeps'>;
 
+type SubmitOrderBroadcast = (userId: string, event: Record<string, unknown>) => void;
+
 function createSubmitOrderHandler(
   pool: DbPool,
   createBot: (userId: string) => SubmitOrderBot,
   inlineSyncDeps?: Omit<InlineSyncDeps, 'pool'>,
   autoCorrectionDepsPartial?: AutoCorrectionDepsWithoutPool,
+  broadcast?: SubmitOrderBroadcast,
 ): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
@@ -326,7 +360,14 @@ function createSubmitOrderHandler(
     const correctionDeps = deps && autoCorrectionDepsPartial
       ? { ...autoCorrectionDepsPartial, pool, inlineSyncDeps: deps }
       : undefined;
-    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps, correctionDeps);
+    const broadcastVerification: BroadcastVerificationFn | undefined = broadcast
+      ? (orderId, notification) => broadcast(userId, {
+          event: 'VERIFICATION_RESULT',
+          orderId,
+          notification,
+        })
+      : undefined;
+    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps, correctionDeps, broadcastVerification);
     return result as unknown as Record<string, unknown>;
   };
 }
