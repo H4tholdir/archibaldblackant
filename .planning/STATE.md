@@ -2,12 +2,12 @@
 
 ## Current Position
 
-Phase: 2 of 6 (Verification Engine)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-03-05 - Completed 02-02-PLAN.md (inline sync + integration)
+Phase: 3 of 6 (Auto-Correction via Bot)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-03-05 - Completed 03-01-PLAN.md (TDD buildCorrections)
 
-Progress: ███░░░░░░░ 33%
+Progress: ████░░░░░░ 50%
 
 ## Accumulated Context
 
@@ -20,6 +20,8 @@ Progress: ███░░░░░░░ 33%
 - Phase 2: Progress rescaled 0.7x, 70-100% for verification steps
 - Phase 2: sync-orchestrator service user for inline sync browser context
 - Phase 2: Sync failure never blocks submit (graceful fallback)
+- Phase 3: price_diff uncorrectable (bot can't change unit price)
+- Phase 3: Deletes ordered by descending rowIndex to preserve indices
 
 ### Blockers/Concerns Carried Forward
 - (none)
@@ -30,5 +32,5 @@ Progress: ███░░░░░░░ 33%
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 02-02-PLAN.md (Phase 2 complete)
+Stopped at: Completed 03-01-PLAN.md (TDD buildCorrections)
 Resume file: None
