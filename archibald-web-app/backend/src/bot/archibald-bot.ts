@@ -4507,10 +4507,11 @@ export class ArchibaldBot {
                           "",
                       };
                     } else {
-                      // Primary: click the target row directly in the
-                      // dropdown grid.  This bypasses keyboard navigation
-                      // which can fail when focus is stolen from the grid.
-                      const rowClicked = await this.page!.evaluate(
+                      // Primary: get target row coordinates, then use
+                      // Puppeteer mouse.click() for real mouse events.
+                      // DOM cell.click() dispatches synthetic events that
+                      // DevExpress may not register as row selection.
+                      const cellCoords = await this.page!.evaluate(
                         (
                           cId: string | null,
                           targetIdx: number,
@@ -4559,11 +4560,14 @@ export class ArchibaldBot {
                               "td",
                             ) as HTMLElement | null;
                             if (cell) {
-                              cell.click();
-                              return true;
+                              const rect = cell.getBoundingClientRect();
+                              return {
+                                x: rect.x + rect.width / 2,
+                                y: rect.y + rect.height / 2,
+                              };
                             }
                           }
-                          return false;
+                          return null;
                         },
                         keyboardState.containerId ||
                           snapshot.containerId ||
@@ -4571,15 +4575,19 @@ export class ArchibaldBot {
                         targetIndex,
                       );
 
-                      if (rowClicked) {
+                      if (cellCoords) {
+                        await this.page!.mouse.click(
+                          cellCoords.x,
+                          cellCoords.y,
+                        );
                         logger.info(
-                          `Variant row ${targetIndex}/${rowsCount} selected via DOM click (reason: ${reason})`,
+                          `Variant row ${targetIndex}/${rowsCount} selected via mouse click (reason: ${reason})`,
                         );
                         await this.wait(200);
                       } else {
                         // Fallback: keyboard navigation
                         logger.warn(
-                          `DOM click failed for row ${targetIndex}, falling back to ArrowDown`,
+                          `Mouse click failed for row ${targetIndex}, falling back to ArrowDown`,
                         );
                         let delta =
                           focusedIndex >= 0
@@ -4632,6 +4640,197 @@ export class ArchibaldBot {
                         // proceed
                       }
                       logger.debug("✓ Variant selection callbacks settled");
+
+                      // Post-Tab verification: read INVENTTABLE field value
+                      // to ensure the correct article was selected.
+                      // DevExpress auto-fills the field after Tab with the
+                      // selected row's article name.
+                      if (inventtableInputId) {
+                        const selectedArticle = await this.page!.evaluate(
+                          (fieldId: string) => {
+                            const input = document.getElementById(
+                              fieldId,
+                            ) as HTMLInputElement | null;
+                            return input?.value?.trim() || "";
+                          },
+                          inventtableInputId,
+                        );
+
+                        const expectedArticle = item.articleCode;
+                        if (
+                          selectedArticle &&
+                          expectedArticle &&
+                          selectedArticle.toLowerCase() !==
+                            expectedArticle.toLowerCase()
+                        ) {
+                          logger.warn(
+                            `⚠️ Article mismatch after Tab: expected "${expectedArticle}", got "${selectedArticle}". Re-selecting via keyboard...`,
+                          );
+
+                          // Click back on the INVENTTABLE field to re-open dropdown
+                          const fieldCoords = await this.page!.evaluate(
+                            (fieldId: string) => {
+                              const input = document.getElementById(
+                                fieldId,
+                              ) as HTMLElement | null;
+                              if (input) {
+                                const rect = input.getBoundingClientRect();
+                                return {
+                                  x: rect.x + rect.width / 2,
+                                  y: rect.y + rect.height / 2,
+                                };
+                              }
+                              return null;
+                            },
+                            inventtableInputId,
+                          );
+
+                          if (fieldCoords) {
+                            await this.page!.mouse.click(
+                              fieldCoords.x,
+                              fieldCoords.y,
+                            );
+                            await this.wait(300);
+
+                            // Clear and retype article code
+                            await this.page!.evaluate(
+                              (fieldId: string) => {
+                                const input = document.getElementById(
+                                  fieldId,
+                                ) as HTMLInputElement | null;
+                                if (input) {
+                                  input.value = "";
+                                  input.dispatchEvent(
+                                    new Event("input", {
+                                      bubbles: true,
+                                      cancelable: true,
+                                    }),
+                                  );
+                                }
+                              },
+                              inventtableInputId,
+                            );
+
+                            // Retype with full article code
+                            await this.page!.keyboard.type(expectedArticle, {
+                              delay: 30,
+                            });
+
+                            // Wait for dropdown
+                            try {
+                              await this.page!.waitForSelector(
+                                'tr[id*="DXDataRow"]',
+                                { timeout: 5000 },
+                              );
+                            } catch {
+                              // proceed
+                            }
+                            await this.wait(300);
+
+                            // Use keyboard navigation to select correct row
+                            // Navigate to row matching exact article name
+                            const retrySnapshot = await this.page!.evaluate(
+                              () => {
+                                const rows = Array.from(
+                                  document.querySelectorAll(
+                                    'tr[class*="dxgvDataRow"]',
+                                  ),
+                                ).filter((row) => {
+                                  const el = row as HTMLElement;
+                                  return (
+                                    el.offsetParent !== null &&
+                                    el.getBoundingClientRect().width > 0
+                                  );
+                                });
+                                return rows.map((row, idx) => ({
+                                  idx,
+                                  text:
+                                    row
+                                      .querySelector("td")
+                                      ?.textContent?.trim() || "",
+                                }));
+                              },
+                            );
+
+                            const exactRowIdx = retrySnapshot.findIndex(
+                              (r) =>
+                                r.text.toLowerCase() ===
+                                expectedArticle.toLowerCase(),
+                            );
+
+                            if (exactRowIdx >= 0) {
+                              // Navigate with ArrowDown from top (row 0)
+                              for (let s = 0; s < exactRowIdx; s++) {
+                                await this.page!.keyboard.press("ArrowDown");
+                                await this.wait(30);
+                              }
+                              logger.info(
+                                `Re-selected correct article at row ${exactRowIdx} via keyboard`,
+                              );
+                            }
+
+                            await this.page!.keyboard.press("Tab");
+
+                            // Wait for callbacks again
+                            try {
+                              await this.page!.waitForFunction(
+                                () => {
+                                  const w = window as any;
+                                  const col =
+                                    w.ASPxClientControl?.GetControlCollection?.();
+                                  if (
+                                    !col ||
+                                    typeof col.ForEachControl !== "function"
+                                  )
+                                    return true;
+                                  let busy = false;
+                                  col.ForEachControl((c: any) => {
+                                    try {
+                                      if (c.InCallback?.()) busy = true;
+                                    } catch {}
+                                    try {
+                                      const gv = c.GetGridView?.();
+                                      if (gv?.InCallback?.()) busy = true;
+                                    } catch {}
+                                  });
+                                  return !busy;
+                                },
+                                { timeout: 8000, polling: 100 },
+                              );
+                            } catch {
+                              // proceed
+                            }
+
+                            // Final verification
+                            const finalArticle = await this.page!.evaluate(
+                              (fieldId: string) => {
+                                const input = document.getElementById(
+                                  fieldId,
+                                ) as HTMLInputElement | null;
+                                return input?.value?.trim() || "";
+                              },
+                              inventtableInputId,
+                            );
+
+                            if (
+                              finalArticle.toLowerCase() !==
+                              expectedArticle.toLowerCase()
+                            ) {
+                              logger.error(
+                                `Article mismatch persists after retry: expected "${expectedArticle}", got "${finalArticle}"`,
+                              );
+                            } else {
+                              logger.info(
+                                `✅ Article corrected: "${finalArticle}"`,
+                              );
+                            }
+                          }
+                        } else if (selectedArticle) {
+                          logger.info(
+                            `✅ Article verified: "${selectedArticle}"`,
+                          );
+                        }
+                      }
 
                       // Ora leggiamo la quantità DOPO che il callback ha finito
                       const targetQty = item.quantity;

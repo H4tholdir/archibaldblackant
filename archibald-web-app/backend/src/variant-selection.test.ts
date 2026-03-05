@@ -412,6 +412,84 @@ describe("worst case - no article name, no variant ID columns", () => {
   });
 });
 
+describe("H379.104.014 vs 379.104.014 - Contains filter shows H-prefixed article first", () => {
+  // Real ERP dropdown headers from Archibald (screenshot 2026-03-05)
+  const headerTexts = [
+    "NOME DELLA RICERCA",
+    "IMMAGINE",
+    "CONTENUTO DELL'IMBALL.",
+    "PACCO",
+    "DESCRIZIONE",
+    "ID ARTICOLO",
+  ];
+  const headerIndices = computeVariantHeaderIndices(headerTexts);
+
+  // Exact data from ERP dropdown: Contains filter matches both H379 and 379
+  const dropdownRows = [
+    {
+      index: 0,
+      cellTexts: [
+        "H379.104.014",
+        "",
+        "5",
+        "K3",
+        "FRESA CT Labo - RIFINITURA, oliva",
+        "001438K3",
+      ],
+    },
+    {
+      index: 1,
+      cellTexts: [
+        "379.104.014",
+        "",
+        "5",
+        "K2",
+        "DIA gr M - OLIVA",
+        "021376K2",
+      ],
+    },
+  ];
+
+  const inputs: VariantMatchInputs = {
+    variantId: "021376K2",
+    variantSuffix: "K2",
+    packageContent: "5",
+    multipleQty: "5",
+    articleName: "379.104.014",
+  };
+
+  test("selects 379.104.014 (row 1) over H379.104.014 (row 0)", () => {
+    const candidates = buildVariantCandidates(
+      dropdownRows,
+      headerIndices,
+      inputs,
+    );
+    const { chosen, reason } = chooseBestVariantCandidate(candidates);
+
+    expect(chosen?.index).toBe(1);
+    expect(reason).toBe("variant-id");
+  });
+
+  test("H379.104.014 row does not match articleName or variantId", () => {
+    const candidates = buildVariantCandidates(
+      dropdownRows,
+      headerIndices,
+      inputs,
+    );
+
+    const hRow = candidates.find((c) => c.index === 0);
+    const correctRow = candidates.find((c) => c.index === 1);
+
+    expect(hRow?.articleNameMatch).toBe(false);
+    expect(hRow?.fullIdMatch).toBe(false);
+    expect(hRow?.suffixMatch).toBe(false);
+
+    expect(correctRow?.articleNameMatch).toBe(true);
+    expect(correctRow?.fullIdMatch).toBe(true);
+    expect(correctRow?.suffixMatch).toBe(true);
+  });
+});
+
 describe("customer lookup ranking", () => {
   test("prefers exact normalized match over contains", () => {
     const query = "Rossi S.p.A.";
