@@ -2026,28 +2026,85 @@ export default function OrderFormSimple() {
       newDiscount = stepped;
     }
 
-    setItems(
-      items.map((item) => {
-        if (!imponibileSelectedItems.has(item.id)) return item;
-        const newSubtotal =
-          Math.round(
-            item.unitPrice * item.quantity * (1 - newDiscount / 100) * 100,
-          ) / 100;
-        const newVat =
-          Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
-        return {
-          ...item,
-          discount: newDiscount,
-          subtotal: newSubtotal,
-          vat: newVat,
-          total: Math.round((newSubtotal + newVat) * 100) / 100,
-        };
-      }),
+    const recalcItemImponibile = (item: OrderItem, disc: number) => {
+      const newSubtotal =
+        Math.round(
+          item.unitPrice * item.quantity * (1 - disc / 100) * 100,
+        ) / 100;
+      const newVat =
+        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
+      return {
+        ...item,
+        discount: disc,
+        subtotal: newSubtotal,
+        vat: newVat,
+        total: Math.round((newSubtotal + newVat) * 100) / 100,
+      };
+    };
+
+    let updatedItems = items.map((item) =>
+      imponibileSelectedItems.has(item.id)
+        ? recalcItemImponibile(item, newDiscount)
+        : item,
     );
+
+    // Compensate residual cents on last selected item's discount
+    const actualImponibile = updatedItems.reduce((s, i) => s + i.subtotal, 0);
+    const residualCents = Math.round((actualImponibile - target) * 100);
+
+    if (residualCents > 0 && residualCents <= 10) {
+      const selectedIds = Array.from(imponibileSelectedItems);
+      const lastId = selectedIds[selectedIds.length - 1];
+      const lastItem = items.find((i) => i.id === lastId)!;
+
+      let lo = newDiscount;
+      let hi = Math.min(newDiscount + 5, 100);
+      let bestLastDisc = newDiscount;
+
+      for (let iter = 0; iter < 80; iter++) {
+        const mid = (lo + hi) / 2;
+        const midDisc = Math.round(mid * 100) / 100;
+        const testItems = updatedItems.map((it) =>
+          it.id === lastId ? recalcItemImponibile(lastItem, midDisc) : it,
+        );
+        const testImponibile = testItems.reduce((s, i) => s + i.subtotal, 0);
+        const testRounded = Math.round(testImponibile * 100) / 100;
+
+        if (testRounded === target) {
+          bestLastDisc = midDisc;
+          break;
+        }
+        if (testRounded > target) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+        if (testRounded >= target && midDisc > bestLastDisc) {
+          bestLastDisc = midDisc;
+        }
+      }
+
+      if (bestLastDisc > newDiscount) {
+        updatedItems = updatedItems.map((it) =>
+          it.id === lastId ? recalcItemImponibile(lastItem, bestLastDisc) : it,
+        );
+      }
+    }
+
+    setItems(updatedItems);
     setShowImponibileDialog(false);
-    toastService.success(
-      `Sconto ${newDiscount}% applicato sugli articoli selezionati`,
-    );
+    const uniqueDiscounts = [
+      ...new Set(
+        updatedItems
+          .filter((i) => imponibileSelectedItems.has(i.id))
+          .map((i) => i.discount),
+      ),
+    ];
+    const discountMsg =
+      uniqueDiscounts.length === 1
+        ? `Sconto ${uniqueDiscounts[0]}%`
+        : `Sconti ${uniqueDiscounts.join("% / ")}%`;
+    toastService.success(`${discountMsg} applicato sugli articoli selezionati`);
   };
 
   const handleImponibileViaPrezzo = () => {
@@ -2246,29 +2303,101 @@ export default function OrderFormSimple() {
       finalDiscount = stepped;
     }
 
-    const applyDiscount = (disc: number) =>
-      items.map((item) => {
-        if (!totaleSelectedItems.has(item.id)) return item;
-        const newSubtotal =
-          Math.round(
-            item.unitPrice * item.quantity * (1 - disc / 100) * 100,
-          ) / 100;
-        const newVat =
-          Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
-        return {
-          ...item,
-          discount: disc,
-          subtotal: newSubtotal,
-          vat: newVat,
-          total: Math.round((newSubtotal + newVat) * 100) / 100,
-        };
-      });
+    const recalcItem = (item: OrderItem, disc: number) => {
+      const newSubtotal =
+        Math.round(
+          item.unitPrice * item.quantity * (1 - disc / 100) * 100,
+        ) / 100;
+      const newVat =
+        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
+      return {
+        ...item,
+        discount: disc,
+        subtotal: newSubtotal,
+        vat: newVat,
+        total: Math.round((newSubtotal + newVat) * 100) / 100,
+      };
+    };
 
-    setItems(applyDiscount(finalDiscount));
-    setShowTotaleDialog(false);
-    toastService.success(
-      `Sconto ${finalDiscount}% applicato sugli articoli selezionati`,
+    // Apply main discount to all selected items
+    let updatedItems = items.map((item) =>
+      totaleSelectedItems.has(item.id) ? recalcItem(item, finalDiscount) : item,
     );
+
+    // Compensate residual cents by adjusting last selected item's discount.
+    // Compute forward total with the applied items to check for residual.
+    const computeForwardTotal = (testItems: OrderItem[]) => {
+      const sub = testItems.reduce((s, i) => s + i.subtotal, 0);
+      const discP =
+        parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+      const finalSub = Math.round((sub - (sub * discP) / 100) * 100) / 100;
+      const shipping = calculateShippingCosts(finalSub);
+      const vat = testItems.reduce((s, i) => {
+        const iSub = Math.round(i.subtotal * (1 - discP / 100) * 100) / 100;
+        return s + Math.round(iSub * (i.vatRate / 100) * 100) / 100;
+      }, 0);
+      const finalVat = Math.round((vat + shipping.tax) * 100) / 100;
+      return Math.round((finalSub + shipping.cost + finalVat) * 100) / 100;
+    };
+
+    const forwardTotal = computeForwardTotal(updatedItems);
+    const residualCents = Math.round((forwardTotal - target) * 100);
+
+    if (residualCents > 0 && residualCents <= 10) {
+      // Find the last selected item and binary-search a slightly higher
+      // discount for it alone to absorb the residual cents
+      const selectedIds = Array.from(totaleSelectedItems);
+      const lastId = selectedIds[selectedIds.length - 1];
+      const lastItem = items.find((i) => i.id === lastId)!;
+
+      let lo = finalDiscount;
+      let hi = Math.min(finalDiscount + 5, 100);
+      let bestLastDisc = finalDiscount;
+
+      for (let iter = 0; iter < 80; iter++) {
+        const mid = (lo + hi) / 2;
+        const midDisc = Math.round(mid * 100) / 100;
+        const testItems = updatedItems.map((it) =>
+          it.id === lastId ? recalcItem(lastItem, midDisc) : it,
+        );
+        const testTotal = computeForwardTotal(testItems);
+
+        if (testTotal === target) {
+          bestLastDisc = midDisc;
+          break;
+        }
+        if (testTotal > target) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+        // Keep the best discount that still gives total >= target
+        if (testTotal >= target && midDisc > bestLastDisc) {
+          bestLastDisc = midDisc;
+        }
+      }
+
+      if (bestLastDisc > finalDiscount) {
+        updatedItems = updatedItems.map((it) =>
+          it.id === lastId ? recalcItem(lastItem, bestLastDisc) : it,
+        );
+      }
+    }
+
+    setItems(updatedItems);
+    setShowTotaleDialog(false);
+    const uniqueDiscounts = [
+      ...new Set(
+        updatedItems
+          .filter((i) => totaleSelectedItems.has(i.id))
+          .map((i) => i.discount),
+      ),
+    ];
+    const discountMsg =
+      uniqueDiscounts.length === 1
+        ? `Sconto ${uniqueDiscounts[0]}%`
+        : `Sconti ${uniqueDiscounts.join("% / ")}%`;
+    toastService.success(`${discountMsg} applicato sugli articoli selezionati`);
   };
 
   const handleEditItem = (id: string) => {
