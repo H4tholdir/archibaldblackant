@@ -10,7 +10,7 @@ None (pattern interni al progetto, nessuna libreria esterna nuova)
 
 ## Milestones
 
-- 🚧 **v1.0 Order Verification System** - Phases 1-6 (in progress)
+- ✅ **v1.0 Order Verification System** - Phases 1-5 (complete)
 
 ## Phases
 
@@ -19,11 +19,11 @@ None (pattern interni al progetto, nessuna libreria esterna nuova)
 - [ ] **Phase 3: Auto-Correction via Bot** - Correzione automatica via edit-order
 - [ ] **Phase 4: User Notification System** - Notifiche real-time discrepanze all'utente
 - [ ] **Phase 5: Verification Status Tracking** - Stato verifica visibile nel frontend
-- [ ] **Phase 6: Integration Testing** - Test end-to-end del flusso completo
+
 
 ## Phase Details
 
-### 🚧 v1.0 Order Verification System (In Progress)
+### ✅ v1.0 Order Verification System (Complete)
 
 **Milestone Goal:** Garantire che ogni ordine piazzato su Archibald corrisponda esattamente a ciò che l'utente ha inviato, con auto-correzione e notifica in caso di errore.
 
@@ -75,18 +75,10 @@ Plans:
 Plans:
 - [ ] 05-01: Badge + Red Rows + Auto-resolve (API join, frontend badge/highlighting, state-based flag clearing)
 
-#### Phase 6: Integration Testing
-
-**Goal**: Test end-to-end del flusso completo: submit → snapshot → sync → verify → auto-correct → notify. Coverage su edge case: ordini vuoti, note di credito (NC), warehouse orders (skip verification), ordini con solo sconto globale, ordini con sconti riga misti. Property-based testing per il verification engine.
-**Depends on**: Phase 5
-**Research**: Unlikely (Vitest già configurato, pattern di test esistenti)
-
-Plans:
-- [ ] 06-01: TBD (run /gsd:plan-phase 6 to break down)
 
 ## Progress
 
-**Execution Order:** Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+**Execution Order:** Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Milestone | Plans | Status | Completed |
 |-------|-----------|-------|--------|-----------|
@@ -95,4 +87,3 @@ Plans:
 | 3. Auto-Correction via Bot | v1.0 | 2/2 | Complete | 2026-03-05 |
 | 4. User Notification System | v1.0 | 2/2 | Complete | 2026-03-05 |
 | 5. Verification Status Tracking | v1.0 | 1/1 | Complete | 2026-03-05 |
-| 6. Integration Testing | v1.0 | 0/? | Not started | - |
