@@ -14,6 +14,16 @@ type DeleteOrderBot = {
   ) => void;
 };
 
+const BOT_DELETE_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
+  'delete.navigation': { progress: 15, label: 'Apertura sezione ordini' },
+  'delete.filter': { progress: 25, label: 'Impostazione filtro ordini' },
+  'delete.search': { progress: 35, label: 'Ricerca ordine su Archibald' },
+  'delete.select': { progress: 45, label: 'Selezione ordine trovato' },
+  'delete.confirm': { progress: 55, label: 'Conferma eliminazione su Archibald' },
+  'delete.verify': { progress: 65, label: 'Verifica eliminazione' },
+  'delete.complete': { progress: 75, label: 'Ordine rimosso da Archibald' },
+};
+
 async function handleDeleteOrder(
   pool: DbPool,
   bot: DeleteOrderBot,
@@ -22,17 +32,20 @@ async function handleDeleteOrder(
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ success: boolean; message: string }> {
   bot.setProgressCallback(async (category) => {
-    onProgress(50, category);
+    const mapped = BOT_DELETE_PROGRESS_MAP[category];
+    if (mapped) {
+      onProgress(mapped.progress, mapped.label);
+    }
   });
 
-  onProgress(10, 'Cancellazione ordine da Archibald');
+  onProgress(5, 'Avvio eliminazione ordine');
   const result = await bot.deleteOrderFromArchibald(data.orderId);
 
   if (!result.success) {
     throw new Error(result.message);
   }
 
-  onProgress(65, 'Rilascio articoli magazzino');
+  onProgress(80, 'Rilascio articoli magazzino');
   try {
     const released = await batchRelease(pool, userId, data.orderId);
     const returned = await batchReturnSold(pool, userId, data.orderId, 'order_deleted');
@@ -48,7 +61,7 @@ async function handleDeleteOrder(
     });
   }
 
-  onProgress(70, 'Rimozione ordine dal database');
+  onProgress(90, 'Rimozione ordine dal database');
 
   await pool.withTransaction(async (tx) => {
     await tx.query(
@@ -65,7 +78,7 @@ async function handleDeleteOrder(
     );
   });
 
-  onProgress(100, 'Cancellazione completata');
+  onProgress(100, 'Ordine eliminato con successo');
 
   return { success: true, message: result.message };
 }

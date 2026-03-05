@@ -3604,6 +3604,12 @@ export function OrderCardNew({
 
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  useEffect(() => {
+    if (deleteConfirm) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [deleteConfirm]);
   const [deletingOrder, setDeletingOrder] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState<{
     progress: number;
@@ -4424,11 +4430,12 @@ export function OrderCardNew({
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: "rgba(0,0,0,0.6)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               zIndex: 2000,
+              overflow: "hidden",
             }}
             onClick={(e) => { e.stopPropagation(); setDeleteConfirm(false); }}
           >
