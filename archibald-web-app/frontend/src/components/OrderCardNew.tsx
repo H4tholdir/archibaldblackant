@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import type { Order, OrderArticle } from "../types/order";
 
 import { getOrderStatus, getStatusTabColors, isNotSentToVerona } from "../utils/orderStatus";
@@ -4421,8 +4422,8 @@ export function OrderCardNew({
           </div>
         )}
 
-        {/* Delete confirm modal */}
-        {deleteConfirm && (
+        {/* Delete confirm modal - rendered via portal to escape card stacking context */}
+        {deleteConfirm && createPortal(
           <div
             style={{
               position: "fixed",
@@ -4434,8 +4435,7 @@ export function OrderCardNew({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              zIndex: 2000,
-              overflow: "hidden",
+              zIndex: 10000,
             }}
             onClick={(e) => { e.stopPropagation(); setDeleteConfirm(false); }}
           >
@@ -4506,7 +4506,8 @@ export function OrderCardNew({
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {/* Notes preview in collapsed header */}
