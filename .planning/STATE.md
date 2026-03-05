@@ -3,11 +3,11 @@
 ## Current Position
 
 Phase: 3 of 6 (Auto-Correction via Bot)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-03-05 - Completed 03-01-PLAN.md (TDD buildCorrections)
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-03-05 - Completed 03-02-PLAN.md (Auto-Correction Integration)
 
-Progress: ████░░░░░░ 50%
+Progress: █████░░░░░ 50%
 
 ## Accumulated Context
 
@@ -22,6 +22,9 @@ Progress: ████░░░░░░ 50%
 - Phase 2: Sync failure never blocks submit (graceful fallback)
 - Phase 3: price_diff uncorrectable (bot can't change unit price)
 - Phase 3: Deletes ordered by descending rowIndex to preserve indices
+- Phase 3: Auto-correction opt-in via autoCorrectionDeps (backward compatible)
+- Phase 3: One correction attempt only, then correction_failed
+- Phase 3: Bot uses sync-orchestrator service user for edit context
 
 ### Blockers/Concerns Carried Forward
 - (none)
@@ -32,5 +35,5 @@ Progress: ████░░░░░░ 50%
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 03-01-PLAN.md (TDD buildCorrections)
+Stopped at: Completed 03-02-PLAN.md — Phase 3 complete
 Resume file: None
