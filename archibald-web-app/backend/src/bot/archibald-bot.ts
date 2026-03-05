@@ -4424,71 +4424,8 @@ export class ArchibaldBot {
                     };
                   }, inventtableBaseId);
 
-                  // Diagnostic: dump DOM structure of the dropdown container
-                  const domDiag = await this.page!.evaluate(
-                    (baseId: string | undefined) => {
-                      const result: Record<string, unknown> = {};
-                      if (baseId) {
-                        for (const suffix of [
-                          "_DDD_L",
-                          "_DDD_PW",
-                          "_DDD_PW-1",
-                          "_DDD",
-                        ]) {
-                          const el = document.getElementById(baseId + suffix);
-                          if (el) {
-                            const rect = el.getBoundingClientRect();
-                            const tables = el.querySelectorAll("table[id]");
-                            const trs = el.querySelectorAll("tr");
-                            result[suffix] = {
-                              found: true,
-                              visible: rect.width > 0 && rect.height > 0,
-                              size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
-                              tableIds: Array.from(tables)
-                                .slice(0, 5)
-                                .map((t) => t.id),
-                              trCount: trs.length,
-                              firstTrTexts: Array.from(trs)
-                                .slice(0, 3)
-                                .map(
-                                  (tr) =>
-                                    (tr.textContent || "")
-                                      .trim()
-                                      .substring(0, 80),
-                                ),
-                            };
-                          } else {
-                            result[suffix] = { found: false };
-                          }
-                        }
-                      }
-                      // Also check for dxpcLite popups
-                      const popups = Array.from(
-                        document.querySelectorAll(".dxpcLite"),
-                      ).filter(
-                        (el) =>
-                          (el as HTMLElement).getBoundingClientRect().width > 0,
-                      );
-                      result["dxpcLite_popups"] = popups.map((p) => ({
-                        id: (p as HTMLElement).id || "(no id)",
-                        size: `${Math.round((p as HTMLElement).getBoundingClientRect().width)}x${Math.round((p as HTMLElement).getBoundingClientRect().height)}`,
-                        trCount: p.querySelectorAll("tr").length,
-                        firstTr: (
-                          p.querySelector("tr")?.textContent || ""
-                        )
-                          .trim()
-                          .substring(0, 80),
-                      }));
-                      return result;
-                    },
-                    inventtableBaseId,
-                  );
-
-                  logger.info("Dropdown DOM diagnostics", domDiag);
-
-                  logger.info("Dropdown snapshot", {
+                  logger.debug("Dropdown snapshot", {
                     containerId: snapshot.containerId,
-                    inventtableBaseId,
                     rowsCount: snapshot.rowsCount,
                   });
 
@@ -4520,7 +4457,7 @@ export class ArchibaldBot {
                   const { chosen, reason } =
                     chooseBestVariantCandidate(candidates);
 
-                  logger.info("Variant selection diagnostics", {
+                  logger.debug("Variant selection diagnostics", {
                     inputs: variantInputs,
                     headerTexts: snapshot.headerTexts,
                     headerIndices,
