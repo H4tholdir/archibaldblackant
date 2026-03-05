@@ -4244,24 +4244,50 @@ export class ArchibaldBot {
                     `Searching for variant on page ${currentPage}...`,
                   );
 
-                  const snapshot = await this.page!.evaluate(() => {
-                    const dropdownContainers = Array.from(
-                      document.querySelectorAll('[id*="_DDD"]'),
-                    ).filter((node) => {
-                      const el = node as HTMLElement | null;
-                      if (!el) return false;
-                      const style = window.getComputedStyle(el);
-                      if (style.display === "none") return false;
-                      if (style.visibility === "hidden") return false;
-                      const rect = el.getBoundingClientRect();
-                      return rect.width > 0 && rect.height > 0;
-                    });
+                  const snapshot = await this.page!.evaluate(
+                    (baseId: string | undefined) => {
+                    let activeContainer: Element | null = null;
 
-                    let activeContainer =
-                      dropdownContainers.find((container) =>
-                        container.querySelector('tr[class*="dxgvDataRow"]'),
-                      ) || null;
+                    // Strategy 1: Find the SPECIFIC dropdown for the INVENTTABLE field
+                    // DevExpress dropdown IDs follow the pattern: {baseId}_DDD_L or {baseId}_DDD
+                    if (baseId) {
+                      for (const suffix of ["_DDD_L", "_DDD_PW", "_DDD"]) {
+                        const el = document.getElementById(baseId + suffix);
+                        if (el) {
+                          const rect = el.getBoundingClientRect();
+                          if (
+                            rect.width > 0 &&
+                            rect.height > 0 &&
+                            el.querySelector('tr[class*="dxgvDataRow"]')
+                          ) {
+                            activeContainer = el;
+                            break;
+                          }
+                        }
+                      }
+                    }
 
+                    // Strategy 2: Search all _DDD containers (original fallback)
+                    if (!activeContainer) {
+                      const dropdownContainers = Array.from(
+                        document.querySelectorAll('[id*="_DDD"]'),
+                      ).filter((node) => {
+                        const el = node as HTMLElement | null;
+                        if (!el) return false;
+                        const style = window.getComputedStyle(el);
+                        if (style.display === "none") return false;
+                        if (style.visibility === "hidden") return false;
+                        const rect = el.getBoundingClientRect();
+                        return rect.width > 0 && rect.height > 0;
+                      });
+
+                      activeContainer =
+                        dropdownContainers.find((container) =>
+                          container.querySelector('tr[class*="dxgvDataRow"]'),
+                        ) || null;
+                    }
+
+                    // Strategy 3: Search popup containers
                     if (!activeContainer) {
                       const popupContainers = Array.from(
                         document.querySelectorAll(
@@ -4352,6 +4378,12 @@ export class ArchibaldBot {
                       rows: rowSnapshots,
                       rowsCount: rows.length,
                     };
+                  }, inventtableBaseId);
+
+                  logger.info("Dropdown snapshot", {
+                    containerId: snapshot.containerId,
+                    inventtableBaseId,
+                    rowsCount: snapshot.rowsCount,
                   });
 
                   if (snapshot.rowsCount === 1) {
