@@ -842,14 +842,36 @@ export class ArchibaldBot {
       throw new Error('Button "Salvare" not found');
     }
 
-    await this.wait(500);
+    // Wait for the dropdown popup to appear (up to 3s instead of fixed 500ms)
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const popups = Array.from(document.querySelectorAll(
+            '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"], [class*="dxm-content"]',
+          ));
+          for (const popup of popups) {
+            const el = popup as HTMLElement;
+            if (el.offsetParent !== null && el.offsetHeight > 0) {
+              const items = Array.from(popup.querySelectorAll("a, span"));
+              for (const item of items) {
+                if (item.textContent?.trim() === "Salvare") return true;
+              }
+            }
+          }
+          return false;
+        },
+        { timeout: 3000, polling: 100 },
+      );
+    } catch {
+      logger.warn('Dropdown popup not detected via waitForFunction, proceeding with fallback...');
+    }
 
     // Click "Salvare" item inside the dropdown popup (not "Salva e chiudi")
     const saveClicked = await this.page.evaluate(() => {
       // Search in popup/submenu containers for the exact "Salvare" text
       const popups = Array.from(
         document.querySelectorAll(
-          '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"]',
+          '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"], [class*="dxm-content"]',
         ),
       );
       for (const popup of popups) {
@@ -875,7 +897,8 @@ export class ArchibaldBot {
           const isMenuPopupItem =
             item.closest('[class*="dxm-popup"]') ||
             item.closest('[class*="subMenu"]') ||
-            item.closest('[id*="_DXI"]');
+            item.closest('[id*="_DXI"]') ||
+            item.closest('[class*="dxm-content"]');
           if (isMenuPopupItem) {
             (item as HTMLElement).click();
             return true;
@@ -5905,6 +5928,7 @@ export class ArchibaldBot {
       // the pre-set SCONTO % from all article rows (only the first row is
       // cleared). The fix is: save → detect leftover discounts → re-set N/A → save.
       if (hasAnyLineDiscount) {
+        try {
         await this.runOp(
           "order.na_discount_workaround",
           async () => {
@@ -6021,6 +6045,11 @@ export class ArchibaldBot {
           },
           "form.discount",
         );
+        } catch (naError) {
+          logger.warn("N/A discount workaround failed (non-fatal, continuing with save)", {
+            errorMessage: naError instanceof Error ? naError.message : String(naError),
+          });
+        }
       }
 
       // STEP 10: Save and close order
