@@ -177,7 +177,7 @@ async function getOrderVerificationSnapshot(
   };
 }
 
-type VerificationStatus = 'pending_verification' | 'verified' | 'mismatch_detected';
+type VerificationStatus = 'pending_verification' | 'verified' | 'mismatch_detected' | 'auto_corrected' | 'correction_failed';
 
 async function updateVerificationStatus(
   pool: DbPool,

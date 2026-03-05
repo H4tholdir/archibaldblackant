@@ -1,9 +1,11 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import type { AutoCorrectionDeps } from '../../verification/auto-correction';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
 import { verifyOrderArticles } from '../../verification/verify-order-articles';
+import { performAutoCorrection } from '../../verification/auto-correction';
 import { logger } from '../../logger';
 
 type SubmitOrderItem = {
@@ -83,6 +85,7 @@ async function handleSubmitOrder(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   inlineSyncDeps?: InlineSyncDeps,
+  autoCorrectionDeps?: AutoCorrectionDeps,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
@@ -260,9 +263,35 @@ async function handleSubmitOrder(
           );
 
           verificationStatus = result.status;
-          onProgress(95, result.status === 'verified'
-            ? 'Ordine verificato correttamente'
-            : 'Discrepanze rilevate nell\'ordine');
+
+          if (result.status === 'mismatch_detected' && autoCorrectionDeps) {
+            const correctionResult = await performAutoCorrection(
+              autoCorrectionDeps,
+              orderId, userId,
+              result.mismatches,
+              snapshot.items,
+              syncedArticles,
+              onProgress,
+            );
+
+            await updateVerificationStatus(
+              inlineSyncDeps.pool, orderId, userId,
+              correctionResult.status,
+              correctionResult.details,
+            );
+
+            verificationStatus = correctionResult.status;
+
+            if (correctionResult.status === 'auto_corrected') {
+              onProgress(99, 'Ordine corretto e verificato');
+            } else {
+              onProgress(99, 'Correzione non riuscita - intervento necessario');
+            }
+          } else {
+            onProgress(95, result.status === 'verified'
+              ? 'Ordine verificato correttamente'
+              : 'Discrepanze rilevate nell\'ordine');
+          }
         }
       } else {
         onProgress(95, 'Verifica posticipata');
@@ -282,19 +311,26 @@ async function handleSubmitOrder(
   return { orderId, verificationStatus };
 }
 
+type AutoCorrectionDepsWithoutPool = Omit<AutoCorrectionDeps, 'pool' | 'inlineSyncDeps'>;
+
 function createSubmitOrderHandler(
   pool: DbPool,
   createBot: (userId: string) => SubmitOrderBot,
   inlineSyncDeps?: Omit<InlineSyncDeps, 'pool'>,
+  autoCorrectionDepsPartial?: AutoCorrectionDepsWithoutPool,
 ): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as SubmitOrderData;
     const deps = inlineSyncDeps ? { ...inlineSyncDeps, pool } : undefined;
-    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps);
+    const correctionDeps = deps && autoCorrectionDepsPartial
+      ? { ...autoCorrectionDepsPartial, pool, inlineSyncDeps: deps }
+      : undefined;
+    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps, correctionDeps);
     return result as unknown as Record<string, unknown>;
   };
 }
 
 export { handleSubmitOrder, createSubmitOrderHandler, calculateAmounts, type SubmitOrderData, type SubmitOrderBot, type SubmitOrderItem };
 export type { InlineSyncDeps } from '../../verification/inline-order-sync';
+export type { AutoCorrectionDeps } from '../../verification/auto-correction';
