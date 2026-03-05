@@ -4103,8 +4103,10 @@ export class ArchibaldBot {
                         }
                       }
                       // Fallback: check for DevExpress popup containers
-                      const popups = document.querySelectorAll(
-                        ".dxpcLite, .dxpc-content",
+                      const popups = Array.from(
+                        document.querySelectorAll(
+                          ".dxpcLite, .dxpc-content",
+                        ),
                       );
                       for (const popup of popups) {
                         const el = popup as HTMLElement;
