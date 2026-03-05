@@ -2,12 +2,12 @@
 
 ## Current Position
 
-Phase: 4 of 6 (User Notification System)
-Plan: 2 of 2 in current phase
+Phase: 5 of 6 (Verification Status Tracking)
+Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-03-05 - Completed 04-02-PLAN.md (Backend API + WebSocket + Frontend Display)
+Last activity: 2026-03-05 - Completed 05-01-PLAN.md (Badge + Red Rows + Auto-resolve)
 
-Progress: ███████░░░ 67%
+Progress: ████████░░ 83%
 
 ## Accumulated Context
 
@@ -30,6 +30,9 @@ Progress: ███████░░░ 67%
 - Phase 4: Pending order NOT deleted on verification failure (stays as error alert)
 - Phase 4: archibald_order_id persisted in pending_orders for cross-device support
 - Phase 4: emitVerificationNotification never crashes verification pipeline (try/catch)
+- Phase 5: LEFT JOIN for verification status in order queries (single query)
+- Phase 5: 'resolved' status for cleared flags (not deletion, preserves history)
+- Phase 5: Auto-resolve on state progression past piazzato
 
 ### Blockers/Concerns Carried Forward
 - Bot article code mapping: inserts H379.104.014 instead of 379.104.014 (pre-existing, not Phase 4)
@@ -40,5 +43,5 @@ Progress: ███████░░░ 67%
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 04-02-PLAN.md — Phase 4 complete
+Stopped at: Completed 05-01-PLAN.md — Phase 5 complete
 Resume file: None
