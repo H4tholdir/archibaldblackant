@@ -174,7 +174,7 @@ export class OrderService {
     try {
       try {
         await batchRelease(`pending-${id}`);
-        await batchReturnSold(`pending-${id}`);
+        await batchReturnSold(`pending-${id}`, "order_deleted");
         console.log(
           "[OrderService] Warehouse items released for order",
           { orderId: id },

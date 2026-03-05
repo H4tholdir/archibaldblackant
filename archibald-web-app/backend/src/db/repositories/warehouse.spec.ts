@@ -213,7 +213,7 @@ describe('batchReturnSold', () => {
     expect(callText).toContain('customer_name = NULL');
     expect(queryFn).toHaveBeenCalledWith(
       expect.any(String),
-      [TEST_USER_ID, 'order-123'],
+      [TEST_USER_ID, 'order-123', null],
     );
   });
 

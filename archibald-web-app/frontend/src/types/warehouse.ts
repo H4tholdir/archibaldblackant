@@ -14,6 +14,7 @@ export interface WarehouseItem {
   subClientName?: string;
   orderDate?: string;
   orderNumber?: string;
+  returnReason?: string;
 }
 
 export interface WarehouseMetadata {

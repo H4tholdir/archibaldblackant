@@ -35,7 +35,7 @@ async function handleDeleteOrder(
   onProgress(65, 'Rilascio articoli magazzino');
   try {
     const released = await batchRelease(pool, userId, data.orderId);
-    const returned = await batchReturnSold(pool, userId, data.orderId);
+    const returned = await batchReturnSold(pool, userId, data.orderId, 'order_deleted');
     if (released > 0 || returned > 0) {
       logger.info('[DeleteOrder] Warehouse items released', {
         orderId: data.orderId, released, returned,

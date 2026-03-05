@@ -24,6 +24,7 @@ type WarehouseItem = {
   subClientName: string | null;
   orderDate: string | null;
   orderNumber: string | null;
+  returnReason: string | null;
 };
 
 type WarehouseBoxRow = {
@@ -70,6 +71,7 @@ type WarehouseItemRow = {
   sub_client_name: string | null;
   order_date: string | null;
   order_number: string | null;
+  return_reason: string | null;
 };
 
 function mapRowToBox(row: WarehouseBoxRow): WarehouseBox {
@@ -111,6 +113,7 @@ function mapRowToItem(row: WarehouseItemRow): WarehouseItem {
     subClientName: row.sub_client_name,
     orderDate: row.order_date,
     orderNumber: row.order_number,
+    returnReason: row.return_reason,
   };
 }
 
@@ -395,13 +398,14 @@ async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[
   return rowCount ?? 0;
 }
 
-async function batchReturnSold(pool: DbPool, userId: string, orderId: string): Promise<number> {
+async function batchReturnSold(pool: DbPool, userId: string, orderId: string, reason?: string): Promise<number> {
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET sold_in_order = NULL, reserved_for_order = NULL,
-         customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL
+         customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL,
+         return_reason = $3
      WHERE user_id = $1 AND sold_in_order = $2`,
-    [userId, orderId],
+    [userId, orderId, reason ?? null],
   );
   return rowCount ?? 0;
 }

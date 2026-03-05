@@ -238,7 +238,7 @@ export function PendingOrdersPage() {
   const releaseWarehouseForOrder = async (order: PendingOrder) => {
     try {
       await batchRelease(`pending-${order.id}`);
-      await batchReturnSold(`pending-${order.id}`);
+      await batchReturnSold(`pending-${order.id}`, "order_deleted");
     } catch (warehouseError) {
       console.error("[PendingOrdersPage] Failed to release warehouse items", warehouseError);
     }

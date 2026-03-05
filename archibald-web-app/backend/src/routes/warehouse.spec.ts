@@ -235,7 +235,7 @@ describe('createWarehouseRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, returned: 3 });
-      expect(deps.batchReturnSold).toHaveBeenCalledWith('user-1', 'order-456');
+      expect(deps.batchReturnSold).toHaveBeenCalledWith('user-1', 'order-456', undefined);
     });
 
     test('returns 400 for missing orderId', async () => {

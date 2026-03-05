@@ -78,7 +78,7 @@ export default function WarehouseReturnsView() {
     setProcessing(true);
 
     try {
-      const { returned: itemsReturned } = await batchReturnSold(orderId.trim());
+      const { returned: itemsReturned } = await batchReturnSold(orderId.trim(), returnReason);
 
       toastService.success(
         `✅ ${itemsReturned} articoli restituiti al magazzino`,

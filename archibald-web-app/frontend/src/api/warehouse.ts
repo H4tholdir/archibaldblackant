@@ -138,13 +138,14 @@ export async function batchMarkSold(
 
 export async function batchReturnSold(
   orderId: string,
+  reason?: string,
 ): Promise<{ returned: number }> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/warehouse/items/batch-return-sold`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, reason }),
     },
   );
 

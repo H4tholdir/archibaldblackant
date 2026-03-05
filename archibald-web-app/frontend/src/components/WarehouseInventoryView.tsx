@@ -203,7 +203,7 @@ export function WarehouseInventoryView() {
       }
 
       for (const [orderId] of soldOrderGroups) {
-        await batchReturnSold(orderId);
+        await batchReturnSold(orderId, "manual_correction");
       }
 
       toastService.success(
