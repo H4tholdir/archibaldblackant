@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { getPendingOrders } from "../api/pending-orders";
-import type { PendingOrder } from "../types/pending-order";
+import type { PendingOrder, VerificationNotification } from "../types/pending-order";
 import { getJobStatus } from "../api/operations";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export type JobTrackingEntry = {
   orderId: string;
@@ -33,6 +34,7 @@ const WS_EVENTS_PENDING = [
   "JOB_PROGRESS",
   "JOB_COMPLETED",
   "JOB_FAILED",
+  "VERIFICATION_RESULT",
 ] as const;
 
 const TRACKING_STATUS_MAP: Record<string, PendingOrder["jobStatus"]> = {
@@ -49,6 +51,44 @@ export function usePendingSync(): UsePendingSyncReturn {
   const [staleJobIds, setStaleJobIds] = useState<Set<string>>(new Set());
   const [jobTracking, setJobTracking] = useState<Map<string, JobTrackingEntry>>(new Map());
 
+  const fetchVerificationForOrders = useCallback(async (orders: PendingOrder[]) => {
+    const ordersNeedingVerification = orders.filter(
+      (o) => o.jobStatus === "completed" && o.jobOrderId && !o.verificationNotification,
+    );
+
+    if (ordersNeedingVerification.length === 0) return;
+
+    const results = await Promise.allSettled(
+      ordersNeedingVerification.map(async (order) => {
+        const response = await fetchWithRetry(
+          `/api/orders/${encodeURIComponent(order.jobOrderId!)}/verification`,
+        );
+        if (!response.ok) return { orderId: order.jobOrderId!, notification: null };
+        const data = await response.json();
+        return {
+          orderId: order.jobOrderId!,
+          notification: data.notification as VerificationNotification | null,
+        };
+      }),
+    );
+
+    const updates = new Map<string, VerificationNotification>();
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.notification) {
+        updates.set(result.value.orderId, result.value.notification);
+      }
+    }
+
+    if (updates.size > 0) {
+      setPendingOrders((prev) =>
+        prev.map((order) => {
+          const notification = order.jobOrderId ? updates.get(order.jobOrderId) : undefined;
+          return notification ? { ...order, verificationNotification: notification } : order;
+        }),
+      );
+    }
+  }, []);
+
   const fetchPendingOrders = useCallback(async () => {
     try {
       setIsSyncing(true);
@@ -61,12 +101,13 @@ export function usePendingSync(): UsePendingSyncReturn {
       });
 
       setPendingOrders(orders);
+      fetchVerificationForOrders(orders);
     } catch (error) {
       console.error("[usePendingSync] Error fetching pending orders:", error);
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [fetchVerificationForOrders]);
 
   const refetch = useCallback(async () => {
     await fetchPendingOrders();
@@ -145,6 +186,19 @@ export function usePendingSync(): UsePendingSyncReturn {
             return next;
           });
           fetchPendingOrders(); // Refetch to get persisted error from server
+          return;
+        } else if (eventType === "VERIFICATION_RESULT") {
+          const orderId = p.orderId as string | undefined;
+          const notification = p.notification as VerificationNotification | undefined;
+          if (orderId && notification) {
+            setPendingOrders((prev) =>
+              prev.map((order) =>
+                order.jobOrderId === orderId
+                  ? { ...order, verificationNotification: notification }
+                  : order,
+              ),
+            );
+          }
           return;
         }
         fetchPendingOrders();

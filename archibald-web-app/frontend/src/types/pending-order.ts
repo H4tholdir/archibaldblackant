@@ -1,5 +1,18 @@
 import type { SubClient } from "./sub-client";
 
+export type VerificationNotification = {
+  status: string;
+  summary: string;
+  items: Array<{
+    articleCode: string;
+    message: string;
+    type: string;
+    expected: number | null;
+    found: number | null;
+  }>;
+  severity: 'warning' | 'error';
+};
+
 export interface PendingOrderItem {
   articleCode: string;
   articleId?: string;
@@ -47,4 +60,5 @@ export interface PendingOrder {
   subClientCodice?: string;
   subClientName?: string;
   subClientData?: SubClient;
+  verificationNotification?: VerificationNotification;
 }
