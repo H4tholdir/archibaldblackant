@@ -75,6 +75,8 @@ const mockOrder = {
   articlesSyncedAt: null,
   shippingCost: null,
   shippingTax: null,
+  verificationStatus: null,
+  verificationNotes: null,
 };
 
 const mockArticle = {

@@ -74,6 +74,8 @@ type OrderRow = {
   shipping_cost: number | null;
   shipping_tax: number | null;
   article_search_text: string | null;
+  verification_status: string | null;
+  verification_notes: string | null;
 };
 
 type DdtInfo = {
@@ -175,6 +177,8 @@ type Order = {
   shippingCost: number | null;
   shippingTax: number | null;
   articleSearchText: string | null;
+  verificationStatus: string | null;
+  verificationNotes: string | null;
   ddt: DdtInfo | undefined;
   tracking: TrackingInfo | undefined;
 };
@@ -415,6 +419,12 @@ function mapRowToOrder(row: OrderRow): Order {
     shippingCost: row.shipping_cost,
     shippingTax: row.shipping_tax,
     articleSearchText: row.article_search_text,
+    verificationStatus: row.verification_status === 'correction_failed' || row.verification_status === 'mismatch_detected'
+      ? row.verification_status
+      : null,
+    verificationNotes: row.verification_status === 'correction_failed' || row.verification_status === 'mismatch_detected'
+      ? row.verification_notes
+      : null,
     ddt: row.ddt_number ? {
       ddtId: row.ddt_id,
       ddtNumber: row.ddt_number,
@@ -492,7 +502,10 @@ function computeHash(order: OrderInput): string {
 
 async function getOrderById(pool: DbPool, userId: string, orderId: string): Promise<Order | null> {
   const { rows: [order] } = await pool.query<OrderRow>(
-    'SELECT * FROM agents.order_records WHERE id = $1 AND user_id = $2',
+    `SELECT o.*, ovs.verification_status, ovs.verification_notes
+    FROM agents.order_records o
+    LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
+    WHERE o.id = $1 AND o.user_id = $2`,
     [orderId, userId],
   );
   return order ? mapRowToOrder(order) : null;
@@ -570,7 +583,10 @@ async function getOrdersByUser(
   const offsetParamIndex = allParams.length;
 
   const { rows } = await pool.query<OrderRow>(
-    `SELECT * FROM agents.order_records WHERE user_id = $1${clause} ORDER BY creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
+    `SELECT o.*, ovs.verification_status, ovs.verification_notes
+    FROM agents.order_records o
+    LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
+    WHERE o.user_id = $1${clause} ORDER BY o.creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
     allParams,
   );
 

@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
 import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder } from '../db/repositories/orders';
+import type { OrderVerificationSnapshot } from '../db/repositories/order-verification';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
@@ -40,13 +41,14 @@ type OrdersRouterDeps = {
   getLastSalesForArticle: (articleCode: string, userId: string) => Promise<LastSaleEntry[]>;
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
+  getVerificationSnapshot?: (orderId: string, userId: string) => Promise<OrderVerificationSnapshot | null>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
   const {
     queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles,
     getStateHistory, getLastSalesForArticle, getOrderNumbersByIds,
-    getOrderHistoryByCustomer,
+    getOrderHistoryByCustomer, getVerificationSnapshot,
   } = deps;
   const router = Router();
 
@@ -190,8 +192,27 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
 
   router.get('/:orderId/articles', async (req: AuthRequest, res) => {
     try {
-      const articles = await getOrderArticles(req.params.orderId, req.user!.userId);
-      res.json({ success: true, data: articles });
+      const userId = req.user!.userId;
+      const { orderId } = req.params;
+      const articles = await getOrderArticles(orderId, userId);
+
+      let verificationMismatches: unknown[] | undefined;
+      if (getVerificationSnapshot) {
+        const snapshot = await getVerificationSnapshot(orderId, userId);
+        if (
+          snapshot &&
+          (snapshot.verificationStatus === 'correction_failed' || snapshot.verificationStatus === 'mismatch_detected') &&
+          snapshot.verificationNotes
+        ) {
+          try {
+            verificationMismatches = JSON.parse(snapshot.verificationNotes);
+          } catch {
+            verificationMismatches = undefined;
+          }
+        }
+      }
+
+      res.json({ success: true, data: articles, verificationMismatches });
     } catch (error) {
       logger.error('Error fetching order articles', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero articoli ordine' });

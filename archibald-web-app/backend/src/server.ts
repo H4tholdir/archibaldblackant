@@ -32,6 +32,7 @@ import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
 import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
+import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
 import * as orderNotesRepo from './db/repositories/order-notes';
@@ -463,6 +464,7 @@ function createApp(deps: AppDeps): Express {
     getLastSalesForArticle: (articleCode, userId) => ordersRepo.getLastSalesForArticle(pool, articleCode, userId),
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
+    getVerificationSnapshot: (orderId, userId) => getOrderVerificationSnapshot(pool, orderId, userId),
   }));
 
   app.use('/api/orders', authenticateJWT, createOrderVerificationRouter({ pool }));

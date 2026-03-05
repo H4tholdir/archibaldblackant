@@ -171,4 +171,8 @@ export interface Order {
 
   // Current state tracking
   currentState?: string;
+
+  // Verification status
+  verificationStatus?: string;
+  verificationNotes?: string;
 }

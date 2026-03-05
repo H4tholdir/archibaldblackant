@@ -151,7 +151,7 @@ describe('getOrderById', () => {
     await getOrderById(pool, 'user-abc', 'order-xyz');
 
     expect(pool.query).toHaveBeenCalledWith(
-      'SELECT * FROM agents.order_records WHERE id = $1 AND user_id = $2',
+      expect.stringContaining('WHERE o.id = $1 AND o.user_id = $2'),
       ['order-xyz', 'user-abc'],
     );
   });
