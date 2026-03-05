@@ -3,11 +3,11 @@
 ## Current Position
 
 Phase: 4 of 6 (User Notification System)
-Plan: 0 of 2 in current phase
-Status: Planning complete, ready for execution
-Last activity: 2026-03-05 - Created 04-01-PLAN.md + 04-02-PLAN.md
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-03-05 - Completed 04-01-PLAN.md (Notification Formatting Logic)
 
-Progress: █████░░░░░ 50%
+Progress: ██████░░░░ 58%
 
 ## Accumulated Context
 
@@ -25,6 +25,8 @@ Progress: █████░░░░░ 50%
 - Phase 3: Auto-correction opt-in via autoCorrectionDeps (backward compatible)
 - Phase 3: One correction attempt only, then correction_failed
 - Phase 3: Bot uses sync-orchestrator service user for edit context
+- Phase 4: VerificationNotification/NotificationItem as plain types (not branded DTOs)
+- Phase 4: snapshotArticleCode ?? syncedArticleCode for article code resolution
 
 ### Blockers/Concerns Carried Forward
 - (none)
@@ -35,5 +37,5 @@ Progress: █████░░░░░ 50%
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Phase 4 planned — ready for execution
-Resume file: .planning/phases/04-user-notification/04-01-PLAN.md
+Stopped at: Completed 04-01-PLAN.md — ready for 04-02
+Resume file: .planning/phases/04-user-notification/04-02-PLAN.md
