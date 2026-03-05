@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getWarehouseItems, batchRelease } from "../api/warehouse";
+import { getWarehouseItems, batchReturnSold } from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 
 /**
@@ -78,7 +78,7 @@ export default function WarehouseReturnsView() {
     setProcessing(true);
 
     try {
-      const { released: itemsReturned } = await batchRelease(orderId.trim());
+      const { returned: itemsReturned } = await batchReturnSold(orderId.trim());
 
       toastService.success(
         `✅ ${itemsReturned} articoli restituiti al magazzino`,

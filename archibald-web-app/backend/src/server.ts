@@ -496,6 +496,7 @@ function createApp(deps: AppDeps): Express {
     batchRelease: (userId, orderId) => warehouseRepo.batchRelease(pool, userId, orderId),
     batchMarkSold: (userId, orderId, tracking) => warehouseRepo.batchMarkSold(pool, userId, orderId, tracking),
     batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
+    batchReturnSold: (userId, orderId) => warehouseRepo.batchReturnSold(pool, userId, orderId),
     getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
     validateArticle: async (articleCode) => {
       const results = await productsRepo.fuzzySearchProducts(pool, articleCode, 5);

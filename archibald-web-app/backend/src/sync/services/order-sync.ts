@@ -1,4 +1,6 @@
 import type { DbPool } from '../../db/pool';
+import { batchMarkSold } from '../../db/repositories/warehouse';
+import { logger } from '../../logger';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
 
@@ -83,8 +85,8 @@ async function syncOrders(
     for (const order of parsedOrders) {
       const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
 
-      const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(
-        'SELECT hash, order_number FROM agents.order_records WHERE id = $1 AND user_id = $2',
+      const { rows: [existing] } = await pool.query<{ hash: string; order_number: string; transfer_status: string | null }>(
+        'SELECT hash, order_number, transfer_status FROM agents.order_records WHERE id = $1 AND user_id = $2',
         [order.id, userId],
       );
 
@@ -109,6 +111,9 @@ async function syncOrders(
         );
         ordersInserted++;
       } else if (existing.hash !== hash) {
+        const oldTransferStatus = existing.transfer_status;
+        const newTransferStatus = order.transferStatus ?? null;
+
         await pool.query(
           `UPDATE agents.order_records SET
             order_number=$3, customer_profile_id=$4, customer_name=$5,
@@ -122,11 +127,32 @@ async function syncOrders(
             order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
             order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
-            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
+            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, newTransferStatus,
             order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
             order.total ?? null, order.isGiftOrder ?? null, hash, now,
           ],
         );
+
+        if (oldTransferStatus === 'Modifica' && newTransferStatus !== 'Modifica') {
+          try {
+            const sold = await batchMarkSold(pool, userId, order.id, {
+              customerName: order.customerName,
+              orderNumber: order.orderNumber,
+              orderDate: order.date,
+            });
+            if (sold > 0) {
+              logger.info('[OrderSync] Warehouse items marked as sold', {
+                orderId: order.id, oldTransferStatus, newTransferStatus, sold,
+              });
+            }
+          } catch (warehouseError) {
+            logger.warn('[OrderSync] Failed to mark warehouse items as sold', {
+              orderId: order.id,
+              error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
+            });
+          }
+        }
+
         ordersUpdated++;
       } else {
         ordersSkipped++;

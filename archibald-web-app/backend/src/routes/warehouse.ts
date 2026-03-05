@@ -26,6 +26,7 @@ type WarehouseRouterDeps = {
   batchRelease: (userId: string, orderId: string) => Promise<number>;
   batchMarkSold: (userId: string, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<number>;
   batchTransfer: (userId: string, fromOrderIds: string[], toOrderId: string) => Promise<number>;
+  batchReturnSold: (userId: string, orderId: string) => Promise<number>;
   getMetadata: (userId: string) => Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }>;
   validateArticle?: (articleCode: string) => Promise<{
     matchedProduct: { id: string; name: string; description: string | null; packageContent: string | null } | null;
@@ -104,7 +105,7 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
   const {
     getBoxes, createBox, renameBox, deleteBox, getItemsByBox, addItem,
     updateItemQuantity, deleteItem, moveItems, clearAllItems, ensureBoxExists,
-    getAllItems, bulkStoreItems, batchReserve, batchRelease, batchMarkSold, batchTransfer, getMetadata, getItemById,
+    getAllItems, bulkStoreItems, batchReserve, batchRelease, batchMarkSold, batchTransfer, batchReturnSold, getMetadata, getItemById,
   } = deps;
   const router = Router();
 
@@ -342,6 +343,20 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
     } catch (error) {
       logger.error('Error batch transferring items', { error });
       res.status(500).json({ success: false, error: 'Errore nel trasferimento articoli' });
+    }
+  });
+
+  router.post('/items/batch-return-sold', async (req: AuthRequest, res) => {
+    try {
+      const parsed = batchReleaseSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+      const returned = await batchReturnSold(req.user!.userId, parsed.data.orderId);
+      res.json({ success: true, returned });
+    } catch (error) {
+      logger.error('Error batch returning sold items', { error });
+      res.status(500).json({ success: false, error: 'Errore nel reso articoli venduti' });
     }
   });
 

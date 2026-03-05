@@ -7,10 +7,9 @@ import {
 import {
   batchReserve,
   batchRelease,
-  batchMarkSold,
+  batchReturnSold,
 } from "../api/warehouse";
 import { getDeviceId } from "../utils/device-id";
-import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class OrderService {
   async savePendingOrder(
@@ -80,7 +79,7 @@ export class OrderService {
 
     if (isWarehouseOnly) {
       console.log(
-        "[OrderService] Warehouse-only order detected, reserving then marking as sold",
+        "[OrderService] Warehouse-only order detected, reserving items",
         { orderId: id },
       );
 
@@ -90,22 +89,18 @@ export class OrderService {
             ...tracking,
             orderNumber: warehouseOrderId,
           });
-          await batchMarkSold(`pending-${id}`, warehouseOrderId, {
-            ...tracking,
-            orderNumber: warehouseOrderId,
-          });
         }
         console.log(
-          "[OrderService] Warehouse items marked as sold (warehouse-only)",
+          "[OrderService] Warehouse items reserved (warehouse-only)",
           { orderId: id },
         );
       } catch (warehouseError) {
         console.error(
-          "[OrderService] Failed to mark warehouse items as sold",
+          "[OrderService] Failed to reserve warehouse items",
           warehouseError,
         );
         throw new Error(
-          "Impossibile completare ordine da magazzino: errore marcatura items",
+          "Impossibile completare ordine da magazzino: errore prenotazione items",
         );
       }
     } else {
@@ -177,44 +172,18 @@ export class OrderService {
 
   async deletePendingOrder(id: string): Promise<void> {
     try {
-      const orders = await apiGetPendingOrders();
-      const order = orders.find((o) => o.id === id);
-
       try {
         await batchRelease(`pending-${id}`);
+        await batchReturnSold(`pending-${id}`);
         console.log(
-          "[OrderService] Warehouse reservations released for order",
+          "[OrderService] Warehouse items released for order",
           { orderId: id },
         );
       } catch (warehouseError) {
         console.error(
-          "[OrderService] Failed to release warehouse reservations",
+          "[OrderService] Failed to release warehouse items",
           warehouseError,
         );
-      }
-
-      if (order && order.status === "completed-warehouse") {
-        try {
-          const warehouseItemIds = order.items
-            .flatMap((item) => item.warehouseSources || [])
-            .map((source) => source.warehouseItemId);
-          if (warehouseItemIds.length > 0) {
-            await fetchWithRetry("/api/warehouse/items/batch-release", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ itemIds: warehouseItemIds }),
-            });
-            console.log(
-              "[OrderService] Warehouse sold items returned for order",
-              { orderId: id, itemCount: warehouseItemIds.length },
-            );
-          }
-        } catch (warehouseError) {
-          console.error(
-            "[OrderService] Failed to return sold warehouse items",
-            warehouseError,
-          );
-        }
       }
 
       await apiDeletePendingOrder(id);

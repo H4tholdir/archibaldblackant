@@ -137,6 +137,26 @@ export async function batchMarkSold(
   return { sold: data.sold };
 }
 
+export async function batchReturnSold(
+  orderId: string,
+): Promise<{ returned: number }> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/warehouse/items/batch-return-sold`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return { returned: data.returned };
+}
+
 export async function batchTransfer(
   fromOrderIds: string[],
   toOrderId: string,

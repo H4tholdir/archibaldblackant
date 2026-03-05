@@ -5,6 +5,7 @@ import {
   updateWarehouseItem,
   deleteWarehouseItem,
   batchRelease,
+  batchReturnSold,
 } from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 import { MoveItemsModal } from "./MoveItemsModal";
@@ -202,7 +203,7 @@ export function WarehouseInventoryView() {
       }
 
       for (const [orderId] of soldOrderGroups) {
-        await batchRelease(orderId);
+        await batchReturnSold(orderId);
       }
 
       toastService.success(

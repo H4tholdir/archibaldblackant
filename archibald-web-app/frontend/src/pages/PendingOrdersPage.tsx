@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
 import { enqueueOperation } from "../api/operations";
-import { batchTransfer } from "../api/warehouse";
+import { batchTransfer, batchRelease, batchMarkSold, batchReturnSold } from "../api/warehouse";
 import { getFresisDiscounts } from "../api/fresis-discounts";
 import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
 import { toastService } from "../services/toast.service";
@@ -235,16 +235,28 @@ export function PendingOrdersPage() {
     }
   };
 
+  const releaseWarehouseForOrder = async (order: PendingOrder) => {
+    try {
+      await batchRelease(`pending-${order.id}`);
+      await batchReturnSold(`pending-${order.id}`);
+    } catch (warehouseError) {
+      console.error("[PendingOrdersPage] Failed to release warehouse items", warehouseError);
+    }
+  };
+
   const handleDeleteOrder = async (orderId: string) => {
     if (!confirm("Sei sicuro di voler eliminare questo ordine?")) {
       return;
     }
 
     try {
+      const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        await releaseWarehouseForOrder(order);
+      }
       await deletePendingOrder(orderId);
       toastService.success("Ordine eliminato con successo");
       await refetch();
-      // Remove from selection if it was selected
       setSelectedOrderIds((prev) => {
         const updated = new Set(prev);
         updated.delete(orderId);
@@ -266,8 +278,11 @@ export function PendingOrdersPage() {
     }
 
     try {
-      // Delete all selected orders
       for (const orderId of selectedOrderIds) {
+        const order = orders.find((o) => o.id === orderId);
+        if (order) {
+          await releaseWarehouseForOrder(order);
+        }
         await deletePendingOrder(orderId);
       }
 
@@ -370,12 +385,24 @@ export function PendingOrdersPage() {
     }
 
     try {
+      // Mark warehouse items as sold on confirmation
+      try {
+        const warehouseOrderId = `warehouse-${order.id}`;
+        await batchMarkSold(`pending-${order.id}`, warehouseOrderId, {
+          customerName: order.customerName,
+          subClientName: order.subClientName,
+          orderDate: order.createdAt,
+        });
+        console.log("[PendingOrdersPage] Warehouse items marked as sold", { orderId: order.id });
+      } catch (warehouseError) {
+        console.error("[PendingOrdersPage] Failed to mark warehouse items as sold", warehouseError);
+      }
+
       // Archive to fresisHistory if it's a Fresis sub-client order
       if (isFresis({ id: order.customerId }) && order.subClientCodice) {
         await archiveOrders([order]);
       }
 
-      // Remove the order from pendingOrders (warehouse items already marked as sold)
       await deletePendingOrder(order.id!);
 
       toastService.success("Ordine magazzino confermato e archiviato");

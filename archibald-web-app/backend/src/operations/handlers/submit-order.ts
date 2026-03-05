@@ -10,6 +10,7 @@ import type { ArticleMismatch } from '../../verification/verify-order-articles';
 import { performAutoCorrection } from '../../verification/auto-correction';
 import { formatVerificationNotification } from '../../verification/format-notification';
 import type { VerificationNotification } from '../../verification/format-notification';
+import { batchTransfer } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
 
 type SubmitOrderItem = {
@@ -269,6 +270,20 @@ async function handleSubmitOrder(
     );
 
   });
+
+  if (!isWarehouseOnly) {
+    try {
+      const transferred = await batchTransfer(pool, userId, [`pending-${data.pendingOrderId}`], orderId);
+      logger.info('[SubmitOrder] Warehouse reservations transferred to Archibald order', {
+        orderId, pendingOrderId: data.pendingOrderId, transferred,
+      });
+    } catch (error) {
+      logger.warn('[SubmitOrder] Failed to transfer warehouse reservations', {
+        orderId, pendingOrderId: data.pendingOrderId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   let verificationStatus: string | undefined;
   let verificationPassed = true;

@@ -190,6 +190,68 @@ describe('moveItems', () => {
   });
 });
 
+describe('batchReturnSold', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('clears sold_in_order and reserved_for_order for matching orderId', async () => {
+    const queryFn = vi.fn(async () => ({
+      rows: [],
+      rowCount: 2,
+      command: '', oid: 0, fields: [],
+    }));
+    const pool = createMockPool(queryFn);
+
+    const { batchReturnSold } = await import('./warehouse');
+    const result = await batchReturnSold(pool, TEST_USER_ID, 'order-123');
+
+    expect(result).toBe(2);
+    const callText = queryFn.mock.calls[0][0] as string;
+    expect(callText).toContain('sold_in_order = NULL');
+    expect(callText).toContain('reserved_for_order = NULL');
+    expect(callText).toContain('customer_name = NULL');
+    expect(queryFn).toHaveBeenCalledWith(
+      expect.any(String),
+      [TEST_USER_ID, 'order-123'],
+    );
+  });
+
+  test('returns 0 when no items match orderId', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] })),
+    );
+
+    const { batchReturnSold } = await import('./warehouse');
+    const result = await batchReturnSold(pool, TEST_USER_ID, 'nonexistent-order');
+
+    expect(result).toBe(0);
+  });
+});
+
+describe('clearAllItems', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('deletes only available items, preserving reserved and sold', async () => {
+    const queryFn = vi.fn(async () => ({
+      rows: [],
+      rowCount: 5,
+      command: '', oid: 0, fields: [],
+    }));
+    const pool = createMockPool(queryFn);
+
+    const { clearAllItems } = await import('./warehouse');
+    const result = await clearAllItems(pool, TEST_USER_ID);
+
+    expect(result).toBe(5);
+    const callText = queryFn.mock.calls[0][0] as string;
+    expect(callText).toContain('reserved_for_order IS NULL');
+    expect(callText).toContain('sold_in_order IS NULL');
+  });
+});
+
 describe('deleteItem', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

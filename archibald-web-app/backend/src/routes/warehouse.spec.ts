@@ -29,6 +29,7 @@ function createMockDeps(): WarehouseRouterDeps {
     batchRelease: vi.fn().mockResolvedValue(2),
     batchMarkSold: vi.fn().mockResolvedValue(2),
     batchTransfer: vi.fn().mockResolvedValue(2),
+    batchReturnSold: vi.fn().mockResolvedValue(3),
     getMetadata: vi.fn().mockResolvedValue({ totalItems: 10, totalQuantity: 50, boxesCount: 3, reservedCount: 2, soldCount: 1 }),
     importExcel: vi.fn().mockResolvedValue({ success: true, imported: 10, skipped: 2, errors: [] }),
   };
@@ -223,6 +224,34 @@ describe('createWarehouseRouter', () => {
       expect(res.body.data.matchedProduct).toBeNull();
       expect(res.body.data.confidence).toBe(0);
       expect(res.body.data.suggestions).toEqual([]);
+    });
+  });
+
+  describe('POST /api/warehouse/items/batch-return-sold', () => {
+    test('returns sold items to available', async () => {
+      const res = await request(app)
+        .post('/api/warehouse/items/batch-return-sold')
+        .send({ orderId: 'order-456' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, returned: 3 });
+      expect(deps.batchReturnSold).toHaveBeenCalledWith('user-1', 'order-456');
+    });
+
+    test('returns 400 for missing orderId', async () => {
+      const res = await request(app)
+        .post('/api/warehouse/items/batch-return-sold')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    test('returns 400 for empty orderId', async () => {
+      const res = await request(app)
+        .post('/api/warehouse/items/batch-return-sold')
+        .send({ orderId: '' });
+
+      expect(res.status).toBe(400);
     });
   });
 });

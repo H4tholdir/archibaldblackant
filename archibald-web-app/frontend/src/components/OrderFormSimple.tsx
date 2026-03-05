@@ -633,7 +633,7 @@ export default function OrderFormSimple() {
               .flatMap((item) => item.warehouseSources ?? [])
               .map((source) => source.warehouseItemId);
             if (itemIds.length > 0) {
-              await batchReserve(itemIds, editingOrderId);
+              await batchReserve(itemIds, `pending-${editingOrderId}`);
               console.log(
                 "[OrderForm] Warehouse reservations restored after exit without save",
               );

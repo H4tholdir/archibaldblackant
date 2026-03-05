@@ -1,5 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
+import { logger } from '../../logger';
 
 type DeleteOrderData = {
   orderId: string;
@@ -28,6 +30,22 @@ async function handleDeleteOrder(
 
   if (!result.success) {
     throw new Error(result.message);
+  }
+
+  onProgress(65, 'Rilascio articoli magazzino');
+  try {
+    const released = await batchRelease(pool, userId, data.orderId);
+    const returned = await batchReturnSold(pool, userId, data.orderId);
+    if (released > 0 || returned > 0) {
+      logger.info('[DeleteOrder] Warehouse items released', {
+        orderId: data.orderId, released, returned,
+      });
+    }
+  } catch (warehouseError) {
+    logger.warn('[DeleteOrder] Failed to release warehouse items', {
+      orderId: data.orderId,
+      error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
+    });
   }
 
   onProgress(70, 'Rimozione ordine dal database');

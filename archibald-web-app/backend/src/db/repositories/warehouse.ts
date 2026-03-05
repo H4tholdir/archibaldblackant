@@ -272,7 +272,8 @@ async function moveItems(
 
 async function clearAllItems(pool: DbPool, userId: string): Promise<number> {
   const { rowCount } = await pool.query(
-    `DELETE FROM agents.warehouse_items WHERE user_id = $1`,
+    `DELETE FROM agents.warehouse_items
+     WHERE user_id = $1 AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
     [userId],
   );
   return rowCount ?? 0;
@@ -302,7 +303,11 @@ async function bulkStoreItems(
 ): Promise<number> {
   return pool.withTransaction(async (tx) => {
     if (clearExisting) {
-      await tx.query('DELETE FROM agents.warehouse_items WHERE user_id = $1', [userId]);
+      await tx.query(
+        `DELETE FROM agents.warehouse_items
+         WHERE user_id = $1 AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
+        [userId],
+      );
     }
     const now = Date.now();
     let inserted = 0;
@@ -390,6 +395,17 @@ async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[
   return rowCount ?? 0;
 }
 
+async function batchReturnSold(pool: DbPool, userId: string, orderId: string): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.warehouse_items
+     SET sold_in_order = NULL, reserved_for_order = NULL,
+         customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL
+     WHERE user_id = $1 AND sold_in_order = $2`,
+    [userId, orderId],
+  );
+  return rowCount ?? 0;
+}
+
 async function getMetadata(pool: DbPool, userId: string): Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }> {
   const { rows: [row] } = await pool.query<{ total_items: string; total_quantity: string; boxes_count: string; reserved_count: string; sold_count: string }>(
     `SELECT
@@ -429,6 +445,7 @@ export {
   batchRelease,
   batchMarkSold,
   batchTransfer,
+  batchReturnSold,
   getMetadata,
   mapRowToBox,
   mapRowToBoxDetail,
