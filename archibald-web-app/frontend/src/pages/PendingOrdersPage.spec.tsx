@@ -377,7 +377,7 @@ describe("PendingOrdersPage", () => {
       const enqueueCalls = fetchCalls.filter(
         (call: unknown[]) => call[0] === "/api/operations/enqueue",
       );
-      expect(enqueueCalls.length).toBeGreaterThanOrEqual(1);
+      expect(enqueueCalls).toHaveLength(1);
 
       const body = JSON.parse(enqueueCalls[0][1].body);
       expect(body.data.items[0].price).toBe(10);
