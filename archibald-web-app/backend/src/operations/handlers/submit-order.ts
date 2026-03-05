@@ -91,9 +91,16 @@ function emitVerificationNotification(
   mismatches: ArticleMismatch[],
 ): void {
   if (!broadcastVerification) return;
-  const notification = formatVerificationNotification(status, mismatches);
-  if (notification) {
-    broadcastVerification(orderId, notification);
+  try {
+    const notification = formatVerificationNotification(status, mismatches);
+    if (notification) {
+      broadcastVerification(orderId, notification);
+    }
+  } catch (error) {
+    logger.warn('[SubmitOrder] Failed to emit verification notification', {
+      orderId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -306,10 +313,14 @@ async function handleSubmitOrder(
               onProgress(99, 'Ordine corretto e verificato');
             } else {
               onProgress(99, 'Correzione non riuscita - intervento necessario');
+              const parsedDetails = correctionResult.details ? JSON.parse(correctionResult.details) : null;
+              const failedMismatches = Array.isArray(parsedDetails?.remainingMismatches)
+                ? parsedDetails.remainingMismatches
+                : result.mismatches;
               emitVerificationNotification(
                 broadcastVerification, orderId,
                 correctionResult.status as VerificationStatus,
-                correctionResult.details ? JSON.parse(correctionResult.details) : result.mismatches,
+                failedMismatches,
               );
             }
           } else {
