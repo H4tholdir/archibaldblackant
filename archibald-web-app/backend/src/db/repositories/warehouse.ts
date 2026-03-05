@@ -335,25 +335,54 @@ async function bulkStoreItems(
 async function batchReserve(
   pool: DbPool,
   userId: string,
-  itemIds: number[],
+  items: Array<{ itemId: number; quantity: number }>,
   orderId: string,
   tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
 ): Promise<{ reserved: number; skipped: number }> {
-  if (itemIds.length === 0) return { reserved: 0, skipped: 0 };
-  const placeholders = itemIds.map((_, i) => `$${i + 3}`).join(', ');
-  const { rowCount } = await pool.query(
-    `UPDATE agents.warehouse_items
-     SET reserved_for_order = $1,
-         customer_name = $${itemIds.length + 3},
-         sub_client_name = $${itemIds.length + 4},
-         order_date = $${itemIds.length + 5},
-         order_number = $${itemIds.length + 6}
-     WHERE user_id = $2 AND id IN (${placeholders})
-       AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
-    [orderId, userId, ...itemIds, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
-  );
-  const reserved = rowCount ?? 0;
-  return { reserved, skipped: itemIds.length - reserved };
+  if (items.length === 0) return { reserved: 0, skipped: 0 };
+
+  let reserved = 0;
+  let skipped = 0;
+
+  for (const { itemId, quantity: requestedQty } of items) {
+    const { rows: [item] } = await pool.query<WarehouseItemRow>(
+      `SELECT * FROM agents.warehouse_items
+       WHERE id = $1 AND user_id = $2
+         AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
+      [itemId, userId],
+    );
+
+    if (!item) {
+      skipped++;
+      continue;
+    }
+
+    if (requestedQty >= item.quantity) {
+      await pool.query(
+        `UPDATE agents.warehouse_items
+         SET reserved_for_order = $1,
+             customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
+         WHERE id = $7 AND user_id = $2`,
+        [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId],
+      );
+    } else {
+      await pool.query(
+        `UPDATE agents.warehouse_items SET quantity = quantity - $1 WHERE id = $2 AND user_id = $3`,
+        [requestedQty, itemId, userId],
+      );
+      await pool.query(
+        `INSERT INTO agents.warehouse_items
+           (user_id, article_code, description, quantity, box_name, reserved_for_order,
+            uploaded_at, device_id, customer_name, sub_client_name, order_date, order_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [userId, item.article_code, item.description, requestedQty, item.box_name, orderId,
+         item.uploaded_at, item.device_id, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+      );
+    }
+    reserved++;
+  }
+
+  return { reserved, skipped };
 }
 
 async function batchRelease(pool: DbPool, userId: string, orderId: string): Promise<number> {

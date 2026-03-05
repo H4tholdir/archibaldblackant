@@ -73,9 +73,9 @@ export class OrderService {
       orderDate: now,
     };
 
-    const warehouseItemIds = order.items
+    const warehouseItems = order.items
       .flatMap((item) => item.warehouseSources || [])
-      .map((source) => source.warehouseItemId);
+      .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
 
     if (isWarehouseOnly) {
       console.log(
@@ -84,8 +84,8 @@ export class OrderService {
       );
 
       try {
-        if (warehouseItemIds.length > 0) {
-          await batchReserve(warehouseItemIds, `pending-${id}`, {
+        if (warehouseItems.length > 0) {
+          await batchReserve(warehouseItems, `pending-${id}`, {
             ...tracking,
             orderNumber: warehouseOrderId,
           });
@@ -105,8 +105,8 @@ export class OrderService {
       }
     } else {
       try {
-        if (warehouseItemIds.length > 0) {
-          await batchReserve(warehouseItemIds, `pending-${id}`, tracking);
+        if (warehouseItems.length > 0) {
+          await batchReserve(warehouseItems, `pending-${id}`, tracking);
         }
         console.log("[OrderService] Warehouse items reserved for order", {
           orderId: id,

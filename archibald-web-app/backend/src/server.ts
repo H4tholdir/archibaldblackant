@@ -492,7 +492,7 @@ function createApp(deps: AppDeps): Express {
     ensureBoxExists: (userId, name) => warehouseRepo.ensureBoxExists(pool, userId, name),
     getAllItems: (userId) => warehouseRepo.getAllItems(pool, userId),
     bulkStoreItems: (userId, items, clearExisting) => warehouseRepo.bulkStoreItems(pool, userId, items, clearExisting),
-    batchReserve: (userId, itemIds, orderId, tracking) => warehouseRepo.batchReserve(pool, userId, itemIds, orderId, tracking),
+    batchReserve: (userId, items, orderId, tracking) => warehouseRepo.batchReserve(pool, userId, items, orderId, tracking),
     batchRelease: (userId, orderId) => warehouseRepo.batchRelease(pool, userId, orderId),
     batchMarkSold: (userId, orderId, tracking) => warehouseRepo.batchMarkSold(pool, userId, orderId, tracking),
     batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),

@@ -22,7 +22,7 @@ type WarehouseRouterDeps = {
   ensureBoxExists: (userId: string, boxName: string) => Promise<void>;
   getAllItems: (userId: string) => Promise<WarehouseItem[]>;
   bulkStoreItems: (userId: string, items: Array<{ articleCode: string; description: string; quantity: number; boxName: string; deviceId: string }>, clearExisting: boolean) => Promise<number>;
-  batchReserve: (userId: string, itemIds: number[], orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<{ reserved: number; skipped: number }>;
+  batchReserve: (userId: string, items: Array<{ itemId: number; quantity: number }>, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<{ reserved: number; skipped: number }>;
   batchRelease: (userId: string, orderId: string) => Promise<number>;
   batchMarkSold: (userId: string, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<number>;
   batchTransfer: (userId: string, fromOrderIds: string[], toOrderId: string) => Promise<number>;
@@ -80,7 +80,10 @@ const trackingSchema = z.object({
 }).optional();
 
 const batchReserveSchema = z.object({
-  itemIds: z.array(z.number().int().positive()).min(1),
+  items: z.array(z.object({
+    itemId: z.number().int().positive(),
+    quantity: z.number().int().positive(),
+  })).min(1),
   orderId: z.string().min(1),
   tracking: trackingSchema,
 });
@@ -301,7 +304,7 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
-      const result = await batchReserve(req.user!.userId, parsed.data.itemIds, parsed.data.orderId, parsed.data.tracking ?? undefined);
+      const result = await batchReserve(req.user!.userId, parsed.data.items, parsed.data.orderId, parsed.data.tracking ?? undefined);
       res.json({ success: true, ...result });
     } catch (error) {
       logger.error('Error batch reserving items', { error });

@@ -629,11 +629,11 @@ export default function OrderFormSimple() {
         (async () => {
           try {
             const { batchReserve } = await import("../api/warehouse");
-            const itemIds = originalOrderItems
+            const warehouseItems = originalOrderItems
               .flatMap((item) => item.warehouseSources ?? [])
-              .map((source) => source.warehouseItemId);
-            if (itemIds.length > 0) {
-              await batchReserve(itemIds, `pending-${editingOrderId}`);
+              .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
+            if (warehouseItems.length > 0) {
+              await batchReserve(warehouseItems, `pending-${editingOrderId}`);
               console.log(
                 "[OrderForm] Warehouse reservations restored after exit without save",
               );

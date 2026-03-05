@@ -64,7 +64,7 @@ export async function updateWarehouseItem(
 }
 
 export async function batchReserve(
-  itemIds: number[],
+  items: Array<{ itemId: number; quantity: number }>,
   orderId: string,
   tracking?: {
     customerName?: string;
@@ -78,7 +78,7 @@ export async function batchReserve(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemIds, orderId, tracking }),
+      body: JSON.stringify({ items, orderId, tracking }),
     },
   );
 
