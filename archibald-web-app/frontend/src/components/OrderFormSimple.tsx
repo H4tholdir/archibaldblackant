@@ -1460,16 +1460,73 @@ export default function OrderFormSimple() {
         productGroupKey: undefined,
       });
     } else if (isPartiallyFromWarehouse && residualPackaging?.success) {
-      // 🔧 FIX #3: Partially from warehouse WITH valid residual packaging
-      // Create order items for residual quantity + attach warehouse metadata
+      // Partially from warehouse WITH valid residual packaging
+      // Create separate warehouse row + Komet row(s)
       const breakdown = residualPackaging.breakdown!;
 
-      // 🔧 FIX #3: Generate group key to track variants of same product
-      const productGroupKey =
-        breakdown.length > 1
-          ? `${selectedProduct.name}-${Date.now()}`
-          : undefined;
+      const productGroupKey = `${selectedProduct.name}-${Date.now()}`;
 
+      // Row 1: Warehouse-only item
+      {
+        const warehouseArticleCodes = new Set(
+          warehouseSelection.map((sel) => sel.articleCode),
+        );
+        const searchedArticleCode =
+          selectedProduct.name || selectedProduct.article;
+        const shouldUseWarehouseCode =
+          warehouseArticleCodes.size > 0 &&
+          !warehouseArticleCodes.has(searchedArticleCode);
+        const finalArticleCode = shouldUseWarehouseCode
+          ? warehouseSelection[0].articleCode
+          : searchedArticleCode;
+
+        const variantProductForVariants = await productService.getProductById(finalArticleCode);
+        const variants = variantProductForVariants?.variants ?? [];
+        const smallestVariant = variants.length > 0
+          ? variants.reduce((min, curr) => curr.minQty < min.minQty ? curr : min)
+          : null;
+        const variantCode = smallestVariant?.variantId ?? finalArticleCode;
+        const whPrice = await priceService.getPriceByArticleId(variantCode);
+
+        if (!whPrice) {
+          toastService.error(`Prezzo non disponibile per ${variantCode}`);
+          return;
+        }
+
+        const whVarProduct = await productService.getProductById(variantCode);
+        const whVatRate = normalizeVatRate(whVarProduct?.vat) ?? 0;
+        const whEffectivePrice =
+          customListPrice != null && !isNaN(customListPrice)
+            ? customListPrice
+            : whPrice;
+        const whSubtotal =
+          Math.round(whEffectivePrice * warehouseQty * (1 - disc / 100) * 100) / 100;
+        const whVat = Math.round(whSubtotal * (whVatRate / 100) * 100) / 100;
+        const whTotal = Math.round((whSubtotal + whVat) * 100) / 100;
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          productId: variantCode,
+          article: variantCode,
+          productName: finalArticleCode,
+          description: shouldUseWarehouseCode
+            ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
+            : selectedProduct.description || "",
+          quantity: warehouseQty,
+          unitPrice: whEffectivePrice,
+          vatRate: whVatRate,
+          discount: disc,
+          subtotal: whSubtotal,
+          vat: whVat,
+          total: whTotal,
+          originalListPrice: isFresisSubclient ? whPrice : undefined,
+          warehouseQuantity: warehouseQty,
+          warehouseSources,
+          productGroupKey,
+        });
+      }
+
+      // Row(s) 2+: Komet items (residual to order)
       for (let i = 0; i < breakdown.length; i++) {
         const pkg = breakdown[i];
         const variantArticleCode = pkg.variant.variantId;
@@ -1518,9 +1575,6 @@ export default function OrderFormSimple() {
           vat: lineVat,
           total: lineTotal,
           originalListPrice: isFresisSubclient ? price : undefined,
-          // 🔧 FIX #3: Add warehouse data only to first line
-          warehouseQuantity: i === 0 ? warehouseQty : undefined,
-          warehouseSources: i === 0 ? warehouseSources : undefined,
           productGroupKey,
         });
       }

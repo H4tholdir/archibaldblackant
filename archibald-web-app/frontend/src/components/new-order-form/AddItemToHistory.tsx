@@ -315,6 +315,38 @@ export function AddItemToHistory({
       });
     } else if (isPartiallyFromWarehouse && residualPackaging?.success) {
       const breakdown = residualPackaging.breakdown!;
+
+      // Row 1: Warehouse-only item
+      {
+        const articleCode = selectedProduct.name || selectedProduct.article;
+        const productWithDetails = await productService.getProductById(articleCode);
+        const variants = productWithDetails?.variants ?? [];
+        const smallestVariant = variants.length > 0
+          ? variants.reduce((min, curr) => curr.minQty < min.minQty ? curr : min)
+          : null;
+        const variantCode = smallestVariant?.variantId ?? articleCode;
+        const whPrice = await priceService.getPriceByArticleId(variantCode);
+        if (!whPrice) {
+          setError(`Prezzo non disponibile per ${variantCode}`);
+          return;
+        }
+        const whVarProduct = await productService.getProductById(variantCode);
+        const whVatRate = normalizeVatRate(whVarProduct?.vat) ?? 0;
+
+        newItems.push({
+          articleCode: variantCode,
+          articleId: variantCode,
+          productName: articleCode,
+          description: selectedProduct.description || "",
+          quantity: warehouseQty,
+          price: whPrice,
+          vat: whVatRate,
+          warehouseQuantity: warehouseQty,
+          warehouseSources,
+        });
+      }
+
+      // Row(s) 2+: Komet items (residual to order)
       for (let i = 0; i < breakdown.length; i++) {
         const pkg = breakdown[i];
         const variantArticleCode = pkg.variant.variantId;
@@ -341,8 +373,6 @@ export function AddItemToHistory({
           quantity: pkg.totalPieces,
           price,
           vat: vatRate,
-          warehouseQuantity: i === 0 ? warehouseQty : undefined,
-          warehouseSources: i === 0 ? warehouseSources : undefined,
         });
       }
     } else {
