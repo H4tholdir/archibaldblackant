@@ -3,11 +3,11 @@
 ## Current Position
 
 Phase: 4 of 6 (User Notification System)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-03-05 - Completed 04-01-PLAN.md (Notification Formatting Logic)
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-03-05 - Completed 04-02-PLAN.md (Backend API + WebSocket + Frontend Display)
 
-Progress: ██████░░░░ 58%
+Progress: ███████░░░ 67%
 
 ## Accumulated Context
 
@@ -27,9 +27,12 @@ Progress: ██████░░░░ 58%
 - Phase 3: Bot uses sync-orchestrator service user for edit context
 - Phase 4: VerificationNotification/NotificationItem as plain types (not branded DTOs)
 - Phase 4: snapshotArticleCode ?? syncedArticleCode for article code resolution
+- Phase 4: Pending order NOT deleted on verification failure (stays as error alert)
+- Phase 4: archibald_order_id persisted in pending_orders for cross-device support
+- Phase 4: emitVerificationNotification never crashes verification pipeline (try/catch)
 
 ### Blockers/Concerns Carried Forward
-- (none)
+- Bot article code mapping: inserts H379.104.014 instead of 379.104.014 (pre-existing, not Phase 4)
 
 ### Roadmap Evolution
 - Milestone v1.0 created: Order Verification System, 6 phases (Phase 1-6)
@@ -37,5 +40,5 @@ Progress: ██████░░░░ 58%
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 04-01-PLAN.md — ready for 04-02
-Resume file: .planning/phases/04-user-notification/04-02-PLAN.md
+Stopped at: Completed 04-02-PLAN.md — Phase 4 complete
+Resume file: None
