@@ -63,7 +63,8 @@ Plans:
 **Research**: Unlikely (WebSocket e event bus già esistenti nel progetto)
 
 Plans:
-- [ ] 04-01: TBD (run /gsd:plan-phase 4 to break down)
+- [ ] 04-01: Notification Formatting Logic — TDD (formatVerificationNotification pure function)
+- [ ] 04-02: Backend API + WebSocket + Frontend Display (endpoint + event + inline card notification)
 
 #### Phase 5: Verification Status Tracking
 
@@ -92,6 +93,6 @@ Plans:
 | 1. Order Snapshot Schema & Storage | v1.0 | 1/1 | Complete | 2026-03-05 |
 | 2. Verification Engine | v1.0 | 2/2 | Complete | 2026-03-05 |
 | 3. Auto-Correction via Bot | v1.0 | 2/2 | Complete | 2026-03-05 |
-| 4. User Notification System | v1.0 | 0/? | Not started | - |
+| 4. User Notification System | v1.0 | 0/2 | Not started | - |
 | 5. Verification Status Tracking | v1.0 | 0/? | Not started | - |
 | 6. Integration Testing | v1.0 | 0/? | Not started | - |
