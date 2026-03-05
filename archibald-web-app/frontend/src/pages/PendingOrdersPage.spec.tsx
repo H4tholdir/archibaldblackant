@@ -3,6 +3,9 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PendingOrdersPage } from "./PendingOrdersPage";
 import type { PendingOrder } from "../types/pending-order";
+import { isFresis } from "../utils/fresis-constants";
+import { getFresisDiscounts } from "../api/fresis-discounts";
+import { archiveOrders } from "../api/fresis-history";
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
@@ -84,9 +87,13 @@ vi.mock("../utils/fresis-constants", () => ({
   isFresis: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("../utils/order-merge", () => ({
-  mergeFresisPendingOrders: vi.fn(),
-}));
+vi.mock("../utils/order-merge", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    mergeFresisPendingOrders: vi.fn(),
+  };
+});
 
 vi.mock("../components/EmailShareDialog", () => ({
   EmailShareDialog: () => null,
@@ -307,6 +314,76 @@ describe("PendingOrdersPage", () => {
           status: "syncing",
         }),
       );
+    });
+  });
+
+  test("applies Fresis dealer discounts when submitting a sub-client order", async () => {
+    const fresisOrder: PendingOrder = {
+      id: "fresis-order-001",
+      customerId: "55.261",
+      customerName: "Fresis Soc Cooperativa",
+      subClientCodice: "12345",
+      subClientName: "Bar Roma",
+      items: [
+        {
+          articleCode: "ART100",
+          articleId: "V100",
+          productName: "Prodotto Test",
+          quantity: 10,
+          price: 8,
+          vat: 22,
+          discount: 15,
+          originalListPrice: 10,
+        },
+      ],
+      discountPercent: 5,
+      targetTotalWithVAT: 100,
+      createdAt: "2026-03-05T10:00:00Z",
+      updatedAt: "2026-03-05T10:00:00Z",
+      status: "pending",
+      retryCount: 0,
+      deviceId: "test-device-001",
+      needsSync: false,
+    };
+
+    mockPendingOrders = [fresisOrder];
+    vi.mocked(isFresis).mockImplementation((c) => c?.id === "55.261");
+    vi.mocked(getFresisDiscounts).mockResolvedValue([
+      { id: "V100", articleCode: "ART100", discountPercent: 45, kpPriceUnit: 0 },
+    ]);
+    vi.mocked(archiveOrders).mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobId: "job-fresis-001" }),
+    } as Response);
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    render(<PendingOrdersPage />);
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]);
+
+    const submitButton = screen.getByRole("button", {
+      name: /Invia Ordini Selezionati/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(archiveOrders).toHaveBeenCalledWith([fresisOrder]);
+    });
+
+    await waitFor(() => {
+      const fetchCalls = mockFetch.mock.calls;
+      const enqueueCalls = fetchCalls.filter(
+        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      );
+      expect(enqueueCalls.length).toBeGreaterThanOrEqual(1);
+
+      const body = JSON.parse(enqueueCalls[0][1].body);
+      expect(body.data.items[0].price).toBe(10);
+      expect(body.data.items[0].discount).toBe(45);
+      expect(body.data.discountPercent).toBeUndefined();
+      expect(body.data.targetTotalWithVAT).toBeUndefined();
     });
   });
 });
