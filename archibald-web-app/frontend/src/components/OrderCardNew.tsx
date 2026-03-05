@@ -632,7 +632,17 @@ function TabArticoli({
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
   customerName?: string;
 }) {
+  type VerificationMismatch = {
+    type: string;
+    snapshotArticleCode: string | null;
+    syncedArticleCode: string | null;
+    field: string | null;
+    expected: number | null;
+    found: number | null;
+  };
+
   const [articles, setArticles] = useState<OrderArticle[]>([]);
+  const [verificationMismatches, setVerificationMismatches] = useState<VerificationMismatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -686,6 +696,9 @@ function TabArticoli({
         const articlesList = Array.isArray(data.data) ? data.data : [];
         if (data.success && articlesList.length > 0) {
           setArticles(articlesList);
+          if (Array.isArray(data.verificationMismatches)) {
+            setVerificationMismatches(data.verificationMismatches);
+          }
 
           if (onTotalsUpdateRef.current) {
             const totalVat = articlesList.reduce(
@@ -2032,9 +2045,17 @@ function TabArticoli({
               const vatPercent = item.vatPercent ?? 0;
               const vatAmount = item.vatAmount ?? 0;
               const lineTotalWithVat = item.lineTotalWithVat ?? lineAmount;
+              const articleMismatches = verificationMismatches.filter(
+                (m) => m.syncedArticleCode === item.articleCode || m.snapshotArticleCode === item.articleCode
+              );
+              const hasMismatch = articleMismatches.length > 0;
 
               return (
-                <tr key={index} style={{ borderBottom: "1px solid #e0e0e0", backgroundColor: index % 2 === 0 ? "#fff" : "#f8f9fa" }}>
+                <tr key={index} style={{
+                  borderBottom: "1px solid #e0e0e0",
+                  backgroundColor: hasMismatch ? "#FEE2E2" : (index % 2 === 0 ? "#fff" : "#f8f9fa"),
+                  borderLeft: hasMismatch ? "3px solid #EF4444" : undefined,
+                }}>
                   <td style={tableCellStyle}>
                     <div style={{ fontWeight: 600 }}>
                       <HighlightText
@@ -2050,6 +2071,16 @@ function TabArticoli({
                         />
                       </div>
                     )}
+                    {articleMismatches.map((m, mi) => (
+                      <div key={mi} style={{ fontSize: "0.8rem", color: "#B91C1C", marginTop: "4px" }}>
+                        {m.type === "missing" && "Articolo mancante nell'ordine Archibald"}
+                        {m.type === "extra" && "Articolo extra non previsto nell'ordine"}
+                        {m.type === "quantity_diff" && `Quantita' diversa: atteso ${m.expected}, trovato ${m.found}`}
+                        {m.type === "price_diff" && `Prezzo diverso: atteso ${m.expected?.toFixed(2)} €, trovato ${m.found?.toFixed(2)} €`}
+                        {m.type === "discount_diff" && `Sconto diverso: atteso ${m.expected}%, trovato ${m.found}%`}
+                        {m.type === "amount_diff" && `Importo diverso: atteso ${m.expected?.toFixed(2)} €, trovato ${m.found?.toFixed(2)} €`}
+                      </div>
+                    ))}
                   </td>
                   <td style={tableCellStyle}>
                     <HighlightText text={description} query={searchQuery} />
@@ -2068,6 +2099,21 @@ function TabArticoli({
                 </tr>
               );
             })}
+            {verificationMismatches
+              .filter((m) => m.type === "missing" && !articles.some((a) => a.articleCode === m.snapshotArticleCode))
+              .map((m, i) => (
+                <tr key={`missing-${i}`} style={{
+                  borderBottom: "1px solid #e0e0e0",
+                  backgroundColor: "#FEE2E2",
+                  borderLeft: "3px solid #EF4444",
+                }}>
+                  <td style={tableCellStyle} colSpan={9}>
+                    <span style={{ fontSize: "0.8rem", color: "#B91C1C", fontWeight: 600 }}>
+                      Articolo mancante: {m.snapshotArticleCode}
+                    </span>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
@@ -3759,6 +3805,22 @@ export function OrderCardNew({
                 >
                   {orderStatusStyle.label}
                 </span>
+                {(order.verificationStatus === "correction_failed" || order.verificationStatus === "mismatch_detected") && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 10px",
+                      borderRadius: "12px",
+                      backgroundColor: "#EF4444",
+                      color: "#fff",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Verifica fallita
+                  </span>
+                )}
                 {expanded && (onHide || onUnhide) && (
                   <button
                     onClick={(e) => {
