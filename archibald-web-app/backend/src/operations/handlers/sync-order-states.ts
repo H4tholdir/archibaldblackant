@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { Order } from '../../db/repositories/orders';
 import { getOrdersByUser, updateOrderState } from '../../db/repositories/orders';
+import { clearVerificationFlag } from '../../db/repositories/order-verification';
 import type { OperationHandler } from '../operation-processor';
 
 type OrderState =
@@ -34,6 +35,11 @@ type StateSyncResult = {
 };
 
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
+
+const VERIFICATION_RESOLVING_STATES: ReadonlySet<OrderState> = new Set([
+  'inviato_milano', 'trasferito', 'ordine_aperto', 'spedito',
+  'consegnato', 'fatturato', 'pagamento_scaduto', 'pagato',
+]);
 
 function parseAmount(value: string): number {
   return parseFloat(value.replace(/\./g, '').replace(',', '.'));
@@ -199,6 +205,9 @@ function createSyncOrderStatesHandler(pool: DbPool): OperationHandler {
             detection.confidence,
             detection.source,
           );
+          if (detection.state !== order.state && VERIFICATION_RESOLVING_STATES.has(detection.state)) {
+            await clearVerificationFlag(pool, order.id, userId);
+          }
           updated++;
           updatedOrderIds.push(order.id);
         } else {

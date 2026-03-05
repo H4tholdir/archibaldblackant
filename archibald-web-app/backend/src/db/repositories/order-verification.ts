@@ -197,10 +197,23 @@ async function updateVerificationStatus(
   return (rowCount ?? 0) > 0;
 }
 
+async function clearVerificationFlag(pool: DbPool, orderId: string, userId: string): Promise<void> {
+  await pool.query(
+    `UPDATE agents.order_verification_snapshots
+     SET verification_status = 'resolved',
+         verification_notes = NULL,
+         verified_at = NOW()
+     WHERE order_id = $1 AND user_id = $2
+       AND verification_status IN ('correction_failed', 'mismatch_detected')`,
+    [orderId, userId],
+  );
+}
+
 export {
   saveOrderVerificationSnapshot,
   getOrderVerificationSnapshot,
   updateVerificationStatus,
+  clearVerificationFlag,
   type SnapshotData,
   type SnapshotItem,
   type OrderVerificationSnapshot,
