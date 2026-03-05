@@ -11,6 +11,7 @@ import type { PendingOrder } from "../types/pending-order";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
+import { VerificationAlert } from "../components/VerificationAlert";
 import { isFresis } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders } from "../utils/order-merge";
 import { shareService } from "../services/share.service";
@@ -1095,6 +1096,10 @@ export function PendingOrdersPage() {
                     </button>
                   )}
                 </div>
+              )}
+
+              {order.verificationNotification && (
+                <VerificationAlert notification={order.verificationNotification} />
               )}
 
               {/* DETAILED ORDER ITEMS - PREVENTIVO STYLE */}
