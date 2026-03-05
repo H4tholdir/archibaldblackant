@@ -387,8 +387,7 @@ export function PendingOrdersPage() {
     try {
       // Mark warehouse items as sold on confirmation
       try {
-        const warehouseOrderId = `warehouse-${order.id}`;
-        await batchMarkSold(`pending-${order.id}`, warehouseOrderId, {
+        await batchMarkSold(`pending-${order.id}`, {
           customerName: order.customerName,
           subClientName: order.subClientName,
           orderDate: order.createdAt,

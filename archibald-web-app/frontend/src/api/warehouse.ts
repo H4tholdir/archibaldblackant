@@ -112,7 +112,6 @@ export async function batchRelease(
 
 export async function batchMarkSold(
   orderId: string,
-  jobId: string,
   tracking?: {
     customerName?: string;
     subClientName?: string;
@@ -125,7 +124,7 @@ export async function batchMarkSold(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, jobId, tracking }),
+      body: JSON.stringify({ orderId, tracking }),
     },
   );
 

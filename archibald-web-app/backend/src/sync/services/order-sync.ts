@@ -1,5 +1,5 @@
 import type { DbPool } from '../../db/pool';
-import { batchMarkSold } from '../../db/repositories/warehouse';
+import { batchMarkSold, batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
@@ -207,6 +207,24 @@ async function syncOrders(
       );
       if (stale.length > 0) {
         const staleIds = stale.map((r) => r.id);
+
+        for (const staleId of staleIds) {
+          try {
+            const released = await batchRelease(pool, userId, staleId);
+            const returned = await batchReturnSold(pool, userId, staleId);
+            if (released > 0 || returned > 0) {
+              logger.info('[OrderSync] Warehouse items released for stale order', {
+                orderId: staleId, released, returned,
+              });
+            }
+          } catch (warehouseError) {
+            logger.warn('[OrderSync] Failed to release warehouse items for stale order', {
+              orderId: staleId,
+              error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
+            });
+          }
+        }
+
         const sp = staleIds.map((_, i) => `$${i + 1}`).join(', ');
         await pool.query(`DELETE FROM agents.order_articles WHERE order_id IN (${sp})`, staleIds);
         await pool.query(`DELETE FROM agents.order_state_history WHERE order_id IN (${sp})`, staleIds);
