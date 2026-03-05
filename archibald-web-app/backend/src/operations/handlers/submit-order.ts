@@ -90,10 +90,16 @@ function emitVerificationNotification(
   status: VerificationStatus,
   mismatches: ArticleMismatch[],
 ): void {
-  if (!broadcastVerification) return;
+  if (!broadcastVerification) {
+    logger.warn('[SubmitOrder] broadcastVerification not available', { orderId });
+    return;
+  }
   try {
     const notification = formatVerificationNotification(status, mismatches);
     if (notification) {
+      logger.info('[SubmitOrder] Emitting VERIFICATION_RESULT', {
+        orderId, status, itemCount: notification.items.length,
+      });
       broadcastVerification(orderId, notification);
     }
   } catch (error) {
