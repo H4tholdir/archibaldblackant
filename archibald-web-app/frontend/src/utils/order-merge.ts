@@ -5,6 +5,24 @@ import {
 } from "./fresis-constants";
 import { getDeviceId } from "./device-id";
 
+export function applyFresisLineDiscounts(
+  items: PendingOrderItem[],
+  discountMap: Map<string, number>,
+): PendingOrderItem[] {
+  return items.map((item) => {
+    const lineDiscount =
+      discountMap.get(item.articleId ?? "") ??
+      discountMap.get(item.articleCode) ??
+      FRESIS_DEFAULT_DISCOUNT;
+
+    return {
+      ...item,
+      price: item.originalListPrice ?? item.price,
+      discount: lineDiscount,
+    };
+  });
+}
+
 export function mergeFresisPendingOrders(
   orders: PendingOrder[],
   discountMap: Map<string, number>,

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { mergeFresisPendingOrders } from "./order-merge";
+import { applyFresisLineDiscounts, mergeFresisPendingOrders } from "./order-merge";
 import type { PendingOrder, PendingOrderItem } from "../types/pending-order";
 import {
   FRESIS_CUSTOMER_PROFILE,
@@ -33,6 +33,86 @@ function makeOrder(overrides: Partial<PendingOrder> = {}): PendingOrder {
 }
 
 const emptyMap = new Map<string, number>();
+
+describe("applyFresisLineDiscounts", () => {
+  test("replaces price with originalListPrice when available", () => {
+    const items = [makeItem({ articleCode: "A1", price: 8, originalListPrice: 10 })];
+    const result = applyFresisLineDiscounts(items, emptyMap);
+    expect(result[0].price).toBe(10);
+  });
+
+  test("keeps price unchanged when originalListPrice is undefined", () => {
+    const items = [makeItem({ articleCode: "A1", price: 8 })];
+    const result = applyFresisLineDiscounts(items, emptyMap);
+    expect(result[0].price).toBe(8);
+  });
+
+  test("applies discount from discountMap by articleId", () => {
+    const discountMap = new Map([["V1", 45]]);
+    const items = [makeItem({ articleCode: "A1", articleId: "V1", discount: 10 })];
+    const result = applyFresisLineDiscounts(items, discountMap);
+    expect(result[0].discount).toBe(45);
+  });
+
+  test("applies discount from discountMap by articleCode when articleId not found", () => {
+    const discountMap = new Map([["A1", 50]]);
+    const items = [makeItem({ articleCode: "A1", discount: 10 })];
+    const result = applyFresisLineDiscounts(items, discountMap);
+    expect(result[0].discount).toBe(50);
+  });
+
+  test("prefers articleId over articleCode in discountMap", () => {
+    const discountMap = new Map([["V1", 45], ["A1", 50]]);
+    const items = [makeItem({ articleCode: "A1", articleId: "V1", discount: 10 })];
+    const result = applyFresisLineDiscounts(items, discountMap);
+    expect(result[0].discount).toBe(45);
+  });
+
+  test("falls back to FRESIS_DEFAULT_DISCOUNT when article not in map", () => {
+    const items = [makeItem({ articleCode: "UNKNOWN", discount: 10 })];
+    const result = applyFresisLineDiscounts(items, emptyMap);
+    expect(result[0].discount).toBe(FRESIS_DEFAULT_DISCOUNT);
+  });
+
+  test("preserves all other item fields", () => {
+    const items = [makeItem({
+      articleCode: "A1",
+      articleId: "V1",
+      productName: "Prodotto",
+      description: "Desc",
+      quantity: 5,
+      price: 8,
+      vat: 22,
+      originalListPrice: 10,
+      warehouseQuantity: 2,
+      warehouseSources: [{ warehouseItemId: 1, boxName: "BOX1", quantity: 2 }],
+    })];
+    const discountMap = new Map([["V1", 45]]);
+    const result = applyFresisLineDiscounts(items, discountMap);
+    expect(result[0]).toEqual({
+      articleCode: "A1",
+      articleId: "V1",
+      productName: "Prodotto",
+      description: "Desc",
+      quantity: 5,
+      price: 10,
+      vat: 22,
+      discount: 45,
+      originalListPrice: 10,
+      warehouseQuantity: 2,
+      warehouseSources: [{ warehouseItemId: 1, boxName: "BOX1", quantity: 2 }],
+    });
+  });
+
+  test("does not mutate original items", () => {
+    const items = [makeItem({ articleCode: "A1", price: 8, originalListPrice: 10, discount: 5 })];
+    const originalPrice = items[0].price;
+    const originalDiscount = items[0].discount;
+    applyFresisLineDiscounts(items, emptyMap);
+    expect(items[0].price).toBe(originalPrice);
+    expect(items[0].discount).toBe(originalDiscount);
+  });
+});
 
 describe("mergeFresisPendingOrders", () => {
   test("throws on empty array", () => {
