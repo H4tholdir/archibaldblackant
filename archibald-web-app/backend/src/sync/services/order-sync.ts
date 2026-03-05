@@ -80,7 +80,14 @@ async function syncOrders(
     const now = Math.floor(Date.now() / 1000);
 
     const computeHash = (o: ParsedOrder) =>
-      [o.id, o.orderNumber, o.status, o.documentState, o.transferStatus, o.total, o.isQuote, o.isGiftOrder].join('|');
+      [
+        o.id, o.orderNumber, o.customerProfileId, o.customerName,
+        o.date, o.deliveryDate, o.status, o.orderType, o.documentState,
+        o.salesOrigin, o.transferStatus, o.transferDate, o.completionDate,
+        o.isQuote, o.discountPercent, o.grossAmount, o.total,
+        o.isGiftOrder, o.deliveryName, o.deliveryAddress,
+        o.remainingSalesFinancial, o.customerReference, o.email,
+      ].join('|');
 
     for (const order of parsedOrders) {
       const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
