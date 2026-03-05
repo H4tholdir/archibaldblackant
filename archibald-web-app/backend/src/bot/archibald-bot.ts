@@ -4082,23 +4082,65 @@ export class ArchibaldBot {
                 // 5. Aspetta che DevExpress IncrementalFiltering apra il dropdown AUTOMATICAMENTE
                 // DevExpress rileva la digitazione e apre/filtra il dropdown DA SOLO
                 try {
-                  // Aspetta che appaiano righe del dropdown (senza visible:true perché popup può essere fuori viewport)
-                  await this.page!.waitForSelector('tr[id*="DXDataRow"]', {
-                    timeout: 5000,
-                  });
+                  // Wait for the SPECIFIC INVENTTABLE dropdown popup to appear.
+                  // The generic 'tr[id*="DXDataRow"]' selector matches rows from
+                  // OTHER grids on the page (e.g., Corsi grid), resolving immediately
+                  // before the actual article dropdown opens.
+                  await this.page!.waitForFunction(
+                    (baseId: string) => {
+                      // Check if the dropdown popup appeared with visible data rows
+                      for (const suffix of ["_DDD_L", "_DDD_PW", "_DDD"]) {
+                        const el = document.getElementById(baseId + suffix);
+                        if (el) {
+                          const rect = el.getBoundingClientRect();
+                          if (
+                            rect.width > 0 &&
+                            rect.height > 0 &&
+                            el.querySelector('tr[class*="dxgvDataRow"]')
+                          ) {
+                            return true;
+                          }
+                        }
+                      }
+                      // Fallback: check for DevExpress popup containers
+                      const popups = document.querySelectorAll(
+                        ".dxpcLite, .dxpc-content",
+                      );
+                      for (const popup of popups) {
+                        const el = popup as HTMLElement;
+                        if (
+                          el.getBoundingClientRect().width > 0 &&
+                          el.querySelector('tr[class*="dxgvDataRow"]')
+                        ) {
+                          return true;
+                        }
+                      }
+                      return false;
+                    },
+                    { timeout: 5000, polling: 100 },
+                    inventtableBaseId,
+                  );
 
-                  // Verifica manualmente la visibilità e conta risultati
-                  const rowCount = await this.page!.evaluate(() => {
-                    const rows = document.querySelectorAll(
-                      'tr[id*="DXDataRow"]',
-                    );
-                    // Filtra solo righe effettivamente visibili nel dropdown popup
-                    return Array.from(rows).filter((row) => {
-                      const rect = row.getBoundingClientRect();
-                      // Considera visibili anche righe fuori viewport (popup può essere scrollabile)
-                      return rect.width > 0 && rect.height > 0;
-                    }).length;
-                  });
+                  // Count visible rows in the dropdown
+                  const rowCount = await this.page!.evaluate(
+                    (baseId: string) => {
+                      // Find the dropdown container
+                      for (const suffix of ["_DDD_L", "_DDD_PW", "_DDD"]) {
+                        const el = document.getElementById(baseId + suffix);
+                        if (el && el.getBoundingClientRect().width > 0) {
+                          const rows = el.querySelectorAll(
+                            'tr[class*="dxgvDataRow"]',
+                          );
+                          if (rows.length > 0) return rows.length;
+                        }
+                      }
+                      // Fallback
+                      return document.querySelectorAll(
+                        'tr[class*="dxgvDataRow"]',
+                      ).length;
+                    },
+                    inventtableBaseId,
+                  );
 
                   logger.info(
                     `✅ Dropdown auto-opened by IncrementalFiltering with ${rowCount} result(s)`,
@@ -4379,6 +4421,68 @@ export class ArchibaldBot {
                       rowsCount: rows.length,
                     };
                   }, inventtableBaseId);
+
+                  // Diagnostic: dump DOM structure of the dropdown container
+                  const domDiag = await this.page!.evaluate(
+                    (baseId: string | undefined) => {
+                      const result: Record<string, unknown> = {};
+                      if (baseId) {
+                        for (const suffix of [
+                          "_DDD_L",
+                          "_DDD_PW",
+                          "_DDD_PW-1",
+                          "_DDD",
+                        ]) {
+                          const el = document.getElementById(baseId + suffix);
+                          if (el) {
+                            const rect = el.getBoundingClientRect();
+                            const tables = el.querySelectorAll("table[id]");
+                            const trs = el.querySelectorAll("tr");
+                            result[suffix] = {
+                              found: true,
+                              visible: rect.width > 0 && rect.height > 0,
+                              size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
+                              tableIds: Array.from(tables)
+                                .slice(0, 5)
+                                .map((t) => t.id),
+                              trCount: trs.length,
+                              firstTrTexts: Array.from(trs)
+                                .slice(0, 3)
+                                .map(
+                                  (tr) =>
+                                    (tr.textContent || "")
+                                      .trim()
+                                      .substring(0, 80),
+                                ),
+                            };
+                          } else {
+                            result[suffix] = { found: false };
+                          }
+                        }
+                      }
+                      // Also check for dxpcLite popups
+                      const popups = Array.from(
+                        document.querySelectorAll(".dxpcLite"),
+                      ).filter(
+                        (el) =>
+                          (el as HTMLElement).getBoundingClientRect().width > 0,
+                      );
+                      result["dxpcLite_popups"] = popups.map((p) => ({
+                        id: (p as HTMLElement).id || "(no id)",
+                        size: `${Math.round((p as HTMLElement).getBoundingClientRect().width)}x${Math.round((p as HTMLElement).getBoundingClientRect().height)}`,
+                        trCount: p.querySelectorAll("tr").length,
+                        firstTr: (
+                          p.querySelector("tr")?.textContent || ""
+                        )
+                          .trim()
+                          .substring(0, 80),
+                      }));
+                      return result;
+                    },
+                    inventtableBaseId,
+                  );
+
+                  logger.info("Dropdown DOM diagnostics", domDiag);
 
                   logger.info("Dropdown snapshot", {
                     containerId: snapshot.containerId,
