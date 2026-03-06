@@ -5831,7 +5831,17 @@ export class ArchibaldBot {
                   return true;
                 });
                 if (!dropdownBtnClicked) {
-                  logger.warn('LINEDISC dropdown button not found');
+                  logger.warn('LINEDISC dropdown button not found, falling back to typing N/A directly');
+                  const inputId = await this.page!.evaluate(() => {
+                    const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                    if (input) { input.focus(); input.select(); return input.id; }
+                    return null;
+                  });
+                  if (inputId) {
+                    await this.page!.keyboard.type('N/A', { delay: 0 });
+                    await this.page!.keyboard.press('Tab');
+                    await this.waitForDevExpressIdle({ timeout: 5000, label: 'na-typed-fallback' });
+                  }
                   return;
                 }
                 await this.wait(500);
