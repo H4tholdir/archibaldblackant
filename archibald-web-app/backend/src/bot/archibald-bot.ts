@@ -5780,6 +5780,20 @@ export class ArchibaldBot {
         "form.submit",
       );
 
+      // STEP 9.4: Fill order notes (no shipping + notes)
+      // Fill notes BEFORE the N/A workaround — after the workaround's double save,
+      // DevExpress regenerates the Panoramica tab DOM on click, destroying note fields.
+      // We're still on Panoramica after STEP 9, so the form is stable.
+      const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
+      if (notesText) {
+        await this.emitProgress('form.notes');
+        await this.fillOrderNotes(notesText);
+
+        // STEP 9.45: Save to persist notes before the N/A workaround's double save
+        await this.clickSaveOnly();
+        await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
+      }
+
       // STEP 9.5: N/A line discount workaround
       // Go to "Prezzi e sconti" tab, check LINEDISC value and article SCONTO %.
       // If "Discount to get street price" with 20% on articles → set N/A, save, re-set N/A, save.
@@ -5980,15 +5994,6 @@ export class ArchibaldBot {
           "form.discount",
         );
         await this.emitProgress("form.discount");
-      }
-
-      // STEP 9.8: Fill order notes (no shipping + notes)
-      // Click Panoramica/Overview tab first (we're on Prezzi e sconti after N/A workaround),
-      // then fill the 3 fields and save.
-      const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
-      if (notesText) {
-        await this.emitProgress('form.notes');
-        await this.fillOrderNotes(notesText);
       }
 
       // STEP 10: Save and close order
