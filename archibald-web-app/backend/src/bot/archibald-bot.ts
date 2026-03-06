@@ -5868,23 +5868,17 @@ export class ArchibaldBot {
                 await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
               };
 
-              // When LINEDISC shows N/A, DevExpress hides the Clear button.
-              // The first save forces Archibald to reload the real value
-              // ("Discount to get street price"), making the Clear button appear.
-              // Then 2 effective clear+save rounds are needed (one per article row).
-              for (let round = 1; round <= 3; round++) {
-                logger.debug(`LINEDISC workaround round ${round}/3...`);
+              // Clear + save twice without reopening the tab.
+              // Round 1: clear resets first row's discount, save persists.
+              // Round 2: clear resets remaining rows, save persists.
+              for (let round = 1; round <= 2; round++) {
+                logger.debug(`LINEDISC workaround round ${round}/2...`);
                 await clearLineDisc();
                 await this.clickSaveOnly();
                 await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
-
-                if (round < 3) {
-                  await openPrezziEScontiTab();
-                  await this.waitForDevExpressIdle({ timeout: 10000, label: `reopen-tab-${round}` });
-                }
               }
 
-              logger.info('✅ LINEDISC workaround applied (3 rounds: clear + save)');
+              logger.info('✅ LINEDISC workaround applied (2x clear + save)');
             },
             "form.discount",
           );
