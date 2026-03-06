@@ -2871,8 +2871,11 @@ export class ArchibaldBot {
     }
 
     // Use real Puppeteer events (not synthetic DOM events) for DevExpress compatibility
-    const selector = `#${CSS.escape(elementId)}`;
-    await this.page.click(selector);
+    // Click via page.evaluate since DevExpress IDs are too long/complex for CSS selectors
+    await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.click(); }
+    }, elementId);
     await this.wait(200);
 
     // Select all existing text and replace with new value
