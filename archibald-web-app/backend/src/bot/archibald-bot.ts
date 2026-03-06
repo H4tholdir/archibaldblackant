@@ -5857,8 +5857,6 @@ export class ArchibaldBot {
       if (notesText) {
         await this.emitProgress('form.notes');
         await this.fillOrderNotes(notesText);
-        await this.clickSaveOnly();
-        await this.waitForDevExpressIdle({ timeout: 10000, label: 'save-after-notes' });
       }
 
       // STEP 10: Save and close order
