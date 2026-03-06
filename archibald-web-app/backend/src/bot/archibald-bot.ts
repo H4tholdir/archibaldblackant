@@ -2904,12 +2904,12 @@ export class ArchibaldBot {
     logger.info('Filling order notes fields', { notesText });
 
     // Click "Panoramica" (IT) or "Overview" (EN) tab
-    // After N/A workaround save, the page reloads — wait for tab to appear first
+    // After N/A workaround save, the page may reload — wait for tab to appear first
     await this.runOp('order.notes.navigate', async () => {
-      // Wait for the Overview/Panoramica tab to be present in DOM (up to 15s)
+      // Wait for the Overview/Panoramica tab link to exist in DOM
       await this.page!.waitForFunction(
         () => {
-          const links = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+          const links = Array.from(document.querySelectorAll('a.dxtc-link'));
           return links.some(el => {
             const text = (el.textContent || '').trim();
             return text === 'Panoramica' || text === 'Overview';
@@ -2918,18 +2918,27 @@ export class ArchibaldBot {
         { timeout: 15000, polling: 500 },
       );
 
-      let clicked = await this.clickElementByText('Panoramica', {
-        exact: true,
-        selectors: ['a', 'span', 'div', 'li'],
+      // Click the tab via its dxtc-link anchor (same approach as openPrezziEScontiTab)
+      const tabClicked = await this.page!.evaluate(() => {
+        const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+        for (const el of allLinks) {
+          const text = (el.textContent || '').trim();
+          if (text === 'Panoramica' || text === 'Overview') {
+            const clickTarget = el.tagName === 'A' ? el : el.parentElement;
+            if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+              (clickTarget as HTMLElement).click();
+              return text;
+            }
+          }
+        }
+        return null;
       });
-      if (!clicked) {
-        clicked = await this.clickElementByText('Overview', {
-          exact: true,
-          selectors: ['a', 'span', 'div', 'li'],
-        });
-      }
-      if (clicked) {
-        await this.wait(this.getSlowdown('click_panoramica') || 1000);
+
+      if (tabClicked) {
+        logger.info(`Clicked "${tabClicked}" tab for order notes`);
+        await this.wait(this.getSlowdown('click_panoramica') || 1500);
+      } else {
+        throw new Error('Overview/Panoramica tab link not clickable');
       }
 
       // Wait for PURCHORDERFORMNUM field to be visible (tab content loaded)
