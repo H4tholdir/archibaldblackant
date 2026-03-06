@@ -2885,10 +2885,29 @@ export class ArchibaldBot {
 
     logger.info('Filling order notes fields', { notesText });
 
-    // The Panoramica/Overview tab is already active during order creation — all fields
-    // (including PURCHORDERFORMNUM, TEXTEXTERNAL, TEXTINTERNAL) are in the DOM.
-    // No tab switching needed. Just wait for DevExpress idle after the previous save.
-    await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-notes-fill' });
+    // After N/A workaround we're on "Prezzi e sconti" tab.
+    // Click Panoramica/Overview tab to access the note fields.
+    // The tab is the first tab (pg_T0) — click via dxtc-link.
+    await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-notes-tab' });
+
+    const tabClicked = await this.page!.evaluate(() => {
+      const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+      for (const el of allLinks) {
+        const text = (el.textContent || '').trim();
+        if (text === 'Panoramica' || text === 'Overview') {
+          const clickTarget = el.tagName === 'A' ? el : el.parentElement;
+          if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+            (clickTarget as HTMLElement).click();
+            return text;
+          }
+        }
+      }
+      return null;
+    });
+    if (tabClicked) {
+      logger.info(`Clicked "${tabClicked}" tab for order notes`);
+    }
+    await this.waitForDevExpressIdle({ timeout: 10000, label: 'notes-tab-switch' });
 
     // Fill the 3 target fields using their DevExpress data field IDs
     // Discovered via dump script: PURCHORDERFORMNUM = DESCRIZIONE, TEXTEXTERNAL, TEXTINTERNAL
@@ -3553,117 +3572,7 @@ export class ArchibaldBot {
         return true;
       };
 
-      let prezziTabOpened = false;
-
-      // STEP 3.5: Set line discount to N/A BEFORE entering articles
-      // This must happen before article entry so that the ERP respects
-      // manually entered per-line discounts during UpdateEdit callbacks.
-      const hasAnyLineDiscount = orderData.items.some(
-        (item) => item.discount !== undefined && item.discount > 0,
-      );
-      if (hasAnyLineDiscount) {
-        await this.runOp(
-          "order.apply_line_discount",
-          async () => {
-            const tabClicked = await openPrezziEScontiTab();
-            prezziTabOpened = prezziTabOpened || tabClicked;
-
-            logger.debug("Setting line discount to N/A...");
-
-            // Phase 1: Wait for LINEDISC field to appear
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const input = document.querySelector(
-                    'input[id*="LINEDISC"][id$="_I"]',
-                  ) as HTMLInputElement | null;
-                  return input && input.offsetParent !== null;
-                },
-                { timeout: 10000, polling: 200 },
-              );
-            } catch {
-              logger.warn(
-                "LINEDISC input not found after waiting, retrying tab click...",
-              );
-              await openPrezziEScontiTab();
-              await this.wait(1000);
-            }
-
-            const inputInfo = await this.page!.evaluate(() => {
-              const input = document.querySelector(
-                'input[id*="LINEDISC"][id$="_I"]',
-              ) as HTMLInputElement | null;
-              if (!input || input.offsetParent === null) return null;
-              input.scrollIntoView({ block: "center" });
-              input.focus();
-              input.click();
-              return { id: input.id, currentValue: input.value };
-            });
-
-            if (!inputInfo) {
-              throw new Error("LINEDISC input field not found");
-            }
-
-            logger.debug("LINEDISC input found", {
-              id: inputInfo.id,
-              currentValue: inputInfo.currentValue,
-            });
-
-            if (inputInfo.currentValue.trim().toUpperCase() === "N/A") {
-              logger.info("⚡ Line discount already N/A, skipping");
-            } else {
-              await this.page!.evaluate((inputId) => {
-                const input = document.getElementById(
-                  inputId,
-                ) as HTMLInputElement;
-                if (input) {
-                  input.value = "N/A";
-                  input.dispatchEvent(new Event("input", { bubbles: true }));
-                  input.dispatchEvent(new Event("change", { bubbles: true }));
-                }
-              }, inputInfo.id);
-
-              await this.page!.keyboard.press("Tab");
-
-              try {
-                await this.page!.waitForFunction(
-                  () => {
-                    const w = window as any;
-                    const col = w.ASPxClientControl?.GetControlCollection?.();
-                    if (!col || typeof col.ForEachControl !== "function")
-                      return true;
-                    let busy = false;
-                    col.ForEachControl((c: any) => {
-                      try {
-                        if (c.InCallback?.()) busy = true;
-                      } catch {}
-                    });
-                    return !busy;
-                  },
-                  { timeout: 5000, polling: 100 },
-                );
-              } catch {
-                // proceed
-              }
-
-              const verifyValue = await this.page!.evaluate((inputId) => {
-                const input = document.getElementById(
-                  inputId,
-                ) as HTMLInputElement;
-                return input?.value || "";
-              }, inputInfo.id);
-
-              logger.debug("LINEDISC verification", {
-                setValue: "N/A",
-                actualValue: verifyValue,
-              });
-            }
-
-            logger.info("✅ Line discount set to N/A");
-          },
-          "form.discount",
-        );
-      }
+      // prezziTabOpened removed — tab is opened explicitly when needed
 
       // STEP 4: Add first new row in Linee di vendita
       await this.runOp(
@@ -5785,347 +5694,169 @@ export class ArchibaldBot {
         "form.submit",
       );
 
-      // STEP 9.5: Apply global discount (if specified)
-      if (orderData.discountPercent && orderData.discountPercent > 0) {
-        await this.runOp(
-          "order.apply_global_discount",
-          async () => {
-            logger.debug(
-              `Applying global discount: ${orderData.discountPercent}%`,
-            );
+      // STEP 9.5: N/A line discount workaround
+      // Go to "Prezzi e sconti" tab, check LINEDISC value and article SCONTO %.
+      // If "Discount to get street price" with 20% on articles → set N/A, save, re-set N/A, save.
+      // If already N/A/null with 0% on articles → skip.
+      {
+        try {
+          await this.runOp(
+            "order.na_discount_workaround",
+            async () => {
+              await openPrezziEScontiTab();
+              await this.waitForDevExpressIdle({ timeout: 10000, label: "na-open-tab" });
 
-            // Apri tab Prezzi e Sconti se non già aperto
-            if (!prezziTabOpened) {
-              const tabClicked = await openPrezziEScontiTab();
-              prezziTabOpened = prezziTabOpened || tabClicked;
-            }
+              // Read LINEDISC value
+              const lineDiscValue = await this.page!.evaluate(() => {
+                const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                return input?.value?.trim() || '';
+              });
+              logger.info('LINEDISC current value', { lineDiscValue });
 
-            // Attendi callback post-selezione linedisc
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const w = window as any;
-                  const col = w.ASPxClientControl?.GetControlCollection?.();
-                  if (!col || typeof col.ForEachControl !== "function")
-                    return true;
-                  let busy = false;
-                  col.ForEachControl((c: any) => {
-                    try {
-                      if (c.InCallback?.()) busy = true;
-                    } catch {}
-                  });
-                  return !busy;
-                },
-                { timeout: 5000, polling: 100 },
-              );
-            } catch {
-              // proceed
-            }
+              const isAlreadyNA = lineDiscValue.toUpperCase() === 'N/A' || lineDiscValue === '';
 
-            // Trova il campo "APPLICA SCONTO %" nel tab Prezzi e sconti
-            // Pattern noti: ENDDISCPERCENT, ENDDISCP, DISCPERC, APPLYSCONTO
-            const discountInputInfo = await this.page!.evaluate(() => {
-              // Cerca tutti gli input nel tab Prezzi e sconti
-              const candidates = Array.from(
-                document.querySelectorAll('input[type="text"][id*="_Edit_I"]'),
-              ) as HTMLInputElement[];
-
-              // Filtra solo quelli visibili nel tab Prezzi e sconti
-              const visible = candidates.filter(
-                (inp) =>
-                  inp.offsetParent !== null &&
-                  inp.getBoundingClientRect().width > 0,
-              );
-
-              // Cerca per pattern ID noti (sconto/discount)
-              const patterns = [
-                "ENDDISCPERCENT",
-                "ENDDISCP",
-                "DISCPERC",
-                "DISCOUNT",
-                "SCONTO",
-              ];
-              for (const pattern of patterns) {
-                const match = visible.find((inp) =>
-                  inp.id.toUpperCase().includes(pattern),
-                );
-                if (match) {
-                  match.scrollIntoView({ block: "center" });
-                  match.focus();
-                  match.click();
-                  return {
-                    id: match.id,
-                    value: match.value,
-                    method: "pattern",
-                    pattern,
-                  };
-                }
-              }
-
-              // Fallback: cerca label "Applica sconto" e prendi l'input associato
-              const labels = Array.from(
-                document.querySelectorAll("td, span, label, div"),
-              );
-              for (const label of labels) {
-                const text = label.textContent?.trim() || "";
-                if (
-                  text.includes("Applica sconto") ||
-                  text.includes("APPLICA SCONTO")
-                ) {
-                  // Cerca input vicino (sibling, parent, next element)
-                  const container = label.closest("tr") || label.parentElement;
-                  if (container) {
-                    const nearInput = container.querySelector(
-                      'input[type="text"]',
-                    ) as HTMLInputElement | null;
-                    if (nearInput && nearInput.offsetParent !== null) {
-                      nearInput.scrollIntoView({ block: "center" });
-                      nearInput.focus();
-                      nearInput.click();
-                      return {
-                        id: nearInput.id,
-                        value: nearInput.value,
-                        method: "label-proximity",
-                        pattern: text.substring(0, 30),
-                      };
+              if (isAlreadyNA) {
+                // Check if articles have 0% discount — if so, skip
+                const hasNonZeroDiscount = await this.page!.evaluate(() => {
+                  const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                  for (const row of rows) {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    for (const cell of cells) {
+                      const text = (cell.textContent || '').trim();
+                      if (text.match(/^20[.,]00\s*%$/)) return true;
                     }
                   }
+                  return false;
+                });
+
+                if (!hasNonZeroDiscount) {
+                  logger.info('LINEDISC already N/A and articles have 0% discount — skipping workaround');
+                  return;
                 }
+                logger.warn('LINEDISC is N/A but articles still have 20% — proceeding with workaround');
               }
 
-              // Debug: dump visible fields in Prezzi e sconti
-              const debugFields = visible.map((inp) => ({
-                id: inp.id.substring(
-                  inp.id.lastIndexOf("_dvi") >= 0
-                    ? inp.id.lastIndexOf("_dvi")
-                    : Math.max(0, inp.id.length - 50),
-                ),
-                value: inp.value,
-              }));
-
-              return {
-                id: "",
-                value: "",
-                method: "not-found",
-                pattern: "",
-                debugFields,
-              };
-            });
-
-            if (!discountInputInfo.id) {
-              logger.warn("Global discount field not found", {
-                method: discountInputInfo.method,
-                debugFields: (discountInputInfo as any).debugFields,
-              });
-              return;
-            }
-
-            logger.debug("Global discount field found", {
-              id: discountInputInfo.id,
-              currentValue: discountInputInfo.value,
-              method: discountInputInfo.method,
-            });
-
-            // Scrivi il valore dello sconto
-            const discountFormatted = orderData
-              .discountPercent!.toString()
-              .replace(".", ",");
-
-            await this.page!.evaluate(
-              (inputId, val) => {
-                const input = document.getElementById(
-                  inputId,
-                ) as HTMLInputElement;
-                if (input) {
-                  input.value = val;
-                  input.dispatchEvent(new Event("input", { bubbles: true }));
-                  input.dispatchEvent(new Event("change", { bubbles: true }));
+              // Set LINEDISC dropdown to N/A
+              const setLineDiscNA = async () => {
+                const inputInfo = await this.page!.evaluate(() => {
+                  const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                  if (!input || input.offsetParent === null) return null;
+                  input.scrollIntoView({ block: 'center' });
+                  input.focus();
+                  input.click();
+                  return { id: input.id };
+                });
+                if (!inputInfo) {
+                  logger.warn('LINEDISC input not found/visible');
+                  return;
                 }
-              },
-              discountInputInfo.id,
-              discountFormatted,
-            );
-
-            // Tab per confermare
-            await this.page!.keyboard.press("Tab");
-
-            // Attendi callback ricalcolo
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const w = window as any;
-                  const col = w.ASPxClientControl?.GetControlCollection?.();
-                  if (!col || typeof col.ForEachControl !== "function")
-                    return true;
-                  let busy = false;
-                  col.ForEachControl((c: any) => {
-                    try {
-                      if (c.InCallback?.()) busy = true;
-                    } catch {}
-                  });
-                  return !busy;
-                },
-                { timeout: 5000, polling: 100 },
-              );
-            } catch {
-              // proceed
-            }
-
-            // Verifica
-            const verifyValue = await this.page!.evaluate((inputId) => {
-              const input = document.getElementById(
-                inputId,
-              ) as HTMLInputElement;
-              return input?.value || "";
-            }, discountInputInfo.id);
-
-            logger.info(
-              `✅ Global discount applied: ${orderData.discountPercent}%`,
-              { setValue: discountFormatted, actualValue: verifyValue },
-            );
-          },
-          "form.discount",
-        );
-
-        await this.emitProgress("form.discount");
-      }
-
-      // STEP 9.7: Workaround for Archibald N/A line discount bug.
-      // When SCONTO LINEA is set to N/A, the ERP sometimes fails to clear
-      // the pre-set SCONTO % from all article rows (only the first row is
-      // cleared). The fix is: save → detect leftover discounts → re-set N/A → save.
-      if (hasAnyLineDiscount) {
-        try {
-        await this.runOp(
-          "order.na_discount_workaround",
-          async () => {
-            // Save order first (just "Salvare", not "Salva e chiudi")
-            logger.debug("Saving order before N/A discount verification...");
-            await this.clickSaveOnly();
-            await this.waitForDevExpressIdle({
-              timeout: 10000,
-              label: "save-before-na-check",
-            });
-
-            // Check if any article row still has a non-zero SCONTO %
-            const discountBugDetected = await this.page!.evaluate(() => {
-              const grid = document.querySelector(
-                'table[id*="GridView"], table[id*="gridView"]',
-              );
-              if (!grid) return false;
-
-              // Find the SCONTO % column index from headers
-              const headers = Array.from(
-                grid.querySelectorAll("th, td.dxgvHeader_Office2003Blue"),
-              );
-              let scontoColIndex = -1;
-              for (let i = 0; i < headers.length; i++) {
-                const text = headers[i].textContent?.trim() || "";
-                if (/^SCONTO\s*%/i.test(text)) {
-                  scontoColIndex = i;
-                  break;
-                }
-              }
-              if (scontoColIndex < 0) return false;
-
-              // Check data rows (skip header, skip edit rows)
-              const rows = Array.from(
-                grid.querySelectorAll(
-                  'tr.dxgvDataRow_Office2003Blue, tr[id*="DXDataRow"]',
-                ),
-              );
-              for (let r = 1; r < rows.length; r++) {
-                const cells = Array.from(rows[r].querySelectorAll("td"));
-                if (scontoColIndex < cells.length) {
-                  const cellText = cells[scontoColIndex].textContent?.trim() || "";
-                  const numericValue = parseFloat(
-                    cellText.replace("%", "").replace(",", ".").trim(),
-                  );
-                  if (!isNaN(numericValue) && numericValue > 0) {
-                    return true;
+                await this.page!.evaluate((id) => {
+                  const input = document.getElementById(id) as HTMLInputElement;
+                  if (input) {
+                    input.value = 'N/A';
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
                   }
-                }
-              }
-              return false;
-            });
+                }, inputInfo.id);
+                await this.page!.keyboard.press('Tab');
+                await this.waitForDevExpressIdle({ timeout: 10000, label: 'na-set' });
+              };
 
-            if (!discountBugDetected) {
-              logger.info(
-                "N/A discount applied correctly on all rows, no workaround needed",
-              );
-              return;
-            }
+              // First attempt: set N/A (Archibald will reset it back — this is the bug)
+              logger.debug('Setting LINEDISC to N/A (first attempt)...');
+              await setLineDiscNA();
 
-            logger.warn(
-              "N/A discount bug detected: rows still have non-zero SCONTO %. Applying workaround...",
-            );
+              // Save to trigger Archibald's recalculation
+              logger.debug('Saving after first N/A attempt...');
+              await this.clickSaveOnly();
+              await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-na-1' });
 
-            // Re-open Prezzi e sconti tab
-            await openPrezziEScontiTab();
-
-            // Re-set SCONTO LINEA to N/A
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const input = document.querySelector(
-                    'input[id*="LINEDISC"][id$="_I"]',
-                  ) as HTMLInputElement | null;
-                  return input && input.offsetParent !== null;
-                },
-                { timeout: 10000, polling: 200 },
-              );
-            } catch {
+              // Re-open tab (save may have reloaded)
               await openPrezziEScontiTab();
-              await this.wait(1000);
-            }
+              await this.waitForDevExpressIdle({ timeout: 10000, label: 'na-reopen-tab' });
 
-            await this.page!.evaluate(() => {
-              const input = document.querySelector(
-                'input[id*="LINEDISC"][id$="_I"]',
-              ) as HTMLInputElement | null;
-              if (input) {
-                input.scrollIntoView({ block: "center" });
-                input.focus();
-                input.click();
-                input.value = "N/A";
-                input.dispatchEvent(new Event("input", { bubbles: true }));
-                input.dispatchEvent(new Event("change", { bubbles: true }));
-              }
-            });
-            await this.page!.keyboard.press("Tab");
-            await this.waitForDevExpressIdle({
-              timeout: 5000,
-              label: "na-workaround-set",
-            });
+              // Second attempt: set N/A again (this time it sticks)
+              logger.debug('Setting LINEDISC to N/A (second attempt)...');
+              await setLineDiscNA();
 
-            // Save again
-            logger.debug("Saving order after N/A workaround re-apply...");
-            await this.clickSaveOnly();
-            await this.waitForDevExpressIdle({
-              timeout: 10000,
-              label: "save-after-na-workaround",
-            });
+              // Save again to persist
+              logger.debug('Saving after second N/A attempt...');
+              await this.clickSaveOnly();
+              await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-na-2' });
 
-            logger.info(
-              "N/A discount workaround applied successfully (double save)",
-            );
-          },
-          "form.discount",
-        );
+              logger.info('✅ N/A discount workaround applied (double N/A + double save)');
+            },
+            "form.discount",
+          );
         } catch (naError) {
-          logger.warn("N/A discount workaround failed (non-fatal, continuing with save)", {
+          logger.warn("N/A discount workaround failed (non-fatal, continuing)", {
             errorMessage: naError instanceof Error ? naError.message : String(naError),
           });
         }
       }
 
+      // STEP 9.6: Apply global discount (if specified)
+      // Must be AFTER N/A workaround to avoid being overwritten by the double-save.
+      if (orderData.discountPercent && orderData.discountPercent > 0) {
+        await this.runOp(
+          "order.apply_global_discount",
+          async () => {
+            logger.debug(`Applying global discount: ${orderData.discountPercent}%`);
+
+            // Ensure we're on Prezzi e sconti tab
+            await openPrezziEScontiTab();
+            await this.waitForDevExpressIdle({ timeout: 5000, label: "pre-global-discount" });
+
+            // Find MANUALDISCOUNT / ENDDISCPERCENT field
+            const discountField = await this.page!.evaluate(() => {
+              const patterns = ['MANUALDISCOUNT', 'ENDDISCPERCENT', 'ENDDISCP'];
+              const all = Array.from(document.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
+              for (const pattern of patterns) {
+                const match = all.find(inp =>
+                  inp.id.toUpperCase().includes(pattern) && inp.offsetParent !== null && inp.getBoundingClientRect().width > 0,
+                );
+                if (match) {
+                  match.scrollIntoView({ block: 'center' });
+                  match.focus();
+                  match.click();
+                  return { id: match.id, value: match.value };
+                }
+              }
+              return null;
+            });
+
+            if (!discountField) {
+              logger.warn('Global discount field not found');
+              return;
+            }
+
+            const discountFormatted = orderData.discountPercent!.toString().replace('.', ',');
+            await this.page!.evaluate((inputId, val) => {
+              const input = document.getElementById(inputId) as HTMLInputElement;
+              if (input) {
+                input.value = val;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }, discountField.id, discountFormatted);
+
+            await this.page!.keyboard.press('Tab');
+            await this.waitForDevExpressIdle({ timeout: 5000, label: 'global-discount-set' });
+
+            logger.info(`✅ Global discount applied: ${orderData.discountPercent}%`);
+          },
+          "form.discount",
+        );
+        await this.emitProgress("form.discount");
+      }
+
       // STEP 9.8: Fill order notes (no shipping + notes)
+      // Click Panoramica/Overview tab first (we're on Prezzi e sconti after N/A workaround),
+      // then fill the 3 fields and save.
       const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
       if (notesText) {
         await this.emitProgress('form.notes');
         await this.fillOrderNotes(notesText);
-        // Save to persist notes before closing (DevExpress may not include
-        // unsaved field changes in "Save and close")
         await this.clickSaveOnly();
         await this.waitForDevExpressIdle({ timeout: 10000, label: 'save-after-notes' });
       }
