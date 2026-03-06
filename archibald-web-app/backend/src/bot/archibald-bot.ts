@@ -5868,29 +5868,23 @@ export class ArchibaldBot {
                 await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
               };
 
-              // First attempt: clear LINEDISC (Archibald will reset it back — this is the bug)
-              logger.debug('Clearing LINEDISC (first attempt)...');
-              await clearLineDisc();
+              // When LINEDISC shows N/A, DevExpress hides the Clear button.
+              // The first save forces Archibald to reload the real value
+              // ("Discount to get street price"), making the Clear button appear.
+              // Then 2 effective clear+save rounds are needed (one per article row).
+              for (let round = 1; round <= 3; round++) {
+                logger.debug(`LINEDISC workaround round ${round}/3...`);
+                await clearLineDisc();
+                await this.clickSaveOnly();
+                await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
 
-              // Save to trigger Archibald's recalculation
-              logger.debug('Saving after first N/A attempt...');
-              await this.clickSaveOnly();
-              await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-na-1' });
+                if (round < 3) {
+                  await openPrezziEScontiTab();
+                  await this.waitForDevExpressIdle({ timeout: 10000, label: `reopen-tab-${round}` });
+                }
+              }
 
-              // Re-open tab (save may have reloaded)
-              await openPrezziEScontiTab();
-              await this.waitForDevExpressIdle({ timeout: 10000, label: 'na-reopen-tab' });
-
-              // Second attempt: clear again (this time it sticks)
-              logger.debug('Clearing LINEDISC (second attempt)...');
-              await clearLineDisc();
-
-              // Save again to persist
-              logger.debug('Saving after second N/A attempt...');
-              await this.clickSaveOnly();
-              await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-na-2' });
-
-              logger.info('✅ LINEDISC workaround applied (double clear + double save)');
+              logger.info('✅ LINEDISC workaround applied (3 rounds: clear + save)');
             },
             "form.discount",
           );
