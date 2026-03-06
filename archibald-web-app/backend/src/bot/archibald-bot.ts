@@ -2901,31 +2901,12 @@ export class ArchibaldBot {
     await this.page.keyboard.up('Control');
     await this.wait(50);
 
-    // Type value via CDP insertText (like clipboard paste)
+    // Type value via execCommand('insertText') — same as user Ctrl+V paste.
+    // Do NOT use DevExpress SetValue/SetText API — it triggers ImmediatePostData
+    // callbacks that regenerate the DOM, causing other note fields to disappear.
     await this.page.evaluate((val: string) => {
       document.execCommand('insertText', false, val);
     }, value);
-    await this.wait(200);
-
-    // Also set via DevExpress API so value survives server re-renders
-    await this.page.evaluate((id: string, val: string) => {
-      const w = window as any;
-      const collection = w.ASPxClientControl?.GetControlCollection?.();
-      if (collection) {
-        collection.ForEachControl((c: any) => {
-          try {
-            const inputEl = c.GetInputElement?.();
-            if (inputEl && inputEl.id === id) {
-              if (typeof c.SetValue === 'function') c.SetValue(val);
-              else if (typeof c.SetText === 'function') c.SetText(val);
-            }
-          } catch {}
-        });
-      }
-    }, fieldInfo.id, value);
-
-    // Do NOT press Tab here — it triggers DevExpress callbacks that regenerate the DOM
-    // and cause other note fields to disappear. Tab is pressed after ALL fields are filled.
 
     // Verify the value was actually set
     const verifiedValue = await this.page.evaluate((id: string) => {
