@@ -2870,8 +2870,9 @@ export class ArchibaldBot {
       return;
     }
 
-    // Use the same approach as setDevExpressField (used for customer creation):
-    // focus + click + setter + dispatchEvent + Tab + waitForDevExpressIdle
+    // Set value via setter + dispatchEvent, then explicitly call ASPx.EValueChanged
+    // (the handler wired to onchange on each DevExpress field).
+    // The setter alone works for textarea but not for input — ASPx.EValueChanged ensures both.
     await this.page.evaluate((id: string, val: string) => {
       const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
       if (!el) return;
@@ -2884,6 +2885,9 @@ export class ArchibaldBot {
       else el.value = val;
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
+      // Explicitly notify DevExpress — baseId is the control ID without '_I' suffix
+      const baseId = id.replace(/_I$/, '');
+      try { (window as any).ASPx.EValueChanged(baseId); } catch {}
     }, elementId, value);
     await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
