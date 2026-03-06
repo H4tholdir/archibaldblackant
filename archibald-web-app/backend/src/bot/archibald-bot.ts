@@ -2892,8 +2892,7 @@ export class ArchibaldBot {
     await this.page.keyboard.up('Control');
     await this.page.keyboard.type(value);
     await this.page.keyboard.press('Tab');
-    await this.page.keyboard.press('Tab');
-    await this.wait(500);
+    await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
     logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${elementId})`);
   }
@@ -6187,6 +6186,10 @@ export class ArchibaldBot {
       if (notesText) {
         await this.emitProgress('form.notes');
         await this.fillOrderNotes(notesText);
+        // Save to persist notes before closing (DevExpress may not include
+        // unsaved field changes in "Save and close")
+        await this.clickSaveOnly();
+        await this.waitForDevExpressIdle({ timeout: 10000, label: 'save-after-notes' });
       }
 
       // STEP 10: Save and close order
