@@ -2854,69 +2854,30 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Find the element matching the pattern, scrollIntoView to make it visible
-    // (fields at x>960 like TEXTEXTERNAL/TEXTINTERNAL may be outside viewport).
-    // Skip hidden duplicates (EditorClientInfo) by checking tagName !== hidden.
-    // Retry up to 5s if not found yet (tab content may still be loading).
-    let fieldInfo: { id: string; x: number; y: number } | null = null;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      fieldInfo = await this.page.evaluate((pattern: string) => {
-        const all = Array.from(document.querySelectorAll('input, textarea'));
-        // Find the non-hidden element with matching ID pattern
-        const el = all.find(e =>
-          e.id.toUpperCase().includes(pattern.toUpperCase()) &&
-          (e as HTMLInputElement).type !== 'hidden',
-        );
-        if (!el) return null;
-        el.scrollIntoView({ block: 'center', inline: 'center' });
-        // Re-read rect after scroll
-        const rect = el.getBoundingClientRect();
-        if (rect.width === 0) return null;
-        return { id: el.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-      }, fieldIdPattern);
-      if (fieldInfo) break;
-      await this.wait(500);
-    }
-
-    if (fieldInfo) {
-      // Primary: click at real coordinates + CDP insertText (most reliable)
-      await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
-      await this.wait(300);
-      await this.page.keyboard.down('Control');
-      await this.page.keyboard.press('a');
-      await this.page.keyboard.up('Control');
-      const client = await this.page.target().createCDPSession();
-      await client.send('Input.insertText', { text: value });
-      await client.detach();
-      await this.wait(300);
-      await this.page.keyboard.press('Tab');
-    } else {
-      // Fallback: field exists in DOM but not visible (e.g. outside viewport on narrow screen).
-      // Set value directly + trigger ASPx.EValueChanged via DevExpress API.
-      const found = await this.page.evaluate((pattern: string, val: string) => {
-        const all = Array.from(document.querySelectorAll('input, textarea'));
-        const el = all.find(e =>
-          e.id.toUpperCase().includes(pattern.toUpperCase()) &&
-          (e as HTMLInputElement).type !== 'hidden',
-        ) as HTMLInputElement | HTMLTextAreaElement | null;
-        if (!el) return false;
-        el.focus();
-        el.value = val;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        const baseId = el.id.replace(/_I$/, '');
-        try { (window as any).ASPx.EValueChanged(baseId); } catch {}
-        return true;
-      }, fieldIdPattern, value);
-      if (!found) {
-        logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
-        return;
-      }
-      logger.info(`Filled "${fieldIdPattern}" via fallback (ASPx.EValueChanged)`);
+    // Set value + trigger ASPx.EValueChanged — works regardless of field visibility.
+    // This is the DevExpress onchange handler that reliably persists field changes.
+    const found = await this.page.evaluate((pattern: string, val: string) => {
+      const all = Array.from(document.querySelectorAll('input, textarea'));
+      const el = all.find(e =>
+        e.id.toUpperCase().includes(pattern.toUpperCase()) &&
+        (e as HTMLInputElement).type !== 'hidden',
+      ) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!el) return false;
+      el.focus();
+      el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      const baseId = el.id.replace(/_I$/, '');
+      try { (window as any).ASPx.EValueChanged(baseId); } catch {}
+      return true;
+    }, fieldIdPattern, value);
+    if (!found) {
+      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
+      return;
     }
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
-    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${fieldInfo?.id ?? 'fallback'})`);
+    logger.debug(`Filled DevExpress field "${fieldIdPattern}"`);
   }
 
   private async fillOrderNotes(notesText: string): Promise<void> {
