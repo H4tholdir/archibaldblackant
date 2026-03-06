@@ -2870,15 +2870,22 @@ export class ArchibaldBot {
       return;
     }
 
-    // Set value and call ASPx.EValueChanged() — DevExpress's own change handler.
-    // Each field has onchange="ASPx.EValueChanged('baseId')" where baseId = id without '_I'.
+    // Use the same approach as setDevExpressField (used for customer creation):
+    // focus + click + setter + dispatchEvent + Tab + waitForDevExpressIdle
     await this.page.evaluate((id: string, val: string) => {
       const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
       if (!el) return;
-      el.value = val;
-      const baseId = id.replace(/_I$/, '');
-      (window as any).ASPx.EValueChanged(baseId);
+      el.scrollIntoView({ block: 'center' });
+      el.focus();
+      el.click();
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(el, val);
+      else el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     }, elementId, value);
+    await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
     logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${elementId})`);
