@@ -2878,25 +2878,45 @@ export class ArchibaldBot {
       await this.wait(500);
     }
 
-    if (!fieldInfo) {
-      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not visible after retries`);
-      return;
+    if (fieldInfo) {
+      // Primary: click at real coordinates + CDP insertText (most reliable)
+      await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
+      await this.wait(300);
+      await this.page.keyboard.down('Control');
+      await this.page.keyboard.press('a');
+      await this.page.keyboard.up('Control');
+      const client = await this.page.target().createCDPSession();
+      await client.send('Input.insertText', { text: value });
+      await client.detach();
+      await this.wait(300);
+      await this.page.keyboard.press('Tab');
+    } else {
+      // Fallback: field exists in DOM but not visible (e.g. outside viewport on narrow screen).
+      // Set value directly + trigger ASPx.EValueChanged via DevExpress API.
+      const found = await this.page.evaluate((pattern: string, val: string) => {
+        const all = Array.from(document.querySelectorAll('input, textarea'));
+        const el = all.find(e =>
+          e.id.toUpperCase().includes(pattern.toUpperCase()) &&
+          (e as HTMLInputElement).type !== 'hidden',
+        ) as HTMLInputElement | HTMLTextAreaElement | null;
+        if (!el) return false;
+        el.focus();
+        el.value = val;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        const baseId = el.id.replace(/_I$/, '');
+        try { (window as any).ASPx.EValueChanged(baseId); } catch {}
+        return true;
+      }, fieldIdPattern, value);
+      if (!found) {
+        logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
+        return;
+      }
+      logger.info(`Filled "${fieldIdPattern}" via fallback (ASPx.EValueChanged)`);
     }
-
-    // Click field at real coordinates, clear, then paste via CDP Input.insertText
-    await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
-    await this.wait(300);
-    await this.page.keyboard.down('Control');
-    await this.page.keyboard.press('a');
-    await this.page.keyboard.up('Control');
-    const client = await this.page.target().createCDPSession();
-    await client.send('Input.insertText', { text: value });
-    await client.detach();
-    await this.wait(300);
-    await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
-    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${fieldInfo.id})`);
+    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${fieldInfo?.id ?? 'fallback'})`);
   }
 
   private async fillOrderNotes(notesText: string): Promise<void> {
