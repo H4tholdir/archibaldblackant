@@ -5750,9 +5750,9 @@ export class ArchibaldBot {
                   logger.warn('LINEDISC dropdown button not found');
                   return;
                 }
-                await this.wait(2000);
+                await this.wait(500);
 
-                // Wait for dropdown popup to appear and select "N/A"
+                // Select "N/A" from dropdown popup
                 const naSelected = await this.page!.evaluate(() => {
                   // Find the listbox items in the dropdown popup
                   const items = Array.from(document.querySelectorAll(
@@ -5795,7 +5795,7 @@ export class ArchibaldBot {
 
                 await this.page!.keyboard.press('Tab');
                 // Wait for the Loading... overlay to disappear
-                await this.waitForDevExpressIdle({ timeout: 15000, label: 'na-set' });
+                await this.waitForDevExpressIdle({ timeout: 5000, label: 'na-set' });
               };
 
               // First attempt: set N/A (Archibald will reset it back — this is the bug)
