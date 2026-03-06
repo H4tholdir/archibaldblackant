@@ -816,8 +816,8 @@ export class ArchibaldBot {
         document.querySelectorAll("span, button, a"),
       );
       const salvareBtn = allElements.find((el) => {
-        const text = el.textContent?.trim() || "";
-        return text.toLowerCase().includes("salvare");
+        const text = el.textContent?.trim().toLowerCase() || "";
+        return text.includes("salvare") || text === "save";
       });
 
       if (!salvareBtn) return false;
@@ -861,7 +861,7 @@ export class ArchibaldBot {
             if (el.offsetParent !== null && el.offsetHeight > 0) {
               const items = Array.from(popup.querySelectorAll("a, span"));
               for (const item of items) {
-                if (item.textContent?.trim() === "Salvare") return true;
+                const t = item.textContent?.trim(); if (t === "Salvare" || t === "Save") return true;
               }
             }
           }
@@ -886,7 +886,7 @@ export class ArchibaldBot {
         for (const item of items) {
           const text = item.textContent?.trim() || "";
           if (
-            text === "Salvare" &&
+            (text === "Salvare" || text === "Save") &&
             (item as HTMLElement).offsetParent !== null
           ) {
             (item as HTMLElement).click();
@@ -6171,32 +6171,35 @@ export class ArchibaldBot {
       await this.runOp(
         "order.save_and_close",
         async () => {
-          logger.debug('Attempting direct "Salva e chiudi"...');
+          logger.debug('Attempting direct "Salva e chiudi" / "Save and close"...');
 
-          const directSaveClicked = await this.clickElementByText(
+          let directSaveClicked = await this.clickElementByText(
             "Salva e chiudi",
-            {
-              exact: true,
-              selectors: ["a", "span", "div", "li"],
-            },
+            { exact: true, selectors: ["a", "span", "div", "li"] },
           );
+          if (!directSaveClicked) {
+            directSaveClicked = await this.clickElementByText(
+              "Save and close",
+              { exact: true, selectors: ["a", "span", "div", "li"] },
+            );
+          }
 
           if (directSaveClicked) {
-            logger.info('✅ Clicked "Salva e chiudi" directly');
+            logger.info('✅ Clicked "Salva e chiudi" / "Save and close" directly');
             await this.wait(this.getSlowdown("click_salva_chiudi"));
             return;
           }
 
           logger.debug('Opening "Salvare" dropdown...');
 
-          // Find "Salvare" button
+          // Find "Salvare" / "Save" button
           const dropdownOpened = await this.page!.evaluate(() => {
             const allElements = Array.from(
               document.querySelectorAll("span, button, a"),
             );
             const salvareBtn = allElements.find((el) => {
-              const text = el.textContent?.trim() || "";
-              return text.toLowerCase().includes("salvare");
+              const text = el.textContent?.trim().toLowerCase() || "";
+              return text.includes("salvare") || text === "save";
             });
 
             if (!salvareBtn) return false;
@@ -6228,23 +6231,29 @@ export class ArchibaldBot {
           });
 
           if (!dropdownOpened) {
-            throw new Error('Button "Salvare" not found');
+            throw new Error('Button "Salvare" / "Save" not found');
           }
 
           // Slowdown after salvare dropdown
           await this.wait(this.getSlowdown("click_salvare_dropdown"));
 
-          // Click "Salva e chiudi"
-          const saveClicked = await this.clickElementByText("Salva e chiudi", {
+          // Click "Salva e chiudi" / "Save and close"
+          let saveClicked = await this.clickElementByText("Salva e chiudi", {
             exact: true,
             selectors: ["a", "span", "div"],
           });
-
           if (!saveClicked) {
-            throw new Error('Option "Salva e chiudi" not found in dropdown');
+            saveClicked = await this.clickElementByText("Save and close", {
+              exact: true,
+              selectors: ["a", "span", "div"],
+            });
           }
 
-          logger.info('✅ Clicked "Salva e chiudi"');
+          if (!saveClicked) {
+            throw new Error('Option "Salva e chiudi" / "Save and close" not found in dropdown');
+          }
+
+          logger.info('✅ Clicked "Salva e chiudi" / "Save and close"');
 
           // Slowdown after salva e chiudi
           await this.wait(this.getSlowdown("click_salva_chiudi"));
