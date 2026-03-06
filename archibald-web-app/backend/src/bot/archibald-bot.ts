@@ -2854,45 +2854,36 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Find the input element by matching the DevExpress data field name in the ID
-    const elementId = await this.page.evaluate((pattern: string) => {
-      const allInputs = Array.from(document.querySelectorAll('input, textarea'));
-      for (const el of allInputs) {
-        if (el.id.toUpperCase().includes(pattern.toUpperCase())) {
-          return el.id;
-        }
-      }
-      return null;
+    // Find the VISIBLE element matching the pattern (skip hidden duplicates like EditorClientInfo)
+    const fieldInfo = await this.page.evaluate((pattern: string) => {
+      const all = Array.from(document.querySelectorAll('input, textarea'));
+      const visible = all.find(el =>
+        el.id.toUpperCase().includes(pattern.toUpperCase()) && el.getBoundingClientRect().width > 0,
+      );
+      if (!visible) return null;
+      const rect = visible.getBoundingClientRect();
+      return { id: visible.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     }, fieldIdPattern);
 
-    if (!elementId) {
-      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found`);
+    if (!fieldInfo) {
+      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not visible`);
       return;
     }
 
-    // Set value via setter + dispatchEvent, then explicitly call ASPx.EValueChanged
-    // (the handler wired to onchange on each DevExpress field).
-    // The setter alone works for textarea but not for input — ASPx.EValueChanged ensures both.
-    await this.page.evaluate((id: string, val: string) => {
-      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (!el) return;
-      el.scrollIntoView({ block: 'center' });
-      el.focus();
-      el.click();
-      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      if (setter) setter.call(el, val);
-      else el.value = val;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      // Explicitly notify DevExpress — baseId is the control ID without '_I' suffix
-      const baseId = id.replace(/_I$/, '');
-      try { (window as any).ASPx.EValueChanged(baseId); } catch {}
-    }, elementId, value);
+    // Click field at real coordinates, clear, then paste via CDP Input.insertText
+    await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
+    await this.wait(300);
+    await this.page.keyboard.down('Control');
+    await this.page.keyboard.press('a');
+    await this.page.keyboard.up('Control');
+    const client = await this.page.target().createCDPSession();
+    await client.send('Input.insertText', { text: value });
+    await client.detach();
+    await this.wait(300);
     await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
-    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${elementId})`);
+    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${fieldInfo.id})`);
   }
 
   private async fillOrderNotes(notesText: string): Promise<void> {
