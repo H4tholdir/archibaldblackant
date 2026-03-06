@@ -2854,48 +2854,63 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Use execCommand("insertText") + DevExpress SetValue API for robust change tracking.
-    // The simple el.value= approach doesn't survive after form saves (DevExpress regenerates state).
-    const found = await this.page.evaluate((pattern: string, val: string) => {
-      const w = window as any;
+    // After form saves, DevExpress needs real Puppeteer mouse events to activate fields.
+    // Synthetic DOM clicks (el.click()) don't trigger DevExpress's editor activation.
+    const fieldInfo = await this.page.evaluate((pattern: string) => {
       const all = Array.from(document.querySelectorAll('input, textarea'));
       const el = all.find(e =>
         e.id.toUpperCase().includes(pattern.toUpperCase()) &&
-        (e as HTMLInputElement).type !== 'hidden',
-      ) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (!el) return false;
-
+        (e as HTMLInputElement).type !== 'hidden' &&
+        (e as HTMLElement).getBoundingClientRect().width > 0,
+      ) as HTMLElement | null;
+      if (!el) return null;
       el.scrollIntoView({ block: 'center' });
-      el.focus();
-      el.click();
-      if (typeof el.select === 'function') el.select();
-      document.execCommand('delete');
-      document.execCommand('insertText', false, val);
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, id: el.id };
+    }, fieldIdPattern);
 
-      // Also set via DevExpress API so value survives server re-renders
+    if (!fieldInfo) {
+      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
+      return;
+    }
+
+    // Real Puppeteer mouse click (like a human clicking the field)
+    await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
+    await this.wait(200);
+
+    // Select all + paste value (mimics user Ctrl+A → Ctrl+V)
+    await this.page.keyboard.down('Control');
+    await this.page.keyboard.press('a');
+    await this.page.keyboard.up('Control');
+    await this.wait(50);
+
+    // Type value via CDP insertText (like clipboard paste)
+    await this.page.evaluate((val: string) => {
+      document.execCommand('insertText', false, val);
+    }, value);
+    await this.wait(200);
+
+    // Also set via DevExpress API so value survives server re-renders
+    await this.page.evaluate((id: string, val: string) => {
+      const w = window as any;
       const collection = w.ASPxClientControl?.GetControlCollection?.();
       if (collection) {
         collection.ForEachControl((c: any) => {
           try {
             const inputEl = c.GetInputElement?.();
-            if (inputEl === el || (inputEl && inputEl.id === el.id)) {
+            if (inputEl && inputEl.id === id) {
               if (typeof c.SetValue === 'function') c.SetValue(val);
               else if (typeof c.SetText === 'function') c.SetText(val);
             }
           } catch {}
         });
       }
+    }, fieldInfo.id, value);
 
-      return true;
-    }, fieldIdPattern, value);
-    if (!found) {
-      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
-      return;
-    }
     await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
-    logger.debug(`Filled DevExpress field "${fieldIdPattern}"`);
+    logger.debug(`Filled DevExpress field "${fieldIdPattern}" at (${fieldInfo.x}, ${fieldInfo.y})`);
   }
 
   private async fillOrderNotes(notesText: string): Promise<void> {
