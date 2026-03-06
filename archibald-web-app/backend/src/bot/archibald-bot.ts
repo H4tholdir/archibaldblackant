@@ -5736,30 +5736,66 @@ export class ArchibaldBot {
                 logger.warn('LINEDISC is N/A but articles still have 20% — proceeding with workaround');
               }
 
-              // Set LINEDISC dropdown to N/A
+              // Set LINEDISC dropdown to N/A using the real dropdown (click button → select item)
               const setLineDiscNA = async () => {
-                const inputInfo = await this.page!.evaluate(() => {
-                  const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
-                  if (!input || input.offsetParent === null) return null;
-                  input.scrollIntoView({ block: 'center' });
-                  input.focus();
-                  input.click();
-                  return { id: input.id };
+                // Find and click the dropdown button (IMG with _B-1Img in id)
+                const dropdownBtnClicked = await this.page!.evaluate(() => {
+                  const btn = document.querySelector('img[id*="LINEDISC"][id*="B-1"]') as HTMLElement | null;
+                  if (!btn) return false;
+                  btn.scrollIntoView({ block: 'center' });
+                  btn.click();
+                  return true;
                 });
-                if (!inputInfo) {
-                  logger.warn('LINEDISC input not found/visible');
+                if (!dropdownBtnClicked) {
+                  logger.warn('LINEDISC dropdown button not found');
                   return;
                 }
-                await this.page!.evaluate((id) => {
-                  const input = document.getElementById(id) as HTMLInputElement;
-                  if (input) {
-                    input.value = 'N/A';
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                await this.wait(2000);
+
+                // Wait for dropdown popup to appear and select "N/A"
+                const naSelected = await this.page!.evaluate(() => {
+                  // Find the listbox items in the dropdown popup
+                  const items = Array.from(document.querySelectorAll(
+                    '[id*="LINEDISC"][id*="DDD_L"] tr[class*="dxgvDataRow"], [id*="LINEDISC"][id*="DDD_L"] .dxlbd tr',
+                  ));
+                  for (const item of items) {
+                    const text = (item.textContent || '').trim();
+                    if (text === 'N/A' || text.toUpperCase() === 'N/A') {
+                      (item as HTMLElement).click();
+                      return true;
+                    }
                   }
-                }, inputInfo.id);
+                  // Fallback: look for any element with N/A text in popup
+                  const popups = Array.from(document.querySelectorAll('[id*="LINEDISC"][id*="DDD"] td, [id*="LINEDISC"][id*="DDD"] span'));
+                  for (const el of popups) {
+                    if ((el.textContent || '').trim() === 'N/A' && (el as HTMLElement).offsetParent !== null) {
+                      (el as HTMLElement).click();
+                      return true;
+                    }
+                  }
+                  return false;
+                });
+
+                if (!naSelected) {
+                  // Last resort: type N/A directly in the input and press Tab
+                  logger.warn('N/A not found in dropdown, typing directly');
+                  const inputId = await this.page!.evaluate(() => {
+                    const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                    if (input) { input.focus(); input.click(); return input.id; }
+                    return null;
+                  });
+                  if (inputId) {
+                    await this.page!.evaluate((id) => {
+                      const input = document.getElementById(id) as HTMLInputElement;
+                      if (input) { input.value = ''; }
+                    }, inputId);
+                    await this.page!.keyboard.type('N/A');
+                  }
+                }
+
                 await this.page!.keyboard.press('Tab');
-                await this.waitForDevExpressIdle({ timeout: 10000, label: 'na-set' });
+                // Wait for the Loading... overlay to disappear
+                await this.waitForDevExpressIdle({ timeout: 15000, label: 'na-set' });
               };
 
               // First attempt: set N/A (Archibald will reset it back — this is the bug)
