@@ -2904,7 +2904,20 @@ export class ArchibaldBot {
     logger.info('Filling order notes fields', { notesText });
 
     // Click "Panoramica" (IT) or "Overview" (EN) tab
+    // After N/A workaround save, the page reloads — wait for tab to appear first
     await this.runOp('order.notes.navigate', async () => {
+      // Wait for the Overview/Panoramica tab to be present in DOM (up to 15s)
+      await this.page!.waitForFunction(
+        () => {
+          const links = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+          return links.some(el => {
+            const text = (el.textContent || '').trim();
+            return text === 'Panoramica' || text === 'Overview';
+          });
+        },
+        { timeout: 15000, polling: 500 },
+      );
+
       let clicked = await this.clickElementByText('Panoramica', {
         exact: true,
         selectors: ['a', 'span', 'div', 'li'],
@@ -2919,14 +2932,16 @@ export class ArchibaldBot {
         await this.wait(this.getSlowdown('click_panoramica') || 1000);
       }
 
-      // Verify tab is active by checking for a known field
-      const hasOverviewFields = await this.page!.evaluate(() => {
-        const allInputs = Array.from(document.querySelectorAll('input, textarea'));
-        return allInputs.some(el => el.id.toUpperCase().includes('PURCHORDERFORMNUM'));
-      });
-      if (!hasOverviewFields) {
-        throw new Error('Overview/Panoramica tab not active — PURCHORDERFORMNUM field not found');
-      }
+      // Wait for PURCHORDERFORMNUM field to be visible (tab content loaded)
+      await this.page!.waitForFunction(
+        () => {
+          const allInputs = Array.from(document.querySelectorAll('input, textarea'));
+          return allInputs.some(el =>
+            el.id.toUpperCase().includes('PURCHORDERFORMNUM') && (el as HTMLElement).offsetParent !== null,
+          );
+        },
+        { timeout: 10000, polling: 500 },
+      );
     }, 'form.notes');
 
     // Fill the 3 target fields using their DevExpress data field IDs
