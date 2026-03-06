@@ -2878,11 +2878,20 @@ export class ArchibaldBot {
     }, elementId);
     await this.wait(200);
 
-    // Select all existing text and replace with new value
-    await this.page.keyboard.down('Control');
-    await this.page.keyboard.press('a');
-    await this.page.keyboard.up('Control');
-    await this.page.keyboard.type(value, { delay: 10 });
+    // Set value instantly via DevExpress setter trick (same as login flow), then Tab to commit
+    await this.page.evaluate((id: string, val: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!el) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      if (setter) setter.call(el, val);
+      else el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, elementId, value);
+    await this.page.keyboard.press('Tab');
     await this.page.keyboard.press('Tab');
     await this.wait(500);
 
