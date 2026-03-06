@@ -2854,19 +2854,25 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Find the VISIBLE element matching the pattern (skip hidden duplicates like EditorClientInfo)
-    const fieldInfo = await this.page.evaluate((pattern: string) => {
-      const all = Array.from(document.querySelectorAll('input, textarea'));
-      const visible = all.find(el =>
-        el.id.toUpperCase().includes(pattern.toUpperCase()) && el.getBoundingClientRect().width > 0,
-      );
-      if (!visible) return null;
-      const rect = visible.getBoundingClientRect();
-      return { id: visible.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-    }, fieldIdPattern);
+    // Find the VISIBLE element matching the pattern (skip hidden duplicates like EditorClientInfo).
+    // Retry up to 5s if the field is not visible yet (tab content may still be loading).
+    let fieldInfo: { id: string; x: number; y: number } | null = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      fieldInfo = await this.page.evaluate((pattern: string) => {
+        const all = Array.from(document.querySelectorAll('input, textarea'));
+        const visible = all.find(el =>
+          el.id.toUpperCase().includes(pattern.toUpperCase()) && el.getBoundingClientRect().width > 0,
+        );
+        if (!visible) return null;
+        const rect = visible.getBoundingClientRect();
+        return { id: visible.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }, fieldIdPattern);
+      if (fieldInfo) break;
+      await this.wait(500);
+    }
 
     if (!fieldInfo) {
-      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not visible`);
+      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not visible after retries`);
       return;
     }
 
