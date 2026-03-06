@@ -5871,10 +5871,26 @@ export class ArchibaldBot {
               // Clear + save twice without reopening the tab.
               // Round 1: clear resets first row's discount, save persists.
               // Round 2: clear resets remaining rows, save persists.
+              const saveWithRetry = async (label: string) => {
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  try {
+                    await this.clickSaveOnly();
+                    return;
+                  } catch (saveError) {
+                    logger.warn(`${label} save attempt ${attempt}/3 failed`, {
+                      error: saveError instanceof Error ? saveError.message : String(saveError),
+                    });
+                    if (attempt === 3) throw saveError;
+                    await this.wait(2000);
+                    await this.waitForDevExpressIdle({ timeout: 10000, label: `${label}-retry-idle-${attempt}` });
+                  }
+                }
+              };
+
               for (let round = 1; round <= 2; round++) {
                 logger.debug(`LINEDISC workaround round ${round}/2...`);
                 await clearLineDisc();
-                await this.clickSaveOnly();
+                await saveWithRetry(`linedisc-round-${round}`);
                 await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
               }
 
