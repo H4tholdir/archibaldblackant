@@ -55,7 +55,7 @@ const REQUEUE_DELAY_MS = 2000;
 const SUBMIT_ORDER_BASE_TIMEOUT_MS = 60_000;
 const SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS = 30_000;
 const DEFAULT_WRITE_TIMEOUT_MS = 180_000;
-const SYNC_TIMEOUT_MS = 300_000;
+const SYNC_TIMEOUT_MS = 600_000;
 const PDF_TIMEOUT_MS = 60_000;
 
 function calculateJobTimeout(type: OperationType, data: Record<string, unknown>): number {

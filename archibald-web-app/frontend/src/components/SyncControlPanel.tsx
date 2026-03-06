@@ -80,6 +80,7 @@ export default function SyncControlPanel() {
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastSyncTimes, setLastSyncTimes] = useState<Record<string, string | null>>({});
+  const [lastSyncHealth, setLastSyncHealth] = useState<Record<string, { lastSuccess: boolean | null; health: string }>>({});
   const [lastSyncTimesLoaded, setLastSyncTimesLoaded] = useState(false);
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
     customers: false, products: false, prices: false,
@@ -134,11 +135,15 @@ export default function SyncControlPanel() {
       const syncHistory = syncHistoryRes ? await syncHistoryRes.json().catch(() => null) : null;
       if (syncHistory?.success && syncHistory.types) {
         const newTimes: Record<string, string | null> = {};
+        const newHealth: Record<string, { lastSuccess: boolean | null; health: string }> = {};
         for (const [syncType, typeData] of Object.entries(syncHistory.types)) {
           const type = syncType.replace('sync-', '');
-          newTimes[type] = (typeData as { lastRunTime: string | null }).lastRunTime;
+          const td = typeData as { lastRunTime: string | null; lastSuccess: boolean | null; health: string };
+          newTimes[type] = td.lastRunTime;
+          newHealth[type] = { lastSuccess: td.lastSuccess, health: td.health };
         }
         setLastSyncTimes(newTimes);
+        setLastSyncHealth(newHealth);
         setLastSyncTimesLoaded(true);
       }
 
@@ -319,6 +324,11 @@ export default function SyncControlPanel() {
       return { bg: "#2196f3", color: "#fff", text: "In coda" };
     }
 
+    const health = lastSyncHealth[syncType];
+    if (health?.lastSuccess === false) {
+      return { bg: "#f44336", color: "#fff", text: "Errore" };
+    }
+
     return { bg: "#4caf50", color: "#fff", text: "Idle" };
   };
 
@@ -327,6 +337,14 @@ export default function SyncControlPanel() {
 
     if (isSyncActive(syncType)) {
       return { color: "#ff9800", label: "In esecuzione" };
+    }
+
+    const health = lastSyncHealth[syncType];
+    if (health?.health === 'degraded') {
+      return { color: "#f44336", label: "Degradato" };
+    }
+    if (health?.lastSuccess === false) {
+      return { color: "#f44336", label: "Ultimo sync fallito" };
     }
 
     const lastSync = lastSyncTimes[syncType] ?? null;
