@@ -2895,18 +2895,19 @@ export class ArchibaldBot {
     await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
     await this.wait(300);
 
-    // Select all + paste value (mimics user Ctrl+A → Ctrl+V)
+    // Select all existing text
     await this.page.keyboard.down('Control');
     await this.page.keyboard.press('a');
     await this.page.keyboard.up('Control');
     await this.wait(50);
 
-    // Type value via execCommand('insertText') — same as user Ctrl+V paste.
-    // Do NOT use DevExpress SetValue/SetText API — it triggers ImmediatePostData
-    // callbacks that regenerate the DOM, causing other note fields to disappear.
-    await this.page.evaluate((val: string) => {
-      document.execCommand('insertText', false, val);
-    }, value);
+    // Type value using real keyboard events (page.keyboard.type).
+    // execCommand('insertText') inside evaluate loses focus context.
+    // Do NOT use DevExpress SetValue — triggers ImmediatePostData callbacks.
+    await this.page.keyboard.type(value, { delay: 0 });
+
+    // Wait for any DevExpress callback triggered by editor activation/typing
+    await this.waitForDevExpressIdle({ timeout: 8000, label: `fill-${fieldIdPattern}` });
 
     // Verify the value was actually set
     const verifiedValue = await this.page.evaluate((id: string) => {
