@@ -2946,21 +2946,44 @@ export class ArchibaldBot {
       logger.info(`Clicked "${tabClicked}" tab for order notes`);
     }
     await this.waitForDevExpressIdle({ timeout: 10000, label: 'notes-tab-switch' });
-    await this.wait(500);
 
-    // Log all visible note-related fields for diagnostics
-    const noteFieldIds = await this.page!.evaluate(() => {
-      const all = Array.from(document.querySelectorAll('input, textarea'));
-      return all
-        .filter(e => {
-          const id = e.id.toUpperCase();
-          return (id.includes('PURCHORDERFORMNUM') || id.includes('TEXTEXTERNAL') || id.includes('TEXTINTERNAL'))
-            && (e as HTMLInputElement).type !== 'hidden'
-            && (e as HTMLElement).getBoundingClientRect().width > 0;
-        })
-        .map(e => ({ id: e.id, tag: e.tagName, w: Math.round((e as HTMLElement).getBoundingClientRect().width) }));
-    });
-    logger.info('Note fields found in DOM', { noteFieldIds });
+    // After the N/A workaround's double save, the Panoramica tab fields may take
+    // extra time to render. Poll until at least one note field appears in the DOM.
+    let noteFieldIds: { id: string; tag: string; w: number }[] = [];
+    for (let attempt = 0; attempt < 10; attempt++) {
+      noteFieldIds = await this.page!.evaluate(() => {
+        const all = Array.from(document.querySelectorAll('input, textarea'));
+        return all
+          .filter(e => {
+            const id = e.id.toUpperCase();
+            return (id.includes('PURCHORDERFORMNUM') || id.includes('TEXTEXTERNAL') || id.includes('TEXTINTERNAL'))
+              && (e as HTMLInputElement).type !== 'hidden'
+              && (e as HTMLElement).getBoundingClientRect().width > 0;
+          })
+          .map(e => ({ id: e.id, tag: e.tagName, w: Math.round((e as HTMLElement).getBoundingClientRect().width) }));
+      });
+      if (noteFieldIds.length > 0) break;
+      logger.info(`Note fields not yet in DOM, retrying (${attempt + 1}/10)...`);
+      await this.wait(1000);
+      // Re-click tab in case the first click didn't stick after form save
+      if (attempt === 2 || attempt === 5) {
+        await this.page!.evaluate(() => {
+          const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+          for (const el of allLinks) {
+            const text = (el.textContent || '').trim();
+            if (text === 'Panoramica' || text === 'Overview') {
+              const clickTarget = el.tagName === 'A' ? el : el.parentElement;
+              if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+                (clickTarget as HTMLElement).click();
+                return;
+              }
+            }
+          }
+        });
+        await this.waitForDevExpressIdle({ timeout: 5000, label: 'notes-tab-retry' });
+      }
+    }
+    logger.info('Note fields found in DOM', { noteFieldIds, count: noteFieldIds.length });
 
     // Use broad patterns: match any visible input/textarea containing the field name
     const targetFields = [
