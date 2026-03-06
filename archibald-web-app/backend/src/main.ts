@@ -475,12 +475,6 @@ async function bootstrap(): Promise<void> {
         return variants[0]?.vat ?? 0;
       },
       cleanupFile,
-    }, {
-      editOrderInArchibald: async (archibaldOrderId, modifications) => {
-        const correctionBot = createBotForUser('sync-orchestrator');
-        await correctionBot.initialize();
-        return correctionBot.editOrderInArchibald(archibaldOrderId, modifications);
-      },
     }, broadcastEvent),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {
       const bot = createBotForUser(userId);

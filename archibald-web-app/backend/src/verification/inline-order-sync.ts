@@ -128,6 +128,9 @@ async function performInlineOrderSync(
 
   onProgress(72, 'Sincronizzazione articoli...');
 
+  // Wait for Archibald to finalize price recalculations after save
+  await delay(2000);
+
   const pdfPath = await downloadWithRetry(downloadOrderArticlesPDF, orderId);
   if (!pdfPath) {
     return null;

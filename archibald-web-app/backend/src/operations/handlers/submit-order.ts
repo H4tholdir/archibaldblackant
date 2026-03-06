@@ -1,13 +1,11 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
-import type { AutoCorrectionDeps } from '../../verification/auto-correction';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
 import type { VerificationStatus } from '../../db/repositories/order-verification';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
 import { verifyOrderArticles } from '../../verification/verify-order-articles';
 import type { ArticleMismatch } from '../../verification/verify-order-articles';
-import { performAutoCorrection } from '../../verification/auto-correction';
 import { formatVerificationNotification } from '../../verification/format-notification';
 import type { VerificationNotification } from '../../verification/format-notification';
 import { batchTransfer } from '../../db/repositories/warehouse';
@@ -122,7 +120,6 @@ async function handleSubmitOrder(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   inlineSyncDeps?: InlineSyncDeps,
-  autoCorrectionDeps?: AutoCorrectionDeps,
   broadcastVerification?: BroadcastVerificationFn,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
   bot.setProgressCallback(async (category, metadata) => {
@@ -369,54 +366,15 @@ async function handleSubmitOrder(
 
           verificationStatus = result.status;
 
-          if (result.status === 'mismatch_detected' && autoCorrectionDeps) {
-            const correctionResult = await performAutoCorrection(
-              autoCorrectionDeps,
-              orderId, userId,
-              result.mismatches,
-              snapshot.items,
-              syncedArticles,
-              onProgress,
+          onProgress(95, result.status === 'verified'
+            ? 'Ordine verificato correttamente'
+            : 'Discrepanze rilevate nell\'ordine');
+          if (result.status === 'mismatch_detected') {
+            verificationPassed = false;
+            emitVerificationNotification(
+              broadcastVerification, orderId,
+              result.status, result.mismatches,
             );
-
-            verificationStatus = correctionResult.status;
-
-            if (correctionResult.status === 'auto_corrected') {
-              await updateVerificationStatus(
-                inlineSyncDeps.pool, orderId, userId,
-                correctionResult.status,
-                correctionResult.details,
-              );
-              onProgress(99, 'Ordine corretto e verificato');
-            } else {
-              const parsedDetails = correctionResult.details ? JSON.parse(correctionResult.details) : null;
-              const failedMismatches = Array.isArray(parsedDetails?.remainingMismatches)
-                ? parsedDetails.remainingMismatches
-                : result.mismatches;
-              await updateVerificationStatus(
-                inlineSyncDeps.pool, orderId, userId,
-                correctionResult.status,
-                JSON.stringify(failedMismatches),
-              );
-              verificationPassed = false;
-              onProgress(99, 'Correzione non riuscita - intervento necessario');
-              emitVerificationNotification(
-                broadcastVerification, orderId,
-                correctionResult.status as VerificationStatus,
-                failedMismatches,
-              );
-            }
-          } else {
-            onProgress(95, result.status === 'verified'
-              ? 'Ordine verificato correttamente'
-              : 'Discrepanze rilevate nell\'ordine');
-            if (result.status === 'mismatch_detected') {
-              verificationPassed = false;
-              emitVerificationNotification(
-                broadcastVerification, orderId,
-                result.status, result.mismatches,
-              );
-            }
           }
         }
       } else {
@@ -448,24 +406,18 @@ async function handleSubmitOrder(
   return { orderId, verificationStatus };
 }
 
-type AutoCorrectionDepsWithoutPool = Omit<AutoCorrectionDeps, 'pool' | 'inlineSyncDeps'>;
-
 type SubmitOrderBroadcast = (userId: string, event: Record<string, unknown>) => void;
 
 function createSubmitOrderHandler(
   pool: DbPool,
   createBot: (userId: string) => SubmitOrderBot,
   inlineSyncDeps?: Omit<InlineSyncDeps, 'pool'>,
-  autoCorrectionDepsPartial?: AutoCorrectionDepsWithoutPool,
   broadcast?: SubmitOrderBroadcast,
 ): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as SubmitOrderData;
     const deps = inlineSyncDeps ? { ...inlineSyncDeps, pool } : undefined;
-    const correctionDeps = deps && autoCorrectionDepsPartial
-      ? { ...autoCorrectionDepsPartial, pool, inlineSyncDeps: deps }
-      : undefined;
     const broadcastVerification: BroadcastVerificationFn | undefined = broadcast
       ? (orderId, notification) => broadcast(userId, {
           event: 'VERIFICATION_RESULT',
@@ -473,11 +425,10 @@ function createSubmitOrderHandler(
           notification,
         })
       : undefined;
-    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps, correctionDeps, broadcastVerification);
+    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, deps, broadcastVerification);
     return result as unknown as Record<string, unknown>;
   };
 }
 
 export { handleSubmitOrder, createSubmitOrderHandler, calculateAmounts, type SubmitOrderData, type SubmitOrderBot, type SubmitOrderItem };
 export type { InlineSyncDeps } from '../../verification/inline-order-sync';
-export type { AutoCorrectionDeps } from '../../verification/auto-correction';
