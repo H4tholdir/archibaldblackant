@@ -2891,19 +2891,23 @@ export class ArchibaldBot {
 
     logger.info(`Clicking note field "${fieldIdPattern}" (id=${fieldInfo.id}) at (${Math.round(fieldInfo.x)}, ${Math.round(fieldInfo.y)})`);
 
-    // Real Puppeteer mouse click (like a human clicking the field)
+    // Real Puppeteer mouse click to activate DevExpress editor
     await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
-    await this.wait(300);
+    await this.wait(500);
 
-    // Select all existing text
-    await this.page.keyboard.down('Control');
-    await this.page.keyboard.press('a');
-    await this.page.keyboard.up('Control');
-    await this.wait(50);
+    // Force focus + select on the actual input/textarea element.
+    // For small INPUT fields (63x14px), the mouse click may activate a DevExpress
+    // wrapper instead of the actual input, so keyboard.type would type into nothing.
+    await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }, fieldInfo.id);
+    await this.wait(100);
 
-    // Type value using real keyboard events (page.keyboard.type).
-    // execCommand('insertText') inside evaluate loses focus context.
-    // Do NOT use DevExpress SetValue — triggers ImmediatePostData callbacks.
+    // Type value using real keyboard events
     await this.page.keyboard.type(value, { delay: 0 });
 
     // Wait for any DevExpress callback triggered by editor activation/typing
