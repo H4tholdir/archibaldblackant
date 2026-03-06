@@ -342,6 +342,53 @@ describe('verifyOrderArticles', () => {
     });
   });
 
+  test('discount difference within tolerance (<=0.02) is verified', () => {
+    const snapshot = [makeSnapshotArticle({ lineDiscountPercent: 34.85, expectedLineAmount: 28.93 })];
+    const synced = [makeSyncedArticle({ discountPercent: 34.84, lineAmount: 28.93 })];
+
+    const result = verifyOrderArticles(snapshot, synced);
+
+    expect(result).toEqual({
+      status: 'verified',
+      mismatches: [],
+    });
+  });
+
+  test('discount difference exceeding tolerance (>0.02) is mismatch', () => {
+    const snapshot = [makeSnapshotArticle({ lineDiscountPercent: 34.85, expectedLineAmount: 28.93 })];
+    const synced = [makeSyncedArticle({ discountPercent: 34.82, lineAmount: 28.93 })];
+
+    const result = verifyOrderArticles(snapshot, synced);
+
+    expect(result).toEqual({
+      status: 'mismatch_detected',
+      mismatches: [
+        {
+          type: 'discount_diff',
+          snapshotArticleCode: 'ART-001',
+          syncedArticleCode: 'ART-001',
+          field: 'discountPercent',
+          expected: 34.85,
+          found: 34.82,
+        },
+      ],
+    });
+  });
+
+  test('custom discount tolerance overrides default', () => {
+    const snapshot = [makeSnapshotArticle({ lineDiscountPercent: 10, expectedLineAmount: 45.0 })];
+    const synced = [makeSyncedArticle({ discountPercent: 9.9, lineAmount: 45.0 })];
+
+    const resultDefault = verifyOrderArticles(snapshot, synced);
+    expect(resultDefault.status).toBe('mismatch_detected');
+
+    const resultCustom = verifyOrderArticles(snapshot, synced, { discountTolerance: 0.15 });
+    expect(resultCustom).toEqual({
+      status: 'verified',
+      mismatches: [],
+    });
+  });
+
   test('snapshot null discount treated as 0 for comparison', () => {
     const snapshot = [makeSnapshotArticle({ lineDiscountPercent: null })];
     const synced = [makeSyncedArticle({ discountPercent: 0 })];

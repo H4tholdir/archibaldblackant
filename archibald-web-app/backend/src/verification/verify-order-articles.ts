@@ -38,9 +38,11 @@ type VerificationResult = {
 
 type VerificationOptions = {
   amountTolerance?: number;
+  discountTolerance?: number;
 };
 
 const DEFAULT_AMOUNT_TOLERANCE = 0.02;
+const DEFAULT_DISCOUNT_TOLERANCE = 0.02;
 
 function groupByCode<T extends { articleCode: string }>(
   items: readonly T[],
@@ -62,6 +64,7 @@ function compareArticlePair(
   snap: SnapshotArticle,
   synced: SyncedArticle,
   tolerance: number,
+  discountTolerance: number,
 ): ArticleMismatch[] {
   const mismatches: ArticleMismatch[] = [];
 
@@ -88,7 +91,7 @@ function compareArticlePair(
   }
 
   const snapDiscount = snap.lineDiscountPercent ?? 0;
-  if (snapDiscount !== synced.discountPercent) {
+  if (Math.abs(snapDiscount - synced.discountPercent) > discountTolerance) {
     mismatches.push({
       type: 'discount_diff',
       snapshotArticleCode: snap.articleCode,
@@ -120,6 +123,7 @@ function verifyOrderArticles(
   options?: VerificationOptions,
 ): VerificationResult {
   const tolerance = options?.amountTolerance ?? DEFAULT_AMOUNT_TOLERANCE;
+  const discTolerance = options?.discountTolerance ?? DEFAULT_DISCOUNT_TOLERANCE;
   const mismatches: ArticleMismatch[] = [];
 
   const snapGroups = groupByCode(snapshotItems);
@@ -134,7 +138,7 @@ function verifyOrderArticles(
     const pairCount = Math.min(snaps.length, syncs.length);
 
     for (let i = 0; i < pairCount; i++) {
-      mismatches.push(...compareArticlePair(snaps[i], syncs[i], tolerance));
+      mismatches.push(...compareArticlePair(snaps[i], syncs[i], tolerance, discTolerance));
     }
 
     for (let i = pairCount; i < snaps.length; i++) {
