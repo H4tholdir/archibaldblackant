@@ -2854,27 +2854,45 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Set value + trigger ASPx.EValueChanged — works regardless of field visibility.
-    // This is the DevExpress onchange handler that reliably persists field changes.
+    // Use execCommand("insertText") + DevExpress SetValue API for robust change tracking.
+    // The simple el.value= approach doesn't survive after form saves (DevExpress regenerates state).
     const found = await this.page.evaluate((pattern: string, val: string) => {
+      const w = window as any;
       const all = Array.from(document.querySelectorAll('input, textarea'));
       const el = all.find(e =>
         e.id.toUpperCase().includes(pattern.toUpperCase()) &&
         (e as HTMLInputElement).type !== 'hidden',
       ) as HTMLInputElement | HTMLTextAreaElement | null;
       if (!el) return false;
+
+      el.scrollIntoView({ block: 'center' });
       el.focus();
-      el.value = val;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      const baseId = el.id.replace(/_I$/, '');
-      try { (window as any).ASPx.EValueChanged(baseId); } catch {}
+      el.click();
+      if (typeof el.select === 'function') el.select();
+      document.execCommand('delete');
+      document.execCommand('insertText', false, val);
+
+      // Also set via DevExpress API so value survives server re-renders
+      const collection = w.ASPxClientControl?.GetControlCollection?.();
+      if (collection) {
+        collection.ForEachControl((c: any) => {
+          try {
+            const inputEl = c.GetInputElement?.();
+            if (inputEl === el || (inputEl && inputEl.id === el.id)) {
+              if (typeof c.SetValue === 'function') c.SetValue(val);
+              else if (typeof c.SetText === 'function') c.SetText(val);
+            }
+          } catch {}
+        });
+      }
+
       return true;
     }, fieldIdPattern, value);
     if (!found) {
       logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
       return;
     }
+    await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
     logger.debug(`Filled DevExpress field "${fieldIdPattern}"`);
