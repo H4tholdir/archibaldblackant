@@ -2909,9 +2909,11 @@ export class ArchibaldBot {
 
     // Type value using real keyboard events
     await this.page.keyboard.type(value, { delay: 0 });
+    await this.wait(300);
 
-    // Wait for any DevExpress callback triggered by editor activation/typing
-    await this.waitForDevExpressIdle({ timeout: 8000, label: `fill-${fieldIdPattern}` });
+    // Do NOT call waitForDevExpressIdle here — it triggers/waits for callbacks
+    // that regenerate the DOM, destroying other note fields.
+    // Debug script confirmed: all 3 fields fill successfully WITHOUT idle waits.
 
     // Verify the value was actually set
     const verifiedValue = await this.page.evaluate((id: string) => {
