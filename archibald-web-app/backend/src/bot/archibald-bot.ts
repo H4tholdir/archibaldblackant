@@ -2856,7 +2856,8 @@ export class ArchibaldBot {
 
     // After form saves, DevExpress needs real Puppeteer mouse events to activate fields.
     // Synthetic DOM clicks (el.click()) don't trigger DevExpress's editor activation.
-    const fieldInfo = await this.page.evaluate((pattern: string) => {
+    // Step 1: scroll into view
+    const scrolled = await this.page.evaluate((pattern: string) => {
       const all = Array.from(document.querySelectorAll('input, textarea'));
       const el = all.find(e =>
         e.id.toUpperCase().includes(pattern.toUpperCase()) &&
@@ -2864,19 +2865,35 @@ export class ArchibaldBot {
         (e as HTMLElement).getBoundingClientRect().width > 0,
       ) as HTMLElement | null;
       if (!el) return null;
-      el.scrollIntoView({ block: 'center' });
-      const rect = el.getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, id: el.id };
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      return el.id;
     }, fieldIdPattern);
 
-    if (!fieldInfo) {
+    if (!scrolled) {
       logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found in DOM`);
       return;
     }
 
+    // Wait for scroll to settle, then get fresh coordinates
+    await this.wait(300);
+
+    const fieldInfo = await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, id };
+    }, scrolled);
+
+    if (!fieldInfo) {
+      logger.warn(`DevExpress field "${scrolled}" disappeared after scroll`);
+      return;
+    }
+
+    logger.info(`Clicking note field "${fieldIdPattern}" (id=${fieldInfo.id}) at (${Math.round(fieldInfo.x)}, ${Math.round(fieldInfo.y)})`);
+
     // Real Puppeteer mouse click (like a human clicking the field)
     await this.page.mouse.click(fieldInfo.x, fieldInfo.y);
-    await this.wait(200);
+    await this.wait(300);
 
     // Select all + paste value (mimics user Ctrl+A → Ctrl+V)
     await this.page.keyboard.down('Control');
@@ -2910,7 +2927,13 @@ export class ArchibaldBot {
     await this.page.keyboard.press('Tab');
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
-    logger.debug(`Filled DevExpress field "${fieldIdPattern}" at (${fieldInfo.x}, ${fieldInfo.y})`);
+    // Verify the value was actually set
+    const verifiedValue = await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      return el?.value ?? null;
+    }, fieldInfo.id);
+    logger.info(`Filled note field "${fieldIdPattern}" — verified value: "${verifiedValue?.substring(0, 50)}"`);
+
   }
 
   private async fillOrderNotes(notesText: string): Promise<void> {
@@ -2941,13 +2964,27 @@ export class ArchibaldBot {
       logger.info(`Clicked "${tabClicked}" tab for order notes`);
     }
     await this.waitForDevExpressIdle({ timeout: 10000, label: 'notes-tab-switch' });
+    await this.wait(500);
 
-    // Fill the 3 target fields using their DevExpress data field IDs
-    // Discovered via dump script: PURCHORDERFORMNUM = DESCRIZIONE, TEXTEXTERNAL, TEXTINTERNAL
+    // Log all visible note-related fields for diagnostics
+    const noteFieldIds = await this.page!.evaluate(() => {
+      const all = Array.from(document.querySelectorAll('input, textarea'));
+      return all
+        .filter(e => {
+          const id = e.id.toUpperCase();
+          return (id.includes('PURCHORDERFORMNUM') || id.includes('TEXTEXTERNAL') || id.includes('TEXTINTERNAL'))
+            && (e as HTMLInputElement).type !== 'hidden'
+            && (e as HTMLElement).getBoundingClientRect().width > 0;
+        })
+        .map(e => ({ id: e.id, tag: e.tagName, w: Math.round((e as HTMLElement).getBoundingClientRect().width) }));
+    });
+    logger.info('Note fields found in DOM', { noteFieldIds });
+
+    // Use broad patterns: match any visible input/textarea containing the field name
     const targetFields = [
-      { name: 'DESCRIZIONE', pattern: 'dviPURCHORDERFORMNUM_Edit_I' },
-      { name: 'TESTO_ORDINE_ESTERNO', pattern: 'dviTEXTEXTERNAL_Edit_I' },
-      { name: 'TESTO_ORDINE_INTERNO', pattern: 'dviTEXTINTERNAL_Edit_I' },
+      { name: 'DESCRIZIONE', pattern: 'PURCHORDERFORMNUM' },
+      { name: 'TESTO_ORDINE_ESTERNO', pattern: 'TEXTEXTERNAL' },
+      { name: 'TESTO_ORDINE_INTERNO', pattern: 'TEXTINTERNAL' },
     ];
 
     for (const field of targetFields) {
