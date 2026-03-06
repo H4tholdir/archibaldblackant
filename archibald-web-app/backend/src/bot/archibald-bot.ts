@@ -2924,8 +2924,8 @@ export class ArchibaldBot {
       }
     }, fieldInfo.id, value);
 
-    await this.page.keyboard.press('Tab');
-    await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
+    // Do NOT press Tab here — it triggers DevExpress callbacks that regenerate the DOM
+    // and cause other note fields to disappear. Tab is pressed after ALL fields are filled.
 
     // Verify the value was actually set
     const verifiedValue = await this.page.evaluate((id: string) => {
@@ -2992,6 +2992,11 @@ export class ArchibaldBot {
         await this.fillDevExpressFieldById(field.pattern, notesText);
       }, 'form.notes');
     }
+
+    // Press Tab once after ALL fields are filled to confirm the last field's value.
+    // Pressing Tab between fields triggers DevExpress callbacks that regenerate the DOM.
+    await this.page!.keyboard.press('Tab');
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'notes-final-tab' });
 
     logger.info('Order notes fields filled successfully');
   }
