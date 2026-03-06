@@ -47,6 +47,13 @@ type BotDeps = {
   getUserById?: BotGetUserById;
 };
 
+export function buildOrderNotesText(noShipping?: boolean, notes?: string): string {
+  const parts: string[] = [];
+  if (noShipping) parts.push('NO SPESE DI SPEDIZIONE');
+  if (notes?.trim()) parts.push(notes.trim());
+  return parts.join('\n');
+}
+
 export class ArchibaldBot {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -2842,6 +2849,83 @@ export class ArchibaldBot {
       logger.error("Error during credential validation", { error, username });
       return false;
     }
+  }
+
+  private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
+    if (!this.page) throw new Error('Browser non inizializzato');
+
+    // Find the input element by matching the DevExpress data field name in the ID
+    const elementId = await this.page.evaluate((pattern: string) => {
+      const allInputs = Array.from(document.querySelectorAll('input, textarea'));
+      for (const el of allInputs) {
+        if (el.id.toUpperCase().includes(pattern.toUpperCase())) {
+          return el.id;
+        }
+      }
+      return null;
+    }, fieldIdPattern);
+
+    if (!elementId) {
+      logger.warn(`DevExpress field with pattern "${fieldIdPattern}" not found`);
+      return;
+    }
+
+    // Use real Puppeteer events (not synthetic DOM events) for DevExpress compatibility
+    const selector = `#${CSS.escape(elementId)}`;
+    await this.page.click(selector);
+    await this.wait(200);
+
+    // Select all existing text and replace with new value
+    await this.page.keyboard.down('Control');
+    await this.page.keyboard.press('a');
+    await this.page.keyboard.up('Control');
+    await this.page.keyboard.type(value, { delay: 10 });
+    await this.page.keyboard.press('Tab');
+    await this.wait(500);
+
+    logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${elementId})`);
+  }
+
+  private async fillOrderNotes(notesText: string): Promise<void> {
+    if (!this.page) throw new Error('Browser non inizializzato');
+
+    logger.info('Filling order notes fields', { notesText });
+
+    // Click "Panoramica" tab to ensure we're on the right view
+    await this.runOp('order.notes.navigate', async () => {
+      const clicked = await this.clickElementByText('Panoramica', {
+        exact: true,
+        selectors: ['a', 'span', 'div', 'li'],
+      });
+      if (clicked) {
+        await this.wait(this.getSlowdown('click_panoramica') || 1000);
+      }
+
+      // Verify Panoramica is active by checking for a known field
+      const hasPanoramicaFields = await this.page!.evaluate(() => {
+        const allInputs = Array.from(document.querySelectorAll('input, textarea'));
+        return allInputs.some(el => el.id.toUpperCase().includes('PURCHORDERFORMNUM'));
+      });
+      if (!hasPanoramicaFields) {
+        throw new Error('Panoramica tab not active — PURCHORDERFORMNUM field not found');
+      }
+    }, 'form.notes');
+
+    // Fill the 3 target fields using their DevExpress data field IDs
+    // Discovered via dump script: PURCHORDERFORMNUM = DESCRIZIONE, TEXTEXTERNAL, TEXTINTERNAL
+    const targetFields = [
+      { name: 'DESCRIZIONE', pattern: 'dviPURCHORDERFORMNUM_Edit_I' },
+      { name: 'TESTO_ORDINE_ESTERNO', pattern: 'dviTEXTEXTERNAL_Edit_I' },
+      { name: 'TESTO_ORDINE_INTERNO', pattern: 'dviTEXTINTERNAL_Edit_I' },
+    ];
+
+    for (const field of targetFields) {
+      await this.runOp(`order.notes.fill_${field.name.toLowerCase()}`, async () => {
+        await this.fillDevExpressFieldById(field.pattern, notesText);
+      }, 'form.notes');
+    }
+
+    logger.info('Order notes fields filled successfully');
   }
 
   /**
@@ -6050,6 +6134,13 @@ export class ArchibaldBot {
             errorMessage: naError instanceof Error ? naError.message : String(naError),
           });
         }
+      }
+
+      // STEP 9.8: Fill order notes (no shipping + notes)
+      const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
+      if (notesText) {
+        await this.emitProgress('form.notes');
+        await this.fillOrderNotes(notesText);
       }
 
       // STEP 10: Save and close order

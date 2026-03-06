@@ -28,6 +28,8 @@ export const createOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1, "Almeno 1 articolo richiesto"),
   discountPercent: z.number().min(0).max(100).optional(), // Sconto globale applicato a tutte le righe
   targetTotalWithVAT: z.number().positive().optional(), // Totale desiderato (con IVA) per calcolo sconto
+  noShipping: z.boolean().optional(),
+  notes: z.string().max(500).optional(),
 });
 
 // User management schemas

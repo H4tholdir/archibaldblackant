@@ -169,6 +169,8 @@ export function PendingOrdersPage() {
             })),
             discountPercent: isFresisSubclient ? undefined : order.discountPercent,
             targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
+            noShipping: order.noShipping,
+            notes: order.notes,
           });
         }),
       );
@@ -251,6 +253,8 @@ export function PendingOrdersPage() {
         })),
         discountPercent: order.discountPercent,
         targetTotalWithVAT: order.targetTotalWithVAT,
+        noShipping: order.noShipping,
+        notes: order.notes,
       });
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
@@ -1653,9 +1657,9 @@ export function PendingOrdersPage() {
                           orderSubtotal - globalDiscountAmount;
 
                         // Calculate shipping costs based on subtotal after discount
-                        const shippingCosts = calculateShippingCosts(
-                          subtotalAfterGlobalDiscount,
-                        );
+                        const shippingCosts = order.noShipping
+                          ? { cost: 0, tax: 0, total: 0 }
+                          : calculateShippingCosts(subtotalAfterGlobalDiscount);
                         const shippingCost = shippingCosts.cost;
                         const shippingTax = shippingCosts.tax;
 
@@ -1744,7 +1748,24 @@ export function PendingOrdersPage() {
                               )}
 
                             {/* Shipping Costs */}
-                            {shippingCost > 0 && (
+                            {order.noShipping ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  marginBottom: "0.5rem",
+                                  fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                                  color: "#9ca3af",
+                                }}
+                              >
+                                <span style={{ textDecoration: "line-through" }}>
+                                  Spese di trasporto K3
+                                </span>
+                                <span style={{ fontWeight: "500", textDecoration: "line-through" }}>
+                                  {formatCurrency(0)}
+                                </span>
+                              </div>
+                            ) : shippingCost > 0 ? (
                               <div
                                 style={{
                                   display: "flex",
@@ -1773,7 +1794,7 @@ export function PendingOrdersPage() {
                                   {formatCurrency(shippingCost + shippingTax)}
                                 </span>
                               </div>
-                            )}
+                            ) : null}
 
                             <div
                               style={{
@@ -1817,6 +1838,20 @@ export function PendingOrdersPage() {
                   </>
                 )}
               </div>
+
+              {order.notes && (
+                <div
+                  style={{
+                    padding: isMobile ? "0.625rem" : "0.75rem",
+                    backgroundColor: "#fffbeb",
+                    borderTop: "1px solid #fbbf24",
+                    fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                  }}
+                >
+                  <span style={{ fontWeight: "600", color: "#92400e" }}>Note: </span>
+                  <span style={{ color: "#78350f" }}>{order.notes}</span>
+                </div>
+              )}
 
               {order.status === "error" && order.errorMessage && (
                 <div

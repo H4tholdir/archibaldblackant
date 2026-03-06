@@ -22,6 +22,8 @@ type PendingOrderRow = {
   sub_client_name: string | null;
   sub_client_data_json: unknown | null;
   archibald_order_id: string | null;
+  no_shipping: boolean;
+  notes: string | null;
 };
 
 type PendingOrder = {
@@ -46,6 +48,8 @@ type PendingOrder = {
   subClientName: string | null;
   subClientDataJson: unknown | null;
   archibaldOrderId: string | null;
+  noShipping: boolean;
+  notes: string | null;
 };
 
 type PendingOrderInput = {
@@ -63,6 +67,8 @@ type PendingOrderInput = {
   subClientCodice?: string | null;
   subClientName?: string | null;
   subClientDataJson?: unknown | null;
+  noShipping?: boolean;
+  notes?: string | null;
   idempotencyKey?: string | null;
 };
 
@@ -95,6 +101,8 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     subClientName: row.sub_client_name,
     subClientDataJson: row.sub_client_data_json,
     archibaldOrderId: row.archibald_order_id,
+    noShipping: row.no_shipping,
+    notes: row.notes,
   };
 }
 
@@ -125,8 +133,8 @@ async function upsertPendingOrder(
       id, user_id, customer_id, customer_name, items_json, status,
       discount_percent, target_total_with_vat, device_id, origin_draft_id,
       shipping_cost, shipping_tax, sub_client_codice, sub_client_name,
-      sub_client_data_json, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      sub_client_data_json, no_shipping, notes, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     ON CONFLICT (id) DO UPDATE SET
       customer_id = EXCLUDED.customer_id,
       customer_name = EXCLUDED.customer_name,
@@ -140,6 +148,8 @@ async function upsertPendingOrder(
       sub_client_codice = EXCLUDED.sub_client_codice,
       sub_client_name = EXCLUDED.sub_client_name,
       sub_client_data_json = EXCLUDED.sub_client_data_json,
+      no_shipping = EXCLUDED.no_shipping,
+      notes = EXCLUDED.notes,
       updated_at = EXCLUDED.updated_at,
       origin_draft_id = EXCLUDED.origin_draft_id`,
     [
@@ -150,6 +160,7 @@ async function upsertPendingOrder(
       order.shippingCost ?? 0, order.shippingTax ?? 0,
       order.subClientCodice ?? null, order.subClientName ?? null,
       order.subClientDataJson ? JSON.stringify(order.subClientDataJson) : null,
+      order.noShipping ?? false, order.notes ?? null,
       now, now,
     ],
   );

@@ -41,6 +41,8 @@ export interface PendingOrder {
   shippingCost?: number;
   shippingTax?: number;
   revenue?: number;
+  noShipping?: boolean;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   status: "pending" | "syncing" | "error" | "completed-warehouse";

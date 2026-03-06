@@ -32,6 +32,8 @@ type SubmitOrderData = {
   items: SubmitOrderItem[];
   discountPercent?: number;
   targetTotalWithVAT?: number;
+  noShipping?: boolean;
+  notes?: string;
 };
 
 type SubmitOrderBot = {
@@ -65,6 +67,7 @@ const BOT_PROGRESS_MAP: Record<string, { progress: number; label: string }> = {
   'form.articles.start': { progress: 21, label: 'Inizio inserimento articoli' },
   'form.articles.complete': { progress: 46, label: 'Articoli inseriti' },
   'form.discount': { progress: 49, label: 'Applicazione sconto globale' },
+  'form.notes': { progress: 51, label: 'Inserimento note ordine' },
   'form.submit.start': { progress: 53, label: 'Salvataggio ordine in corso' },
   'form.submit.complete': { progress: 56, label: 'Ordine salvato' },
 };

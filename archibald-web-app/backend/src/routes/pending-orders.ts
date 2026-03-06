@@ -26,6 +26,8 @@ const pendingOrderSchema = z.object({
   originDraftId: z.string().nullable().optional(),
   shippingCost: z.number().optional(),
   shippingTax: z.number().optional(),
+  noShipping: z.boolean().optional(),
+  notes: z.string().max(500).nullable().optional(),
   subClientCodice: z.string().nullable().optional(),
   subClientName: z.string().nullable().optional(),
   subClientDataJson: z.unknown().optional(),

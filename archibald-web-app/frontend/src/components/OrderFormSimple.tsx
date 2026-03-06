@@ -263,6 +263,8 @@ export default function OrderFormSimple() {
   const [cacheSyncing, setCacheSyncing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
+  const [noShipping, setNoShipping] = useState(false);
+  const [orderNotes, setOrderNotes] = useState("");
 
   // Fresis history: article purchase history for selected sub-client
   const [articleHistory, setArticleHistory] = useState<{
@@ -583,6 +585,9 @@ export default function OrderFormSimple() {
         }
 
         setItems(loadedItems);
+
+        if (order.noShipping) setNoShipping(true);
+        if (order.notes) setOrderNotes(order.notes);
       } catch (error) {
         console.error("[OrderForm] Failed to load order:", error);
         toastService.error("Errore durante il caricamento dell'ordine");
@@ -1080,6 +1085,8 @@ export default function OrderFormSimple() {
     // Reset items
     setItems([]);
     setGlobalDiscountPercent("");
+    setNoShipping(false);
+    setOrderNotes("");
 
     toastService.success("Ordine resettato");
   };
@@ -2268,7 +2275,7 @@ export default function OrderFormSimple() {
       (sum, i) => sum + i.vat,
       0,
     );
-    const shippingCosts = calculateShippingCosts(currentTotals.finalSubtotal);
+    const shippingCosts = noShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(currentTotals.finalSubtotal);
     const fixedPortion =
       unselectedSubtotal +
       unselectedVAT +
@@ -2499,7 +2506,7 @@ export default function OrderFormSimple() {
 
     const finalSubtotal = itemsSubtotal;
 
-    const shippingCosts = calculateShippingCosts(finalSubtotal);
+    const shippingCosts = noShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(finalSubtotal);
     const shippingCost = shippingCosts.cost;
     const shippingTax = shippingCosts.tax;
 
@@ -2672,6 +2679,8 @@ export default function OrderFormSimple() {
         subClientCodice: selectedSubClient?.codice,
         subClientName: selectedSubClient?.ragioneSociale,
         subClientData: selectedSubClient ?? undefined,
+        noShipping: noShipping || undefined,
+        notes: orderNotes.trim() || undefined,
       });
 
       // Show specific message for warehouse-only orders
@@ -4570,6 +4579,31 @@ export default function OrderFormSimple() {
             </div>
           )}
 
+          {/* Note ordine */}
+          <div style={{ marginTop: "1rem" }}>
+            <label style={{ fontWeight: "500", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+              Note
+            </label>
+            <textarea
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="Note per l'ordine..."
+              maxLength={500}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: isMobile ? "0.875rem" : "1rem",
+                fontFamily: "system-ui",
+                resize: "vertical",
+                marginTop: "0.5rem",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
           {/* Totals Summary */}
           <div
             style={{
@@ -4625,27 +4659,45 @@ export default function OrderFormSimple() {
               </span>
               <strong>{formatCurrency(totals.finalSubtotal)}</strong>
             </div>
-            {totals.shippingCost > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "0.5rem",
-                  color: "#f59e0b",
-                  fontSize: isMobile ? "0.875rem" : "1rem",
-                }}
-              >
-                <span>
-                  Spese di trasporto K3
-                  <span style={{ fontSize: "0.75rem", marginLeft: "0.25rem" }}>
-                    ({formatCurrency(totals.shippingCost)} + IVA)
+            {(() => {
+              const rawShipping = calculateShippingCosts(totals.finalSubtotal);
+              const showShippingRow = rawShipping.cost > 0 || noShipping;
+              if (!showShippingRow) return null;
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
+                    color: noShipping ? "#9ca3af" : "#f59e0b",
+                    fontSize: isMobile ? "0.875rem" : "1rem",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={noShipping}
+                        onChange={(e) => setNoShipping(e.target.checked)}
+                        style={{ accentColor: "#f59e0b", width: "16px", height: "16px", cursor: "pointer" }}
+                      />
+                      <span style={{ textDecoration: noShipping ? "line-through" : "none" }}>
+                        Spese di trasporto K3
+                      </span>
+                    </label>
+                    {!noShipping && rawShipping.cost > 0 && (
+                      <span style={{ fontSize: "0.75rem" }}>
+                        ({formatCurrency(rawShipping.cost)} + IVA)
+                      </span>
+                    )}
                   </span>
-                </span>
-                <strong>
-                  {formatCurrency(totals.shippingCost + totals.shippingTax)}
-                </strong>
-              </div>
-            )}
+                  <strong style={{ textDecoration: noShipping ? "line-through" : "none" }}>
+                    {noShipping ? formatCurrency(0) : formatCurrency(totals.shippingCost + totals.shippingTax)}
+                  </strong>
+                </div>
+              );
+            })()}
             <div
               style={{
                 display: "flex",
