@@ -84,7 +84,12 @@ async function syncProducts(
     let updatedProducts = 0;
     const now = Math.floor(Date.now() / 1000);
 
-    for (const p of products) {
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      if (i % 500 === 0 && i > 0) {
+        const dbProgress = 40 + Math.round((i / products.length) * 55);
+        onProgress(dbProgress, `Aggiornamento prodotti ${i}/${products.length}`);
+      }
       const { rows: [existing] } = await pool.query<{ id: string }>(
         'SELECT id FROM shared.products WHERE id = $1',
         [p.id],

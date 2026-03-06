@@ -746,7 +746,7 @@ async function bootstrap(): Promise<void> {
       });
       return { success: result.success, data: result.data, duration: result.duration };
     },
-    { connection: workerConnection as never, concurrency: config.queue.workerConcurrency },
+    { connection: workerConnection as never, concurrency: config.queue.workerConcurrency, lockDuration: 600_000 },
   );
 
   const cleanupInterval = setInterval(() => {
