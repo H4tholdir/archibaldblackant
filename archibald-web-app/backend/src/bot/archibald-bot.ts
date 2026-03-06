@@ -2885,54 +2885,10 @@ export class ArchibaldBot {
 
     logger.info('Filling order notes fields', { notesText });
 
-    // Click "Panoramica" (IT) or "Overview" (EN) tab
-    // After save, the page reloads with "Loading..." spinner — must wait for idle first
-    await this.runOp('order.notes.navigate', async () => {
-      // Wait for DevExpress to finish all callbacks (Loading... spinner gone)
-      await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-overview-tab' });
-
-      // Click the Overview/Panoramica tab via dxtc-link
-      let tabClicked: string | null = null;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        tabClicked = await this.page!.evaluate(() => {
-          const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
-          for (const el of allLinks) {
-            const text = (el.textContent || '').trim();
-            if (text === 'Panoramica' || text === 'Overview') {
-              const clickTarget = el.tagName === 'A' ? el : el.parentElement;
-              if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
-                (clickTarget as HTMLElement).click();
-                return text;
-              }
-            }
-          }
-          return null;
-        });
-
-        if (tabClicked) {
-          logger.info(`Clicked "${tabClicked}" tab for order notes`);
-          await this.waitForDevExpressIdle({ timeout: 10000, label: 'overview-tab-switch' });
-
-          // Verify the tab actually switched by checking for a visible Overview field
-          const switched = await this.page!.evaluate(() => {
-            const el = Array.from(document.querySelectorAll('input, textarea')).find(e =>
-              e.id.toUpperCase().includes('PURCHORDERFORMNUM') && (e as HTMLInputElement).type !== 'hidden',
-            );
-            return el ? el.getBoundingClientRect().width > 0 : false;
-          });
-          if (switched) break;
-          logger.warn('Overview tab click did not switch, retrying...');
-          tabClicked = null;
-          await this.wait(2000);
-        } else {
-          await this.wait(1000);
-        }
-      }
-
-      if (!tabClicked) {
-        throw new Error('Overview/Panoramica tab could not be activated after retries');
-      }
-    }, 'form.notes');
+    // The Panoramica/Overview tab is already active during order creation — all fields
+    // (including PURCHORDERFORMNUM, TEXTEXTERNAL, TEXTINTERNAL) are in the DOM.
+    // No tab switching needed. Just wait for DevExpress idle after the previous save.
+    await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-notes-fill' });
 
     // Fill the 3 target fields using their DevExpress data field IDs
     // Discovered via dump script: PURCHORDERFORMNUM = DESCRIZIONE, TEXTEXTERNAL, TEXTINTERNAL
