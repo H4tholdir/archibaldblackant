@@ -2870,27 +2870,27 @@ export class ArchibaldBot {
       return;
     }
 
-    // Use real Puppeteer events (not synthetic DOM events) for DevExpress compatibility
-    // Click via page.evaluate since DevExpress IDs are too long/complex for CSS selectors
-    await this.page.evaluate((id: string) => {
+    // Use real Puppeteer mouse + keyboard events for DevExpress compatibility.
+    // Synthetic DOM events (setter trick) don't work — DevExpress ignores them (same as bug H379).
+    const box = await this.page.evaluate((id: string) => {
       const el = document.getElementById(id);
-      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.click(); }
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center' });
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     }, elementId);
-    await this.wait(200);
 
-    // Set value instantly via DevExpress setter trick (same as login flow), then Tab to commit
-    await this.page.evaluate((id: string, val: string) => {
-      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (!el) return;
-      const setter = Object.getOwnPropertyDescriptor(
-        el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
-        'value',
-      )?.set;
-      if (setter) setter.call(el, val);
-      else el.value = val;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }, elementId, value);
+    if (!box) {
+      logger.warn(`DevExpress field "${fieldIdPattern}" element not visible in DOM`);
+      return;
+    }
+
+    await this.page.mouse.click(box.x, box.y);
+    await this.wait(300);
+    await this.page.keyboard.down('Control');
+    await this.page.keyboard.press('a');
+    await this.page.keyboard.up('Control');
+    await this.page.keyboard.type(value);
     await this.page.keyboard.press('Tab');
     await this.page.keyboard.press('Tab');
     await this.wait(500);
@@ -2903,23 +2903,29 @@ export class ArchibaldBot {
 
     logger.info('Filling order notes fields', { notesText });
 
-    // Click "Panoramica" tab to ensure we're on the right view
+    // Click "Panoramica" (IT) or "Overview" (EN) tab
     await this.runOp('order.notes.navigate', async () => {
-      const clicked = await this.clickElementByText('Panoramica', {
+      let clicked = await this.clickElementByText('Panoramica', {
         exact: true,
         selectors: ['a', 'span', 'div', 'li'],
       });
+      if (!clicked) {
+        clicked = await this.clickElementByText('Overview', {
+          exact: true,
+          selectors: ['a', 'span', 'div', 'li'],
+        });
+      }
       if (clicked) {
         await this.wait(this.getSlowdown('click_panoramica') || 1000);
       }
 
-      // Verify Panoramica is active by checking for a known field
-      const hasPanoramicaFields = await this.page!.evaluate(() => {
+      // Verify tab is active by checking for a known field
+      const hasOverviewFields = await this.page!.evaluate(() => {
         const allInputs = Array.from(document.querySelectorAll('input, textarea'));
         return allInputs.some(el => el.id.toUpperCase().includes('PURCHORDERFORMNUM'));
       });
-      if (!hasPanoramicaFields) {
-        throw new Error('Panoramica tab not active — PURCHORDERFORMNUM field not found');
+      if (!hasOverviewFields) {
+        throw new Error('Overview/Panoramica tab not active — PURCHORDERFORMNUM field not found');
       }
     }, 'form.notes');
 
@@ -3512,14 +3518,18 @@ export class ArchibaldBot {
         logger.debug('Looking for "Prezzi e sconti" tab...');
 
         const tabClicked = await this.page!.evaluate(() => {
-          // Find tab with text "Prezzi e sconti"
+          // Find tab with text "Prezzi e sconti" (IT) or "Price Discount" (EN)
+          const isMatch = (text: string) =>
+            (text.includes("Prezzi") && text.includes("sconti")) ||
+            (text.includes("Price") && text.includes("Discount"));
+
           const allLinks = Array.from(
             document.querySelectorAll("a.dxtc-link, span.dx-vam"),
           );
 
           for (const element of allLinks) {
             const text = element.textContent?.trim() || "";
-            if (text.includes("Prezzi") && text.includes("sconti")) {
+            if (isMatch(text)) {
               const clickTarget =
                 element.tagName === "A" ? element : element.parentElement;
               if (
@@ -3532,16 +3542,16 @@ export class ArchibaldBot {
             }
           }
 
-          // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
+          // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti / Price Discount)
           const tabs = Array.from(
-            document.querySelectorAll('li[id*="_pg_AT"]'),
+            document.querySelectorAll('li[id*="_pg_AT"], li[id*="_pg_T"]'),
           );
           for (const tab of tabs) {
             const link = tab.querySelector("a.dxtc-link");
             const span = tab.querySelector("span.dx-vam");
             const text = span?.textContent?.trim() || "";
 
-            if (text.includes("Prezzi") && text.includes("sconti")) {
+            if (isMatch(text)) {
               if (link && (link as HTMLElement).offsetParent !== null) {
                 (link as HTMLElement).click();
                 return true;
