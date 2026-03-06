@@ -2854,18 +2854,25 @@ export class ArchibaldBot {
   private async fillDevExpressFieldById(fieldIdPattern: string, value: string): Promise<void> {
     if (!this.page) throw new Error('Browser non inizializzato');
 
-    // Find the VISIBLE element matching the pattern (skip hidden duplicates like EditorClientInfo).
-    // Retry up to 5s if the field is not visible yet (tab content may still be loading).
+    // Find the element matching the pattern, scrollIntoView to make it visible
+    // (fields at x>960 like TEXTEXTERNAL/TEXTINTERNAL may be outside viewport).
+    // Skip hidden duplicates (EditorClientInfo) by checking tagName !== hidden.
+    // Retry up to 5s if not found yet (tab content may still be loading).
     let fieldInfo: { id: string; x: number; y: number } | null = null;
     for (let attempt = 0; attempt < 10; attempt++) {
       fieldInfo = await this.page.evaluate((pattern: string) => {
         const all = Array.from(document.querySelectorAll('input, textarea'));
-        const visible = all.find(el =>
-          el.id.toUpperCase().includes(pattern.toUpperCase()) && el.getBoundingClientRect().width > 0,
+        // Find the non-hidden element with matching ID pattern
+        const el = all.find(e =>
+          e.id.toUpperCase().includes(pattern.toUpperCase()) &&
+          (e as HTMLInputElement).type !== 'hidden',
         );
-        if (!visible) return null;
-        const rect = visible.getBoundingClientRect();
-        return { id: visible.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        if (!el) return null;
+        el.scrollIntoView({ block: 'center', inline: 'center' });
+        // Re-read rect after scroll
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0) return null;
+        return { id: el.id, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
       }, fieldIdPattern);
       if (fieldInfo) break;
       await this.wait(500);
