@@ -2870,28 +2870,15 @@ export class ArchibaldBot {
       return;
     }
 
-    // Use real Puppeteer mouse + keyboard events for DevExpress compatibility.
-    // Synthetic DOM events (setter trick) don't work — DevExpress ignores them (same as bug H379).
-    const box = await this.page.evaluate((id: string) => {
-      const el = document.getElementById(id);
-      if (!el) return null;
-      el.scrollIntoView({ block: 'center' });
-      const rect = el.getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-    }, elementId);
-
-    if (!box) {
-      logger.warn(`DevExpress field "${fieldIdPattern}" element not visible in DOM`);
-      return;
-    }
-
-    await this.page.mouse.click(box.x, box.y);
-    await this.wait(300);
-    await this.page.keyboard.down('Control');
-    await this.page.keyboard.press('a');
-    await this.page.keyboard.up('Control');
-    await this.page.keyboard.type(value);
-    await this.page.keyboard.press('Tab');
+    // Set value and call ASPx.EValueChanged() — DevExpress's own change handler.
+    // Each field has onchange="ASPx.EValueChanged('baseId')" where baseId = id without '_I'.
+    await this.page.evaluate((id: string, val: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!el) return;
+      el.value = val;
+      const baseId = id.replace(/_I$/, '');
+      (window as any).ASPx.EValueChanged(baseId);
+    }, elementId, value);
     await this.waitForDevExpressIdle({ timeout: 5000, label: `fill-${fieldIdPattern}` });
 
     logger.debug(`Filled DevExpress field "${fieldIdPattern}" (id: ${elementId})`);
