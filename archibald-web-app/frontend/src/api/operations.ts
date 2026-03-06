@@ -244,7 +244,9 @@ async function waitForJobViaWebSocket(
       const p = (payload ?? {}) as Record<string, unknown>;
       if (p.jobId !== jobId) return;
 
-      if (eventType === 'JOB_PROGRESS') {
+      if (eventType === 'JOB_STARTED') {
+        resetFallback();
+      } else if (eventType === 'JOB_PROGRESS') {
         const progress = p.progress as number;
         const label = p.label as string | undefined;
         onProgress?.(progress, label);

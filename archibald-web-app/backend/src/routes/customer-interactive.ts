@@ -296,6 +296,12 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         }
 
         try {
+          broadcast(userId, {
+            type: 'JOB_STARTED',
+            payload: { jobId: taskId },
+            timestamp: now(),
+          });
+
           const setupProgressCallback = (bot: CustomerBotLike) => {
             if (getCustomerProgressMilestone) {
               bot.setProgressCallback(async (category) => {

@@ -397,6 +397,17 @@ function createApp(deps: AppDeps): Express {
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
       pauseSyncs: async () => { syncScheduler.stop(); },
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
+      getCustomerProgressMilestone: (category: string) => {
+        const milestones: Record<string, { progress: number; label: string }> = {
+          'customer.navigation': { progress: 10, label: 'Navigazione al form cliente' },
+          'customer.search': { progress: 20, label: 'Ricerca cliente' },
+          'customer.edit_loaded': { progress: 30, label: 'Form cliente caricato' },
+          'customer.field': { progress: 50, label: 'Compilazione campi' },
+          'customer.save': { progress: 75, label: 'Salvataggio in corso' },
+          'customer.complete': { progress: 95, label: 'Cliente salvato' },
+        };
+        return milestones[category] ?? null;
+      },
     }));
   }
 
