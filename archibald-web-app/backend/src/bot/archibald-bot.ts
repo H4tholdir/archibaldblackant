@@ -2905,53 +2905,52 @@ export class ArchibaldBot {
     logger.info('Filling order notes fields', { notesText });
 
     // Click "Panoramica" (IT) or "Overview" (EN) tab
-    // After N/A workaround save, the page may reload — wait for tab to appear first
+    // After save, the page reloads with "Loading..." spinner — must wait for idle first
     await this.runOp('order.notes.navigate', async () => {
-      // Wait for the Overview/Panoramica tab link to exist in DOM
-      await this.page!.waitForFunction(
-        () => {
-          const links = Array.from(document.querySelectorAll('a.dxtc-link'));
-          return links.some(el => {
-            const text = (el.textContent || '').trim();
-            return text === 'Panoramica' || text === 'Overview';
-          });
-        },
-        { timeout: 15000, polling: 500 },
-      );
+      // Wait for DevExpress to finish all callbacks (Loading... spinner gone)
+      await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-overview-tab' });
 
-      // Click the tab via its dxtc-link anchor (same approach as openPrezziEScontiTab)
-      const tabClicked = await this.page!.evaluate(() => {
-        const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
-        for (const el of allLinks) {
-          const text = (el.textContent || '').trim();
-          if (text === 'Panoramica' || text === 'Overview') {
-            const clickTarget = el.tagName === 'A' ? el : el.parentElement;
-            if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
-              (clickTarget as HTMLElement).click();
-              return text;
+      // Click the Overview/Panoramica tab via dxtc-link
+      let tabClicked: string | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        tabClicked = await this.page!.evaluate(() => {
+          const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+          for (const el of allLinks) {
+            const text = (el.textContent || '').trim();
+            if (text === 'Panoramica' || text === 'Overview') {
+              const clickTarget = el.tagName === 'A' ? el : el.parentElement;
+              if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+                (clickTarget as HTMLElement).click();
+                return text;
+              }
             }
           }
-        }
-        return null;
-      });
+          return null;
+        });
 
-      if (tabClicked) {
-        logger.info(`Clicked "${tabClicked}" tab for order notes`);
-        await this.wait(this.getSlowdown('click_panoramica') || 1500);
-      } else {
-        throw new Error('Overview/Panoramica tab link not clickable');
+        if (tabClicked) {
+          logger.info(`Clicked "${tabClicked}" tab for order notes`);
+          await this.waitForDevExpressIdle({ timeout: 10000, label: 'overview-tab-switch' });
+
+          // Verify the tab actually switched by checking for a visible Overview field
+          const switched = await this.page!.evaluate(() => {
+            const el = Array.from(document.querySelectorAll('input, textarea')).find(e =>
+              e.id.toUpperCase().includes('PURCHORDERFORMNUM') && (e as HTMLInputElement).type !== 'hidden',
+            );
+            return el ? el.getBoundingClientRect().width > 0 : false;
+          });
+          if (switched) break;
+          logger.warn('Overview tab click did not switch, retrying...');
+          tabClicked = null;
+          await this.wait(2000);
+        } else {
+          await this.wait(1000);
+        }
       }
 
-      // Wait for PURCHORDERFORMNUM field to be visible (tab content loaded)
-      await this.page!.waitForFunction(
-        () => {
-          const allInputs = Array.from(document.querySelectorAll('input, textarea'));
-          return allInputs.some(el =>
-            el.id.toUpperCase().includes('PURCHORDERFORMNUM') && (el as HTMLElement).offsetParent !== null,
-          );
-        },
-        { timeout: 10000, polling: 500 },
-      );
+      if (!tabClicked) {
+        throw new Error('Overview/Panoramica tab could not be activated after retries');
+      }
     }, 'form.notes');
 
     // Fill the 3 target fields using their DevExpress data field IDs
