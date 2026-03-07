@@ -103,7 +103,7 @@ function parseTrackingResponse(
   };
 }
 
-const MICRO_BATCH_SIZE = 5;
+const MICRO_BATCH_SIZE = 1;
 
 async function scrapeTrackingBatch(
   trackingNumbers: string[],
@@ -123,12 +123,12 @@ async function scrapeTrackingBatch(
   const results: FedExTrackingResult[] = [];
 
   try {
-    const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    });
-
     for (const trackingNumber of trackingNumbers) {
+      const page = await browser.newPage();
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+      });
+
       try {
         const responsePromise = new Promise<FedExTrackingResult>(
           (resolve, reject) => {
@@ -141,7 +141,7 @@ async function scrapeTrackingBatch(
 
             const timeout = setTimeout(() => {
               settle(() => reject(new Error('Timeout waiting for FedEx tracking API response')));
-            }, 30_000);
+            }, 20_000);
 
             const handler = async (response: { url: () => string; json: () => Promise<Record<string, unknown>>; ok: () => boolean; status: () => number }) => {
               try {
@@ -156,13 +156,12 @@ async function scrapeTrackingBatch(
                   try {
                     json = await response.json();
                   } catch {
-                    // First API call often has empty body — wait for the next one
                     return;
                   }
                   clearTimeout(timeout);
                   settle(() => resolve(parseTrackingResponse(trackingNumber, json)));
                 }
-              } catch (err) {
+              } catch {
                 // Non-fatal — another response may follow
               }
             };
@@ -173,7 +172,7 @@ async function scrapeTrackingBatch(
 
         await page.goto(
           `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`,
-          { waitUntil: 'domcontentloaded', timeout: 30_000 },
+          { waitUntil: 'domcontentloaded', timeout: 20_000 },
         );
 
         const result = await responsePromise;
@@ -185,10 +184,9 @@ async function scrapeTrackingBatch(
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
-        page.removeAllListeners('response');
+        await page.close();
       }
 
-      // Small delay between trackings within a batch
       const delay = 2000 + Math.random() * 3000;
       await new Promise((r) => setTimeout(r, delay));
     }
