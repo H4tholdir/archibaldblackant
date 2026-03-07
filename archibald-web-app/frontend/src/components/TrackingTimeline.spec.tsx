@@ -124,6 +124,21 @@ describe("TrackingTimeline", () => {
     expect(container.firstChild).toBeTruthy();
   });
 
+  test("translates English event descriptions to Italian", () => {
+    const order: Order = {
+      ...baseOrder,
+      trackingEvents: [
+        { date: "2026-03-07", time: "14:00:00", gmtOffset: "+01:00", status: "On the way", statusCD: "IT", scanLocation: "Bologna, IT", delivered: false, exception: false },
+        { date: "2026-03-06", time: "10:00:00", gmtOffset: "+01:00", status: "Picked up", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false },
+      ],
+    };
+    render(<TrackingTimeline order={order} borderColor="#4caf50" />);
+    expect(screen.getByText("In viaggio")).toBeTruthy();
+    expect(screen.getByText("Ritirato")).toBeTruthy();
+    expect(screen.queryByText("On the way")).toBeNull();
+    expect(screen.queryByText("Picked up")).toBeNull();
+  });
+
   test("renders FedEx tracking link when trackingUrl exists", () => {
     const order: Order = {
       ...baseOrder,

@@ -53,6 +53,33 @@ function formatTime(time: string): string {
   return time;
 }
 
+const EVENT_TRANSLATIONS: Record<string, string> = {
+  "Picked up": "Ritirato",
+  "Shipment information sent to FedEx": "Informazioni spedizione inviate a FedEx",
+  "Left FedEx origin facility": "Partito dal centro FedEx di origine",
+  "Departed FedEx hub": "Partito dall'hub FedEx",
+  "Departed FedEx location": "Partito dal centro FedEx",
+  "In transit": "In transito",
+  "On the way": "In viaggio",
+  "Arrived at FedEx hub": "Arrivato all'hub FedEx",
+  "Arrived at FedEx location": "Arrivato al centro FedEx",
+  "At local FedEx facility": "Presso centro FedEx locale",
+  "Out for delivery": "In consegna",
+  "On FedEx vehicle for delivery": "Sul veicolo FedEx per la consegna",
+  "Delivered": "Consegnato",
+  "Delivery exception": "Eccezione di consegna",
+  "Shipment arriving On-Time": "Spedizione in arrivo nei tempi previsti",
+  "Customer not available or business closed": "Destinatario non disponibile",
+  "International shipment release - Import": "Sdoganamento completato",
+  "Clearance in progress": "Sdoganamento in corso",
+  "Package available for clearance": "Pacco in attesa di sdoganamento",
+  "Clearance delay - Loss report": "Ritardo sdoganamento",
+};
+
+export function translateStatus(status: string): string {
+  return EVENT_TRANSLATIONS[status] ?? status;
+}
+
 export function groupEventsByDay(scanEvents: ScanEvent[]): GroupedDay[] {
   if (scanEvents.length === 0) return [];
 
@@ -76,7 +103,7 @@ export function groupEventsByDay(scanEvents: ScanEvent[]): GroupedDay[] {
       events: events.map((ev) => {
         const entry = {
           time: formatTime(ev.time),
-          status: ev.status,
+          status: translateStatus(ev.status),
           location: ev.scanLocation,
           isLatest: isFirst,
         };
