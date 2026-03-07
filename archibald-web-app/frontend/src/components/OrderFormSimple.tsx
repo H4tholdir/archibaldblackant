@@ -19,7 +19,7 @@ import { batchRelease } from "../api/warehouse";
 import { getFresisHistory } from "../api/fresis-history";
 import { getOrderHistory } from "../api/orders-history";
 import { getDiscountForArticle } from "../api/fresis-discounts";
-import { calculateShippingCosts } from "../utils/order-calculations";
+import { calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../types/sub-client";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
@@ -308,6 +308,16 @@ export default function OrderFormSimple() {
       }>;
     }>
   >([]);
+
+  // Reset noShipping when subtotal goes above shipping threshold
+  useEffect(() => {
+    if (noShipping) {
+      const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+      if (subtotal >= SHIPPING_THRESHOLD) {
+        setNoShipping(false);
+      }
+    }
+  }, [items, noShipping]);
 
   // Calculate estimated revenue for Fresis sub-client orders
   useEffect(() => {
