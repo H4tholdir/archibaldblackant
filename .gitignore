@@ -110,6 +110,12 @@ backups/
 .local-chromium/
 .local-firefox/
 
+# ===== Runtime data files =====
+archibald-web-app/backend/data/adaptive-timeouts.json
+
+# ===== Cursor =====
+.cursor/
+
 # ===== Misc =====
 *.pid
 *.seed
