@@ -204,6 +204,7 @@ vi.mock('./operations/handlers', () => ({
   createSyncInvoicesHandler: vi.fn(() => vi.fn()),
   createSyncProductsHandler: vi.fn(() => vi.fn()),
   createSyncOrderStatesHandler: vi.fn(() => vi.fn()),
+  createSyncTrackingHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('bullmq', () => ({
@@ -335,8 +336,9 @@ describe('bootstrap', () => {
       'sync-invoices',
       'sync-products',
       'sync-order-states',
+      'sync-tracking',
     ]));
-    expect(handlerKeys).toHaveLength(16);
+    expect(handlerKeys).toHaveLength(17);
   });
 
   test('getActiveAgentIds returns whitelisted user IDs', async () => {

@@ -15,6 +15,7 @@ const OPERATION_TYPES = [
   'sync-invoices',
   'sync-products',
   'sync-prices',
+  'sync-tracking',
 ] as const;
 
 type OperationType = (typeof OPERATION_TYPES)[number];
@@ -36,6 +37,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'sync-invoices': 14,
   'sync-products': 15,
   'sync-prices': 16,
+  'sync-tracking': 17,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([
@@ -55,6 +57,7 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-products',
   'sync-prices',
   'sync-order-articles',
+  'sync-tracking',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {
@@ -70,6 +73,7 @@ const AGENT_SYNC_CHAIN: readonly OperationType[] = [
   'sync-orders',
   'sync-ddt',
   'sync-invoices',
+  'sync-tracking',
 ];
 
 const SHARED_SYNC_CHAIN: readonly OperationType[] = [
