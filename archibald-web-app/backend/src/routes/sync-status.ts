@@ -86,7 +86,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const SYNC_HISTORY_TYPES: OperationType[] = [
     'sync-customers', 'sync-orders', 'sync-ddt',
     'sync-invoices', 'sync-products', 'sync-prices',
-    'sync-order-articles',
+    'sync-order-articles', 'sync-tracking',
   ];
 
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
@@ -168,7 +168,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
       res.json({ success: true, types });
     } catch (error) {
-      logger.error('Error fetching sync history', { error });
+      logger.error('Error fetching sync history', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
       res.status(500).json({ success: false, error: 'Errore nel recupero history sync' });
     }
   });
