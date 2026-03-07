@@ -12454,6 +12454,7 @@ export class ArchibaldBot {
     });
 
     // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
+    await this.emitProgress("customer.tab.prezzi");
     await this.openCustomerTab("Prezzi e sconti");
     await this.dismissDevExpressPopups();
 
@@ -12480,6 +12481,7 @@ export class ArchibaldBot {
     );
 
     // Step 2: "Indirizzo alt." tab — fill delivery address (if present)
+    await this.emitProgress("customer.tab.indirizzo");
     if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
       await this.fillDeliveryAddress(
         customerData.deliveryStreet,
@@ -12489,6 +12491,7 @@ export class ArchibaldBot {
     }
 
     // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    await this.emitProgress("customer.tab.principale");
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
@@ -12497,6 +12500,7 @@ export class ArchibaldBot {
     });
 
     // Phase A: Lookups (trigger server callbacks that may reset other fields)
+    await this.emitProgress("customer.lookup");
     if (customerData.paymentTerms) {
       await this.selectFromDevExpressLookup(
         /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
