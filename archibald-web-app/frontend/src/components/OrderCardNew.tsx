@@ -41,6 +41,7 @@ interface OrderCardProps {
   onHide?: (orderId: string) => void;
   onUnhide?: (orderId: string) => void;
   isHidden?: boolean;
+  onClearVerification?: (orderId: string) => void;
   suggestedTab?: "panoramica" | "articoli" | "logistica" | "finanziario" | null;
 }
 
@@ -3561,6 +3562,7 @@ export function OrderCardNew({
   onHide,
   onUnhide,
   isHidden = false,
+  onClearVerification,
   suggestedTab,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
@@ -3826,6 +3828,7 @@ export function OrderCardNew({
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
+                      gap: "4px",
                       padding: "4px 10px",
                       borderRadius: "12px",
                       backgroundColor: "#EF4444",
@@ -3835,6 +3838,27 @@ export function OrderCardNew({
                     }}
                   >
                     Verifica fallita
+                    {onClearVerification && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClearVerification(order.id);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#fff",
+                          cursor: "pointer",
+                          padding: "0 0 0 2px",
+                          fontSize: "13px",
+                          lineHeight: 1,
+                          fontWeight: 700,
+                        }}
+                        title="Rimuovi flag verifica"
+                      >
+                        ×
+                      </button>
+                    )}
                   </span>
                 )}
                 {expanded && (onHide || onUnhide) && (

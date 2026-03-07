@@ -2304,6 +2304,10 @@ export function OrderHistory() {
                               onHide={(id) => { setExpandedOrderId(null); handleHideOrder(id); }}
                               onUnhide={handleUnhideOrder}
                               isHidden={hiddenOrderIds.has(order.id)}
+                              onClearVerification={async (id) => {
+                                await fetchWithRetry(`/api/orders/${id}/verification/clear`, { method: 'POST' });
+                                fetchOrders({ background: true });
+                              }}
                               suggestedTab={debouncedSearch ? getMatchingTab(order, debouncedSearch) : null}
                             />
                           </div>

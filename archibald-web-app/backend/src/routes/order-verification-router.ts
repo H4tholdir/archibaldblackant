@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
-import { getOrderVerificationSnapshot } from '../db/repositories/order-verification';
+import { getOrderVerificationSnapshot, clearVerificationFlag } from '../db/repositories/order-verification';
 import { formatVerificationNotification } from '../verification/format-notification';
 import type { VerificationStatus } from '../db/repositories/order-verification';
 import type { ArticleMismatch } from '../verification/verify-order-articles';
@@ -44,6 +44,20 @@ function createOrderVerificationRouter(deps: OrderVerificationRouterDeps) {
     } catch (error) {
       logger.error('Error fetching order verification', { error });
       res.status(500).json({ notification: null, error: 'Errore nel recupero verifica ordine' });
+    }
+  });
+
+  router.post('/:orderId/verification/clear', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { orderId } = req.params;
+
+      await clearVerificationFlag(pool, orderId, userId);
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error clearing verification flag', { error });
+      res.status(500).json({ success: false, error: 'Errore nel reset verifica' });
     }
   });
 
