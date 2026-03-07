@@ -1012,6 +1012,7 @@ async function getOrdersNeedingTrackingSync(
     WHERE user_id = $1
       AND tracking_number IS NOT NULL
       AND delivery_confirmed_at IS NULL
+      AND creation_date::date >= (NOW() - INTERVAL '30 days')::date
     ORDER BY creation_date DESC`,
     [userId],
   );

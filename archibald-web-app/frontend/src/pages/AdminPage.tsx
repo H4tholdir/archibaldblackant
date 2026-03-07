@@ -955,7 +955,7 @@ export function AdminPage(_props: AdminPageProps) {
                                   <div><strong>Job ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.jobId}</span></div>
                                   <div><strong>User ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.userId}</span></div>
                                 </div>
-                                {job.orderData.items.length > 0 && (
+                                {job.orderData.items?.length > 0 && (
                                   <div style={{ marginTop: "8px" }}>
                                     <strong style={{ fontSize: "13px" }}>Articoli ({job.orderData.items.length}):</strong>
                                     <div style={{ marginTop: "4px", fontSize: "12px", fontFamily: "monospace", maxHeight: "120px", overflowY: "auto" }}>
