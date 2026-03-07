@@ -129,8 +129,8 @@ describe('syncTracking', () => {
       trackingUpdated: 1,
       trackingFailed: 1,
     }));
-    const failQueries = queries.filter((q) => q.text.includes('COALESCE(tracking_sync_failures'));
-    expect(failQueries).toHaveLength(1);
+    const incrementQueries = queries.filter((q) => q.text.includes('tracking_sync_failures, 0) + 1'));
+    expect(incrementQueries).toHaveLength(1);
   });
 
   test('delivery detected increments newDeliveries', async () => {
