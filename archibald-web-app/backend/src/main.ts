@@ -93,12 +93,7 @@ async function bootstrap(): Promise<void> {
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo,
         protocolTimeout: config.puppeteer.protocolTimeout,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-web-security',
-          '--ignore-certificate-errors',
-        ],
+        args: [...config.puppeteer.args],
         defaultViewport: { width: 1280, height: 800 },
       },
       sessionValidationUrl: config.archibald.url,

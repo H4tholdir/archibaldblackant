@@ -14,6 +14,7 @@ import puppeteer, { Browser, Page } from "puppeteer";
 import * as dotenv from "dotenv";
 import * as path from "path";
 import * as fs from "fs";
+import { config } from "./config";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
@@ -61,13 +62,7 @@ async function investigateOrderCreationFlow(): Promise<void> {
   const browser: Browser = await puppeteer.launch({
     headless: false, // Show browser for manual observation
     defaultViewport: { width: 1920, height: 1080 },
-    args: [
-      "--start-maximized",
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-web-security",
-      "--ignore-certificate-errors",
-    ],
+    args: [...config.puppeteer.args, "--start-maximized"],
   });
 
   const page: Page = await browser.newPage();

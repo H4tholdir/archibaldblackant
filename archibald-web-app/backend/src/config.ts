@@ -24,6 +24,22 @@ export const config = {
     slowMo: process.env.NODE_ENV === "production" ? 50 : 200, // 50ms in production (fast but stable), 200ms in dev
     timeout: 60000, // Increased to 60s for slow Archibald responses
     protocolTimeout: 300000, // 5 minutes - increased for large orders (12+ items)
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-web-security",
+      "--ignore-certificate-errors",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--no-zygote",
+      "--disable-accelerated-2d-canvas",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--memory-pressure-off",
+      "--js-flags=--max-old-space-size=512",
+    ],
   },
   features: {
     // Feature flag for Send to Milano - disabled by default until safe test order available

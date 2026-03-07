@@ -5,7 +5,7 @@ vi.mock('./config', () => ({
   config: {
     database: { host: 'localhost', port: 5432, database: 'test', user: 'test', password: '', maxConnections: 5 },
     server: { port: 3000, nodeEnv: 'test' },
-    puppeteer: { headless: true, slowMo: 0, timeout: 60000, protocolTimeout: 300000 },
+    puppeteer: { headless: true, slowMo: 0, timeout: 60000, protocolTimeout: 300000, args: ['--no-sandbox'] },
     archibald: { url: 'https://example.com/Archibald', username: '', password: '' },
     logging: { level: 'info' },
     queue: { workerConcurrency: 10 },
@@ -207,27 +207,29 @@ vi.mock('./operations/handlers', () => ({
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('bullmq', () => ({
-  Worker: vi.fn(() => ({
-    close: vi.fn().mockResolvedValue(undefined),
-    on: vi.fn(),
-  })),
-  Queue: vi.fn(() => ({
-    add: vi.fn().mockResolvedValue({ id: 'job-1' }),
-    getJob: vi.fn(),
-    getJobs: vi.fn().mockResolvedValue([]),
-    getJobCounts: vi.fn().mockResolvedValue({}),
-    close: vi.fn().mockResolvedValue(undefined),
-    clean: vi.fn().mockResolvedValue([]),
-  })),
-}));
+vi.mock('bullmq', () => {
+  const WorkerMock = vi.fn(function (this: Record<string, unknown>) {
+    this.close = vi.fn().mockResolvedValue(undefined);
+    this.on = vi.fn();
+  });
+  const QueueMock = vi.fn(function (this: Record<string, unknown>) {
+    this.add = vi.fn().mockResolvedValue({ id: 'job-1' });
+    this.getJob = vi.fn();
+    this.getJobs = vi.fn().mockResolvedValue([]);
+    this.getJobCounts = vi.fn().mockResolvedValue({});
+    this.close = vi.fn().mockResolvedValue(undefined);
+    this.clean = vi.fn().mockResolvedValue([]);
+  });
+  return { Worker: WorkerMock, Queue: QueueMock };
+});
 
-vi.mock('ioredis', () => ({
-  Redis: vi.fn(() => ({
-    disconnect: vi.fn(),
-    on: vi.fn(),
-  })),
-}));
+vi.mock('ioredis', () => {
+  const RedisMock = vi.fn(function (this: Record<string, unknown>) {
+    this.disconnect = vi.fn();
+    this.on = vi.fn();
+  });
+  return { Redis: RedisMock };
+});
 
 vi.mock('puppeteer', () => ({
   default: { launch: vi.fn() },

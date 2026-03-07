@@ -2292,13 +2292,8 @@ export class ArchibaldBot {
           return puppeteer.launch({
             headless: config.puppeteer.headless,
             slowMo: config.puppeteer.slowMo,
-            protocolTimeout: config.puppeteer.protocolTimeout, // Increased timeout for large orders
-            args: [
-              "--no-sandbox",
-              "--disable-setuid-sandbox",
-              "--disable-web-security",
-              "--ignore-certificate-errors",
-            ],
+            protocolTimeout: config.puppeteer.protocolTimeout,
+            args: [...config.puppeteer.args],
             defaultViewport: {
               width: 1280,
               height: 800,
@@ -2352,13 +2347,8 @@ export class ArchibaldBot {
         return puppeteer.launch({
           headless: config.puppeteer.headless,
           slowMo: config.puppeteer.slowMo,
-          protocolTimeout: config.puppeteer.protocolTimeout, // Increased timeout for large orders
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-web-security",
-            "--ignore-certificate-errors",
-          ],
+          protocolTimeout: config.puppeteer.protocolTimeout,
+          args: [...config.puppeteer.args],
           defaultViewport: {
             width: 1280,
             height: 800,
