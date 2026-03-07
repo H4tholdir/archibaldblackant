@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo, Fragment } from "react";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
@@ -63,8 +62,7 @@ interface RetentionConfig {
   keepFailed: number;
 }
 
-export function AdminPage({ onLogout, userName }: AdminPageProps) {
-  const navigate = useNavigate();
+export function AdminPage(_props: AdminPageProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -404,27 +402,6 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
 
   return (
     <div className="admin-page">
-      <header className="admin-header">
-        <div className="admin-header-left">
-          <h1>📊 Archibald Admin</h1>
-          <p>Pannello di Controllo</p>
-        </div>
-        <div className="admin-header-right">
-          <button
-            onClick={() => navigate("/")}
-            className="btn btn-secondary btn-sm"
-          >
-            📱 Vai all'App
-          </button>
-          <div className="user-info">
-            <span>{userName}</span>
-            <button onClick={onLogout} className="btn btn-secondary btn-sm">
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
       <main className="admin-main">
         <section className="admin-section">
           <SyncControlPanel />
