@@ -2259,21 +2259,39 @@ export default function OrderFormSimple() {
     const currentTotals = calculateTotals();
 
     if (target > currentTotals.finalTotal) {
-      if (!canEditPrice) {
-        toastService.error("Per ordini diretti non è possibile aumentare il totale");
+      // Check if target is achievable by reducing discounts (discount → 0)
+      const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
+      const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
+      const unselectedSub = unselectedItems.reduce((s, i) => s + i.subtotal, 0);
+      const unselectedVAT = unselectedItems.reduce((s, i) => s + i.vat, 0);
+      let maxSub = unselectedSub;
+      let maxVAT = unselectedVAT;
+      for (const i of selectedItems) {
+        const itemSub = Math.round(i.unitPrice * i.quantity * 100) / 100;
+        maxSub += itemSub;
+        maxVAT += Math.round(itemSub * (i.vatRate / 100) * 100) / 100;
+      }
+      const maxShipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(maxSub);
+      const maxTotal = Math.round((maxSub + maxShipping.cost + Math.round((maxVAT + maxShipping.tax) * 100) / 100) * 100) / 100;
+
+      if (target > maxTotal) {
+        if (!canEditPrice) {
+          toastService.error("Per ordini diretti non è possibile superare il totale senza sconti");
+          setShowTotaleDialog(false);
+          return;
+        }
+        // Activate markup mode with pre-selected items
+        const diff = target - currentTotals.finalTotal;
+        setMarkupAmount(diff);
+        setMarkupArticleSelection(new Set(totaleSelectedItems));
+        setShowMarkupPanel(true);
         setShowTotaleDialog(false);
         return;
       }
-      // Activate markup mode with pre-selected items
-      const diff = target - currentTotals.finalTotal;
-      setMarkupAmount(diff);
-      setMarkupArticleSelection(new Set(totaleSelectedItems));
-      setShowMarkupPanel(true);
-      setShowTotaleDialog(false);
-      return;
+      // Target achievable by reducing discounts — fall through to binary search
     }
 
-    // Target < current: calculate per-item discount
+    // Calculate per-item discount to reach target total
     const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
     const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
 
