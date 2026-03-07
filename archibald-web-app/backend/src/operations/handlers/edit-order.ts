@@ -1,6 +1,10 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 
+function archibaldLineAmount(quantity: number, unitPrice: number, discountPercent: number): number {
+  return Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
+}
+
 type EditOrderArticle = {
   articleCode: string;
   articleDescription?: string;

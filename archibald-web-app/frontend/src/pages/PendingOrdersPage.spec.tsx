@@ -79,9 +79,13 @@ vi.mock("../utils/format-currency", () => ({
   formatCurrency: vi.fn((v: number) => `${v.toFixed(2)}`),
 }));
 
-vi.mock("../utils/order-calculations", () => ({
-  calculateShippingCosts: vi.fn().mockReturnValue({ cost: 0, tax: 0 }),
-}));
+vi.mock("../utils/order-calculations", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    calculateShippingCosts: vi.fn().mockReturnValue({ cost: 0, tax: 0 }),
+  };
+});
 
 vi.mock("../utils/fresis-constants", () => ({
   isFresis: vi.fn().mockReturnValue(false),

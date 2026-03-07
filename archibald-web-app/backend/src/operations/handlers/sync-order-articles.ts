@@ -56,6 +56,21 @@ async function handleSyncOrderArticles(
 
   const archibaldOrderId = order.archibald_order_id ?? order.id;
 
+  // Load snapshot discounts to replace reverse-engineered PDF values
+  const { rows: snapshotRows } = await pool.query<{ article_code: string; line_discount_percent: number | null }>(
+    `SELECT si.article_code, si.line_discount_percent
+     FROM agents.order_verification_snapshot_items si
+     JOIN agents.order_verification_snapshots s ON s.id = si.snapshot_id
+     WHERE s.order_id = $1 AND s.user_id = $2`,
+    [data.orderId, userId],
+  );
+  const snapshotDiscountMap = new Map<string, number>();
+  for (const row of snapshotRows) {
+    if (row.line_discount_percent !== null) {
+      snapshotDiscountMap.set(row.article_code, row.line_discount_percent);
+    }
+  }
+
   onProgress(10, 'Download PDF articoli');
   const pdfPath = await bot.downloadOrderArticlesPDF(archibaldOrderId);
 
@@ -70,8 +85,12 @@ async function handleSyncOrderArticles(
         const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
         const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
 
+        // Use original discount from snapshot if available (PDF reverse-engineering is imprecise)
+        const discountPercent = snapshotDiscountMap.get(article.articleCode) ?? article.discountPercent;
+
         return {
           ...article,
+          discountPercent,
           vatPercent,
           vatAmount,
           lineTotalWithVat,

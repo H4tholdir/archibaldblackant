@@ -42,17 +42,20 @@ type SubmitOrderBot = {
   ) => void;
 };
 
+function archibaldLineAmount(quantity: number, unitPrice: number, discountPercent: number): number {
+  return Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
+}
+
 function calculateAmounts(
   items: SubmitOrderItem[],
   discountPercent?: number,
 ): { grossAmount: number; total: number } {
   const grossAmount = items.reduce((sum, item) => {
-    const lineAmount = item.price * item.quantity * (1 - (item.discount || 0) / 100);
-    return sum + lineAmount;
+    return sum + archibaldLineAmount(item.quantity, item.price, item.discount || 0);
   }, 0);
 
   const total = discountPercent
-    ? grossAmount * (1 - discountPercent / 100)
+    ? Math.round(grossAmount * (1 - discountPercent / 100) * 100) / 100
     : grossAmount;
 
   return { grossAmount, total };
@@ -248,10 +251,10 @@ async function handleSubmitOrder(
         `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14})`,
       );
       const item = data.items[i];
-      const lineAmount = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+      const lineAmount = archibaldLineAmount(item.quantity, item.price, item.discount || 0);
       const vatPercent = item.vat ?? 0;
-      const vatAmount = lineAmount * vatPercent / 100;
-      const lineTotalWithVat = lineAmount + vatAmount;
+      const vatAmount = Math.round(lineAmount * vatPercent / 100 * 100) / 100;
+      const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
       articleValues.push(
         orderId,
         userId,
@@ -312,7 +315,7 @@ async function handleSubmitOrder(
           quantity: item.quantity,
           unitPrice: item.price,
           lineDiscountPercent: item.discount ?? null,
-          expectedLineAmount: item.price * item.quantity * (1 - (item.discount || 0) / 100),
+          expectedLineAmount: archibaldLineAmount(item.quantity, item.price, item.discount || 0),
         })),
       });
     }

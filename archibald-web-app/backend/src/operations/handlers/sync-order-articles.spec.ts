@@ -141,6 +141,48 @@ describe('handleSyncOrderArticles', () => {
     expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/articles.pdf');
   });
 
+  test('uses snapshot discount when snapshot exists', async () => {
+    const queryFn = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'ORD-001', archibald_order_id: '71723' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          { article_code: 'ART-01', line_discount_percent: 34.85 },
+          { article_code: 'ART-02', line_discount_percent: 15.62 },
+        ],
+        rowCount: 2,
+      })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const pool: DbPool = {
+      query: queryFn,
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    };
+
+    const bot = createMockBot();
+    const deps: SyncOrderArticlesDeps = {
+      pool,
+      bot,
+      parsePdf: vi.fn().mockResolvedValue([
+        { articleCode: 'ART-01', description: 'Widget', quantity: 5, unitPrice: 8.88, discountPercent: 34.84, lineAmount: 28.93 },
+        { articleCode: 'ART-02', description: 'Gadget', quantity: 1, unitPrice: 25.97, discountPercent: 15.63, lineAmount: 21.91 },
+      ]),
+      getProductVat: vi.fn().mockResolvedValue(22),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await handleSyncOrderArticles(deps, { orderId: 'ORD-001' }, 'user-1', vi.fn());
+
+    const insertCall = queryFn.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'),
+    );
+    expect(insertCall).toBeDefined();
+    const insertValues = insertCall![1] as unknown[];
+    // discount_percent is at index 6 (0-based) for first article, and 6+12=18 for second
+    expect(insertValues[6]).toBe(34.85);
+    expect(insertValues[18]).toBe(15.62);
+  });
+
   test('reports progress at key milestones', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
