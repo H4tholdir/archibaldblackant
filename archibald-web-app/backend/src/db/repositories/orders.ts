@@ -1015,7 +1015,7 @@ async function getOrdersNeedingTrackingSync(
       AND COALESCE(tracking_sync_failures, 0) < 10
       AND creation_date::date >= (NOW() - INTERVAL '30 days')::date
     ORDER BY tracking_last_synced_at ASC NULLS FIRST, creation_date DESC
-    LIMIT 100`,
+    LIMIT 30`,
     [userId],
   );
   return result.rows.map((r) => ({

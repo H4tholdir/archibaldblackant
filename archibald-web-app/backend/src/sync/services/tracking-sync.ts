@@ -111,9 +111,13 @@ async function syncTracking(
             trackingSyncFailures: 0,
           });
 
+          logger.info(`Tracking ${totalProcessed}/${trackingNumbers.length}: ${result.trackingNumber} → ${status}`, {
+            orderNumber, trackingNumber: result.trackingNumber, status,
+            location: result.lastScanLocation ?? '-',
+          });
+
           if (status === 'delivered') {
             newDeliveries++;
-            logger.info('Tracking: delivery confirmed', { orderNumber, trackingNumber: result.trackingNumber, receivedBy: result.receivedByName });
           }
           trackingUpdated++;
         } else {
