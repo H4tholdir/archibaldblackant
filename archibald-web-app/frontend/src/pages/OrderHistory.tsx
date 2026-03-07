@@ -883,11 +883,13 @@ export function OrderHistory() {
           }
 
           case "inTransit":
-            matches = isInTransit(order);
+            matches = order.trackingStatus === 'in_transit'
+              || order.trackingStatus === 'out_for_delivery'
+              || isInTransit(order);
             break;
 
           case "delivered":
-            matches = isLikelyDelivered(order);
+            matches = !!order.deliveryConfirmedAt || isLikelyDelivered(order);
             break;
 
           case "invoiced":
@@ -1069,14 +1071,20 @@ export function OrderHistory() {
       label: "\ud83d\ude9a In transito",
       color: "#1565C0",
       bgColor: "#BBDEFB",
-      count: ordersForCounts.filter((o) => isInTransit(o)).length,
+      count: ordersForCounts.filter((o) =>
+        o.trackingStatus === 'in_transit'
+        || o.trackingStatus === 'out_for_delivery'
+        || isInTransit(o)
+      ).length,
     },
     {
       id: "delivered",
       label: "\ud83d\udce6 Consegnati",
       color: "#0277BD",
       bgColor: "#B3E5FC",
-      count: ordersForCounts.filter((o) => isLikelyDelivered(o)).length,
+      count: ordersForCounts.filter((o) =>
+        !!o.deliveryConfirmedAt || isLikelyDelivered(o)
+      ).length,
     },
     {
       id: "invoiced",
