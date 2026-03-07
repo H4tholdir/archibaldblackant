@@ -1,3 +1,5 @@
+import type { Order } from "../types/order";
+
 export type ScanEvent = {
   date: string;
   time: string;
@@ -9,20 +11,29 @@ export type ScanEvent = {
   exception: boolean;
 };
 
-export type TrackingStep = {
+export type StripInfo = {
+  icon: string;
   label: string;
-  detail: string;
-  completed: boolean;
-  active: boolean;
+  location: string;
+  dateTime: string;
+  rightInfo: string;
+  dayLabel: string;
+  progressPercent: number;
 };
 
-const STEP_LABELS = [
-  "Ritirato",
-  "In viaggio",
-  "Hub locale",
-  "In consegna",
-  "Consegnato",
-] as const;
+const ITALIAN_MONTHS = [
+  "gen", "feb", "mar", "apr", "mag", "giu",
+  "lug", "ago", "set", "ott", "nov", "dic",
+];
+
+function formatItalianDate(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const day = parseInt(parts[2], 10);
+  const monthIndex = parseInt(parts[1], 10) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return dateStr;
+  return `${day} ${ITALIAN_MONTHS[monthIndex]}`;
+}
 
 function formatTime(time: string): string {
   const parts = time.split(":");
@@ -30,162 +41,244 @@ function formatTime(time: string): string {
   return time;
 }
 
-function matchesStep(
+function getStepIndex(
   event: ScanEvent,
-  stepIndex: number,
   destinationCountryCode: string,
-): boolean {
-  switch (stepIndex) {
-    case 0:
-      return event.statusCD === "PU";
-    case 1:
-      return (
-        (event.statusCD === "DP" ||
-          event.statusCD === "IT" ||
-          event.statusCD === "AR") &&
-        !matchesStep(event, 2, destinationCountryCode)
-      );
-    case 2:
-      return (
-        event.statusCD === "AR" &&
-        event.scanLocation.endsWith(` ${destinationCountryCode}`)
-      );
-    case 3:
-      return event.statusCD === "OD";
-    case 4:
-      return event.delivered || event.statusCD === "DL";
-    default:
-      return false;
-  }
+): number {
+  if (event.delivered || event.statusCD === "DL") return 4;
+  if (event.statusCD === "OD") return 3;
+  if (event.statusCD === "AR" && event.scanLocation.endsWith(` ${destinationCountryCode}`)) return 2;
+  if (event.statusCD === "DP" || event.statusCD === "IT" || event.statusCD === "AR") return 1;
+  if (event.statusCD === "PU") return 0;
+  if (event.exception || event.statusCD === "DE") return -1;
+  return -2;
 }
 
-export function getTrackingSteps(
-  scanEvents: ScanEvent[],
-  destinationCountryCode: string,
-): TrackingStep[] {
-  const matchedEvents: Array<ScanEvent | undefined> = Array(5).fill(undefined);
+const STEP_PERCENT: Record<number, number> = {
+  0: 10,
+  1: 40,
+  2: 65,
+  3: 85,
+  4: 100,
+};
 
-  for (const event of scanEvents) {
-    for (let step = 0; step < 5; step++) {
-      if (!matchedEvents[step] && matchesStep(event, step, destinationCountryCode)) {
-        matchedEvents[step] = event;
-      }
+const STEP_ICONS: Record<number, string> = {
+  [-1]: "\u26A0\uFE0F",
+  0: "\uD83D\uDCE6",
+  1: "\uD83D\uDE9A",
+  2: "\uD83D\uDE9A",
+  3: "\uD83D\uDE9B",
+  4: "\u2705",
+};
+
+const STEP_LABELS: Record<number, string> = {
+  [-1]: "Eccezione",
+  0: "Ritirato",
+  1: "In viaggio",
+  2: "Hub locale",
+  3: "In consegna",
+  4: "Consegnato",
+};
+
+function daysBetween(dateA: string, dateB: string): number {
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+  return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function computeDayLabel(
+  events: ScanEvent[],
+  highestStep: number,
+  deliveredEvent: ScanEvent | undefined,
+  today: Date,
+): string {
+  if (events.length === 0) return "";
+  const firstDate = events[events.length - 1].date;
+  if (highestStep === 4 && deliveredEvent) {
+    const days = daysBetween(firstDate, deliveredEvent.date);
+    return `consegnato in ${days + 1} giorni`;
+  }
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const days = daysBetween(firstDate, todayStr);
+  return `${days + 1}\u00B0 giorno`;
+}
+
+export function getStripInfo(order: Order, today?: Date): StripInfo {
+  const events = order.trackingEvents;
+  if (!events || events.length === 0) {
+    return {
+      icon: "",
+      label: "",
+      location: "",
+      dateTime: "",
+      rightInfo: "",
+      dayLabel: "",
+      progressPercent: 0,
+    };
+  }
+
+  const destCountry = (order.trackingDestination || "").split(", ").pop() || "IT";
+  const now = today ?? new Date();
+
+  let highestStep = -2;
+  let activeEvent: ScanEvent | undefined;
+  let exceptionEvent: ScanEvent | undefined;
+  let deliveredEvent: ScanEvent | undefined;
+
+  for (const event of events) {
+    if (event.exception || event.statusCD === "DE") {
+      if (!exceptionEvent) exceptionEvent = event;
+    }
+    const step = getStepIndex(event, destCountry);
+    if (step > highestStep) {
+      highestStep = step;
+      activeEvent = event;
+    }
+    if (step === 4) deliveredEvent = event;
+  }
+
+  if (exceptionEvent && highestStep < 4) {
+    const prevPercent = highestStep >= 0 ? STEP_PERCENT[highestStep] : 0;
+    const ev = exceptionEvent;
+    return {
+      icon: STEP_ICONS[-1],
+      label: STEP_LABELS[-1],
+      location: ev.scanLocation,
+      dateTime: `${formatItalianDate(ev.date)} ${formatTime(ev.time)}`,
+      rightInfo: ev.status,
+      dayLabel: computeDayLabel(events, highestStep, undefined, now),
+      progressPercent: prevPercent,
+    };
+  }
+
+  if (!activeEvent || highestStep < 0) {
+    return {
+      icon: "",
+      label: "",
+      location: "",
+      dateTime: "",
+      rightInfo: "",
+      dayLabel: "",
+      progressPercent: 0,
+    };
+  }
+
+  const percent = STEP_PERCENT[highestStep];
+  const location = activeEvent.scanLocation;
+  const showTime = highestStep > 0;
+  const dateTime = showTime
+    ? `${formatItalianDate(activeEvent.date)} ${formatTime(activeEvent.time)}`
+    : formatItalianDate(activeEvent.date);
+
+  let rightInfo = "";
+  if (highestStep === 4) {
+    rightInfo = order.deliverySignedBy
+      ? `Firmato: ${order.deliverySignedBy}`
+      : "";
+  } else if (highestStep === 3) {
+    rightInfo = "arr. oggi";
+  } else {
+    const eta = order.trackingEstimatedDelivery;
+    if (eta) {
+      rightInfo = `arr. ~${formatItalianDate(eta)}`;
     }
   }
 
-  let highestCompleted = -1;
-  for (let i = 4; i >= 0; i--) {
-    if (matchedEvents[i]) {
-      highestCompleted = i;
-      break;
-    }
-  }
+  const dayLabel = computeDayLabel(events, highestStep, deliveredEvent, now);
 
-  return STEP_LABELS.map((label, i) => {
-    const event = matchedEvents[i];
-    const completed = i <= highestCompleted;
-    const active = i === highestCompleted;
-    const detail =
-      active && event
-        ? `${event.scanLocation}, ${formatTime(event.time)}`
-        : "";
-    return { label, detail, completed, active };
-  });
+  return {
+    icon: STEP_ICONS[highestStep],
+    label: STEP_LABELS[highestStep],
+    location,
+    dateTime,
+    rightInfo,
+    dayLabel,
+    progressPercent: percent,
+  };
 }
 
-export function TrackingProgressBar({
-  steps,
+export function TrackingStrip({
+  order,
   borderColor,
-  origin,
-  destination,
 }: {
-  steps: TrackingStep[];
+  order: Order;
   borderColor: string;
-  origin: string;
-  destination: string;
 }) {
-  const activeStep = steps.find((s) => s.active);
+  const info = getStripInfo(order);
+
+  if (!info.label) return null;
+
+  const origin = order.trackingOrigin || "";
+  const destination = order.trackingDestination || "";
 
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
+        borderRadius: "8px",
+        background: "#f8f9fa",
+        padding: "8px 12px",
         width: "100%",
-        padding: "6px 0 2px",
       }}
     >
       <div
         style={{
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "2px",
-        }}
-      >
-        <span style={{ fontSize: "10px", color: "#999" }}>{origin}</span>
-        <span style={{ fontSize: "10px", color: "#999" }}>{destination}</span>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
           alignItems: "center",
-          width: "100%",
+          fontSize: "12px",
+          marginBottom: "6px",
         }}
       >
-        {steps.map((step, i) => (
-          <div
-            key={step.label}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              flex: i < steps.length - 1 ? 1 : undefined,
-            }}
-          >
-            <div
-              style={{
-                width: "12px",
-                height: "12px",
-                borderRadius: "50%",
-                backgroundColor: step.completed ? borderColor : "#fff",
-                border: step.completed
-                  ? `2px solid ${borderColor}`
-                  : "2px solid #e0e0e0",
-                boxShadow: step.active
-                  ? `0 0 0 3px ${borderColor}33`
-                  : undefined,
-                flexShrink: 0,
-              }}
-            />
-            {i < steps.length - 1 && (
-              <div
-                style={{
-                  flex: 1,
-                  height: "2px",
-                  backgroundColor:
-                    step.completed && steps[i + 1].completed
-                      ? borderColor
-                      : "#e0e0e0",
-                }}
-              />
-            )}
-          </div>
-        ))}
+        <span style={{ color: "#333" }}>
+          {info.icon} {info.label} &bull; {info.location} &bull; {info.dateTime}
+        </span>
+        {info.rightInfo && (
+          <span style={{ color: "#666", flexShrink: 0, marginLeft: "8px" }}>
+            {info.rightInfo}
+          </span>
+        )}
       </div>
 
-      {activeStep && activeStep.detail && (
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div
+          style={{
+            flex: 1,
+            height: "6px",
+            borderRadius: "3px",
+            background: "#e8e8e8",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            data-testid="progress-fill"
+            style={{
+              width: `${info.progressPercent}%`,
+              height: "100%",
+              borderRadius: "3px",
+              backgroundColor: borderColor,
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
         <div
           style={{
             fontSize: "11px",
-            color: "#666",
-            marginTop: "2px",
-            textAlign: "center",
+            color: "#999",
+            whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
           }}
         >
-          {activeStep.detail}
+          <span>{origin} → {destination}</span>
+          {info.dayLabel && (
+            <>
+              <span style={{ color: "#ccc" }}>|</span>
+              <span>{info.dayLabel}</span>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
