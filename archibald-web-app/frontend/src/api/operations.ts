@@ -213,6 +213,7 @@ async function waitForJobViaWebSocket(
 
   return new Promise((resolve, reject) => {
     let resolved = false;
+    let wsActive = false;
     const unsubscribers: Array<() => void> = [];
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -229,7 +230,15 @@ async function waitForJobViaWebSocket(
       unsubscribers.forEach(u => u());
     };
 
+    const cancelFallback = () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
+
     const resetFallback = () => {
+      if (wsActive) return;
       if (fallbackTimer) clearTimeout(fallbackTimer);
       fallbackTimer = setTimeout(() => {
         if (resolved) return;
@@ -239,18 +248,22 @@ async function waitForJobViaWebSocket(
       }, wsFallbackMs);
     };
 
+    const markWsActive = () => {
+      wsActive = true;
+      cancelFallback();
+    };
+
     const handleEvent = (eventType: string) => (payload: unknown) => {
       if (resolved) return;
       const p = (payload ?? {}) as Record<string, unknown>;
       if (p.jobId !== jobId) return;
 
-      if (eventType === 'JOB_STARTED') {
-        resetFallback();
-      } else if (eventType === 'JOB_PROGRESS') {
+      markWsActive();
+
+      if (eventType === 'JOB_PROGRESS') {
         const progress = p.progress as number;
         const label = p.label as string | undefined;
         onProgress?.(progress, label);
-        resetFallback();
       } else if (eventType === 'JOB_COMPLETED') {
         cleanup();
         onProgress?.(100, 'Completato');
