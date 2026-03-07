@@ -23,28 +23,31 @@ export function calculateItemTotals(
 ): ItemCalculationResult {
   const { unitPrice, quantity, discountType, discountValue = 0 } = input;
 
-  const subtotal = unitPrice * quantity;
+  const subtotal = round(unitPrice * quantity);
 
-  let discount = 0;
+  let discountAmount = 0;
   if (discountType === "percentage") {
-    discount = subtotal * (discountValue / 100);
+    discountAmount = round(subtotal * (discountValue / 100));
   } else if (discountType === "amount") {
-    discount = discountValue;
+    discountAmount = Math.min(discountValue, subtotal);
   }
 
-  // Ensure discount doesn't exceed subtotal
-  discount = Math.min(discount, subtotal);
+  // Use archibaldLineAmount for percentage discounts (matches ERP exactly)
+  // For amount discounts, fall back to subtraction
+  const subtotalAfterDiscount =
+    discountType === "percentage"
+      ? archibaldLineAmount(quantity, unitPrice, discountValue)
+      : round(subtotal - discountAmount);
 
-  const subtotalAfterDiscount = subtotal - discount;
-  const vat = subtotalAfterDiscount * VAT_RATE;
-  const total = subtotalAfterDiscount + vat;
+  const vat = round(subtotalAfterDiscount * VAT_RATE);
+  const total = round(subtotalAfterDiscount + vat);
 
   return {
-    subtotal: round(subtotal),
-    discount: round(discount),
-    subtotalAfterDiscount: round(subtotalAfterDiscount),
-    vat: round(vat),
-    total: round(total),
+    subtotal,
+    discount: discountAmount,
+    subtotalAfterDiscount,
+    vat,
+    total,
   };
 }
 
@@ -205,4 +208,16 @@ function round(value: number): number {
 
 export function roundUp(value: number): number {
   return Math.ceil(value * 100) / 100;
+}
+
+/**
+ * Exact replica of Archibald ERP line amount calculation.
+ * Rounds the full expression to 2 decimals — do NOT round intermediate values.
+ */
+export function archibaldLineAmount(
+  quantity: number,
+  unitPrice: number,
+  discountPercent: number,
+): number {
+  return Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
 }

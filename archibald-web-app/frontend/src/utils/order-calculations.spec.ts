@@ -5,6 +5,7 @@ import {
   calculateOrderTotals,
   reverseCalculateGlobalDiscount,
   calculateShippingCosts,
+  archibaldLineAmount,
   VAT_RATE,
   SHIPPING_THRESHOLD,
 } from "./order-calculations";
@@ -314,6 +315,42 @@ describe("order-calculations", () => {
       expect(result.globalDiscountPercent).toBeCloseTo(40.28, 1);
       expect(result.globalDiscountAmount).toBeCloseTo(72.5, 1);
       expect(result.hasShipping).toBe(true);
+    });
+  });
+
+  describe("archibaldLineAmount", () => {
+    test("matches Archibald ERP rounding for real order data", () => {
+      expect(archibaldLineAmount(6, 15.56, 15.62)).toBe(78.78);
+      expect(archibaldLineAmount(10, 8.45, 30.43)).toBe(58.79);
+      expect(archibaldLineAmount(1, 184.74, 30.44)).toBe(128.51);
+      expect(archibaldLineAmount(5, 8.88, 34.84)).toBe(28.93);
+      expect(archibaldLineAmount(2, 32.46, 34.84)).toBe(42.30);
+      expect(archibaldLineAmount(20, 6.86, 34.28)).toBe(90.17);
+      expect(archibaldLineAmount(1, 25.97, 15.63)).toBe(21.91);
+      expect(archibaldLineAmount(5, 18.20, 34.85)).toBe(59.29);
+    });
+
+    test("handles zero discount", () => {
+      expect(archibaldLineAmount(3, 10, 0)).toBe(30);
+    });
+
+    test("handles 100% discount", () => {
+      expect(archibaldLineAmount(5, 20, 100)).toBe(0);
+    });
+
+    test("handles zero quantity", () => {
+      expect(archibaldLineAmount(0, 50, 10)).toBe(0);
+    });
+
+    test("order total is sum of rounded lines", () => {
+      const lines = [
+        archibaldLineAmount(10, 8.45, 30.43),
+        archibaldLineAmount(1, 135.19, 30.44),
+        archibaldLineAmount(1, 184.74, 30.44),
+        archibaldLineAmount(1, 184.74, 30.44),
+      ];
+      const total = lines.reduce((s, v) => s + v, 0);
+      expect(Math.round(total * 100) / 100).toBe(409.85);
     });
   });
 
