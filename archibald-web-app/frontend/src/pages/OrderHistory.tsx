@@ -726,7 +726,7 @@ export function OrderHistory() {
       const response = await fetchWithRetry(
         `/api/orders/${modalOrderId}/send-to-milano`,
         { method: "POST" },
-        { maxRetries: 0, totalTimeout: 120000 },
+        { maxRetries: 0, totalTimeout: 200000 },
       );
 
       if (!response.ok) {
@@ -745,7 +745,7 @@ export function OrderHistory() {
       } else {
         await waitForJobViaWebSocket(data.jobId, {
           subscribe,
-          maxWaitMs: 120_000,
+          maxWaitMs: 200_000,
           onProgress: (progress, label) => {
             setSendToVeronaProgress({
               progress,

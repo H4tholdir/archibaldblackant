@@ -13,6 +13,16 @@ type SendToVeronaBot = {
   ) => void;
 };
 
+const SEND_TO_VERONA_PROGRESS: Record<string, { progress: number; label: string }> = {
+  'sendToVerona.navigation': { progress: 10, label: 'Navigazione alla lista ordini' },
+  'sendToVerona.filter': { progress: 20, label: 'Impostazione filtro ordini' },
+  'sendToVerona.search': { progress: 30, label: 'Ricerca ordine' },
+  'sendToVerona.select': { progress: 40, label: 'Selezione ordine' },
+  'sendToVerona.confirm': { progress: 50, label: 'Conferma invio a Verona' },
+  'sendToVerona.verify': { progress: 65, label: 'Verifica invio completato' },
+  'sendToVerona.complete': { progress: 80, label: 'Finalizzazione' },
+};
+
 async function handleSendToVerona(
   pool: DbPool,
   bot: SendToVeronaBot,
@@ -21,10 +31,15 @@ async function handleSendToVerona(
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ success: boolean; message: string; sentToMilanoAt: string }> {
   bot.setProgressCallback(async (category) => {
-    onProgress(50, category);
+    const mapped = SEND_TO_VERONA_PROGRESS[category];
+    if (mapped) {
+      onProgress(mapped.progress, mapped.label);
+    } else {
+      onProgress(50, 'Invio in corso...');
+    }
   });
 
-  onProgress(10, 'Invio ordine a Verona');
+  onProgress(5, 'Avvio invio a Verona');
   const result = await bot.sendOrderToVerona(data.orderId);
 
   if (!result.success) {
