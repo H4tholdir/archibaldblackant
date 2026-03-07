@@ -8,7 +8,7 @@ import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
 import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../types/pending-order";
-import { calculateShippingCosts } from "../utils/order-calculations";
+import { calculateShippingCosts, archibaldLineAmount } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { VerificationAlert } from "../components/VerificationAlert";
@@ -23,7 +23,7 @@ function itemSubtotal(
   _order: PendingOrder,
   item: { price: number; quantity: number; discount?: number },
 ): number {
-  return item.price * item.quantity * (1 - (item.discount || 0) / 100);
+  return archibaldLineAmount(item.quantity, item.price, item.discount || 0);
 }
 
 export function PendingOrdersPage() {
@@ -1665,12 +1665,12 @@ export function PendingOrdersPage() {
 
                         // Calculate VAT including shipping tax
                         const itemsVAT = order.items.reduce((sum, item) => {
-                          const lineSubtotal = itemSubtotal(order, item);
-                          const itemAfterGlobalDiscount = order.discountPercent
-                            ? lineSubtotal * (1 - order.discountPercent / 100)
-                            : lineSubtotal;
+                          const lineAmount = itemSubtotal(order, item);
+                          const lineAfterGlobalDiscount = order.discountPercent
+                            ? Math.round(lineAmount * (1 - order.discountPercent / 100) * 100) / 100
+                            : lineAmount;
                           return (
-                            sum + itemAfterGlobalDiscount * (item.vat / 100)
+                            sum + Math.round(lineAfterGlobalDiscount * (item.vat / 100) * 100) / 100
                           );
                         }, 0);
                         const orderVAT = itemsVAT + shippingTax;
