@@ -4085,42 +4085,6 @@ export function OrderCardNew({
                   flexWrap: "wrap",
                 }}
               >
-                {/* Tracking Button */}
-                {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const url =
-                        order.tracking?.trackingUrl || order.ddt?.trackingUrl;
-                      if (url) window.open(url, "_blank");
-                    }}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      padding: "6px 12px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      backgroundColor: "#fff",
-                      color: "#1976d2",
-                      border: "1px solid #1976d2",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#1976d2";
-                      e.currentTarget.style.color = "#fff";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                      e.currentTarget.style.color = "#1976d2";
-                    }}
-                  >
-                    🚚 Tracking
-                  </button>
-                )}
-
                 {/* DDT Download Button */}
                 {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
                   <div
