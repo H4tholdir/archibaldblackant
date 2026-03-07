@@ -103,15 +103,11 @@ function parseTrackingResponse(
   };
 }
 
-async function scrapeFedExTracking(
-  trackingNumbers: string[],
-  onProgress?: (processed: number, total: number) => void,
-): Promise<FedExTrackingResult[]> {
-  if (trackingNumbers.length === 0) {
-    return [];
-  }
+const MICRO_BATCH_SIZE = 5;
 
-  const results: FedExTrackingResult[] = [];
+async function scrapeTrackingBatch(
+  trackingNumbers: string[],
+): Promise<FedExTrackingResult[]> {
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -120,8 +116,11 @@ async function scrapeFedExTracking(
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--disable-setuid-sandbox',
+      '--single-process',
     ],
   });
+
+  const results: FedExTrackingResult[] = [];
 
   try {
     const page = await browser.newPage();
@@ -129,9 +128,7 @@ async function scrapeFedExTracking(
       'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
     });
 
-    for (let i = 0; i < trackingNumbers.length; i++) {
-      const trackingNumber = trackingNumbers[i];
-
+    for (const trackingNumber of trackingNumbers) {
       try {
         const responsePromise = new Promise<FedExTrackingResult>(
           (resolve, reject) => {
@@ -172,15 +169,39 @@ async function scrapeFedExTracking(
         page.removeAllListeners('response');
       }
 
-      onProgress?.(i + 1, trackingNumbers.length);
-
-      if (i < trackingNumbers.length - 1) {
-        const delay = 2000 + Math.random() * 3000;
-        await new Promise((r) => setTimeout(r, delay));
-      }
+      // Small delay between trackings within a batch
+      const delay = 2000 + Math.random() * 3000;
+      await new Promise((r) => setTimeout(r, delay));
     }
   } finally {
     await browser.close();
+  }
+
+  return results;
+}
+
+async function scrapeFedExTracking(
+  trackingNumbers: string[],
+  onProgress?: (processed: number, total: number) => void,
+): Promise<FedExTrackingResult[]> {
+  if (trackingNumbers.length === 0) {
+    return [];
+  }
+
+  const results: FedExTrackingResult[] = [];
+
+  // Process in micro-batches: open browser, scrape 5, close browser, free RAM
+  for (let i = 0; i < trackingNumbers.length; i += MICRO_BATCH_SIZE) {
+    const batch = trackingNumbers.slice(i, i + MICRO_BATCH_SIZE);
+    const batchResults = await scrapeTrackingBatch(batch);
+    results.push(...batchResults);
+
+    onProgress?.(i + batch.length, trackingNumbers.length);
+
+    // Pause between micro-batches to let RAM settle
+    if (i + MICRO_BATCH_SIZE < trackingNumbers.length) {
+      await new Promise((r) => setTimeout(r, 3000));
+    }
   }
 
   return results;
