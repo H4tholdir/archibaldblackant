@@ -122,6 +122,9 @@ async function scrapeFedExTracking(
 
   try {
     const page = await browser.newPage();
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    );
 
     for (let i = 0; i < trackingNumbers.length; i++) {
       const trackingNumber = trackingNumbers[i];
@@ -131,7 +134,7 @@ async function scrapeFedExTracking(
           (resolve, reject) => {
             const timeout = setTimeout(() => {
               reject(new Error('Timeout waiting for FedEx tracking API response'));
-            }, 15_000);
+            }, 30_000);
 
             const handler = async (response: { url: () => string; json: () => Promise<Record<string, unknown>> }) => {
               if (response.url().includes('api.fedex.com/track/v2/shipments')) {
