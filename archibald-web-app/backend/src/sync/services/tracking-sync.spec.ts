@@ -1,7 +1,16 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../../db/pool';
-import type { FedExTrackingResult } from './fedex-tracking-scraper';
-import { mapTrackingStatus, syncTracking, type TrackingSyncDeps } from './tracking-sync';
+import type { FedExTrackingResult } from './fedex-api-tracker';
+import { mapTrackingStatus } from './tracking-sync';
+
+vi.mock('./fedex-api-tracker', () => ({
+  trackViaFedExApi: vi.fn(),
+}));
+
+import { trackViaFedExApi } from './fedex-api-tracker';
+import { syncTracking } from './tracking-sync';
+
+const mockTrackViaFedExApi = vi.mocked(trackViaFedExApi);
 
 function makeMockPool(
   mockOrders: Array<{ order_number: string; tracking_number: string }>,
@@ -32,24 +41,13 @@ function makeResult(
     keyStatusCD: 'IT',
     statusBarCD: 'OW',
     lastScanStatus: 'In transit',
-    lastScanDateTime: '2026-03-06T10:00:00',
+    lastScanDateTime: '2026-03-06 10:00:00',
     lastScanLocation: 'Milan, IT',
     origin: 'Verona, IT',
     destination: 'Naples, IT',
     serviceDesc: 'FedEx International Priority',
     scanEvents: [],
     ...overrides,
-  };
-}
-
-function makeDeps(
-  mockOrders: Array<{ order_number: string; tracking_number: string }>,
-  scrapeFn: TrackingSyncDeps['scrapeFedEx'],
-): { deps: TrackingSyncDeps; queries: Array<{ text: string; values: unknown[] }> } {
-  const { pool, queries } = makeMockPool(mockOrders);
-  return {
-    deps: { pool, scrapeFedEx: scrapeFn },
-    queries,
   };
 }
 
@@ -87,18 +85,22 @@ describe('syncTracking', () => {
   const noProgress = vi.fn();
   const neverStop = () => false;
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test('all successful in-transit updates both orders', async () => {
     const mockOrders = [
       { order_number: 'ORD/001', tracking_number: 'TRK111' },
       { order_number: 'ORD/002', tracking_number: 'TRK222' },
     ];
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>().mockResolvedValue([
+    mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111'),
       makeResult('TRK222'),
     ]);
-    const { deps, queries } = makeDeps(mockOrders, scrapeFn);
+    const { pool, queries } = makeMockPool(mockOrders);
 
-    const result = await syncTracking(deps, 'user-1', noProgress, neverStop);
+    const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
     expect(result).toEqual(expect.objectContaining({
       success: true,
@@ -116,13 +118,13 @@ describe('syncTracking', () => {
       { order_number: 'ORD/001', tracking_number: 'TRK111' },
       { order_number: 'ORD/002', tracking_number: 'TRK222' },
     ];
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>().mockResolvedValue([
+    mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111'),
-      { trackingNumber: 'TRK222', success: false, error: 'Timeout' },
+      { trackingNumber: 'TRK222', success: false, error: 'Not found' },
     ]);
-    const { deps, queries } = makeDeps(mockOrders, scrapeFn);
+    const { pool, queries } = makeMockPool(mockOrders);
 
-    const result = await syncTracking(deps, 'user-1', noProgress, neverStop);
+    const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
     expect(result).toEqual(expect.objectContaining({
       success: true,
@@ -137,7 +139,7 @@ describe('syncTracking', () => {
     const mockOrders = [
       { order_number: 'ORD/001', tracking_number: 'TRK111' },
     ];
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>().mockResolvedValue([
+    mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111', {
         statusBarCD: 'DL',
         keyStatusCD: 'DL',
@@ -145,9 +147,9 @@ describe('syncTracking', () => {
         receivedByName: 'Mario Rossi',
       }),
     ]);
-    const { deps } = makeDeps(mockOrders, scrapeFn);
+    const { pool } = makeMockPool(mockOrders);
 
-    const result = await syncTracking(deps, 'user-1', noProgress, neverStop);
+    const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
     expect(result).toEqual(expect.objectContaining({
       success: true,
@@ -157,10 +159,9 @@ describe('syncTracking', () => {
   });
 
   test('no orders returns early with zero counts', async () => {
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>();
-    const { deps } = makeDeps([], scrapeFn);
+    const { pool } = makeMockPool([]);
 
-    const result = await syncTracking(deps, 'user-1', noProgress, neverStop);
+    const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
     expect(result).toEqual(expect.objectContaining({
       success: true,
@@ -169,37 +170,13 @@ describe('syncTracking', () => {
       trackingFailed: 0,
       newDeliveries: 0,
     }));
-    expect(scrapeFn).not.toHaveBeenCalled();
-  });
-
-  test('suspension triggered when >50% failures', async () => {
-    const mockOrders = [
-      { order_number: 'ORD/001', tracking_number: 'TRK111' },
-      { order_number: 'ORD/002', tracking_number: 'TRK222' },
-      { order_number: 'ORD/003', tracking_number: 'TRK333' },
-    ];
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>().mockResolvedValue([
-      { trackingNumber: 'TRK111', success: false, error: 'fail' },
-      { trackingNumber: 'TRK222', success: false, error: 'fail' },
-      makeResult('TRK333'),
-    ]);
-    const { deps } = makeDeps(mockOrders, scrapeFn);
-
-    const result = await syncTracking(deps, 'user-1', noProgress, neverStop);
-
-    expect(result).toEqual(expect.objectContaining({
-      success: true,
-      trackingUpdated: 1,
-      trackingFailed: 2,
-      suspended: true,
-    }));
+    expect(mockTrackViaFedExApi).not.toHaveBeenCalled();
   });
 
   test('shouldStop at start returns error', async () => {
-    const scrapeFn = vi.fn<TrackingSyncDeps['scrapeFedEx']>();
-    const { deps } = makeDeps([], scrapeFn);
+    const { pool } = makeMockPool([]);
 
-    const result = await syncTracking(deps, 'user-1', noProgress, () => true);
+    const result = await syncTracking(pool, 'user-1', noProgress, () => true);
 
     expect(result).toEqual(expect.objectContaining({
       success: false,

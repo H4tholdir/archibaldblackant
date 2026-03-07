@@ -1012,10 +1012,9 @@ async function getOrdersNeedingTrackingSync(
     WHERE user_id = $1
       AND tracking_number IS NOT NULL
       AND delivery_confirmed_at IS NULL
-      AND COALESCE(tracking_sync_failures, 0) < 10
-      AND creation_date::date >= (NOW() - INTERVAL '30 days')::date
-    ORDER BY tracking_last_synced_at ASC NULLS FIRST, creation_date DESC
-    LIMIT 30`,
+      AND COALESCE(tracking_sync_failures, 0) < 3
+      AND creation_date::date >= (NOW() - INTERVAL '180 days')::date
+    ORDER BY tracking_last_synced_at ASC NULLS FIRST, creation_date DESC`,
     [userId],
   );
   return result.rows.map((r) => ({

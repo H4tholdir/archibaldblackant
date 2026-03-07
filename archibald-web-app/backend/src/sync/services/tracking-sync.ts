@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
-import type { FedExTrackingResult } from './fedex-tracking-scraper';
+import type { FedExTrackingResult } from './fedex-api-tracker';
+import { trackViaFedExApi } from './fedex-api-tracker';
 import {
   getOrdersNeedingTrackingSync,
   updateTrackingData,
@@ -7,14 +8,6 @@ import {
 } from '../../db/repositories/orders';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
-
-type TrackingSyncDeps = {
-  pool: DbPool;
-  scrapeFedEx: (
-    trackingNumbers: string[],
-    onProgress?: (processed: number, total: number) => void,
-  ) => Promise<FedExTrackingResult[]>;
-};
 
 type TrackingSyncResult = {
   success: boolean;
@@ -24,10 +17,7 @@ type TrackingSyncResult = {
   newDeliveries: number;
   duration: number;
   error?: string;
-  suspended?: boolean;
 };
-
-const BATCH_SIZE = 50;
 
 function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
   if (statusBarCD === 'DL') return 'delivered';
@@ -38,7 +28,7 @@ function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
 }
 
 async function syncTracking(
-  deps: TrackingSyncDeps,
+  pool: DbPool,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
@@ -48,11 +38,10 @@ async function syncTracking(
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    const orders = await getOrdersNeedingTrackingSync(deps.pool, userId);
+    const orders = await getOrdersNeedingTrackingSync(pool, userId);
     logger.info('Tracking sync started', { userId, ordersToSync: orders.length });
 
     if (orders.length === 0) {
-      logger.info('Tracking sync: no orders need syncing', { userId });
       return {
         success: true,
         trackingProcessed: 0,
@@ -72,80 +61,70 @@ async function syncTracking(
       trackingNumbers.push(order.trackingNumber);
     }
 
+    const results = await trackViaFedExApi(trackingNumbers, (processed, total) => {
+      const progress = 5 + Math.round((processed / total) * 90);
+      onProgress(Math.min(progress, 95), `Tracking ${processed}/${total}`);
+    });
+
+    if (shouldStop()) throw new SyncStoppedError('after-fetch');
+
     let trackingUpdated = 0;
     let trackingFailed = 0;
     let newDeliveries = 0;
-    let totalProcessed = 0;
 
-    for (let i = 0; i < trackingNumbers.length; i += BATCH_SIZE) {
-      const batch = trackingNumbers.slice(i, i + BATCH_SIZE);
+    for (const result of results) {
+      const orderNumber = trackingToOrder.get(result.trackingNumber);
+      if (!orderNumber) continue;
 
-      const progressBase = 5 + Math.round((i / trackingNumbers.length) * 90);
-      const results = await deps.scrapeFedEx(batch, (processed, total) => {
-        const batchProgress = progressBase + Math.round((processed / total) * (90 / Math.ceil(trackingNumbers.length / BATCH_SIZE)));
-        onProgress(Math.min(batchProgress, 95), `Tracking ${totalProcessed + processed}/${trackingNumbers.length}`);
-      });
+      if (result.success) {
+        const status = mapTrackingStatus(result.statusBarCD ?? '', result.keyStatusCD ?? '');
 
-      for (const result of results) {
-        totalProcessed++;
-        const orderNumber = trackingToOrder.get(result.trackingNumber);
-        if (!orderNumber) continue;
+        await updateTrackingData(pool, userId, orderNumber, {
+          trackingStatus: status,
+          trackingKeyStatusCd: result.keyStatusCD ?? '',
+          trackingStatusBarCd: result.statusBarCD ?? '',
+          trackingEstimatedDelivery: result.estimatedDelivery ?? '',
+          trackingLastLocation: result.lastScanLocation ?? '',
+          trackingLastEvent: result.lastScanStatus ?? '',
+          trackingLastEventAt: result.lastScanDateTime ?? '',
+          trackingOrigin: result.origin ?? '',
+          trackingDestination: result.destination ?? '',
+          trackingServiceDesc: result.serviceDesc ?? '',
+          deliveryConfirmedAt: status === 'delivered' ? (result.actualDelivery ?? null) : null,
+          deliverySignedBy: status === 'delivered' ? (result.receivedByName ?? null) : null,
+          trackingEvents: result.scanEvents ?? [],
+          trackingSyncFailures: 0,
+        });
 
-        if (result.success) {
-          const status = mapTrackingStatus(result.statusBarCD ?? '', result.keyStatusCD ?? '');
+        logger.info(`Tracking: ${result.trackingNumber} → ${status}`, {
+          orderNumber, trackingNumber: result.trackingNumber, status,
+          location: result.lastScanLocation ?? '-',
+        });
 
-          await updateTrackingData(deps.pool, userId, orderNumber, {
-            trackingStatus: status,
-            trackingKeyStatusCd: result.keyStatusCD ?? '',
-            trackingStatusBarCd: result.statusBarCD ?? '',
-            trackingEstimatedDelivery: result.estimatedDelivery ?? '',
-            trackingLastLocation: result.lastScanLocation ?? '',
-            trackingLastEvent: result.lastScanStatus ?? '',
-            trackingLastEventAt: result.lastScanDateTime ?? '',
-            trackingOrigin: result.origin ?? '',
-            trackingDestination: result.destination ?? '',
-            trackingServiceDesc: result.serviceDesc ?? '',
-            deliveryConfirmedAt: status === 'delivered' ? (result.actualDelivery ?? null) : null,
-            deliverySignedBy: status === 'delivered' ? (result.receivedByName ?? null) : null,
-            trackingEvents: result.scanEvents ?? [],
-            trackingSyncFailures: 0,
-          });
-
-          logger.info(`Tracking ${totalProcessed}/${trackingNumbers.length}: ${result.trackingNumber} → ${status}`, {
-            orderNumber, trackingNumber: result.trackingNumber, status,
-            location: result.lastScanLocation ?? '-',
-          });
-
-          if (status === 'delivered') {
-            newDeliveries++;
-          }
-          trackingUpdated++;
-        } else {
-          logger.warn('Tracking: scrape failed', { orderNumber, trackingNumber: result.trackingNumber, error: result.error });
-          await incrementTrackingSyncFailures(deps.pool, userId, orderNumber);
-          trackingFailed++;
-        }
-      }
-
-      if (i + BATCH_SIZE < trackingNumbers.length && shouldStop()) {
-        throw new SyncStoppedError('batch');
+        if (status === 'delivered') newDeliveries++;
+        trackingUpdated++;
+      } else {
+        logger.warn('Tracking: API lookup failed', { orderNumber, trackingNumber: result.trackingNumber, error: result.error });
+        await incrementTrackingSyncFailures(pool, userId, orderNumber);
+        trackingFailed++;
       }
     }
 
-    const suspended = trackingNumbers.length > 0 && trackingFailed / trackingNumbers.length > 0.5;
-
     onProgress(100, 'Sync tracking completata');
 
-    logger.info('Tracking sync completed', { userId, trackingProcessed: totalProcessed, trackingUpdated, trackingFailed, newDeliveries, suspended, duration: Date.now() - startTime });
+    logger.info('Tracking sync completed', {
+      userId, trackingProcessed: results.length,
+      trackingUpdated, trackingFailed, newDeliveries,
+      duration: Date.now() - startTime,
+    });
 
     return {
       success: true,
-      trackingProcessed: totalProcessed,
+      trackingProcessed: results.length,
       trackingUpdated,
       trackingFailed,
       newDeliveries,
       duration: Date.now() - startTime,
-      suspended: suspended || undefined,
     };
   } catch (error) {
     logger.error('Tracking sync error', { userId, error: error instanceof Error ? error.message : String(error) });
@@ -162,4 +141,4 @@ async function syncTracking(
 }
 
 export { mapTrackingStatus, syncTracking };
-export type { TrackingSyncDeps, TrackingSyncResult };
+export type { TrackingSyncResult };
