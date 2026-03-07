@@ -1,6 +1,5 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { config } from '../../config';
 
 puppeteer.use(StealthPlugin());
 
@@ -112,7 +111,12 @@ async function scrapeTrackingBatch(
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: [...config.puppeteer.args, '--single-process'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--single-process',
+    ],
   });
 
   const results: FedExTrackingResult[] = [];
