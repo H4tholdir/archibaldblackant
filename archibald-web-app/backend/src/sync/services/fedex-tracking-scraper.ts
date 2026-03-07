@@ -127,24 +127,32 @@ async function scrapeTrackingBatch(
       try {
         const responsePromise = new Promise<FedExTrackingResult>(
           (resolve, reject) => {
+            let settled = false;
+            const settle = (fn: () => void) => {
+              if (settled) return;
+              settled = true;
+              fn();
+            };
+
             const timeout = setTimeout(() => {
-              reject(new Error('Timeout waiting for FedEx tracking API response'));
+              settle(() => reject(new Error('Timeout waiting for FedEx tracking API response')));
             }, 30_000);
 
             const handler = async (response: { url: () => string; json: () => Promise<Record<string, unknown>>; ok: () => boolean; status: () => number }) => {
               try {
+                if (settled) return;
                 if (response.url().includes('api.fedex.com/track/v2/shipments')) {
                   clearTimeout(timeout);
                   if (!response.ok()) {
-                    reject(new Error(`FedEx API returned HTTP ${response.status()}`));
+                    settle(() => reject(new Error(`FedEx API returned HTTP ${response.status()}`)));
                     return;
                   }
                   const json = await response.json();
-                  resolve(parseTrackingResponse(trackingNumber, json));
+                  settle(() => resolve(parseTrackingResponse(trackingNumber, json)));
                 }
               } catch (err) {
                 clearTimeout(timeout);
-                reject(err instanceof Error ? err : new Error(String(err)));
+                settle(() => reject(err instanceof Error ? err : new Error(String(err))));
               }
             };
 
