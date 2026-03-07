@@ -76,6 +76,21 @@ type OrderRow = {
   article_search_text: string | null;
   verification_status: string | null;
   verification_notes: string | null;
+  tracking_status: string | null;
+  tracking_key_status_cd: string | null;
+  tracking_status_bar_cd: string | null;
+  tracking_estimated_delivery: string | null;
+  tracking_last_location: string | null;
+  tracking_last_event: string | null;
+  tracking_last_event_at: string | null;
+  tracking_last_synced_at: string | null;
+  tracking_sync_failures: number | null;
+  tracking_origin: string | null;
+  tracking_destination: string | null;
+  tracking_service_desc: string | null;
+  delivery_confirmed_at: string | null;
+  delivery_signed_by: string | null;
+  tracking_events: unknown;
 };
 
 type DdtInfo = {
@@ -179,6 +194,30 @@ type Order = {
   articleSearchText: string | null;
   verificationStatus: string | null;
   verificationNotes: string | null;
+  trackingStatus: string | null;
+  trackingKeyStatusCd: string | null;
+  trackingStatusBarCd: string | null;
+  trackingEstimatedDelivery: string | null;
+  trackingLastLocation: string | null;
+  trackingLastEvent: string | null;
+  trackingLastEventAt: string | null;
+  trackingLastSyncedAt: string | null;
+  trackingSyncFailures: number | null;
+  trackingOrigin: string | null;
+  trackingDestination: string | null;
+  trackingServiceDesc: string | null;
+  deliveryConfirmedAt: string | null;
+  deliverySignedBy: string | null;
+  trackingEvents: Array<{
+    date: string;
+    time: string;
+    gmtOffset: string;
+    status: string;
+    statusCD: string;
+    scanLocation: string;
+    delivered: boolean;
+    exception: boolean;
+  }> | undefined;
   ddt: DdtInfo | undefined;
   tracking: TrackingInfo | undefined;
 };
@@ -425,6 +464,30 @@ function mapRowToOrder(row: OrderRow): Order {
     verificationNotes: row.verification_status === 'correction_failed' || row.verification_status === 'mismatch_detected'
       ? row.verification_notes
       : null,
+    trackingStatus: row.tracking_status,
+    trackingKeyStatusCd: row.tracking_key_status_cd,
+    trackingStatusBarCd: row.tracking_status_bar_cd,
+    trackingEstimatedDelivery: row.tracking_estimated_delivery,
+    trackingLastLocation: row.tracking_last_location,
+    trackingLastEvent: row.tracking_last_event,
+    trackingLastEventAt: row.tracking_last_event_at,
+    trackingLastSyncedAt: row.tracking_last_synced_at,
+    trackingSyncFailures: row.tracking_sync_failures,
+    trackingOrigin: row.tracking_origin,
+    trackingDestination: row.tracking_destination,
+    trackingServiceDesc: row.tracking_service_desc,
+    deliveryConfirmedAt: row.delivery_confirmed_at,
+    deliverySignedBy: row.delivery_signed_by,
+    trackingEvents: row.tracking_events as Array<{
+      date: string;
+      time: string;
+      gmtOffset: string;
+      status: string;
+      statusCD: string;
+      scanLocation: string;
+      delivered: boolean;
+      exception: boolean;
+    }> | undefined,
     ddt: row.ddt_number ? {
       ddtId: row.ddt_id,
       ddtNumber: row.ddt_number,
@@ -865,6 +928,99 @@ async function updateInvoiceData(
   return rowCount ?? 0;
 }
 
+async function updateTrackingData(
+  pool: DbPool,
+  userId: string,
+  orderNumber: string,
+  data: {
+    trackingStatus: string;
+    trackingKeyStatusCd: string;
+    trackingStatusBarCd: string;
+    trackingEstimatedDelivery: string;
+    trackingLastLocation: string;
+    trackingLastEvent: string;
+    trackingLastEventAt: string;
+    trackingOrigin: string;
+    trackingDestination: string;
+    trackingServiceDesc: string;
+    deliveryConfirmedAt: string | null;
+    deliverySignedBy: string | null;
+    trackingEvents: unknown;
+    trackingSyncFailures: number;
+  },
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.order_records SET
+      tracking_status = $3,
+      tracking_key_status_cd = $4,
+      tracking_status_bar_cd = $5,
+      tracking_estimated_delivery = $6,
+      tracking_last_location = $7,
+      tracking_last_event = $8,
+      tracking_last_event_at = $9,
+      tracking_origin = $10,
+      tracking_destination = $11,
+      tracking_service_desc = $12,
+      delivery_confirmed_at = $13,
+      delivery_signed_by = $14,
+      tracking_events = $15,
+      tracking_sync_failures = $16,
+      tracking_last_synced_at = NOW()
+    WHERE user_id = $1 AND order_number = $2`,
+    [
+      userId,
+      orderNumber,
+      data.trackingStatus,
+      data.trackingKeyStatusCd,
+      data.trackingStatusBarCd,
+      data.trackingEstimatedDelivery,
+      data.trackingLastLocation,
+      data.trackingLastEvent,
+      data.trackingLastEventAt,
+      data.trackingOrigin,
+      data.trackingDestination,
+      data.trackingServiceDesc,
+      data.deliveryConfirmedAt,
+      data.deliverySignedBy,
+      JSON.stringify(data.trackingEvents),
+      data.trackingSyncFailures,
+    ],
+  );
+}
+
+async function incrementTrackingSyncFailures(
+  pool: DbPool,
+  userId: string,
+  orderNumber: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.order_records SET
+      tracking_sync_failures = COALESCE(tracking_sync_failures, 0) + 1,
+      tracking_last_synced_at = NOW()
+    WHERE user_id = $1 AND order_number = $2`,
+    [userId, orderNumber],
+  );
+}
+
+async function getOrdersNeedingTrackingSync(
+  pool: DbPool,
+  userId: string,
+): Promise<Array<{ orderNumber: string; trackingNumber: string }>> {
+  const result = await pool.query<{ order_number: string; tracking_number: string }>(
+    `SELECT order_number, tracking_number
+    FROM agents.order_records
+    WHERE user_id = $1
+      AND tracking_number IS NOT NULL
+      AND delivery_confirmed_at IS NULL
+    ORDER BY creation_date DESC`,
+    [userId],
+  );
+  return result.rows.map((r) => ({
+    orderNumber: r.order_number,
+    trackingNumber: r.tracking_number,
+  }));
+}
+
 type LastSaleEntry = {
   orderId: string;
   orderNumber: string;
@@ -1119,6 +1275,9 @@ export {
   getStateHistory,
   updateOrderDDT,
   updateInvoiceData,
+  updateTrackingData,
+  incrementTrackingSyncFailures,
+  getOrdersNeedingTrackingSync,
   deleteOrdersNotInList,
   getLastSalesForArticle,
   getOrderNumbersByIds,
