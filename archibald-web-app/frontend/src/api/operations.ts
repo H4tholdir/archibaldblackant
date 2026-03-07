@@ -223,10 +223,13 @@ async function waitForJobViaWebSocket(
       reject(new Error('Timeout: operazione non completata entro il tempo massimo'));
     }, maxWaitMs ?? 180_000);
 
+    let safetyPollTimer: ReturnType<typeof setInterval> | null = null;
+
     const cleanup = () => {
       resolved = true;
       clearTimeout(hardDeadline);
       if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (safetyPollTimer) clearInterval(safetyPollTimer);
       unsubscribers.forEach(u => u());
     };
 
@@ -278,6 +281,24 @@ async function waitForJobViaWebSocket(
     unsubscribers.push(subscribe('JOB_PROGRESS', handleEvent('JOB_PROGRESS')));
     unsubscribers.push(subscribe('JOB_COMPLETED', handleEvent('JOB_COMPLETED')));
     unsubscribers.push(subscribe('JOB_FAILED', handleEvent('JOB_FAILED')));
+
+    safetyPollTimer = setInterval(async () => {
+      if (resolved) return;
+      try {
+        const { job } = await getJobStatus(jobId);
+        if (resolved) return;
+        if (job.state === 'completed') {
+          cleanup();
+          onProgress?.(100, 'Completato');
+          resolve(job.result ?? {});
+        } else if (job.state === 'failed') {
+          cleanup();
+          reject(new Error(job.failedReason ?? 'Operazione fallita'));
+        }
+      } catch {
+        // Poll failed, will retry next interval
+      }
+    }, 15_000);
 
     resetFallback();
   });

@@ -42,7 +42,7 @@ const WATCHDOG_INTERVAL = 30000; // 30 seconds - check connection health
 
 // Application-level heartbeat
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-const HEARTBEAT_TIMEOUT = 10000; // 10 seconds pong timeout
+const HEARTBEAT_TIMEOUT = 25000; // 25 seconds pong timeout (allow slack for busy server)
 
 // WebSocket endpoint (production: wss://formicanera.com/ws/realtime)
 const getWebSocketUrl = (): string => {
