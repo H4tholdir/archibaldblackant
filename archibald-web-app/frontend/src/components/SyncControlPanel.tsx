@@ -10,7 +10,8 @@ type SyncType =
   | "orders"
   | "ddt"
   | "invoices"
-  | "order-articles";
+  | "order-articles"
+  | "tracking";
 
 type QueueStats = {
   waiting: number;
@@ -46,9 +47,10 @@ const syncSections: SyncSection[] = [
   { type: "products", label: "Prodotti", icon: "🏷️", priority: 3 },
   { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
   { type: "order-articles", label: "Articoli Ordini", icon: "📋", priority: 1 },
+  { type: "tracking", label: "Tracking FedEx", icon: "📍", priority: 4 },
 ];
 
-const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices", "order-articles"];
+const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices", "order-articles", "tracking"];
 
 function formatLastSync(iso: string | null, isLoading: boolean): string {
   if (isLoading) return "...";
@@ -85,14 +87,14 @@ export default function SyncControlPanel() {
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
-    "order-articles": false,
+    "order-articles": false, tracking: false,
   });
   const [syncingAll, setSyncingAll] = useState(false);
   const [enqueuedTypes, setEnqueuedTypes] = useState<Set<SyncType>>(new Set());
   const [deletingDb, setDeletingDb] = useState<Record<SyncType, boolean>>({
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
-    "order-articles": false,
+    "order-articles": false, tracking: false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
   const [togglingAutoSync, setTogglingAutoSync] = useState(false);

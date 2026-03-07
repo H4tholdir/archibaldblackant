@@ -145,7 +145,7 @@ function createSyncScheduler(
 
   function updateInterval(type: string, intervalMinutes: number): void {
     const ms = intervalMinutes * 60 * 1000;
-    const agentTypes = new Set(['customers', 'orders', 'ddt', 'invoices']);
+    const agentTypes = new Set(['customers', 'orders', 'ddt', 'invoices', 'tracking']);
     if (agentTypes.has(type)) {
       currentIntervals.agentSyncMs = ms;
     } else {

@@ -20,6 +20,8 @@ import { archibaldLineAmount } from "../utils/order-calculations";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
+import { TrackingProgressBar, getTrackingSteps } from "./TrackingProgressBar";
+import { TrackingTimeline } from "./TrackingTimeline";
 
 interface OrderCardProps {
   order: Order;
@@ -2267,10 +2269,12 @@ function TabLogistica({
   order,
   token,
   searchQuery = "",
+  borderColor = "#999",
 }: {
   order: Order;
   token?: string;
   searchQuery?: string;
+  borderColor?: string;
 }) {
   const { subscribe } = useWebSocketContext();
   const [ddtProgress, setDdtProgress] = useState<{
@@ -2348,6 +2352,11 @@ function TabLogistica({
 
   return (
     <div style={{ padding: "16px" }}>
+      {/* 0. Full tracking timeline */}
+      {order.trackingEvents && order.trackingEvents.length > 0 && (
+        <TrackingTimeline order={order} borderColor={borderColor} />
+      )}
+
       {/* 1. Tracking — barra compatta orizzontale */}
       {tracking.trackingNumber && (
         <div
@@ -3855,6 +3864,17 @@ export function OrderCardNew({
                   </button>
                 )}
               </div>
+              {order.trackingStatus && order.trackingEvents && order.trackingEvents.length > 0 && !expanded && (
+                <TrackingProgressBar
+                  steps={getTrackingSteps(
+                    order.trackingEvents,
+                    (order.trackingDestination || "").split(", ").pop() || "IT",
+                  )}
+                  borderColor={orderStatusStyle.borderColor}
+                  origin={order.trackingOrigin || ""}
+                  destination={order.trackingDestination || ""}
+                />
+              )}
             </div>
 
             {/* Order Number + Date */}
@@ -4658,6 +4678,7 @@ export function OrderCardNew({
                 order={order}
                 token={token}
                 searchQuery={searchQuery}
+                borderColor={orderStatusStyle.borderColor}
               />
             )}
             {activeTab === "finanziario" && (

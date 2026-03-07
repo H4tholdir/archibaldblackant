@@ -13,7 +13,8 @@ export type OrderStatusCategory =
   | "delivered"
   | "invoiced"
   | "overdue"
-  | "paid";
+  | "paid"
+  | "exception";
 
 /**
  * Visual styling for order status
@@ -102,6 +103,13 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     borderColor: "#2E7D32",
     backgroundColor: "#E8F5E9",
   },
+  exception: {
+    category: "exception",
+    label: "Eccezione corriere",
+    description: "Il corriere segnala un problema con la spedizione",
+    borderColor: "#E65100",
+    backgroundColor: "#FFF3E0",
+  },
 };
 
 function parseItalianAmount(value: string): number {
@@ -183,6 +191,19 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
 
   if (order.invoiceNumber) {
     return ORDER_STATUS_STYLES.invoiced;
+  }
+
+  // Data-driven tracking status (from FedEx sync)
+  if (order.deliveryConfirmedAt) {
+    return ORDER_STATUS_STYLES.delivered;
+  }
+
+  if (order.trackingStatus === 'exception') {
+    return ORDER_STATUS_STYLES.exception;
+  }
+
+  if (order.trackingStatus === 'out_for_delivery' || order.trackingStatus === 'in_transit') {
+    return ORDER_STATUS_STYLES["in-transit"];
   }
 
   if (isLikelyDelivered(order)) {

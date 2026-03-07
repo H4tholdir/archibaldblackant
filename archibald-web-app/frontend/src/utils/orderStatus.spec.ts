@@ -436,10 +436,10 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all 10 status styles", () => {
+  test("returns all 11 status styles", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(10);
+    expect(allStyles).toHaveLength(11);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
@@ -452,6 +452,7 @@ describe("getAllStatusStyles", () => {
     expect(categories).toContain("invoiced");
     expect(categories).toContain("overdue");
     expect(categories).toContain("paid");
+    expect(categories).toContain("exception");
   });
 
   test("each status has required fields", () => {
@@ -479,6 +480,7 @@ describe("getStatusStyleByCategory", () => {
       "invoiced",
       "overdue",
       "paid",
+      "exception",
     ];
 
     categories.forEach((category) => {
@@ -509,6 +511,104 @@ describe("getStatusStyleByCategory", () => {
 
     expect(style.borderColor).toBe("#5D4037");
     expect(style.backgroundColor).toBe("#D7CCC8");
+  });
+});
+
+describe("tracking-based status", () => {
+  test("returns delivered when deliveryConfirmedAt is set", () => {
+    const order: Partial<Order> = {
+      id: "tracking-delivered",
+      customerName: "Tracking Delivered",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "CONSEGNATO",
+      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("delivered");
+  });
+
+  test("returns exception when trackingStatus is exception", () => {
+    const order: Partial<Order> = {
+      id: "tracking-exception",
+      customerName: "Tracking Exception",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "ORDINE APERTO",
+      trackingStatus: "exception",
+      tracking: { trackingNumber: "123" },
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("exception");
+    expect(result.label).toBe("Eccezione corriere");
+  });
+
+  test("returns in-transit when trackingStatus is in_transit", () => {
+    const order: Partial<Order> = {
+      id: "tracking-transit",
+      customerName: "Tracking Transit",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "ORDINE APERTO",
+      trackingStatus: "in_transit",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("in-transit");
+  });
+
+  test("returns in-transit when trackingStatus is out_for_delivery", () => {
+    const order: Partial<Order> = {
+      id: "tracking-ofd",
+      customerName: "Tracking OFD",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "ORDINE APERTO",
+      trackingStatus: "out_for_delivery",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("in-transit");
+  });
+
+  test("falls back to euristic when trackingStatus is null", () => {
+    const order: Partial<Order> = {
+      id: "no-tracking-sync",
+      customerName: "No Tracking Sync",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "ORDINE APERTO",
+      state: "MODIFICA",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("on-archibald");
+  });
+
+  test("paid takes priority over deliveryConfirmedAt", () => {
+    const order: Partial<Order> = {
+      id: "paid-with-tracking",
+      customerName: "Paid With Tracking",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "FATTURATO",
+      invoiceNumber: "FAT/2026/100",
+      invoiceClosed: true,
+      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("paid");
+  });
+
+  test("invoiced takes priority over trackingStatus in_transit", () => {
+    const order: Partial<Order> = {
+      id: "invoiced-with-tracking",
+      customerName: "Invoiced With Tracking",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "FATTURATO",
+      invoiceNumber: "FAT/2026/100",
+      trackingStatus: "in_transit",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("invoiced");
   });
 });
 

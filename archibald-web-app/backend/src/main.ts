@@ -36,6 +36,7 @@ import {
   createSyncInvoicesHandler,
   createSyncProductsHandler,
   createSyncOrderStatesHandler,
+  createSyncTrackingHandler,
 } from './operations/handlers';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
@@ -694,6 +695,7 @@ async function bootstrap(): Promise<void> {
         },
       }),
     ),
+    'sync-tracking': createSyncTrackingHandler(pool),
     'sync-order-states': createSyncOrderStatesHandler(pool),
   };
 

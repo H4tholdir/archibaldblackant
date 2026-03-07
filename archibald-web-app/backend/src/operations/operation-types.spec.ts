@@ -16,8 +16,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-prices']).toBe(16);
   });
 
-  test('all 16 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(16);
+  test('all 17 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(17);
   });
 });
 
@@ -42,6 +42,7 @@ describe('isWriteOperation', () => {
     'sync-invoices',
     'sync-products',
     'sync-prices',
+    'sync-tracking',
   ];
 
   test.each(writeOps)('%s is a write operation', (op) => {
@@ -62,6 +63,7 @@ describe('isScheduledSync', () => {
     'sync-products',
     'sync-prices',
     'sync-order-articles',
+    'sync-tracking',
   ];
 
   const nonScheduledSyncs: OperationType[] = [
@@ -90,7 +92,8 @@ describe('getNextSyncInChain', () => {
     expect(getNextSyncInChain('sync-customers')).toBe('sync-orders');
     expect(getNextSyncInChain('sync-orders')).toBe('sync-ddt');
     expect(getNextSyncInChain('sync-ddt')).toBe('sync-invoices');
-    expect(getNextSyncInChain('sync-invoices')).toBeNull();
+    expect(getNextSyncInChain('sync-invoices')).toBe('sync-tracking');
+    expect(getNextSyncInChain('sync-tracking')).toBeNull();
   });
 
   test('shared chain: sync-products → sync-prices', () => {
