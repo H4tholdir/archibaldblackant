@@ -175,4 +175,29 @@ export interface Order {
   // Verification status
   verificationStatus?: string;
   verificationNotes?: string;
+
+  // Tracking sync fields
+  trackingStatus?: string;
+  trackingKeyStatusCd?: string;
+  trackingStatusBarCd?: string;
+  trackingEstimatedDelivery?: string;
+  trackingLastLocation?: string;
+  trackingLastEvent?: string;
+  trackingLastEventAt?: string;
+  trackingOrigin?: string;
+  trackingDestination?: string;
+  trackingServiceDesc?: string;
+  trackingSyncFailures?: number;
+  deliveryConfirmedAt?: string;
+  deliverySignedBy?: string;
+  trackingEvents?: Array<{
+    date: string;
+    time: string;
+    gmtOffset: string;
+    status: string;
+    statusCD: string;
+    scanLocation: string;
+    delivered: boolean;
+    exception: boolean;
+  }>;
 }
