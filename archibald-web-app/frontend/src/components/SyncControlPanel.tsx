@@ -632,7 +632,7 @@ export default function SyncControlPanel() {
 
               <div style={{ fontSize: "12px", color: "#666" }}>
                 <div>
-                  <strong>Priorità:</strong> {section.priority}/7
+                  <strong>Priorità:</strong> {section.priority}/{syncSections.length}
                 </div>
                 <div>
                   <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null, !lastSyncTimesLoaded)}
