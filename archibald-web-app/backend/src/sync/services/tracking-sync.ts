@@ -22,8 +22,10 @@ type TrackingSyncResult = {
 function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
   if (statusBarCD === 'DL') return 'delivered';
   if (statusBarCD === 'DE') return 'exception';
-  if (keyStatusCD === 'OD') return 'out_for_delivery';
-  if (statusBarCD === 'OW') return 'in_transit';
+  if (keyStatusCD === 'OD' || statusBarCD === 'OD') return 'out_for_delivery';
+  if (statusBarCD === 'IT' || statusBarCD === 'OW' || statusBarCD === 'PU'
+    || statusBarCD === 'DP' || statusBarCD === 'AR' || statusBarCD === 'AF'
+    || statusBarCD === 'FD') return 'in_transit';
   return 'pending';
 }
 

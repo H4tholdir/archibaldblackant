@@ -68,6 +68,26 @@ describe('mapTrackingStatus', () => {
     expect(mapTrackingStatus('OW', 'IT')).toBe('in_transit');
   });
 
+  test('IT statusBarCD returns in_transit', () => {
+    expect(mapTrackingStatus('IT', 'IT')).toBe('in_transit');
+  });
+
+  test('PU statusBarCD returns in_transit', () => {
+    expect(mapTrackingStatus('PU', 'PU')).toBe('in_transit');
+  });
+
+  test('DP statusBarCD returns in_transit', () => {
+    expect(mapTrackingStatus('DP', 'DP')).toBe('in_transit');
+  });
+
+  test('AR statusBarCD returns in_transit', () => {
+    expect(mapTrackingStatus('AR', 'AR')).toBe('in_transit');
+  });
+
+  test('OD statusBarCD returns out_for_delivery', () => {
+    expect(mapTrackingStatus('OD', '')).toBe('out_for_delivery');
+  });
+
   test('unknown codes return pending', () => {
     expect(mapTrackingStatus('XX', 'YY')).toBe('pending');
   });
