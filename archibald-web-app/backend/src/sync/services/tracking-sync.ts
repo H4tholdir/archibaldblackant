@@ -6,6 +6,7 @@ import {
   incrementTrackingSyncFailures,
 } from '../../db/repositories/orders';
 import { SyncStoppedError } from './customer-sync';
+import { logger } from '../../logger';
 
 type TrackingSyncDeps = {
   pool: DbPool;
@@ -48,8 +49,10 @@ async function syncTracking(
     if (shouldStop()) throw new SyncStoppedError('start');
 
     const orders = await getOrdersNeedingTrackingSync(deps.pool, userId);
+    logger.info('Tracking sync started', { userId, ordersToSync: orders.length });
 
     if (orders.length === 0) {
+      logger.info('Tracking sync: no orders need syncing', { userId });
       return {
         success: true,
         trackingProcessed: 0,
@@ -110,9 +113,11 @@ async function syncTracking(
 
           if (status === 'delivered') {
             newDeliveries++;
+            logger.info('Tracking: delivery confirmed', { orderNumber, trackingNumber: result.trackingNumber, receivedBy: result.receivedByName });
           }
           trackingUpdated++;
         } else {
+          logger.warn('Tracking: scrape failed', { orderNumber, trackingNumber: result.trackingNumber, error: result.error });
           await incrementTrackingSyncFailures(deps.pool, userId, orderNumber);
           trackingFailed++;
         }
@@ -127,6 +132,8 @@ async function syncTracking(
 
     onProgress(100, 'Sync tracking completata');
 
+    logger.info('Tracking sync completed', { userId, trackingProcessed: totalProcessed, trackingUpdated, trackingFailed, newDeliveries, suspended, duration: Date.now() - startTime });
+
     return {
       success: true,
       trackingProcessed: totalProcessed,
@@ -137,6 +144,7 @@ async function syncTracking(
       suspended: suspended || undefined,
     };
   } catch (error) {
+    logger.error('Tracking sync error', { userId, error: error instanceof Error ? error.message : String(error) });
     return {
       success: false,
       trackingProcessed: 0,
