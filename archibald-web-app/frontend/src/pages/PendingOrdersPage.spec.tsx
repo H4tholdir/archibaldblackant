@@ -231,9 +231,8 @@ describe("PendingOrdersPage", () => {
 
     render(<PendingOrdersPage />);
 
-    expect(
-      screen.getByText(/Network timeout/i),
-    ).toBeInTheDocument();
+    const errorMessages = screen.getAllByText(/Network timeout/i);
+    expect(errorMessages.length).toBeGreaterThanOrEqual(1);
   });
 
   test("checkbox for each order allows selection", () => {

@@ -886,6 +886,7 @@ export function PendingOrdersPage() {
             ["started", "processing"].includes(order.jobStatus);
           const isJobCompleted = order.jobStatus === "completed";
           const isJobFailed = order.jobStatus === "failed";
+          const isPersistedError = order.status === "error" && !isJobActive && !isJobFailed;
           const isStale = staleJobIds.has(order.id!);
 
           const isWarehouseOrder = order.status === "completed-warehouse";
@@ -1150,6 +1151,40 @@ export function PendingOrdersPage() {
                       🔄 Riprova Ordine
                     </button>
                   )}
+                </div>
+              )}
+
+              {isPersistedError && (
+                <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                  <div
+                    style={{
+                      padding: "0.75rem 1rem",
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: "6px",
+                      color: "#991b1b",
+                      fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                    }}
+                  >
+                    Errore: {order.errorMessage || "Errore sconosciuto"}
+                  </div>
+                  <button
+                    onClick={() => handleRetryOrder(order.id!)}
+                    style={{
+                      padding: "0.75rem 1.25rem",
+                      backgroundColor: "#f59e0b",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "0.9375rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      marginTop: "0.75rem",
+                      width: isMobile ? "100%" : "auto",
+                    }}
+                  >
+                    🔄 Riprova Ordine
+                  </button>
                 </div>
               )}
 
