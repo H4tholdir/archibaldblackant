@@ -700,6 +700,7 @@ function createApp(deps: AppDeps): Express {
       const userCache = new Map<string, string>();
       const result = [];
       for (const job of jobs) {
+        if (!job?.data) continue;
         const state = await job.getState();
         const userId = job.data.userId;
         if (!userCache.has(userId)) {

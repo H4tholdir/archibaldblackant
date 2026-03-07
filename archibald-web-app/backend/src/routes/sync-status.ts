@@ -98,6 +98,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         byType.set(syncType, []);
       }
       for (const job of jobs) {
+        if (!job?.data) continue;
         const t = job.data.type;
         if (byType.has(t)) {
           byType.get(t)!.push(job);
