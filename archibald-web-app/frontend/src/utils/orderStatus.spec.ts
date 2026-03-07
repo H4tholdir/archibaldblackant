@@ -597,10 +597,10 @@ describe("tracking-based status", () => {
     expect(result.category).toBe("paid");
   });
 
-  test("invoiced takes priority over trackingStatus in_transit", () => {
+  test("returns in-transit when order is invoiced but tracking says in_transit", () => {
     const order: Partial<Order> = {
-      id: "invoiced-with-tracking",
-      customerName: "Invoiced With Tracking",
+      id: "invoiced-but-transit",
+      customerName: "Invoiced But Transit",
       date: "2026-03-07",
       total: "500.00",
       status: "FATTURATO",
@@ -608,7 +608,36 @@ describe("tracking-based status", () => {
       trackingStatus: "in_transit",
     };
     const result = getOrderStatus(order as Order);
-    expect(result.category).toBe("invoiced");
+    expect(result.category).toBe("in-transit");
+  });
+
+  test("returns delivered when order is invoiced but tracking confirms delivery", () => {
+    const order: Partial<Order> = {
+      id: "invoiced-but-delivered",
+      customerName: "Invoiced But Delivered",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "FATTURATO",
+      invoiceNumber: "FAT/2026/100",
+      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("delivered");
+  });
+
+  test("returns exception when order is invoiced but tracking has exception", () => {
+    const order: Partial<Order> = {
+      id: "invoiced-but-exception",
+      customerName: "Invoiced But Exception",
+      date: "2026-03-07",
+      total: "500.00",
+      status: "FATTURATO",
+      invoiceNumber: "FAT/2026/100",
+      trackingStatus: "exception",
+      tracking: { trackingNumber: "123" },
+    };
+    const result = getOrderStatus(order as Order);
+    expect(result.category).toBe("exception");
   });
 });
 
