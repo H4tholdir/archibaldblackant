@@ -147,17 +147,23 @@ async function scrapeTrackingBatch(
               try {
                 if (settled) return;
                 if (response.url().includes('api.fedex.com/track/v2/shipments')) {
-                  clearTimeout(timeout);
                   if (!response.ok()) {
+                    clearTimeout(timeout);
                     settle(() => reject(new Error(`FedEx API returned HTTP ${response.status()}`)));
                     return;
                   }
-                  const json = await response.json();
+                  let json: Record<string, unknown>;
+                  try {
+                    json = await response.json();
+                  } catch {
+                    // First API call often has empty body — wait for the next one
+                    return;
+                  }
+                  clearTimeout(timeout);
                   settle(() => resolve(parseTrackingResponse(trackingNumber, json)));
                 }
               } catch (err) {
-                clearTimeout(timeout);
-                settle(() => reject(err instanceof Error ? err : new Error(String(err))));
+                // Non-fatal — another response may follow
               }
             };
 
