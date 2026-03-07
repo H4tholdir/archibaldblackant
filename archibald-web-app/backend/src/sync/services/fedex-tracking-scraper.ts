@@ -1,4 +1,7 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+puppeteer.use(StealthPlugin());
 
 type FedExScanEvent = {
   date: string;
@@ -108,6 +111,7 @@ async function scrapeFedExTracking(
     return [];
   }
 
+  const results: FedExTrackingResult[] = [];
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -121,68 +125,65 @@ async function scrapeFedExTracking(
 
   try {
     const page = await browser.newPage();
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    );
-
-    // Step 1: Navigate to FedEx tracking page to initialize session + OAuth
-    await page.goto('https://www.fedex.com/fedextrack/?trknbr=000000000000', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30_000,
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
     });
-    // Wait for SPA to fully initialize (OAuth, cookies, etc.)
-    await new Promise((r) => setTimeout(r, 8_000));
-
-    // Step 2: Call tracking API from within the browser context for each number
-    const results: FedExTrackingResult[] = [];
 
     for (let i = 0; i < trackingNumbers.length; i++) {
       const trackingNumber = trackingNumbers[i];
 
       try {
-        const json = await page.evaluate(async (trkNum: string) => {
-          const resp = await fetch('https://api.fedex.com/track/v2/shipments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-locale': 'en_US' },
-            body: JSON.stringify({
-              appType: 'WTRK',
-              uniqueKey: '',
-              processingParameters: {},
-              trackingInfo: [{
-                trackingNumberInfo: { trackingNumber: trkNum, trackingQualifier: '', trackingCarrier: '' },
-              }],
-            }),
-          });
-          if (!resp.ok) return { error: `HTTP ${resp.status}` };
-          return resp.json();
-        }, trackingNumber) as Record<string, unknown>;
+        const responsePromise = new Promise<FedExTrackingResult>(
+          (resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Timeout waiting for FedEx tracking API response'));
+            }, 30_000);
 
-        if (json.error) {
-          results.push({ trackingNumber, success: false, error: json.error as string });
-        } else {
-          results.push(parseTrackingResponse(trackingNumber, json));
-        }
+            const handler = async (response: { url: () => string; json: () => Promise<Record<string, unknown>> }) => {
+              if (response.url().includes('api.fedex.com/track/v2/shipments')) {
+                clearTimeout(timeout);
+                try {
+                  const json = await response.json();
+                  resolve(parseTrackingResponse(trackingNumber, json));
+                } catch (err) {
+                  reject(err);
+                }
+              }
+            };
+
+            page.on('response', handler);
+          },
+        );
+
+        await page.goto(
+          `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`,
+          { waitUntil: 'domcontentloaded', timeout: 30_000 },
+        );
+
+        const result = await responsePromise;
+        results.push(result);
       } catch (err) {
         results.push({
           trackingNumber,
           success: false,
           error: err instanceof Error ? err.message : String(err),
         });
+      } finally {
+        page.removeAllListeners('response');
       }
 
       onProgress?.(i + 1, trackingNumbers.length);
 
-      // Small delay between requests
       if (i < trackingNumbers.length - 1) {
-        const delay = 500 + Math.random() * 1500;
+        const delay = 2000 + Math.random() * 3000;
         await new Promise((r) => setTimeout(r, delay));
       }
     }
-
-    return results;
   } finally {
     await browser.close();
   }
+
+  return results;
 }
 
 export {
