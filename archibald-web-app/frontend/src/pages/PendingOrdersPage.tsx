@@ -236,11 +236,25 @@ export function PendingOrdersPage() {
         updatedAt: new Date().toISOString(),
       });
 
+      const isFresisSubclient =
+        isFresis({ id: order.customerId }) && !!order.subClientCodice;
+
+      let items = order.items;
+      if (isFresisSubclient) {
+        const allDiscounts = await getFresisDiscounts();
+        const fresisDiscountMap = new Map<string, number>();
+        for (const d of allDiscounts) {
+          fresisDiscountMap.set(d.id, d.discountPercent);
+          fresisDiscountMap.set(d.articleCode, d.discountPercent);
+        }
+        items = applyFresisLineDiscounts(order.items, fresisDiscountMap);
+      }
+
       const result = await enqueueOperation('submit-order', {
         pendingOrderId: order.id,
         customerId: order.customerId,
         customerName: order.customerName,
-        items: order.items.map((item) => ({
+        items: items.map((item) => ({
           articleCode: item.articleCode,
           productName: item.productName,
           description: item.description,
@@ -251,8 +265,8 @@ export function PendingOrdersPage() {
           warehouseQuantity: item.warehouseQuantity || 0,
           warehouseSources: item.warehouseSources || [],
         })),
-        discountPercent: order.discountPercent,
-        targetTotalWithVAT: order.targetTotalWithVAT,
+        discountPercent: isFresisSubclient ? undefined : order.discountPercent,
+        targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
         noShipping: order.noShipping,
         notes: order.notes,
       });
