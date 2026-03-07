@@ -16,6 +16,7 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { archibaldLineAmount } from "../utils/order-calculations";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
@@ -600,10 +601,9 @@ function computeModifications(
 }
 
 function recalcLineAmounts(item: EditItem): EditItem {
-  const baseAmount = item.unitPrice * item.quantity;
-  const lineAmount = baseAmount * (1 - item.discountPercent / 100);
-  const vatAmount = lineAmount * (item.vatPercent / 100);
-  const lineTotalWithVat = lineAmount + vatAmount;
+  const lineAmount = archibaldLineAmount(item.quantity, item.unitPrice, item.discountPercent);
+  const vatAmount = Math.round(lineAmount * (item.vatPercent / 100) * 100) / 100;
+  const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
   return { ...item, lineAmount, vatAmount, lineTotalWithVat };
 }
 
