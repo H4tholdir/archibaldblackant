@@ -100,7 +100,14 @@ function parseTrackingResponse(
   };
 }
 
-async function obtainFedExToken(): Promise<string> {
+async function scrapeFedExTracking(
+  trackingNumbers: string[],
+  onProgress?: (processed: number, total: number) => void,
+): Promise<FedExTrackingResult[]> {
+  if (trackingNumbers.length === 0) {
+    return [];
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -118,111 +125,64 @@ async function obtainFedExToken(): Promise<string> {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     );
 
-    let authToken: string | null = null;
-
-    page.on('response', async (response: { url: () => string; json: () => Promise<Record<string, unknown>> }) => {
-      if (response.url().includes('api.fedex.com/auth/oauth/v2/token') && authToken === null) {
-        try {
-          const json = await response.json();
-          authToken = json.access_token as string;
-        } catch {
-          // ignore
-        }
-      }
-    });
-
+    // Step 1: Navigate to FedEx tracking page to initialize session + OAuth
     await page.goto('https://www.fedex.com/fedextrack/?trknbr=000000000000', {
       waitUntil: 'domcontentloaded',
       timeout: 30_000,
     });
+    // Wait for SPA to fully initialize (OAuth, cookies, etc.)
+    await new Promise((r) => setTimeout(r, 8_000));
 
-    // Wait for OAuth token to be captured
-    for (let i = 0; i < 20; i++) {
-      if (authToken) break;
-      await new Promise((r) => setTimeout(r, 500));
+    // Step 2: Call tracking API from within the browser context for each number
+    const results: FedExTrackingResult[] = [];
+
+    for (let i = 0; i < trackingNumbers.length; i++) {
+      const trackingNumber = trackingNumbers[i];
+
+      try {
+        const json = await page.evaluate(async (trkNum: string) => {
+          const resp = await fetch('https://api.fedex.com/track/v2/shipments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-locale': 'en_US' },
+            body: JSON.stringify({
+              appType: 'WTRK',
+              uniqueKey: '',
+              processingParameters: {},
+              trackingInfo: [{
+                trackingNumberInfo: { trackingNumber: trkNum, trackingQualifier: '', trackingCarrier: '' },
+              }],
+            }),
+          });
+          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          return resp.json();
+        }, trackingNumber) as Record<string, unknown>;
+
+        if (json.error) {
+          results.push({ trackingNumber, success: false, error: json.error as string });
+        } else {
+          results.push(parseTrackingResponse(trackingNumber, json));
+        }
+      } catch (err) {
+        results.push({
+          trackingNumber,
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      onProgress?.(i + 1, trackingNumbers.length);
+
+      // Small delay between requests
+      if (i < trackingNumbers.length - 1) {
+        const delay = 500 + Math.random() * 1500;
+        await new Promise((r) => setTimeout(r, delay));
+      }
     }
 
-    if (!authToken) {
-      throw new Error('Failed to obtain FedEx OAuth token');
-    }
-
-    return authToken;
+    return results;
   } finally {
     await browser.close();
   }
-}
-
-async function fetchTrackingDirect(
-  token: string,
-  trackingNumber: string,
-): Promise<FedExTrackingResult> {
-  const resp = await fetch('https://api.fedex.com/track/v2/shipments', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      'x-locale': 'en_US',
-    },
-    body: JSON.stringify({
-      appType: 'WTRK',
-      uniqueKey: '',
-      processingParameters: {},
-      trackingInfo: [{
-        trackingNumberInfo: {
-          trackingNumber,
-          trackingQualifier: '',
-          trackingCarrier: '',
-        },
-      }],
-    }),
-  });
-
-  if (!resp.ok) {
-    return { trackingNumber, success: false, error: `HTTP ${resp.status}` };
-  }
-
-  const json = await resp.json() as Record<string, unknown>;
-  return parseTrackingResponse(trackingNumber, json);
-}
-
-async function scrapeFedExTracking(
-  trackingNumbers: string[],
-  onProgress?: (processed: number, total: number) => void,
-): Promise<FedExTrackingResult[]> {
-  if (trackingNumbers.length === 0) {
-    return [];
-  }
-
-  // Step 1: Obtain OAuth token via browser (one-time)
-  const token = await obtainFedExToken();
-
-  // Step 2: Call tracking API directly for each number (no browser needed)
-  const results: FedExTrackingResult[] = [];
-
-  for (let i = 0; i < trackingNumbers.length; i++) {
-    const trackingNumber = trackingNumbers[i];
-
-    try {
-      const result = await fetchTrackingDirect(token, trackingNumber);
-      results.push(result);
-    } catch (err) {
-      results.push({
-        trackingNumber,
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    onProgress?.(i + 1, trackingNumbers.length);
-
-    // Small delay between requests to avoid rate limiting
-    if (i < trackingNumbers.length - 1) {
-      const delay = 500 + Math.random() * 1000;
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
-
-  return results;
 }
 
 export {
