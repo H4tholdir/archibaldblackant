@@ -20,6 +20,7 @@ import { archibaldLineAmount } from "../utils/order-calculations";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
+import { TrackingProgressBar, getTrackingSteps } from "./TrackingProgressBar";
 
 interface OrderCardProps {
   order: Order;
@@ -3855,6 +3856,17 @@ export function OrderCardNew({
                   </button>
                 )}
               </div>
+              {order.trackingStatus && order.trackingEvents && order.trackingEvents.length > 0 && !expanded && (
+                <TrackingProgressBar
+                  steps={getTrackingSteps(
+                    order.trackingEvents,
+                    (order.trackingDestination || "").split(", ").pop() || "IT",
+                  )}
+                  borderColor={orderStatusStyle.borderColor}
+                  origin={order.trackingOrigin || ""}
+                  destination={order.trackingDestination || ""}
+                />
+              )}
             </div>
 
             {/* Order Number + Date */}
