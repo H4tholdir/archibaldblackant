@@ -22,8 +22,8 @@ type FresisHistoryRouterDeps = {
   upsertDiscount: (userId: string, id: string, articleCode: string, discountPercent: number, kpPriceUnit?: number | null) => Promise<void>;
   deleteDiscount: (userId: string, id: string) => Promise<number>;
   searchOrders: (userId: string, query: string) => Promise<unknown[]>;
-  exportArca: (userId: string) => Promise<{ zipBuffer: Buffer; stats: ExportStats }>;
-  importArca: (userId: string, buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; errors?: string[] }>;
+  exportArca: (userId: string, from?: string, to?: string) => Promise<{ zipBuffer: Buffer; stats: ExportStats }>;
+  importArca: (userId: string, files: Array<{ originalName: string; buffer: Buffer }>) => Promise<{ success: boolean; imported?: number; errors?: string[] }>;
   getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
   updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
   reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
@@ -157,7 +157,9 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.get('/export-arca', async (req: AuthRequest, res) => {
     try {
-      const { zipBuffer, stats } = await exportArca(req.user!.userId);
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+      const { zipBuffer, stats } = await exportArca(req.user!.userId, from, to);
       res.set({
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="arca-export-${Date.now()}.zip"`,
@@ -170,13 +172,16 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     }
   });
 
-  router.post('/import-arca', upload.single('files'), async (req: AuthRequest, res) => {
+  router.post('/import-arca', upload.array('files'), async (req: AuthRequest, res) => {
     try {
-      const file = req.file;
-      if (!file) {
-        return res.status(400).json({ success: false, error: 'File richiesto' });
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (!files || files.length === 0) {
+        return res.status(400).json({ success: false, error: 'File richiesti' });
       }
-      const result = await importArca(req.user!.userId, file.buffer, file.originalname);
+      const result = await importArca(
+        req.user!.userId,
+        files.map(f => ({ originalName: f.originalname, buffer: f.buffer })),
+      );
       broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_BULK_IMPORTED', payload: { stats: result } });
       res.json({ success: true, stats: result, errors: result.errors });
     } catch (error) {

@@ -241,7 +241,7 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/application\/zip/);
-      expect(deps.exportArca).toHaveBeenCalledWith('user-1');
+      expect(deps.exportArca).toHaveBeenCalledWith('user-1', undefined, undefined);
     });
 
     test('returns 500 on export error', async () => {
@@ -262,14 +262,14 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, stats: { success: true, imported: 5, errors: [] }, errors: [] });
-      expect(deps.importArca).toHaveBeenCalledWith('user-1', expect.any(Buffer), 'import.zip');
+      expect(deps.importArca).toHaveBeenCalledWith('user-1', [{ originalName: 'import.zip', buffer: expect.any(Buffer) }]);
     });
 
     test('returns 400 when no file uploaded', async () => {
       const res = await request(app).post('/api/fresis-history/import-arca');
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ success: false, error: 'File richiesto' });
+      expect(res.body).toEqual({ success: false, error: 'File richiesti' });
     });
   });
 

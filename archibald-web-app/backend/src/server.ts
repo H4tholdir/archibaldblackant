@@ -551,13 +551,23 @@ function createApp(deps: AppDeps): Express {
     upsertDiscount: (userId, id, code, pct, kp) => fresisHistoryRepo.upsertDiscount(pool, userId, id, code, pct, kp),
     deleteDiscount: (userId, id) => fresisHistoryRepo.deleteDiscount(pool, userId, id),
     searchOrders: async (userId, query) => ordersRepo.getOrdersByUser(pool, userId, { search: query, limit: 50 }),
-    exportArca: async (userId) => {
+    exportArca: async (userId, from, to) => {
+      const conditions = ['user_id = $1', 'arca_data IS NOT NULL'];
+      const params: (string)[] = [userId];
+      if (from) {
+        params.push(from);
+        conditions.push(`created_at >= $${params.length}`);
+      }
+      if (to) {
+        params.push(to);
+        conditions.push(`created_at <= $${params.length}`);
+      }
       const result = await pool.query(
         `SELECT *, arca_data::text AS arca_data, sub_client_data::text AS sub_client_data, items::text AS items
          FROM agents.fresis_history
-         WHERE user_id = $1 AND arca_data IS NOT NULL
+         WHERE ${conditions.join(' AND ')}
          ORDER BY created_at`,
-        [userId],
+        params,
       );
       const rows = result.rows as FresisHistoryRow[];
       const tmpDir = createExportTempDir();
@@ -573,11 +583,11 @@ function createApp(deps: AppDeps): Express {
         cleanupExportDir(tmpDir);
       }
     },
-    importArca: async (userId, buffer, filename) => {
+    importArca: async (userId, files) => {
       await fresisHistoryRepo.deleteArcaImports(pool, userId);
 
       const parseResult = await parseArcaExport(
-        [{ originalName: filename, buffer }],
+        files,
         userId,
         null,
         null,
