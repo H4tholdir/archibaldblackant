@@ -1,13 +1,15 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import {
   parseNativeArcaFiles,
   generateVbsScript,
+  performArcaSync,
 } from "./arca-sync-service";
-import type { VbsExportRecord } from "./arca-sync-service";
+import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
 import type { ArcaData } from "../arca-data-types";
+import type { DbPool } from "../db/pool";
 
 const COOP16_DIR = "/Users/hatholdir/Downloads/ArcaPro/Ditte/COOP16";
 const TEST_USER_ID = "test-user-native";
@@ -511,4 +513,190 @@ describe("generateVbsScript", () => {
 
     expect(result.vbs).toContain("'     1'");
   });
+});
+
+function createMockPool(overrides?: {
+  existingIds?: string[];
+  pwaExportRows?: Array<{ id: string; arca_data: string; invoice_number: string }>;
+  ftCounterCalls?: Array<unknown[]>;
+}): DbPool {
+  const existingIds = overrides?.existingIds ?? [];
+  const pwaExportRows = overrides?.pwaExportRows ?? [];
+  const ftCounterCalls = overrides?.ftCounterCalls ?? [];
+
+  return {
+    query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
+      if (text.includes("SELECT id FROM agents.fresis_history")) {
+        return { rows: existingIds.map((id) => ({ id })) };
+      }
+      if (text.includes("INSERT INTO agents.fresis_history")) {
+        // Simulate upsertRecords: count placeholders to determine record count
+        const placeholderCount = (text.match(/\(\$\d+/g) || []).length;
+        const recordCount = placeholderCount > 0 ? Math.floor((params?.length ?? 0) / 38) : 0;
+        return {
+          rows: Array.from({ length: recordCount }, () => ({ action: "inserted" })),
+        };
+      }
+      if (text.includes("INSERT INTO agents.ft_counter")) {
+        ftCounterCalls.push(params ?? []);
+        return { rows: [], rowCount: 1 };
+      }
+      if (text.includes("SELECT id, arca_data, invoice_number")) {
+        return { rows: pwaExportRows };
+      }
+      return { rows: [], rowCount: 0 };
+    }),
+    withTransaction: vi.fn(),
+    end: vi.fn(),
+    getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+  } as unknown as DbPool;
+}
+
+describe("performArcaSync", () => {
+  test(
+    "imports new records and returns sync report",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      const pool = createMockPool();
+
+      const result = await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        anagrafeBuf,
+      );
+
+      expect(result.imported).toBeGreaterThanOrEqual(14996);
+      expect(result.skipped).toBe(0);
+      expect(result.exported).toBe(0);
+      expect(result.vbsScript).toBeNull();
+      expect(result.parseStats.totalDocuments).toBe(14996);
+
+      // ft_counter should have been called for FT esercizi
+      const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const ftCounterCalls = queryCalls.filter(
+        ([sql]: [string]) => typeof sql === "string" && sql.includes("ft_counter"),
+      );
+      expect(ftCounterCalls.length).toBeGreaterThan(0);
+    },
+    60000,
+  );
+
+  test(
+    "skips already-existing records on second sync",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      // First parse to get all IDs
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        null,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+      const allIds = parsed.records.map((r) => r.id);
+
+      // Mock pool with all existing IDs
+      const pool = createMockPool({ existingIds: allIds });
+
+      const result = await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        null,
+      );
+
+      expect(result.imported).toBe(0);
+      expect(result.skipped).toBe(14996);
+      expect(result.exported).toBe(0);
+      expect(result.vbsScript).toBeNull();
+    },
+    60000,
+  );
+
+  test(
+    "generates VBS script for PWA records not in Arca files",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const pwaArcaData = makeArcaData({
+        testata: { ESERCIZIO: "2026", TIPODOC: "FT", NUMERODOC: "99999" },
+      });
+
+      const pool = createMockPool({
+        pwaExportRows: [
+          {
+            id: "pwa-record-1",
+            arca_data: JSON.stringify(pwaArcaData),
+            invoice_number: "FT 99999/2026",
+          },
+        ],
+      });
+
+      const result = await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        null,
+      );
+
+      expect(result.exported).toBe(1);
+      expect(result.vbsScript).not.toBeNull();
+      expect(result.vbsScript!.vbs).toContain("INSERT INTO doctes");
+      expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
+    },
+    60000,
+  );
+
+  test(
+    "does not export PWA records already present in Arca files",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      // Parse to get a real document key from Arca
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        null,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+
+      // Use the first record's arca_data as a PWA record that already exists in Arca
+      const firstRecord = parsed.records[0];
+      const pool = createMockPool({
+        pwaExportRows: [
+          {
+            id: "pwa-existing",
+            arca_data: firstRecord.arca_data!,
+            invoice_number: firstRecord.invoice_number,
+          },
+        ],
+      });
+
+      const result = await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        null,
+      );
+
+      expect(result.exported).toBe(0);
+      expect(result.vbsScript).toBeNull();
+    },
+    60000,
+  );
 });

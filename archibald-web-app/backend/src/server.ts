@@ -17,6 +17,7 @@ import { createProductsRouter } from './routes/products';
 import { createOrdersRouter } from './routes/orders';
 import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
+import { createArcaSyncRouter } from './routes/arca-sync';
 import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
 import { createDeltaSyncRouter } from './routes/delta-sync';
 import type { ResetSyncType } from './routes/sync-status';
@@ -657,6 +658,11 @@ function createApp(deps: AppDeps): Express {
     updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
     reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
     broadcast: (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }),
+  }));
+
+  app.use('/api/arca-sync', authenticateJWT, createArcaSyncRouter({
+    pool,
+    broadcast: (userId, event) => wsServer.broadcast(userId, event),
   }));
 
   const syncSchedulerDeps = {

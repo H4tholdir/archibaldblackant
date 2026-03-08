@@ -16,6 +16,10 @@ import {
   calculateItemRevenue,
   formatDate,
 } from "../arca-import-service";
+import type { DbPool } from "../db/pool";
+import * as fresisHistoryRepo from "../db/repositories/fresis-history";
+import type { FresisHistoryInput } from "../db/repositories/fresis-history";
+import { logger } from "../logger";
 
 export type VbsExportRecord = {
   invoiceNumber: string;
@@ -644,4 +648,163 @@ export async function parseNativeArcaFiles(
   } finally {
     cleanupTempDir(tmpDir);
   }
+}
+
+export type SyncResult = {
+  imported: number;
+  skipped: number;
+  exported: number;
+  errors: string[];
+  vbsScript: VbsResult | null;
+  parseStats: NativeParseResult["stats"];
+};
+
+function mapToFresisHistoryInput(row: FresisHistoryRow): FresisHistoryInput {
+  return {
+    id: row.id,
+    originalPendingOrderId: row.original_pending_order_id,
+    subClientCodice: row.sub_client_codice,
+    subClientName: row.sub_client_name,
+    subClientData: row.sub_client_data ? JSON.parse(row.sub_client_data) : null,
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    items: JSON.parse(row.items),
+    discountPercent: row.discount_percent,
+    targetTotalWithVat: row.target_total_with_vat,
+    shippingCost: row.shipping_cost,
+    shippingTax: row.shipping_tax,
+    revenue: row.revenue,
+    mergedIntoOrderId: row.merged_into_order_id,
+    mergedAt: row.merged_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    notes: row.notes,
+    archibaldOrderId: row.archibald_order_id,
+    archibaldOrderNumber: row.archibald_order_number,
+    state: row.current_state,
+    stateUpdatedAt: row.state_updated_at,
+    ddtNumber: row.ddt_number,
+    ddtDeliveryDate: row.ddt_delivery_date,
+    trackingNumber: row.tracking_number,
+    trackingUrl: row.tracking_url,
+    trackingCourier: row.tracking_courier,
+    deliveryCompletedDate: row.delivery_completed_date,
+    invoiceNumber: row.invoice_number,
+    invoiceDate: row.invoice_date,
+    invoiceAmount: row.invoice_amount,
+    invoiceClosed: null,
+    invoiceRemainingAmount: null,
+    invoiceDueDate: null,
+    arcaData: row.arca_data ? JSON.parse(row.arca_data) : null,
+    parentCustomerName: null,
+    source: row.source,
+  };
+}
+
+export async function performArcaSync(
+  pool: DbPool,
+  userId: string,
+  doctesBuf: Buffer,
+  docrigBuf: Buffer,
+  anagrafeBuf: Buffer | null,
+): Promise<SyncResult> {
+  const errors: string[] = [];
+
+  // 1. Parse DBF files
+  const parsed = await parseNativeArcaFiles(
+    doctesBuf,
+    docrigBuf,
+    anagrafeBuf,
+    userId,
+    new Map(),
+    new Map(),
+  );
+  errors.push(...parsed.errors);
+
+  // 2. Load existing record IDs from DB
+  const { rows: existingRows } = await pool.query<{ id: string }>(
+    "SELECT id FROM agents.fresis_history WHERE user_id = $1",
+    [userId],
+  );
+  const existingIds = new Set(existingRows.map((r) => r.id));
+
+  // 3. Filter new records vs existing
+  const newRecords = parsed.records.filter((r) => !existingIds.has(r.id));
+  const skipped = parsed.records.length - newRecords.length;
+
+  // 4. Upsert new records in batches
+  let imported = 0;
+  if (newRecords.length > 0) {
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < newRecords.length; i += BATCH_SIZE) {
+      const batch = newRecords.slice(i, i + BATCH_SIZE);
+      const inputs = batch.map(mapToFresisHistoryInput);
+      const result = await fresisHistoryRepo.upsertRecords(pool, userId, inputs);
+      imported += result.inserted + result.updated;
+    }
+    logger.info(`Arca sync: imported ${imported} new records for user ${userId}`);
+  }
+
+  // 5. Update ft_counter with max NUMERODOC per ESERCIZIO (FT only)
+  for (const [key, maxNum] of parsed.maxNumerodocByKey) {
+    const [esercizio, tipodoc] = key.split("|");
+    if (tipodoc !== "FT") continue;
+    await pool.query(
+      `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (esercizio, user_id)
+       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
+      [esercizio, userId, maxNum],
+    );
+  }
+
+  // 6. Find PWA export candidates (source='app', arca_data IS NOT NULL)
+  const { rows: pwaRows } = await pool.query<{
+    id: string;
+    arca_data: string;
+    invoice_number: string;
+  }>(
+    `SELECT id, arca_data, invoice_number
+     FROM agents.fresis_history
+     WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
+    [userId],
+  );
+
+  // 7. Build Arca document key set from parsed records
+  const arcaDocKeys = new Set<string>();
+  for (const record of parsed.records) {
+    const arcaData: ArcaData = JSON.parse(record.arca_data!);
+    const key = `${arcaData.testata.ESERCIZIO}|${arcaData.testata.TIPODOC}|${arcaData.testata.NUMERODOC.trim()}`;
+    arcaDocKeys.add(key);
+  }
+
+  // 8. Filter PWA records not yet in Arca -> generate VBS
+  const exportRecords: VbsExportRecord[] = [];
+  for (const pwaRow of pwaRows) {
+    const arcaData: ArcaData = typeof pwaRow.arca_data === "string"
+      ? JSON.parse(pwaRow.arca_data)
+      : pwaRow.arca_data as ArcaData;
+    const key = `${arcaData.testata.ESERCIZIO}|${arcaData.testata.TIPODOC}|${arcaData.testata.NUMERODOC.trim()}`;
+    if (!arcaDocKeys.has(key)) {
+      exportRecords.push({
+        invoiceNumber: pwaRow.invoice_number,
+        arcaData,
+      });
+    }
+  }
+
+  let vbsScript: VbsResult | null = null;
+  if (exportRecords.length > 0) {
+    vbsScript = generateVbsScript(exportRecords);
+    logger.info(`Arca sync: ${exportRecords.length} records to export for user ${userId}`);
+  }
+
+  return {
+    imported,
+    skipped,
+    exported: exportRecords.length,
+    errors,
+    vbsScript,
+    parseStats: parsed.stats,
+  };
 }
