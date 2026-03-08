@@ -17,6 +17,342 @@ import {
   formatDate,
 } from "../arca-import-service";
 
+export type VbsExportRecord = {
+  invoiceNumber: string;
+  arcaData: ArcaData;
+};
+
+export type VbsResult = {
+  vbs: string;
+  bat: string;
+  watcher: string;
+  watcherSetup: string;
+};
+
+const DOCTES_FIELDS = [
+  "ESERCIZIO",
+  "ESANNO",
+  "TIPODOC",
+  "NUMERODOC",
+  "DATADOC",
+  "CODICECF",
+  "CODCNT",
+  "MAGPARTENZ",
+  "MAGARRIVO",
+  "AGENTE",
+  "AGENTE2",
+  "VALUTA",
+  "PAG",
+  "SCONTI",
+  "SCONTIF",
+  "LISTINO",
+  "ZONA",
+  "SETTORE",
+  "DESTDIV",
+  "NOTE",
+  "SPESETR",
+  "SPESETRIVA",
+  "SPESEIM",
+  "SPESEIMIVA",
+  "SPESEVA",
+  "SPESEVAIVA",
+  "TOTIMP",
+  "TOTDOC",
+  "TOTIVA",
+  "TOTMERCE",
+  "TOTSCONTO",
+  "TOTNETTO",
+  "TIPOFATT",
+  "EUROCAMBIO",
+] as const;
+
+const DOCRIG_FIELDS = [
+  "ID_TESTA",
+  "ESERCIZIO",
+  "TIPODOC",
+  "NUMERODOC",
+  "DATADOC",
+  "CODICECF",
+  "AGENTE",
+  "CODICEARTI",
+  "NUMERORIGA",
+  "UNMISURA",
+  "QUANTITA",
+  "SCONTI",
+  "PREZZOUN",
+  "PREZZOTOT",
+  "ALIIVA",
+  "DESCRIZION",
+  "EUROCAMBIO",
+] as const;
+
+const DATE_FIELDS = new Set(["DATADOC"]);
+
+const NUMERIC_FIELDS = new Set([
+  "SCONTIF",
+  "SPESETR",
+  "SPESEIM",
+  "SPESEVA",
+  "TOTIMP",
+  "TOTDOC",
+  "TOTIVA",
+  "TOTMERCE",
+  "TOTSCONTO",
+  "TOTNETTO",
+  "EUROCAMBIO",
+  "NUMERORIGA",
+  "QUANTITA",
+  "PREZZOUN",
+  "PREZZOTOT",
+  "ID_TESTA",
+]);
+
+function escapeVbsString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function formatVbsValue(
+  fieldName: string,
+  value: string | number | boolean | null,
+): string {
+  if (value === null || value === undefined) {
+    return "NULL";
+  }
+  if (DATE_FIELDS.has(fieldName)) {
+    const dateStr = String(value);
+    if (!dateStr || dateStr === "null") return "NULL";
+    return `{d '${dateStr}'}`;
+  }
+  if (NUMERIC_FIELDS.has(fieldName)) {
+    return String(value);
+  }
+  return `'${escapeVbsString(String(value))}'`;
+}
+
+function padNumerodoc(numerodoc: string): string {
+  const trimmed = numerodoc.trim();
+  return trimmed.padStart(6, " ");
+}
+
+function buildInsertDoctes(
+  testata: ArcaData["testata"],
+): string {
+  const fields = DOCTES_FIELDS.join(", ");
+  const values = DOCTES_FIELDS.map((f) => {
+    const raw = testata[f as keyof typeof testata];
+    if (f === "NUMERODOC") {
+      return `'${escapeVbsString(padNumerodoc(String(raw)))}'`;
+    }
+    return formatVbsValue(f, raw as string | number | boolean | null);
+  }).join(", ");
+  return `conn.Execute "INSERT INTO doctes (${fields}) VALUES (${values})"`;
+}
+
+function buildSelectMaxId(testata: ArcaData["testata"]): string {
+  const esercizio = escapeVbsString(testata.ESERCIZIO);
+  const tipodoc = escapeVbsString(testata.TIPODOC);
+  const numerodoc = escapeVbsString(padNumerodoc(testata.NUMERODOC));
+  return (
+    `Set rs = conn.Execute("SELECT MAX(ID) FROM doctes ` +
+    `WHERE ESERCIZIO='${esercizio}' AND TIPODOC='${tipodoc}' AND NUMERODOC='${numerodoc}'")`
+  );
+}
+
+function buildInsertDocrig(
+  riga: ArcaData["righe"][number],
+): string {
+  const fields = DOCRIG_FIELDS.join(", ");
+  const values = DOCRIG_FIELDS.map((f) => {
+    if (f === "ID_TESTA") return "idTesta";
+    const raw = riga[f as keyof typeof riga];
+    if (f === "NUMERODOC") {
+      return `'${escapeVbsString(padNumerodoc(String(raw)))}'`;
+    }
+    return formatVbsValue(f, raw as string | number | boolean | null);
+  }).join(", ");
+  return `conn.Execute "INSERT INTO docrig (${fields}) VALUES (${values})"`;
+}
+
+function generateSyncVbs(records: VbsExportRecord[]): string {
+  const lines: string[] = [];
+
+  lines.push("On Error Resume Next");
+  lines.push("");
+  lines.push("Dim fso, logFile, conn, rs, idTesta, errCount, okCount");
+  lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
+  lines.push("");
+  lines.push("' Determine script directory");
+  lines.push(
+    "Dim scriptDir : scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)",
+  );
+  lines.push(
+    'Dim logPath : logPath = scriptDir & "\\sync_log.txt"',
+  );
+  lines.push("Set logFile = fso.OpenTextFile(logPath, 8, True)");
+  lines.push(
+    'logFile.WriteLine "=== Sync started: " & Now() & " ==="',
+  );
+  lines.push("");
+  lines.push("errCount = 0");
+  lines.push("okCount = 0");
+  lines.push("");
+  lines.push("' Connect to VFP via OLE DB");
+  lines.push('Set conn = CreateObject("ADODB.Connection")');
+  lines.push(
+    'conn.Open "Provider=vfpoledb.1;Data Source=" & scriptDir & "\\"',
+  );
+  lines.push("");
+  lines.push("If Err.Number <> 0 Then");
+  lines.push(
+    '  logFile.WriteLine "ERROR connecting: " & Err.Description',
+  );
+  lines.push("  logFile.Close");
+  lines.push("  WScript.Quit 1");
+  lines.push("End If");
+  lines.push("");
+
+  for (const record of records) {
+    const { arcaData, invoiceNumber } = record;
+    const { testata, righe } = arcaData;
+
+    lines.push(`' --- ${escapeVbsString(invoiceNumber)} ---`);
+    lines.push("Err.Clear");
+    lines.push(buildInsertDoctes(testata));
+    lines.push("");
+    lines.push("If Err.Number <> 0 Then");
+    lines.push(
+      `  logFile.WriteLine "ERROR doctes ${escapeVbsString(invoiceNumber)}: " & Err.Description`,
+    );
+    lines.push("  errCount = errCount + 1");
+    lines.push("  Err.Clear");
+    lines.push("Else");
+    lines.push("  ' Get generated ID");
+    lines.push(`  ${buildSelectMaxId(testata)}`);
+    lines.push("  idTesta = rs.Fields(0).Value");
+    lines.push("  rs.Close");
+    lines.push("");
+
+    for (const riga of righe) {
+      lines.push(`  ${buildInsertDocrig(riga)}`);
+      lines.push("  If Err.Number <> 0 Then");
+      lines.push(
+        `    logFile.WriteLine "ERROR docrig ${escapeVbsString(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
+      );
+      lines.push("    errCount = errCount + 1");
+      lines.push("    Err.Clear");
+      lines.push("  End If");
+      lines.push("");
+    }
+
+    lines.push("  okCount = okCount + 1");
+    lines.push("End If");
+    lines.push("");
+  }
+
+  lines.push("conn.Close");
+  lines.push(
+    'logFile.WriteLine "Completed: " & okCount & " OK, " & errCount & " errors"',
+  );
+  lines.push("logFile.Close");
+  lines.push("");
+  lines.push(
+    'MsgBox "Sync completato: " & okCount & " documenti OK, " & errCount & " errori." & vbCrLf & "Dettagli in sync_log.txt", vbInformation, "Arca Sync"',
+  );
+  lines.push("");
+  lines.push("' Self-delete after successful execution");
+  lines.push("If errCount = 0 Then");
+  lines.push("  fso.DeleteFile WScript.ScriptFullName, True");
+  lines.push("End If");
+
+  return lines.join("\r\n");
+}
+
+function generateBatWrapper(): string {
+  const lines = [
+    "@echo off",
+    "echo Esecuzione sync Arca...",
+    'C:\\Windows\\SysWOW64\\wscript.exe "%~dp0sync_arca.vbs"',
+  ];
+  return lines.join("\r\n");
+}
+
+function generateWatcherVbs(): string {
+  const lines: string[] = [];
+
+  lines.push("On Error Resume Next");
+  lines.push("");
+  lines.push("Dim fso, shell");
+  lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
+  lines.push('Set shell = CreateObject("WScript.Shell")');
+  lines.push("");
+  lines.push(
+    "Dim scriptDir : scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)",
+  );
+  lines.push(
+    'Dim syncScript : syncScript = scriptDir & "\\sync_arca.vbs"',
+  );
+  lines.push(
+    'Dim logPath : logPath = scriptDir & "\\watcher_log.txt"',
+  );
+  lines.push("");
+  lines.push("Do While True");
+  lines.push("  If fso.FileExists(syncScript) Then");
+  lines.push(
+    "    Dim logFile : Set logFile = fso.OpenTextFile(logPath, 8, True)",
+  );
+  lines.push(
+    '    logFile.WriteLine "Found sync_arca.vbs at " & Now()',
+  );
+  lines.push("    logFile.Close");
+  lines.push("");
+  lines.push(
+    '    shell.Run "C:\\Windows\\SysWOW64\\wscript.exe """ & syncScript & """", 0, True',
+  );
+  lines.push("");
+  lines.push(
+    "    Set logFile = fso.OpenTextFile(logPath, 8, True)",
+  );
+  lines.push(
+    '    logFile.WriteLine "Execution completed at " & Now()',
+  );
+  lines.push("    logFile.Close");
+  lines.push("  End If");
+  lines.push("");
+  lines.push("  WScript.Sleep 10000");
+  lines.push("Loop");
+
+  return lines.join("\r\n");
+}
+
+function generateWatcherSetupBat(): string {
+  const lines = [
+    "@echo off",
+    'set STARTUP=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup',
+    'copy /Y "%~dp0arca_watcher.vbs" "%STARTUP%\\arca_watcher.vbs"',
+    "if %ERRORLEVEL% equ 0 (",
+    '  echo Watcher installato correttamente nella cartella Startup.',
+    '  echo Il watcher si avviera automaticamente al prossimo accesso.',
+    ") else (",
+    '  echo ERRORE: impossibile copiare il watcher nella cartella Startup.',
+    ")",
+    "pause",
+  ];
+  return lines.join("\r\n");
+}
+
+export function generateVbsScript(records: VbsExportRecord[]): VbsResult {
+  if (records.length === 0) {
+    return { vbs: "", bat: "", watcher: "", watcherSetup: "" };
+  }
+
+  return {
+    vbs: generateSyncVbs(records),
+    bat: generateBatWrapper(),
+    watcher: generateWatcherVbs(),
+    watcherSetup: generateWatcherSetupBat(),
+  };
+}
+
 const FRESIS_CUSTOMER_PROFILE = "55.261";
 const FRESIS_CUSTOMER_NAME = "Fresis Soc Cooperativa";
 const FRESIS_DEFAULT_DISCOUNT = 63;
