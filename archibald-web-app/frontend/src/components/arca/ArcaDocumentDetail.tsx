@@ -352,7 +352,7 @@ export function ArcaDocumentDetail({
   const [rowRevenues, setRowRevenues] = useState<Record<number, number>>({});
 
   useEffect(() => {
-    if (!currentData || currentData.righe.length === 0) {
+    if (!currentData || !currentData.righe || currentData.righe.length === 0) {
       setRevenueData(null);
       setRowRevenues({});
       return;

@@ -197,7 +197,7 @@ function mapRowToFresisHistory(row: FresisHistoryRow): FresisHistoryRecord {
     invoiceClosed: row.invoice_closed,
     invoiceRemainingAmount: row.invoice_remaining_amount,
     invoiceDueDate: row.invoice_due_date,
-    arcaData: row.arca_data ? JSON.stringify(row.arca_data) : null,
+    arcaData: row.arca_data != null ? (typeof row.arca_data === 'string' ? row.arca_data : JSON.stringify(row.arca_data)) : null,
     parentCustomerName: row.parent_customer_name,
   };
 }
@@ -293,7 +293,7 @@ async function upsertRecords(
       r.trackingNumber, r.trackingUrl, r.trackingCourier, r.deliveryCompletedDate,
       r.invoiceNumber, r.invoiceDate, r.invoiceAmount, r.invoiceClosed,
       r.invoiceRemainingAmount, r.invoiceDueDate,
-      r.arcaData ? JSON.stringify(r.arcaData) : null, r.parentCustomerName, r.source,
+      r.arcaData != null ? (typeof r.arcaData === 'string' ? r.arcaData : JSON.stringify(r.arcaData)) : null, r.parentCustomerName, r.source,
     );
   }
 
