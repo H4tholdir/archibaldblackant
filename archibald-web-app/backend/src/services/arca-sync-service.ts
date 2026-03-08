@@ -235,24 +235,33 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     lines.push("  Err.Clear");
     lines.push("Else");
     lines.push("  ' Get generated ID");
+    lines.push("  Err.Clear");
     lines.push(`  ${buildSelectMaxId(testata)}`);
-    lines.push("  idTesta = rs.Fields(0).Value");
-    lines.push("  rs.Close");
+    lines.push("  If Err.Number <> 0 Then");
+    lines.push(
+      `    logFile.WriteLine "ERROR getting ID for ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
+    );
+    lines.push("    errCount = errCount + 1");
+    lines.push("    Err.Clear");
+    lines.push("  Else");
+    lines.push("    idTesta = rs.Fields(0).Value");
+    lines.push("    rs.Close");
     lines.push("");
 
     for (const riga of righe) {
-      lines.push(`  ${buildInsertDocrig(riga)}`);
-      lines.push("  If Err.Number <> 0 Then");
+      lines.push(`    ${buildInsertDocrig(riga)}`);
+      lines.push("    If Err.Number <> 0 Then");
       lines.push(
-        `    logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
+        `      logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
       );
-      lines.push("    errCount = errCount + 1");
-      lines.push("    Err.Clear");
-      lines.push("  End If");
+      lines.push("      errCount = errCount + 1");
+      lines.push("      Err.Clear");
+      lines.push("    End If");
       lines.push("");
     }
 
-    lines.push("  okCount = okCount + 1");
+    lines.push("    okCount = okCount + 1");
+    lines.push("  End If");
     lines.push("End If");
     lines.push("");
   }

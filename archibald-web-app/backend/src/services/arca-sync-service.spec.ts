@@ -571,7 +571,7 @@ function createMockPool(overrides?: {
         anagrafeBuf,
       );
 
-      expect(result.imported).toBeGreaterThanOrEqual(14996);
+      expect(result.imported).toBe(14996);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.vbsScript).toBeNull();
