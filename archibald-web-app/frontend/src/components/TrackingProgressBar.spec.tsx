@@ -1,8 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Order } from "../types/order";
-import type { ScanEvent, StripInfo } from "./TrackingProgressBar";
-import { getStripInfo, TrackingStrip } from "./TrackingProgressBar";
+import type { ScanEvent, TrackingStep } from "./TrackingProgressBar";
+import { getTrackingSteps, getDayCount, TrackingProgressBar } from "./TrackingProgressBar";
 
 function makeScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
   return {
@@ -18,198 +17,135 @@ function makeScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
   };
 }
 
-function makeOrder(overrides: Partial<Order> = {}): Order {
-  return {
-    id: "test-1",
-    customerName: "Test Customer",
-    date: "2026-03-01",
-    total: "1000",
-    status: "confirmed",
-    trackingStatus: "IN_TRANSIT",
-    trackingOrigin: "VERONA IT",
-    trackingDestination: "NAPOLI, IT",
-    trackingEstimatedDelivery: "2026-03-08",
-    trackingEvents: [
+describe("getTrackingSteps", () => {
+  test("in-transit returns dates on completed steps", () => {
+    const events: ScanEvent[] = [
       makeScanEvent({ statusCD: "IT", scanLocation: "FRANKFURT DE", date: "2026-03-04", time: "14:30:00", status: "In transit" }),
       makeScanEvent({ statusCD: "DP", scanLocation: "VERONA IT", date: "2026-03-03", time: "08:00:00", status: "Departed" }),
       makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
-    ],
-    ...overrides,
-  };
-}
+    ];
 
-const FIXED_TODAY = new Date("2026-03-07");
+    const steps = getTrackingSteps(events, "IT");
 
-describe("getStripInfo", () => {
-  test("in-transit order returns truck icon, In viaggio label, and ETA", () => {
-    const order = makeOrder();
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "\uD83D\uDE9A",
-      label: "In viaggio",
-      location: "FRANKFURT DE",
-      dateTime: "4 mar 14:30",
-      rightInfo: "arr. ~8 mar",
-      dayLabel: "5\u00B0 giorno",
-      progressPercent: 40,
-    });
+    expect(steps).toEqual<TrackingStep[]>([
+      { label: "Ritirato", detail: "", date: "3 mar", completed: true, active: false },
+      { label: "In viaggio", detail: "FRANKFURT DE, 14:30", date: "4 mar", completed: true, active: true },
+      { label: "Hub locale", detail: "", date: "", completed: false, active: false },
+      { label: "In consegna", detail: "", date: "", completed: false, active: false },
+      { label: "Consegnato", detail: "", date: "", completed: false, active: false },
+    ]);
   });
 
-  test("delivered order returns checkmark, signature, and delivery day count", () => {
-    const order = makeOrder({
-      trackingEvents: [
-        makeScanEvent({ statusCD: "DL", scanLocation: "NAPOLI IT", date: "2026-03-06", time: "14:30:00", status: "Delivered", delivered: true }),
-        makeScanEvent({ statusCD: "OD", scanLocation: "NAPOLI IT", date: "2026-03-06", time: "08:00:00", status: "On vehicle" }),
-        makeScanEvent({ statusCD: "AR", scanLocation: "NAPOLI IT", date: "2026-03-05", time: "16:00:00", status: "Arrived" }),
-        makeScanEvent({ statusCD: "IT", scanLocation: "FRANKFURT DE", date: "2026-03-04", time: "10:00:00", status: "In transit" }),
-        makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
-      ],
-      deliverySignedBy: "ROSSI",
-    });
+  test("delivered returns dates on all steps", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({ statusCD: "DL", scanLocation: "NAPOLI IT", date: "2026-03-06", time: "14:30:00", status: "Delivered", delivered: true }),
+      makeScanEvent({ statusCD: "OD", scanLocation: "NAPOLI IT", date: "2026-03-06", time: "08:00:00", status: "On vehicle" }),
+      makeScanEvent({ statusCD: "AR", scanLocation: "NAPOLI IT", date: "2026-03-05", time: "16:00:00", status: "Arrived" }),
+      makeScanEvent({ statusCD: "IT", scanLocation: "FRANKFURT DE", date: "2026-03-04", time: "10:00:00", status: "In transit" }),
+      makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
+    ];
 
-    const result = getStripInfo(order, FIXED_TODAY);
+    const steps = getTrackingSteps(events, "IT");
 
-    expect(result).toEqual<StripInfo>({
-      icon: "\u2705",
-      label: "Consegnato",
-      location: "NAPOLI IT",
-      dateTime: "6 mar 14:30",
-      rightInfo: "Firmato: ROSSI",
-      dayLabel: "consegnato in 4 giorni",
-      progressPercent: 100,
-    });
+    expect(steps).toEqual<TrackingStep[]>([
+      { label: "Ritirato", detail: "", date: "3 mar", completed: true, active: false },
+      { label: "In viaggio", detail: "", date: "4 mar", completed: true, active: false },
+      { label: "Hub locale", detail: "", date: "5 mar", completed: true, active: false },
+      { label: "In consegna", detail: "", date: "6 mar", completed: true, active: false },
+      { label: "Consegnato", detail: "NAPOLI IT, 14:30", date: "6 mar", completed: true, active: true },
+    ]);
   });
 
-  test("pickup-only returns package icon, date without time, 1 giorno", () => {
-    const order = makeOrder({
-      trackingEvents: [
-        makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-07", time: "07:15:00", status: "Picked up" }),
-      ],
-      trackingEstimatedDelivery: "2026-03-10",
-    });
+  test("empty events returns no dates", () => {
+    const steps = getTrackingSteps([], "IT");
 
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "\uD83D\uDCE6",
-      label: "Ritirato",
-      location: "VERONA IT",
-      dateTime: "7 mar",
-      rightInfo: "arr. ~10 mar",
-      dayLabel: "1\u00B0 giorno",
-      progressPercent: 10,
-    });
-  });
-
-  test("exception event returns warning icon and event status as rightInfo", () => {
-    const order = makeOrder({
-      trackingEvents: [
-        makeScanEvent({ statusCD: "DE", scanLocation: "MILANO IT", date: "2026-03-05", time: "11:00:00", status: "Delivery exception", exception: true }),
-        makeScanEvent({ statusCD: "IT", scanLocation: "FRANKFURT DE", date: "2026-03-04", time: "10:00:00", status: "In transit" }),
-        makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
-      ],
-    });
-
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "\u26A0\uFE0F",
-      label: "Eccezione",
-      location: "MILANO IT",
-      dateTime: "5 mar 11:00",
-      rightInfo: "Delivery exception",
-      dayLabel: "5\u00B0 giorno",
-      progressPercent: 40,
-    });
-  });
-
-  test("no events returns empty strip info", () => {
-    const order = makeOrder({ trackingEvents: [] });
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "",
-      label: "",
-      location: "",
-      dateTime: "",
-      rightInfo: "",
-      dayLabel: "",
-      progressPercent: 0,
-    });
-  });
-
-  test("out-for-delivery returns truck icon and arr. oggi", () => {
-    const order = makeOrder({
-      trackingEvents: [
-        makeScanEvent({ statusCD: "OD", scanLocation: "NAPOLI IT", date: "2026-03-07", time: "08:00:00", status: "On vehicle" }),
-        makeScanEvent({ statusCD: "AR", scanLocation: "NAPOLI IT", date: "2026-03-06", time: "16:00:00", status: "Arrived" }),
-        makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
-      ],
-    });
-
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "\uD83D\uDE9B",
-      label: "In consegna",
-      location: "NAPOLI IT",
-      dateTime: "7 mar 08:00",
-      rightInfo: "arr. oggi",
-      dayLabel: "5\u00B0 giorno",
-      progressPercent: 85,
-    });
-  });
-
-  test("hub locale when AR at destination country", () => {
-    const order = makeOrder({
-      trackingDestination: "PARIS, FR",
-      trackingEvents: [
-        makeScanEvent({ statusCD: "AR", scanLocation: "PARIS FR", date: "2026-03-05", time: "12:00:00", status: "Arrived" }),
-        makeScanEvent({ statusCD: "IT", scanLocation: "FRANKFURT DE", date: "2026-03-04", time: "10:00:00", status: "In transit" }),
-        makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
-      ],
-      trackingEstimatedDelivery: "2026-03-08",
-    });
-
-    const result = getStripInfo(order, FIXED_TODAY);
-
-    expect(result).toEqual<StripInfo>({
-      icon: "\uD83D\uDE9A",
-      label: "Hub locale",
-      location: "PARIS FR",
-      dateTime: "5 mar 12:00",
-      rightInfo: "arr. ~8 mar",
-      dayLabel: "5\u00B0 giorno",
-      progressPercent: 65,
-    });
+    expect(steps).toEqual<TrackingStep[]>([
+      { label: "Ritirato", detail: "", date: "", completed: false, active: false },
+      { label: "In viaggio", detail: "", date: "", completed: false, active: false },
+      { label: "Hub locale", detail: "", date: "", completed: false, active: false },
+      { label: "In consegna", detail: "", date: "", completed: false, active: false },
+      { label: "Consegnato", detail: "", date: "", completed: false, active: false },
+    ]);
   });
 });
 
-describe("TrackingStrip", () => {
-  test("renders icon, label, location, progress bar, and route info", () => {
-    const order = makeOrder();
+describe("getDayCount", () => {
+  test("returns correct day count for multi-day transit", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({ statusCD: "DL", date: "2026-03-06", delivered: true }),
+      makeScanEvent({ statusCD: "PU", date: "2026-03-03" }),
+    ];
 
-    const { container } = render(
-      <TrackingStrip order={order} borderColor="#4A90D9" />,
-    );
+    const result = getDayCount(events);
 
-    expect(screen.getByText(/In viaggio/)).toBeDefined();
-    expect(screen.getByText(/FRANKFURT DE/)).toBeDefined();
-    expect(screen.getByText(/VERONA IT → NAPOLI, IT/)).toBeDefined();
-
-    const fill = container.querySelector("[data-testid='progress-fill']") as HTMLElement;
-    expect(fill.style.width).toBe("40%");
-    expect(fill.style.backgroundColor).toBe("rgb(74, 144, 217)");
+    expect(result).toEqual(4);
   });
 
-  test("returns null when order has no events", () => {
-    const order = makeOrder({ trackingEvents: [] });
+  test("returns 1 for same-day events", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({ statusCD: "DL", date: "2026-03-03", delivered: true }),
+      makeScanEvent({ statusCD: "PU", date: "2026-03-03" }),
+    ];
 
-    const { container } = render(
-      <TrackingStrip order={order} borderColor="#4A90D9" />,
+    const result = getDayCount(events);
+
+    expect(result).toEqual(1);
+  });
+
+  test("returns 0 for empty events", () => {
+    const result = getDayCount([]);
+
+    expect(result).toEqual(0);
+  });
+});
+
+describe("TrackingProgressBar", () => {
+  test("renders origin, destination, and day counter", () => {
+    const steps: TrackingStep[] = [
+      { label: "Ritirato", detail: "", date: "3 mar", completed: true, active: false },
+      { label: "In viaggio", detail: "FRANKFURT DE, 14:30", date: "4 mar", completed: true, active: true },
+      { label: "Hub locale", detail: "", date: "", completed: false, active: false },
+      { label: "In consegna", detail: "", date: "", completed: false, active: false },
+      { label: "Consegnato", detail: "", date: "", completed: false, active: false },
+    ];
+
+    render(
+      <TrackingProgressBar
+        steps={steps}
+        borderColor="#4A90D9"
+        origin="VERONA IT"
+        destination="NAPOLI, IT"
+        dayCount={5}
+        delivered={false}
+      />,
     );
 
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByText("VERONA IT")).toBeDefined();
+    expect(screen.getByText("NAPOLI, IT")).toBeDefined();
+    expect(screen.getByText("5° giorno")).toBeDefined();
+    expect(screen.getByText("FRANKFURT DE, 14:30")).toBeDefined();
+  });
+
+  test("renders delivered day counter", () => {
+    const steps: TrackingStep[] = [
+      { label: "Ritirato", detail: "", date: "3 mar", completed: true, active: false },
+      { label: "In viaggio", detail: "", date: "4 mar", completed: true, active: false },
+      { label: "Hub locale", detail: "", date: "5 mar", completed: true, active: false },
+      { label: "In consegna", detail: "", date: "6 mar", completed: true, active: false },
+      { label: "Consegnato", detail: "NAPOLI IT, 14:30", date: "6 mar", completed: true, active: true },
+    ];
+
+    render(
+      <TrackingProgressBar
+        steps={steps}
+        borderColor="#4A90D9"
+        origin="VERONA IT"
+        destination="NAPOLI, IT"
+        dayCount={4}
+        delivered={true}
+      />,
+    );
+
+    expect(screen.getByText("consegnato in 4 giorni")).toBeDefined();
   });
 });
