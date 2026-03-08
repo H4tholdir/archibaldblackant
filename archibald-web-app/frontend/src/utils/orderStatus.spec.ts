@@ -25,8 +25,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("invoiced");
       expect(result.label).toBe("Fatturato");
-      expect(result.borderColor).toBe("#4527A0");
-      expect(result.backgroundColor).toBe("#D1C4E9");
+      expect(result.borderColor).toBe("#6633cc");
+      expect(result.backgroundColor).toBe("#f2eaff");
     });
 
     test("returns invoiced for legacy orders with only invoice number", () => {
@@ -66,8 +66,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("delivered");
       expect(result.label).toBe("Consegnato");
-      expect(result.borderColor).toBe("#18715a");
-      expect(result.backgroundColor).toBe("#e0f2ef");
+      expect(result.borderColor).toBe("#339966");
+      expect(result.backgroundColor).toBe("#eaf7f0");
     });
   });
 
@@ -94,8 +94,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("in-transit");
       expect(result.label).toBe("In transito");
-      expect(result.borderColor).toBe("#1565C0");
-      expect(result.backgroundColor).toBe("#BBDEFB");
+      expect(result.borderColor).toBe("#0066cc");
+      expect(result.backgroundColor).toBe("#e8f0ff");
     });
 
     test("returns in-transit when tracking is in DDT field (recent)", () => {
@@ -192,8 +192,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("blocked");
       expect(result.label).toBe("Richiede intervento");
-      expect(result.borderColor).toBe("#C62828");
-      expect(result.backgroundColor).toBe("#FFCDD2");
+      expect(result.borderColor).toBe("#cc0000");
+      expect(result.backgroundColor).toBe("#ffeaea");
     });
 
     test("returns blocked when transferStatus is TRANSFER ERROR", () => {
@@ -247,8 +247,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("pending-approval");
       expect(result.label).toBe("In attesa approvazione");
-      expect(result.borderColor).toBe("#F57F17");
-      expect(result.backgroundColor).toBe("#FFF9C4");
+      expect(result.borderColor).toBe("#cc9900");
+      expect(result.backgroundColor).toBe("#fef9e7");
     });
 
     test("returns pending-approval when transferStatus is In attesa di approvazione", () => {
@@ -268,7 +268,7 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("pending-approval");
       expect(result.label).toBe("In attesa approvazione");
-      expect(result.backgroundColor).toBe("#FFF9C4");
+      expect(result.backgroundColor).toBe("#fef9e7");
     });
   });
 
@@ -290,8 +290,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("in-processing");
       expect(result.label).toBe("In lavorazione");
-      expect(result.borderColor).toBe("#5D4037");
-      expect(result.backgroundColor).toBe("#D7CCC8");
+      expect(result.borderColor).toBe("#996633");
+      expect(result.backgroundColor).toBe("#f5f0ea");
     });
 
     test("returns in-processing when transferStatus is Completato", () => {
@@ -347,8 +347,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("on-archibald");
       expect(result.label).toBe("Su Archibald");
-      expect(result.borderColor).toBe("#546E7A");
-      expect(result.backgroundColor).toBe("#ECEFF1");
+      expect(result.borderColor).toBe("#808080");
+      expect(result.backgroundColor).toBe("#f3f4f6");
     });
 
     test("returns on-archibald as fallback for unknown states", () => {
@@ -464,6 +464,10 @@ describe("getAllStatusStyles", () => {
       expect(style.description).toBeDefined();
       expect(style.borderColor).toMatch(/^#[0-9A-F]{6}$/i);
       expect(style.backgroundColor).toMatch(/^#[0-9A-F]{6}$/i);
+      expect(style.icon).toBeDefined();
+      expect(typeof style.icon).toBe("string");
+      expect(style.sidebarLabel).toBeDefined();
+      expect(typeof style.sidebarLabel).toBe("string");
     });
   });
 });
@@ -495,22 +499,22 @@ describe("getStatusStyleByCategory", () => {
   test("invoiced returns deep purple colors", () => {
     const style = getStatusStyleByCategory("invoiced");
 
-    expect(style.borderColor).toBe("#4527A0");
-    expect(style.backgroundColor).toBe("#D1C4E9");
+    expect(style.borderColor).toBe("#6633cc");
+    expect(style.backgroundColor).toBe("#f2eaff");
   });
 
   test("blocked returns red colors", () => {
     const style = getStatusStyleByCategory("blocked");
 
-    expect(style.borderColor).toBe("#C62828");
-    expect(style.backgroundColor).toBe("#FFCDD2");
+    expect(style.borderColor).toBe("#cc0000");
+    expect(style.backgroundColor).toBe("#ffeaea");
   });
 
   test("in-processing returns brown colors", () => {
     const style = getStatusStyleByCategory("in-processing");
 
-    expect(style.borderColor).toBe("#5D4037");
-    expect(style.backgroundColor).toBe("#D7CCC8");
+    expect(style.borderColor).toBe("#996633");
+    expect(style.backgroundColor).toBe("#f5f0ea");
   });
 });
 

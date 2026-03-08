@@ -23,8 +23,10 @@ export interface OrderStatusStyle {
   category: OrderStatusCategory;
   label: string;
   description: string;
-  borderColor: string; // Strong, vibrant border color (4px left border)
-  backgroundColor: string; // Light pastel background for entire card
+  borderColor: string;
+  backgroundColor: string;
+  icon: string;
+  sidebarLabel: string;
 }
 
 /**
@@ -35,80 +37,102 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "on-archibald",
     label: "Su Archibald",
     description: "Ordine presente su Archibald, non ancora inviato a Verona",
-    borderColor: "#546E7A",
-    backgroundColor: "#ECEFF1",
+    borderColor: "#808080",
+    backgroundColor: "#f3f4f6",
+    icon: "🏢",
+    sidebarLabel: "Su Archibald",
   },
   "pending-approval": {
     category: "pending-approval",
     label: "In attesa approvazione",
     description: "Inviato a Verona, in attesa che operatore lo elabori",
-    borderColor: "#F57F17",
-    backgroundColor: "#FFF9C4",
+    borderColor: "#cc9900",
+    backgroundColor: "#fef9e7",
+    icon: "⏳",
+    sidebarLabel: "In attesa",
   },
   "in-processing": {
     category: "in-processing",
     label: "In lavorazione",
     description:
       "Accettato da Verona, in attesa di entrare nel flusso di spedizione",
-    borderColor: "#5D4037",
-    backgroundColor: "#D7CCC8",
+    borderColor: "#996633",
+    backgroundColor: "#f5f0ea",
+    icon: "⚙️",
+    sidebarLabel: "Lavorazione",
   },
   blocked: {
     category: "blocked",
     label: "Richiede intervento",
     description: "Bloccato per anagrafica o pagamenti",
-    borderColor: "#C62828",
-    backgroundColor: "#FFCDD2",
+    borderColor: "#cc0000",
+    backgroundColor: "#ffeaea",
+    icon: "🚫",
+    sidebarLabel: "Bloccato",
   },
   backorder: {
     category: "backorder",
     label: "Possibile backorder",
     description:
       "Ordine aperto da oltre 36 ore, possibile spedizione parziale o ritardo",
-    borderColor: "#E65100",
-    backgroundColor: "#FFF3E0",
+    borderColor: "#ff6600",
+    backgroundColor: "#fff3e0",
+    icon: "📋",
+    sidebarLabel: "Backorder",
   },
   "in-transit": {
     category: "in-transit",
     label: "In transito",
     description: "Affidato a corriere, tracking disponibile",
-    borderColor: "#1565C0",
-    backgroundColor: "#BBDEFB",
+    borderColor: "#0066cc",
+    backgroundColor: "#e8f0ff",
+    icon: "🚚",
+    sidebarLabel: "In transito",
   },
   delivered: {
     category: "delivered",
     label: "Consegnato",
     description: "Consegna confermata con data/ora",
-    borderColor: "#18715a",
-    backgroundColor: "#e0f2ef",
+    borderColor: "#339966",
+    backgroundColor: "#eaf7f0",
+    icon: "📦",
+    sidebarLabel: "Consegnato",
   },
   invoiced: {
     category: "invoiced",
     label: "Fatturato",
     description: "Fattura emessa, in attesa di pagamento",
-    borderColor: "#4527A0",
-    backgroundColor: "#D1C4E9",
+    borderColor: "#6633cc",
+    backgroundColor: "#f2eaff",
+    icon: "📋",
+    sidebarLabel: "Fatturato",
   },
   overdue: {
     category: "overdue",
     label: "Pagamento scaduto",
     description: "Fattura con pagamento scaduto e importo residuo",
-    borderColor: "#E65100",
-    backgroundColor: "#FFE0B2",
+    borderColor: "#cc3300",
+    backgroundColor: "#ffede6",
+    icon: "⏰",
+    sidebarLabel: "Scaduto",
   },
   paid: {
     category: "paid",
     label: "Pagato",
     description: "Fattura saldata, ordine completato",
-    borderColor: "#2E7D32",
-    backgroundColor: "#E8F5E9",
+    borderColor: "#006666",
+    backgroundColor: "#e6f5f5",
+    icon: "💰",
+    sidebarLabel: "Pagato",
   },
   exception: {
     category: "exception",
     label: "Eccezione corriere",
     description: "Il corriere segnala un problema con la spedizione",
-    borderColor: "#f286ad",
-    backgroundColor: "#fce4ec",
+    borderColor: "#cc0066",
+    backgroundColor: "#fff0f5",
+    icon: "⚠️",
+    sidebarLabel: "Eccezione",
   },
 };
 
@@ -309,6 +333,6 @@ function hslToHex(h: number, s: number, l: number): string {
 
 export function getStatusTabColors(status: OrderStatusStyle): string[] {
   const [h, s] = hexToHsl(status.backgroundColor);
-  const lightnessSteps = [0.92, 0.86, 0.80, 0.74, 0.68];
+  const lightnessSteps = [0.88, 0.82, 0.76, 0.70, 0.64];
   return lightnessSteps.map((l) => hslToHex(h, Math.min(s * 1.2, 1), l));
 }
