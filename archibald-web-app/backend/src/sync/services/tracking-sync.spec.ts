@@ -99,6 +99,14 @@ describe('mapTrackingStatus', () => {
   test('DE takes priority over OD keyStatusCD', () => {
     expect(mapTrackingStatus('DE', 'OD')).toBe('exception');
   });
+
+  test('DF keyStatusCD returns exception even with AF statusBarCD', () => {
+    expect(mapTrackingStatus('AF', 'DF')).toBe('exception');
+  });
+
+  test('DE keyStatusCD returns exception', () => {
+    expect(mapTrackingStatus('IT', 'DE')).toBe('exception');
+  });
 });
 
 describe('syncTracking', () => {
