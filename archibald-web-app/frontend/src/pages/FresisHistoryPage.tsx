@@ -33,6 +33,7 @@ import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
 import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
 import { ARCA_FONT } from "../components/arca/arcaStyles";
+import { ArcaSyncButton } from "../components/ArcaSyncButton";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
   { id: "today", label: "Oggi" },
@@ -575,6 +576,7 @@ export function FresisHistoryPage() {
           >
             Esporta verso Arca
           </button>
+          <ArcaSyncButton onSyncComplete={wsRefetch} />
           {syncMessage && (
             <span style={{ fontSize: "11px", color: "#666", alignSelf: "center" }}>
               {syncMessage}
