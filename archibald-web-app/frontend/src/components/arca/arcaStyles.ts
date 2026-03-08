@@ -178,8 +178,9 @@ export function formatArcaDate(iso: string | null | undefined): string {
   }
 }
 
-export function parseArcaDataFromOrder(arcaDataStr: string | null | undefined): ArcaData | null {
+export function parseArcaDataFromOrder(arcaDataStr: string | object | null | undefined): ArcaData | null {
   if (!arcaDataStr) return null;
+  if (typeof arcaDataStr === 'object') return arcaDataStr as ArcaData;
   try {
     return JSON.parse(arcaDataStr) as ArcaData;
   } catch {

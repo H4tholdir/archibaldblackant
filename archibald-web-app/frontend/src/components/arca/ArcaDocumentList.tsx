@@ -44,10 +44,14 @@ type ParsedOrder = {
 function parseOrder(order: FresisHistoryOrder): ParsedOrder {
   let arcaData: ArcaData | null = null;
   if (order.arcaData) {
-    try {
-      arcaData = JSON.parse(order.arcaData) as ArcaData;
-    } catch {
-      /* ignore */
+    if (typeof order.arcaData === 'object') {
+      arcaData = order.arcaData as unknown as ArcaData;
+    } else {
+      try {
+        arcaData = JSON.parse(order.arcaData) as ArcaData;
+      } catch {
+        /* ignore */
+      }
     }
   }
 

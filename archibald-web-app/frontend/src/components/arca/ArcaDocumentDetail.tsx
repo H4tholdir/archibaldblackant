@@ -397,7 +397,7 @@ export function ArcaDocumentDetail({
     return () => { cancelled = true; };
   }, [currentData]);
 
-  if (!arcaData || !currentData) {
+  if (!arcaData || !currentData || !currentData.testata) {
     return renderNoArcaData(order, handleClose, onLink, onUnlink, onDelete);
   }
 
