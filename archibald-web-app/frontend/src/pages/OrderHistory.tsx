@@ -2163,37 +2163,46 @@ export function OrderHistory() {
 
                         if (stackOrders.length > 1) {
                           renderedStackIds.add(stack.stackId);
+                          const stackContainsExpanded = expandedOrderId !== null && stack.orderIds.includes(expandedOrderId);
+                          const isStackDimmed = expandedOrderId !== null && !selectionMode && !stackContainsExpanded;
                           return (
-                            <OrderCardStack
+                            <div
                               key={`stack-${stack.stackId}`}
-                              orders={stackOrders}
-                              stackId={stack.stackId}
-                              source={stack.source}
-                              expandedOrderId={expandedOrderId}
-                              onToggleOrder={(id) => handleToggle(id)}
-                              onSendToVerona={handleSendToVerona}
-                              onEdit={handleEdit}
-                              onDeleteDone={() => fetchOrders({ background: true })}
-                              token={token}
-                              searchQuery={debouncedSearch}
-                              editingOrderId={editingOrderId}
-                              onEditDone={() => {
-                                setEditingOrderId(null);
-                                fetchOrders({ background: true });
+                              style={{
+                                transition: "opacity 0.3s ease",
+                                ...(isStackDimmed ? { opacity: 0.3, pointerEvents: "none" as const } : {}),
                               }}
-                              sentToVeronaIds={sentToVeronaIds}
-                              onUnstack={stack.source === "manual" ? removeFromStack : undefined}
-                              onDissolve={handleDissolveStack}
-                              onLabelChange={stack.source === "manual" ? updateLabel : undefined}
-                              onStackClose={() => setExpandedOrderId(null)}
-                              onReorder={stack.source === "manual" ? reorderStack : undefined}
-                              reason={stack.reason}
-                              noteSummaries={noteSummaries}
-                              notePreviews={notePreviews}
-                              onNotesChanged={() => refreshNoteSummaries()}
-                              getSuggestedTab={debouncedSearch ? (o) => getMatchingTab(o, debouncedSearch) : undefined}
-                              forceExpand={searchExpandedStackId === stack.stackId}
-                            />
+                            >
+                              <OrderCardStack
+                                orders={stackOrders}
+                                stackId={stack.stackId}
+                                source={stack.source}
+                                expandedOrderId={expandedOrderId}
+                                onToggleOrder={(id) => handleToggle(id)}
+                                onSendToVerona={handleSendToVerona}
+                                onEdit={handleEdit}
+                                onDeleteDone={() => fetchOrders({ background: true })}
+                                token={token}
+                                searchQuery={debouncedSearch}
+                                editingOrderId={editingOrderId}
+                                onEditDone={() => {
+                                  setEditingOrderId(null);
+                                  fetchOrders({ background: true });
+                                }}
+                                sentToVeronaIds={sentToVeronaIds}
+                                onUnstack={stack.source === "manual" ? removeFromStack : undefined}
+                                onDissolve={handleDissolveStack}
+                                onLabelChange={stack.source === "manual" ? updateLabel : undefined}
+                                onStackClose={() => setExpandedOrderId(null)}
+                                onReorder={stack.source === "manual" ? reorderStack : undefined}
+                                reason={stack.reason}
+                                noteSummaries={noteSummaries}
+                                notePreviews={notePreviews}
+                                onNotesChanged={() => refreshNoteSummaries()}
+                                getSuggestedTab={debouncedSearch ? (o) => getMatchingTab(o, debouncedSearch) : undefined}
+                                forceExpand={searchExpandedStackId === stack.stackId}
+                              />
+                            </div>
                           );
                         }
                       }
