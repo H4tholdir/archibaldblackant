@@ -78,7 +78,7 @@ type FresisHistoryRecord = {
   invoiceClosed: boolean | null;
   invoiceRemainingAmount: string | null;
   invoiceDueDate: string | null;
-  arcaData: unknown | null;
+  arcaData: string | null;
   parentCustomerName: string | null;
 };
 
@@ -197,7 +197,7 @@ function mapRowToFresisHistory(row: FresisHistoryRow): FresisHistoryRecord {
     invoiceClosed: row.invoice_closed,
     invoiceRemainingAmount: row.invoice_remaining_amount,
     invoiceDueDate: row.invoice_due_date,
-    arcaData: row.arca_data,
+    arcaData: row.arca_data ? JSON.stringify(row.arca_data) : null,
     parentCustomerName: row.parent_customer_name,
   };
 }
