@@ -79,8 +79,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "delivered",
     label: "Consegnato",
     description: "Consegna confermata con data/ora",
-    borderColor: "#f286ad",
-    backgroundColor: "#fce4ec",
+    borderColor: "#18715a",
+    backgroundColor: "#e0f2ef",
   },
   invoiced: {
     category: "invoiced",
@@ -107,8 +107,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "exception",
     label: "Eccezione corriere",
     description: "Il corriere segnala un problema con la spedizione",
-    borderColor: "#E65100",
-    backgroundColor: "#FFF3E0",
+    borderColor: "#f286ad",
+    backgroundColor: "#fce4ec",
   },
 };
 
