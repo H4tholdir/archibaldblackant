@@ -23,19 +23,19 @@ describe("groupEventsByDay", () => {
       {
         dayLabel: "Sabato, 7 mar 2026",
         events: [
-          { time: "14:30", status: "In consegna", location: "Milano, IT", isLatest: true },
-          { time: "10:15", status: "Hub locale", location: "Milano Hub, IT", isLatest: false },
-          { time: "06:00", status: "In transito", location: "Bologna, IT", isLatest: false },
+          { time: "14:30", status: "In consegna", location: "Milano, IT", isLatest: true, exceptionDescription: "" },
+          { time: "10:15", status: "Hub locale", location: "Milano Hub, IT", isLatest: false, exceptionDescription: "" },
+          { time: "06:00", status: "In transito", location: "Bologna, IT", isLatest: false, exceptionDescription: "" },
         ],
       },
       {
         dayLabel: "Venerdi, 6 mar 2026",
         events: [
-          { time: "22:00", status: "Partito", location: "Roma, IT", isLatest: false },
-          { time: "18:30", status: "Ritirato", location: "Roma, IT", isLatest: false },
-          { time: "15:00", status: "Etichetta creata", location: "Roma, IT", isLatest: false },
-          { time: "12:00", status: "Info ricevute", location: "Roma, IT", isLatest: false },
-          { time: "09:00", status: "Ordine creato", location: "Roma, IT", isLatest: false },
+          { time: "22:00", status: "Partito", location: "Roma, IT", isLatest: false, exceptionDescription: "" },
+          { time: "18:30", status: "Ritirato", location: "Roma, IT", isLatest: false, exceptionDescription: "" },
+          { time: "15:00", status: "Etichetta creata", location: "Roma, IT", isLatest: false, exceptionDescription: "" },
+          { time: "12:00", status: "Info ricevute", location: "Roma, IT", isLatest: false, exceptionDescription: "" },
+          { time: "09:00", status: "Ordine creato", location: "Roma, IT", isLatest: false, exceptionDescription: "" },
         ],
       },
     ]);
@@ -52,7 +52,7 @@ describe("groupEventsByDay", () => {
       {
         dayLabel: "Sabato, 7 mar 2026",
         events: [
-          { time: "08:00", status: "Ritirato", location: "Napoli, IT", isLatest: true },
+          { time: "08:00", status: "Ritirato", location: "Napoli, IT", isLatest: true, exceptionDescription: "" },
         ],
       },
     ]);

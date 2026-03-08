@@ -8,6 +8,7 @@ export type GroupedDay = {
     status: string;
     location: string;
     isLatest: boolean;
+    exceptionDescription: string;
   }>;
 };
 
@@ -106,6 +107,7 @@ export function groupEventsByDay(scanEvents: ScanEvent[]): GroupedDay[] {
           status: translateStatus(ev.status),
           location: ev.scanLocation,
           isLatest: isFirst,
+          exceptionDescription: ev.exceptionDescription || '',
         };
         isFirst = false;
         return entry;
@@ -273,6 +275,11 @@ export function TrackingTimeline({
                 >
                   {ev.status}
                 </div>
+                {ev.exceptionDescription && (
+                  <div style={{ fontSize: "12px", color: "#e65100", fontStyle: "italic", marginTop: "1px" }}>
+                    {translateStatus(ev.exceptionDescription)}
+                  </div>
+                )}
                 {ev.location && (
                   <div style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>
                     {ev.location}

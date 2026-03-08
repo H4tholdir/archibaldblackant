@@ -9,6 +9,7 @@ export type ScanEvent = {
   scanLocation: string;
   delivered: boolean;
   exception: boolean;
+  exceptionDescription?: string;
 };
 
 export type TrackingInfo = {
@@ -103,7 +104,7 @@ export function getTrackingInfo(order: Order): TrackingInfo {
     rightInfo = `arr. ~${formatShortDate(order.trackingEstimatedDelivery)}`;
   }
 
-  const exceptionReason = exceptionEvent ? exceptionEvent.status : "";
+  const exceptionReason = exceptionEvent?.exceptionDescription || exceptionEvent?.status || "";
 
   const firstDate = events[events.length - 1].date;
   const lastEvent = events[0];

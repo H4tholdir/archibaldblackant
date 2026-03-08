@@ -887,8 +887,10 @@ export function OrderHistory() {
             break;
 
           case "exception":
-            matches = order.trackingStatus === 'exception'
-              || (order.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true);
+            matches = !order.deliveryConfirmedAt && (
+              order.trackingStatus === 'exception'
+              || (order.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true)
+            );
             break;
 
           case "delivered":
@@ -1078,7 +1080,7 @@ export function OrderHistory() {
       label: "\u26a0\ufe0f Eccezione corriere",
       color: "#E65100",
       bgColor: "#FFF3E0",
-      count: ordersForCounts.filter((o) => o.trackingStatus === 'exception' || (o.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true)).length,
+      count: ordersForCounts.filter((o) => !o.deliveryConfirmedAt && (o.trackingStatus === 'exception' || (o.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true))).length,
     },
     {
       id: "delivered",
