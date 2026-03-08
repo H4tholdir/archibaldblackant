@@ -31,17 +31,17 @@ export const ARCA_COLORS = {
 } as const;
 
 export const ARCA_GRID = {
-  elencoRowHeight: 18,
-  elencoHeaderHeight: 22,
+  elencoRowHeight: 44,
+  elencoHeaderHeight: 48,
   righeRowHeight: 14,
   righeHeaderHeight: 18,
-  cellPadding: "1px 4px",
-  headerPadding: "2px 6px",
+  cellPadding: "10px 12px",
+  headerPadding: "10px 12px",
 } as const;
 
 export const ARCA_FONT: CSSProperties = {
   fontFamily: "Arial, Tahoma, sans-serif",
-  fontSize: "8pt",
+  fontSize: "14px",
 };
 
 export const arcaHeaderRow: CSSProperties = {

@@ -64,7 +64,6 @@ export function FresisHistoryPage() {
   // Progressive loading state
   const [allOrders, setAllOrders] = useState<FresisHistoryOrder[]>([]);
   const [canLoadMore, setCanLoadMore] = useState(true);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<FresisHistoryOrder | null>(
@@ -157,20 +156,15 @@ export function FresisHistoryPage() {
     setDateFrom(`${y}-${m}-${d}`);
   }, [dateFrom, canLoadMore]);
 
-  // IntersectionObserver for infinite scroll
+  // Responsive list height
+  const [listHeight, setListHeight] = useState(() =>
+    Math.max(400, window.innerHeight - 300),
+  );
   useEffect(() => {
-    if (!loadMoreRef.current || !canLoadMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreMonths();
-        }
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [canLoadMore, loadMoreMonths]);
+    const handleResize = () => setListHeight(Math.max(400, window.innerHeight - 300));
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Click outside sub-client dropdown
   useEffect(() => {
@@ -514,8 +508,6 @@ export function FresisHistoryPage() {
     }
   }, [auth.token, exportFrom, exportTo]);
 
-  const listHeight = 600;
-
   return (
     <div
       style={{
@@ -827,20 +819,14 @@ export function FresisHistoryPage() {
 
       {/* Main content: List */}
       {!loading && filteredOrders.length > 0 && (
-        <>
           <ArcaDocumentList
             orders={filteredOrders}
             selectedId={selectedOrder?.id ?? null}
             onSelect={handleSelectInList}
             onDoubleClick={handleDoubleClickInList}
             height={listHeight}
+            onScrollNearEnd={canLoadMore ? loadMoreMonths : undefined}
           />
-          {canLoadMore && (
-            <div ref={loadMoreRef} style={{ padding: "16px", textAlign: "center", color: "#999", fontSize: "12px" }}>
-              Caricamento mesi precedenti...
-            </div>
-          )}
-        </>
       )}
 
       {/* Detail modal */}

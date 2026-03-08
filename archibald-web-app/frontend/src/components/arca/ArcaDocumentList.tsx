@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { List } from "react-window";
 import type { FresisHistoryOrder } from "../../types/fresis";
 import type { ArcaData } from "../../types/arca-data";
@@ -28,6 +28,7 @@ type ArcaDocumentListProps = {
   onSelect: (order: FresisHistoryOrder) => void;
   onDoubleClick: (order: FresisHistoryOrder) => void;
   height?: number;
+  onScrollNearEnd?: () => void;
 };
 
 type ParsedOrder = {
@@ -98,12 +99,12 @@ function compareParsed(
 }
 
 const COLUMNS = [
-  { field: "numerodoc" as SortField, label: "N. FT", width: 140 },
-  { field: "datadoc" as SortField, label: "Data", width: 90 },
-  { field: "cliente" as SortField, label: "Cliente", width: 220 },
-  { field: "totale" as SortField, label: "Tot. Doc.", width: 100 },
-  { field: "stato" as SortField, label: "Stato", width: 130 },
-  { field: "revenue" as SortField, label: "Ricavo", width: 100 },
+  { field: "numerodoc" as SortField, label: "N. FT", width: 170 },
+  { field: "datadoc" as SortField, label: "Data", width: 110 },
+  { field: "cliente" as SortField, label: "Cliente", width: 260 },
+  { field: "totale" as SortField, label: "Tot. Doc.", width: 110 },
+  { field: "stato" as SortField, label: "Stato", width: 140 },
+  { field: "revenue" as SortField, label: "Ricavo", width: 110 },
 ];
 
 const ROW_HEIGHT = ARCA_GRID.elencoRowHeight;
@@ -200,9 +201,11 @@ export function ArcaDocumentList({
   onSelect,
   onDoubleClick,
   height = 500,
+  onScrollNearEnd,
 }: ArcaDocumentListProps) {
   const [sortField, setSortField] = useState<SortField>("datadoc");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const parsed = useMemo(() => orders.map(parseOrder), [orders]);
 
@@ -229,8 +232,28 @@ export function ArcaDocumentList({
     [sorted, selectedId, onSelect, onDoubleClick],
   );
 
+  useEffect(() => {
+    if (!onScrollNearEnd) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const scrollEl = container.querySelector('[style*="overflow"]') as HTMLElement;
+    if (!scrollEl) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        onScrollNearEnd();
+      }
+    };
+
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollEl.removeEventListener("scroll", handleScroll);
+  }, [onScrollNearEnd, sorted.length]);
+
   return (
     <div
+      ref={containerRef}
       style={{
         ...ARCA_FONT,
         border: `1px solid ${ARCA_COLORS.shapeBorder}`,
