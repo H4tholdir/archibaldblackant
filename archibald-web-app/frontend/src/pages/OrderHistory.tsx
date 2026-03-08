@@ -1059,15 +1059,15 @@ export function OrderHistory() {
     {
       id: "editable",
       label: "\u270f\ufe0f Modificabili",
-      color: "#546E7A",
-      bgColor: "#ECEFF1",
+      color: "#808080",
+      bgColor: "#f3f4f6",
       count: ordersForCounts.filter((o) => isNotSentToVerona(o)).length,
     },
     {
       id: "backorder",
       label: "\u23f0 Possibile Backorder",
-      color: "#E65100",
-      bgColor: "#FFF3E0",
+      color: "#ff6600",
+      bgColor: "#fff3e0",
       count: ordersForCounts.filter((o) => {
         const hoursElapsed =
           (Date.now() - new Date(o.date).getTime()) / 3_600_000;
@@ -1077,8 +1077,8 @@ export function OrderHistory() {
     {
       id: "inTransit",
       label: "\ud83d\ude9a In transito",
-      color: "#1565C0",
-      bgColor: "#BBDEFB",
+      color: "#0066cc",
+      bgColor: "#e8f0ff",
       count: ordersForCounts.filter((o) =>
         !o.deliveryConfirmedAt && (
           o.trackingStatus === 'in_transit'
@@ -1092,8 +1092,8 @@ export function OrderHistory() {
     {
       id: "exception" as QuickFilterType,
       label: "\u26a0\ufe0f Eccezione corriere",
-      color: "#E65100",
-      bgColor: "#FFF3E0",
+      color: "#cc0066",
+      bgColor: "#fff0f5",
       count: ordersForCounts.filter((o) => !o.deliveryConfirmedAt && (o.trackingStatus === 'exception' || (o.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true))).length,
     },
     {
@@ -1106,29 +1106,29 @@ export function OrderHistory() {
     {
       id: "invoiced",
       label: "\ud83d\udcd1 Fatturati",
-      color: "#4527A0",
-      bgColor: "#D1C4E9",
+      color: "#6633cc",
+      bgColor: "#f2eaff",
       count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isInvoicePaid(o) && !isOverdue(o)).length,
     },
     {
       id: "paid",
       label: "\u2705 Pagati",
-      color: "#2E7D32",
-      bgColor: "#E8F5E9",
+      color: "#006666",
+      bgColor: "#e6f5f5",
       count: ordersForCounts.filter((o) => !!o.invoiceNumber && isInvoicePaid(o)).length,
     },
     {
       id: "overdue",
       label: "\ud83d\udd34 Scaduti",
-      color: "#E65100",
-      bgColor: "#FFE0B2",
+      color: "#cc3300",
+      bgColor: "#ffede6",
       count: ordersForCounts.filter((o) => isOverdue(o)).length,
     },
     {
       id: "stacked",
       label: "\ud83d\udcda Impilati",
-      color: "#e65100",
-      bgColor: "#FFF3E0",
+      color: "#808080",
+      bgColor: "#f3f4f6",
       count: ordersForCounts.filter((o) => orderIndex.has(o.id)).length,
     },
   ], [ordersForCounts, orderIndex]);
@@ -1968,13 +1968,13 @@ export function OrderHistory() {
             gap: "12px",
             padding: "12px 16px",
             marginBottom: "16px",
-            backgroundColor: "#FFF3E0",
-            border: "1px solid #FF9800",
+            backgroundColor: "#fff3e0",
+            border: "1px solid #ff9800",
             borderRadius: "8px",
           }}
         >
           <span style={{ fontSize: "20px" }}>{"\u23f0"}</span>
-          <span style={{ flex: 1, fontSize: "14px", color: "#E65100" }}>
+          <span style={{ flex: 1, fontSize: "14px", color: "#ff6600" }}>
             <strong>{backorderCount}</strong>{" "}
             {backorderCount === 1 ? "ordine" : "ordini"} in &quot;ORDINE
             APERTO&quot; da oltre 36 ore — possibile backorder
@@ -1990,7 +1990,7 @@ export function OrderHistory() {
               padding: "6px 12px",
               fontSize: "13px",
               fontWeight: 600,
-              backgroundColor: "#E65100",
+              backgroundColor: "#ff6600",
               color: "#fff",
               border: "none",
               borderRadius: "6px",
@@ -2262,8 +2262,8 @@ export function OrderHistory() {
                               : {}),
                             ...(isHighlighted
                               ? {
-                                  outline: "3px solid #1565C0",
-                                  boxShadow: "0 0 16px rgba(21, 101, 192, 0.35)",
+                                  outline: "3px solid #0066cc",
+                                  boxShadow: "0 0 16px rgba(0, 102, 204, 0.35)",
                                 }
                               : {}),
                             ...(selectionMode && isSelected

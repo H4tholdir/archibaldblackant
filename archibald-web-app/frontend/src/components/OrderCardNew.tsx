@@ -371,8 +371,8 @@ function TabPanoramica({
                   fontSize: "12px",
                   padding: "2px 8px",
                   borderRadius: "4px",
-                  backgroundColor: "#E3F2FD",
-                  color: "#1565C0",
+                  backgroundColor: "#e8f0ff",
+                  color: "#0066cc",
                   fontWeight: 600,
                 }}
               >
@@ -385,8 +385,8 @@ function TabPanoramica({
                   fontSize: "12px",
                   padding: "2px 8px",
                   borderRadius: "4px",
-                  backgroundColor: "#FFF3E0",
-                  color: "#E65100",
+                  backgroundColor: "#fff3e0",
+                  color: "#ff6600",
                   fontWeight: 600,
                 }}
               >
