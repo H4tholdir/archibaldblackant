@@ -3744,20 +3744,54 @@ export function OrderCardNew({
   return (
     <div
       style={{
-        backgroundColor: orderStatusStyle.backgroundColor,
-        borderLeft: `4px solid ${orderStatusStyle.borderColor}`,
+        display: "flex",
         borderRadius: "12px",
-        boxShadow: expanded ? "0 12px 40px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.1)" : "0 6px 20px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.08)",
+        boxShadow: expanded
+          ? "0 12px 40px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.1)"
+          : "0 6px 20px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.08)",
         marginBottom: "12px",
         overflow: "hidden",
         transition: "box-shadow 0.2s",
-        ...(expanded ? {
-          borderTop: "2px solid #333",
-          borderRight: "2px solid #333",
-          borderBottom: "2px solid #333",
-        } : {}),
+        ...(expanded
+          ? {
+              border: "2px solid #333",
+            }
+          : {}),
       }}
     >
+      {/* Sidebar */}
+      <div
+        style={{
+          width: 48,
+          flexShrink: 0,
+          background: `linear-gradient(180deg, ${orderStatusStyle.borderColor}dd, ${orderStatusStyle.borderColor})`,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "10px 0",
+        }}
+      >
+        <span style={{ fontSize: 20 }}>{orderStatusStyle.icon}</span>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: "rgba(255,255,255,0.9)",
+            writingMode: "vertical-rl",
+            textOrientation: "mixed",
+            transform: "rotate(180deg)",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {orderStatusStyle.sidebarLabel}
+        </span>
+      </div>
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0, backgroundColor: "#fff" }}>
       {/* ===== COLLAPSED STATE ===== */}
       <div
         onClick={(e) => {
@@ -3770,14 +3804,12 @@ export function OrderCardNew({
           padding: "16px",
           cursor: "pointer",
           transition: "background-color 0.2s",
-          backgroundColor: orderStatusStyle.backgroundColor,
         }}
         onMouseEnter={(e) => {
-          // Darken background slightly on hover
-          e.currentTarget.style.opacity = "0.85";
+          e.currentTarget.style.backgroundColor = "#f9f9f9";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = "1";
+          e.currentTarget.style.backgroundColor = "";
         }}
       >
         <div
@@ -4608,6 +4640,7 @@ export function OrderCardNew({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
