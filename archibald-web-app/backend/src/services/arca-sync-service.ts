@@ -115,6 +115,10 @@ function escapeVbsString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+function sanitizeVbsComment(value: string): string {
+  return value.replace(/[\r\n]/g, ' ');
+}
+
 function formatVbsValue(
   fieldName: string,
   value: string | number | boolean | null,
@@ -219,13 +223,13 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     const { arcaData, invoiceNumber } = record;
     const { testata, righe } = arcaData;
 
-    lines.push(`' --- ${escapeVbsString(invoiceNumber)} ---`);
+    lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
     lines.push(buildInsertDoctes(testata));
     lines.push("");
     lines.push("If Err.Number <> 0 Then");
     lines.push(
-      `  logFile.WriteLine "ERROR doctes ${escapeVbsString(invoiceNumber)}: " & Err.Description`,
+      `  logFile.WriteLine "ERROR doctes ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
     );
     lines.push("  errCount = errCount + 1");
     lines.push("  Err.Clear");
@@ -240,7 +244,7 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
       lines.push(`  ${buildInsertDocrig(riga)}`);
       lines.push("  If Err.Number <> 0 Then");
       lines.push(
-        `    logFile.WriteLine "ERROR docrig ${escapeVbsString(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
+        `    logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
       );
       lines.push("    errCount = errCount + 1");
       lines.push("    Err.Clear");

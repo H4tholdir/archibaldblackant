@@ -12,13 +12,14 @@ import type { ArcaData } from "../arca-data-types";
 import type { DbPool } from "../db/pool";
 
 const COOP16_DIR = "/Users/hatholdir/Downloads/ArcaPro/Ditte/COOP16";
+const COOP16_EXISTS = fs.existsSync(path.join(COOP16_DIR, "doctes.dbf"));
 const TEST_USER_ID = "test-user-native";
 
 function readCoop16File(filename: string): Buffer {
   return fs.readFileSync(path.join(COOP16_DIR, filename));
 }
 
-describe("parseNativeArcaFiles", () => {
+(COOP16_EXISTS ? describe : describe.skip)("parseNativeArcaFiles", () => {
   test(
     "parses real doctes+docrig producing correct number of FT+KT records",
     async () => {
@@ -552,7 +553,7 @@ function createMockPool(overrides?: {
   } as unknown as DbPool;
 }
 
-describe("performArcaSync", () => {
+(COOP16_EXISTS ? describe : describe.skip)("performArcaSync", () => {
   test(
     "imports new records and returns sync report",
     async () => {
