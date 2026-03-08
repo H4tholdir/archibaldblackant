@@ -708,7 +708,7 @@ function mapToFresisHistoryInput(row: FresisHistoryRow): FresisHistoryInput {
     invoiceClosed: null,
     invoiceRemainingAmount: null,
     invoiceDueDate: null,
-    arcaData: row.arca_data ? JSON.parse(row.arca_data) : null,
+    arcaData: row.arca_data != null ? (typeof row.arca_data === 'string' ? row.arca_data : JSON.stringify(row.arca_data)) : null,
     parentCustomerName: null,
     source: row.source,
   };
@@ -774,7 +774,7 @@ export async function performArcaSync(
   // 6. Find PWA export candidates (source='app', arca_data IS NOT NULL)
   const { rows: pwaRows } = await pool.query<{
     id: string;
-    arca_data: string;
+    arca_data: string | Record<string, unknown>;
     invoice_number: string;
   }>(
     `SELECT id, arca_data, invoice_number
