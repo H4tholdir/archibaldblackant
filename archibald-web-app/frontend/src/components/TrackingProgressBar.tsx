@@ -168,7 +168,7 @@ export function TrackingDotBar({ order, borderColor }: { order: Order; borderCol
       </div>
 
       {info.exceptionReason && (
-        <div style={{ fontSize: "11px", color: "#e65100", fontWeight: 600, marginBottom: "4px" }}>
+        <div style={{ fontSize: "11px", color: "#cc0066", fontWeight: 600, marginBottom: "4px" }}>
           {info.exceptionReason}
         </div>
       )}

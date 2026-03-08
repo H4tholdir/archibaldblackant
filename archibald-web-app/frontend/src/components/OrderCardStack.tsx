@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Order } from "../types/order";
+import { getOrderStatus } from "../utils/orderStatus";
 import { OrderCardNew } from "./OrderCardNew";
 
 const STACK_OFFSET = 12;
@@ -133,10 +134,11 @@ function OrderCardStack({
       ? orders.findIndex((o) => o.id === orderedCards[0].id)
       : 0;
 
-  const accentColor = "#e65100";
-  const bannerGradient = "linear-gradient(135deg, #e65100, #ff6d00)";
-  const expandedBg = "#fff3e0";
-  const expandedBorder = "#ffcc80";
+  const topCardStatus = orderedCards.length > 0 ? getOrderStatus(orderedCards[0]) : null;
+  const accentColor = topCardStatus?.borderColor ?? "#808080";
+  const bannerGradient = `linear-gradient(135deg, ${accentColor}cc, ${accentColor})`;
+  const expandedBg = "#f8f8f8";
+  const expandedBorder = "#e0e0e0";
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {

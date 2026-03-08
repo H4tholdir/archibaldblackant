@@ -118,15 +118,24 @@ export function OrderStatusLegend({ isOpen, onClose }: OrderStatusLegendProps) {
                   key={style.category}
                   style={{
                     display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
-                    padding: "12px",
-                    backgroundColor: style.backgroundColor,
-                    borderLeft: `4px solid ${style.borderColor}`,
-                    borderRadius: "6px",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                   }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      flexShrink: 0,
+                      background: `linear-gradient(180deg, ${style.borderColor}dd, ${style.borderColor})`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{style.icon}</span>
+                  </div>
+                  <div style={{ flex: 1, padding: "10px 12px", backgroundColor: "#fff" }}>
                     <div
                       style={{
                         fontWeight: 600,
