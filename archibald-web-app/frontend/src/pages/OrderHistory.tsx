@@ -12,6 +12,7 @@ import {
   isNotSentToVerona,
   isInvoicePaid,
   isOverdue,
+  isInTransit,
 } from "../utils/orderStatus";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
@@ -882,8 +883,13 @@ export function OrderHistory() {
           }
 
           case "inTransit":
-            matches = order.trackingStatus === 'in_transit'
-              || order.trackingStatus === 'out_for_delivery';
+            matches = !order.deliveryConfirmedAt && (
+              order.trackingStatus === 'in_transit'
+              || order.trackingStatus === 'out_for_delivery'
+              || order.trackingStatus === 'exception'
+              || order.trackingStatus === 'pending'
+              || isInTransit(order)
+            );
             break;
 
           case "exception":
@@ -1073,7 +1079,15 @@ export function OrderHistory() {
       label: "\ud83d\ude9a In transito",
       color: "#1565C0",
       bgColor: "#BBDEFB",
-      count: ordersForCounts.filter((o) => o.trackingStatus === 'in_transit' || o.trackingStatus === 'out_for_delivery').length,
+      count: ordersForCounts.filter((o) =>
+        !o.deliveryConfirmedAt && (
+          o.trackingStatus === 'in_transit'
+          || o.trackingStatus === 'out_for_delivery'
+          || o.trackingStatus === 'exception'
+          || o.trackingStatus === 'pending'
+          || isInTransit(o)
+        )
+      ).length,
     },
     {
       id: "exception" as QuickFilterType,

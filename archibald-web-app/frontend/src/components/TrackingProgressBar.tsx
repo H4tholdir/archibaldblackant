@@ -39,14 +39,47 @@ function formatTime(time: string): string {
   return time;
 }
 
+function isAtDestinationCountry(event: ScanEvent, destCountry: string): boolean {
+  return event.scanLocation.endsWith(` ${destCountry}`);
+}
+
+function looksLikeArrival(status: string): boolean {
+  const s = status.toLowerCase();
+  return s.includes("arrivat") || s.includes("arrived") || s.includes("alla sede") || s.includes("at local") || s.includes("at fedex");
+}
+
+function looksLikeDeparture(status: string): boolean {
+  const s = status.toLowerCase();
+  return s.includes("partito") || s.includes("departed") || s.includes("left") || s.includes("lasciato");
+}
+
+function looksLikeOutForDelivery(status: string): boolean {
+  const s = status.toLowerCase();
+  return s.includes("in consegna") || s.includes("out for delivery") || s.includes("veicolo") || s.includes("vehicle");
+}
+
 function matchesStep(event: ScanEvent, stepIndex: number, destinationCountryCode: string): boolean {
   switch (stepIndex) {
-    case 0: return event.statusCD === "PU";
-    case 1: return (event.statusCD === "DP" || event.statusCD === "IT" || event.statusCD === "AR") && !matchesStep(event, 2, destinationCountryCode);
-    case 2: return event.statusCD === "AR" && event.scanLocation.endsWith(` ${destinationCountryCode}`);
-    case 3: return event.statusCD === "OD";
-    case 4: return event.delivered || event.statusCD === "DL";
-    default: return false;
+    case 0:
+      return event.statusCD === "PU" || event.status.toLowerCase().includes("ritirat") || event.status.toLowerCase().includes("picked up");
+    case 1:
+      return !matchesStep(event, 0, destinationCountryCode)
+        && !matchesStep(event, 2, destinationCountryCode)
+        && !matchesStep(event, 3, destinationCountryCode)
+        && !matchesStep(event, 4, destinationCountryCode)
+        && (event.statusCD === "DP" || event.statusCD === "IT" || event.statusCD === "AR"
+          || looksLikeDeparture(event.status))
+        && !isAtDestinationCountry(event, destinationCountryCode);
+    case 2:
+      return (event.statusCD === "AR" || looksLikeArrival(event.status))
+        && isAtDestinationCountry(event, destinationCountryCode)
+        && !matchesStep(event, 3, destinationCountryCode);
+    case 3:
+      return event.statusCD === "OD" || looksLikeOutForDelivery(event.status);
+    case 4:
+      return event.delivered || event.statusCD === "DL";
+    default:
+      return false;
   }
 }
 
