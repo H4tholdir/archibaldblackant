@@ -9,11 +9,8 @@ import { OrderStatusLegend } from "../components/OrderStatusLegend";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
 import {
-  isOverdue,
-  isLikelyDelivered,
-  isInTransit,
   isNotSentToVerona,
-  isInvoicePaid,
+  getOrderStatus,
 } from "../utils/orderStatus";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
@@ -39,6 +36,7 @@ type QuickFilterType =
   | "editable"
   | "backorder"
   | "inTransit"
+  | "exception"
   | "delivered"
   | "invoiced"
   | "overdue"
@@ -883,28 +881,27 @@ export function OrderHistory() {
           }
 
           case "inTransit":
-            matches = order.trackingStatus === 'in_transit'
-              || order.trackingStatus === 'out_for_delivery'
-              || isInTransit(order);
+            matches = getOrderStatus(order).category === 'in-transit';
+            break;
+
+          case "exception":
+            matches = getOrderStatus(order).category === 'exception';
             break;
 
           case "delivered":
-            matches = !!order.deliveryConfirmedAt || isLikelyDelivered(order);
+            matches = getOrderStatus(order).category === 'delivered';
             break;
 
           case "invoiced":
-            matches =
-              !!order.invoiceNumber &&
-              !isInvoicePaid(order) &&
-              !isOverdue(order);
+            matches = getOrderStatus(order).category === 'invoiced';
             break;
 
           case "paid":
-            matches = !!order.invoiceNumber && isInvoicePaid(order);
+            matches = getOrderStatus(order).category === 'paid';
             break;
 
           case "overdue":
-            matches = isOverdue(order);
+            matches = getOrderStatus(order).category === 'overdue';
             break;
 
           case "stacked":
@@ -1071,44 +1068,42 @@ export function OrderHistory() {
       label: "\ud83d\ude9a In transito",
       color: "#1565C0",
       bgColor: "#BBDEFB",
-      count: ordersForCounts.filter((o) =>
-        o.trackingStatus === 'in_transit'
-        || o.trackingStatus === 'out_for_delivery'
-        || isInTransit(o)
-      ).length,
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'in-transit').length,
+    },
+    {
+      id: "exception" as QuickFilterType,
+      label: "\u26a0\ufe0f Eccezione corriere",
+      color: "#E65100",
+      bgColor: "#FFF3E0",
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'exception').length,
     },
     {
       id: "delivered",
       label: "\ud83d\udce6 Consegnati",
       color: "#0277BD",
       bgColor: "#B3E5FC",
-      count: ordersForCounts.filter((o) =>
-        !!o.deliveryConfirmedAt || isLikelyDelivered(o)
-      ).length,
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'delivered').length,
     },
     {
       id: "invoiced",
       label: "\ud83d\udcd1 Fatturati",
       color: "#4527A0",
       bgColor: "#D1C4E9",
-      count: ordersForCounts.filter(
-        (o) => !!o.invoiceNumber && !isInvoicePaid(o) && !isOverdue(o),
-      ).length,
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'invoiced').length,
     },
     {
       id: "paid",
       label: "\u2705 Pagati",
       color: "#2E7D32",
       bgColor: "#E8F5E9",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && isInvoicePaid(o))
-        .length,
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'paid').length,
     },
     {
       id: "overdue",
       label: "\ud83d\udd34 Scaduti",
       color: "#E65100",
       bgColor: "#FFE0B2",
-      count: ordersForCounts.filter((o) => isOverdue(o)).length,
+      count: ordersForCounts.filter((o) => getOrderStatus(o).category === 'overdue').length,
     },
     {
       id: "stacked",
