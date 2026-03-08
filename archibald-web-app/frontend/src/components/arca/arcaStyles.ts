@@ -74,7 +74,6 @@ export function arcaRowStyle(index: number, selected: boolean): CSSProperties {
       ...ARCA_FONT,
       backgroundColor: ARCA_COLORS.selectionBg,
       color: ARCA_COLORS.selectionText,
-      padding: ARCA_GRID.cellPadding,
       height: ARCA_GRID.elencoRowHeight,
       borderBottom: `1px solid ${ARCA_COLORS.gridBorderSilver}`,
       cursor: "pointer",
@@ -86,7 +85,6 @@ export function arcaRowStyle(index: number, selected: boolean): CSSProperties {
     backgroundColor:
       index % 2 === 0 ? ARCA_COLORS.rowEven : ARCA_COLORS.rowOdd,
     color: "#000",
-    padding: ARCA_GRID.cellPadding,
     height: ARCA_GRID.elencoRowHeight,
     borderBottom: `1px solid ${ARCA_COLORS.gridBorderSilver}`,
     cursor: "pointer",

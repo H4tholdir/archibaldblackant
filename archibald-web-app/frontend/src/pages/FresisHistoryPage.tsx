@@ -54,7 +54,7 @@ export function FresisHistoryPage() {
 
   // Filter state
   const [activeTimePreset, setActiveTimePreset] =
-    useState<FresisTimePreset>("thisMonth");
+    useState<FresisTimePreset | null>(null);
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
 
@@ -250,7 +250,7 @@ export function FresisHistoryPage() {
       setDateFrom("");
       setDateTo("");
     }
-    setCanLoadMore(preset === "thisMonth");
+    setCanLoadMore(false);
   };
 
   // Sub-client handlers
@@ -309,10 +309,11 @@ export function FresisHistoryPage() {
     handleClearSubClient();
     setAllOrders([]);
     setActiveTimePreset(null);
-    setDateFrom("");
-    setDateTo("");
+    const range = getDateRangeForPreset("thisMonth")!;
+    setDateFrom(range.from);
+    setDateTo(range.to);
     setGlobalSearch("");
-    setCanLoadMore(false);
+    setCanLoadMore(true);
   };
 
   // --- Order actions ---

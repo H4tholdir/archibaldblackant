@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { List } from "react-window";
 import type { FresisHistoryOrder } from "../../types/fresis";
+import type { SubClient } from "../../types/sub-client";
 import type { ArcaData } from "../../types/arca-data";
 import {
   ARCA_FONT,
@@ -16,7 +17,9 @@ import {
 type SortField =
   | "numerodoc"
   | "datadoc"
+  | "codicecf"
   | "cliente"
+  | "supragsoc"
   | "totale"
   | "stato"
   | "revenue";
@@ -35,7 +38,9 @@ type ParsedOrder = {
   order: FresisHistoryOrder;
   ftNumber: string;
   datadoc: string;
+  codicecf: string;
   cliente: string;
+  supragsoc: string;
   totale: number;
   revenue: number | undefined;
   stato: string;
@@ -57,13 +62,28 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
 
   const testata = arcaData?.testata;
 
+  let subClientData: SubClient | null = null;
+  if (order.subClientData) {
+    if (typeof order.subClientData === "object") {
+      subClientData = order.subClientData;
+    } else {
+      try {
+        subClientData = JSON.parse(order.subClientData as unknown as string) as SubClient;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   return {
     order,
     ftNumber: testata
-      ? `FT ${testata.NUMERODOC}/${testata.ESERCIZIO}`
+      ? `${testata.TIPODOC} ${testata.NUMERODOC}/${testata.ESERCIZIO}`
       : (order.invoiceNumber ?? ""),
     datadoc: testata?.DATADOC ?? order.createdAt,
+    codicecf: order.subClientCodice || testata?.CODICECF || "",
     cliente: order.subClientName || order.subClientCodice,
+    supragsoc: subClientData?.supplRagioneSociale ?? "",
     totale: testata?.TOTDOC ?? order.targetTotalWithVAT ?? 0,
     revenue: order.revenue,
     stato:
@@ -86,8 +106,14 @@ function compareParsed(
     case "datadoc":
       cmp = (a.datadoc || "").localeCompare(b.datadoc || "");
       break;
+    case "codicecf":
+      cmp = a.codicecf.localeCompare(b.codicecf);
+      break;
     case "cliente":
       cmp = a.cliente.localeCompare(b.cliente);
+      break;
+    case "supragsoc":
+      cmp = a.supragsoc.localeCompare(b.supragsoc);
       break;
     case "totale":
       cmp = a.totale - b.totale;
@@ -103,9 +129,11 @@ function compareParsed(
 }
 
 const COLUMNS = [
-  { field: "numerodoc" as SortField, label: "N. FT", width: 170 },
+  { field: "numerodoc" as SortField, label: "N. Doc.", width: 170 },
   { field: "datadoc" as SortField, label: "Data", width: 110 },
-  { field: "cliente" as SortField, label: "Cliente", width: 260 },
+  { field: "codicecf" as SortField, label: "Cod. Cl.", width: 90 },
+  { field: "cliente" as SortField, label: "Cliente", width: 200 },
+  { field: "supragsoc" as SortField, label: "Suppl. Rag. Soc.", width: 160 },
   { field: "totale" as SortField, label: "Tot. Doc.", width: 110 },
   { field: "stato" as SortField, label: "Stato", width: 140 },
   { field: "revenue" as SortField, label: "Ricavo", width: 110 },
@@ -172,12 +200,18 @@ function ArcaRow({
         {formatArcaDate(item.datadoc)}
       </div>
       <div style={arcaGridCell(COLUMNS[2].width)}>
+        {item.codicecf}
+      </div>
+      <div style={arcaGridCell(COLUMNS[3].width)}>
         {item.cliente}
       </div>
-      <div style={arcaGridCell(COLUMNS[3].width, "right")}>
+      <div style={arcaGridCell(COLUMNS[4].width)}>
+        {item.supragsoc}
+      </div>
+      <div style={arcaGridCell(COLUMNS[5].width, "right")}>
         {formatArcaCurrency(item.totale)}
       </div>
-      <div style={arcaGridCell(COLUMNS[4].width)}>
+      <div style={arcaGridCell(COLUMNS[6].width)}>
         {STATE_LABELS[item.stato] ?? item.stato}
       </div>
       <div
