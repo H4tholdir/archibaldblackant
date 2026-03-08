@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archibald — Redesign V2 Completo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 500px; margin: 0 auto; padding: 16px 10px 80px; }
+  h1 { font-size: 18px; text-align: center; margin: 16px 0 2px; }
+  .subtitle { text-align: center; color: #888; font-size: 11px; margin-bottom: 16px; }
+  h2 { font-size: 14px; margin: 24px 0 8px; color: #444; font-weight: 700; border-bottom: 2px solid #e0e0e0; padding-bottom: 4px; }
+  h3 { font-size: 11px; margin: 16px 0 6px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; font-size: 11px; color: #92400e; margin: 8px 0 12px; }
+  .sep { height: 1px; background: #e8e8e8; margin: 20px 0; }
+
+  /* NAV */
+  .nav { display: flex; gap: 2px; margin-bottom: 16px; background: #fff; border-radius: 10px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 6px; z-index: 100; }
+  .nav button { flex: 1; padding: 7px 2px; border: none; background: transparent; border-radius: 7px; font-size: 10px; font-weight: 600; color: #888; cursor: pointer; transition: all 0.2s; }
+  .nav button.active { background: #1a1a2e; color: #fff; }
+  .nav button:hover:not(.active) { background: #f0f0f0; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* CARD BASE */
+  .card-c { background: #fff; border-radius: 14px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.07); display: flex; }
+  .card-c.expanded { box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 2px solid #1a1a2e; border-left: none; }
+  .sidebar { width: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 2px; gap: 5px; flex-shrink: 0; }
+  .sidebar .s-icon { font-size: 16px; }
+  .sidebar .s-label { font-size: 7px; font-weight: 800; color: rgba(255,255,255,0.95); text-transform: uppercase; letter-spacing: 0.5px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+  .content { flex: 1; display: flex; flex-direction: column; }
+  .content-pad { padding: 10px 12px 8px; }
+
+  /* HEADER ELEMENTS */
+  .row-cust { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 2px; }
+  .cname { font-size: 15px; font-weight: 700; color: #1a1a2e; line-height: 1.2; flex: 1; }
+  .badges { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .badge { font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .bdot { width: 5px; height: 5px; border-radius: 50%; }
+  .badge-alert { background: #fef2f2; color: #dc2626; font-size: 9px; padding: 2px 7px; border-radius: 8px; font-weight: 600; }
+  .meta { font-size: 11px; color: #888; margin-bottom: 5px; }
+  .meta b { font-weight: 600; color: #555; }
+
+  /* TRACKING */
+  .track-box { background: #f8f9fb; border-radius: 7px; padding: 6px 8px; margin-bottom: 5px; }
+  .track-top { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #444; }
+  .pbar { height: 3px; background: #e8e8e8; border-radius: 2px; flex: 1; overflow: hidden; }
+  .pbar .fill { height: 100%; border-radius: 2px; }
+  .track-detail { font-size: 9px; color: #999; margin-top: 2px; }
+  .track-exc { font-size: 10px; font-weight: 600; margin-top: 2px; }
+
+  /* FINANCIAL NOTE */
+  .fin-note { font-size: 10px; color: #5a3e00; background: #fff8e1; border: 1px solid #ffe082; border-radius: 5px; padding: 2px 8px; margin-bottom: 5px; }
+
+  /* AMOUNT */
+  .amt-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 3px 6px; margin-bottom: 4px; }
+  .amt-main { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+  .amt-sub { font-size: 10px; color: #999; margin-bottom: 5px; }
+  .amt-paid { font-size: 12px; font-weight: 600; }
+  .amt-paid-sub { font-size: 10px; color: #777; }
+
+  /* BUTTONS */
+  .btns { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 3px; }
+  .btn-grp { display: flex; gap: 4px; flex-wrap: wrap; }
+  .btn { font-size: 10px; padding: 4px 8px; border-radius: 5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; background: #fff; transition: all 0.15s; }
+  .btn-g { color: #388e3c; border: 1.5px solid #388e3c; }
+  .btn-p { color: #7b1fa2; border: 1.5px solid #7b1fa2; }
+  .btn-s { color: #388e3c; border: 1.5px solid #388e3c; }
+  .btn-e { color: #1976d2; border: 1.5px solid #1976d2; }
+  .btn-d { color: #d32f2f; border: 1.5px solid #d32f2f; }
+
+  /* NOTES */
+  .notes-row { background: #fafafa; border-radius: 5px; padding: 4px 7px; margin-bottom: 3px; }
+  .note-i { font-size: 10px; color: #555; display: flex; align-items: center; gap: 3px; }
+  .chev { text-align: center; color: #ccc; font-size: 12px; padding-top: 1px; }
+
+  /* TAB SYSTEM */
+  .tab-bar { display: flex; gap: 2px; padding: 6px 8px 0; flex-wrap: wrap; }
+  .tab { padding: 6px 10px; border-radius: 7px 7px 0 0; font-size: 10px; font-weight: 600; color: #888; background: #f5f5f5; border: 1px solid #e0e0e0; border-bottom: none; cursor: pointer; white-space: nowrap; }
+  .tab.active { font-weight: 700; border-top-width: 2px; }
+  .tab-content { border-top: 1px solid #ccc; min-height: 120px; padding: 10px 12px; }
+
+  /* INFO GRID used in tabs */
+  .igrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
+  .igrid.col3 { grid-template-columns: 1fr 1fr 1fr; }
+  .igrid .ilabel { font-size: 8px; color: #aaa; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+  .igrid .ival { font-size: 12px; color: #333; font-weight: 600; }
+  .igrid .ival.sm { font-size: 11px; font-weight: 500; }
+  .igrid .full { grid-column: 1 / -1; }
+
+  /* STEPPER */
+  .stepper { display: flex; align-items: center; gap: 0; margin: 8px 0 12px; padding: 0 4px; }
+  .step-dot { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7px; color: #fff; font-weight: 700; flex-shrink: 0; }
+  .step-line { height: 3px; flex: 1; }
+  .step-labels { display: flex; justify-content: space-between; font-size: 8px; color: #999; padding: 0 0px; margin-bottom: 10px; }
+
+  /* TABLE */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .tbl th { background: #f5f5f5; padding: 5px 6px; text-align: left; font-size: 9px; text-transform: uppercase; color: #888; letter-spacing: 0.3px; border-bottom: 1px solid #e0e0e0; }
+  .tbl td { padding: 5px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl .r { text-align: right; }
+  .tbl .b { font-weight: 600; }
+  .tbl .code { font-family: monospace; font-size: 10px; }
+
+  /* TOTALS BAR */
+  .totals { margin-top: 8px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .totals .trow { display: flex; gap: 12px; font-size: 11px; }
+  .totals .trow .tlabel { color: #888; min-width: 100px; text-align: right; }
+  .totals .trow .tval { font-weight: 600; min-width: 70px; text-align: right; }
+  .totals .ttotal { background: #1a1a2e; color: #81c784; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; display: flex; gap: 12px; }
+
+  /* TIMELINE */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .tl-day { font-size: 10px; font-weight: 700; color: #555; margin: 8px 0 4px; }
+  .tl-event { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; }
+  .tl-time { width: 38px; font-size: 10px; color: #888; font-family: monospace; flex-shrink: 0; text-align: right; }
+  .tl-dot-col { display: flex; flex-direction: column; align-items: center; width: 12px; flex-shrink: 0; }
+  .tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tl-line { width: 2px; flex: 1; min-height: 12px; }
+  .tl-text { font-size: 11px; color: #333; flex: 1; }
+  .tl-loc { font-size: 9px; color: #999; }
+
+  /* SECTION CARDS inside tabs */
+  .icard { background: #fff; border: 1px solid #f0f0f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .icard-title { font-size: 10px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+
+  /* PROPOSALS */
+  .prop-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+  .recommended { background: #ecfdf5; color: #059669; border: 1px solid #6ee7b7; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Redesign V2 — Completo</h1>
+<p class="subtitle">Tab espanse concrete + 3 proposte organizzazione dati header</p>
+
+<nav class="nav">
+  <button class="active" onclick="show('headers')">Header dati</button>
+  <button onclick="show('panoramica')">Panoramica</button>
+  <button onclick="show('articoli')">Articoli</button>
+  <button onclick="show('logistica')">Logistica</button>
+  <button onclick="show('finanziario')">Finanziario</button>
+  <button onclick="show('collegati')">Collegati</button>
+</nav>
+
+<!-- ======================================================= -->
+<!-- ============ SEZIONE: 3 PROPOSTE HEADER DATI ========== -->
+<!-- ======================================================= -->
+<div id="headers" class="section active">
+  <h2>3 Proposte — Organizzazione dati header</h2>
+  <div class="note">
+    <b>Dati presenti nell'header attuale:</b> Nome cliente, badge stato, badge verifica fallita, numero ordine, data, tracking dot-bar, info tracking (location+orario), nota finanziaria (residuo), importo IVA incl., importo imponibile, scadenza fattura, giorni rimanenti/scaduti, info pagato (data+fattura+importo), bottoni download (DDT, Fattura/NC), bottoni azione (Invia, Modifica, Elimina), preview note, chevron espansione.
+  </div>
+
+  <!-- ====== PROPOSTA 1: ZONE GERARCHICHE (RACCOMANDATA) ====== -->
+  <div class="prop-label recommended">&#x2B50; Proposta 1 — Zone gerarchiche (raccomandata)</div>
+  <div class="note">
+    <b>Principio:</b> I dati sono raggruppati in 4 zone visive dall'alto al basso, ciascuna con un ruolo preciso:<br>
+    <b>Zona 1</b> (identita): chi + cosa + stato<br>
+    <b>Zona 2</b> (situazione): tracking / alert / note finanziarie — cosa sta succedendo ORA<br>
+    <b>Zona 3</b> (soldi): importo primario + dettagli finanziari<br>
+    <b>Zona 4</b> (azioni): bottoni raggruppati per tipo<br>
+    Le zone sono separate da sottili divisori. L'occhio scorre dall'alto al basso in ordine di priorita.
+  </div>
+
+  <h3>In transito — header completo con tutte le info</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <!-- ZONA 1: Identita -->
+        <div class="row-cust">
+          <div class="cname">Rossi Mario S.r.l.</div>
+          <div class="badges">
+            <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+      </div>
+
+      <!-- ZONA 2: Situazione attuale -->
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="track-box">
+          <div class="track-top">
+            <span style="font-size:12px;">🚚</span>
+            <span>In viaggio &bull; Milano, IT &bull; 6 mar 14:32</span>
+            <div class="pbar"><div class="fill" style="width:60%;background:#0066cc;"></div></div>
+          </div>
+          <div class="track-detail">Arrivo stimato: 8 mar &bull; FedEx 7742 8831 0042</div>
+        </div>
+        <div class="fin-note">Residuo finanziario: &euro; 450,00</div>
+      </div>
+
+      <!-- ZONA 3: Soldi -->
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-row">
+          <span class="amt-main">&euro; 1.234,56 <span style="font-size:10px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+          <span style="font-size:10px;color:#666;">Scad: 20 mar &bull; <span style="color:#2e7d32;font-weight:600;">12 gg</span></span>
+        </div>
+        <div class="amt-sub">&euro; 1.012,00 (imponibile)</div>
+      </div>
+
+      <!-- ZONA 4: Azioni -->
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns">
+          <div class="btn-grp">
+            <button class="btn btn-g">📄 DDT</button>
+            <button class="btn btn-p">📑 Fattura</button>
+          </div>
+        </div>
+      </div>
+      <div class="notes-row" style="margin:0 10px 4px;">
+        <div class="note-i"><span style="color:#0066cc;">☑</span> Chiamare per conferma orario</div>
+        <div class="note-i"><span style="color:#ccc;">☐</span> Verificare indirizzo consegna</div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Eccezione — alert prominente in zona 2</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388);">
+      <span class="s-icon">⚠️</span>
+      <span class="s-label">ECCEZIONE</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Verdi Costruzioni</div>
+          <div class="badges">
+            <span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Eccezione</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12338</b> &bull; 2 mar 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="track-box" style="background:#fff0f5;">
+          <div class="track-top">
+            <span style="font-size:12px;">📦</span>
+            <span style="color:#cc0066;font-weight:600;">Hub Roma — fermo</span>
+            <div class="pbar"><div class="fill" style="width:40%;background:#cc0066;"></div></div>
+          </div>
+          <div class="track-exc" style="color:#cc0066;">⚠ Indirizzo errato — tentativo fallito</div>
+          <div class="track-detail">Ultimo evento: 5 mar 09:15</div>
+        </div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-row"><span class="amt-main">&euro; 2.450,00</span></div>
+        <div class="amt-sub">&euro; 2.008,20 (imponibile)</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns"><div class="btn-grp"><button class="btn btn-g">📄 DDT</button></div></div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Pagamento scaduto — urgenza in zona 2 + 3</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc3300, #dd5533);">
+      <span class="s-icon">⏰</span>
+      <span class="s-label">SCADUTO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Neri Impianti</div>
+          <div class="badges">
+            <span class="badge" style="background:#ffede6;color:#cc3300;"><span class="bdot" style="background:#cc3300;"></span>Scaduto</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12330</b> &bull; 28 feb 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div style="background:#ffede6;border-radius:6px;padding:5px 8px;font-size:11px;color:#cc3300;font-weight:600;">⚠️ 8 giorni fuori scadenza</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-row"><span class="amt-main">&euro; 3.100,00</span></div>
+        <div class="amt-sub">&euro; 2.540,98 (imponibile) &bull; CF1/00421</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns"><div class="btn-grp"><button class="btn btn-p">📑 Fattura</button></div></div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Pagato — zona 3 verde</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888);">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Blu Servizi S.r.l.</div>
+          <div class="badges">
+            <span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-paid" style="color:#006666;">✅ Pagato: 5 mar 2026</div>
+        <div class="amt-paid-sub">CF1/00398 &bull; &euro; 2.180,00</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns"><div class="btn-grp"><button class="btn btn-g">📄 DDT</button><button class="btn btn-p">📑 Fattura</button></div></div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Su Archibald — azioni complete in zona 4</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #808080, #999);">
+      <span class="s-icon">🏢</span>
+      <span class="s-label">SU ARCHIBALD</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Gialli Edilizia</div>
+          <div class="badges">
+            <span class="badge" style="background:#f3f4f6;color:#666;"><span class="bdot" style="background:#808080;"></span>Su Archibald</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12350</b> &bull; 8 mar 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-row"><span class="amt-main">&euro; 560,00</span></div>
+        <div class="amt-sub">&euro; 459,02 (imponibile)</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns">
+          <div class="btn-grp">
+            <button class="btn btn-s">📤 Invia a Verona</button>
+            <button class="btn btn-e">✏ Modifica</button>
+            <button class="btn btn-d">🗑 Elimina</button>
+          </div>
+        </div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Bloccato — verifica fallita in zona 1</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0000, #dd2222);">
+      <span class="s-icon">🚫</span>
+      <span class="s-label">BLOCCATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Grigio Materiali</div>
+          <div class="badges">
+            <span class="badge" style="background:#ffeaea;color:#cc0000;"><span class="bdot" style="background:#cc0000;"></span>Bloccato</span>
+            <span class="badge-alert">Verifica fallita ×</span>
+          </div>
+        </div>
+        <div class="meta"><b>ORD/12342</b> &bull; 4 mar 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div style="background:#ffeaea;border-radius:6px;padding:5px 8px;font-size:10px;color:#cc0000;font-weight:600;">🚫 Errore anagrafica — richiede intervento manuale</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="amt-row"><span class="amt-main">&euro; 4.200,00</span></div>
+        <div class="amt-sub">&euro; 3.442,62 (imponibile)</div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ====== PROPOSTA 2: COMPACT INLINE ====== -->
+  <div class="prop-label" style="background:#eef2ff;color:#3366ff;border:1px solid #93b4ff;">Proposta 2 — Compact inline</div>
+  <div class="note">
+    <b>Principio:</b> Nessun divisore tra zone. Tutte le info scorrono come un flusso unico top-to-bottom, piu denso. Il tracking e i soldi sono sulla stessa riga quando possibile. Adatto a chi vuole piu card visibili contemporaneamente sullo schermo.
+  </div>
+
+  <h3>In transito — tutto su poche righe</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Rossi Mario S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+          <div class="meta" style="margin:0;"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+          <span class="amt-main" style="font-size:15px;">&euro; 1.234,56</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="font-size:10px;color:#0066cc;">🚚 Milano &bull; 6 mar 14:32</span>
+          <span style="font-size:9px;color:#666;">imponib. &euro;1.012 &bull; Scad 20 mar (<span style="color:#2e7d32;font-weight:600;">12gg</span>)</span>
+        </div>
+        <div class="pbar" style="margin-bottom:4px;"><div class="fill" style="width:60%;background:#0066cc;"></div></div>
+        <div class="fin-note" style="margin-bottom:4px;">Residuo finanziario: &euro; 450,00</div>
+        <div class="btns"><div class="btn-grp"><button class="btn btn-g">📄 DDT</button><button class="btn btn-p">📑 Fattura</button></div></div>
+        <div class="notes-row" style="margin-top:4px;">
+          <div class="note-i"><span style="color:#0066cc;">☑</span> Chiamare per conferma</div>
+          <div class="note-i"><span style="color:#ccc;">☐</span> Verificare indirizzo</div>
+        </div>
+        <div class="chev">▼</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Pagamento scaduto — compact</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc3300, #dd5533);">
+      <span class="s-icon">⏰</span>
+      <span class="s-label">SCADUTO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Neri Impianti</div>
+          <div class="badges"><span class="badge" style="background:#ffede6;color:#cc3300;"><span class="bdot" style="background:#cc3300;"></span>Scaduto</span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+          <div class="meta" style="margin:0;"><b>ORD/12330</b> &bull; 28 feb 2026</div>
+          <span class="amt-main" style="font-size:15px;">&euro; 3.100,00</span>
+        </div>
+        <div style="background:#ffede6;border-radius:5px;padding:3px 7px;font-size:10px;color:#cc3300;font-weight:600;margin-bottom:4px;">⚠️ 8gg fuori scadenza &bull; CF1/00421</div>
+        <div class="btns"><div class="btn-grp"><button class="btn btn-p">📑 Fattura</button></div></div>
+        <div class="chev">▼</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ====== PROPOSTA 3: GRIGLIA DATI ====== -->
+  <div class="prop-label" style="background:#f3f0ff;color:#6633cc;border:1px solid #c4b5fd;">Proposta 3 — Griglia dati strutturata</div>
+  <div class="note">
+    <b>Principio:</b> Dopo l'identita, i dati sono organizzati in una griglia etichettata 2 colonne (come un form). Ogni dato ha la sua label sopra. Molto leggibile ma occupa piu spazio verticale. Adatto a utenti che cercano un dato specifico nell'header.
+  </div>
+
+  <h3>In transito — griglia completa</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Rossi Mario S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span></div>
+        </div>
+        <div class="meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding:6px 12px;">
+        <div class="igrid">
+          <div>
+            <div class="ilabel">Totale IVA incl.</div>
+            <div class="ival">&euro; 1.234,56</div>
+          </div>
+          <div>
+            <div class="ilabel">Imponibile</div>
+            <div class="ival sm">&euro; 1.012,00</div>
+          </div>
+          <div>
+            <div class="ilabel">Scadenza</div>
+            <div class="ival sm">20 mar 2026</div>
+          </div>
+          <div>
+            <div class="ilabel">Giorni</div>
+            <div class="ival" style="color:#2e7d32;">12 gg rimanenti</div>
+          </div>
+          <div>
+            <div class="ilabel">Residuo finanz.</div>
+            <div class="ival" style="color:#cc9900;">&euro; 450,00</div>
+          </div>
+          <div>
+            <div class="ilabel">Fattura</div>
+            <div class="ival sm">CF1/00445</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px;">
+        <div class="track-box">
+          <div class="track-top">
+            <span style="font-size:11px;">🚚</span>
+            <span style="font-size:10px;">Milano &bull; 6 mar 14:32</span>
+            <div class="pbar"><div class="fill" style="width:60%;background:#0066cc;"></div></div>
+            <span style="font-size:9px;color:#888;">arr. ~8 mar</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns">
+          <div class="btn-grp"><button class="btn btn-g">📄 DDT</button><button class="btn btn-p">📑 Fattura</button></div>
+        </div>
+      </div>
+      <div class="notes-row" style="margin:0 10px 4px;">
+        <div class="note-i"><span style="color:#0066cc;">☑</span> Chiamare per conferma orario</div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+  <h3>Pagato — griglia semplificata</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888);">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad">
+        <div class="row-cust">
+          <div class="cname">Blu Servizi S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span></div>
+        </div>
+        <div class="meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:6px 12px;">
+        <div class="igrid">
+          <div>
+            <div class="ilabel">Fattura</div>
+            <div class="ival sm">CF1/00398</div>
+          </div>
+          <div>
+            <div class="ilabel">Importo</div>
+            <div class="ival">&euro; 2.180,00</div>
+          </div>
+          <div>
+            <div class="ilabel">Stato</div>
+            <div class="ival" style="color:#006666;">✅ Pagato</div>
+          </div>
+          <div>
+            <div class="ilabel">Data pagamento</div>
+            <div class="ival sm" style="color:#006666;">5 mar 2026</div>
+          </div>
+        </div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:5px 12px 4px;">
+        <div class="btns"><div class="btn-grp"><button class="btn btn-g">📄 DDT</button><button class="btn btn-p">📑 Fattura</button></div></div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======================================================= -->
+<!-- ============ TAB PANORAMICA =========================== -->
+<!-- ======================================================= -->
+<div id="panoramica" class="section">
+  <h2>Tab Panoramica — Esempio concreto</h2>
+
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd); min-height:520px;">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <!-- Mini header -->
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Rossi Mario S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span></div>
+        </div>
+        <div class="meta"><b>ORD/12345</b> &bull; 5 mar 2026 &bull; <span style="font-weight:600;">&euro; 1.234,56</span></div>
+      </div>
+
+      <!-- Notes -->
+      <div style="border-top:1px solid #e8e8e8;padding:6px 12px;background:#f7f9fc;">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <span style="font-size:10px;font-weight:600;color:#555;">&#9654; Note</span>
+          <span style="font-size:9px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:8px;font-weight:600;">1/2</span>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <div class="tab active" style="color:#0066cc;border-top:2px solid #0066cc;background:#d6e6ff;">📊 Panoramica</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab">💰 Finanziario</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+
+      <!-- Tab content -->
+      <div class="tab-content" style="background:#d6e6ff22;">
+        <!-- Stepper -->
+        <div style="margin-bottom:4px;">
+          <div class="stepper">
+            <div class="step-dot" style="background:#2e7d32;">✓</div>
+            <div class="step-line" style="background:#2e7d32;"></div>
+            <div class="step-dot" style="background:#2e7d32;">✓</div>
+            <div class="step-line" style="background:#2e7d32;"></div>
+            <div class="step-dot" style="background:#2e7d32;">✓</div>
+            <div class="step-line" style="background:#e0e0e0;"></div>
+            <div class="step-dot" style="background:#e0e0e0;color:#999;">4</div>
+          </div>
+          <div class="step-labels"><span>Bozza</span><span>Inviato</span><span>Confermato</span><span>Fatturato</span></div>
+        </div>
+
+        <!-- Dettagli + Importi side by side -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="icard" style="flex:1 1 200px;">
+            <div class="icard-title">Dettagli Ordine</div>
+            <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">ORD/12345</div>
+            <div class="igrid">
+              <div><div class="ilabel">Data Creazione</div><div class="ival sm">05/03/2026 09:14</div></div>
+              <div><div class="ilabel">Data Consegna</div><div class="ival sm">8 mar 2026</div></div>
+              <div><div class="ilabel">Tipo</div><div class="ival sm">ORDINE DI VENDITA</div></div>
+              <div><div class="ilabel">Origine</div><div class="ival sm">Agente</div></div>
+            </div>
+          </div>
+          <div class="icard" style="flex:1 1 140px;">
+            <div class="icard-title">Importi</div>
+            <div class="igrid" style="grid-template-columns:1fr;">
+              <div><div class="ilabel">Lordo</div><div class="ival sm">&euro; 2.890,00</div></div>
+              <div><div class="ilabel">Totale</div><div class="ival" style="font-size:14px;">&euro; 1.012,00</div></div>
+              <div><div class="ilabel">Sconto</div><div class="ival sm">63%</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cliente & Consegna -->
+        <div class="icard">
+          <div class="icard-title">Cliente & Consegna</div>
+          <div class="igrid">
+            <div><div class="ilabel">Profilo</div><div class="ival sm">57.213</div></div>
+            <div><div class="ilabel">Cliente</div><div class="ival sm">Rossi Mario S.r.l.</div></div>
+            <div class="full"><div class="ilabel">Nome Consegna</div><div class="ival sm">Rossi Mario</div></div>
+            <div class="full"><div class="ilabel">Indirizzo</div><div class="ival sm">Via Roma 123, 20100 Milano MI</div></div>
+            <div><div class="ilabel">Rif. Cliente</div><div class="ival sm">RC-2026-0042</div></div>
+            <div><div class="ilabel">Residuo Finanz.</div><div class="ival sm" style="color:#cc9900;">&euro; 450,00</div></div>
+          </div>
+        </div>
+
+        <!-- Stato -->
+        <div class="icard">
+          <div class="icard-title">Stato & Trasferimento</div>
+          <div class="igrid">
+            <div><div class="ilabel">Vendite</div><div class="ival sm">Trasferito</div></div>
+            <div><div class="ilabel">Documento</div><div class="ival sm">DDT EMESSO</div></div>
+            <div><div class="ilabel">Tipo Ordine</div><div class="ival sm">ORDINE DI VENDITA</div></div>
+            <div><div class="ilabel">Trasferimento</div><div class="ival sm">TRASFERITO</div></div>
+            <div><div class="ilabel">Data Trasferim.</div><div class="ival sm">5 mar 2026</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- ============ TAB ARTICOLI ============================= -->
+<!-- ======================================================= -->
+<div id="articoli" class="section">
+  <h2>Tab Articoli — Vista normale</h2>
+
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #339966, #44b077); min-height:480px;">
+      <span class="s-icon">📦</span>
+      <span class="s-label">CONSEGNATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Bianchi & Co.</div>
+          <div class="badges"><span class="badge" style="background:#eaf7f0;color:#339966;"><span class="bdot" style="background:#339966;"></span>Consegnato</span></div>
+        </div>
+        <div class="meta"><b>ORD/12340</b> &bull; 3 mar 2026 &bull; <b>&euro; 876,20</b></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab active" style="color:#339966;border-top:2px solid #339966;background:#d6f0e0;">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab">💰 Finanz.</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#d6f0e022;padding:8px 6px;">
+
+        <!-- Top bar with refresh -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+          <button class="btn btn-g" style="font-size:9px;">🔄 Aggiorna Articoli</button>
+        </div>
+
+        <!-- Articles table -->
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Codice</th>
+                <th>Desc.</th>
+                <th class="r">Qta</th>
+                <th class="r">Prezzo</th>
+                <th class="r">Sc%</th>
+                <th class="r">Impon.</th>
+                <th class="r">IVA%</th>
+                <th class="r">Tot+IVA</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="b code">H379.104.014</td>
+                <td style="font-size:9px;">Tubo corrugato DN110<br><span style="color:#999;">TUBO CORR. PE DN110 6M</span></td>
+                <td class="r b">12</td>
+                <td class="r">&euro; 45,80</td>
+                <td class="r">63%</td>
+                <td class="r">&euro; 203,35</td>
+                <td class="r">22%</td>
+                <td class="r b">&euro; 248,09</td>
+              </tr>
+              <tr>
+                <td class="b code">K225.008.003</td>
+                <td style="font-size:9px;">Raccordo a T DN63<br><span style="color:#999;">RACCORDO T PE DN63</span></td>
+                <td class="r b">24</td>
+                <td class="r">&euro; 12,40</td>
+                <td class="r">63%</td>
+                <td class="r">&euro; 110,11</td>
+                <td class="r">22%</td>
+                <td class="r b">&euro; 134,33</td>
+              </tr>
+              <tr>
+                <td class="b code">M118.220.001</td>
+                <td style="font-size:9px;">Guarnizione DN200<br><span style="color:#999;">GUARNIZ. EPDM DN200</span></td>
+                <td class="r b">48</td>
+                <td class="r">&euro; 3,20</td>
+                <td class="r">63%</td>
+                <td class="r">&euro; 56,83</td>
+                <td class="r">22%</td>
+                <td class="r b">&euro; 69,33</td>
+              </tr>
+              <tr style="background:#FEE2E2;border-left:3px solid #dc2626;">
+                <td class="b code" style="color:#dc2626;">P440.015.002</td>
+                <td style="font-size:9px;">Valvola a sfera DN50<br><span style="color:#dc2626;font-weight:600;">Qta diversa: atteso 6, trovato 4</span></td>
+                <td class="r b" style="color:#dc2626;">4</td>
+                <td class="r">&euro; 28,90</td>
+                <td class="r">63%</td>
+                <td class="r">&euro; 42,77</td>
+                <td class="r">22%</td>
+                <td class="r b">&euro; 52,18</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Totals -->
+        <div class="totals">
+          <div class="trow"><span class="tlabel">Subtotale</span><span class="tval">&euro; 589,14</span></div>
+          <div class="trow"><span class="tlabel" style="color:#dc2626;">Sconto (−63%)</span><span class="tval" style="color:#dc2626;">&minus;&euro; 176,08</span></div>
+          <div class="trow"><span class="tlabel">Totale Imponibile</span><span class="tval">&euro; 413,06</span></div>
+          <div class="trow"><span class="tlabel">Totale IVA</span><span class="tval">&euro; 90,87</span></div>
+          <div class="ttotal"><span>TOTALE</span><span>&euro; 503,93</span></div>
+        </div>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+
+  <h2>Tab Articoli — Modalita Modifica</h2>
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #808080, #999); min-height:300px;">
+      <span class="s-icon">🏢</span>
+      <span class="s-label">SU ARCHIBALD</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Gialli Edilizia</div>
+          <div class="badges"><span class="badge" style="background:#f3f4f6;color:#666;"><span class="bdot" style="background:#808080;"></span>Su Archibald</span></div>
+        </div>
+        <div class="meta"><b>ORD/12350</b> &bull; 8 mar 2026</div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab active" style="color:#808080;border-top:2px solid #808080;background:#eee;">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab">💰 Finanz.</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#eee5;padding:8px 6px;">
+        <!-- Edit mode header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:6px 8px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;">
+          <span style="font-size:11px;font-weight:700;color:#e65100;">✏ Modalita modifica</span>
+          <div style="display:flex;gap:4px;">
+            <button style="font-size:10px;padding:3px 8px;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;">Annulla</button>
+            <button style="font-size:10px;padding:3px 8px;border:none;background:#388e3c;color:#fff;border-radius:4px;font-weight:600;cursor:pointer;">💾 Salva</button>
+          </div>
+        </div>
+
+        <!-- Edit row example -->
+        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:6px;margin-bottom:4px;">
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <input type="text" value="H379.104.014" style="width:110px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;font-family:monospace;">
+            <span style="font-size:9px;color:#888;flex:1;">Tubo corrugato DN110</span>
+            <input type="text" value="12" style="width:36px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;text-align:right;">
+            <span style="font-size:9px;color:#888;">&euro;45,80</span>
+            <input type="text" value="63" style="width:32px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;text-align:right;">
+            <span style="font-size:9px;color:#888;">%</span>
+            <span style="font-size:10px;font-weight:600;">&euro;203,35</span>
+            <button style="font-size:10px;color:#d32f2f;background:none;border:none;cursor:pointer;">✕</button>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:6px;margin-bottom:6px;">
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <input type="text" value="K225.008.003" style="width:110px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;font-family:monospace;">
+            <span style="font-size:9px;color:#888;flex:1;">Raccordo a T DN63</span>
+            <input type="text" value="24" style="width:36px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;text-align:right;">
+            <span style="font-size:9px;color:#888;">&euro;12,40</span>
+            <input type="text" value="63" style="width:32px;font-size:10px;padding:3px 5px;border:1px solid #ccc;border-radius:3px;text-align:right;">
+            <span style="font-size:9px;color:#888;">%</span>
+            <span style="font-size:10px;font-weight:600;">&euro;110,11</span>
+            <button style="font-size:10px;color:#d32f2f;background:none;border:none;cursor:pointer;">✕</button>
+          </div>
+        </div>
+        <button style="width:100%;padding:6px;border:2px dashed #ccc;background:transparent;border-radius:6px;font-size:11px;color:#888;cursor:pointer;font-weight:600;">+ Aggiungi articolo</button>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- ============ TAB LOGISTICA ============================ -->
+<!-- ======================================================= -->
+<div id="logistica" class="section">
+  <h2>Tab Logistica — Esempio concreto</h2>
+
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388); min-height:600px;">
+      <span class="s-icon">⚠️</span>
+      <span class="s-label">ECCEZIONE</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Verdi Costruzioni</div>
+          <div class="badges"><span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Eccezione</span></div>
+        </div>
+        <div class="meta"><b>ORD/12338</b> &bull; 2 mar 2026 &bull; <b>&euro; 2.450,00</b></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab active" style="color:#cc0066;border-top:2px solid #cc0066;background:#ffe6f0;">🚚 Logistica</div>
+        <div class="tab">💰 Finanz.</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#ffe6f022;">
+        <!-- Tracking Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Consegna prevista</div>
+            <div style="font-size:12px;font-weight:600;color:#cc0066;">In ritardo — previsto 6 mar</div>
+          </div>
+          <div style="font-size:9px;color:#888;">Verona → Roma</div>
+        </div>
+
+        <!-- 5-dot progress -->
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:4px;padding:0 2px;">
+          <div style="width:12px;height:12px;border-radius:50%;background:#cc0066;"></div>
+          <div style="height:3px;flex:1;background:#cc0066;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#cc0066;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:8px;color:#999;margin-bottom:10px;">
+          <span>Ritirato</span><span>In viaggio</span><span>Hub</span><span>Consegna</span><span>Arrivo</span>
+        </div>
+
+        <!-- Courier bar -->
+        <div class="icard" style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:14px;">📦</span>
+          <div style="flex:1;">
+            <div style="font-size:10px;font-weight:700;color:#555;">FEDEX</div>
+            <div style="font-size:11px;font-family:monospace;color:#333;">7711 2233 0099</div>
+          </div>
+          <button class="btn" style="border:1px solid #ccc;color:#666;font-size:9px;">📋 Copia</button>
+          <button class="btn btn-g" style="font-size:9px;">🔗 Traccia</button>
+        </div>
+
+        <!-- Exception alert -->
+        <div style="background:#fff0f5;border:1px solid #ffb3d1;border-radius:8px;padding:8px;margin-bottom:8px;">
+          <div style="font-size:11px;font-weight:700;color:#cc0066;">⚠ Eccezione corriere</div>
+          <div style="font-size:10px;color:#666;margin-top:2px;">Indirizzo errato — tentativo consegna fallito</div>
+          <div style="font-size:9px;color:#999;margin-top:2px;">5 mar 2026 09:15 &bull; Roma Hub, IT</div>
+        </div>
+
+        <!-- Timeline -->
+        <div style="font-size:9px;font-weight:600;color:#aaa;text-transform:uppercase;margin-bottom:4px;">Timeline eventi</div>
+        <div class="timeline">
+          <div class="tl-day">Mercoledi, 5 mar 2026</div>
+          <div class="tl-event">
+            <span class="tl-time">09:15</span>
+            <div class="tl-dot-col"><div class="tl-dot" style="background:#cc0066;box-shadow:0 0 0 3px rgba(204,0,102,0.2);"></div><div class="tl-line" style="background:#cc0066;"></div></div>
+            <div><div class="tl-text" style="font-weight:600;color:#cc0066;">Eccezione consegna</div><div class="tl-loc">ROME, IT</div></div>
+          </div>
+          <div class="tl-day">Martedi, 4 mar 2026</div>
+          <div class="tl-event">
+            <span class="tl-time">18:30</span>
+            <div class="tl-dot-col"><div class="tl-dot" style="background:#ccc;"></div><div class="tl-line" style="background:#e0e0e0;"></div></div>
+            <div><div class="tl-text">In transito</div><div class="tl-loc">MILAN HUB, IT</div></div>
+          </div>
+          <div class="tl-event">
+            <span class="tl-time">14:20</span>
+            <div class="tl-dot-col"><div class="tl-dot" style="background:#ccc;"></div><div class="tl-line" style="background:#e0e0e0;"></div></div>
+            <div><div class="tl-text">Partito dalla struttura</div><div class="tl-loc">VERONA HUB, IT</div></div>
+          </div>
+          <div class="tl-day">Lunedi, 3 mar 2026</div>
+          <div class="tl-event">
+            <span class="tl-time">10:00</span>
+            <div class="tl-dot-col"><div class="tl-dot" style="background:#ccc;"></div></div>
+            <div><div class="tl-text">Ritirato dal mittente</div><div class="tl-loc">VERONA, IT</div></div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <!-- Destinatario + Dettagli -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="icard" style="flex:1 1 200px;">
+            <div class="icard-title">Destinatario</div>
+            <div class="igrid" style="grid-template-columns:1fr;">
+              <div><div class="ilabel">Nome Consegna</div><div class="ival sm">Verdi Costruzioni S.r.l.</div></div>
+              <div><div class="ilabel">All'attenzione di</div><div class="ival sm">Sig. Marco Verdi</div></div>
+              <div><div class="ilabel">Indirizzo</div><div class="ival sm">Via Appia 456<br>00185 Roma RM</div></div>
+            </div>
+          </div>
+          <div class="icard" style="flex:1 1 160px;">
+            <div class="icard-title">Dettagli Spedizione</div>
+            <div class="igrid" style="grid-template-columns:1fr;">
+              <div><div class="ilabel">Modalita</div><div class="ival sm">Franco Destino</div></div>
+              <div><div class="ilabel">Termini</div><div class="ival sm">DDP</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DDT -->
+        <div class="icard">
+          <div class="icard-title">Documento di Trasporto</div>
+          <div style="background:#e8f0ff;border-radius:5px;padding:4px 8px;margin-bottom:6px;font-size:10px;color:#0066cc;font-weight:600;">Conto: 57.213</div>
+          <div class="igrid">
+            <div><div class="ilabel">Numero DDT</div><div class="ival">DDT/00892</div></div>
+            <div><div class="ilabel">Data Consegna</div><div class="ival sm">4 mar 2026</div></div>
+            <div><div class="ilabel">ID Ordine</div><div class="ival sm">49.933</div></div>
+            <div><div class="ilabel">Nome Vendite</div><div class="ival sm">Formicola Biagio</div></div>
+          </div>
+          <div style="margin-top:8px;"><button class="btn btn-g" style="width:100%;justify-content:center;">📄 Scarica PDF DDT</button></div>
+        </div>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- ============ TAB FINANZIARIO ========================== -->
+<!-- ======================================================= -->
+<div id="finanziario" class="section">
+  <h2>Tab Finanziario — Esempio concreto</h2>
+
+  <h3>Con fattura + scadenza + pagamenti</h3>
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc3300, #dd5533); min-height:450px;">
+      <span class="s-icon">⏰</span>
+      <span class="s-label">SCADUTO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Neri Impianti</div>
+          <div class="badges"><span class="badge" style="background:#ffede6;color:#cc3300;"><span class="bdot" style="background:#cc3300;"></span>Scaduto</span></div>
+        </div>
+        <div class="meta"><b>ORD/12330</b> &bull; 28 feb 2026 &bull; <b>&euro; 3.100,00</b></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab active" style="color:#cc3300;border-top:2px solid #cc3300;background:#ffe0d6;">💰 Finanziario</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#ffe0d622;">
+        <!-- Riepilogo importi -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="icard" style="flex:1 1 140px;">
+            <div class="icard-title">Totale Ordine</div>
+            <div style="font-size:16px;font-weight:700;color:#1a1a2e;">&euro; 2.540,98</div>
+            <div style="font-size:11px;color:#388e3c;font-weight:600;">&euro; 3.100,00 (con IVA)</div>
+          </div>
+          <div class="icard" style="flex:1 1 140px;">
+            <div class="icard-title">Sconti</div>
+            <div class="igrid" style="grid-template-columns:1fr;">
+              <div><div class="ilabel">Globale</div><div class="ival sm">63%</div></div>
+              <div><div class="ilabel">Linea</div><div class="ival sm">N/A</div></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+            <span style="background:#fff3e0;color:#e65100;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:600;">⏳ Non trasferito</span>
+          </div>
+        </div>
+
+        <!-- Fattura -->
+        <div class="icard" style="border-left:3px solid #cc3300;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#0066cc;">CF1/00421</div>
+              <div style="font-size:9px;color:#888;">28 feb 2026</div>
+            </div>
+            <span style="background:#ffede6;color:#cc3300;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">Aperta</span>
+          </div>
+          <div class="igrid" style="margin-bottom:8px;">
+            <div><div class="ilabel">Importo</div><div class="ival">&euro; 3.100,00</div></div>
+            <div><div class="ilabel">Conto</div><div class="ival sm">57.213</div></div>
+            <div><div class="ilabel">Fatturazione</div><div class="ival sm">Fresis S.r.l.</div></div>
+            <div><div class="ilabel">Quantita</div><div class="ival sm">48</div></div>
+            <div><div class="ilabel">Residuo</div><div class="ival" style="color:#cc3300;">&euro; 3.100,00</div></div>
+            <div><div class="ilabel">Importo fiscale</div><div class="ival sm">&euro; 559,02</div></div>
+          </div>
+
+          <!-- Scadenza alert -->
+          <div style="background:#ffede6;border-radius:6px;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:11px;color:#cc3300;font-weight:600;">Scadenza: 28 feb 2026</span>
+            <span style="font-size:11px;color:#cc3300;font-weight:700;background:#fff;padding:2px 8px;border-radius:4px;">Scaduta da 8 giorni</span>
+          </div>
+
+          <!-- Pagamenti -->
+          <div style="font-size:9px;font-weight:600;color:#aaa;text-transform:uppercase;margin-bottom:4px;margin-top:8px;">Pagamenti</div>
+          <div class="igrid" style="background:#fafafa;padding:6px;border-radius:6px;">
+            <div><div class="ilabel">Importo liquidato</div><div class="ival sm">&euro; 0,00</div></div>
+            <div><div class="ilabel">Ultimo pagamento</div><div class="ival sm">&mdash;</div></div>
+          </div>
+        </div>
+
+        <!-- Download -->
+        <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:6px;padding:8px;">📑 Scarica Fattura CF1/00421</button>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+
+  <h3>Pagato — fattura chiusa</h3>
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888); min-height:320px;">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Blu Servizi S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span></div>
+        </div>
+        <div class="meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab active" style="color:#006666;border-top:2px solid #006666;background:#ccece6;">💰 Finanziario</div>
+        <div class="tab">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#ccece622;">
+        <div class="icard" style="border-left:3px solid #006666;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#0066cc;">CF1/00398</div>
+              <div style="font-size:9px;color:#888;">20 feb 2026</div>
+            </div>
+            <span style="background:#e6f5f5;color:#006666;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;">✓ Chiusa</span>
+          </div>
+          <div class="igrid" style="margin-bottom:8px;">
+            <div><div class="ilabel">Importo</div><div class="ival">&euro; 2.180,00</div></div>
+            <div><div class="ilabel">Residuo</div><div class="ival" style="color:#006666;">&euro; 0,00</div></div>
+          </div>
+          <div style="background:#e6f5f5;border-radius:6px;padding:6px 8px;margin-bottom:6px;">
+            <span style="font-size:11px;color:#006666;font-weight:600;">Scadenza: 22 mar 2026</span>
+            <span style="font-size:11px;color:#006666;font-weight:600;margin-left:12px;">14 giorni rimanenti</span>
+          </div>
+          <div style="font-size:9px;font-weight:600;color:#aaa;text-transform:uppercase;margin-bottom:4px;">Pagamenti</div>
+          <div class="igrid" style="background:#fafafa;padding:6px;border-radius:6px;">
+            <div><div class="ilabel">Liquidato</div><div class="ival sm" style="color:#006666;">&euro; 2.180,00</div></div>
+            <div><div class="ilabel">Data liquidazione</div><div class="ival sm">5 mar 2026</div></div>
+            <div><div class="ilabel">Data chiusura</div><div class="ival sm">5 mar 2026</div></div>
+          </div>
+        </div>
+        <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:6px;padding:8px;">📑 Scarica Fattura CF1/00398</button>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- ============ TAB ORDINI COLLEGATI ====================== -->
+<!-- ======================================================= -->
+<div id="collegati" class="section">
+  <h2>Tab Ordini Collegati — Esempio Fresis</h2>
+
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #6633cc, #7744dd); min-height:340px;">
+      <span class="s-icon">📋</span>
+      <span class="s-label">FATTURATO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Fresis S.r.l. (57.213)</div>
+          <div class="badges"><span class="badge" style="background:#f2eaff;color:#6633cc;"><span class="bdot" style="background:#6633cc;"></span>Fatturato</span></div>
+        </div>
+        <div class="meta"><b>ORD/12335</b> &bull; 1 mar 2026 &bull; <b>&euro; 1.890,00</b></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab">💰 Finanz.</div>
+        <div class="tab active" style="color:#6633cc;border-top:2px solid #6633cc;background:#e8ddff;">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#e8ddff22;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:600;color:#555;">Ordini Fresis collegati</span>
+          <a style="font-size:10px;color:#6633cc;font-weight:600;text-decoration:none;cursor:pointer;">Vedi nello storico Fresis →</a>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Sub-cliente</th>
+                <th>N. FT</th>
+                <th>Data</th>
+                <th class="r">Totale</th>
+                <th class="r">Ricavo</th>
+                <th>Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="b">Idraulica Rossi</td>
+                <td class="code">ORD/12335-A</td>
+                <td>01/03/2026</td>
+                <td class="r">&euro; 890,00</td>
+                <td class="r b" style="color:#2e7d32;">&euro; 145,20</td>
+                <td><span style="font-size:9px;background:#ecfdf5;color:#059669;padding:1px 5px;border-radius:4px;">Inviato</span></td>
+              </tr>
+              <tr>
+                <td class="b">Termo Service</td>
+                <td class="code">ORD/12335-B</td>
+                <td>01/03/2026</td>
+                <td class="r">&euro; 650,00</td>
+                <td class="r b" style="color:#2e7d32;">&euro; 98,50</td>
+                <td><span style="font-size:9px;background:#ecfdf5;color:#059669;padding:1px 5px;border-radius:4px;">Inviato</span></td>
+              </tr>
+              <tr>
+                <td class="b">Edil Verdi</td>
+                <td class="code">ORD/12335-C</td>
+                <td>01/03/2026</td>
+                <td class="r">&euro; 350,00</td>
+                <td class="r b" style="color:#dc2626;">&minus;&euro; 12,30</td>
+                <td><span style="font-size:9px;background:#fef9e7;color:#a16207;padding:1px 5px;border-radius:4px;">Bozza</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+
+  <h3>Tab Collegati — Nessun ordine Fresis</h3>
+  <div class="card-c expanded">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd); min-height:180px;">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="content-pad" style="padding-bottom:4px;">
+        <div class="row-cust">
+          <div class="cname">Rossi Mario S.r.l.</div>
+          <div class="badges"><span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span></div>
+        </div>
+        <div class="meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">📊 Panoram.</div>
+        <div class="tab">📦 Articoli</div>
+        <div class="tab">🚚 Logistica</div>
+        <div class="tab">💰 Finanz.</div>
+        <div class="tab active" style="color:#0066cc;border-top:2px solid #0066cc;background:#d6e6ff;">🔗 Collegati</div>
+      </div>
+      <div class="tab-content" style="background:#d6e6ff22;display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;padding:20px;color:#aaa;font-size:12px;">
+          <div style="font-size:24px;margin-bottom:4px;">🔗</div>
+          Nessun ordine Fresis collegato
+        </div>
+      </div>
+      <div class="chev" style="padding:4px;">▲</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>

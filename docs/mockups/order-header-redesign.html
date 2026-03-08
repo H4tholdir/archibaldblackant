@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archibald — Proposta C Definitiva</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.5; }
+  .page { max-width: 500px; margin: 0 auto; padding: 16px 10px 60px; }
+  h1 { font-size: 20px; text-align: center; margin: 20px 0 4px; color: #1a1a2e; }
+  .subtitle { text-align: center; color: #888; font-size: 12px; margin-bottom: 20px; }
+  h2 { font-size: 15px; margin: 28px 0 10px; color: #555; font-weight: 700; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; }
+  h3 { font-size: 12px; margin: 18px 0 8px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .nav { display: flex; gap: 3px; margin-bottom: 20px; background: #fff; border-radius: 10px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 6px; z-index: 100; }
+  .nav button { flex: 1; padding: 8px 4px; border: none; background: transparent; border-radius: 7px; font-size: 11px; font-weight: 600; color: #888; cursor: pointer; transition: all 0.2s; }
+  .nav button.active { background: #1a1a2e; color: #fff; }
+  .nav button:hover:not(.active) { background: #f0f0f0; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .note-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #92400e; margin: 10px 0 16px; }
+
+  /* ===== CARD PROPOSTA C ===== */
+  .card-c { background: #fff; border-radius: 14px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.07); display: flex; }
+
+  /* Sidebar */
+  .sidebar { width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 2px; gap: 6px; flex-shrink: 0; position: relative; }
+  .sidebar .s-icon { font-size: 18px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15)); }
+  .sidebar .s-label { font-size: 7px; font-weight: 800; color: rgba(255,255,255,0.95); text-transform: uppercase; letter-spacing: 0.6px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); text-shadow: 0 1px 2px rgba(0,0,0,0.2); max-height: 100px; overflow: hidden; }
+
+  /* Content */
+  .content { flex: 1; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 0; }
+
+  /* Row 1: Customer + Badge */
+  .row-customer { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+  .customer-name { font-size: 16px; font-weight: 700; color: #1a1a2e; line-height: 1.2; flex: 1; }
+  .badges { display: flex; gap: 5px; align-items: center; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .badge { font-size: 10px; padding: 3px 9px; border-radius: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .badge .bdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .badge-alert { background: #fef2f2; color: #dc2626; font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
+
+  /* Row 2: Order meta */
+  .row-meta { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .row-meta b { font-weight: 600; color: #555; }
+
+  /* Row 3: Tracking */
+  .row-tracking { background: #f8f9fb; border-radius: 8px; padding: 7px 10px; margin-bottom: 6px; }
+  .track-top { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #444; }
+  .track-top .t-icon { font-size: 13px; }
+  .progress-bar { height: 4px; background: #e8e8e8; border-radius: 2px; flex: 1; overflow: hidden; }
+  .progress-bar .fill { height: 100%; border-radius: 2px; }
+  .track-detail { font-size: 10px; color: #999; margin-top: 3px; }
+  .track-exception { font-size: 11px; font-weight: 600; margin-top: 3px; }
+
+  /* Row 4: Financial note */
+  .row-financial { font-size: 11px; color: #5a3e00; background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 3px 9px; margin-bottom: 6px; line-height: 1.3; }
+
+  /* Row 5: Amount block */
+  .row-amount { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 6px; }
+  .amount-main { font-size: 17px; font-weight: 700; color: #1a1a2e; }
+  .amount-sub { font-size: 11px; color: #999; }
+  .amount-due { font-size: 11px; font-weight: 600; }
+  .amount-paid { font-size: 13px; font-weight: 600; }
+  .amount-paid-detail { font-size: 11px; color: #777; }
+
+  /* Row 6: Buttons */
+  .row-buttons { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .btn-group { display: flex; gap: 5px; flex-wrap: wrap; }
+  .btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 3px; background: #fff; }
+  .btn-ddt { color: #388e3c; border: 1.5px solid #388e3c; }
+  .btn-ddt:hover { background: #388e3c; color: #fff; }
+  .btn-inv { color: #7b1fa2; border: 1.5px solid #7b1fa2; }
+  .btn-inv:hover { background: #7b1fa2; color: #fff; }
+  .btn-send { color: #388e3c; border: 1.5px solid #388e3c; }
+  .btn-send:hover { background: #388e3c; color: #fff; }
+  .btn-edit { color: #1976d2; border: 1.5px solid #1976d2; }
+  .btn-edit:hover { background: #1976d2; color: #fff; }
+  .btn-del { color: #d32f2f; border: 1.5px solid #d32f2f; }
+  .btn-del:hover { background: #d32f2f; color: #fff; }
+
+  /* Row 7: Notes preview */
+  .row-notes { background: #fafafa; border-radius: 6px; padding: 5px 8px; margin-bottom: 4px; }
+  .note-item { font-size: 11px; color: #555; display: flex; align-items: flex-start; gap: 4px; }
+  .note-item .n-check { color: #aaa; font-size: 12px; flex-shrink: 0; }
+
+  /* Chevron */
+  .chevron { text-align: center; color: #ccc; font-size: 14px; padding-top: 2px; }
+
+  /* ===== PALETTE TABLE ===== */
+  .palette-table { width: 100%; border-collapse: collapse; font-size: 11px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 14px; }
+  .palette-table th { background: #1a1a2e; color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .palette-table td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .palette-table tr:last-child td { border-bottom: none; }
+  .p-swatch { width: 22px; height: 22px; border-radius: 5px; display: inline-block; vertical-align: middle; }
+  .p-bg { width: 22px; height: 22px; border-radius: 5px; display: inline-block; vertical-align: middle; border: 1px solid #e0e0e0; }
+
+  .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .cg-item { background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .cg-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #aaa; margin-bottom: 5px; }
+  .cg-bar { height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Proposta C Definitiva</h1>
+<p class="subtitle">Sidebar Iconica — Tutte le info — Colori distinti</p>
+
+<nav class="nav">
+  <button class="active" onclick="show('cards')">Collassate</button>
+  <button onclick="show('expanded')">Espanse</button>
+  <button onclick="show('stacks')">Impilate</button>
+  <button onclick="show('palette')">Colori</button>
+  <button onclick="show('confronto')">Prima/Dopo</button>
+</nav>
+
+<!-- ==================== CARD COMPLETE ==================== -->
+<div id="cards" class="section active">
+
+  <div class="note-box">
+    <b>Layout:</b> Sidebar iconica a sinistra per riconoscimento immediato dello stato. Tutte le informazioni attuali preservate: nome, badge, num+data, tracking, note finanziarie, importo, scadenze, bottoni azione, note preview, chevron. Gerarchia visiva: nome > importo > stato > meta.
+  </div>
+
+  <!-- ====== 1. IN TRANSITO ====== -->
+  <h3>In transito — con tracking e bottoni download</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Rossi Mario S.r.l.</div>
+        <div class="badges">
+          <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+      <div class="row-tracking">
+        <div class="track-top">
+          <span class="t-icon">🚚</span>
+          <span>In viaggio &bull; Milano, IT &bull; 6 mar 14:32</span>
+          <div class="progress-bar"><div class="fill" style="width:60%;background:#0066cc;"></div></div>
+        </div>
+        <div class="track-detail">Arrivo stimato: 8 mar &bull; FedEx 7742 8831 0042</div>
+      </div>
+      <div class="row-financial">Residuo finanziario: &euro; 450,00</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 1.234,56 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        <span style="font-size:11px;color:#666;">Scad: 20 mar &bull; <span style="color:#2e7d32;font-weight:600;">12 gg</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 1.012,00 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="row-notes">
+        <div class="note-item"><span class="n-check">☑</span> Chiamare per conferma orario</div>
+        <div class="note-item"><span class="n-check">☐</span> Verificare indirizzo consegna</div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 2. CONSEGNATO ====== -->
+  <h3>Consegnato — ordine arrivato, fattura disponibile</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #339966, #44b077);">
+      <span class="s-icon">📦</span>
+      <span class="s-label">CONSEGNATO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Bianchi & Co.</div>
+        <div class="badges">
+          <span class="badge" style="background:#eaf7f0;color:#339966;"><span class="bdot" style="background:#339966;"></span>Consegnato</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12340</b> &bull; 3 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 876,20 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        <span style="font-size:11px;color:#339966;font-weight:600;">Consegnato 7 mar 09:15</span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 718,20 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 3. ECCEZIONE ====== -->
+  <h3>Eccezione corriere — problema in consegna</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388);">
+      <span class="s-icon">⚠️</span>
+      <span class="s-label">ECCEZIONE</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Verdi Costruzioni</div>
+        <div class="badges">
+          <span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Eccezione</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12338</b> &bull; 2 mar 2026</div>
+      <div class="row-tracking" style="background:#fff0f5;">
+        <div class="track-top">
+          <span class="t-icon">📦</span>
+          <span style="color:#cc0066;font-weight:600;">Hub Roma &mdash; fermo</span>
+          <div class="progress-bar"><div class="fill" style="width:40%;background:#cc0066;"></div></div>
+        </div>
+        <div class="track-exception" style="color:#cc0066;">⚠ Indirizzo errato &mdash; tentativo consegna fallito</div>
+        <div class="track-detail">Ultimo evento: 5 mar 09:15</div>
+      </div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 2.450,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 2.008,20 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 4. PAGAMENTO SCADUTO ====== -->
+  <h3>Pagamento scaduto — urgenza finanziaria</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc3300, #dd5533);">
+      <span class="s-icon">⏰</span>
+      <span class="s-label">SCADUTO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Neri Impianti</div>
+        <div class="badges">
+          <span class="badge" style="background:#ffede6;color:#cc3300;"><span class="bdot" style="background:#cc3300;"></span>Scaduto</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12330</b> &bull; 28 feb 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 3.100,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        <span class="amount-due" style="color:#cc3300;">⚠️ 8 gg fuori scadenza</span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 2.540,98 (imponibile) &bull; CF1/00421</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 5. PAGATO ====== -->
+  <h3>Pagato — ciclo completato</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888);">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Blu Servizi S.r.l.</div>
+        <div class="badges">
+          <span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      <div class="row-amount">
+        <div>
+          <div class="amount-paid" style="color:#006666;">✅ Pagato: 5 mar 2026</div>
+          <div class="amount-paid-detail">CF1/00398 &bull; &euro; 2.180,00</div>
+        </div>
+      </div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 6. FATTURATO ====== -->
+  <h3>Fatturato — fattura emessa, in attesa pagamento</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #6633cc, #7744dd);">
+      <span class="s-icon">📋</span>
+      <span class="s-label">FATTURATO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Arancio Tech</div>
+        <div class="badges">
+          <span class="badge" style="background:#f2eaff;color:#6633cc;"><span class="bdot" style="background:#6633cc;"></span>Fatturato</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12335</b> &bull; 1 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 1.890,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        <span style="font-size:11px;color:#666;">Scad: 31 mar &bull; <span style="color:#2e7d32;font-weight:600;">23 gg</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 1.549,18 (imponibile) &bull; CF1/00430</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 7. SU ARCHIBALD ====== -->
+  <h3>Su Archibald — con azioni modifica/invio/elimina</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #808080, #999999);">
+      <span class="s-icon">🏢</span>
+      <span class="s-label">SU ARCHIBALD</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Gialli Edilizia</div>
+        <div class="badges">
+          <span class="badge" style="background:#f3f4f6;color:#666;"><span class="bdot" style="background:#808080;"></span>Su Archibald</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12350</b> &bull; 8 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 560,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 459,02 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-send">📤 Invia a Verona</button>
+          <button class="btn btn-edit">✏ Modifica</button>
+          <button class="btn btn-del">🗑 Elimina</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 8. IN ATTESA APPROVAZIONE ====== -->
+  <h3>In attesa approvazione — inviato a Verona</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc9900, #ddaa22);">
+      <span class="s-icon">⏳</span>
+      <span class="s-label" style="color:#333;">IN ATTESA</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Viola Express</div>
+        <div class="badges">
+          <span class="badge" style="background:#fef9e7;color:#cc9900;"><span class="bdot" style="background:#cc9900;"></span>In attesa</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12349</b> &bull; 7 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 1.560,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 1.278,69 (imponibile)</div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 9. IN LAVORAZIONE ====== -->
+  <h3>In lavorazione — accettato, in preparazione</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #996633, #aa7744);">
+      <span class="s-icon">⚙️</span>
+      <span class="s-label">IN LAVORAZIONE</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Magenta Forniture</div>
+        <div class="badges">
+          <span class="badge" style="background:#f5f0ea;color:#996633;"><span class="bdot" style="background:#996633;"></span>In lavorazione</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12348</b> &bull; 7 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 745,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 610,66 (imponibile)</div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 10. BLOCCATO ====== -->
+  <h3>Bloccato — richiede intervento + badge verifica fallita</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0000, #dd2222);">
+      <span class="s-icon">🚫</span>
+      <span class="s-label">BLOCCATO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Grigio Materiali</div>
+        <div class="badges">
+          <span class="badge" style="background:#ffeaea;color:#cc0000;"><span class="bdot" style="background:#cc0000;"></span>Bloccato</span>
+          <span class="badge-alert">Verifica fallita ×</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12342</b> &bull; 4 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 4.200,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 3.442,62 (imponibile)</div>
+      <div class="row-notes" style="background:#ffeaea;">
+        <div class="note-item" style="color:#cc0000;font-weight:600;">🚫 Errore anagrafica &mdash; richiede intervento manuale</div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <!-- ====== 11. BACKORDER ====== -->
+  <h3>Backorder — possibile ritardo approvvigionamento</h3>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #ff6600, #ff8833);">
+      <span class="s-icon">📋</span>
+      <span class="s-label">BACKORDER</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Bianco Ferramenta</div>
+        <div class="badges">
+          <span class="badge" style="background:#fff3e0;color:#ff6600;"><span class="bdot" style="background:#ff6600;"></span>Backorder</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12346</b> &bull; 6 mar 2026</div>
+      <div class="row-financial">ORDINE APERTO da 48h &mdash; possibile ritardo approvvigionamento</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 980,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 803,28 (imponibile)</div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== CARD ESPANSE ==================== -->
+<div id="expanded" class="section">
+  <h2>Card Espansa — Tab Bar + Contenuto</h2>
+  <div class="note-box">
+    <b>Quando l'utente clicca una card</b>, questa si espande mostrando: note ordine, tab bar con 5 schede (Panoramica, Articoli, Logistica, Finanziario, Cronologia), e il contenuto della scheda attiva. La sidebar mantiene il colore stato. Il bordo della card diventa piu marcato per "staccarla" visivamente.
+  </div>
+
+  <h3>Espansa — In transito — Tab Panoramica</h3>
+  <div class="card-c" style="box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 2px solid #1a1a2e; border-left: none;">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd); min-height: 400px;">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;">
+      <div class="content">
+        <div class="row-customer">
+          <div class="customer-name">Rossi Mario S.r.l.</div>
+          <div class="badges">
+            <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+            <span style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid #ddd;color:#888;font-weight:600;background:rgba(255,255,255,0.8);cursor:pointer;">Nascondi</span>
+          </div>
+        </div>
+        <div class="row-meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+        <div class="row-amount">
+          <span class="amount-main">&euro; 1.234,56 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        </div>
+        <div class="row-buttons">
+          <div class="btn-group">
+            <button class="btn btn-ddt">📄 DDT</button>
+            <button class="btn btn-inv">📑 Fattura</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Note ordine -->
+      <div style="border-top:1px solid #e8e8e8;padding:8px 14px;background:#fafafa;">
+        <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px;">Note ordine</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#555;">
+            <span style="color:#0066cc;">☑</span> Chiamare per conferma orario
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#555;">
+            <span style="color:#ccc;">☐</span> Verificare indirizzo consegna
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="display:flex;gap:3px;padding:8px 10px 0;flex-wrap:wrap;">
+        <div style="padding:8px 14px;background:#d6e6ff;border-top:2px solid #0066cc;border-left:1px solid #ccc;border-right:1px solid #ccc;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;color:#0066cc;cursor:pointer;">📋 Panoramica</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">📦 Articoli</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">🚚 Logistica</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">💰 Finanz.</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">🔗 Collegati</div>
+      </div>
+
+      <!-- Tab Content: Panoramica -->
+      <div style="border-top:1px solid #ccc;background:#d6e6ff22;min-height:200px;padding:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Cliente</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">Rossi Mario S.r.l.</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Data ordine</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">5 mar 2026</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Totale IVA incl.</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">&euro; 1.234,56</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Imponibile</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">&euro; 1.012,00</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Stato ordine</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">Trasferito</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Descrizione</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">Materiali edilizi vari</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:8px;background:#fff;border-radius:6px;border:1px solid #e0e0e0;">
+          <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:4px;">Residuo finanziario</div>
+          <div style="font-size:13px;color:#5a3e00;font-weight:600;">&euro; 450,00</div>
+        </div>
+      </div>
+
+      <!-- Chevron -->
+      <div style="text-align:center;padding:6px;color:#ccc;font-size:14px;cursor:pointer;">▲</div>
+    </div>
+  </div>
+
+  <h3>Espansa — Eccezione — Tab Logistica</h3>
+  <div class="card-c" style="box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 2px solid #1a1a2e; border-left: none;">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388); min-height: 380px;">
+      <span class="s-icon">⚠️</span>
+      <span class="s-label">ECCEZIONE</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;">
+      <div class="content">
+        <div class="row-customer">
+          <div class="customer-name">Verdi Costruzioni</div>
+          <div class="badges">
+            <span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Eccezione</span>
+          </div>
+        </div>
+        <div class="row-meta"><b>ORD/12338</b> &bull; 2 mar 2026</div>
+        <div class="row-amount">
+          <span class="amount-main">&euro; 2.450,00</span>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="display:flex;gap:3px;padding:8px 10px 0;flex-wrap:wrap;">
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">📋 Panoram.</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">📦 Articoli</div>
+        <div style="padding:8px 14px;background:#ffe6f0;border-top:2px solid #cc0066;border-left:1px solid #ccc;border-right:1px solid #ccc;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;color:#cc0066;cursor:pointer;">🚚 Logistica</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">💰 Finanz.</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;cursor:pointer;">🔗 Collegati</div>
+      </div>
+
+      <!-- Tab Content: Logistica -->
+      <div style="border-top:1px solid #ccc;background:#ffe6f022;min-height:200px;padding:14px;">
+        <!-- Tracking info -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Tracking</div>
+          <div style="font-size:12px;color:#333;font-weight:600;">FedEx 7711 2233 0099</div>
+        </div>
+
+        <!-- Progress dots -->
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:12px;padding:0 4px;">
+          <div style="width:12px;height:12px;border-radius:50%;background:#cc0066;"></div>
+          <div style="height:3px;flex:1;background:#cc0066;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#cc0066;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+          <div style="height:3px;flex:1;background:#e0e0e0;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#999;margin-bottom:14px;padding:0 0px;">
+          <span>Ritirato</span><span>In viaggio</span><span>Hub</span><span>Consegna</span><span>Arrivo</span>
+        </div>
+
+        <!-- Exception alert -->
+        <div style="background:#fff0f5;border:1px solid #ffb3d1;border-radius:8px;padding:10px;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:700;color:#cc0066;margin-bottom:3px;">⚠ Eccezione corriere</div>
+          <div style="font-size:11px;color:#666;">Indirizzo errato — tentativo consegna fallito</div>
+          <div style="font-size:10px;color:#999;margin-top:3px;">5 mar 2026 09:15 &bull; Roma Hub</div>
+        </div>
+
+        <!-- Timeline preview -->
+        <div style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;margin-bottom:6px;">Timeline eventi</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#cc0066;margin-top:3px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:11px;color:#333;font-weight:600;">Delivery exception</div>
+              <div style="font-size:10px;color:#999;">5 mar 09:15 &bull; ROME, IT</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#ccc;margin-top:3px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:11px;color:#555;">In transit</div>
+              <div style="font-size:10px;color:#999;">4 mar 18:30 &bull; MILAN HUB, IT</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#ccc;margin-top:3px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:11px;color:#555;">Picked up</div>
+              <div style="font-size:10px;color:#999;">3 mar 10:00 &bull; VERONA, IT</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:6px;color:#ccc;font-size:14px;cursor:pointer;">▲</div>
+    </div>
+  </div>
+
+  <h3>Espansa — Pagato — Tab Finanziario</h3>
+  <div class="card-c" style="box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 2px solid #1a1a2e; border-left: none;">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888); min-height: 320px;">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;">
+      <div class="content">
+        <div class="row-customer">
+          <div class="customer-name">Blu Servizi S.r.l.</div>
+          <div class="badges">
+            <span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span>
+          </div>
+        </div>
+        <div class="row-meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="display:flex;gap:3px;padding:8px 10px 0;flex-wrap:wrap;">
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;">📋 Panoram.</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;">📦 Articoli</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;">🚚 Logistica</div>
+        <div style="padding:8px 14px;background:#ccece6;border-top:2px solid #006666;border-left:1px solid #ccc;border-right:1px solid #ccc;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;color:#006666;">💰 Finanziario</div>
+        <div style="padding:8px 14px;background:#f5f5f5;border:1px solid #e0e0e0;border-bottom:none;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#888;">🔗 Collegati</div>
+      </div>
+
+      <!-- Tab Content: Finanziario -->
+      <div style="border-top:1px solid #ccc;background:#ccece622;min-height:180px;padding:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Fattura</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">CF1/00398</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Importo fattura</div>
+            <div style="font-size:13px;color:#333;font-weight:600;">&euro; 2.180,00</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Stato</div>
+            <div style="font-size:13px;color:#006666;font-weight:700;">✅ Chiusa</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#aaa;text-transform:uppercase;font-weight:600;">Data pagamento</div>
+            <div style="font-size:13px;color:#006666;font-weight:600;">5 mar 2026</div>
+          </div>
+        </div>
+        <div style="background:#e6f5f5;border-radius:8px;padding:10px;border:1px solid #b2dfdb;">
+          <div style="font-size:11px;color:#006666;font-weight:600;">Residuo: &euro; 0,00</div>
+          <div style="font-size:10px;color:#888;">Pagamento completato</div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:6px;color:#ccc;font-size:14px;">▲</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CARD IMPILATE ==================== -->
+<div id="stacks" class="section">
+  <h2>Card Impilate (Stack)</h2>
+  <div class="note-box">
+    <b>Stack collassata:</b> Le card sono sovrapposte con offset 12px, la card in primo piano e completamente visibile. Badge in alto a destra indica il numero di ordini collegati. Dots sotto la pila indicano posizione. Swipe per scorrere.<br><br>
+    <b>Stack espansa:</b> Banner colorato in alto con titolo pila + bottoni (Richiudi, Scollega, Modifica). Le card sono mostrate una sotto l'altra in un contenitore con bordo colorato. Banner in basso per richiudere.
+  </div>
+
+  <h3>Stack collassata — Nota di Credito (3 ordini)</h3>
+  <div style="position:relative;margin-bottom:40px;">
+    <!-- Badge count -->
+    <div style="position:absolute;top:-10px;right:-4px;z-index:10;background:#0066cc;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+      3 NC
+    </div>
+    <!-- Card 3 (behind, smallest) -->
+    <div style="position:absolute;top:24px;left:0;right:0;transform:scale(0.96);z-index:1;">
+      <div class="card-c" style="opacity:0.5;">
+        <div class="sidebar" style="background:#808080;width:50px;min-height:80px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-size:16px;">🏢</span>
+        </div>
+        <div style="flex:1;padding:12px;"><div style="height:60px;"></div></div>
+      </div>
+    </div>
+    <!-- Card 2 (middle) -->
+    <div style="position:absolute;top:12px;left:0;right:0;transform:scale(0.98);z-index:2;">
+      <div class="card-c" style="opacity:0.7;">
+        <div class="sidebar" style="background:#339966;width:50px;min-height:80px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-size:16px;">📦</span>
+        </div>
+        <div style="flex:1;padding:12px;"><div style="height:60px;"></div></div>
+      </div>
+    </div>
+    <!-- Card 1 (top, full) -->
+    <div style="position:relative;z-index:3;">
+      <div class="card-c">
+        <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+          <span class="s-icon">🚚</span>
+          <span class="s-label">IN TRANSITO</span>
+        </div>
+        <div class="content">
+          <div class="row-customer">
+            <div class="customer-name">Rossi Mario S.r.l.</div>
+            <div class="badges">
+              <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+            </div>
+          </div>
+          <div class="row-meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+          <div class="row-amount">
+            <span class="amount-main">&euro; 1.234,56</span>
+          </div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+    </div>
+    <!-- Position dots -->
+    <div style="position:relative;z-index:4;margin-top:8px;">
+      <div style="display:flex;justify-content:center;gap:5px;background:rgba(0,0,0,0.06);border-radius:10px;padding:4px 10px;width:fit-content;margin:0 auto;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#0066cc;"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,0.2);margin-top:1.5px;"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,0.2);margin-top:1.5px;"></div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:#888;margin-top:3px;">Scorri per vedere le altre schede</div>
+    </div>
+  </div>
+
+  <div style="height:50px;"></div>
+
+  <h3>Stack espansa — Nota di Credito (3 ordini)</h3>
+  <div style="margin-bottom:20px;">
+    <!-- Top Banner -->
+    <div style="background:linear-gradient(135deg, #0066cc, #3388dd);color:#fff;padding:14px 16px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+      <div>
+        <div style="font-weight:700;font-size:14px;">Nota di Credito</div>
+        <div style="font-size:11px;opacity:0.85;">3 ordini collegati</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer;">Richiudi</button>
+        <button style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer;">Scollega</button>
+        <button style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer;">Modifica</button>
+      </div>
+    </div>
+
+    <!-- Cards container -->
+    <div style="background:#e8f0ff;border:2px solid #99bbee;border-top:none;padding:12px;display:flex;flex-direction:column;gap:10px;">
+
+      <!-- Card 1: Ordine originale -->
+      <div class="card-c">
+        <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+          <span class="s-icon">🚚</span>
+          <span class="s-label">IN TRANSITO</span>
+        </div>
+        <div class="content">
+          <div class="row-customer">
+            <div class="customer-name">Rossi Mario S.r.l.</div>
+            <div class="badges">
+              <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+            </div>
+          </div>
+          <div class="row-meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+          <div class="row-amount">
+            <span class="amount-main">&euro; 1.234,56</span>
+          </div>
+          <div class="row-buttons"><div class="btn-group"><button class="btn btn-ddt">📄 DDT</button></div></div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+
+      <!-- Card 2: Nota di credito -->
+      <div class="card-c">
+        <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388);">
+          <span class="s-icon">📝</span>
+          <span class="s-label">NC</span>
+        </div>
+        <div class="content">
+          <div class="row-customer">
+            <div class="customer-name">Rossi Mario S.r.l.</div>
+            <div class="badges">
+              <span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Nota di Credito</span>
+            </div>
+          </div>
+          <div class="row-meta"><b>NC/00123</b> &bull; 6 mar 2026</div>
+          <div class="row-amount">
+            <span class="amount-main" style="color:#cc0066;">&minus;&euro; 1.234,56</span>
+          </div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+
+      <!-- Card 3: Ordine sostitutivo -->
+      <div class="card-c">
+        <div class="sidebar" style="background: linear-gradient(180deg, #339966, #44b077);">
+          <span class="s-icon">📦</span>
+          <span class="s-label">CONSEGNATO</span>
+        </div>
+        <div class="content">
+          <div class="row-customer">
+            <div class="customer-name">Rossi Mario S.r.l.</div>
+            <div class="badges">
+              <span class="badge" style="background:#eaf7f0;color:#339966;"><span class="bdot" style="background:#339966;"></span>Consegnato</span>
+            </div>
+          </div>
+          <div class="row-meta"><b>ORD/12346</b> &bull; 6 mar 2026 <span style="font-size:10px;color:#339966;font-weight:600;">(sostitutivo)</span></div>
+          <div class="row-amount">
+            <span class="amount-main">&euro; 1.180,00</span>
+          </div>
+          <div class="row-buttons"><div class="btn-group"><button class="btn btn-ddt">📄 DDT</button><button class="btn btn-inv">📑 Fattura</button></div></div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom banner -->
+    <div style="background:linear-gradient(135deg, #0066cc, #3388dd);color:#fff;padding:12px;border-radius:0 0 14px 14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+      <button style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:10px;padding:8px 28px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;">
+        Richiudi pila
+      </button>
+    </div>
+  </div>
+
+  <h3>Stack collassata — Pila manuale (2 ordini)</h3>
+  <div style="position:relative;margin-bottom:40px;">
+    <div style="position:absolute;top:-10px;right:-4px;z-index:10;background:#006666;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+      2 ordini
+    </div>
+    <!-- Card 2 (behind) -->
+    <div style="position:absolute;top:12px;left:0;right:0;transform:scale(0.98);z-index:1;">
+      <div class="card-c" style="opacity:0.7;">
+        <div class="sidebar" style="background:#6633cc;width:50px;min-height:80px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-size:16px;">📋</span>
+        </div>
+        <div style="flex:1;padding:12px;"><div style="height:60px;"></div></div>
+      </div>
+    </div>
+    <!-- Card 1 (top) -->
+    <div style="position:relative;z-index:2;">
+      <div class="card-c">
+        <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888);">
+          <span class="s-icon">💰</span>
+          <span class="s-label">PAGATO</span>
+        </div>
+        <div class="content">
+          <div class="row-customer">
+            <div class="customer-name">Bianchi & Co.</div>
+            <div class="badges">
+              <span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span>
+            </div>
+          </div>
+          <div class="row-meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+          <div class="row-amount">
+            <div class="amount-paid" style="color:#006666;">✅ Pagato: 5 mar 2026</div>
+          </div>
+          <div class="chevron">▼</div>
+        </div>
+      </div>
+    </div>
+    <!-- Dots -->
+    <div style="position:relative;z-index:3;margin-top:8px;">
+      <div style="display:flex;justify-content:center;gap:5px;background:rgba(0,0,0,0.06);border-radius:10px;padding:4px 10px;width:fit-content;margin:0 auto;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#006666;"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,0.2);margin-top:1.5px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PALETTE COLORI ==================== -->
+<div id="palette" class="section">
+  <h2>Palette definitiva — 11 colori distinti</h2>
+
+  <div class="note-box">
+    <b>Criterio:</b> Ogni stato ha una tinta unica e ben separata dalle altre. I colori accento sono ispirati alla palette websafe (hex puliti). Nessuna coppia di stati condivide la stessa famiglia cromatica.
+  </div>
+
+  <table class="palette-table">
+    <thead>
+      <tr><th>Stato</th><th>Accento</th><th>Sfondo</th><th>Hex</th><th>Famiglia</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Su Archibald</b></td>
+        <td><span class="p-swatch" style="background:#808080;"></span></td>
+        <td><span class="p-bg" style="background:#f3f4f6;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#808080</td>
+        <td style="color:#808080;">Grigio</td>
+      </tr>
+      <tr>
+        <td><b>In attesa</b></td>
+        <td><span class="p-swatch" style="background:#cc9900;"></span></td>
+        <td><span class="p-bg" style="background:#fef9e7;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#cc9900</td>
+        <td style="color:#cc9900;">Oro</td>
+      </tr>
+      <tr>
+        <td><b>In lavorazione</b></td>
+        <td><span class="p-swatch" style="background:#996633;"></span></td>
+        <td><span class="p-bg" style="background:#f5f0ea;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#996633</td>
+        <td style="color:#996633;">Marrone</td>
+      </tr>
+      <tr>
+        <td><b>Bloccato</b></td>
+        <td><span class="p-swatch" style="background:#cc0000;"></span></td>
+        <td><span class="p-bg" style="background:#ffeaea;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#cc0000</td>
+        <td style="color:#cc0000;">Rosso</td>
+      </tr>
+      <tr>
+        <td><b>Backorder</b></td>
+        <td><span class="p-swatch" style="background:#ff6600;"></span></td>
+        <td><span class="p-bg" style="background:#fff3e0;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#ff6600</td>
+        <td style="color:#ff6600;">Arancione</td>
+      </tr>
+      <tr>
+        <td><b>In transito</b></td>
+        <td><span class="p-swatch" style="background:#0066cc;"></span></td>
+        <td><span class="p-bg" style="background:#e8f0ff;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#0066cc</td>
+        <td style="color:#0066cc;">Blu</td>
+      </tr>
+      <tr>
+        <td><b>Consegnato</b></td>
+        <td><span class="p-swatch" style="background:#339966;"></span></td>
+        <td><span class="p-bg" style="background:#eaf7f0;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#339966</td>
+        <td style="color:#339966;">Verde</td>
+      </tr>
+      <tr>
+        <td><b>Fatturato</b></td>
+        <td><span class="p-swatch" style="background:#6633cc;"></span></td>
+        <td><span class="p-bg" style="background:#f2eaff;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#6633cc</td>
+        <td style="color:#6633cc;">Viola</td>
+      </tr>
+      <tr>
+        <td><b>Scaduto</b></td>
+        <td><span class="p-swatch" style="background:#cc3300;"></span></td>
+        <td><span class="p-bg" style="background:#ffede6;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#cc3300</td>
+        <td style="color:#cc3300;">Rosso-arancio</td>
+      </tr>
+      <tr>
+        <td><b>Pagato</b></td>
+        <td><span class="p-swatch" style="background:#006666;"></span></td>
+        <td><span class="p-bg" style="background:#e6f5f5;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#006666</td>
+        <td style="color:#006666;">Teal</td>
+      </tr>
+      <tr>
+        <td><b>Eccezione</b></td>
+        <td><span class="p-swatch" style="background:#cc0066;"></span></td>
+        <td><span class="p-bg" style="background:#fff0f5;"></span></td>
+        <td style="font-size:10px;font-family:monospace;">#cc0066</td>
+        <td style="color:#cc0066;">Magenta</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Mappa cromatica — distanza tra colori</h3>
+  <div class="note-box">
+    Ogni stato occupa un punto distinto sulla ruota dei colori. Le coppie problematiche del vecchio sistema sono state risolte:<br>
+    &bull; <b>Backorder</b> (#ff6600 arancione) vs <b>In transito</b> (#0066cc blu) &rarr; opposti<br>
+    &bull; <b>Consegnato</b> (#339966 verde) vs <b>Pagato</b> (#006666 teal) &rarr; famiglie diverse<br>
+    &bull; <b>Scaduto</b> (#cc3300 rosso-arancio) vs <b>Bloccato</b> (#cc0000 rosso) vs <b>Eccezione</b> (#cc0066 magenta) &rarr; 3 tonalita distinte nella zona calda
+  </div>
+
+  <!-- Color wheel visualization -->
+  <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:#1a1a2e;">Ruota cromatica — posizione stati</div>
+    <svg viewBox="0 0 300 300" style="width:100%;max-width:300px;margin:0 auto;display:block;">
+      <!-- Outer ring -->
+      <circle cx="150" cy="150" r="120" fill="none" stroke="#f0f0f0" stroke-width="20"/>
+      <!-- State dots on wheel -->
+      <!-- Grigio (Su Archibald) - top -->
+      <circle cx="150" cy="40" r="12" fill="#808080" stroke="#fff" stroke-width="2"/>
+      <text x="150" y="25" text-anchor="middle" font-size="8" fill="#808080" font-weight="600">Archibald</text>
+      <!-- Oro (In attesa) - ~40deg -->
+      <circle cx="227" cy="60" r="12" fill="#cc9900" stroke="#fff" stroke-width="2"/>
+      <text x="245" y="55" text-anchor="start" font-size="8" fill="#cc9900" font-weight="600">Attesa</text>
+      <!-- Arancione (Backorder) - ~60deg -->
+      <circle cx="254" cy="90" r="12" fill="#ff6600" stroke="#fff" stroke-width="2"/>
+      <text x="272" y="92" text-anchor="start" font-size="8" fill="#ff6600" font-weight="600">Backorder</text>
+      <!-- Rosso-arancio (Scaduto) - ~80deg -->
+      <circle cx="265" cy="130" r="12" fill="#cc3300" stroke="#fff" stroke-width="2"/>
+      <text x="280" y="132" text-anchor="start" font-size="8" fill="#cc3300" font-weight="600">Scaduto</text>
+      <!-- Rosso (Bloccato) - ~100deg -->
+      <circle cx="262" cy="170" r="12" fill="#cc0000" stroke="#fff" stroke-width="2"/>
+      <text x="278" y="172" text-anchor="start" font-size="8" fill="#cc0000" font-weight="600">Bloccato</text>
+      <!-- Magenta (Eccezione) - ~140deg -->
+      <circle cx="232" cy="225" r="12" fill="#cc0066" stroke="#fff" stroke-width="2"/>
+      <text x="248" y="227" text-anchor="start" font-size="8" fill="#cc0066" font-weight="600">Eccezione</text>
+      <!-- Viola (Fatturato) - ~200deg -->
+      <circle cx="100" cy="255" r="12" fill="#6633cc" stroke="#fff" stroke-width="2"/>
+      <text x="82" y="270" text-anchor="end" font-size="8" fill="#6633cc" font-weight="600">Fatturato</text>
+      <!-- Blu (In transito) - ~240deg -->
+      <circle cx="46" cy="210" r="12" fill="#0066cc" stroke="#fff" stroke-width="2"/>
+      <text x="28" y="205" text-anchor="end" font-size="8" fill="#0066cc" font-weight="600">Transito</text>
+      <!-- Teal (Pagato) - ~270deg -->
+      <circle cx="34" cy="160" r="12" fill="#006666" stroke="#fff" stroke-width="2"/>
+      <text x="16" y="155" text-anchor="end" font-size="8" fill="#006666" font-weight="600">Pagato</text>
+      <!-- Verde (Consegnato) - ~300deg -->
+      <circle cx="52" cy="105" r="12" fill="#339966" stroke="#fff" stroke-width="2"/>
+      <text x="33" y="100" text-anchor="end" font-size="8" fill="#339966" font-weight="600">Consegnato</text>
+      <!-- Marrone (In lavorazione) - ~330deg -->
+      <circle cx="90" cy="60" r="12" fill="#996633" stroke="#fff" stroke-width="2"/>
+      <text x="72" y="55" text-anchor="end" font-size="8" fill="#996633" font-weight="600">Lavoraz.</text>
+    </svg>
+  </div>
+
+  <h3>Logica semantica dei colori</h3>
+  <div style="background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:40px;border-radius:4px;background:#808080;flex-shrink:0;"></div>
+        <div><b style="font-size:12px;">Neutro</b><br><span style="font-size:11px;color:#888;">Grigio, oro, marrone — l'ordine esiste, nessuna azione urgente</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:40px;border-radius:4px;background:linear-gradient(180deg,#0066cc,#ff6600);flex-shrink:0;"></div>
+        <div><b style="font-size:12px;">In movimento</b><br><span style="font-size:11px;color:#888;">Blu (transito) e arancione (backorder) — stati dinamici ma distinti</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:40px;border-radius:4px;background:linear-gradient(180deg,#339966,#006666);flex-shrink:0;"></div>
+        <div><b style="font-size:12px;">Traguardi positivi</b><br><span style="font-size:11px;color:#888;">Verde (consegnato), viola (fatturato), teal (pagato) — progressione verso chiusura</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:40px;border-radius:4px;background:linear-gradient(180deg,#cc3300,#cc0066);flex-shrink:0;"></div>
+        <div><b style="font-size:12px;">Attenzione richiesta</b><br><span style="font-size:11px;color:#888;">Rosso-arancio (scaduto), rosso (bloccato), magenta (eccezione) — scala di gravita</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CONFRONTO ==================== -->
+<div id="confronto" class="section">
+  <h2>Confronto diretto: Prima → Dopo</h2>
+
+  <h3>In transito</h3>
+  <div style="margin-bottom:8px;font-size:11px;color:#aaa;font-weight:600;">PRIMA (attuale)</div>
+  <div style="background:#BBDEFB;border-left:4px solid #1565C0;border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:18px;font-weight:700;color:#333;">Rossi Mario S.r.l.</span>
+      <span style="background:#1565C0;color:#fff;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;">In transito</span>
+    </div>
+    <div style="font-size:14px;color:#666;margin-bottom:6px;"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+    <div style="display:flex;align-items:center;gap:0;margin-bottom:6px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#1565C0;"></div><div style="height:2px;flex:1;background:#1565C0;"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:#1565C0;"></div><div style="height:2px;flex:1;background:#1565C0;"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:#1565C0;"></div><div style="height:2px;flex:1;background:#e0e0e0;"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div><div style="height:2px;flex:1;background:#e0e0e0;"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #e0e0e0;"></div>
+    </div>
+    <div style="font-size:12px;color:#555;">🚚 In viaggio &bull; MILANO, IT &bull; 6 mar 14:32</div>
+    <div style="font-size:12px;color:#5a3e00;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:4px 10px;margin:6px 0;">Residuo finanziario: &euro; 450,00</div>
+    <div style="font-size:18px;font-weight:700;color:#333;margin-top:4px;">&euro; 1.234,56 (IVA incl.)</div>
+    <div style="font-size:13px;color:#888;margin-top:2px;">&euro; 1.012,00</div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button style="font-size:11px;padding:5px 10px;border:1.5px solid #388e3c;background:#fff;color:#388e3c;border-radius:6px;font-weight:600;">📄 DDT</button>
+      <button style="font-size:11px;padding:5px 10px;border:1.5px solid #7b1fa2;background:#fff;color:#7b1fa2;border-radius:6px;font-weight:600;">📑 Fattura</button>
+    </div>
+    <div style="text-align:center;color:#999;margin-top:6px;">▼</div>
+  </div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:#0066cc;font-weight:600;">DOPO (proposta C)</div>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #0066cc, #3388dd);">
+      <span class="s-icon">🚚</span>
+      <span class="s-label">IN TRANSITO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Rossi Mario S.r.l.</div>
+        <div class="badges">
+          <span class="badge" style="background:#e8f0ff;color:#0066cc;"><span class="bdot" style="background:#0066cc;"></span>In transito</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12345</b> &bull; 5 mar 2026</div>
+      <div class="row-tracking">
+        <div class="track-top">
+          <span class="t-icon">🚚</span>
+          <span>In viaggio &bull; Milano, IT &bull; 6 mar 14:32</span>
+          <div class="progress-bar"><div class="fill" style="width:60%;background:#0066cc;"></div></div>
+        </div>
+        <div class="track-detail">Arrivo stimato: 8 mar &bull; FedEx 7742 8831 0042</div>
+      </div>
+      <div class="row-financial">Residuo finanziario: &euro; 450,00</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 1.234,56 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+        <span style="font-size:11px;color:#666;">Scad: 20 mar &bull; <span style="color:#2e7d32;font-weight:600;">12 gg</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 1.012,00 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <h3>Eccezione</h3>
+  <div style="margin-bottom:8px;font-size:11px;color:#aaa;font-weight:600;">PRIMA (attuale)</div>
+  <div style="background:#fce4ec;border-left:4px solid #f286ad;border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:18px;font-weight:700;color:#333;">Verdi Costruzioni</span>
+      <span style="background:#f286ad;color:#fff;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;">Eccezione corriere</span>
+    </div>
+    <div style="font-size:14px;color:#666;margin-bottom:6px;"><b>ORD/12338</b> &bull; 2 mar 2026</div>
+    <div style="font-size:12px;color:#e65100;font-weight:600;">Indirizzo errato — tentativo consegna fallito</div>
+    <div style="font-size:18px;font-weight:700;color:#333;margin-top:6px;">&euro; 2.450,00</div>
+    <div style="text-align:center;color:#999;margin-top:6px;">▼</div>
+  </div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:#cc0066;font-weight:600;">DOPO (proposta C)</div>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #cc0066, #dd3388);">
+      <span class="s-icon">⚠️</span>
+      <span class="s-label">ECCEZIONE</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Verdi Costruzioni</div>
+        <div class="badges">
+          <span class="badge" style="background:#fff0f5;color:#cc0066;"><span class="bdot" style="background:#cc0066;"></span>Eccezione</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12338</b> &bull; 2 mar 2026</div>
+      <div class="row-tracking" style="background:#fff0f5;">
+        <div class="track-top">
+          <span class="t-icon">📦</span>
+          <span style="color:#cc0066;font-weight:600;">Hub Roma &mdash; fermo</span>
+          <div class="progress-bar"><div class="fill" style="width:40%;background:#cc0066;"></div></div>
+        </div>
+        <div class="track-exception" style="color:#cc0066;">⚠ Indirizzo errato &mdash; tentativo consegna fallito</div>
+      </div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 2.450,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 2.008,20 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <h3>Su Archibald (con azioni)</h3>
+  <div style="margin-bottom:8px;font-size:11px;color:#aaa;font-weight:600;">PRIMA (attuale)</div>
+  <div style="background:#ECEFF1;border-left:4px solid #546E7A;border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:18px;font-weight:700;color:#333;">Gialli Edilizia</span>
+      <span style="background:#546E7A;color:#fff;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;">Su Archibald</span>
+    </div>
+    <div style="font-size:14px;color:#666;margin-bottom:6px;"><b>ORD/12350</b> &bull; 8 mar 2026</div>
+    <div style="font-size:18px;font-weight:700;color:#333;">&euro; 560,00</div>
+    <div style="font-size:13px;color:#888;">&euro; 459,02</div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      <button style="font-size:11px;padding:5px 10px;border:1.5px solid #388e3c;background:#fff;color:#388e3c;border-radius:6px;font-weight:600;">📤 Invia a Verona</button>
+      <button style="font-size:11px;padding:5px 10px;border:1.5px solid #1976d2;background:#fff;color:#1976d2;border-radius:6px;font-weight:600;">✏ Modifica</button>
+      <button style="font-size:11px;padding:5px 10px;border:1.5px solid #d32f2f;background:#fff;color:#d32f2f;border-radius:6px;font-weight:600;">🗑 Elimina</button>
+    </div>
+    <div style="text-align:center;color:#999;margin-top:6px;">▼</div>
+  </div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:#808080;font-weight:600;">DOPO (proposta C)</div>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #808080, #999999);">
+      <span class="s-icon">🏢</span>
+      <span class="s-label">SU ARCHIBALD</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Gialli Edilizia</div>
+        <div class="badges">
+          <span class="badge" style="background:#f3f4f6;color:#666;"><span class="bdot" style="background:#808080;"></span>Su Archibald</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12350</b> &bull; 8 mar 2026</div>
+      <div class="row-amount">
+        <span class="amount-main">&euro; 560,00 <span style="font-size:11px;font-weight:400;color:#888;">(IVA incl.)</span></span>
+      </div>
+      <div class="amount-sub" style="margin-top:-4px;margin-bottom:6px;">&euro; 459,02 (imponibile)</div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-send">📤 Invia a Verona</button>
+          <button class="btn btn-edit">✏ Modifica</button>
+          <button class="btn btn-del">🗑 Elimina</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+  <h3>Pagato</h3>
+  <div style="margin-bottom:8px;font-size:11px;color:#aaa;font-weight:600;">PRIMA (attuale)</div>
+  <div style="background:#E8F5E9;border-left:4px solid #2E7D32;border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:18px;font-weight:700;color:#333;">Blu Servizi S.r.l.</span>
+      <span style="background:#2E7D32;color:#fff;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;">Pagato</span>
+    </div>
+    <div style="font-size:14px;color:#666;margin-bottom:6px;"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+    <div style="font-size:14px;font-weight:600;color:#2e7d32;">✅ Pagato: 5 mar 2026</div>
+    <div style="font-size:13px;color:#666;">CF1/00398 &bull; &euro; 2.180,00</div>
+    <div style="text-align:center;color:#999;margin-top:6px;">▼</div>
+  </div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:#006666;font-weight:600;">DOPO (proposta C)</div>
+  <div class="card-c">
+    <div class="sidebar" style="background: linear-gradient(180deg, #006666, #008888);">
+      <span class="s-icon">💰</span>
+      <span class="s-label">PAGATO</span>
+    </div>
+    <div class="content">
+      <div class="row-customer">
+        <div class="customer-name">Blu Servizi S.r.l.</div>
+        <div class="badges">
+          <span class="badge" style="background:#e6f5f5;color:#006666;"><span class="bdot" style="background:#006666;"></span>Pagato</span>
+        </div>
+      </div>
+      <div class="row-meta"><b>ORD/12310</b> &bull; 20 feb 2026</div>
+      <div class="row-amount">
+        <div>
+          <div class="amount-paid" style="color:#006666;">✅ Pagato: 5 mar 2026</div>
+          <div class="amount-paid-detail">CF1/00398 &bull; &euro; 2.180,00</div>
+        </div>
+      </div>
+      <div class="row-buttons">
+        <div class="btn-group">
+          <button class="btn btn-ddt">📄 DDT</button>
+          <button class="btn btn-inv">📑 Fattura</button>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
