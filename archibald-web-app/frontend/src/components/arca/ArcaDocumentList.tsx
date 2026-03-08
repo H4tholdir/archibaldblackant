@@ -50,14 +50,16 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
     }
   }
 
+  const testata = arcaData?.testata;
+
   return {
     order,
-    ftNumber: arcaData
-      ? `FT ${arcaData.testata.NUMERODOC}/${arcaData.testata.ESERCIZIO}`
+    ftNumber: testata
+      ? `FT ${testata.NUMERODOC}/${testata.ESERCIZIO}`
       : (order.invoiceNumber ?? ""),
-    datadoc: arcaData?.testata.DATADOC ?? order.createdAt,
+    datadoc: testata?.DATADOC ?? order.createdAt,
     cliente: order.subClientName || order.subClientCodice,
-    totale: arcaData?.testata.TOTDOC ?? order.targetTotalWithVAT ?? 0,
+    totale: testata?.TOTDOC ?? order.targetTotalWithVAT ?? 0,
     revenue: order.revenue,
     stato:
       order.currentState ??
