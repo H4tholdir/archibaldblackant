@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   generateArcaData,
   round2,
-  formatDateYYYYMMDD,
+  formatArcaDate,
 } from "./generate-arca-data";
 import type { GenerateInput } from "./generate-arca-data";
 
@@ -48,14 +48,19 @@ describe("round2", () => {
   });
 });
 
-describe("formatDateYYYYMMDD", () => {
-  test("formats ISO date string to YYYYMMDD", () => {
-    expect(formatDateYYYYMMDD("2026-03-08")).toBe("2026-03-08");
-    expect(formatDateYYYYMMDD("2026-12-25")).toBe("2026-12-25");
+describe("formatArcaDate", () => {
+  test("extracts YYYY-MM-DD from ISO datetime string", () => {
+    expect(formatArcaDate("2026-03-08T14:30:00Z")).toBe("2026-03-08");
+    expect(formatArcaDate("2016-01-01T00:00:00.000Z")).toBe("2016-01-01");
+  });
+
+  test("passes through already-formatted YYYY-MM-DD strings", () => {
+    expect(formatArcaDate("2026-03-08")).toBe("2026-03-08");
+    expect(formatArcaDate("2026-12-25")).toBe("2026-12-25");
   });
 
   test("defaults to today if not provided", () => {
-    const result = formatDateYYYYMMDD();
+    const result = formatArcaDate();
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
@@ -175,7 +180,7 @@ describe("generateArcaData", () => {
 
     expect(dest).not.toBeNull();
     expect(dest!.CODICECF).toBe("ABC123");
-    expect(dest!.CODICEDES).toBe("01");
+    expect(dest!.CODICEDES).toBe("001");
     expect(dest!.RAGIONESOC).toBe("Dest Srl");
     expect(dest!.SUPPRAGSOC).toBe("Suppl Dest");
     expect(dest!.INDIRIZZO).toBe("Via Roma 1");
@@ -351,5 +356,67 @@ describe("generateArcaData", () => {
       FIXED_DATE,
     );
     expect(withoutDest.testata.DESTDIV).toBe("");
+  });
+
+  test("SCONTOCASF defaults to 1 (no cash discount multiplier)", () => {
+    const result = generateArcaData(
+      makeInput(),
+      FT_NUMBER,
+      ESERCIZIO,
+      FIXED_DATE,
+    );
+
+    expect(result.testata.SCONTOCASF).toBe(1);
+  });
+
+  test("RAGIONESOC falls back to subClientName when ragioneSociale is missing", () => {
+    const input = makeInput({
+      subClientName: "Fallback Client Name",
+      subClientData: {
+        indirizzo: "Via Test 1",
+      },
+    });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+
+    expect(result.destinazione_diversa!.RAGIONESOC).toBe(
+      "Fallback Client Name",
+    );
+  });
+
+  test("CODNAZIONE defaults to IT for destinazione_diversa", () => {
+    const input = makeInput({
+      subClientData: { ragioneSociale: "Test" },
+    });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+
+    expect(result.destinazione_diversa!.CODNAZIONE).toBe("IT");
+  });
+
+  test("ZONA is populated from subClientData on testata and righe", () => {
+    const input = makeInput({
+      subClientData: { ragioneSociale: "Test", zona: "Z01" },
+    });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+
+    expect(result.testata.ZONA).toBe("Z01");
+    expect(result.righe[0].ZONA).toBe("Z01");
+    expect(result.righe[1].ZONA).toBe("Z01");
+  });
+
+  test("ZONA defaults to 0 when subClientData has no zona", () => {
+    const input = makeInput({ subClientData: null });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+
+    expect(result.testata.ZONA).toBe("0");
+    expect(result.righe[0].ZONA).toBe("0");
+  });
+
+  test("CODICEDES uses 001 (3 chars) in destinazione_diversa", () => {
+    const input = makeInput({
+      subClientData: { ragioneSociale: "Test" },
+    });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+
+    expect(result.destinazione_diversa!.CODICEDES).toBe("001");
   });
 });

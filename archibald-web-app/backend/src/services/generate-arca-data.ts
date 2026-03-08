@@ -31,7 +31,6 @@ export type GenerateInput = {
     unit?: string;
   }>;
   discountPercent?: number;
-  shippingCost?: number;
   notes?: string;
 };
 
@@ -39,8 +38,8 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export function formatDateYYYYMMDD(isoOrNow?: string): string {
-  if (isoOrNow) return isoOrNow;
+export function formatArcaDate(isoOrNow?: string): string {
+  if (isoOrNow) return isoOrNow.slice(0, 10);
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
@@ -54,10 +53,11 @@ export function generateArcaData(
   esercizio: string,
   dateIso?: string,
 ): ArcaData {
-  const datadoc = formatDateYYYYMMDD(dateIso);
+  const datadoc = formatArcaDate(dateIso);
   const numerodoc = String(ftNumber);
   const codicecf = record.subClientCodice;
   const hasDestDiv = record.subClientData != null;
+  const zona = record.subClientData?.zona ?? "0";
 
   const righe: ArcaRiga[] = record.items.map((item, idx) => {
     const discount = item.discount ?? 0;
@@ -100,7 +100,7 @@ export function generateArcaData(
       RESTOSCORP: 0,
       RESTOSCUNI: 0,
       CODCAUMAG: "",
-      ZONA: "",
+      ZONA: zona,
       SETTORE: "",
       GRUPPO: "",
       CLASSE: "",
@@ -171,7 +171,7 @@ export function generateArcaData(
     SCONTI: scontiStr,
     SCONTIF: scontiF,
     SCONTOCASS: "",
-    SCONTOCASF: 0,
+    SCONTOCASF: 1,
     PROVV: "",
     PROVV2: "",
     CAMBIO: 1,
@@ -179,7 +179,7 @@ export function generateArcaData(
     NUMERODOCF: "",
     TIPOMODULO: "",
     LISTINO: "",
-    ZONA: "",
+    ZONA: zona,
     SETTORE: "",
     DESTDIV: hasDestDiv ? "01" : "",
     DATACONSEG: null,
@@ -266,14 +266,14 @@ export function generateArcaData(
     const d = record.subClientData;
     destinazione = {
       CODICECF: codicecf,
-      CODICEDES: "01",
-      RAGIONESOC: d.ragioneSociale ?? "",
+      CODICEDES: "001",
+      RAGIONESOC: d.ragioneSociale ?? record.subClientName,
       SUPPRAGSOC: d.supplRagioneSociale ?? "",
       INDIRIZZO: d.indirizzo ?? "",
       CAP: d.cap ?? "",
       LOCALITA: d.localita ?? "",
       PROVINCIA: d.prov ?? "",
-      CODNAZIONE: "",
+      CODNAZIONE: "IT",
       AGENTE: "",
       AGENTE2: "",
       SETTORE: "",
