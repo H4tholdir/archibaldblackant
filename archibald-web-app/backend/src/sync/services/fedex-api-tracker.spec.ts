@@ -68,6 +68,7 @@ describe('parseApiTrackResult', () => {
           scanLocation: 'NAPOLI, IT',
           delivered: true,
           exception: false,
+          exceptionDescription: '',
         },
         {
           date: '2026-03-04',
@@ -78,6 +79,7 @@ describe('parseApiTrackResult', () => {
           scanLocation: 'MILANO, IT',
           delivered: false,
           exception: false,
+          exceptionDescription: '',
         },
       ],
     });
@@ -149,6 +151,7 @@ describe('parseApiTrackResult', () => {
     expect(result.success).toBe(true);
     expect(result.statusBarCD).toBe('DE');
     expect(result.scanEvents![0].exception).toBe(true);
+    expect(result.scanEvents![0].exceptionDescription).toBe('Customer not available or business closed');
     expect(result.scanEvents![0].delivered).toBe(false);
   });
 

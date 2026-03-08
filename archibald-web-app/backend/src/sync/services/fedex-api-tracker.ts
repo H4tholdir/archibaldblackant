@@ -9,6 +9,7 @@ type FedExScanEvent = {
   scanLocation: string;
   delivered: boolean;
   exception: boolean;
+  exceptionDescription: string;
 };
 
 type FedExTrackingResult = {
@@ -150,6 +151,7 @@ function parseApiTrackResult(
     scanLocation: buildLocation(e.scanLocation) ?? '',
     delivered: e.derivedStatusCode === 'DL',
     exception: e.derivedStatusCode === 'DE' || Boolean(e.exceptionDescription),
+    exceptionDescription: e.exceptionDescription ?? '',
   }));
 
   const shipperAddr =
