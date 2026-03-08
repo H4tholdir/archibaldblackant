@@ -79,8 +79,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "delivered",
     label: "Consegnato",
     description: "Consegna confermata con data/ora",
-    borderColor: "#0277BD",
-    backgroundColor: "#B3E5FC",
+    borderColor: "#f286ad",
+    backgroundColor: "#fce4ec",
   },
   invoiced: {
     category: "invoiced",

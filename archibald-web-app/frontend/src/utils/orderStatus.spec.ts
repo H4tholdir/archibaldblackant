@@ -66,8 +66,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("delivered");
       expect(result.label).toBe("Consegnato");
-      expect(result.borderColor).toBe("#0277BD");
-      expect(result.backgroundColor).toBe("#B3E5FC");
+      expect(result.borderColor).toBe("#f286ad");
+      expect(result.backgroundColor).toBe("#fce4ec");
     });
   });
 

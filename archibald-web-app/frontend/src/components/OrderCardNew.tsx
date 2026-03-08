@@ -2962,6 +2962,7 @@ function TabFinanziario({
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
               gap: "14px",
+              backgroundColor: "#f8f9fa",
             }}
           >
             <InfoField
@@ -4157,7 +4158,7 @@ export function OrderCardNew({
                         }
                       }}
                     >
-                      {ddtQuickProgress.active ? "⏳ DDT..." : "📄 DDT"}
+                      {ddtQuickProgress.active ? "⏳ Scaricando DDT..." : "📄 Scarica DDT"}
                     </button>
                     {ddtQuickProgress.active && (
                       <ProgressBar
@@ -4258,8 +4259,8 @@ export function OrderCardNew({
                       }}
                     >
                       {invoiceQuickProgress.active
-                        ? `⏳ ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}...`
-                        : `📑 ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
+                        ? `⏳ Scaricando...`
+                        : `📑 Scarica ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
                     </button>
                     {invoiceQuickProgress.active && (
                       <ProgressBar
