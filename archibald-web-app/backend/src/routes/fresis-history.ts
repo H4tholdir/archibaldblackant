@@ -10,6 +10,7 @@ import { logger } from '../logger';
 type FresisHistoryRouterDeps = {
   pool: DbPool;
   getAll: (userId: string) => Promise<FresisHistoryRecord[]>;
+  getAllWithDateFilter: (userId: string, from?: string, to?: string) => Promise<FresisHistoryRecord[]>;
   getBySubClient: (userId: string, subClientCodice: string) => Promise<FresisHistoryRecord[]>;
   getById: (userId: string, recordId: string) => Promise<FresisHistoryRecord | null>;
   upsertRecords: (userId: string, records: FresisHistoryInput[]) => Promise<{ inserted: number; updated: number }>;
@@ -26,6 +27,7 @@ type FresisHistoryRouterDeps = {
   getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
   updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
   reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
+  broadcast?: (userId: string, event: { type: string; payload: unknown }) => void;
 };
 
 const propagateStateSchema = z.object({
@@ -101,19 +103,27 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   const {
-    getAll, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
+    getAll, getAllWithDateFilter, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
-    updateRecord, reassignMerged,
+    updateRecord, reassignMerged, broadcast,
   } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const subClient = req.query.subClient as string | undefined;
-      const records = subClient
-        ? await getBySubClient(req.user!.userId, subClient)
-        : await getAll(req.user!.userId);
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+
+      let records;
+      if (subClient) {
+        records = await getBySubClient(req.user!.userId, subClient);
+      } else if (from || to) {
+        records = await getAllWithDateFilter(req.user!.userId, from, to);
+      } else {
+        records = await getAll(req.user!.userId);
+      }
       res.json({ success: true, records });
     } catch (error) {
       logger.error('Error fetching fresis history', { error });
@@ -167,6 +177,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         return res.status(400).json({ success: false, error: 'File richiesto' });
       }
       const result = await importArca(req.user!.userId, file.buffer, file.originalname);
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_BULK_IMPORTED', payload: { stats: result } });
       res.json({ success: true, stats: result, errors: result.errors });
     } catch (error) {
       logger.error('Error importing ArcA', { error });
@@ -272,6 +283,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       const createdRecords = await Promise.all(
         records.map(r => getById(req.user!.userId, r.id))
       );
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_CREATED', payload: { action: 'archive', count: createdRecords.length } });
       res.json({ success: true, records: createdRecords.filter(Boolean) });
     } catch (error) {
       logger.error('Error archiving orders', { error });
@@ -298,6 +310,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Record non trovato' });
       }
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_UPDATED', payload: { recordId: req.params.id } });
       res.json({ success: true, data: updated });
     } catch (error) {
       logger.error('Error updating fresis history record', { error });
@@ -312,6 +325,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
       const result = await upsertRecords(req.user!.userId, parsed.data.records as FresisHistoryInput[]);
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_UPDATED', payload: { action: 'upsert' } });
       res.json({ success: true, ...result });
     } catch (error) {
       logger.error('Error upserting fresis history', { error });
@@ -325,6 +339,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       if (deleted === 0) {
         return res.status(404).json({ success: false, error: 'Record non trovato' });
       }
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_DELETED', payload: { recordId: req.params.id } });
       res.json({ success: true });
     } catch (error) {
       logger.error('Error deleting fresis history record', { error });
@@ -340,6 +355,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       }
       const { orderId, ...stateData } = parsed.data;
       const updated = await propagateState(req.user!.userId, orderId, stateData);
+      broadcast?.(req.user!.userId, { type: 'FRESIS_HISTORY_UPDATED', payload: { action: 'propagate-state' } });
       res.json({ success: true, updatedCount: updated });
     } catch (error) {
       logger.error('Error propagating state', { error });

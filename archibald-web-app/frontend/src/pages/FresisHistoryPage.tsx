@@ -51,8 +51,21 @@ export function FresisHistoryPage() {
   const motherOrderFilter = searchParams.get("motherOrderId");
   const auth = useAuth();
 
+  const initialRange = getDateRangeForPreset("thisMonth")!;
+
+  // Filter state
+  const [activeTimePreset, setActiveTimePreset] =
+    useState<FresisTimePreset>("thisMonth");
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
+
   const { historyOrders: wsOrders, refetch: wsRefetch } =
-    useFresisHistorySync();
+    useFresisHistorySync(dateFrom, dateTo);
+
+  // Progressive loading state
+  const [allOrders, setAllOrders] = useState<FresisHistoryOrder[]>([]);
+  const [canLoadMore, setCanLoadMore] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<FresisHistoryOrder | null>(
@@ -68,12 +81,6 @@ export function FresisHistoryPage() {
   >(null);
   const [deleteProgress, setDeleteProgress] =
     useState<DeleteProgressState | null>(null);
-
-  // Filter state
-  const [activeTimePreset, setActiveTimePreset] =
-    useState<FresisTimePreset>(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
