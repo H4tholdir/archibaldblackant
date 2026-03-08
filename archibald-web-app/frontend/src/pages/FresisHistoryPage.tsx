@@ -5,7 +5,6 @@ import type { FresisHistoryOrder } from "../types/fresis";
 import {
   parseLinkedIds,
   serializeLinkedIds,
-  getFresisHistory,
   deleteFresisHistory,
   deleteFromArchibald,
   updateFresisHistoryOrder,
@@ -26,7 +25,6 @@ import {
   type FresisTimePreset,
   type UniqueSubClient,
   getDateRangeForPreset,
-  filterByDateRange,
   filterBySubClient,
   matchesFresisGlobalSearch,
   extractUniqueSubClients,
@@ -125,6 +123,54 @@ export function FresisHistoryPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Accumulate orders when wsOrders changes (new data from hook)
+  useEffect(() => {
+    if (wsOrders.length > 0) {
+      setAllOrders(prev => {
+        const existingIds = new Set(prev.map(o => o.id));
+        const newOrders = wsOrders.filter(o => !existingIds.has(o.id));
+        if (newOrders.length === 0) return prev;
+        return [...prev, ...newOrders];
+      });
+    }
+  }, [wsOrders]);
+
+  // Load more months (go back 1 month at a time, stop at Jan 1st of current year)
+  const loadMoreMonths = useCallback(() => {
+    if (!canLoadMore) return;
+    const currentFrom = new Date(dateFrom);
+    const janFirst = new Date(currentFrom.getFullYear(), 0, 1);
+
+    const newFrom = new Date(currentFrom);
+    newFrom.setMonth(newFrom.getMonth() - 1);
+    newFrom.setDate(1);
+
+    if (newFrom <= janFirst) {
+      newFrom.setTime(janFirst.getTime());
+      setCanLoadMore(false);
+    }
+
+    const y = newFrom.getFullYear();
+    const m = String(newFrom.getMonth() + 1).padStart(2, "0");
+    const d = String(newFrom.getDate()).padStart(2, "0");
+    setDateFrom(`${y}-${m}-${d}`);
+  }, [dateFrom, canLoadMore]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !canLoadMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreMonths();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [canLoadMore, loadMoreMonths]);
+
   // Click outside sub-client dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -150,8 +196,8 @@ export function FresisHistoryPage() {
   }, [highlightedSubClientIndex]);
 
   const uniqueSubClients = useMemo(
-    () => extractUniqueSubClients(wsOrders),
-    [wsOrders],
+    () => extractUniqueSubClients(allOrders),
+    [allOrders],
   );
 
   const subClientResults = useMemo(() => {
@@ -164,9 +210,9 @@ export function FresisHistoryPage() {
     );
   }, [subClientQuery, uniqueSubClients]);
 
-  // Filtering pipeline
+  // Filtering pipeline (date filtering done by backend, no need to re-filter here)
   const filteredOrders = useMemo(() => {
-    let result = wsOrders;
+    let result = allOrders;
 
     if (motherOrderFilter) {
       result = result.filter(
@@ -178,16 +224,13 @@ export function FresisHistoryPage() {
     if (selectedSubClient) {
       result = filterBySubClient(result, selectedSubClient.codice);
     }
-    if (dateFrom || dateTo) {
-      result = filterByDateRange(result, dateFrom, dateTo);
-    }
     if (debouncedSearch) {
       result = result.filter((o) =>
         matchesFresisGlobalSearch(o, debouncedSearch),
       );
     }
     return result;
-  }, [wsOrders, motherOrderFilter, selectedSubClient, dateFrom, dateTo, debouncedSearch]);
+  }, [allOrders, motherOrderFilter, selectedSubClient, debouncedSearch]);
 
   // Keep selectedOrder in sync with data changes
   useEffect(() => {
@@ -202,12 +245,17 @@ export function FresisHistoryPage() {
 
   // Time preset handler
   const handleTimePreset = (preset: FresisTimePreset) => {
+    setAllOrders([]);
     setActiveTimePreset(preset);
     const range = getDateRangeForPreset(preset);
     if (range) {
       setDateFrom(range.from);
       setDateTo(range.to);
+    } else {
+      setDateFrom("");
+      setDateTo("");
     }
+    setCanLoadMore(preset === "thisMonth");
   };
 
   // Sub-client handlers
@@ -259,16 +307,17 @@ export function FresisHistoryPage() {
 
   const hasActiveFilters =
     selectedSubClient !== null ||
-    dateFrom !== "" ||
-    dateTo !== "" ||
+    activeTimePreset !== null ||
     globalSearch !== "";
 
   const handleClearFilters = () => {
     handleClearSubClient();
+    setAllOrders([]);
     setActiveTimePreset(null);
     setDateFrom("");
     setDateTo("");
     setGlobalSearch("");
+    setCanLoadMore(false);
   };
 
   // --- Order actions ---
@@ -276,9 +325,9 @@ export function FresisHistoryPage() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const records = await getFresisHistory();
-      setSyncMessage(`Aggiornati ${records.length} ordini`);
+      setAllOrders([]);
       await wsRefetch();
+      setSyncMessage("Aggiornamento completato");
     } catch (err) {
       console.error("[FresisHistoryPage] Sync failed:", err);
       setSyncMessage("Errore durante aggiornamento");
@@ -296,7 +345,7 @@ export function FresisHistoryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const order = wsOrders.find((o) => o.id === id);
+    const order = allOrders.find((o) => o.id === id);
     if (!order) return;
 
     try {
@@ -494,8 +543,8 @@ export function FresisHistoryPage() {
           </h1>
           <span style={{ fontSize: "12px", color: "#888" }}>
             {filteredOrders.length} documenti
-            {filteredOrders.length !== wsOrders.length &&
-              ` di ${wsOrders.length}`}
+            {filteredOrders.length !== allOrders.length &&
+              ` di ${allOrders.length}`}
             {motherOrderFilter && " (filtro ordine madre)"}
           </span>
         </div>
@@ -754,7 +803,7 @@ export function FresisHistoryPage() {
       )}
 
       {/* Empty */}
-      {!loading && wsOrders.length === 0 && (
+      {!loading && allOrders.length === 0 && (
         <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#fff", borderRadius: "8px" }}>
           <p style={{ fontSize: "16px", fontWeight: 600, color: "#333" }}>
             Nessun ordine archiviato
@@ -763,10 +812,10 @@ export function FresisHistoryPage() {
       )}
 
       {/* No results */}
-      {!loading && wsOrders.length > 0 && filteredOrders.length === 0 && (
+      {!loading && allOrders.length > 0 && filteredOrders.length === 0 && (
         <div style={{ textAlign: "center", padding: "24px", backgroundColor: "#fff", borderRadius: "8px" }}>
           <p style={{ fontSize: "14px", color: "#333" }}>
-            Nessun ordine corrisponde ai filtri ({wsOrders.length} totali)
+            Nessun ordine corrisponde ai filtri ({allOrders.length} totali)
           </p>
           <button onClick={handleClearFilters} style={{ ...headerBtnStyle, marginTop: "8px" }}>
             Cancella filtri
@@ -776,13 +825,20 @@ export function FresisHistoryPage() {
 
       {/* Main content: List */}
       {!loading && filteredOrders.length > 0 && (
-        <ArcaDocumentList
-          orders={filteredOrders}
-          selectedId={selectedOrder?.id ?? null}
-          onSelect={handleSelectInList}
-          onDoubleClick={handleDoubleClickInList}
-          height={listHeight}
-        />
+        <>
+          <ArcaDocumentList
+            orders={filteredOrders}
+            selectedId={selectedOrder?.id ?? null}
+            onSelect={handleSelectInList}
+            onDoubleClick={handleDoubleClickInList}
+            height={listHeight}
+          />
+          {canLoadMore && (
+            <div ref={loadMoreRef} style={{ padding: "16px", textAlign: "center", color: "#999", fontSize: "12px" }}>
+              Caricamento mesi precedenti...
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail modal */}
