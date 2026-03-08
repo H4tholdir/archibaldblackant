@@ -128,7 +128,7 @@ export function normalizeSubClientCode(code: string): string {
   return trimmed.startsWith("C") ? trimmed : `C${trimmed}`;
 }
 
-function formatDate(d: unknown): string | null {
+export function formatDate(d: unknown): string | null {
   if (!d) return null;
   if (d instanceof Date) {
     return d.toISOString();
@@ -136,20 +136,20 @@ function formatDate(d: unknown): string | null {
   return null;
 }
 
-function numVal(v: unknown): number {
+export function numVal(v: unknown): number {
   if (typeof v === "number") return v;
   if (v === null || v === undefined) return 0;
   const n = Number(v);
   return isNaN(n) ? 0 : n;
 }
 
-function boolVal(v: unknown): boolean {
+export function boolVal(v: unknown): boolean {
   if (typeof v === "boolean") return v;
   if (v === 1 || v === "T" || v === "t" || v === "Y" || v === "y") return true;
   return false;
 }
 
-function buildArcaTestata(row: Record<string, unknown>): ArcaTestata {
+export function buildArcaTestata(row: Record<string, unknown>): ArcaTestata {
   return {
     ID: numVal(row.ID),
     ESERCIZIO: trimStr(row.ESERCIZIO),
@@ -260,7 +260,7 @@ function buildArcaTestata(row: Record<string, unknown>): ArcaTestata {
   };
 }
 
-function buildArcaRiga(row: Record<string, unknown>): ArcaRiga {
+export function buildArcaRiga(row: Record<string, unknown>): ArcaRiga {
   return {
     ID: numVal(row.ID),
     ID_TESTA: numVal(row.ID_TESTA),
@@ -396,7 +396,7 @@ function buildDiscountLookup(usersDb: Database.Database | null, userId: string):
   return map;
 }
 
-function calculateItemRevenue(
+export function calculateItemRevenue(
   priceUnit: number,
   quantity: number,
   rowDiscountPct: number,
