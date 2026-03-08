@@ -1,6 +1,9 @@
 import type { DbPool } from '../../db/pool';
 import * as ordersRepo from '../../db/repositories/orders';
 import type { OperationHandler } from '../operation-processor';
+import { generateArcaData } from '../../services/generate-arca-data';
+import type { GenerateInput } from '../../services/generate-arca-data';
+import { getNextFtNumber } from '../../services/ft-counter';
 
 type SendToVeronaData = {
   orderId: string;
@@ -56,6 +59,55 @@ async function handleSendToVerona(
     'UPDATE agents.order_records SET sent_to_milano_at = $1 WHERE id = $2 AND user_id = $3',
     [sentToMilanoAt, data.orderId, userId],
   );
+
+  onProgress(85, 'Generazione documenti FT');
+
+  const fresis = await pool.query<{
+    id: number;
+    items: GenerateInput['items'];
+    sub_client_codice: string;
+    sub_client_name: string;
+    sub_client_data: GenerateInput['subClientData'];
+    discount_percent: number | null;
+    notes: string | null;
+  }>(
+    `SELECT id, items, sub_client_codice, sub_client_name, sub_client_data,
+            discount_percent, notes
+     FROM agents.fresis_history
+     WHERE user_id = $1
+       AND archibald_order_id = $2
+       AND arca_data IS NULL
+       AND source = 'app'`,
+    [userId, data.orderId],
+  );
+
+  const esercizio = String(new Date().getFullYear());
+
+  for (const row of fresis.rows) {
+    const ftNumber = await getNextFtNumber(pool, userId, esercizio);
+
+    const input: GenerateInput = {
+      subClientCodice: row.sub_client_codice,
+      subClientName: row.sub_client_name,
+      subClientData: row.sub_client_data,
+      items: row.items,
+      discountPercent: row.discount_percent ?? undefined,
+      notes: row.notes ?? undefined,
+    };
+
+    const arcaData = generateArcaData(input, ftNumber, esercizio);
+    const invoiceNumber = `FT ${ftNumber}/${esercizio}`;
+
+    await pool.query(
+      `UPDATE agents.fresis_history
+       SET arca_data = $1, invoice_number = $2, current_state = 'inviato_milano',
+           state_updated_at = NOW(), updated_at = NOW()
+       WHERE id = $3 AND user_id = $4`,
+      [JSON.stringify(arcaData), invoiceNumber, row.id, userId],
+    );
+  }
+
+  onProgress(95, 'Documenti FT generati');
 
   onProgress(100, 'Invio completato');
 
