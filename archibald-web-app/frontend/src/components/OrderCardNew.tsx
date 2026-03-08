@@ -20,7 +20,7 @@ import { archibaldLineAmount } from "../utils/order-calculations";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { OrderNotes } from "./OrderNotes";
-import { TrackingProgressBar, getTrackingSteps, getDayCount } from "./TrackingProgressBar";
+import { TrackingDotBar } from "./TrackingProgressBar";
 import { TrackingTimeline } from "./TrackingTimeline";
 
 interface OrderCardProps {
@@ -3912,21 +3912,9 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
-            {order.trackingStatus && order.trackingEvents && order.trackingEvents.length > 0 && !expanded && (() => {
-                const destCountry = (order.trackingDestination || "").split(", ").pop() || "IT";
-                const steps = getTrackingSteps(order.trackingEvents, destCountry);
-                const dayCount = getDayCount(order.trackingEvents);
-                return (
-                  <TrackingProgressBar
-                    steps={steps}
-                    borderColor={orderStatusStyle.borderColor}
-                    origin={order.trackingOrigin || ""}
-                    destination={order.trackingDestination || ""}
-                    dayCount={dayCount}
-                    delivered={order.trackingStatus === 'delivered'}
-                  />
-                );
-              })()}
+            {order.trackingStatus && order.trackingEvents && order.trackingEvents.length > 0 && !expanded && (
+              <TrackingDotBar order={order} borderColor={orderStatusStyle.borderColor} />
+            )}
 
             {/* Residuo Finanziario (used as order notes) */}
             {order.remainingSalesFinancial && (
@@ -3949,134 +3937,60 @@ export function OrderCardNew({
               </div>
             )}
 
-            <div style={{ marginBottom: "4px" }}>
-              <span
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  color: "#333",
-                }}
-              >
-                <HighlightText text={order.total || ""} query={searchQuery} />
-              </span>
+            <div style={{ marginBottom: "8px" }}>
               {(() => {
+                const isPaid = order.invoiceNumber && (order.invoiceClosed === true ||
+                  parseFloat((order.invoiceRemainingAmount || "0").replace(/\./g, "").replace(",", ".")) <= 0);
+
+                if (isPaid) {
+                  return (
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#2e7d32" }}>
+                        ✅ Pagato{order.invoiceLastSettlementDate ? `: ${formatDate(order.invoiceLastSettlementDate)}` : order.invoiceClosedDate ? `: ${formatDate(order.invoiceClosedDate)}` : ""}
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#666", marginTop: "2px" }}>
+                        {order.invoiceNumber} • {order.invoiceAmount ? `€${order.invoiceAmount}` : ""}
+                      </div>
+                    </div>
+                  );
+                }
+
                 const parsedTotalWithVat = order.totalWithVat
                   ? parseFloat(order.totalWithVat)
                   : undefined;
                 const totalWithVat =
                   articlesTotals.totalWithVat ??
-                  (parsedTotalWithVat !== undefined && !isNaN(parsedTotalWithVat)
+                  (parsedTotalWithVat !== undefined && !isNaN(parsedTotalWithVat) && parsedTotalWithVat !== 0
                     ? parsedTotalWithVat
                     : undefined);
 
-                if (totalWithVat && totalWithVat !== 0) {
-                  return (
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        color: "#666",
-                        marginTop: "2px",
-                      }}
-                    >
-                      {formatCurrency(totalWithVat)} (IVA incl.)
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              {order.invoiceNumber &&
-                (() => {
-                  const remaining = parseFloat(
-                    (order.invoiceRemainingAmount || "0")
-                      .replace(/\./g, "")
-                      .replace(",", "."),
-                  );
-                  const isPaid = order.invoiceClosed === true || remaining <= 0;
-                  const daysPastDue = order.invoiceDaysPastDue
-                    ? parseInt(order.invoiceDaysPastDue, 10)
-                    : null;
+                const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
 
-                  return (
-                    <div style={{ marginTop: "4px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {isPaid ? (
-                          <span
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              padding: "3px 10px",
-                              borderRadius: "6px",
-                              backgroundColor: "#e8f5e9",
-                              color: "#2e7d32",
-                            }}
-                          >
-                            Pagata
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              padding: "3px 10px",
-                              borderRadius: "6px",
-                              backgroundColor: "#fff3e0",
-                              color: "#e65100",
-                            }}
-                          >
-                            Saldo: {formatCurrency(remaining)}
-                          </span>
-                        )}
-                        {order.invoiceDueDate && (
-                          <span style={{ fontSize: "12px", color: "#666" }}>
-                            Scad: {formatDate(order.invoiceDueDate)}
-                          </span>
-                        )}
-                      </div>
-                      {isPaid ? (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            color: "#2e7d32",
-                            marginTop: "4px",
-                          }}
-                        >
-                          ✅ Pagata
-                        </div>
-                      ) : daysPastDue !== null && daysPastDue !== 0 ? (
-                        daysPastDue < 0 ? (
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              color: "#d32f2f",
-                              marginTop: "4px",
-                            }}
-                          >
-                            ⚠️ {Math.abs(daysPastDue)} giorni fuori scadenza
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#2e7d32",
-                              marginTop: "4px",
-                            }}
-                          >
-                            {daysPastDue} giorni rimanenti
-                          </div>
-                        )
-                      ) : null}
+                return (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                      <span style={{ fontSize: "18px", fontWeight: 700, color: "#333" }}>
+                        {totalWithVat ? `${formatCurrency(totalWithVat)} (IVA incl.)` : (order.total || "")}
+                      </span>
+                      {order.invoiceNumber && order.invoiceDueDate && (
+                        <span style={{ fontSize: "12px", color: "#666" }}>
+                          Scad: {formatDate(order.invoiceDueDate)}
+                          {daysPastDue !== null && daysPastDue !== 0 && (
+                            <span style={{ marginLeft: "6px", fontWeight: 600, color: daysPastDue < 0 ? "#d32f2f" : "#2e7d32" }}>
+                              {daysPastDue < 0 ? `⚠️ ${Math.abs(daysPastDue)} gg fuori scadenza` : `${daysPastDue} gg rimanenti`}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
-                  );
-                })()}
+                    {totalWithVat && order.total && (
+                      <div style={{ fontSize: "13px", color: "#888", marginTop: "2px" }}>
+                        {order.total}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Buttons Row: Download (left) + Actions (right) */}
