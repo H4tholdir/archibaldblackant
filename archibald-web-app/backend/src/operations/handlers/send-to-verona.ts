@@ -109,6 +109,15 @@ async function handleSendToVerona(
 
   onProgress(95, 'Documenti FT generati');
 
+  await pool.query(
+    `UPDATE agents.fresis_history
+     SET current_state = 'inviato_milano', state_updated_at = NOW(), updated_at = NOW()
+     WHERE user_id = $1
+       AND merged_into_order_id = $2
+       AND source = 'app'`,
+    [userId, data.orderId],
+  );
+
   onProgress(100, 'Invio completato');
 
   return { success: true, message: result.message, sentToMilanoAt };

@@ -9,6 +9,7 @@ function createMockPool(): DbPool {
     .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT order_state_history
     .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_milano_at
     .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history (no records)
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE merged siblings
     .mockResolvedValue({ rows: [], rowCount: 0 });
   return {
     query: queryMock,
@@ -52,19 +53,20 @@ describe('handleSendToVerona', () => {
     expect(stateUpdateCall![1]).toEqual(['inviato_milano', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes 5 DB queries for audit trail and fresis lookup', async () => {
+  test('executes 6 DB queries for audit trail, fresis lookup, and sibling propagation', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
     expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_milano_at');
     expect(calls[4][0]).toContain('SELECT id, items');
+    expect(calls[5][0]).toContain('merged_into_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
@@ -125,7 +127,8 @@ describe('handleSendToVerona', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_milano_at
       .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 }) // SELECT fresis_history
       .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 }) // getNextFtNumber
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE fresis_history
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE fresis_history
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // UPDATE merged siblings
 
     const pool: DbPool = {
       query: queryMock,
@@ -138,7 +141,7 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = queryMock.mock.calls;
-    expect(calls).toHaveLength(7);
+    expect(calls).toHaveLength(8);
 
     const ftCounterCall = calls[5];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
@@ -159,6 +162,20 @@ describe('handleSendToVerona', () => {
     expect(updateParams[1]).toBe(`FT 7/${esercizio}`);
     expect(updateParams[2]).toBe(42);
     expect(updateParams[3]).toBe('user-1');
+  });
+
+  test('propagates inviato_milano state to merged sibling fresis_history records', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const siblingUpdate = calls[5];
+    expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
+    expect(siblingUpdate[0]).toContain('merged_into_order_id');
+    expect(siblingUpdate[0]).toContain("current_state = 'inviato_milano'");
+    expect(siblingUpdate[1]).toEqual(['user-1', 'ORD-001']);
   });
 
   test('reports progress at 100 on completion', async () => {
