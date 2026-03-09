@@ -1263,6 +1263,94 @@ async function getOrderHistoryByCustomer(
   return Array.from(ordersMap.values());
 }
 
+type WarehousePickupArticle = {
+  id: number;
+  articleCode: string;
+  articleDescription: string | null;
+  warehouseQuantity: number;
+  warehouseSources: Array<{ boxName: string; quantity: number }>;
+};
+
+type WarehousePickupOrder = {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  creationDate: string;
+  articles: WarehousePickupArticle[];
+};
+
+type WarehousePickupRow = {
+  order_id: string;
+  order_number: string;
+  customer_name: string;
+  creation_date: string;
+  article_id: number;
+  article_code: string;
+  article_description: string | null;
+  warehouse_quantity: number;
+  warehouse_sources_json: string | null;
+};
+
+async function getWarehousePickupsByDate(
+  pool: DbPool,
+  userId: string,
+  date: string,
+): Promise<WarehousePickupOrder[]> {
+  const { rows } = await pool.query<WarehousePickupRow>(
+    `SELECT
+       o.id AS order_id,
+       o.order_number,
+       o.customer_name,
+       o.creation_date,
+       a.id AS article_id,
+       a.article_code,
+       a.article_description,
+       a.warehouse_quantity,
+       a.warehouse_sources_json
+     FROM agents.order_records o
+     JOIN agents.order_articles a
+       ON a.order_id = o.id AND a.user_id = o.user_id
+     WHERE o.user_id = $1
+       AND DATE(o.creation_date) = $2::date
+       AND a.warehouse_quantity > 0
+     ORDER BY o.creation_date ASC, o.order_number ASC, a.id ASC`,
+    [userId, date],
+  );
+
+  const ordersMap = new Map<string, WarehousePickupOrder>();
+  for (const row of rows) {
+    let order = ordersMap.get(row.order_id);
+    if (!order) {
+      order = {
+        orderId: row.order_id,
+        orderNumber: row.order_number,
+        customerName: row.customer_name,
+        creationDate: row.creation_date,
+        articles: [],
+      };
+      ordersMap.set(row.order_id, order);
+    }
+    let sources: Array<{ boxName: string; quantity: number }> = [];
+    if (row.warehouse_sources_json) {
+      try {
+        const parsed = JSON.parse(row.warehouse_sources_json);
+        sources = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        sources = [];
+      }
+    }
+    order.articles.push({
+      id: row.article_id,
+      articleCode: row.article_code,
+      articleDescription: row.article_description,
+      warehouseQuantity: row.warehouse_quantity,
+      warehouseSources: sources,
+    });
+  }
+
+  return Array.from(ordersMap.values());
+}
+
 export {
   getOrderById,
   getOrderByNumber,
@@ -1285,6 +1373,7 @@ export {
   getOrderNumbersByIds,
   getOrderHistoryByCustomer,
   getOrdersNeedingArticleSync,
+  getWarehousePickupsByDate,
   mapRowToOrder,
   mapRowToArticle,
   mapRowToStateHistory,
@@ -1306,4 +1395,6 @@ export {
   type OrderNumberMapping,
   type CustomerHistoryOrder,
   type CustomerHistoryItem,
+  type WarehousePickupArticle,
+  type WarehousePickupOrder,
 };

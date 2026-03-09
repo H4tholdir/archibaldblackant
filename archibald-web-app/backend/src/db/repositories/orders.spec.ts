@@ -822,3 +822,101 @@ describe('getOrderHistoryByCustomer', () => {
     expect(sql).toContain('ABS(');
   });
 });
+
+describe('getWarehousePickupsByDate', () => {
+  const userId = 'user-1';
+  const date = '2026-03-09';
+
+  test('returns orders with warehouse articles for the given date', async () => {
+    const pool = createMockPool(async (text, params) => {
+      if (String(text).includes('warehouse_quantity')) {
+        return {
+          rows: [
+            {
+              order_id: 'ord-1',
+              order_number: 'ORD/2026/00142',
+              customer_name: 'Rossi Mario',
+              creation_date: '2026-03-09T08:45:00Z',
+              article_id: 10,
+              article_code: 'H379.104.014',
+              article_description: 'Rubinetto 3/4"',
+              warehouse_quantity: 3,
+              warehouse_sources_json: '[{"boxName":"BOX-A1","quantity":3}]',
+            },
+          ],
+          rowCount: 1,
+        } as any;
+      }
+      return { rows: [], rowCount: 0 } as any;
+    });
+
+    const { getWarehousePickupsByDate } = await import('./orders');
+    const result = await getWarehousePickupsByDate(pool, userId, date);
+
+    expect(result).toEqual([
+      {
+        orderId: 'ord-1',
+        orderNumber: 'ORD/2026/00142',
+        customerName: 'Rossi Mario',
+        creationDate: '2026-03-09T08:45:00Z',
+        articles: [
+          {
+            id: 10,
+            articleCode: 'H379.104.014',
+            articleDescription: 'Rubinetto 3/4"',
+            warehouseQuantity: 3,
+            warehouseSources: [{ boxName: 'BOX-A1', quantity: 3 }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  test('returns empty array when no warehouse articles for the date', async () => {
+    const pool = createMockPool(async () => ({ rows: [], rowCount: 0 } as any));
+    const { getWarehousePickupsByDate } = await import('./orders');
+    const result = await getWarehousePickupsByDate(pool, userId, date);
+    expect(result).toEqual([]);
+  });
+
+  test('groups multiple articles under the same order', async () => {
+    const pool = createMockPool(async (text) => {
+      if (String(text).includes('warehouse_quantity')) {
+        return {
+          rows: [
+            {
+              order_id: 'ord-1', order_number: 'ORD/2026/00142',
+              customer_name: 'Rossi', creation_date: '2026-03-09T08:45:00Z',
+              article_id: 10, article_code: 'ART-A', article_description: 'Desc A',
+              warehouse_quantity: 2, warehouse_sources_json: null,
+            },
+            {
+              order_id: 'ord-1', order_number: 'ORD/2026/00142',
+              customer_name: 'Rossi', creation_date: '2026-03-09T08:45:00Z',
+              article_id: 11, article_code: 'ART-B', article_description: 'Desc B',
+              warehouse_quantity: 5, warehouse_sources_json: null,
+            },
+          ],
+          rowCount: 2,
+        } as any;
+      }
+      return { rows: [], rowCount: 0 } as any;
+    });
+
+    const { getWarehousePickupsByDate } = await import('./orders');
+    const result = await getWarehousePickupsByDate(pool, userId, date);
+
+    expect(result).toEqual([
+      {
+        orderId: 'ord-1',
+        orderNumber: 'ORD/2026/00142',
+        customerName: 'Rossi',
+        creationDate: '2026-03-09T08:45:00Z',
+        articles: [
+          { id: 10, articleCode: 'ART-A', articleDescription: 'Desc A', warehouseQuantity: 2, warehouseSources: [] },
+          { id: 11, articleCode: 'ART-B', articleDescription: 'Desc B', warehouseQuantity: 5, warehouseSources: [] },
+        ],
+      },
+    ]);
+  });
+});
