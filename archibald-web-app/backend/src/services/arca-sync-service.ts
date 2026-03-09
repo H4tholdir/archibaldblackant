@@ -142,7 +142,7 @@ function buildExecScriptDoctes(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
-  lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED"');
+  lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED AGAIN ALIAS _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
   for (const f of DOCTES_FIELDS) {
@@ -155,7 +155,7 @@ function buildExecScriptDoctes(
       lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('prgFile.WriteLine "USE IN SELECT([doctes])"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
   lines.push("prgFile.Close");
   lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
   lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
@@ -167,7 +167,7 @@ function buildExecScriptDocrig(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
-  lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED"');
+  lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED AGAIN ALIAS _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
   lines.push('prgFile.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
@@ -182,7 +182,7 @@ function buildExecScriptDocrig(
       lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('prgFile.WriteLine "USE IN SELECT([docrig])"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
   lines.push("prgFile.Close");
   lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
   lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
