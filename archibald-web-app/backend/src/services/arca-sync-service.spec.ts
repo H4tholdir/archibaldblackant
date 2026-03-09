@@ -460,7 +460,7 @@ describe("generateVbsScript", () => {
     expect(result.bat).toContain("sync_arca.vbs");
   });
 
-  test("uses CDate format for DATADOC", () => {
+  test("uses DateSerial for DATADOC (locale-independent)", () => {
     const arcaData = makeArcaData({
       testata: { DATADOC: "2026-01-15" },
     });
@@ -470,7 +470,7 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain('CDate("2026-01-15")');
+    expect(result.vbs).toContain("DateSerial(2026, 1, 15)");
   });
 
   test("handles multiple records generating sequential AddNew calls", () => {

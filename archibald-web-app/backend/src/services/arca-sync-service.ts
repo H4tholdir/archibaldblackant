@@ -120,7 +120,11 @@ function formatVbsAssignment(
     if (value === null || value === undefined || !value || String(value) === "null") {
       return `${rsVar}("${fieldName}") = Empty`;
     }
-    return `${rsVar}("${fieldName}") = CDate("${String(value)}")`;
+    const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (parts) {
+      return `${rsVar}("${fieldName}") = DateSerial(${parseInt(parts[1], 10)}, ${parseInt(parts[2], 10)}, ${parseInt(parts[3], 10)})`;
+    }
+    return `${rsVar}("${fieldName}") = DateSerial(${String(value).slice(0, 4)}, ${String(value).slice(4, 6)}, ${String(value).slice(6, 8)})`;
   }
   if (NUMERIC_FIELDS.has(fieldName)) {
     return `${rsVar}("${fieldName}") = ${value ?? 0}`;
