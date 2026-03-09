@@ -482,6 +482,7 @@ function createApp(deps: AppDeps): Express {
     getOrderNumbersByIds: (userId, orderIds) => ordersRepo.getOrderNumbersByIds(pool, userId, orderIds),
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
     getVerificationSnapshot: (orderId, userId) => getOrderVerificationSnapshot(pool, orderId, userId),
+    getWarehousePickupsByDate: (userId, date) => ordersRepo.getWarehousePickupsByDate(pool, userId, date),
   }));
 
   app.use('/api/orders', authenticateJWT, createOrderVerificationRouter({ pool }));

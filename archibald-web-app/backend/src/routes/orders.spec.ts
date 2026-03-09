@@ -2,6 +2,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createOrdersRouter, type OrdersRouterDeps } from './orders';
+import type { WarehousePickupOrder } from '../db/repositories/orders';
 
 const mockOrder = {
   id: 'ORD-001',
@@ -137,6 +138,7 @@ function createMockDeps(): OrdersRouterDeps {
       { id: 'ORD-001', orderNumber: 'SO-12345' },
     ]),
     getOrderHistoryByCustomer: vi.fn().mockResolvedValue([]),
+    getWarehousePickupsByDate: vi.fn<[string, string], Promise<WarehousePickupOrder[]>>().mockResolvedValue([]),
   };
 }
 
@@ -418,6 +420,54 @@ describe('createOrdersRouter', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toContain('Failed to sync order states');
+    });
+  });
+
+  describe('GET /api/orders/warehouse-pickups', () => {
+    const mockPickup: WarehousePickupOrder = {
+      orderId: 'ord-1',
+      orderNumber: 'ORD/2026/00142',
+      customerName: 'Rossi Mario',
+      creationDate: '2026-03-09T08:45:00Z',
+      articles: [
+        {
+          id: 10,
+          articleCode: 'H379.104.014',
+          articleDescription: 'Rubinetto 3/4"',
+          warehouseQuantity: 3,
+          warehouseSources: [{ boxName: 'BOX-A1', quantity: 3 }],
+        },
+      ],
+    };
+
+    test('returns 400 when date query param is missing', async () => {
+      const res = await request(app).get('/api/orders/warehouse-pickups');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Parametro date obbligatorio (YYYY-MM-DD)' });
+    });
+
+    test('returns 400 when date format is invalid', async () => {
+      const res = await request(app).get('/api/orders/warehouse-pickups?date=not-a-date');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Formato data non valido. Usa YYYY-MM-DD' });
+    });
+
+    test('returns pickup orders for valid date', async () => {
+      vi.mocked(deps.getWarehousePickupsByDate!).mockResolvedValue([mockPickup]);
+
+      const res = await request(app).get('/api/orders/warehouse-pickups?date=2026-03-09');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: [mockPickup] });
+    });
+
+    test('returns empty array when no pickups for the date', async () => {
+      vi.mocked(deps.getWarehousePickupsByDate!).mockResolvedValue([]);
+
+      const res = await request(app).get('/api/orders/warehouse-pickups?date=2026-03-09');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: [] });
     });
   });
 });

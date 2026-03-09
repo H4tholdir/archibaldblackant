@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
-import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder } from '../db/repositories/orders';
+import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder, WarehousePickupOrder } from '../db/repositories/orders';
 import type { OrderVerificationSnapshot } from '../db/repositories/order-verification';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
@@ -42,6 +42,7 @@ type OrdersRouterDeps = {
   getOrderNumbersByIds: (userId: string, orderIds: string[]) => Promise<OrderNumberMapping[]>;
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
   getVerificationSnapshot?: (orderId: string, userId: string) => Promise<OrderVerificationSnapshot | null>;
+  getWarehousePickupsByDate?: (userId: string, date: string) => Promise<WarehousePickupOrder[]>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
@@ -49,6 +50,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     queue, getOrdersByUser, countOrders, getOrderById, getOrderArticles,
     getStateHistory, getLastSalesForArticle, getOrderNumbersByIds,
     getOrderHistoryByCustomer, getVerificationSnapshot,
+    getWarehousePickupsByDate,
   } = deps;
   const router = Router();
 
@@ -171,6 +173,27 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     } catch (error) {
       logger.error('Error enqueuing reset-and-sync', { error });
       res.status(500).json({ success: false, error: 'Errore avvio reset e sincronizzazione ordini' });
+    }
+  });
+
+  router.get('/warehouse-pickups', async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { date } = req.query;
+
+      if (!date || typeof date !== 'string') {
+        return res.status(400).json({ success: false, error: 'Parametro date obbligatorio (YYYY-MM-DD)' });
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ success: false, error: 'Formato data non valido. Usa YYYY-MM-DD' });
+      }
+
+      const pickups = await getWarehousePickupsByDate!(userId, date);
+      res.json({ success: true, data: pickups });
+    } catch (error) {
+      logger.error('Error fetching warehouse pickups', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero prelievi magazzino' });
     }
   });
 
