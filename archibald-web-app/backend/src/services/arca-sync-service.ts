@@ -150,7 +150,10 @@ function buildExecScriptDoctes(
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
   for (const f of DOCTES_FIELDS) {
-    const raw = testata[f as keyof typeof testata];
+    let raw = testata[f as keyof typeof testata];
+    if (f === "CODCNT" && (!raw || String(raw).trim() === "")) {
+      raw = "001" as typeof raw;
+    }
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
       lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
