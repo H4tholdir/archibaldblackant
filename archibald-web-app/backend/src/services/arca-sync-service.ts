@@ -107,20 +107,20 @@ function formatVbsValue(
   fieldName: string,
   value: string | number | boolean | null,
 ): string {
-  if (value === null || value === undefined) {
-    return "NULL";
-  }
   if (BOOLEAN_FIELDS.has(fieldName)) {
     return value ? ".T." : ".F.";
   }
   if (DATE_FIELDS.has(fieldName)) {
+    if (value === null || value === undefined) return "CTOD('')";
     const dateStr = String(value);
-    if (!dateStr || dateStr === "null") return "NULL";
+    if (!dateStr || dateStr === "null") return "CTOD('')";
     return `{d '${dateStr}'}`;
   }
   if (NUMERIC_FIELDS.has(fieldName)) {
+    if (value === null || value === undefined) return "0";
     return String(value);
   }
+  if (value === null || value === undefined) return "''";
   return `'${escapeVbsString(String(value))}'`;
 }
 
