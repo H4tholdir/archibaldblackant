@@ -397,15 +397,15 @@ describe("generateVbsScript", () => {
     const result = generateVbsScript(records);
 
     expect(result.vbs).toContain("Provider=vfpoledb.1");
-    expect(result.vbs).toContain("INSERT INTO doctes");
-    expect(result.vbs).toContain("INSERT INTO docrig");
+    expect(result.vbs).toContain("rsTes.AddNew");
+    expect(result.vbs).toContain("rsRig.AddNew");
     expect(result.vbs).toContain("WScript.ScriptFullName");
-    expect(result.vbs).toContain("ESERCIZIO");
-    expect(result.vbs).toContain("ID_TESTA");
+    expect(result.vbs).toContain('("ESERCIZIO")');
+    expect(result.vbs).toContain('("ID_TESTA")');
     expect(result.vbs).toContain("SELECT MAX(ID) FROM doctes");
   });
 
-  test("escapes single quotes in string values", () => {
+  test("preserves single quotes in VBS double-quoted strings", () => {
     const arcaData = makeArcaData({
       testata: { NOTE: "L'ordine dell'azienda" },
       righe: [{ DESCRIZION: "Tubo d'acciaio" }],
@@ -416,8 +416,8 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain("L''ordine dell''azienda");
-    expect(result.vbs).toContain("Tubo d''acciaio");
+    expect(result.vbs).toContain("L'ordine dell'azienda");
+    expect(result.vbs).toContain("Tubo d'acciaio");
   });
 
   test("generates file watcher scripts", () => {
@@ -460,7 +460,7 @@ describe("generateVbsScript", () => {
     expect(result.bat).toContain("sync_arca.vbs");
   });
 
-  test("uses date literal format for DATADOC", () => {
+  test("uses CDate format for DATADOC", () => {
     const arcaData = makeArcaData({
       testata: { DATADOC: "2026-01-15" },
     });
@@ -470,10 +470,10 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain("{d '2026-01-15'}");
+    expect(result.vbs).toContain('CDate("2026-01-15")');
   });
 
-  test("handles multiple records generating sequential inserts", () => {
+  test("handles multiple records generating sequential AddNew calls", () => {
     const arcaData1 = makeArcaData({
       testata: { NUMERODOC: "     1", CODICECF: "C00100" },
     });
@@ -491,15 +491,15 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    const doctesInsertCount = (
-      result.vbs.match(/INSERT INTO doctes/g) || []
+    const doctesAddNewCount = (
+      result.vbs.match(/rsTes\.AddNew/g) || []
     ).length;
-    const docrigInsertCount = (
-      result.vbs.match(/INSERT INTO docrig/g) || []
+    const docrigAddNewCount = (
+      result.vbs.match(/rsRig\.AddNew/g) || []
     ).length;
 
-    expect(doctesInsertCount).toBe(2);
-    expect(docrigInsertCount).toBe(3);
+    expect(doctesAddNewCount).toBe(2);
+    expect(docrigAddNewCount).toBe(3);
   });
 
   test("pads NUMERODOC to 6 chars right-aligned", () => {
@@ -512,7 +512,7 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain("'     1'");
+    expect(result.vbs).toContain('"     1"');
   });
 });
 
@@ -653,7 +653,7 @@ function createMockPool(overrides?: {
 
       expect(result.exported).toBe(1);
       expect(result.vbsScript).not.toBeNull();
-      expect(result.vbsScript!.vbs).toContain("INSERT INTO doctes");
+      expect(result.vbsScript!.vbs).toContain("rsTes.AddNew");
       expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
     },
     60000,

@@ -98,35 +98,35 @@ const BOOLEAN_FIELDS = new Set([
 ]);
 
 function escapeVbsString(value: string): string {
-  return value.replace(/[\r\n]/g, ' ').replace(/"/g, ' ').replace(/'/g, "''");
+  return value.replace(/[\r\n]/g, " ").replace(/"/g, '""');
 }
 
 function sanitizeVbsComment(value: string): string {
   return value.replace(/[\r\n]/g, ' ');
 }
 
-function formatVbsValue(
+function formatVbsAssignment(
+  rsVar: string,
   fieldName: string,
   value: string | number | boolean | null,
 ): string {
   if (BOOLEAN_FIELDS.has(fieldName)) {
-    return value ? ".T." : ".F.";
+    return `${rsVar}("${fieldName}") = ${value ? "True" : "False"}`;
   }
   if (DATETIME_FIELDS.has(fieldName)) {
-    return "CTOT('')";
+    return `${rsVar}("${fieldName}") = Empty`;
   }
   if (DATE_FIELDS.has(fieldName)) {
-    if (value === null || value === undefined) return "CTOD('')";
-    const dateStr = String(value);
-    if (!dateStr || dateStr === "null") return "CTOD('')";
-    return `{d '${dateStr}'}`;
+    if (value === null || value === undefined || !value || String(value) === "null") {
+      return `${rsVar}("${fieldName}") = Empty`;
+    }
+    return `${rsVar}("${fieldName}") = CDate("${String(value)}")`;
   }
   if (NUMERIC_FIELDS.has(fieldName)) {
-    if (value === null || value === undefined) return "0";
-    return String(value);
+    return `${rsVar}("${fieldName}") = ${value ?? 0}`;
   }
-  if (value === null || value === undefined) return "''";
-  return `'${escapeVbsString(String(value))}'`;
+  const strVal = escapeVbsString(String(value ?? ""));
+  return `${rsVar}("${fieldName}") = "${strVal}"`;
 }
 
 function padNumerodoc(numerodoc: string): string {
@@ -134,33 +134,50 @@ function padNumerodoc(numerodoc: string): string {
   return trimmed.padStart(6, " ");
 }
 
-function buildInsertDoctes(
+function buildRecordsetDoctes(
   testata: ArcaData["testata"],
-): string {
-  const fields = "ID, " + DOCTES_FIELDS.join(", ");
-  const values = DOCTES_FIELDS.map((f) => {
+): string[] {
+  const lines: string[] = [];
+  lines.push('Set rsTes = CreateObject("ADODB.Recordset")');
+  lines.push('rsTes.Open "SELECT * FROM doctes WHERE .F.", conn, 3, 3');
+  lines.push("rsTes.AddNew");
+  lines.push('rsTes("ID") = doctesNextId');
+  for (const f of DOCTES_FIELDS) {
     const raw = testata[f as keyof typeof testata];
     if (f === "NUMERODOC") {
-      return `'${escapeVbsString(padNumerodoc(String(raw)))}'`;
+      lines.push(`rsTes("NUMERODOC") = "${escapeVbsString(padNumerodoc(String(raw)))}"`);
+    } else {
+      lines.push(formatVbsAssignment("rsTes", f, raw as string | number | boolean | null));
     }
-    return formatVbsValue(f, raw as string | number | boolean | null);
-  }).join(", ");
-  return `conn.Execute "INSERT INTO doctes (${fields}) VALUES (" & doctesNextId & ", ${values})"`;
+  }
+  lines.push("rsTes.Update");
+  lines.push("rsTes.Close");
+  return lines;
 }
 
-function buildInsertDocrig(
+function buildRecordsetDocrig(
   riga: ArcaData["righe"][number],
-): string {
-  const fields = "ID, " + DOCRIG_FIELDS.join(", ");
-  const values = DOCRIG_FIELDS.map((f) => {
-    if (f === "ID_TESTA") return "doctesNextId";
+): string[] {
+  const lines: string[] = [];
+  lines.push('Set rsRig = CreateObject("ADODB.Recordset")');
+  lines.push('rsRig.Open "SELECT * FROM docrig WHERE .F.", conn, 3, 3');
+  lines.push("rsRig.AddNew");
+  lines.push('rsRig("ID") = docrigNextId');
+  for (const f of DOCRIG_FIELDS) {
+    if (f === "ID_TESTA") {
+      lines.push('rsRig("ID_TESTA") = doctesNextId');
+      continue;
+    }
     const raw = riga[f as keyof typeof riga];
     if (f === "NUMERODOC") {
-      return `'${escapeVbsString(padNumerodoc(String(raw)))}'`;
+      lines.push(`rsRig("NUMERODOC") = "${escapeVbsString(padNumerodoc(String(raw)))}"`);
+    } else {
+      lines.push(formatVbsAssignment("rsRig", f, raw as string | number | boolean | null));
     }
-    return formatVbsValue(f, raw as string | number | boolean | null);
-  }).join(", ");
-  return `conn.Execute "INSERT INTO docrig (${fields}) VALUES (" & docrigNextId & ", ${values})"`;
+  }
+  lines.push("rsRig.Update");
+  lines.push("rsRig.Close");
+  return lines;
 }
 
 
@@ -169,7 +186,7 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
   lines.push("On Error Resume Next");
   lines.push("");
-  lines.push("Dim fso, logFile, conn, rs, errCount, okCount");
+  lines.push("Dim fso, logFile, conn, rs, rsTes, rsRig, errCount, okCount");
   lines.push("Dim doctesNextId, docrigNextId");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
@@ -223,7 +240,9 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
     lines.push("doctesNextId = doctesNextId + 1");
-    lines.push(buildInsertDoctes(testata));
+    for (const l of buildRecordsetDoctes(testata)) {
+      lines.push(l);
+    }
     lines.push("");
     lines.push("If Err.Number <> 0 Then");
     lines.push(
@@ -235,7 +254,9 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
     for (const riga of righe) {
       lines.push("  docrigNextId = docrigNextId + 1");
-      lines.push(`  ${buildInsertDocrig(riga)}`);
+      for (const l of buildRecordsetDocrig(riga)) {
+        lines.push("  " + l);
+      }
       lines.push("  If Err.Number <> 0 Then");
       lines.push(
         `    logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
