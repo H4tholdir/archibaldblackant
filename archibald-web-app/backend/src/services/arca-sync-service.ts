@@ -342,15 +342,22 @@ function generateWatcherVbs(): string {
 }
 
 function generateWatcherSetupBat(): string {
+  // Creates a tiny boot wrapper in Startup that launches the real watcher
+  // from the COOP16 folder (%~dp0). This ensures WScript.ScriptFullName
+  // in arca_watcher.vbs resolves to the COOP16 directory, not Startup.
   const lines = [
     "@echo off",
     'set STARTUP=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup',
-    'copy /Y "%~dp0arca_watcher.vbs" "%STARTUP%\\arca_watcher.vbs"',
+    'set COOP16=%~dp0',
+    'del /F /Q "%STARTUP%\\arca_watcher.vbs" 2>nul',
+    'echo Dim sh > "%STARTUP%\\arca_watcher_boot.vbs"',
+    'echo Set sh = CreateObject("WScript.Shell") >> "%STARTUP%\\arca_watcher_boot.vbs"',
+    'echo sh.Run "C:\\Windows\\SysWOW64\\wscript.exe ""%COOP16%arca_watcher.vbs""", 0, False >> "%STARTUP%\\arca_watcher_boot.vbs"',
     "if %ERRORLEVEL% equ 0 (",
     '  echo Watcher installato correttamente nella cartella Startup.',
     '  echo Il watcher si avviera automaticamente al prossimo accesso.',
     ") else (",
-    '  echo ERRORE: impossibile copiare il watcher nella cartella Startup.',
+    '  echo ERRORE: impossibile installare il watcher nella Startup.',
     ")",
     "pause",
   ];

@@ -172,17 +172,6 @@ async function uploadFiles(
   return response.json() as Promise<ArcaSyncResponse>;
 }
 
-async function fileExists(
-  dirHandle: FileSystemDirectoryHandle,
-  name: string,
-): Promise<boolean> {
-  try {
-    await dirHandle.getFileHandle(name);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function writeFile(
   dirHandle: FileSystemDirectoryHandle,
@@ -204,15 +193,8 @@ async function writeVbsFiles(
   await writeFile(dirHandle, 'sync_arca.vbs', vbs.vbs);
   await writeFile(dirHandle, 'sync_arca.bat', vbs.bat);
 
-  const watcherExists = await fileExists(dirHandle, 'arca_watcher.vbs');
-  if (!watcherExists) {
-    await writeFile(dirHandle, 'arca_watcher.vbs', vbs.watcher);
-  }
-
-  const setupExists = await fileExists(dirHandle, 'setup_watcher.bat');
-  if (!setupExists) {
-    await writeFile(dirHandle, 'setup_watcher.bat', vbs.watcherSetup);
-  }
+  await writeFile(dirHandle, 'arca_watcher.vbs', vbs.watcher);
+  await writeFile(dirHandle, 'setup_watcher.bat', vbs.watcherSetup);
 }
 
 export function isFileSystemAccessSupported(): boolean {
