@@ -54,31 +54,15 @@ export default function WarehouseManagementView() {
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: "#f5f5f5",
-        minHeight: "100vh",
-        padding: "20px",
-      }}
-    >
+    <div style={{ minHeight: "100vh", padding: "20px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        {/* Page header */}
-        <div style={{ marginBottom: "20px" }}>
-          <h1 style={{ fontSize: "1.8rem", color: "#1a1a2e", margin: "0 0 6px 0" }}>
-            📦 Gestione Magazzino
-          </h1>
-          <p style={{ color: "#666", margin: 0, fontSize: "14px" }}>
-            Carica e gestisci l'inventario del magazzino.
-          </p>
-        </div>
 
         {/* Action buttons card — solo nel tab Magazzino */}
         {activeTab === "magazzino" && (
           <div
             style={{
-              background: "#fff",
-              border: "1px solid #e0e0e0",
-              borderRadius: "8px",
+              background: "rgba(255,255,255,0.15)",
+              borderRadius: "10px",
               padding: "14px 16px",
               marginBottom: "16px",
               display: "flex",
@@ -90,14 +74,15 @@ export default function WarehouseManagementView() {
             <button
               onClick={() => setShowAddItemModal(true)}
               style={{
-                padding: "10px 16px",
+                padding: "10px 18px",
                 fontSize: "14px",
-                fontWeight: 600,
-                border: "none",
-                borderRadius: "6px",
+                fontWeight: 700,
+                border: "2px solid #4caf50",
+                borderRadius: "8px",
                 backgroundColor: "#4caf50",
                 color: "#fff",
                 cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(76,175,80,0.35)",
               }}
             >
               ➕ Aggiungi Articolo Manuale
@@ -105,14 +90,15 @@ export default function WarehouseManagementView() {
             <button
               onClick={() => setShowBoxManagementModal(true)}
               style={{
-                padding: "10px 16px",
+                padding: "10px 18px",
                 fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #ccc",
-                borderRadius: "6px",
-                backgroundColor: "#fff",
+                fontWeight: 700,
+                border: "2px solid rgba(255,255,255,0.7)",
+                borderRadius: "8px",
+                backgroundColor: "rgba(255,255,255,0.9)",
                 color: "#333",
                 cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
               }}
             >
               📦 Gestione Scatoli
@@ -121,15 +107,16 @@ export default function WarehouseManagementView() {
               onClick={handleClearWarehouse}
               disabled={clearing}
               style={{
-                padding: "10px 16px",
+                padding: "10px 18px",
                 fontSize: "14px",
-                fontWeight: 600,
-                border: "none",
-                borderRadius: "6px",
+                fontWeight: 700,
+                border: "2px solid #d32f2f",
+                borderRadius: "8px",
                 backgroundColor: clearing ? "#ccc" : "#d32f2f",
                 color: "#fff",
                 cursor: clearing ? "not-allowed" : "pointer",
                 opacity: clearing ? 0.6 : 1,
+                boxShadow: clearing ? undefined : "0 2px 6px rgba(211,47,47,0.35)",
               }}
             >
               {clearing ? "Cancellazione..." : "🗑️ Pulisci Magazzino"}
@@ -138,26 +125,43 @@ export default function WarehouseManagementView() {
         )}
 
         {/* Tab navigation */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 0 }}>
-          {(["magazzino", "pickup"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: "11px 22px",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "none",
-                borderRadius: "8px 8px 0 0",
-                cursor: "pointer",
-                background: activeTab === tab ? "#fff" : "rgba(255,255,255,0.35)",
-                color: activeTab === tab ? "#1a1a2e" : "#555",
-                boxShadow: activeTab === tab ? "0 -1px 0 #e0e0e0" : undefined,
-              }}
-            >
-              {tab === "magazzino" ? "📦 Magazzino" : "🛒 Articoli da prendere"}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: "6px", marginBottom: 0 }}>
+          <button
+            onClick={() => setActiveTab("magazzino")}
+            style={{
+              padding: "12px 26px",
+              fontSize: "15px",
+              fontWeight: 700,
+              border: "none",
+              borderRadius: "10px 10px 0 0",
+              cursor: "pointer",
+              background: activeTab === "magazzino" ? "#fff" : "rgba(255,255,255,0.25)",
+              color: activeTab === "magazzino" ? "#1a1a2e" : "rgba(255,255,255,0.9)",
+              boxShadow: activeTab === "magazzino" ? "0 -2px 8px rgba(0,0,0,0.08)" : undefined,
+              letterSpacing: "0.01em",
+            }}
+          >
+            📦 Magazzino
+          </button>
+          <button
+            onClick={() => setActiveTab("pickup")}
+            style={{
+              padding: "12px 26px",
+              fontSize: "15px",
+              fontWeight: 700,
+              border: "none",
+              borderRadius: "10px 10px 0 0",
+              cursor: "pointer",
+              background: activeTab === "pickup"
+                ? "linear-gradient(135deg, #f59e0b, #f97316)"
+                : "rgba(245,158,11,0.22)",
+              color: activeTab === "pickup" ? "#fff" : "rgba(255,255,255,0.9)",
+              boxShadow: activeTab === "pickup" ? "0 -2px 8px rgba(245,158,11,0.4)" : undefined,
+              letterSpacing: "0.01em",
+            }}
+          >
+            🛒 Articoli da prendere
+          </button>
         </div>
 
         {/* Tab content */}
@@ -165,17 +169,31 @@ export default function WarehouseManagementView() {
           style={{
             background: "#fff",
             border: "1px solid #e0e0e0",
-            borderRadius: "0 8px 8px 8px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+            borderRadius: activeTab === "pickup" ? "0 8px 8px 8px" : "0 8px 8px 8px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
           }}
         >
           {activeTab === "magazzino" ? (
             <>
-              <WarehouseUpload />
               <WarehouseInventoryView key={refreshKey} />
+              <WarehouseUpload />
             </>
           ) : (
-            <WarehousePickupList />
+            <>
+              <div
+                style={{
+                  padding: "14px 20px 10px",
+                  borderBottom: "1px solid #fde68a",
+                  background: "linear-gradient(90deg, #fffbeb, #fff)",
+                  borderRadius: "0 8px 0 0",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: "13px", color: "#92400e" }}>
+                  <strong>Cosa serve:</strong> mostra gli articoli da prelevare fisicamente dal magazzino per gli ordini della giornata selezionata — quelli con quantità magazzino &gt; 0. Usa i checkbox per segnare i pezzi già raccolti, poi stampa la lista.
+                </p>
+              </div>
+              <WarehousePickupList />
+            </>
           )}
         </div>
       </div>
@@ -190,12 +208,6 @@ export default function WarehouseManagementView() {
         isOpen={showBoxManagementModal}
         onClose={() => setShowBoxManagementModal(false)}
       />
-
-      <style>{`
-        @media (max-width: 768px) {
-          h1 { font-size: 1.4rem !important; }
-        }
-      `}</style>
     </div>
   );
 }
