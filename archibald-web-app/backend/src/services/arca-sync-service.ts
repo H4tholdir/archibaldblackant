@@ -145,8 +145,8 @@ function buildExecScriptDoctes(
   lines.push('prgFile.WriteLine "IF USED([_ins])"');
   lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
   lines.push('prgFile.WriteLine "ENDIF"');
-  lines.push('prgFile.WriteLine "SET TABLEVALIDATE TO 0"');
   lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
   lines.push('prgFile.WriteLine "SELECT _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
@@ -163,8 +163,8 @@ function buildExecScriptDoctes(
       lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
+  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
   lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
-  lines.push('prgFile.WriteLine "SET TABLEVALIDATE TO 6"');
   lines.push("prgFile.Close");
   lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
   lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
@@ -179,8 +179,8 @@ function buildExecScriptDocrig(
   lines.push('prgFile.WriteLine "IF USED([_ins])"');
   lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
   lines.push('prgFile.WriteLine "ENDIF"');
-  lines.push('prgFile.WriteLine "SET TABLEVALIDATE TO 0"');
   lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
   lines.push('prgFile.WriteLine "SELECT _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
@@ -196,8 +196,8 @@ function buildExecScriptDocrig(
       lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
+  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
   lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
-  lines.push('prgFile.WriteLine "SET TABLEVALIDATE TO 6"');
   lines.push("prgFile.Close");
   lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
   lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
