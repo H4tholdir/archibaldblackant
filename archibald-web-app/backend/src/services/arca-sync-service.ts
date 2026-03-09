@@ -142,7 +142,11 @@ function buildExecScriptDoctes(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "IF USED([_ins])"');
+  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('prgFile.WriteLine "ENDIF"');
   lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "SELECT _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
   for (const f of DOCTES_FIELDS) {
@@ -167,7 +171,11 @@ function buildExecScriptDocrig(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "IF USED([_ins])"');
+  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('prgFile.WriteLine "ENDIF"');
   lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "SELECT _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
   lines.push('prgFile.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
