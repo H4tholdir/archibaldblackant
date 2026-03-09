@@ -373,5 +373,14 @@ describe('createAdminRouter', () => {
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
     });
+
+    test('returns 400 if file has invalid MIME type', async () => {
+      const response = await request(app)
+        .post('/api/admin/import-komet-listino')
+        .attach('file', Buffer.from('not an excel'), { filename: 'data.txt', contentType: 'text/plain' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
   });
 });
