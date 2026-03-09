@@ -97,40 +97,8 @@ const BOOLEAN_FIELDS = new Set([
   "OMIVA", "OMMERCE",
 ]);
 
-function escapeVbsString(value: string): string {
-  return value.replace(/[\r\n]/g, " ").replace(/"/g, '""');
-}
-
 function sanitizeVbsComment(value: string): string {
   return value.replace(/[\r\n]/g, ' ');
-}
-
-function formatVbsAssignment(
-  rsVar: string,
-  fieldName: string,
-  value: string | number | boolean | null,
-): string {
-  if (BOOLEAN_FIELDS.has(fieldName)) {
-    return `${rsVar}("${fieldName}") = ${value ? "True" : "False"}`;
-  }
-  if (DATETIME_FIELDS.has(fieldName)) {
-    return `${rsVar}("${fieldName}") = Empty`;
-  }
-  if (DATE_FIELDS.has(fieldName)) {
-    if (value === null || value === undefined || !value || String(value) === "null") {
-      return `${rsVar}("${fieldName}") = Empty`;
-    }
-    const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (parts) {
-      return `${rsVar}("${fieldName}") = DateSerial(${parseInt(parts[1], 10)}, ${parseInt(parts[2], 10)}, ${parseInt(parts[3], 10)})`;
-    }
-    return `${rsVar}("${fieldName}") = DateSerial(${String(value).slice(0, 4)}, ${String(value).slice(4, 6)}, ${String(value).slice(6, 8)})`;
-  }
-  if (NUMERIC_FIELDS.has(fieldName)) {
-    return `${rsVar}("${fieldName}") = ${value ?? 0}`;
-  }
-  const strVal = escapeVbsString(String(value ?? ""));
-  return `${rsVar}("${fieldName}") = "${strVal}"`;
 }
 
 function padNumerodoc(numerodoc: string): string {
@@ -138,49 +106,80 @@ function padNumerodoc(numerodoc: string): string {
   return trimmed.padStart(6, " ");
 }
 
-function buildRecordsetDoctes(
+function formatVfpLiteral(
+  fieldName: string,
+  value: string | number | boolean | null,
+): string {
+  if (BOOLEAN_FIELDS.has(fieldName)) {
+    return value ? ".T." : ".F.";
+  }
+  if (DATETIME_FIELDS.has(fieldName)) {
+    return "{/:/:}";
+  }
+  if (DATE_FIELDS.has(fieldName)) {
+    if (value === null || value === undefined || !value || String(value) === "null") {
+      return "{//}";
+    }
+    const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (parts) {
+      return `{^${parts[1]}-${parts[2]}-${parts[3]}}`;
+    }
+    const s = String(value);
+    return `{^${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}}`;
+  }
+  if (NUMERIC_FIELDS.has(fieldName)) {
+    return String(value ?? 0);
+  }
+  const strVal = String(value ?? "")
+    .replace(/[\r\n]/g, " ")
+    .replace(/]/g, "")
+    .replace(/"/g, '""');
+  return `[${strVal}]`;
+}
+
+function buildExecScriptDoctes(
   testata: ArcaData["testata"],
 ): string[] {
   const lines: string[] = [];
-  lines.push('Set rsTes = CreateObject("ADODB.Recordset")');
-  lines.push('rsTes.Open "doctes", conn, 1, 3');
-  lines.push("rsTes.AddNew");
-  lines.push('rsTes("ID") = doctesNextId');
+  lines.push('vfpCmd = "USE doctes IN 0 SHARED" & vbCrLf');
+  lines.push('vfpCmd = vfpCmd & "APPEND BLANK" & vbCrLf');
+  lines.push('vfpCmd = vfpCmd & "REPLACE ID WITH " & CStr(doctesNextId) & vbCrLf');
   for (const f of DOCTES_FIELDS) {
     const raw = testata[f as keyof typeof testata];
     if (f === "NUMERODOC") {
-      lines.push(`rsTes("NUMERODOC") = "${escapeVbsString(padNumerodoc(String(raw)))}"`);
+      const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
+      lines.push(`vfpCmd = vfpCmd & "REPLACE NUMERODOC WITH [${padded}]" & vbCrLf`);
     } else {
-      lines.push(formatVbsAssignment("rsTes", f, raw as string | number | boolean | null));
+      const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
+      lines.push(`vfpCmd = vfpCmd & "REPLACE ${f} WITH ${vfpVal}" & vbCrLf`);
     }
   }
-  lines.push("rsTes.Update");
-  lines.push("rsTes.Close");
+  lines.push('vfpCmd = vfpCmd & "USE IN SELECT([doctes])" & vbCrLf');
+  lines.push('conn.Execute "EXECSCRIPT(" & Chr(34) & vfpCmd & Chr(34) & ")"');
   return lines;
 }
 
-function buildRecordsetDocrig(
+function buildExecScriptDocrig(
   riga: ArcaData["righe"][number],
 ): string[] {
   const lines: string[] = [];
-  lines.push('Set rsRig = CreateObject("ADODB.Recordset")');
-  lines.push('rsRig.Open "docrig", conn, 1, 3');
-  lines.push("rsRig.AddNew");
-  lines.push('rsRig("ID") = docrigNextId');
+  lines.push('vfpCmd = "USE docrig IN 0 SHARED" & vbCrLf');
+  lines.push('vfpCmd = vfpCmd & "APPEND BLANK" & vbCrLf');
+  lines.push('vfpCmd = vfpCmd & "REPLACE ID WITH " & CStr(docrigNextId) & vbCrLf');
+  lines.push('vfpCmd = vfpCmd & "REPLACE ID_TESTA WITH " & CStr(doctesNextId) & vbCrLf');
   for (const f of DOCRIG_FIELDS) {
-    if (f === "ID_TESTA") {
-      lines.push('rsRig("ID_TESTA") = doctesNextId');
-      continue;
-    }
+    if (f === "ID_TESTA") continue;
     const raw = riga[f as keyof typeof riga];
     if (f === "NUMERODOC") {
-      lines.push(`rsRig("NUMERODOC") = "${escapeVbsString(padNumerodoc(String(raw)))}"`);
+      const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
+      lines.push(`vfpCmd = vfpCmd & "REPLACE NUMERODOC WITH [${padded}]" & vbCrLf`);
     } else {
-      lines.push(formatVbsAssignment("rsRig", f, raw as string | number | boolean | null));
+      const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
+      lines.push(`vfpCmd = vfpCmd & "REPLACE ${f} WITH ${vfpVal}" & vbCrLf`);
     }
   }
-  lines.push("rsRig.Update");
-  lines.push("rsRig.Close");
+  lines.push('vfpCmd = vfpCmd & "USE IN SELECT([docrig])" & vbCrLf');
+  lines.push('conn.Execute "EXECSCRIPT(" & Chr(34) & vfpCmd & Chr(34) & ")"');
   return lines;
 }
 
@@ -190,8 +189,8 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
   lines.push("On Error Resume Next");
   lines.push("");
-  lines.push("Dim fso, logFile, conn, rs, rsTes, rsRig, errCount, okCount");
-  lines.push("Dim doctesNextId, docrigNextId");
+  lines.push("Dim fso, logFile, conn, rs, errCount, okCount");
+  lines.push("Dim doctesNextId, docrigNextId, vfpCmd");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
   lines.push(
@@ -244,7 +243,7 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
     lines.push("doctesNextId = doctesNextId + 1");
-    for (const l of buildRecordsetDoctes(testata)) {
+    for (const l of buildExecScriptDoctes(testata)) {
       lines.push(l);
     }
     lines.push("");
@@ -258,7 +257,7 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
     for (const riga of righe) {
       lines.push("  docrigNextId = docrigNextId + 1");
-      for (const l of buildRecordsetDocrig(riga)) {
+      for (const l of buildExecScriptDocrig(riga)) {
         lines.push("  " + l);
       }
       lines.push("  If Err.Number <> 0 Then");

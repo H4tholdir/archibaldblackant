@@ -397,15 +397,15 @@ describe("generateVbsScript", () => {
     const result = generateVbsScript(records);
 
     expect(result.vbs).toContain("Provider=vfpoledb.1");
-    expect(result.vbs).toContain("rsTes.AddNew");
-    expect(result.vbs).toContain("rsRig.AddNew");
+    expect(result.vbs).toContain("EXECSCRIPT(");
+    expect(result.vbs).toContain("APPEND BLANK");
     expect(result.vbs).toContain("WScript.ScriptFullName");
-    expect(result.vbs).toContain('("ESERCIZIO")');
-    expect(result.vbs).toContain('("ID_TESTA")');
+    expect(result.vbs).toContain("REPLACE ESERCIZIO WITH");
+    expect(result.vbs).toContain("REPLACE ID_TESTA WITH");
     expect(result.vbs).toContain("SELECT MAX(ID) FROM doctes");
   });
 
-  test("preserves single quotes in VBS double-quoted strings", () => {
+  test("preserves single quotes in VFP bracket-delimited strings", () => {
     const arcaData = makeArcaData({
       testata: { NOTE: "L'ordine dell'azienda" },
       righe: [{ DESCRIZION: "Tubo d'acciaio" }],
@@ -416,8 +416,8 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain("L'ordine dell'azienda");
-    expect(result.vbs).toContain("Tubo d'acciaio");
+    expect(result.vbs).toContain("[L'ordine dell'azienda]");
+    expect(result.vbs).toContain("[Tubo d'acciaio]");
   });
 
   test("generates file watcher scripts", () => {
@@ -460,7 +460,7 @@ describe("generateVbsScript", () => {
     expect(result.bat).toContain("sync_arca.vbs");
   });
 
-  test("uses DateSerial for DATADOC (locale-independent)", () => {
+  test("uses VFP strict date literal for DATADOC (locale-independent)", () => {
     const arcaData = makeArcaData({
       testata: { DATADOC: "2026-01-15" },
     });
@@ -470,7 +470,7 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain("DateSerial(2026, 1, 15)");
+    expect(result.vbs).toContain("{^2026-01-15}");
   });
 
   test("handles multiple records generating sequential AddNew calls", () => {
@@ -491,15 +491,15 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    const doctesAddNewCount = (
-      result.vbs.match(/rsTes\.AddNew/g) || []
+    const doctesAppendCount = (
+      result.vbs.match(/USE doctes IN 0 SHARED/g) || []
     ).length;
-    const docrigAddNewCount = (
-      result.vbs.match(/rsRig\.AddNew/g) || []
+    const docrigAppendCount = (
+      result.vbs.match(/USE docrig IN 0 SHARED/g) || []
     ).length;
 
-    expect(doctesAddNewCount).toBe(2);
-    expect(docrigAddNewCount).toBe(3);
+    expect(doctesAppendCount).toBe(2);
+    expect(docrigAppendCount).toBe(3);
   });
 
   test("pads NUMERODOC to 6 chars right-aligned", () => {
@@ -512,7 +512,7 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    expect(result.vbs).toContain('"     1"');
+    expect(result.vbs).toContain("[     1]");
   });
 });
 
@@ -653,7 +653,7 @@ function createMockPool(overrides?: {
 
       expect(result.exported).toBe(1);
       expect(result.vbsScript).not.toBeNull();
-      expect(result.vbsScript!.vbs).toContain("rsTes.AddNew");
+      expect(result.vbsScript!.vbs).toContain("EXECSCRIPT(");
       expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
     },
     60000,
