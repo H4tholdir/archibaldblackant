@@ -150,10 +150,19 @@ function buildExecScriptDoctes(
   lines.push('prgFile.WriteLine "SELECT _ins"');
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
+  const DOCTES_DEFAULTS: Record<string, string | number> = {
+    CODCNT: "001", CODCAUMAG: "99", MAGPARTENZ: "00001", MAGARRIVO: "00001",
+    PAG: "0001", LISTINO: "1", TIPOMODULO: "F", CODBANCA: "1",
+    CB_NAZIONE: "IT", TIPOFATT: "N",
+  };
+  const DOCTES_NUMERIC_DEFAULTS: Record<string, number> = { EUROCAMBIO: 1 };
   for (const f of DOCTES_FIELDS) {
     let raw = testata[f as keyof typeof testata];
-    if (f === "CODCNT" && (!raw || String(raw).trim() === "")) {
-      raw = "001" as typeof raw;
+    if (f in DOCTES_DEFAULTS && (!raw || String(raw).trim() === "")) {
+      raw = DOCTES_DEFAULTS[f] as typeof raw;
+    }
+    if (f in DOCTES_NUMERIC_DEFAULTS && (raw === 0 || raw === null || raw === undefined)) {
+      raw = DOCTES_NUMERIC_DEFAULTS[f] as typeof raw;
     }
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
@@ -185,9 +194,23 @@ function buildExecScriptDocrig(
   lines.push('prgFile.WriteLine "APPEND BLANK"');
   lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
   lines.push('prgFile.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
+  const DOCRIG_DEFAULTS: Record<string, string | number> = {
+    CONTOSCARI: "01", CODCAUMAG: "99", MAGPARTENZ: "00001", MAGARRIVO: "00001",
+    GRUPPO: "00001",
+  };
+  const DOCRIG_NUMERIC_DEFAULTS: Record<string, (r: typeof riga) => number> = {
+    FATT: () => 1, EUROCAMBIO: () => 1,
+    QUANTITARE: (r) => r.QUANTITA, PREZZOTOTM: (r) => r.PREZZOTOT,
+  };
   for (const f of DOCRIG_FIELDS) {
     if (f === "ID_TESTA") continue;
-    const raw = riga[f as keyof typeof riga];
+    let raw = riga[f as keyof typeof riga];
+    if (f in DOCRIG_DEFAULTS && (!raw || String(raw).trim() === "")) {
+      raw = DOCRIG_DEFAULTS[f] as typeof raw;
+    }
+    if (f in DOCRIG_NUMERIC_DEFAULTS && (raw === 0 || raw === null || raw === undefined)) {
+      raw = DOCRIG_NUMERIC_DEFAULTS[f](riga) as typeof raw;
+    }
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
       lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
