@@ -3484,9 +3484,10 @@ export class ArchibaldBot {
                 const hasExact = rowData[i].some((text) => {
                   const cellLower = text.trim().toLowerCase();
                   return (
-                    cellLower === queryLower ||
+                    cellLower.length > 0 &&
+                    (cellLower === queryLower ||
                     cellLower.startsWith(queryLower) ||
-                    queryLower.startsWith(cellLower)
+                    queryLower.startsWith(cellLower))
                   );
                 });
                 if (hasExact) {
