@@ -64,7 +64,7 @@ describe('handleSendToVerona', () => {
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
-    expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_milano_at');
+    expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_verona_at');
     expect(calls[4][0]).toContain('SELECT id, items');
     expect(calls[5][0]).toContain('merged_into_order_id');
   });

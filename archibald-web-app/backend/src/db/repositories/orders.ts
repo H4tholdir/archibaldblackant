@@ -66,7 +66,7 @@ type OrderRow = {
   invoice_last_settlement_date: string | null;
   invoice_closed_date: string | null;
   current_state: string | null;
-  sent_to_milano_at: string | null;
+  sent_to_verona_at: string | null;
   archibald_order_id: string | null;
   total_vat_amount: string | null;
   total_with_vat: string | null;
@@ -450,7 +450,7 @@ function mapRowToOrder(row: OrderRow): Order {
     invoiceLastSettlementDate: row.invoice_last_settlement_date,
     invoiceClosedDate: row.invoice_closed_date,
     state: row.current_state,
-    sentToMilanoAt: row.sent_to_milano_at,
+    sentToMilanoAt: row.sent_to_verona_at,
     archibaldOrderId: row.archibald_order_id,
     totalVatAmount: row.total_vat_amount,
     totalWithVat: row.total_with_vat,

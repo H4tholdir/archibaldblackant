@@ -105,7 +105,7 @@ const SAMPLE_ORDER_ROW = {
   invoice_last_settlement_date: null,
   invoice_closed_date: null,
   current_state: null,
-  sent_to_milano_at: null,
+  sent_to_verona_at: null,
   archibald_order_id: null,
   total_vat_amount: null,
   total_with_vat: null,

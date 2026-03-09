@@ -56,7 +56,7 @@ async function handleSendToVerona(
   await ordersRepo.updateOrderState(pool, userId, data.orderId, 'inviato_milano', 'system', result.message, null, 'send-to-verona');
 
   await pool.query(
-    'UPDATE agents.order_records SET sent_to_milano_at = $1 WHERE id = $2 AND user_id = $3',
+    'UPDATE agents.order_records SET sent_to_verona_at = $1 WHERE id = $2 AND user_id = $3',
     [sentToMilanoAt, data.orderId, userId],
   );
 
