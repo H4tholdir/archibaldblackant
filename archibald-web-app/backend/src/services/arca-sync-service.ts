@@ -228,13 +228,86 @@ function buildExecScriptDocrig(
 }
 
 
+function computeScadenzaDate(datadoc: string): string {
+  const parts = datadoc.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts) return datadoc;
+  const d = new Date(parseInt(parts[1], 10), parseInt(parts[2], 10) - 1, parseInt(parts[3], 10));
+  d.setDate(d.getDate() + 30);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const y = lastDay.getFullYear();
+  const m = String(lastDay.getMonth() + 1).padStart(2, "0");
+  const day = String(lastDay.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function buildExecScriptScadenza(
+  testata: ArcaData["testata"],
+): string[] {
+  const lines: string[] = [];
+  const datadoc = testata.DATADOC ?? "";
+  const datascad = computeScadenzaDate(datadoc);
+  const numerodoc = padNumerodoc(String(testata.NUMERODOC)).replace(/]/g, "").replace(/"/g, '""');
+  const numfatt = String(testata.NUMERODOC).trim().padStart(10, " ").replace(/]/g, "").replace(/"/g, '""');
+  const partnum = numfatt;
+  const protocollo = String(testata.NUMERODOC).trim().padStart(8, " ").replace(/]/g, "").replace(/"/g, '""');
+  const codcf = String(testata.CODICECF ?? "").replace(/]/g, "").replace(/"/g, '""');
+  const codpag = String(testata.PAG || "0001").replace(/]/g, "").replace(/"/g, '""');
+  const totDoc = testata.TOTDOC ?? 0;
+  const totNetto = testata.TOTNETTO ?? 0;
+  const esercizio = testata.ESERCIZIO ?? "";
+
+  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "IF USED([_ins])"');
+  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('prgFile.WriteLine "ENDIF"');
+  lines.push('prgFile.WriteLine "USE SCADENZE IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
+  lines.push('prgFile.WriteLine "SELECT _ins"');
+  lines.push('prgFile.WriteLine "APPEND BLANK"');
+  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(scadNextId)');
+  lines.push('prgFile.WriteLine "REPLACE ID_DOC WITH " & CStr(doctesNextId)');
+  lines.push('prgFile.WriteLine "REPLACE ID_PNOTA WITH 0"');
+  lines.push('prgFile.WriteLine "REPLACE ID_SCAORIG WITH 0"');
+  lines.push('prgFile.WriteLine "REPLACE TRANSIT WITH .T."');
+  lines.push(`prgFile.WriteLine "REPLACE CODPAG WITH [${codpag}]"`);
+  lines.push(`prgFile.WriteLine "REPLACE DATAFATT WITH {^${datadoc}}"`);
+  lines.push(`prgFile.WriteLine "REPLACE NUMFATT WITH [${numfatt}]"`);
+  lines.push(`prgFile.WriteLine "REPLACE DATASCAD WITH {^${datascad}}"`);
+  lines.push(`prgFile.WriteLine "REPLACE CODBANCA WITH [1]"`);
+  lines.push(`prgFile.WriteLine "REPLACE CODCF WITH [${codcf}]"`);
+  lines.push(`prgFile.WriteLine "REPLACE TIPO WITH [A]"`);
+  lines.push(`prgFile.WriteLine "REPLACE TIPOMOD WITH [FT]"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPEFF WITH ${totDoc}"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPEFFVAL WITH ${totDoc}"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPTOTFATT WITH ${totDoc}"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPTOTFATV WITH ${totDoc}"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPONIBILE WITH ${totNetto}"`);
+  lines.push(`prgFile.WriteLine "REPLACE IMPORTOPAG WITH 0"`);
+  lines.push(`prgFile.WriteLine "REPLACE NUMEFF WITH 1"`);
+  lines.push(`prgFile.WriteLine "REPLACE TOTEFF WITH 1"`);
+  lines.push(`prgFile.WriteLine "REPLACE CODCAMBIO WITH [EUR]"`);
+  lines.push(`prgFile.WriteLine "REPLACE VALCAMBIO WITH 1"`);
+  lines.push(`prgFile.WriteLine "REPLACE EUROCAMBIO WITH 1"`);
+  lines.push(`prgFile.WriteLine "REPLACE CB_NAZIONE WITH [IT]"`);
+  lines.push(`prgFile.WriteLine "REPLACE PARTANNO WITH ${esercizio}"`);
+  lines.push(`prgFile.WriteLine "REPLACE PARTNUM WITH [${partnum}]"`);
+  lines.push(`prgFile.WriteLine "REPLACE PROTOCOLLO WITH [${protocollo}]"`);
+  lines.push(`prgFile.WriteLine "REPLACE DATAVALUTA WITH {^${datascad}}"`);
+  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
+  lines.push("prgFile.Close");
+  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
+  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
+  return lines;
+}
+
 function generateSyncVbs(records: VbsExportRecord[]): string {
   const lines: string[] = [];
 
   lines.push("On Error Resume Next");
   lines.push("");
   lines.push("Dim fso, logFile, conn, rs, prgFile, errCount, okCount");
-  lines.push("Dim doctesNextId, docrigNextId");
+  lines.push("Dim doctesNextId, docrigNextId, scadNextId");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
   lines.push(
@@ -278,6 +351,12 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
   lines.push("  If Not IsNull(rs.Fields(0).Value) Then docrigNextId = rs.Fields(0).Value");
   lines.push("End If");
   lines.push("rs.Close");
+  lines.push('Set rs = conn.Execute("SELECT MAX(ID) FROM SCADENZE")');
+  lines.push("scadNextId = 0");
+  lines.push("If Not rs.EOF Then");
+  lines.push("  If Not IsNull(rs.Fields(0).Value) Then scadNextId = rs.Fields(0).Value");
+  lines.push("End If");
+  lines.push("rs.Close");
   lines.push("");
 
   for (const record of records) {
@@ -314,6 +393,19 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
       lines.push("");
     }
 
+    lines.push("  ' Insert scadenza (payment schedule)");
+    lines.push("  scadNextId = scadNextId + 1");
+    for (const l of buildExecScriptScadenza(testata)) {
+      lines.push("  " + l);
+    }
+    lines.push("  If Err.Number <> 0 Then");
+    lines.push(
+      `    logFile.WriteLine "ERROR scadenza ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
+    );
+    lines.push("    errCount = errCount + 1");
+    lines.push("    Err.Clear");
+    lines.push("  End If");
+    lines.push("");
     lines.push("  okCount = okCount + 1");
     lines.push("End If");
     lines.push("");

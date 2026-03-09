@@ -491,11 +491,11 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    const doctesExecCount = (
+    const execCount = (
       result.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []
     ).length;
 
-    expect(doctesExecCount).toBe(5);
+    expect(execCount).toBe(7);
   });
 
   test("pads NUMERODOC to 6 chars right-aligned", () => {
