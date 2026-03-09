@@ -160,7 +160,7 @@ export function generateArcaData(
     NUMERODOC: numerodoc,
     DATADOC: datadoc,
     CODICECF: codicecf,
-    CODCNT: "",
+    CODCNT: "001",
     MAGPARTENZ: "",
     MAGARRIVO: "",
     NUMRIGHEPR: righe.length,

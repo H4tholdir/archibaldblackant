@@ -209,7 +209,7 @@ function makeArcaData(overrides?: {
     NUMERODOC: "     1",
     DATADOC: "2026-01-15",
     CODICECF: "C00100",
-    CODCNT: "",
+    CODCNT: "001",
     MAGPARTENZ: "01",
     MAGARRIVO: "",
     NUMRIGHEPR: 0,
