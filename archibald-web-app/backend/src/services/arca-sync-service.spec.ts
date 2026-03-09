@@ -397,7 +397,7 @@ describe("generateVbsScript", () => {
     const result = generateVbsScript(records);
 
     expect(result.vbs).toContain("Provider=vfpoledb.1");
-    expect(result.vbs).toContain("EXECSCRIPT(");
+    expect(result.vbs).toContain("EXECSCRIPT(FILETOSTR(");
     expect(result.vbs).toContain("APPEND BLANK");
     expect(result.vbs).toContain("WScript.ScriptFullName");
     expect(result.vbs).toContain("REPLACE ESERCIZIO WITH");
@@ -491,15 +491,11 @@ describe("generateVbsScript", () => {
 
     const result = generateVbsScript(records);
 
-    const doctesAppendCount = (
-      result.vbs.match(/USE doctes IN 0 SHARED/g) || []
-    ).length;
-    const docrigAppendCount = (
-      result.vbs.match(/USE docrig IN 0 SHARED/g) || []
+    const doctesExecCount = (
+      result.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []
     ).length;
 
-    expect(doctesAppendCount).toBe(2);
-    expect(docrigAppendCount).toBe(3);
+    expect(doctesExecCount).toBe(5);
   });
 
   test("pads NUMERODOC to 6 chars right-aligned", () => {
@@ -653,7 +649,7 @@ function createMockPool(overrides?: {
 
       expect(result.exported).toBe(1);
       expect(result.vbsScript).not.toBeNull();
-      expect(result.vbsScript!.vbs).toContain("EXECSCRIPT(");
+      expect(result.vbsScript!.vbs).toContain("EXECSCRIPT(FILETOSTR(");
       expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
     },
     60000,

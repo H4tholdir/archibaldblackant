@@ -114,11 +114,11 @@ function formatVfpLiteral(
     return value ? ".T." : ".F.";
   }
   if (DATETIME_FIELDS.has(fieldName)) {
-    return "{/:/:}";
+    return "{}";
   }
   if (DATE_FIELDS.has(fieldName)) {
     if (value === null || value === undefined || !value || String(value) === "null") {
-      return "{//}";
+      return "{}";
     }
     const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (parts) {
@@ -141,21 +141,24 @@ function buildExecScriptDoctes(
   testata: ArcaData["testata"],
 ): string[] {
   const lines: string[] = [];
-  lines.push('vfpCmd = "USE doctes IN 0 SHARED" & vbCrLf');
-  lines.push('vfpCmd = vfpCmd & "APPEND BLANK" & vbCrLf');
-  lines.push('vfpCmd = vfpCmd & "REPLACE ID WITH " & CStr(doctesNextId) & vbCrLf');
+  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED"');
+  lines.push('prgFile.WriteLine "APPEND BLANK"');
+  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
   for (const f of DOCTES_FIELDS) {
     const raw = testata[f as keyof typeof testata];
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
-      lines.push(`vfpCmd = vfpCmd & "REPLACE NUMERODOC WITH [${padded}]" & vbCrLf`);
+      lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
     } else {
       const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
-      lines.push(`vfpCmd = vfpCmd & "REPLACE ${f} WITH ${vfpVal}" & vbCrLf`);
+      lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('vfpCmd = vfpCmd & "USE IN SELECT([doctes])" & vbCrLf');
-  lines.push('conn.Execute "EXECSCRIPT(" & Chr(34) & vfpCmd & Chr(34) & ")"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([doctes])"');
+  lines.push("prgFile.Close");
+  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
+  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
   return lines;
 }
 
@@ -163,23 +166,26 @@ function buildExecScriptDocrig(
   riga: ArcaData["righe"][number],
 ): string[] {
   const lines: string[] = [];
-  lines.push('vfpCmd = "USE docrig IN 0 SHARED" & vbCrLf');
-  lines.push('vfpCmd = vfpCmd & "APPEND BLANK" & vbCrLf');
-  lines.push('vfpCmd = vfpCmd & "REPLACE ID WITH " & CStr(docrigNextId) & vbCrLf');
-  lines.push('vfpCmd = vfpCmd & "REPLACE ID_TESTA WITH " & CStr(doctesNextId) & vbCrLf');
+  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED"');
+  lines.push('prgFile.WriteLine "APPEND BLANK"');
+  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
+  lines.push('prgFile.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
   for (const f of DOCRIG_FIELDS) {
     if (f === "ID_TESTA") continue;
     const raw = riga[f as keyof typeof riga];
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
-      lines.push(`vfpCmd = vfpCmd & "REPLACE NUMERODOC WITH [${padded}]" & vbCrLf`);
+      lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
     } else {
       const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
-      lines.push(`vfpCmd = vfpCmd & "REPLACE ${f} WITH ${vfpVal}" & vbCrLf`);
+      lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('vfpCmd = vfpCmd & "USE IN SELECT([docrig])" & vbCrLf');
-  lines.push('conn.Execute "EXECSCRIPT(" & Chr(34) & vfpCmd & Chr(34) & ")"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([docrig])"');
+  lines.push("prgFile.Close");
+  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
+  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
   return lines;
 }
 
@@ -189,8 +195,8 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
   lines.push("On Error Resume Next");
   lines.push("");
-  lines.push("Dim fso, logFile, conn, rs, errCount, okCount");
-  lines.push("Dim doctesNextId, docrigNextId, vfpCmd");
+  lines.push("Dim fso, logFile, conn, rs, prgFile, errCount, okCount");
+  lines.push("Dim doctesNextId, docrigNextId");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
   lines.push(
