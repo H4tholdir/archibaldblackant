@@ -27,6 +27,7 @@ type SubmitOrderData = {
   pendingOrderId: string;
   customerId: string;
   customerName: string;
+  customerInternalId?: string;
   items: SubmitOrderItem[];
   discountPercent?: number;
   targetTotalWithVAT?: number;
@@ -188,6 +189,18 @@ async function handleSubmitOrder(
   }
 
   onProgress(4, 'Creazione ordine su Archibald');
+
+  // Enrich data with internal_id (PROFILO CLIENTE in Archibald) for customer disambiguation
+  if (!data.customerInternalId) {
+    const { rows: [customerRow] } = await pool.query<{ internal_id: string | null }>(
+      'SELECT internal_id FROM agents.customers WHERE customer_profile = $1 AND user_id = $2',
+      [data.customerId, userId],
+    );
+    if (customerRow?.internal_id) {
+      data = { ...data, customerInternalId: customerRow.internal_id };
+    }
+  }
+
   const orderId = await bot.createOrder(data);
 
   onProgress(60, 'Salvataggio nel database');

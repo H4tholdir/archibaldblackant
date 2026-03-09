@@ -3390,7 +3390,7 @@ export class ArchibaldBot {
 
           // Phase 4: Snapshot rows, match, and click - all in one evaluate
           const selectionResult = await this.page!.evaluate(
-            (baseId: string, customerName: string) => {
+            (baseId: string, customerName: string, customerInternalId: string) => {
               const containers = Array.from(
                 document.querySelectorAll(
                   '[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpcMainDiv',
@@ -3450,7 +3450,31 @@ export class ArchibaldBot {
                 };
               }
 
-              // Scenario 2: multiple rows - find match by name
+              // Scenario 2a: multiple rows - disambiguate by PROFILO CLIENTE (customerInternalId)
+              // The dropdown shows a "PROFILO CLIENTE" column; match it exactly to pick the right customer
+              if (customerInternalId) {
+                const internalIdLower = customerInternalId.trim().toLowerCase();
+                for (let i = 0; i < rowData.length; i++) {
+                  const hasProfileMatch = rowData[i].some(
+                    (text) => text.trim().toLowerCase() === internalIdLower,
+                  );
+                  if (hasProfileMatch) {
+                    const row = rows[i];
+                    const target = row.querySelector("td") || (row as HTMLElement);
+                    (target as HTMLElement).scrollIntoView({ block: "center" });
+                    (target as HTMLElement).click();
+                    return {
+                      clicked: true,
+                      reason: "profile-match",
+                      rowsCount: rows.length,
+                      chosenIndex: i,
+                      rows: rowData,
+                    };
+                  }
+                }
+              }
+
+              // Scenario 2b: fall back to name matching
               // Archibald ERP may truncate long customer names, so we check
               // if either string starts with the other (handles truncation)
               const queryLower = customerName.trim().toLowerCase();
@@ -3489,7 +3513,7 @@ export class ArchibaldBot {
                 (target as HTMLElement).click();
                 return {
                   clicked: true,
-                  reason: rows.length === 1 ? "single-row" : "exact",
+                  reason: "name-match",
                   rowsCount: rows.length,
                   chosenIndex: bestIndex,
                   rows: rowData,
@@ -3505,6 +3529,7 @@ export class ArchibaldBot {
             },
             customerBaseId,
             orderData.customerName,
+            orderData.customerInternalId ?? "",
           );
 
           logger.info("Customer selection", {
