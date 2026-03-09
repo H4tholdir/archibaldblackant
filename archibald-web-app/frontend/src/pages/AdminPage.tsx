@@ -4,7 +4,7 @@ import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
 import WebSocketMonitor from "../components/WebSocketMonitor";
 import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
-import { FresisDiscountManager } from "../components/FresisDiscountManager";
+import { KometListinoImporter } from "../components/KometListinoImporter";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -679,7 +679,7 @@ export function AdminPage(_props: AdminPageProps) {
         </section>
 
         <section className="admin-section">
-          <FresisDiscountManager />
+          <KometListinoImporter />
         </section>
 
         <section className="admin-section">
