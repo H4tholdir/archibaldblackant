@@ -74,7 +74,9 @@ export function WarehouseUpload() {
   return (
     <div className="warehouse-upload">
       <div className="warehouse-upload-header">
-        <h3>📦 Gestione Magazzino</h3>
+        <span style={{ fontWeight: 600, fontSize: "15px", color: "#555" }}>
+          📤 Carica inventario Excel
+        </span>
         <button
           type="button"
           className="btn-link"
@@ -171,7 +173,10 @@ export function WarehouseUpload() {
             <div className="status-item">
               <span className="status-label">Data caricamento:</span>
               <span className="status-value">
-                {new Date(metadata.uploadedAt).toLocaleString("it-IT")}
+                {(() => {
+  const d = new Date(metadata.uploadedAt);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString("it-IT");
+})()}
               </span>
             </div>
             <div className="status-item">
