@@ -143,6 +143,7 @@ function buildRecordsetDoctes(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set rsTes = CreateObject("ADODB.Recordset")');
+  lines.push("rsTes.CursorLocation = 3");
   lines.push('rsTes.Open "SELECT * FROM doctes WHERE .F.", conn, 3, 3');
   lines.push("rsTes.AddNew");
   lines.push('rsTes("ID") = doctesNextId');
@@ -164,6 +165,7 @@ function buildRecordsetDocrig(
 ): string[] {
   const lines: string[] = [];
   lines.push('Set rsRig = CreateObject("ADODB.Recordset")');
+  lines.push("rsRig.CursorLocation = 3");
   lines.push('rsRig.Open "SELECT * FROM docrig WHERE .F.", conn, 3, 3');
   lines.push("rsRig.AddNew");
   lines.push('rsRig("ID") = docrigNextId');
