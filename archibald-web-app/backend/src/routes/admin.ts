@@ -40,6 +40,14 @@ type AdminRouterDeps = {
   cleanupJobs: () => Promise<{ removedCompleted: number; removedFailed: number }>;
   getRetentionConfig: () => { completedCount: number; failedCount: number };
   importSubclients: (buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; skipped?: number; error?: string }>;
+  importKometListino: (buffer: Buffer, filename: string, userId: string) => Promise<{
+    totalRows: number;
+    ivaUpdated: number;
+    scontiUpdated: number;
+    unmatched: number;
+    unmatchedProducts: Array<{ excelId: string; excelCodiceArticolo: string; reason: string }>;
+    errors: string[];
+  }>;
 };
 
 const createUserSchema = z.object({
@@ -62,11 +70,16 @@ const updateTargetSchema = z.object({
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+const ALLOWED_EXCEL_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+];
+
 function createAdminRouter(deps: AdminRouterDeps) {
   const {
     getAllUsers, getUserById, createUser, updateWhitelist, deleteUser,
     updateUserTarget, getUserTarget, generateJWT, createAdminSession, closeAdminSession,
-    getAllJobs, retryJob, cancelJob, cleanupJobs, getRetentionConfig, importSubclients,
+    getAllJobs, retryJob, cancelJob, cleanupJobs, getRetentionConfig, importSubclients, importKometListino,
   } = deps;
   const router = Router();
 
@@ -306,6 +319,23 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (error) {
       logger.error('Error importing subclients', { error });
       res.status(500).json({ success: false, error: 'Errore importazione sottoclienti' });
+    }
+  });
+
+  router.post('/import-komet-listino', upload.single('file'), async (req: AuthRequest, res) => {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'File Excel richiesto' });
+    }
+    if (!ALLOWED_EXCEL_MIME_TYPES.includes(file.mimetype)) {
+      return res.status(400).json({ success: false, error: 'Solo file Excel (.xlsx, .xls) sono accettati' });
+    }
+    try {
+      const result = await importKometListino(file.buffer, file.originalname, req.user!.userId);
+      return res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error importing Komet listino', { error });
+      return res.status(500).json({ success: false, error: 'Errore durante importazione listino Komet' });
     }
   });
 

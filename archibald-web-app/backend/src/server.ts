@@ -40,6 +40,7 @@ import * as orderNotesRepo from './db/repositories/order-notes';
 import * as hiddenOrdersRepo from './db/repositories/hidden-orders';
 import { importSubClients } from './services/subclient-excel-importer';
 import { importExcelVat } from './services/excel-vat-importer';
+import { importKometListino } from './services/komet-listino-importer';
 import * as excelVatImportsRepo from './db/repositories/excel-vat-imports';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import type { JobEvent } from './realtime/sse-progress';
@@ -777,6 +778,16 @@ function createApp(deps: AppDeps): Express {
         },
         deleteSubclientsByCodici: (codici) => subclientsRepo.deleteSubclientsByCodici(pool, codici),
       }),
+    importKometListino: (buffer, filename, userId) => importKometListino(buffer, filename, userId, {
+      getProductById: (id) => productsRepo.getProductById(pool, id),
+      findSiblingVariants: (productId) => productsRepo.findSiblingVariants(pool, productId),
+      updateProductVat: (productId, vat, vatSource) => productsRepo.updateProductVat(pool, productId, vat, vatSource),
+      updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+      recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
+      recordImport: (data) => excelVatImportsRepo.recordImport(pool, data),
+      upsertDiscount: (id, articleCode, discountPercent, kpPriceUnit) =>
+        fresisHistoryRepo.upsertDiscount(pool, userId, id, articleCode, discountPercent, kpPriceUnit),
+    }),
   }));
 
   app.use('/api/widget', authenticateJWT, createWidgetRouter({

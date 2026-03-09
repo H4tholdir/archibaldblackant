@@ -37,6 +37,14 @@ function createMockDeps(): AdminRouterDeps {
     cleanupJobs: vi.fn().mockResolvedValue({ removedCompleted: 5, removedFailed: 2 }),
     getRetentionConfig: vi.fn().mockReturnValue({ completedCount: 100, failedCount: 50 }),
     importSubclients: vi.fn().mockResolvedValue({ success: true, imported: 15, skipped: 3 }),
+    importKometListino: vi.fn().mockResolvedValue({
+      totalRows: 100,
+      ivaUpdated: 95,
+      scontiUpdated: 98,
+      unmatched: 5,
+      unmatchedProducts: [],
+      errors: [],
+    }),
   };
 }
 
@@ -326,6 +334,44 @@ describe('createAdminRouter', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ success: false, error: 'File richiesto' });
+    });
+  });
+
+  describe('POST /api/admin/import-komet-listino', () => {
+    const excelMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    test('returns import result with ivaUpdated and scontiUpdated', async () => {
+      const excelBuffer = Buffer.from('fake-excel-content');
+
+      const response = await request(app)
+        .post('/api/admin/import-komet-listino')
+        .attach('file', excelBuffer, { filename: 'listino.xlsx', contentType: excelMimeType });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: {
+          totalRows: 100,
+          ivaUpdated: 95,
+          scontiUpdated: 98,
+          unmatched: 5,
+          unmatchedProducts: [],
+          errors: [],
+        },
+      });
+      expect(deps.importKometListino).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'listino.xlsx',
+        expect.any(String),
+      );
+    });
+
+    test('returns 400 if no file provided', async () => {
+      const response = await request(app)
+        .post('/api/admin/import-komet-listino');
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
     });
   });
 });
