@@ -71,8 +71,10 @@ const DOCRIG_FIELDS = [
 ] as const;
 
 const DATE_FIELDS = new Set([
-  "DATADOC", "DATADOCFOR", "DATACONSEG", "TRDATA", "V1DATA", "V2DATA", "TIMESTAMP",
+  "DATADOC", "DATADOCFOR", "DATACONSEG", "TRDATA", "V1DATA", "V2DATA",
 ]);
+
+const DATETIME_FIELDS = new Set(["TIMESTAMP"]);
 
 const NUMERIC_FIELDS = new Set([
   // doctes
@@ -110,6 +112,9 @@ function formatVbsValue(
   if (BOOLEAN_FIELDS.has(fieldName)) {
     return value ? ".T." : ".F.";
   }
+  if (DATETIME_FIELDS.has(fieldName)) {
+    return "CTOT('')";
+  }
   if (DATE_FIELDS.has(fieldName)) {
     if (value === null || value === undefined) return "CTOD('')";
     const dateStr = String(value);
@@ -132,7 +137,7 @@ function padNumerodoc(numerodoc: string): string {
 function buildInsertDoctes(
   testata: ArcaData["testata"],
 ): string {
-  const fields = DOCTES_FIELDS.join(", ");
+  const fields = "ID, " + DOCTES_FIELDS.join(", ");
   const values = DOCTES_FIELDS.map((f) => {
     const raw = testata[f as keyof typeof testata];
     if (f === "NUMERODOC") {
@@ -140,43 +145,34 @@ function buildInsertDoctes(
     }
     return formatVbsValue(f, raw as string | number | boolean | null);
   }).join(", ");
-  return `conn.Execute "INSERT INTO doctes (${fields}) VALUES (${values})"`;
-}
-
-function buildSelectMaxId(testata: ArcaData["testata"]): string {
-  const esercizio = escapeVbsString(testata.ESERCIZIO);
-  const tipodoc = escapeVbsString(testata.TIPODOC);
-  const numerodoc = escapeVbsString(padNumerodoc(testata.NUMERODOC));
-  return (
-    `Set rs = conn.Execute("SELECT MAX(ID) FROM doctes ` +
-    `WHERE ESERCIZIO='${esercizio}' AND TIPODOC='${tipodoc}' AND NUMERODOC='${numerodoc}'")`
-  );
+  return `conn.Execute "INSERT INTO doctes (${fields}) VALUES (" & doctesNextId & ", ${values})"`;
 }
 
 function buildInsertDocrig(
   riga: ArcaData["righe"][number],
 ): string {
-  const fields = DOCRIG_FIELDS.join(", ");
+  const fields = "ID, " + DOCRIG_FIELDS.join(", ");
   const values = DOCRIG_FIELDS.map((f) => {
-    if (f === "ID_TESTA") return "idTesta";
+    if (f === "ID_TESTA") return "doctesNextId";
     const raw = riga[f as keyof typeof riga];
     if (f === "NUMERODOC") {
       return `'${escapeVbsString(padNumerodoc(String(raw)))}'`;
     }
     return formatVbsValue(f, raw as string | number | boolean | null);
   }).join(", ");
-  return `conn.Execute "INSERT INTO docrig (${fields}) VALUES (${values})"`;
+  return `conn.Execute "INSERT INTO docrig (${fields}) VALUES (" & docrigNextId & ", ${values})"`;
 }
+
 
 function generateSyncVbs(records: VbsExportRecord[]): string {
   const lines: string[] = [];
 
   lines.push("On Error Resume Next");
   lines.push("");
-  lines.push("Dim fso, logFile, conn, rs, idTesta, errCount, okCount");
+  lines.push("Dim fso, logFile, conn, rs, errCount, okCount");
+  lines.push("Dim doctesNextId, docrigNextId");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
-  lines.push("' Determine script directory");
   lines.push(
     "Dim scriptDir : scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)",
   );
@@ -205,6 +201,20 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
   lines.push("  WScript.Quit 1");
   lines.push("End If");
   lines.push("");
+  lines.push("' Get current max IDs");
+  lines.push('Set rs = conn.Execute("SELECT MAX(ID) FROM doctes")');
+  lines.push("doctesNextId = 0");
+  lines.push("If Not rs.EOF Then");
+  lines.push("  If Not IsNull(rs.Fields(0).Value) Then doctesNextId = rs.Fields(0).Value");
+  lines.push("End If");
+  lines.push("rs.Close");
+  lines.push('Set rs = conn.Execute("SELECT MAX(ID) FROM docrig")');
+  lines.push("docrigNextId = 0");
+  lines.push("If Not rs.EOF Then");
+  lines.push("  If Not IsNull(rs.Fields(0).Value) Then docrigNextId = rs.Fields(0).Value");
+  lines.push("End If");
+  lines.push("rs.Close");
+  lines.push("");
 
   for (const record of records) {
     const { arcaData, invoiceNumber } = record;
@@ -212,6 +222,7 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
 
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
+    lines.push("doctesNextId = doctesNextId + 1");
     lines.push(buildInsertDoctes(testata));
     lines.push("");
     lines.push("If Err.Number <> 0 Then");
@@ -221,34 +232,21 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     lines.push("  errCount = errCount + 1");
     lines.push("  Err.Clear");
     lines.push("Else");
-    lines.push("  ' Get generated ID");
-    lines.push("  Err.Clear");
-    lines.push(`  ${buildSelectMaxId(testata)}`);
-    lines.push("  If Err.Number <> 0 Then");
-    lines.push(
-      `    logFile.WriteLine "ERROR getting ID for ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
-    );
-    lines.push("    errCount = errCount + 1");
-    lines.push("    Err.Clear");
-    lines.push("  Else");
-    lines.push("    idTesta = rs.Fields(0).Value");
-    lines.push("    rs.Close");
-    lines.push("");
 
     for (const riga of righe) {
-      lines.push(`    ${buildInsertDocrig(riga)}`);
-      lines.push("    If Err.Number <> 0 Then");
+      lines.push("  docrigNextId = docrigNextId + 1");
+      lines.push(`  ${buildInsertDocrig(riga)}`);
+      lines.push("  If Err.Number <> 0 Then");
       lines.push(
-        `      logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
+        `    logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
       );
-      lines.push("      errCount = errCount + 1");
-      lines.push("      Err.Clear");
-      lines.push("    End If");
+      lines.push("    errCount = errCount + 1");
+      lines.push("    Err.Clear");
+      lines.push("  End If");
       lines.push("");
     }
 
-    lines.push("    okCount = okCount + 1");
-    lines.push("  End If");
+    lines.push("  okCount = okCount + 1");
     lines.push("End If");
     lines.push("");
   }
