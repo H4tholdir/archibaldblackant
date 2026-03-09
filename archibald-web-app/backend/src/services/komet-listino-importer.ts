@@ -24,6 +24,7 @@ type KometListinoResult = {
 
 function calculateDiscountPercent(listino: number, kp: number): number | null {
   if (listino <= 0) return null;
+  if (kp <= 0) return null;
   if (kp > listino) return null;
   return Math.round((1 - kp / listino) * 100);
 }

@@ -54,6 +54,10 @@ describe('calculateDiscountPercent', () => {
     expect(calculateDiscountPercent(-1, 0.5)).toBeNull();
   });
 
+  test('ritorna null se kp <= 0 (prezzo KP non valido)', () => {
+    expect(calculateDiscountPercent(1.957, 0)).toBeNull();
+  });
+
   test('ritorna null se kp > listino (sconto negativo non valido)', () => {
     expect(calculateDiscountPercent(1.0, 1.5)).toBeNull();
   });
