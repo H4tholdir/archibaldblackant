@@ -68,6 +68,7 @@ const DOCTES_FIELDS = [
   "TOTNETTO",
   "TIPOFATT",
   "EUROCAMBIO",
+  "NUMRIGHEPR",
 ] as const;
 
 const DOCRIG_FIELDS = [
@@ -109,6 +110,7 @@ const NUMERIC_FIELDS = new Set([
   "PREZZOUN",
   "PREZZOTOT",
   "ID_TESTA",
+  "NUMRIGHEPR",
 ]);
 
 function escapeVbsString(value: string): string {
