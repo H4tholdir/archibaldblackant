@@ -112,7 +112,7 @@ const NUMERIC_FIELDS = new Set([
 ]);
 
 function escapeVbsString(value: string): string {
-  return value.replace(/'/g, "''");
+  return value.replace(/[\r\n]/g, ' ').replace(/"/g, ' ').replace(/'/g, "''");
 }
 
 function sanitizeVbsComment(value: string): string {
