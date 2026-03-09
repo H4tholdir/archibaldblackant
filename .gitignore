@@ -116,6 +116,9 @@ archibald-web-app/backend/data/adaptive-timeouts.json
 # ===== Cursor =====
 .cursor/
 
+# ===== Git Worktrees =====
+.worktrees/
+
 # ===== Misc =====
 *.pid
 *.seed
