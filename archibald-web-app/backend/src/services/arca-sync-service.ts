@@ -21,6 +21,7 @@ import * as fresisHistoryRepo from "../db/repositories/fresis-history";
 import type { FresisHistoryInput } from "../db/repositories/fresis-history";
 import { upsertSubclients } from "../db/repositories/subclients";
 import type { Subclient } from "../db/repositories/subclients";
+import { matchSubclients } from "./subclient-matcher";
 import { logger } from "../logger";
 
 export type VbsExportRecord = {
@@ -963,6 +964,12 @@ export async function performArcaSync(
       await upsertSubclients(pool, batch);
     }
     logger.info(`Arca sync: upserted ${parsed.subclients.length} subclients for user ${userId}`);
+
+    // Auto-match subclients to Archibald customers
+    const matchResult = await matchSubclients(pool, userId);
+    if (matchResult.matched > 0) {
+      logger.info(`Arca sync: auto-matched ${matchResult.matched} subclients (${matchResult.unmatched} unmatched)`);
+    }
   }
 
   // 6. Update ft_counter with max NUMERODOC per ESERCIZIO (FT only)
