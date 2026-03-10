@@ -34,6 +34,7 @@ import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
 import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
 import { ARCA_FONT } from "../components/arca/arcaStyles";
 import { ArcaSyncButton } from "../components/ArcaSyncButton";
+import { SubclientsTab } from "../components/SubclientsTab";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
   { id: "today", label: "Oggi" },
@@ -81,6 +82,7 @@ export function FresisHistoryPage() {
     useState<DeleteProgressState | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
 
   // Sub-client search
   const [subClientQuery, setSubClientQuery] = useState("");
@@ -578,6 +580,40 @@ export function FresisHistoryPage() {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0",
+          marginBottom: "12px",
+          borderBottom: "2px solid #e0e0e0",
+        }}
+      >
+        {(["documenti", "sottoclienti"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: "10px 20px",
+              fontSize: "14px",
+              fontWeight: activeTab === tab ? 700 : 500,
+              color: activeTab === tab ? "#7c3aed" : "#666",
+              backgroundColor: "transparent",
+              border: "none",
+              borderBottom: activeTab === tab ? "2px solid #7c3aed" : "2px solid transparent",
+              marginBottom: "-2px",
+              cursor: "pointer",
+              transition: "color 0.2s, border-color 0.2s",
+            }}
+          >
+            {tab === "documenti" ? "Documenti" : "Sottoclienti"}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "sottoclienti" && <SubclientsTab />}
+
+      {activeTab === "documenti" && <>
       {/* Export panel */}
       {showExportPanel && (
         <div
@@ -937,6 +973,7 @@ export function FresisHistoryPage() {
             />
           );
         })()}
+      </>}
     </div>
   );
 }
