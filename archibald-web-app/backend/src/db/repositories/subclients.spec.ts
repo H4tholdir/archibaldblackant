@@ -17,6 +17,60 @@ function getQueryCall(pool: DbPool, index: number): { text: string; params?: unk
   return { text: calls[index][0], params: calls[index][1] };
 }
 
+const anagrafeNulls = {
+  agente: null,
+  agente2: null,
+  settore: null,
+  classe: null,
+  pag: null,
+  listino: null,
+  banca: null,
+  valuta: null,
+  cod_nazione: null,
+  aliiva: null,
+  contoscar: null,
+  tipofatt: null,
+  telefono2: null,
+  telefono3: null,
+  url: null,
+  cb_nazione: null,
+  cb_bic: null,
+  cb_cin_ue: null,
+  cb_cin_it: null,
+  abicab: null,
+  contocorr: null,
+  matched_customer_profile_id: null,
+  match_confidence: null,
+  arca_synced_at: null,
+};
+
+const anagrafeNullsCamel = {
+  agente: null,
+  agente2: null,
+  settore: null,
+  classe: null,
+  pag: null,
+  listino: null,
+  banca: null,
+  valuta: null,
+  codNazione: null,
+  aliiva: null,
+  contoscar: null,
+  tipofatt: null,
+  telefono2: null,
+  telefono3: null,
+  url: null,
+  cbNazione: null,
+  cbBic: null,
+  cbCinUe: null,
+  cbCinIt: null,
+  abicab: null,
+  contocorr: null,
+  matchedCustomerProfileId: null,
+  matchConfidence: null,
+  arcaSyncedAt: null,
+};
+
 const sampleRow = {
   codice: 'SC001',
   ragione_sociale: 'Acme S.r.l.',
@@ -33,6 +87,7 @@ const sampleRow = {
   zona: 'Nord',
   pers_da_contattare: 'Mario Rossi',
   email_amministraz: 'admin@acme.it',
+  ...anagrafeNulls,
 };
 
 const sampleRow2 = {
@@ -51,6 +106,7 @@ const sampleRow2 = {
   zona: 'Nord',
   pers_da_contattare: null,
   email_amministraz: null,
+  ...anagrafeNulls,
 };
 
 describe('getAllSubclients', () => {
@@ -85,6 +141,7 @@ describe('getAllSubclients', () => {
         zona: 'Nord',
         persDaContattare: 'Mario Rossi',
         emailAmministraz: 'admin@acme.it',
+        ...anagrafeNullsCamel,
       },
       {
         codice: 'SC002',
@@ -102,6 +159,7 @@ describe('getAllSubclients', () => {
         zona: 'Nord',
         persDaContattare: null,
         emailAmministraz: null,
+        ...anagrafeNullsCamel,
       },
     ]);
     expect(getQueryCall(pool, 0).text).toContain('ORDER BY ragione_sociale');
@@ -291,6 +349,7 @@ describe('upsertSubclients', () => {
         zona: null,
         persDaContattare: null,
         emailAmministraz: null,
+        ...anagrafeNullsCamel,
       },
       {
         codice: 'SC002',
@@ -308,6 +367,7 @@ describe('upsertSubclients', () => {
         zona: null,
         persDaContattare: null,
         emailAmministraz: null,
+        ...anagrafeNullsCamel,
       },
     ];
 
@@ -319,14 +379,14 @@ describe('upsertSubclients', () => {
     expect(call.text).toContain('ON CONFLICT (codice) DO UPDATE');
   });
 
-  test('passes all 15 fields per subclient in parameters', async () => {
+  test('passes all 39 fields per subclient in parameters', async () => {
     const pool = createMockPool();
     (pool.query as MockQuery).mockResolvedValueOnce({
       rows: [],
       rowCount: 1,
     });
 
-    const { upsertSubclients } = await import('./subclients');
+    const { upsertSubclients, COLUMN_COUNT } = await import('./subclients');
     const subclient = {
       codice: 'SC001',
       ragioneSociale: 'Acme',
@@ -343,12 +403,14 @@ describe('upsertSubclients', () => {
       zona: 'Nord',
       persDaContattare: 'Mario',
       emailAmministraz: 'adm@b.it',
+      ...anagrafeNullsCamel,
     };
 
     await upsertSubclients(pool, [subclient]);
 
     const call = getQueryCall(pool, 0);
-    expect(call.params).toEqual([
+    expect(call.params).toHaveLength(COLUMN_COUNT);
+    expect(call.params!.slice(0, 15)).toEqual([
       'SC001', 'Acme', 'Suppl',
       'Via Roma', '20100', 'Milano', 'MI',
       '123', '456', 'a@b.it',
@@ -461,6 +523,7 @@ describe('mapRowToSubclient', () => {
       zona: 'Nord',
       persDaContattare: 'Mario Rossi',
       emailAmministraz: 'admin@acme.it',
+      ...anagrafeNullsCamel,
     });
   });
 
@@ -484,6 +547,121 @@ describe('mapRowToSubclient', () => {
       zona: 'Nord',
       persDaContattare: null,
       emailAmministraz: null,
+      ...anagrafeNullsCamel,
     });
+  });
+});
+
+describe('getUnmatchedSubclients', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns subclients where matched_customer_profile_id IS NULL', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({
+      rows: [sampleRow],
+      rowCount: 1,
+    });
+
+    const { getUnmatchedSubclients } = await import('./subclients');
+    const result = await getUnmatchedSubclients(pool);
+
+    expect(result).toEqual([expect.objectContaining({ codice: 'SC001' })]);
+    const call = getQueryCall(pool, 0);
+    expect(call.text).toContain('matched_customer_profile_id IS NULL');
+  });
+});
+
+describe('setSubclientMatch', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('sets match fields on subclient', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({
+      rows: [],
+      rowCount: 1,
+    });
+
+    const { setSubclientMatch } = await import('./subclients');
+    const result = await setSubclientMatch(pool, 'SC001', 'PROF-123', 'vat');
+
+    expect(result).toBe(true);
+    const call = getQueryCall(pool, 0);
+    expect(call.text).toContain('matched_customer_profile_id = $2');
+    expect(call.text).toContain('match_confidence = $3');
+    expect(call.params).toEqual(['SC001', 'PROF-123', 'vat']);
+  });
+
+  test('returns false when subclient not found', async () => {
+    const pool = createMockPool();
+
+    const { setSubclientMatch } = await import('./subclients');
+    const result = await setSubclientMatch(pool, 'UNKNOWN', 'PROF-123', 'vat');
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('clearSubclientMatch', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('clears match fields on subclient', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({
+      rows: [],
+      rowCount: 1,
+    });
+
+    const { clearSubclientMatch } = await import('./subclients');
+    const result = await clearSubclientMatch(pool, 'SC001');
+
+    expect(result).toBe(true);
+    const call = getQueryCall(pool, 0);
+    expect(call.text).toContain('matched_customer_profile_id = NULL');
+    expect(call.text).toContain('match_confidence = NULL');
+    expect(call.params).toEqual(['SC001']);
+  });
+});
+
+describe('getSubclientByCustomerProfile', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns subclient matched to given profile ID', async () => {
+    const pool = createMockPool();
+    const matchedRow = {
+      ...sampleRow,
+      matched_customer_profile_id: 'PROF-123',
+      match_confidence: 'vat',
+    };
+    (pool.query as MockQuery).mockResolvedValueOnce({
+      rows: [matchedRow],
+      rowCount: 1,
+    });
+
+    const { getSubclientByCustomerProfile } = await import('./subclients');
+    const result = await getSubclientByCustomerProfile(pool, 'PROF-123');
+
+    expect(result).toEqual(expect.objectContaining({
+      codice: 'SC001',
+      matchedCustomerProfileId: 'PROF-123',
+      matchConfidence: 'vat',
+    }));
+    expect(getQueryCall(pool, 0).params).toEqual(['PROF-123']);
+  });
+
+  test('returns null when no subclient matches profile', async () => {
+    const pool = createMockPool();
+
+    const { getSubclientByCustomerProfile } = await import('./subclients');
+    const result = await getSubclientByCustomerProfile(pool, 'UNKNOWN');
+
+    expect(result).toBeNull();
   });
 });

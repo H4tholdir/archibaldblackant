@@ -16,6 +16,30 @@ type SubclientRow = {
   zona: string | null;
   pers_da_contattare: string | null;
   email_amministraz: string | null;
+  agente: string | null;
+  agente2: string | null;
+  settore: string | null;
+  classe: string | null;
+  pag: string | null;
+  listino: string | null;
+  banca: string | null;
+  valuta: string | null;
+  cod_nazione: string | null;
+  aliiva: string | null;
+  contoscar: string | null;
+  tipofatt: string | null;
+  telefono2: string | null;
+  telefono3: string | null;
+  url: string | null;
+  cb_nazione: string | null;
+  cb_bic: string | null;
+  cb_cin_ue: string | null;
+  cb_cin_it: string | null;
+  abicab: string | null;
+  contocorr: string | null;
+  matched_customer_profile_id: string | null;
+  match_confidence: string | null;
+  arca_synced_at: string | null;
 };
 
 type Subclient = {
@@ -34,14 +58,46 @@ type Subclient = {
   zona: string | null;
   persDaContattare: string | null;
   emailAmministraz: string | null;
+  agente: string | null;
+  agente2: string | null;
+  settore: string | null;
+  classe: string | null;
+  pag: string | null;
+  listino: string | null;
+  banca: string | null;
+  valuta: string | null;
+  codNazione: string | null;
+  aliiva: string | null;
+  contoscar: string | null;
+  tipofatt: string | null;
+  telefono2: string | null;
+  telefono3: string | null;
+  url: string | null;
+  cbNazione: string | null;
+  cbBic: string | null;
+  cbCinUe: string | null;
+  cbCinIt: string | null;
+  abicab: string | null;
+  contocorr: string | null;
+  matchedCustomerProfileId: string | null;
+  matchConfidence: string | null;
+  arcaSyncedAt: string | null;
 };
+
+const COLUMN_COUNT = 39;
 
 const COLUMNS = `
   codice, ragione_sociale, suppl_ragione_sociale,
   indirizzo, cap, localita, prov,
   telefono, fax, email,
   partita_iva, cod_fiscale, zona,
-  pers_da_contattare, email_amministraz
+  pers_da_contattare, email_amministraz,
+  agente, agente2, settore, classe,
+  pag, listino, banca, valuta, cod_nazione,
+  aliiva, contoscar, tipofatt,
+  telefono2, telefono3, url,
+  cb_nazione, cb_bic, cb_cin_ue, cb_cin_it, abicab, contocorr,
+  matched_customer_profile_id, match_confidence, arca_synced_at
 `;
 
 function mapRowToSubclient(row: SubclientRow): Subclient {
@@ -61,6 +117,30 @@ function mapRowToSubclient(row: SubclientRow): Subclient {
     zona: row.zona,
     persDaContattare: row.pers_da_contattare,
     emailAmministraz: row.email_amministraz,
+    agente: row.agente,
+    agente2: row.agente2,
+    settore: row.settore,
+    classe: row.classe,
+    pag: row.pag,
+    listino: row.listino,
+    banca: row.banca,
+    valuta: row.valuta,
+    codNazione: row.cod_nazione,
+    aliiva: row.aliiva,
+    contoscar: row.contoscar,
+    tipofatt: row.tipofatt,
+    telefono2: row.telefono2,
+    telefono3: row.telefono3,
+    url: row.url,
+    cbNazione: row.cb_nazione,
+    cbBic: row.cb_bic,
+    cbCinUe: row.cb_cin_ue,
+    cbCinIt: row.cb_cin_it,
+    abicab: row.abicab,
+    contocorr: row.contocorr,
+    matchedCustomerProfileId: row.matched_customer_profile_id,
+    matchConfidence: row.match_confidence,
+    arcaSyncedAt: row.arca_synced_at,
   };
 }
 
@@ -83,6 +163,12 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
         OR cod_fiscale ILIKE $1
         OR indirizzo ILIKE $1
         OR cap ILIKE $1
+        OR telefono ILIKE $1
+        OR email ILIKE $1
+        OR zona ILIKE $1
+        OR agente ILIKE $1
+        OR pag ILIKE $1
+        OR listino ILIKE $1
      ORDER BY ragione_sociale ASC`,
     [pattern],
   );
@@ -105,6 +191,22 @@ async function deleteSubclient(pool: DbPool, codice: string): Promise<boolean> {
   return (result.rowCount ?? 0) > 0;
 }
 
+function subclientToParams(sc: Subclient): unknown[] {
+  return [
+    sc.codice, sc.ragioneSociale, sc.supplRagioneSociale,
+    sc.indirizzo, sc.cap, sc.localita, sc.prov,
+    sc.telefono, sc.fax, sc.email,
+    sc.partitaIva, sc.codFiscale, sc.zona,
+    sc.persDaContattare, sc.emailAmministraz,
+    sc.agente, sc.agente2, sc.settore, sc.classe,
+    sc.pag, sc.listino, sc.banca, sc.valuta, sc.codNazione,
+    sc.aliiva, sc.contoscar, sc.tipofatt,
+    sc.telefono2, sc.telefono3, sc.url,
+    sc.cbNazione, sc.cbBic, sc.cbCinUe, sc.cbCinIt, sc.abicab, sc.contocorr,
+    sc.matchedCustomerProfileId, sc.matchConfidence, sc.arcaSyncedAt,
+  ];
+}
+
 async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<number> {
   if (subclients.length === 0) {
     return 0;
@@ -114,18 +216,10 @@ async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<
   const params: unknown[] = [];
 
   for (let i = 0; i < subclients.length; i++) {
-    const offset = i * 15;
-    const placeholders = Array.from({ length: 15 }, (_, j) => `$${offset + j + 1}`);
+    const offset = i * COLUMN_COUNT;
+    const placeholders = Array.from({ length: COLUMN_COUNT }, (_, j) => `$${offset + j + 1}`);
     valuePlaceholders.push(`(${placeholders.join(', ')})`);
-
-    const sc = subclients[i];
-    params.push(
-      sc.codice, sc.ragioneSociale, sc.supplRagioneSociale,
-      sc.indirizzo, sc.cap, sc.localita, sc.prov,
-      sc.telefono, sc.fax, sc.email,
-      sc.partitaIva, sc.codFiscale, sc.zona,
-      sc.persDaContattare, sc.emailAmministraz,
-    );
+    params.push(...subclientToParams(subclients[i]));
   }
 
   const result = await pool.query(
@@ -134,7 +228,13 @@ async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<
       indirizzo, cap, localita, prov,
       telefono, fax, email,
       partita_iva, cod_fiscale, zona,
-      pers_da_contattare, email_amministraz
+      pers_da_contattare, email_amministraz,
+      agente, agente2, settore, classe,
+      pag, listino, banca, valuta, cod_nazione,
+      aliiva, contoscar, tipofatt,
+      telefono2, telefono3, url,
+      cb_nazione, cb_bic, cb_cin_ue, cb_cin_it, abicab, contocorr,
+      matched_customer_profile_id, match_confidence, arca_synced_at
     ) VALUES ${valuePlaceholders.join(', ')}
     ON CONFLICT (codice) DO UPDATE SET
       ragione_sociale = EXCLUDED.ragione_sociale,
@@ -151,6 +251,27 @@ async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<
       zona = EXCLUDED.zona,
       pers_da_contattare = EXCLUDED.pers_da_contattare,
       email_amministraz = EXCLUDED.email_amministraz,
+      agente = EXCLUDED.agente,
+      agente2 = EXCLUDED.agente2,
+      settore = EXCLUDED.settore,
+      classe = EXCLUDED.classe,
+      pag = EXCLUDED.pag,
+      listino = EXCLUDED.listino,
+      banca = EXCLUDED.banca,
+      valuta = EXCLUDED.valuta,
+      cod_nazione = EXCLUDED.cod_nazione,
+      aliiva = EXCLUDED.aliiva,
+      contoscar = EXCLUDED.contoscar,
+      tipofatt = EXCLUDED.tipofatt,
+      telefono2 = EXCLUDED.telefono2,
+      telefono3 = EXCLUDED.telefono3,
+      url = EXCLUDED.url,
+      cb_nazione = EXCLUDED.cb_nazione,
+      cb_bic = EXCLUDED.cb_bic,
+      cb_cin_ue = EXCLUDED.cb_cin_ue,
+      cb_cin_it = EXCLUDED.cb_cin_it,
+      abicab = EXCLUDED.abicab,
+      contocorr = EXCLUDED.contocorr,
       updated_at = NOW()`,
     params,
   );
@@ -178,6 +299,56 @@ async function countSubclients(pool: DbPool): Promise<number> {
   return parseInt(rows[0].count, 10);
 }
 
+async function getUnmatchedSubclients(pool: DbPool): Promise<Subclient[]> {
+  const { rows } = await pool.query<SubclientRow>(
+    `SELECT ${COLUMNS} FROM shared.sub_clients
+     WHERE matched_customer_profile_id IS NULL
+     ORDER BY ragione_sociale ASC`,
+  );
+  return rows.map(mapRowToSubclient);
+}
+
+async function setSubclientMatch(
+  pool: DbPool,
+  codice: string,
+  customerProfileId: string,
+  confidence: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shared.sub_clients
+     SET matched_customer_profile_id = $2,
+         match_confidence = $3,
+         updated_at = NOW()
+     WHERE codice = $1`,
+    [codice, customerProfileId, confidence],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+async function clearSubclientMatch(pool: DbPool, codice: string): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shared.sub_clients
+     SET matched_customer_profile_id = NULL,
+         match_confidence = NULL,
+         updated_at = NOW()
+     WHERE codice = $1`,
+    [codice],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+async function getSubclientByCustomerProfile(
+  pool: DbPool,
+  profileId: string,
+): Promise<Subclient | null> {
+  const { rows } = await pool.query<SubclientRow>(
+    `SELECT ${COLUMNS} FROM shared.sub_clients
+     WHERE matched_customer_profile_id = $1`,
+    [profileId],
+  );
+  return rows.length > 0 ? mapRowToSubclient(rows[0]) : null;
+}
+
 export {
   getAllSubclients,
   searchSubclients,
@@ -187,6 +358,12 @@ export {
   deleteSubclientsByCodici,
   countSubclients,
   mapRowToSubclient,
+  getUnmatchedSubclients,
+  setSubclientMatch,
+  clearSubclientMatch,
+  getSubclientByCustomerProfile,
+  subclientToParams,
+  COLUMN_COUNT,
   type SubclientRow,
   type Subclient,
 };
