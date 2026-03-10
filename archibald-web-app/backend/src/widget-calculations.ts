@@ -29,6 +29,14 @@ export interface OrderData {
   averageOrderValue: number;
 }
 
+export function calculateBonusMilestonesReached(
+  currentYearRevenue: number,
+  bonusInterval: number,
+): number {
+  if (bonusInterval <= 0) return 0;
+  return Math.floor(currentYearRevenue / bonusInterval);
+}
+
 // ============================================================================
 // WORKING DAYS CALCULATION (Italian calendar: Mon-Fri)
 // ============================================================================
@@ -279,6 +287,7 @@ export async function calculateHeroStatus(
 
   const progressInCurrentInterval = currentYearRevenue % bonusInterval;
   const progressNextBonus = progressInCurrentInterval / bonusInterval;
+  const bonusMilestonesReached = calculateBonusMilestonesReached(currentYearRevenue, bonusInterval);
 
   const comparisonPreviousMonth = await buildPreviousMonthComparison(
     pool, userId, currentMonthRevenue,
@@ -299,6 +308,7 @@ export async function calculateHeroStatus(
     missingToMonthlyTarget,
     progressMonthly,
     progressNextBonus,
+    bonusMilestonesReached,
     microCopy,
     projectedProgress,
     projectedMonthRevenue,

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import fc from "fast-check";
-import { determineHeroStatus } from "./widget-calculations";
+import { determineHeroStatus, calculateBonusMilestonesReached } from "./widget-calculations";
 import type { WidgetStatus } from "./widget-calculations";
 
 const STATUS_RANK: Record<WidgetStatus, number> = {
@@ -227,4 +227,22 @@ describe("determineHeroStatus", () => {
       );
     });
   });
+});
+
+describe("calculateBonusMilestonesReached", () => {
+  test.each([
+    { yearlyRevenue: 0, bonusInterval: 75_000, expected: 0 },
+    { yearlyRevenue: 74_999, bonusInterval: 75_000, expected: 0 },
+    { yearlyRevenue: 75_000, bonusInterval: 75_000, expected: 1 },
+    { yearlyRevenue: 149_999, bonusInterval: 75_000, expected: 1 },
+    { yearlyRevenue: 150_000, bonusInterval: 75_000, expected: 2 },
+    { yearlyRevenue: 300_000, bonusInterval: 75_000, expected: 4 },
+    { yearlyRevenue: 100_000, bonusInterval: 0, expected: 0 },
+    { yearlyRevenue: 100_000, bonusInterval: -1, expected: 0 },
+  ])(
+    "$yearlyRevenue € / $bonusInterval € → $expected milestone/s",
+    ({ yearlyRevenue, bonusInterval, expected }) => {
+      expect(calculateBonusMilestonesReached(yearlyRevenue, bonusInterval)).toBe(expected);
+    },
+  );
 });
