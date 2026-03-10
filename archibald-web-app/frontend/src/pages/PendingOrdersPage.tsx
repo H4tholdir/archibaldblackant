@@ -18,6 +18,7 @@ import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
 import { formatCurrency } from "../utils/format-currency";
 import { getCustomers } from "../api/customers";
+import { useOperationTracking } from "../contexts/OperationTrackingContext";
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -28,6 +29,7 @@ function itemSubtotal(
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
+  const { trackOperation } = useOperationTracking();
 
   // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
   const {
@@ -184,6 +186,14 @@ export function PendingOrdersPage() {
         })),
       );
 
+      for (let idx = 0; idx < selectedOrders2.length; idx++) {
+        const order = selectedOrders2[idx];
+        const jobId = jobIds[idx];
+        if (jobId) {
+          trackOperation(order.id!, jobId, order.customerName);
+        }
+      }
+
       for (const orderId of selectedOrderIds) {
         const order = orders.find((o) => o.id === orderId);
         if (order) {
@@ -272,6 +282,7 @@ export function PendingOrdersPage() {
       });
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
+      trackOperation(order.id!, result.jobId, order.customerName);
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {

@@ -31,6 +31,8 @@ import { PrivacyProvider } from "./contexts/PrivacyContext";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import { OperationTrackingProvider } from "./contexts/OperationTrackingContext";
+import { GlobalOperationBanner } from "./components/GlobalOperationBanner";
 import WebSocketSync from "./components/WebSocketSync";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
@@ -238,12 +240,11 @@ function AppRouter() {
           <OfflineSyncBanner />
           <ImpersonationBanner />
           <AdminSessionBanner />
-          {/* Unified sync progress - temporarily disabled due to SSE errors */}
-          {/* <UnifiedSyncProgress mode="banner" /> */}
-          {/* <UnifiedSyncProgress mode="badge" /> */}
-          {/* Global Dashboard Navigation */}
-          <DashboardNav />
-          <Routes>
+          <OperationTrackingProvider>
+            <GlobalOperationBanner />
+            {/* Global Dashboard Navigation */}
+            <DashboardNav />
+            <Routes>
             {/* Dashboard route */}
             <Route
               path="/"
@@ -467,6 +468,7 @@ function AppRouter() {
             {/* Redirect unknown routes */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </OperationTrackingProvider>
         </WebSocketProvider>
       </BrowserRouter>
     </PrivacyProvider>

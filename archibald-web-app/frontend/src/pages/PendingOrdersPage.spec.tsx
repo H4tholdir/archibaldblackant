@@ -107,6 +107,14 @@ vi.mock("../components/JobProgressBar", () => ({
   JobProgressBar: () => null,
 }));
 
+vi.mock("../contexts/OperationTrackingContext", () => ({
+  useOperationTracking: () => ({
+    activeOperations: [],
+    trackOperation: vi.fn(),
+    dismissOperation: vi.fn(),
+  }),
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
