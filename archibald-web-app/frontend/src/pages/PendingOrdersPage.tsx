@@ -396,11 +396,30 @@ export function PendingOrdersPage() {
       }
       mergedOrder.revenue = mergedRevenue;
 
+      // Calculate revenue for each original order and tag as created in PWA
+      const ordersToArchive = selectedFresisOrders.map((order) => {
+        const globalDisc = order.discountPercent || 0;
+        let orderRevenue = 0;
+        for (const item of order.items) {
+          const fresisDisc =
+            discountMap.get(item.articleId ?? "") ??
+            discountMap.get(item.articleCode) ??
+            0;
+          const originalPrice = item.originalListPrice ?? item.price;
+          const prezzoCliente =
+            item.price *
+            item.quantity *
+            (1 - (item.discount || 0) / 100) *
+            (1 - globalDisc / 100);
+          const costoFresis =
+            originalPrice * item.quantity * (1 - fresisDisc / 100);
+          orderRevenue += prezzoCliente - costoFresis;
+        }
+        return { ...order, revenue: orderRevenue, currentState: "creato_pwa" };
+      });
+
       // Archive original orders to fresisHistory
-      await archiveOrders(
-        selectedFresisOrders,
-        mergedOrder.id,
-      );
+      await archiveOrders(ordersToArchive, mergedOrder.id);
 
       // Re-assign existing history entries from old merged orders to new merged order
       for (const order of selectedFresisOrders) {

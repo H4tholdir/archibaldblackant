@@ -264,7 +264,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         notes: null,
         archibaldOrderId: null,
         archibaldOrderNumber: null,
-        state: null,
+        state: (order.currentState as string) || null,
         stateUpdatedAt: null,
         ddtNumber: null,
         ddtDeliveryDate: null,

@@ -155,6 +155,7 @@ const STATE_LABELS: Record<string, string> = {
   pagamento_scaduto: "Pag. scaduto",
   pagato: "Pagato",
   importato_arca: "Import Arca",
+  creato_pwa: "Creato in PWA",
 };
 
 type CustomRowProps = {

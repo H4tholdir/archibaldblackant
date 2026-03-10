@@ -248,6 +248,7 @@ export async function archiveOrders(
     shippingCost?: number;
     shippingTax?: number;
     revenue?: number;
+    currentState?: string;
     createdAt: string;
   }>,
   mergedOrderId?: string,

@@ -63,6 +63,7 @@ type FresisHistoryRecord = {
   archibaldOrderId: string | null;
   archibaldOrderNumber: string | null;
   state: string | null;
+  currentState: string | null;
   stateUpdatedAt: string | null;
   ddtNumber: string | null;
   ddtDeliveryDate: string | null;
@@ -182,6 +183,7 @@ function mapRowToFresisHistory(row: FresisHistoryRow): FresisHistoryRecord {
     archibaldOrderId: row.archibald_order_id,
     archibaldOrderNumber: row.archibald_order_number,
     state: row.current_state,
+    currentState: row.current_state,
     stateUpdatedAt: row.state_updated_at,
     ddtNumber: row.ddt_number,
     ddtDeliveryDate: row.ddt_delivery_date,
