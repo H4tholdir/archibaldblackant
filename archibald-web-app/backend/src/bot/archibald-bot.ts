@@ -3883,7 +3883,7 @@ export class ArchibaldBot {
         // Retry wrapper for UI steps (5.2 - 5.8)
         // If a timeout occurs during article insertion, reload and resume
         let articleRetries = 0;
-        const maxArticleRetries = 1;
+        const maxArticleRetries = 2;
 
         while (true) {
           try {
@@ -5512,6 +5512,69 @@ export class ArchibaldBot {
 
             // Cleanup stale dropdowns between articles to prevent DOM bloat
             await this.cleanupStaleDropdowns();
+
+            // 5.7b: Periodic form save every 10 articles to flush DevExpress DOM bloat.
+            // After 10+ articles, accumulated dropdowns/popups/editors cause
+            // Runtime.callFunctionOn timeouts (>5min protocolTimeout).
+            // "Salvare" triggers a form-level callback that re-renders the grid cleanly.
+            const PERIODIC_SAVE_EVERY = 10;
+            const articleNum = i + 1; // 1-based
+            if (
+              articleNum % PERIODIC_SAVE_EVERY === 0 &&
+              i < itemsToOrder.length - 1
+            ) {
+              await this.runOp(
+                `order.periodic_save_after_${articleNum}`,
+                async () => {
+                  logger.info(
+                    `🔄 Periodic save after ${articleNum} articles to flush DOM`,
+                  );
+                  await this.clickSaveOnly();
+                  await this.waitForDevExpressIdle({
+                    timeout: 20000,
+                    label: `periodic-save-${articleNum}`,
+                  });
+
+                  // Grid was re-rendered by the save — re-discover it
+                  await this.discoverSalesLinesGrid();
+
+                  const savedCount = await this.getSavedArticleCount();
+                  logger.info(
+                    `After periodic save: ${savedCount} articles in grid (expected ${articleNum})`,
+                  );
+
+                  // Navigate to last page and create new row for next article
+                  await this.gridGotoLastPage();
+                  if (this.salesLinesGridName) {
+                    await this.gridAddNewRow();
+                  } else {
+                    const addResult = await this.clickDevExpressGridCommand({
+                      command: "AddNew",
+                      baseIdHint: "SALESLINEs",
+                      timeout: 7000,
+                      label: `periodic-save-addnew-${articleNum}`,
+                    });
+                    if (!addResult.clicked) {
+                      throw new Error(
+                        `AddNew failed after periodic save at article ${articleNum}`,
+                      );
+                    }
+                  }
+                  await this.waitForDevExpressIdle({
+                    timeout: 6000,
+                    label: `post-periodic-save-idle-${articleNum}`,
+                  });
+
+                  logger.info(
+                    `✅ Periodic save complete, ready for article ${articleNum + 1}`,
+                  );
+                },
+                "form.periodic-save",
+              );
+
+              // Skip normal click_new_for_next — we already created AddNew above
+              break; // Exit retry loop — for loop advances to i+1
+            }
 
             // 5.8: Add new row for next article (if not last)
             if (i < itemsToOrder.length - 1) {
