@@ -42,9 +42,15 @@ function fireSideCannons(): void {
 }
 
 function fireStarFireworks(): void {
-  const duration = 5000;
+  const duration = 10000;
   const animationEnd = Date.now() + duration;
-  const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+  const defaults = {
+    startVelocity: 30,
+    spread: 360,
+    ticks: 60,
+    zIndex: 0,
+    colors: ["#FFD700", "#FFA500", "#FFEC8B", "#DAA520", "#FFD700"],
+  };
 
   const randomInRange = (min: number, max: number) =>
     Math.random() * (max - min) + min;
