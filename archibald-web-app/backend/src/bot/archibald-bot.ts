@@ -5529,6 +5529,11 @@ export class ArchibaldBot {
                   logger.info(
                     `🔄 Periodic save after ${articleNum} articles to flush DOM`,
                   );
+                  // Wait for any active loading/AJAX to finish before opening dropdown
+                  await this.waitForDevExpressIdle({
+                    timeout: 10000,
+                    label: `pre-periodic-save-idle-${articleNum}`,
+                  });
                   await this.clickSaveOnly();
                   await this.waitForDevExpressIdle({
                     timeout: 20000,
