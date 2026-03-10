@@ -665,6 +665,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/arca-sync', authenticateJWT, createArcaSyncRouter({
     pool,
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
+    enqueueJob: (type, userId, data) => queue.enqueue(type, userId, data),
   }));
 
   const syncSchedulerDeps = {
