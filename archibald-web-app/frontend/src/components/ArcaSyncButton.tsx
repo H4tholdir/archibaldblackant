@@ -4,6 +4,7 @@ import { performBrowserArcaSync, isFileSystemAccessSupported } from '../services
 
 interface ArcaSyncButtonProps {
   onSyncComplete?: () => void;
+  onGoToSubclients?: () => void;
 }
 
 const STAGE_MESSAGES: Record<string, string> = {
@@ -15,7 +16,7 @@ const STAGE_MESSAGES: Record<string, string> = {
   'done': 'Completato!',
 };
 
-export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
+export function ArcaSyncButton({ onSyncComplete, onGoToSubclients }: ArcaSyncButtonProps) {
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [result, setResult] = useState<{
@@ -24,6 +25,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
     exported: number;
     ktExported: number;
     ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
+    ktMissingArticles: number;
     errors: string[];
     hasVbs: boolean;
   } | null>(null);
@@ -42,6 +44,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
         exported: syncResult.sync.exported,
         ktExported: syncResult.sync.ktExported ?? 0,
         ktNeedingMatch: syncResult.sync.ktNeedingMatch ?? [],
+        ktMissingArticles: syncResult.sync.ktMissingArticles?.length ?? 0,
         errors: syncResult.sync.errors,
         hasVbs: syncResult.vbsScript !== null,
       });
@@ -126,6 +129,11 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
                   )}
                 </div>
               )}
+              {result.ktMissingArticles > 0 && (
+                <div style={{ marginTop: 4, color: '#6d28d9' }}>
+                  {result.ktMissingArticles} ordini KT in attesa sync articoli (avviata automaticamente)
+                </div>
+              )}
               {result.ktNeedingMatch.length > 0 && (
                 <div style={{ marginTop: 4, color: '#b45309' }}>
                   {result.ktNeedingMatch.length} ordini KT richiedono match sottocliente:
@@ -134,6 +142,18 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
                       <li key={o.orderId}>{o.customerName}</li>
                     ))}
                   </ul>
+                  {onGoToSubclients && (
+                    <button
+                      onClick={onGoToSubclients}
+                      style={{
+                        marginTop: 4, padding: '4px 10px', borderRadius: 6,
+                        border: '1px solid #d97706', backgroundColor: '#fffbeb',
+                        color: '#92400e', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                      }}
+                    >
+                      Vai a Sottoclienti per collegare
+                    </button>
+                  )}
                 </div>
               )}
               {result.exported === 0 && result.imported === 0 && result.skipped > 0 && (
