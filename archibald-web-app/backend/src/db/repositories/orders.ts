@@ -91,6 +91,7 @@ type OrderRow = {
   delivery_confirmed_at: string | null;
   delivery_signed_by: string | null;
   tracking_events: unknown;
+  arca_kt_synced_at: string | null;
 };
 
 type DdtInfo = {
@@ -218,6 +219,7 @@ type Order = {
     delivered: boolean;
     exception: boolean;
   }> | undefined;
+  arcaKtSyncedAt: string | null;
   ddt: DdtInfo | undefined;
   tracking: TrackingInfo | undefined;
 };
@@ -478,6 +480,7 @@ function mapRowToOrder(row: OrderRow): Order {
     trackingServiceDesc: row.tracking_service_desc,
     deliveryConfirmedAt: row.delivery_confirmed_at,
     deliverySignedBy: row.delivery_signed_by,
+    arcaKtSyncedAt: row.arca_kt_synced_at,
     trackingEvents: row.tracking_events as Array<{
       date: string;
       time: string;

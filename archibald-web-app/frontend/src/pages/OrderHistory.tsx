@@ -6,6 +6,7 @@ import { OrderCardStack } from "../components/OrderCardStack";
 import { SendToVeronaModal } from "../components/SendToVeronaModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
 import { OrderStatusLegend } from "../components/OrderStatusLegend";
+import KtSyncDialog from "../components/KtSyncDialog";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
 import {
@@ -264,6 +265,7 @@ export function OrderHistory() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [stackReasonDialog, setStackReasonDialog] = useState(false);
+  const [ktSyncDialogOpen, setKtSyncDialogOpen] = useState(false);
   const [stackReason, setStackReason] = useState("");
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justEnteredSelectionMode = useRef(false);
@@ -2463,6 +2465,23 @@ export function OrderHistory() {
               Annulla
             </button>
             <button
+              onClick={() => setKtSyncDialogOpen(true)}
+              disabled={selectedOrderIds.size === 0}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: selectedOrderIds.size === 0 ? "#bdbdbd" : "#7c3aed",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              Sync KT
+            </button>
+            <button
               onClick={() => setStackReasonDialog(true)}
               disabled={selectedOrderIds.size < 2}
               style={{
@@ -2481,6 +2500,18 @@ export function OrderHistory() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* KT Sync dialog */}
+      {ktSyncDialogOpen && (
+        <KtSyncDialog
+          orders={orders.filter((o) => selectedOrderIds.has(o.id))}
+          onClose={() => setKtSyncDialogOpen(false)}
+          onComplete={() => {
+            setSelectionMode(false);
+            setSelectedOrderIds(new Set());
+          }}
+        />
       )}
 
       {/* Stack reason dialog */}

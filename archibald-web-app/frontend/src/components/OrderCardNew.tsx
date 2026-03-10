@@ -3894,6 +3894,22 @@ export function OrderCardNew({
                     )}
                   </span>
                 )}
+                {order.arcaKtSyncedAt && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 8px",
+                      borderRadius: "12px",
+                      backgroundColor: "#7c3aed",
+                      color: "#fff",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    KT
+                  </span>
+                )}
                 {expanded && (onHide || onUnhide) && (
                   <button
                     onClick={(e) => {

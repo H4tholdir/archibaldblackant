@@ -200,4 +200,6 @@ export interface Order {
     delivered: boolean;
     exception: boolean;
   }>;
+
+  arcaKtSyncedAt?: string;
 }
