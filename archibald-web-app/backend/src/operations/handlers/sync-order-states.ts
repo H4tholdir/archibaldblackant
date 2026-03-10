@@ -1,6 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { Order } from '../../db/repositories/orders';
-import { getOrdersByUser, updateOrderState } from '../../db/repositories/orders';
+import { getOrdersByUser, updateOrderState, resetArticlesSyncedAt } from '../../db/repositories/orders';
 import { clearVerificationFlag } from '../../db/repositories/order-verification';
 import type { OperationHandler } from '../operation-processor';
 
@@ -38,6 +38,10 @@ const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
 const VERIFICATION_RESOLVING_STATES: ReadonlySet<OrderState> = new Set([
   'inviato_milano', 'trasferito', 'ordine_aperto', 'spedito',
+  'consegnato', 'fatturato', 'pagamento_scaduto', 'pagato',
+]);
+
+const COMPLETED_STATES: ReadonlySet<OrderState> = new Set([
   'consegnato', 'fatturato', 'pagamento_scaduto', 'pagato',
 ]);
 
@@ -205,8 +209,13 @@ function createSyncOrderStatesHandler(pool: DbPool): OperationHandler {
             detection.confidence,
             detection.source,
           );
-          if (detection.state !== order.state && VERIFICATION_RESOLVING_STATES.has(detection.state)) {
-            await clearVerificationFlag(pool, order.id, userId);
+          if (detection.state !== order.state) {
+            if (VERIFICATION_RESOLVING_STATES.has(detection.state)) {
+              await clearVerificationFlag(pool, order.id, userId);
+            }
+            if (!COMPLETED_STATES.has(detection.state)) {
+              await resetArticlesSyncedAt(pool, userId, order.id);
+            }
           }
           updated++;
           updatedOrderIds.push(order.id);

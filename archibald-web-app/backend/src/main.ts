@@ -468,7 +468,7 @@ async function bootstrap(): Promise<void> {
       parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
       getProductVat: async (articleCode: string) => {
         const variants = await getProductVariants(pool, articleCode);
-        return variants[0]?.vat ?? 0;
+        return variants[0]?.vat ?? null;
       },
       cleanupFile,
     }, broadcastEvent),
@@ -566,7 +566,7 @@ async function bootstrap(): Promise<void> {
         parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
         getProductVat: async (articleCode: string) => {
           const variants = await getProductVariants(pool, articleCode);
-          return variants[0]?.vat ?? 0;
+          return variants[0]?.vat ?? null;
         },
         cleanupFile,
       },

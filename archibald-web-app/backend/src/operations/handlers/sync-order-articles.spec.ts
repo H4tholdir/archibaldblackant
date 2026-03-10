@@ -183,6 +183,76 @@ describe('handleSyncOrderArticles', () => {
     expect(insertValues[18]).toBe(15.62);
   });
 
+  test('applies 22% VAT for "Spese di trasporto K3" not found in product database', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps: SyncOrderArticlesDeps = {
+      pool,
+      bot,
+      parsePdf: vi.fn().mockResolvedValue([
+        { articleCode: 'Spese di trasporto K3', description: null, quantity: 1, unitPrice: 15.45, discountPercent: 0, lineAmount: 15.45 },
+      ]),
+      getProductVat: vi.fn().mockResolvedValue(null),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'),
+    );
+    expect(insertCall).toBeDefined();
+    const insertValues = insertCall![1] as unknown[];
+    // vat_percent is at index 8: order_id, user_id, article_code, description, quantity, unit_price, discount_percent, line_amount, vat_percent
+    expect(insertValues[8]).toBe(22);
+  });
+
+  test('applies 0% VAT for unknown non-shipping article not found in product database', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps: SyncOrderArticlesDeps = {
+      pool,
+      bot,
+      parsePdf: vi.fn().mockResolvedValue([
+        { articleCode: 'ARTICOLO-SCONOSCIUTO', description: 'Articolo non in catalogo', quantity: 1, unitPrice: 50, discountPercent: 0, lineAmount: 50 },
+      ]),
+      getProductVat: vi.fn().mockResolvedValue(null),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'),
+    );
+    expect(insertCall).toBeDefined();
+    const insertValues = insertCall![1] as unknown[];
+    expect(insertValues[8]).toBe(0);
+  });
+
+  test('uses explicit 0% VAT when product is found with vat=0', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps: SyncOrderArticlesDeps = {
+      pool,
+      bot,
+      parsePdf: vi.fn().mockResolvedValue([
+        { articleCode: 'ART-EXEMPTED', description: 'Articolo esente IVA', quantity: 1, unitPrice: 100, discountPercent: 0, lineAmount: 100 },
+      ]),
+      getProductVat: vi.fn().mockResolvedValue(0),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'),
+    );
+    expect(insertCall).toBeDefined();
+    const insertValues = insertCall![1] as unknown[];
+    expect(insertValues[8]).toBe(0);
+  });
+
   test('reports progress at key milestones', async () => {
     const pool = createMockPool();
     const bot = createMockBot();

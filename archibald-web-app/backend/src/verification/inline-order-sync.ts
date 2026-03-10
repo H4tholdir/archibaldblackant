@@ -14,7 +14,7 @@ type InlineSyncDeps = {
   pool: DbPool;
   downloadOrderArticlesPDF: (archibaldOrderId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedArticle[]>;
-  getProductVat: (articleCode: string) => Promise<number>;
+  getProductVat: (articleCode: string) => Promise<number | null>;
   cleanupFile: (filePath: string) => Promise<void>;
 };
 
@@ -142,7 +142,8 @@ async function performInlineOrderSync(
 
     const enrichedArticles = await Promise.all(
       parsedArticles.map(async (article) => {
-        const vatPercent = await getProductVat(article.articleCode);
+        const rawVat = await getProductVat(article.articleCode);
+        const vatPercent = rawVat ?? (/^spese di trasporto/i.test(article.articleCode) ? 22 : 0);
         const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
         const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
         return { ...article, vatPercent, vatAmount, lineTotalWithVat };

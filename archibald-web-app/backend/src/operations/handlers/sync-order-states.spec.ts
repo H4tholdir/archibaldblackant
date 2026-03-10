@@ -255,6 +255,102 @@ describe('createSyncOrderStatesHandler', () => {
     expect(onProgress).toHaveBeenCalled();
   });
 
+  test('resets articles_synced_at when state changes to an active (non-completed) state', async () => {
+    const mockPool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'ORD-3', user_id: 'u1', order_number: 'SO-3', customer_name: 'C3',
+            customer_profile_id: null, delivery_name: null, delivery_address: null,
+            creation_date: '2026-02-20', delivery_date: null, remaining_sales_financial: null,
+            customer_reference: null, sales_status: 'Ordine Aperto', order_type: null,
+            document_status: null, sales_origin: null, transfer_status: 'sent',
+            transfer_date: '2026-02-20', completion_date: null, discount_percent: null,
+            gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
+            hash: 'h3', last_sync: 0, created_at: '2026-02-20',
+            ddt_number: null, ddt_delivery_date: null, ddt_id: null,
+            ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
+            delivery_terms: null, delivery_method: null, delivery_city: null,
+            attention_to: null, ddt_delivery_address: null, ddt_total: null,
+            ddt_customer_reference: null, ddt_description: null,
+            tracking_number: null, tracking_url: null, tracking_courier: null,
+            delivery_completed_date: null,
+            invoice_number: null, invoice_date: null, invoice_amount: null,
+            invoice_customer_account: null, invoice_billing_name: null,
+            invoice_quantity: null, invoice_remaining_amount: null,
+            invoice_tax_amount: null, invoice_line_discount: null,
+            invoice_total_discount: null, invoice_due_date: null,
+            invoice_payment_terms_id: null, invoice_purchase_order: null,
+            invoice_closed: null, invoice_days_past_due: null,
+            invoice_settled_amount: null, invoice_last_payment_id: null,
+            invoice_last_settlement_date: null, invoice_closed_date: null,
+            current_state: 'piazzato',
+            sent_to_verona_at: '2026-02-20', archibald_order_id: 'ARC-3',
+            total_vat_amount: null, total_with_vat: null,
+            articles_synced_at: '2026-02-15T00:00:00Z', shipping_cost: null, shipping_tax: null,
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [{ current_state: 'piazzato' }] })
+        .mockResolvedValue({ rows: [], rowCount: 1 }),
+    };
+
+    const handler = createSyncOrderStatesHandler(mockPool as any);
+    await handler(null, {}, 'u1', vi.fn());
+
+    const allQueries = (mockPool.query as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string);
+    const resetCall = allQueries.find(q => q.includes('articles_synced_at = NULL'));
+    expect(resetCall).toBeDefined();
+  });
+
+  test('does not reset articles_synced_at when state changes to a completed state', async () => {
+    const mockPool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'ORD-4', user_id: 'u1', order_number: 'SO-4', customer_name: 'C4',
+            customer_profile_id: null, delivery_name: null, delivery_address: null,
+            creation_date: '2026-02-20', delivery_date: null, remaining_sales_financial: null,
+            customer_reference: null, sales_status: null, order_type: null,
+            document_status: null, sales_origin: null, transfer_status: null,
+            transfer_date: null, completion_date: null, discount_percent: null,
+            gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
+            hash: 'h4', last_sync: 0, created_at: '2026-02-20',
+            ddt_number: 'DDT-4', ddt_delivery_date: '2020-01-01', ddt_id: null,
+            ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
+            delivery_terms: null, delivery_method: null, delivery_city: null,
+            attention_to: null, ddt_delivery_address: null, ddt_total: null,
+            ddt_customer_reference: null, ddt_description: null,
+            tracking_number: null, tracking_url: null, tracking_courier: null,
+            delivery_completed_date: null,
+            invoice_number: null, invoice_date: null, invoice_amount: null,
+            invoice_customer_account: null, invoice_billing_name: null,
+            invoice_quantity: null, invoice_remaining_amount: null,
+            invoice_tax_amount: null, invoice_line_discount: null,
+            invoice_total_discount: null, invoice_due_date: null,
+            invoice_payment_terms_id: null, invoice_purchase_order: null,
+            invoice_closed: null, invoice_days_past_due: null,
+            invoice_settled_amount: null, invoice_last_payment_id: null,
+            invoice_last_settlement_date: null, invoice_closed_date: null,
+            current_state: 'spedito',
+            sent_to_milano_at: '2026-02-10', archibald_order_id: 'ARC-4',
+            total_vat_amount: null, total_with_vat: null,
+            articles_synced_at: '2026-02-15T00:00:00Z', shipping_cost: null, shipping_tax: null,
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [{ current_state: 'spedito' }] })
+        .mockResolvedValue({ rows: [], rowCount: 1 }),
+    };
+
+    const handler = createSyncOrderStatesHandler(mockPool as any);
+    await handler(null, {}, 'u1', vi.fn());
+
+    const allQueries = (mockPool.query as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string);
+    const resetCall = allQueries.find(q => q.includes('articles_synced_at = NULL'));
+    expect(resetCall).toBeUndefined();
+  });
+
   test('skips orders whose state has not changed', async () => {
     const mockPool = {
       query: vi.fn().mockResolvedValueOnce({

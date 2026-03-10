@@ -1178,6 +1178,10 @@ async function getOrdersNeedingArticleSync(
        AND order_number NOT LIKE 'NC/%'
        AND (
          articles_synced_at IS NULL
+         OR (
+           current_state NOT IN ('consegnato', 'fatturato', 'pagamento_scaduto', 'pagato')
+           AND articles_synced_at::timestamptz < NOW() - INTERVAL '1 day'
+         )
          OR articles_synced_at::timestamptz < NOW() - INTERVAL '7 days'
        )
      ORDER BY articles_synced_at NULLS FIRST, creation_date DESC
@@ -1185,6 +1189,17 @@ async function getOrdersNeedingArticleSync(
     [userId, limit],
   );
   return rows.map((r) => r.id);
+}
+
+async function resetArticlesSyncedAt(
+  pool: DbPool,
+  userId: string,
+  orderId: string,
+): Promise<void> {
+  await pool.query(
+    'UPDATE agents.order_records SET articles_synced_at = NULL WHERE id = $1 AND user_id = $2',
+    [orderId, userId],
+  );
 }
 
 async function getOrderHistoryByCustomer(
@@ -1428,6 +1443,7 @@ export {
   getOrderNumbersByIds,
   getOrderHistoryByCustomer,
   getOrdersNeedingArticleSync,
+  resetArticlesSyncedAt,
   getWarehousePickupsByDate,
   mapRowToOrder,
   mapRowToArticle,
