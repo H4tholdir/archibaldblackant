@@ -23,6 +23,7 @@ import { customerService } from "../services/customers.service";
 import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useHiddenOrders } from "../hooks/useHiddenOrders";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { getNotesSummary } from "../api/order-notes";
 import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
@@ -319,6 +320,7 @@ export function OrderHistory() {
   useSearchMatches(resultsContainerRef, debouncedSearch);
 
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
 
   // Debounce global search input (300ms)
   useEffect(() => {
@@ -745,6 +747,7 @@ export function OrderHistory() {
           throw new Error(data.message || "Errore nell'invio a Verona");
         }
       } else {
+        trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...');
         await waitForJobViaWebSocket(data.jobId, {
           subscribe,
           maxWaitMs: 200_000,

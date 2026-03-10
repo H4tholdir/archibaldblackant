@@ -122,13 +122,12 @@ export async function bulkImportFresisHistory(
 
 export async function deleteFromArchibald(
   id: string,
-): Promise<{ message: string }> {
-  await enqueueOperation('delete-order', {
+): Promise<{ message: string; jobId: string }> {
+  const result = await enqueueOperation('delete-order', {
     orderId: id,
   });
 
-  const data = { message: 'Delete job enqueued' };
-  return { message: data.message };
+  return { message: 'Delete job enqueued', jobId: result.jobId };
 }
 
 export async function getByMotherOrder(

@@ -19,6 +19,7 @@ import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { archibaldLineAmount } from "../utils/order-calculations";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { OrderNotes } from "./OrderNotes";
 import { TrackingDotBar } from "./TrackingProgressBar";
 import { TrackingTimeline } from "./TrackingTimeline";
@@ -651,6 +652,7 @@ function TabArticoli({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
 
   // Edit mode state
   const [editItems, setEditItems] = useState<EditItem[]>([]);
@@ -1196,6 +1198,8 @@ function TabArticoli({
         setSubmittingEdit(false);
         return;
       }
+
+      trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...');
 
       await waitForJobViaWebSocket(result.jobId, {
         subscribe,
@@ -2278,6 +2282,7 @@ function TabLogistica({
   borderColor?: string;
 }) {
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
   const [ddtProgress, setDdtProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2323,6 +2328,8 @@ function TabLogistica({
         setDdtProgress({ active: false, percent: 0, stage: "" });
       },
       subscribe,
+      undefined,
+      (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
     );
   };
 
@@ -2700,6 +2707,7 @@ function TabFinanziario({
   searchQuery?: string;
 }) {
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
   const [invoiceProgress, setInvoiceProgress] = useState<{
     active: boolean;
     percent: number;
@@ -2738,6 +2746,7 @@ function TabFinanziario({
       },
       subscribe,
       isNC ? "NC" : "Fattura",
+      (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
     );
   };
 
@@ -3436,6 +3445,7 @@ function downloadPdfWithProgress(
   onError: (error: string) => void,
   subscribe: SubscribeFn,
   docLabel?: string,
+  onJobEnqueued?: (jobId: string) => void,
 ): () => void {
   let cancelled = false;
 
@@ -3448,6 +3458,7 @@ function downloadPdfWithProgress(
 
       if (cancelled) return;
 
+      onJobEnqueued?.(jobId);
       onProgress("In coda...", 10);
 
       const result = await waitForJobViaWebSocket(jobId, {
@@ -3591,6 +3602,7 @@ export function OrderCardNew({
 
   // WebSocket subscriptions for edit progress
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
   useEffect(() => {
     if (!editing) return;
     const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: unknown) => {
@@ -3671,6 +3683,8 @@ export function OrderCardNew({
       if (!result.success) {
         throw new Error(result.error || `Errore eliminazione ordine`);
       }
+
+      trackOperation(order.id, result.jobId, order.customerName || order.id, 'Eliminazione ordine...');
 
       if (deleteHandledRef.current) return;
       setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
@@ -4109,6 +4123,8 @@ export function OrderCardNew({
                             });
                           },
                           subscribe,
+                          undefined,
+                          (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
                         );
                       }}
                       style={{
@@ -4205,6 +4221,7 @@ export function OrderCardNew({
                           },
                           subscribe,
                           isNC ? "NC" : "Fattura",
+                          (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
                         );
                       }}
                       style={{

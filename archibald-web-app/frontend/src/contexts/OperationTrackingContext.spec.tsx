@@ -94,6 +94,51 @@ describe("OperationTrackingContext", () => {
     ]);
   });
 
+  test("trackOperation uses initialLabel when provided", async () => {
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    act(() => {
+      result.current.trackOperation("order-1", "job-1", "Mario Rossi", "Eliminazione ordine...");
+    });
+
+    expect(result.current.activeOperations).toEqual([
+      expect.objectContaining({
+        orderId: "order-1",
+        jobId: "job-1",
+        customerName: "Mario Rossi",
+        status: "queued",
+        progress: 0,
+        label: "Eliminazione ordine...",
+      }),
+    ]);
+  });
+
+  test("trackOperation defaults label to 'In coda...' without initialLabel", async () => {
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    act(() => {
+      result.current.trackOperation("order-1", "job-1", "Mario Rossi");
+    });
+
+    expect(result.current.activeOperations).toEqual([
+      expect.objectContaining({
+        label: "In coda...",
+      }),
+    ]);
+  });
+
   test("JOB_STARTED event updates status to active", async () => {
     const { result } = renderHook(() => useOperationTracking(), {
       wrapper: Wrapper,

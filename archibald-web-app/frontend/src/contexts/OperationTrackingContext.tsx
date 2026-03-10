@@ -25,7 +25,7 @@ type TrackedOperation = {
 
 type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
-  trackOperation: (orderId: string, jobId: string, customerName: string) => void;
+  trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string) => void;
   dismissOperation: (orderId: string) => void;
 };
 
@@ -223,13 +223,14 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   }, []);
 
   const trackOperation = useCallback(
-    (orderId: string, jobId: string, customerName: string) => {
+    (orderId: string, jobId: string, displayName: string, initialLabel?: string) => {
+      const label = initialLabel || "In coda...";
       setOperations((prev) => {
         const existing = prev.find((op) => op.orderId === orderId);
         if (existing) {
           return prev.map((op) =>
             op.orderId === orderId
-              ? { ...op, jobId, customerName, status: "queued" as const, progress: 0, label: "In coda..." }
+              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label }
               : op,
           );
         }
@@ -238,10 +239,10 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
           {
             orderId,
             jobId,
-            customerName,
+            customerName: displayName,
             status: "queued" as const,
             progress: 0,
-            label: "In coda...",
+            label,
             startedAt: Date.now(),
           },
         ];

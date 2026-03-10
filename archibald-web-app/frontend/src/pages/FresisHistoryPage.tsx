@@ -9,6 +9,7 @@ import {
   deleteFromArchibald,
   updateFresisHistoryOrder,
 } from "../api/fresis-history";
+import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { PDFExportService } from "../services/pdf-export.service";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
 import { ArcaImportModal } from "../components/ArcaImportModal";
@@ -50,6 +51,7 @@ export function FresisHistoryPage() {
   const [searchParams] = useSearchParams();
   const motherOrderFilter = searchParams.get("motherOrderId");
   const auth = useAuth();
+  const { trackOperation } = useOperationTracking();
 
   const initialRange = getDateRangeForPreset("thisMonth")!;
 
@@ -351,6 +353,7 @@ export function FresisHistoryPage() {
         setDeletingFromArchibald(id);
         const result = await deleteFromArchibald(id);
         setDeletingFromArchibald(null);
+        trackOperation(id, result.jobId, order.customerName || id, 'Eliminazione da Archibald...');
         if (!result.message) {
           alert("Errore cancellazione da Archibald");
           return;
