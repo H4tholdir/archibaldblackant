@@ -24,6 +24,8 @@ type PendingOrderRow = {
   archibald_order_id: string | null;
   no_shipping: boolean;
   notes: string | null;
+  job_id: string | null;
+  job_started_at: string | null;
 };
 
 type PendingOrder = {
@@ -50,6 +52,8 @@ type PendingOrder = {
   archibaldOrderId: string | null;
   noShipping: boolean;
   notes: string | null;
+  jobId: string | null;
+  jobStartedAt: string | null;
 };
 
 type PendingOrderInput = {
@@ -103,6 +107,8 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     archibaldOrderId: row.archibald_order_id,
     noShipping: row.no_shipping,
     notes: row.notes,
+    jobId: row.job_id,
+    jobStartedAt: row.job_started_at,
   };
 }
 
@@ -183,11 +189,25 @@ async function updatePendingOrderError(pool: DbPool, pendingOrderId: string, err
   );
 }
 
+async function updateJobTracking(
+  pool: DbPool,
+  pendingOrderId: string,
+  jobId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.pending_orders
+     SET job_id = $1, status = 'processing', job_started_at = NOW(), updated_at = $2
+     WHERE id = $3`,
+    [jobId, Date.now(), pendingOrderId],
+  );
+}
+
 export {
   getPendingOrders,
   upsertPendingOrder,
   deletePendingOrder,
   updatePendingOrderError,
+  updateJobTracking,
   mapRowToPendingOrder,
   type PendingOrderRow,
   type PendingOrder,
