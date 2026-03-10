@@ -315,6 +315,7 @@ function escapeVfpString(value: string | null): string {
 
 function buildExecScriptAnagrafe(sc: Subclient): string[] {
   const lines: string[] = [];
+  const codiceEscaped = escapeVfpString(sc.codice);
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
   lines.push('prgFile.WriteLine "IF USED([_ins])"');
   lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
@@ -322,7 +323,10 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
   lines.push('prgFile.WriteLine "USE ANAGRAFE IN 0 SHARED AGAIN ALIAS _ins"');
   lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
   lines.push('prgFile.WriteLine "SELECT _ins"');
-  lines.push('prgFile.WriteLine "APPEND BLANK"');
+  lines.push(`prgFile.WriteLine "LOCATE FOR ALLTRIM(CODICE) == [${codiceEscaped}]"`);
+  lines.push('prgFile.WriteLine "IF !FOUND()"');
+  lines.push('prgFile.WriteLine "  APPEND BLANK"');
+  lines.push('prgFile.WriteLine "ENDIF"');
 
   const fields: Array<[string, string | null]> = [
     ['CODICE', sc.codice],

@@ -50,25 +50,37 @@ async function getSubclients(search?: string): Promise<Subclient[]> {
 }
 
 async function setSubclientMatch(codice: string, customerProfileId: string): Promise<void> {
-  await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}/match`, {
+  const res = await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}/match`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ customerProfileId }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
 }
 
 async function clearSubclientMatch(codice: string): Promise<void> {
-  await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}/match`, {
+  const res = await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}/match`, {
     method: 'DELETE',
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
 }
 
 async function updateSubclient(codice: string, data: Partial<Subclient>): Promise<void> {
-  await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}`, {
+  const res = await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
 }
 
 async function createSubclient(data: Partial<Subclient> & { codice: string; ragioneSociale: string }): Promise<Subclient> {

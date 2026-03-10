@@ -1354,6 +1354,8 @@ async function getWarehousePickupsByDate(
   return Array.from(ordersMap.values());
 }
 
+const KT_ELIGIBLE_CUTOFF_DATE = '2026-03-09';
+
 type KtEligibleOrder = {
   id: string;
   orderNumber: string;
@@ -1381,7 +1383,7 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
             o.articles_synced_at
      FROM agents.order_records o
      WHERE o.user_id = $1
-       AND o.sent_to_verona_at >= '2026-03-09'
+       AND o.sent_to_verona_at >= $2
        AND o.arca_kt_synced_at IS NULL
        AND o.customer_name != 'Fresis Soc Cooperativa'
        AND EXISTS (
@@ -1389,7 +1391,7 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
          WHERE a.order_id = o.id AND a.user_id = o.user_id
        )
      ORDER BY o.creation_date ASC`,
-    [userId],
+    [userId, KT_ELIGIBLE_CUTOFF_DATE],
   );
 
   return rows.map((r) => ({
