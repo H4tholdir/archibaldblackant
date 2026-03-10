@@ -821,6 +821,9 @@ function createApp(deps: AppDeps): Express {
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
     deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
+    setSubclientMatch: (codice, profileId, confidence) => subclientsRepo.setSubclientMatch(pool, codice, profileId, confidence),
+    clearSubclientMatch: (codice) => subclientsRepo.clearSubclientMatch(pool, codice),
+    upsertSubclients: (subclients) => subclientsRepo.upsertSubclients(pool, subclients),
   }));
 
   app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
