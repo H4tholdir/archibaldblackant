@@ -313,9 +313,12 @@ function escapeVfpString(value: string | null): string {
   return value.replace(/[\r\n]/g, ' ').replace(/]/g, '').replace(/"/g, '""');
 }
 
+const ANAGRAFE_CODICE_MAX_LEN = 6;
+
 function buildExecScriptAnagrafe(sc: Subclient): string[] {
   const lines: string[] = [];
-  const codiceEscaped = escapeVfpString(sc.codice);
+  const truncatedCodice = sc.codice.slice(0, ANAGRAFE_CODICE_MAX_LEN);
+  const codiceEscaped = escapeVfpString(truncatedCodice);
   lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
   lines.push('prgFile.WriteLine "IF USED([_ins])"');
   lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
@@ -331,7 +334,7 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
   lines.push('prgFile.WriteLine "ENDIF"');
 
   const fields: Array<[string, string | null]> = [
-    ['CODICE', sc.codice],
+    ['CODICE', truncatedCodice],
     ['DESCRIZION', sc.ragioneSociale],
     ['SUPRAGSOC', sc.supplRagioneSociale],
     ['INDIRIZZO', sc.indirizzo],
@@ -584,6 +587,8 @@ function generateWatcherVbs(): string {
     '    logFile.WriteLine "Execution completed at " & Now()',
   );
   lines.push("    logFile.Close");
+  lines.push("");
+  lines.push("    fso.DeleteFile syncScript, True");
   lines.push("  End If");
   lines.push("");
   lines.push("  WScript.Sleep 10000");
@@ -1260,8 +1265,13 @@ export async function performArcaSync(
      WHERE arca_synced_at IS NULL OR updated_at > arca_synced_at`,
   );
 
+  const seenTruncatedCodici = new Set<string>();
   for (const row of exportableSubclients) {
-    anagrafeExportRecords.push({ subclient: mapRowToSubclient(row) });
+    const sc = mapRowToSubclient(row);
+    const truncated = sc.codice.slice(0, ANAGRAFE_CODICE_MAX_LEN);
+    if (seenTruncatedCodici.has(truncated)) continue;
+    seenTruncatedCodici.add(truncated);
+    anagrafeExportRecords.push({ subclient: sc });
   }
 
   if (anagrafeExportRecords.length > 0) {
