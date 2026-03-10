@@ -323,6 +323,8 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
   lines.push('prgFile.WriteLine "USE ANAGRAFE IN 0 SHARED AGAIN ALIAS _ins"');
   lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
   lines.push('prgFile.WriteLine "SELECT _ins"');
+  const codNaz = escapeVfpString(sc.codNazione || 'IT');
+  lines.push(`prgFile.WriteLine "COD_NAZIONE = [${codNaz}]"`);
   lines.push(`prgFile.WriteLine "LOCATE FOR ALLTRIM(CODICE) == [${codiceEscaped}]"`);
   lines.push('prgFile.WriteLine "IF !FOUND()"');
   lines.push('prgFile.WriteLine "  APPEND BLANK"');
