@@ -22,6 +22,8 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
     imported: number;
     skipped: number;
     exported: number;
+    ktExported: number;
+    ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
     errors: string[];
     hasVbs: boolean;
   } | null>(null);
@@ -38,6 +40,8 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
         imported: syncResult.sync.imported,
         skipped: syncResult.sync.skipped,
         exported: syncResult.sync.exported,
+        ktExported: syncResult.sync.ktExported ?? 0,
+        ktNeedingMatch: syncResult.sync.ktNeedingMatch ?? [],
         errors: syncResult.sync.errors,
         hasVbs: syncResult.vbsScript !== null,
       });
@@ -108,14 +112,28 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
             <>
               <div>Importati: <strong>{result.imported}</strong> documenti da Arca</div>
               {result.skipped > 0 && <div>Esistenti: {result.skipped} (saltati)</div>}
-              {result.exported > 0 && (
+              {(result.exported > 0 || result.ktExported > 0) && (
                 <div>
-                  Esportati: <strong>{result.exported}</strong> verso Arca
+                  Esportati:{' '}
+                  {result.exported > 0 && <strong>{result.exported} FT</strong>}
+                  {result.exported > 0 && result.ktExported > 0 && ' + '}
+                  {result.ktExported > 0 && <strong>{result.ktExported} KT</strong>}
+                  {' '}verso Arca
                   {result.hasVbs && (
                     <div style={{ marginTop: 4, fontWeight: 600, color: '#7c3aed' }}>
                       Il watcher eseguira sync_arca.vbs automaticamente
                     </div>
                   )}
+                </div>
+              )}
+              {result.ktNeedingMatch.length > 0 && (
+                <div style={{ marginTop: 4, color: '#b45309' }}>
+                  {result.ktNeedingMatch.length} ordini KT richiedono match sottocliente:
+                  <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
+                    {result.ktNeedingMatch.slice(0, 10).map((o) => (
+                      <li key={o.orderId}>{o.customerName}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {result.exported === 0 && result.imported === 0 && result.skipped > 0 && (

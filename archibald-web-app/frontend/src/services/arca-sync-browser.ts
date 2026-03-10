@@ -12,6 +12,9 @@ export type ArcaSyncResponse = {
     imported: number;
     skipped: number;
     exported: number;
+    ktExported?: number;
+    ktNeedingMatch?: Array<{ orderId: string; customerName: string }>;
+    ktMissingArticles?: string[];
     errors: string[];
   };
   parseStats: {
