@@ -352,7 +352,7 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
     ['LISTINO', sc.listino],
     ['BANCA', sc.banca],
     ['VALUTA', sc.valuta],
-    ['COD_NAZIONE', sc.codNazione],
+    ['CODNAZIONE', sc.codNazione],
     ['ALIIVA', sc.aliiva],
     ['CONTOSCAR', sc.contoscar],
     ['TIPOFATT', sc.tipofatt],
@@ -713,7 +713,7 @@ export async function parseNativeArcaFiles(
             codFiscale: trimStr(r.CODFISCALE) || null,
             zona: trimStr(r.ZONA) || null,
             persDaContattare: trimStr(r.PERSDACONT) || null,
-            emailAmministraz: trimStr(r.EMAILAMMIN) || null,
+            emailAmministraz: trimStr(r.EMAILAMM) || null,
             agente: trimStr(r.AGENTE) || null,
             agente2: trimStr(r.AGENTE2) || null,
             settore: trimStr(r.SETTORE) || null,
@@ -722,7 +722,7 @@ export async function parseNativeArcaFiles(
             listino: trimStr(r.LISTINO) || null,
             banca: trimStr(r.BANCA) || null,
             valuta: trimStr(r.VALUTA) || null,
-            codNazione: trimStr(r.COD_NAZIONE) || 'IT',
+            codNazione: trimStr(r.CODNAZIONE) || 'IT',
             aliiva: trimStr(r.ALIIVA) || null,
             contoscar: trimStr(r.CONTOSCAR) || null,
             tipofatt: trimStr(r.TIPOFATT) || null,
@@ -1036,15 +1036,20 @@ export async function performArcaSync(
   );
   errors.push(...parsed.errors);
 
-  // 2. Load existing record IDs from DB
-  const { rows: existingRows } = await pool.query<{ id: string }>(
-    "SELECT id FROM agents.fresis_history WHERE user_id = $1",
+  // 2. Load existing record IDs and invoice_numbers from DB
+  const { rows: existingRows } = await pool.query<{ id: string; invoice_number: string | null }>(
+    "SELECT id, invoice_number FROM agents.fresis_history WHERE user_id = $1",
     [userId],
   );
   const existingIds = new Set(existingRows.map((r) => r.id));
+  const existingInvoiceNumbers = new Set(
+    existingRows.filter((r) => r.invoice_number).map((r) => r.invoice_number!),
+  );
 
-  // 3. Filter new records vs existing
-  const newRecords = parsed.records.filter((r) => !existingIds.has(r.id));
+  // 3. Filter new records vs existing (check both ID and invoice_number to avoid duplicates)
+  const newRecords = parsed.records.filter(
+    (r) => !existingIds.has(r.id) && !existingInvoiceNumbers.has(r.invoice_number),
+  );
   const skipped = parsed.records.length - newRecords.length;
 
   // 4. Upsert new records in batches
