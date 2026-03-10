@@ -1351,6 +1351,56 @@ async function getWarehousePickupsByDate(
   return Array.from(ordersMap.values());
 }
 
+type KtEligibleOrder = {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerProfileId: string | null;
+  creationDate: string;
+  discountPercent: number | null;
+  notes: string | null;
+  articlesSyncedAt: string | null;
+};
+
+async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtEligibleOrder[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    order_number: string;
+    customer_name: string;
+    customer_profile_id: string | null;
+    creation_date: string;
+    discount_percent: string | null;
+    remaining_sales_financial: string | null;
+    articles_synced_at: string | null;
+  }>(
+    `SELECT o.id, o.order_number, o.customer_name, o.customer_profile_id,
+            o.creation_date, o.discount_percent, o.remaining_sales_financial,
+            o.articles_synced_at
+     FROM agents.order_records o
+     WHERE o.user_id = $1
+       AND o.sent_to_verona_at >= '2026-03-09'
+       AND o.arca_kt_synced_at IS NULL
+       AND o.customer_name != 'Fresis Soc Cooperativa'
+       AND EXISTS (
+         SELECT 1 FROM agents.order_articles a
+         WHERE a.order_id = o.id AND a.user_id = o.user_id
+       )
+     ORDER BY o.creation_date ASC`,
+    [userId],
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    orderNumber: r.order_number,
+    customerName: r.customer_name,
+    customerProfileId: r.customer_profile_id,
+    creationDate: r.creation_date,
+    discountPercent: r.discount_percent != null ? parseFloat(r.discount_percent) : null,
+    notes: r.remaining_sales_financial,
+    articlesSyncedAt: r.articles_synced_at,
+  }));
+}
+
 export {
   getOrderById,
   getOrderByNumber,
@@ -1397,4 +1447,6 @@ export {
   type CustomerHistoryItem,
   type WarehousePickupArticle,
   type WarehousePickupOrder,
+  getKtEligibleOrders,
+  type KtEligibleOrder,
 };

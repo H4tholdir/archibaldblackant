@@ -19,9 +19,13 @@ import {
 import type { DbPool } from "../db/pool";
 import * as fresisHistoryRepo from "../db/repositories/fresis-history";
 import type { FresisHistoryInput } from "../db/repositories/fresis-history";
-import { upsertSubclients } from "../db/repositories/subclients";
+import { upsertSubclients, getSubclientByCustomerProfile, getAllSubclients } from "../db/repositories/subclients";
 import type { Subclient } from "../db/repositories/subclients";
+import { getKtEligibleOrders } from "../db/repositories/orders";
+import { getOrderArticles } from "../db/repositories/orders";
 import { matchSubclients } from "./subclient-matcher";
+import { generateArcaDataFromOrder } from "./generate-arca-data-from-order";
+import { getNextDocNumber } from "./ft-counter";
 import { logger } from "../logger";
 
 export type VbsExportRecord = {
@@ -865,6 +869,9 @@ export type SyncResult = {
   imported: number;
   skipped: number;
   exported: number;
+  ktExported: number;
+  ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
+  ktMissingArticles: string[];
   errors: string[];
   vbsScript: VbsResult | null;
   parseStats: NativeParseResult["stats"];
@@ -1020,16 +1027,101 @@ export async function performArcaSync(
     }
   }
 
+  // 9. KT export: generate ArcaData for eligible orders
+  const ktNeedingMatch: Array<{ orderId: string; customerName: string }> = [];
+  const ktMissingArticles: string[] = [];
+  let ktExported = 0;
+
+  const ktOrders = await getKtEligibleOrders(pool, userId);
+  if (ktOrders.length > 0) {
+    const allSubclients = await getAllSubclients(pool);
+    const subByProfile = new Map<string, Subclient>();
+    for (const sc of allSubclients) {
+      if (sc.matchedCustomerProfileId) {
+        subByProfile.set(sc.matchedCustomerProfileId, sc);
+      }
+    }
+
+    const currentYear = new Date().getFullYear().toString();
+
+    for (const order of ktOrders) {
+      if (!order.articlesSyncedAt) {
+        ktMissingArticles.push(order.id);
+        continue;
+      }
+
+      const subclient = order.customerProfileId
+        ? subByProfile.get(order.customerProfileId)
+        : undefined;
+
+      if (!subclient) {
+        ktNeedingMatch.push({ orderId: order.id, customerName: order.customerName });
+        continue;
+      }
+
+      const articles = await getOrderArticles(pool, order.id, userId);
+      if (articles.length === 0) {
+        ktMissingArticles.push(order.id);
+        continue;
+      }
+
+      const esercizio = order.creationDate?.slice(0, 4) || currentYear;
+      const docNumber = await getNextDocNumber(pool, userId, esercizio);
+
+      const arcaData = generateArcaDataFromOrder(
+        {
+          id: order.id,
+          creationDate: order.creationDate,
+          customerName: order.customerName,
+          discountPercent: order.discountPercent,
+          notes: order.notes,
+        },
+        articles.map((a) => ({
+          articleCode: a.articleCode,
+          articleDescription: a.articleDescription ?? '',
+          quantity: a.quantity,
+          unitPrice: a.unitPrice ?? 0,
+          discountPercent: a.discountPercent ?? 0,
+          vatPercent: a.vatPercent ?? 22,
+          lineAmount: a.lineAmount ?? 0,
+          unit: 'PZ',
+        })),
+        subclient,
+        docNumber,
+        esercizio,
+      );
+
+      exportRecords.push({
+        invoiceNumber: `KT ${docNumber}/${esercizio}`,
+        arcaData,
+      });
+      ktExported++;
+
+      // Mark order as KT synced
+      await pool.query(
+        `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
+        [order.id, userId],
+      );
+    }
+
+    if (ktExported > 0) {
+      logger.info(`Arca sync: ${ktExported} KT documents exported for user ${userId}`);
+    }
+  }
+
   let vbsScript: VbsResult | null = null;
   if (exportRecords.length > 0) {
     vbsScript = generateVbsScript(exportRecords);
-    logger.info(`Arca sync: ${exportRecords.length} records to export for user ${userId}`);
+    logger.info(`Arca sync: ${exportRecords.length} total records to export for user ${userId}`);
   }
 
   return {
     imported,
     skipped,
-    exported: exportRecords.length,
+    exported: exportRecords.length - ktExported,
+    ktExported,
+    ktNeedingMatch,
+    ktMissingArticles,
     errors,
     vbsScript,
     parseStats: parsed.stats,
