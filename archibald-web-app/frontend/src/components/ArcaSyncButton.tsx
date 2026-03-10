@@ -8,9 +8,8 @@ import {
   getOrRequestDirectoryHandle,
   writeVbsToDirectory,
 } from '../services/arca-sync-browser';
-import { setSubclientMatch } from '../services/subclients.service';
-import { customerService } from '../services/customers.service';
-import type { Customer } from '../types/local-customer';
+import { setSubclientMatch, getSubclients } from '../services/subclients.service';
+import type { Subclient } from '../services/subclients.service';
 
 interface ArcaSyncButtonProps {
   onSyncComplete?: () => void;
@@ -47,7 +46,7 @@ function InlineMatcher({
   const [currentIdx, setCurrentIdx] = useState(0);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [results, setResults] = useState<Customer[]>([]);
+  const [results, setResults] = useState<Subclient[]>([]);
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
 
@@ -62,7 +61,7 @@ function InlineMatcher({
     if (!debouncedQuery || debouncedQuery.length < 2) { setResults([]); return; }
     let cancelled = false;
     setLoading(true);
-    customerService.searchCustomers(debouncedQuery, 30).then((r) => {
+    getSubclients(debouncedQuery).then((r) => {
       if (!cancelled) { setResults(r); setLoading(false); }
     });
     return () => { cancelled = true; };
@@ -77,16 +76,11 @@ function InlineMatcher({
 
   if (!current) { onMatchComplete(); return null; }
 
-  const handleSelect = async (profileId: string) => {
-    if (!current.customerProfileId) return;
+  const handleSelect = async (subclient: Subclient) => {
+    if (!current.customerProfileId) { moveNext(); return; }
     setMatching(true);
     try {
-      // Find subclient by customerProfileId and match it
-      // We need to find which subclient should be matched to this profile
-      // The subclient matching endpoint takes codice, but we need the subclient codice
-      // For now, we use the setSubclientMatch which needs the subclient codice
-      // The unmatched items have customerProfileId - we need to find/create the subclient link
-      await setSubclientMatch(current.customerProfileId, profileId);
+      await setSubclientMatch(subclient.codice, current.customerProfileId);
     } catch {
       // continue anyway
     }
@@ -118,13 +112,16 @@ function InlineMatcher({
           </h3>
           <button onClick={onSkip} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#999' }}>×</button>
         </div>
-        <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '12px', fontWeight: 600 }}>
-          {current.customerName}
+        <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '4px', fontWeight: 600 }}>
+          Cliente Archibald: {current.customerName}
+        </div>
+        <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px' }}>
+          Cerca il sottocliente Arca corrispondente:
         </div>
         <input
           autoFocus
           type="text"
-          placeholder="Cerca per nome, P.IVA, telefono, indirizzo..."
+          placeholder="Cerca per nome, codice, P.IVA, indirizzo..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{
@@ -137,10 +134,10 @@ function InlineMatcher({
           {!loading && debouncedQuery.length >= 2 && results.length === 0 && (
             <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Nessun risultato</div>
           )}
-          {results.map((c) => (
+          {results.map((sc) => (
             <div
-              key={c.id}
-              onClick={() => !matching && handleSelect(c.id)}
+              key={sc.codice}
+              onClick={() => !matching && handleSelect(sc)}
               style={{
                 padding: '8px 10px', borderRadius: '8px', cursor: matching ? 'not-allowed' : 'pointer',
                 marginBottom: '4px', border: '1px solid #eee', opacity: matching ? 0.5 : 1,
@@ -148,13 +145,19 @@ function InlineMatcher({
               onMouseEnter={(e) => { if (!matching) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f0f7ff'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#fff'; }}
             >
-              <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{c.name}</div>
+              <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{sc.ragioneSociale}</div>
               <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                {c.code}{c.taxCode && ` · ${c.taxCode}`}
+                {sc.codice}
+                {sc.partitaIva && ` · P.IVA: ${sc.partitaIva}`}
               </div>
-              {(c.address || c.city) && (
+              {(sc.indirizzo || sc.localita) && (
                 <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {c.address}{c.city && `, ${c.city}`}
+                  {sc.indirizzo}{sc.localita && `, ${sc.localita}`}{sc.prov && ` (${sc.prov})`}
+                </div>
+              )}
+              {(sc.telefono || sc.email) && (
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                  {sc.telefono}{sc.email && ` · ${sc.email}`}
                 </div>
               )}
             </div>
