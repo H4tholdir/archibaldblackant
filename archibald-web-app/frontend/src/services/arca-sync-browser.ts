@@ -200,6 +200,50 @@ async function writeVbsFiles(
   await writeFile(dirHandle, 'setup_watcher.bat', vbs.watcherSetup);
 }
 
+export type KtSyncStatus = {
+  total: number;
+  articlesReady: number;
+  articlesPending: number;
+  matched: number;
+  unmatched: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  readyToExport: number;
+};
+
+export type KtExportResult = {
+  ktExported: number;
+  vbsScript: ArcaSyncResponse['vbsScript'];
+};
+
+function authHeaders(): HeadersInit {
+  const jwt = localStorage.getItem('archibald_jwt');
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+}
+
+export async function fetchKtStatus(): Promise<KtSyncStatus> {
+  const res = await fetch('/api/arca-sync/kt-status', { headers: authHeaders() });
+  if (!res.ok) throw new Error(`kt-status failed: ${res.status}`);
+  const json = await res.json();
+  return json.data;
+}
+
+export async function finalizeKtExport(): Promise<KtExportResult> {
+  const res = await fetch('/api/arca-sync/finalize-kt', { method: 'POST', headers: authHeaders() });
+  if (!res.ok) throw new Error(`finalize-kt failed: ${res.status}`);
+  const json = await res.json();
+  return json.data;
+}
+
+export async function writeVbsToDirectory(
+  dirHandle: FileSystemDirectoryHandle,
+  vbs: ArcaSyncResponse['vbsScript'],
+): Promise<void> {
+  await writeVbsFiles(dirHandle, vbs);
+}
+
+export async function getOrRequestDirectoryHandle(): Promise<FileSystemDirectoryHandle> {
+  return getDirectoryHandle();
+}
+
 export function isFileSystemAccessSupported(): boolean {
   return typeof window.showDirectoryPicker === 'function';
 }

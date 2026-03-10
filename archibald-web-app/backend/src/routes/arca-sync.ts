@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
-import { performArcaSync } from '../services/arca-sync-service';
+import { performArcaSync, getKtSyncStatus, generateKtExportVbs } from '../services/arca-sync-service';
 import { logger } from '../logger';
 
 const upload = multer({
@@ -86,6 +86,26 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
       }
     },
   );
+
+  router.get('/kt-status', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const status = await getKtSyncStatus(deps.pool, userId);
+      res.json({ success: true, data: status });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to get KT status' });
+    }
+  });
+
+  router.post('/finalize-kt', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const result = await generateKtExportVbs(deps.pool, userId);
+      res.json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to finalize KT' });
+    }
+  });
 
   return router;
 }

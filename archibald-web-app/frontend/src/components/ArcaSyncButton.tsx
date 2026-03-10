@@ -1,11 +1,28 @@
-import { useState, useCallback } from 'react';
-import type { SyncProgress } from '../services/arca-sync-browser';
-import { performBrowserArcaSync, isFileSystemAccessSupported } from '../services/arca-sync-browser';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import type { SyncProgress, KtSyncStatus } from '../services/arca-sync-browser';
+import {
+  performBrowserArcaSync,
+  isFileSystemAccessSupported,
+  fetchKtStatus,
+  finalizeKtExport,
+  getOrRequestDirectoryHandle,
+  writeVbsToDirectory,
+} from '../services/arca-sync-browser';
+import { setSubclientMatch } from '../services/subclients.service';
+import { customerService } from '../services/customers.service';
+import type { Customer } from '../types/local-customer';
 
 interface ArcaSyncButtonProps {
   onSyncComplete?: () => void;
-  onGoToSubclients?: () => void;
 }
+
+type SyncPhase =
+  | 'idle'
+  | 'phase1'          // import + FT + ANAGRAFE
+  | 'matching'        // user matching unmatched subclients
+  | 'waiting-articles' // polling for article sync
+  | 'finalizing-kt'   // generating KT VBS
+  | 'done';
 
 const STAGE_MESSAGES: Record<string, string> = {
   'requesting-access': 'Accesso cartella...',
@@ -16,55 +33,282 @@ const STAGE_MESSAGES: Record<string, string> = {
   'done': 'Completato!',
 };
 
-export function ArcaSyncButton({ onSyncComplete, onGoToSubclients }: ArcaSyncButtonProps) {
-  const [syncing, setSyncing] = useState(false);
+// ─── Inline Customer Picker (for matching during sync) ───────────────
+
+function InlineMatcher({
+  items,
+  onMatchComplete,
+  onSkip,
+}: {
+  items: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  onMatchComplete: () => void;
+  onSkip: () => void;
+}) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [results, setResults] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [matching, setMatching] = useState(false);
+
+  const current = items[currentIdx];
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (!debouncedQuery || debouncedQuery.length < 2) { setResults([]); return; }
+    let cancelled = false;
+    setLoading(true);
+    customerService.searchCustomers(debouncedQuery, 30).then((r) => {
+      if (!cancelled) { setResults(r); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [debouncedQuery]);
+
+  useEffect(() => {
+    if (current) {
+      setQuery(current.customerName);
+      setResults([]);
+    }
+  }, [current]);
+
+  if (!current) { onMatchComplete(); return null; }
+
+  const handleSelect = async (profileId: string) => {
+    if (!current.customerProfileId) return;
+    setMatching(true);
+    try {
+      // Find subclient by customerProfileId and match it
+      // We need to find which subclient should be matched to this profile
+      // The subclient matching endpoint takes codice, but we need the subclient codice
+      // For now, we use the setSubclientMatch which needs the subclient codice
+      // The unmatched items have customerProfileId - we need to find/create the subclient link
+      await setSubclientMatch(current.customerProfileId, profileId);
+    } catch {
+      // continue anyway
+    }
+    setMatching(false);
+    moveNext();
+  };
+
+  const moveNext = () => {
+    if (currentIdx + 1 >= items.length) {
+      onMatchComplete();
+    } else {
+      setCurrentIdx((i) => i + 1);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '16px',
+    }}>
+      <div style={{
+        backgroundColor: '#fff', borderRadius: '16px', padding: '20px',
+        maxWidth: '500px', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>
+            Collega sottocliente ({currentIdx + 1}/{items.length})
+          </h3>
+          <button onClick={onSkip} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#999' }}>×</button>
+        </div>
+        <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '12px', fontWeight: 600 }}>
+          {current.customerName}
+        </div>
+        <input
+          autoFocus
+          type="text"
+          placeholder="Cerca per nome, P.IVA, telefono, indirizzo..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: '8px',
+            border: '1px solid #ddd', fontSize: '14px', boxSizing: 'border-box', marginBottom: '8px',
+          }}
+        />
+        <div style={{ flex: 1, overflow: 'auto', minHeight: '150px' }}>
+          {loading && <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Ricerca...</div>}
+          {!loading && debouncedQuery.length >= 2 && results.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Nessun risultato</div>
+          )}
+          {results.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => !matching && handleSelect(c.id)}
+              style={{
+                padding: '8px 10px', borderRadius: '8px', cursor: matching ? 'not-allowed' : 'pointer',
+                marginBottom: '4px', border: '1px solid #eee', opacity: matching ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => { if (!matching) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f0f7ff'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#fff'; }}
+            >
+              <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{c.name}</div>
+              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                {c.code}{c.taxCode && ` · ${c.taxCode}`}
+              </div>
+              {(c.address || c.city) && (
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                  {c.address}{c.city && `, ${c.city}`}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+          <button
+            onClick={moveNext}
+            style={{
+              padding: '6px 14px', borderRadius: '6px', border: '1px solid #ddd',
+              backgroundColor: '#fff', cursor: 'pointer', fontSize: '12px', color: '#666',
+            }}
+          >
+            Salta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main ArcaSyncButton ─────────────────────────────────────────────
+
+export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
+  const [phase, setPhase] = useState<SyncPhase>('idle');
   const [progress, setProgress] = useState<SyncProgress | null>(null);
-  const [result, setResult] = useState<{
-    imported: number;
-    skipped: number;
-    exported: number;
-    ktExported: number;
-    ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
-    ktMissingArticles: number;
-    errors: string[];
-    hasVbs: boolean;
+  const [phase1Result, setPhase1Result] = useState<{
+    imported: number; skipped: number; exported: number;
+    ktExported: number; errors: string[]; hasVbs: boolean;
   } | null>(null);
+  const [ktStatus, setKtStatus] = useState<KtSyncStatus | null>(null);
+  const [ktFinalExported, setKtFinalExported] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showMatcher, setShowMatcher] = useState(false);
+  const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const handleSync = useCallback(async () => {
-    setSyncing(true);
+    setPhase('phase1');
     setError(null);
-    setResult(null);
+    setPhase1Result(null);
+    setKtStatus(null);
+    setKtFinalExported(0);
 
     try {
+      // Get directory handle early (reuse for later VBS writes)
+      dirHandleRef.current = await getOrRequestDirectoryHandle();
+
       const syncResult = await performBrowserArcaSync(setProgress);
-      setResult({
+
+      setPhase1Result({
         imported: syncResult.sync.imported,
         skipped: syncResult.sync.skipped,
         exported: syncResult.sync.exported,
         ktExported: syncResult.sync.ktExported ?? 0,
-        ktNeedingMatch: syncResult.sync.ktNeedingMatch ?? [],
-        ktMissingArticles: syncResult.sync.ktMissingArticles?.length ?? 0,
         errors: syncResult.sync.errors,
         hasVbs: syncResult.vbsScript !== null,
       });
-      onSyncComplete?.();
+
+      const hasKtIssues = (syncResult.sync.ktNeedingMatch?.length ?? 0) > 0
+        || (syncResult.sync.ktMissingArticles?.length ?? 0) > 0;
+
+      if (!hasKtIssues) {
+        setPhase('done');
+        onSyncComplete?.();
+        return;
+      }
+
+      // Fetch detailed KT status
+      const status = await fetchKtStatus();
+      setKtStatus(status);
+
+      // Phase 2: show matcher if there are unmatched
+      if (status.unmatched.length > 0) {
+        setPhase('matching');
+        setShowMatcher(true);
+        // The matcher will call handleMatchingDone when complete
+      } else {
+        // Skip to article polling
+        startArticlePolling();
+      }
     } catch (e: any) {
       if (e.name === 'AbortError') {
         setError('Selezione cartella annullata');
       } else {
         setError(e.message || 'Errore durante la sincronizzazione');
       }
-    } finally {
-      setSyncing(false);
+      setPhase('idle');
     }
   }, [onSyncComplete]);
 
-  if (!isFileSystemAccessSupported()) {
-    return null;
-  }
+  const handleMatchingDone = useCallback(() => {
+    setShowMatcher(false);
+    startArticlePolling();
+  }, []);
 
-  const stageMsg = progress ? STAGE_MESSAGES[progress.stage] || 'Sincronizzazione...' : 'Sincronizzazione...';
+  const startArticlePolling = useCallback(() => {
+    setPhase('waiting-articles');
+
+    const poll = async () => {
+      try {
+        const status = await fetchKtStatus();
+        setKtStatus(status);
+
+        if (status.articlesPending === 0) {
+          // All articles ready — finalize KT
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+          await finalizeKt();
+        }
+      } catch {
+        // retry on next poll
+      }
+    };
+
+    // Check immediately, then every 5s
+    poll();
+    pollRef.current = setInterval(poll, 5000);
+  }, []);
+
+  const finalizeKt = useCallback(async () => {
+    setPhase('finalizing-kt');
+    try {
+      const result = await finalizeKtExport();
+      setKtFinalExported(result.ktExported);
+
+      if (result.vbsScript && dirHandleRef.current) {
+        await writeVbsToDirectory(dirHandleRef.current, result.vbsScript);
+      }
+
+      setPhase('done');
+      onSyncComplete?.();
+    } catch (e: any) {
+      setError(e.message || 'Errore nel finalizzare KT');
+      setPhase('done');
+    }
+  }, [onSyncComplete]);
+
+  if (!isFileSystemAccessSupported()) return null;
+
+  const syncing = phase !== 'idle' && phase !== 'done';
+  const stageMsg = progress ? STAGE_MESSAGES[progress.stage] || 'Sincronizzazione...' : '';
+
+  const phaseLabel = (() => {
+    switch (phase) {
+      case 'phase1': return stageMsg || 'Sincronizzazione...';
+      case 'matching': return 'Matching sottoclienti...';
+      case 'waiting-articles': return `Sync articoli (${ktStatus?.articlesPending ?? '?'} in attesa)...`;
+      case 'finalizing-kt': return 'Export KT verso Arca...';
+      default: return 'Sync Arca';
+    }
+  })();
 
   return (
     <div style={{ display: 'inline-block' }}>
@@ -72,17 +316,10 @@ export function ArcaSyncButton({ onSyncComplete, onGoToSubclients }: ArcaSyncBut
         onClick={handleSync}
         disabled={syncing}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 14px',
-          border: 'none',
-          borderRadius: 6,
-          cursor: syncing ? 'not-allowed' : 'pointer',
-          fontWeight: 600,
-          fontSize: 13,
-          background: syncing ? '#94a3b8' : '#7c3aed',
-          color: '#fff',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 14px', border: 'none', borderRadius: 6,
+          cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13,
+          background: syncing ? '#94a3b8' : '#7c3aed', color: '#fff',
           opacity: syncing ? 0.7 : 1,
         }}
         title="Sincronizza documenti FT/KT tra PWA e ArcaPro"
@@ -95,81 +332,64 @@ export function ArcaSyncButton({ onSyncComplete, onGoToSubclients }: ArcaSyncBut
             animation: 'spin 0.8s linear infinite',
           }} />
         )}
-        {syncing ? stageMsg : 'Sync Arca'}
+        {syncing ? phaseLabel : 'Sync Arca'}
       </button>
 
-      {(result || error) && (
+      {(phase1Result || error) && phase !== 'phase1' && (
         <div style={{
-          marginTop: 8,
-          padding: '8px 12px',
-          borderRadius: 6,
-          fontSize: 12,
-          lineHeight: 1.5,
+          marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12, lineHeight: 1.5,
           background: error ? '#fef2f2' : '#f0fdf4',
           border: `1px solid ${error ? '#fecaca' : '#bbf7d0'}`,
-          color: error ? '#991b1b' : '#166534',
-          maxWidth: 320,
+          color: error ? '#991b1b' : '#166534', maxWidth: 320,
         }}>
           {error && <div>{error}</div>}
-          {result && (
+          {phase1Result && (
             <>
-              <div>Importati: <strong>{result.imported}</strong> documenti da Arca</div>
-              {result.skipped > 0 && <div>Esistenti: {result.skipped} (saltati)</div>}
-              {(result.exported > 0 || result.ktExported > 0) && (
+              <div>Importati: <strong>{phase1Result.imported}</strong> documenti da Arca</div>
+              {phase1Result.skipped > 0 && <div>Esistenti: {phase1Result.skipped} (saltati)</div>}
+              {phase1Result.exported > 0 && (
+                <div>Esportati: <strong>{phase1Result.exported} FT</strong> verso Arca</div>
+              )}
+              {(phase1Result.ktExported > 0 || ktFinalExported > 0) && (
                 <div>
-                  Esportati:{' '}
-                  {result.exported > 0 && <strong>{result.exported} FT</strong>}
-                  {result.exported > 0 && result.ktExported > 0 && ' + '}
-                  {result.ktExported > 0 && <strong>{result.ktExported} KT</strong>}
-                  {' '}verso Arca
-                  {result.hasVbs && (
-                    <div style={{ marginTop: 4, fontWeight: 600, color: '#7c3aed' }}>
-                      Il watcher eseguira sync_arca.vbs automaticamente
-                    </div>
-                  )}
+                  Esportati: <strong>{phase1Result.ktExported + ktFinalExported} KT</strong> verso Arca
                 </div>
               )}
-              {result.ktMissingArticles > 0 && (
-                <div style={{ marginTop: 4, color: '#6d28d9' }}>
-                  {result.ktMissingArticles} ordini KT in attesa sync articoli (avviata automaticamente)
+              {phase1Result.hasVbs && (
+                <div style={{ marginTop: 4, fontWeight: 600, color: '#7c3aed' }}>
+                  Il watcher eseguira sync_arca.vbs automaticamente
                 </div>
               )}
-              {result.ktNeedingMatch.length > 0 && (
-                <div style={{ marginTop: 4, color: '#b45309' }}>
-                  {result.ktNeedingMatch.length} ordini KT richiedono match sottocliente:
-                  <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
-                    {result.ktNeedingMatch.slice(0, 10).map((o) => (
-                      <li key={o.orderId}>{o.customerName}</li>
-                    ))}
-                  </ul>
-                  {onGoToSubclients && (
-                    <button
-                      onClick={onGoToSubclients}
-                      style={{
-                        marginTop: 4, padding: '4px 10px', borderRadius: 6,
-                        border: '1px solid #d97706', backgroundColor: '#fffbeb',
-                        color: '#92400e', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                      }}
-                    >
-                      Vai a Sottoclienti per collegare
-                    </button>
-                  )}
+              {phase === 'waiting-articles' && ktStatus && (
+                <div style={{ marginTop: 4, color: '#6d28d9', fontWeight: 600 }}>
+                  Sync articoli: {ktStatus.articlesReady}/{ktStatus.total} pronti...
                 </div>
               )}
-              {result.exported === 0 && result.imported === 0 && result.skipped > 0 && (
-                <div style={{ color: '#666' }}>Nessun nuovo documento da sincronizzare</div>
+              {phase === 'finalizing-kt' && (
+                <div style={{ marginTop: 4, color: '#6d28d9', fontWeight: 600 }}>
+                  Generazione KT in corso...
+                </div>
               )}
-              {result.errors.length > 0 && (
+              {phase1Result.errors.length > 0 && (
                 <details style={{ marginTop: 4 }}>
-                  <summary style={{ cursor: 'pointer' }}>{result.errors.length} avvisi</summary>
+                  <summary style={{ cursor: 'pointer' }}>{phase1Result.errors.length} avvisi</summary>
                   <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
-                    {result.errors.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}
+                    {phase1Result.errors.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}
                   </ul>
                 </details>
               )}
             </>
           )}
         </div>
+      )}
+
+      {/* Inline customer matcher modal */}
+      {showMatcher && ktStatus && ktStatus.unmatched.length > 0 && (
+        <InlineMatcher
+          items={ktStatus.unmatched}
+          onMatchComplete={handleMatchingDone}
+          onSkip={handleMatchingDone}
+        />
       )}
     </div>
   );

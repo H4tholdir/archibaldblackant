@@ -1303,3 +1303,111 @@ export async function performArcaSync(
     parseStats: parsed.stats,
   };
 }
+
+export type KtSyncStatus = {
+  total: number;
+  articlesReady: number;
+  articlesPending: number;
+  matched: number;
+  unmatched: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  readyToExport: number;
+};
+
+export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtSyncStatus> {
+  const ktOrders = await getKtEligibleOrders(pool, userId);
+  const allSubclients = await getAllSubclients(pool);
+  const subByProfile = new Map<string, Subclient>();
+  for (const sc of allSubclients) {
+    if (sc.matchedCustomerProfileId) {
+      subByProfile.set(sc.matchedCustomerProfileId, sc);
+    }
+  }
+
+  let articlesReady = 0;
+  let articlesPending = 0;
+  let matched = 0;
+  let readyToExport = 0;
+  const unmatched: KtSyncStatus['unmatched'] = [];
+
+  for (const order of ktOrders) {
+    if (order.articlesSyncedAt) { articlesReady++; } else { articlesPending++; }
+    const hasMatch = order.customerProfileId ? subByProfile.has(order.customerProfileId) : false;
+    if (hasMatch) {
+      matched++;
+      if (order.articlesSyncedAt) readyToExport++;
+    } else {
+      unmatched.push({ orderId: order.id, customerName: order.customerName, customerProfileId: order.customerProfileId });
+    }
+  }
+
+  return { total: ktOrders.length, articlesReady, articlesPending, matched, unmatched, readyToExport };
+}
+
+export type KtExportResult = {
+  ktExported: number;
+  vbsScript: VbsResult | null;
+};
+
+export async function generateKtExportVbs(pool: DbPool, userId: string): Promise<KtExportResult> {
+  const ktOrders = await getKtEligibleOrders(pool, userId);
+  const allSubclients = await getAllSubclients(pool);
+  const subByProfile = new Map<string, Subclient>();
+  for (const sc of allSubclients) {
+    if (sc.matchedCustomerProfileId) {
+      subByProfile.set(sc.matchedCustomerProfileId, sc);
+    }
+  }
+
+  const exportRecords: VbsExportRecord[] = [];
+  const currentYear = new Date().getFullYear().toString();
+
+  for (const order of ktOrders) {
+    if (!order.articlesSyncedAt) continue;
+    const subclient = order.customerProfileId ? subByProfile.get(order.customerProfileId) : undefined;
+    if (!subclient) continue;
+
+    const articles = await getOrderArticles(pool, order.id, userId);
+    if (articles.length === 0) continue;
+
+    const esercizio = order.creationDate?.slice(0, 4) || currentYear;
+    const docNumber = await getNextDocNumber(pool, userId, esercizio);
+
+    const arcaData = generateArcaDataFromOrder(
+      {
+        id: order.id,
+        creationDate: order.creationDate,
+        customerName: order.customerName,
+        discountPercent: order.discountPercent,
+        notes: order.notes,
+      },
+      articles.map((a) => ({
+        articleCode: a.articleCode,
+        articleDescription: a.articleDescription ?? '',
+        quantity: a.quantity,
+        unitPrice: a.unitPrice ?? 0,
+        discountPercent: a.discountPercent ?? 0,
+        vatPercent: a.vatPercent ?? 22,
+        lineAmount: a.lineAmount ?? 0,
+        unit: 'PZ',
+      })),
+      subclient,
+      docNumber,
+      esercizio,
+    );
+
+    exportRecords.push({ invoiceNumber: `KT ${docNumber}/${esercizio}`, arcaData });
+
+    await pool.query(
+      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
+      [order.id, userId],
+    );
+  }
+
+  let vbsScript: VbsResult | null = null;
+  if (exportRecords.length > 0) {
+    vbsScript = generateVbsScript(exportRecords);
+    logger.info(`Arca sync finalize-kt: ${exportRecords.length} KT exported for user ${userId}`);
+  }
+
+  return { ktExported: exportRecords.length, vbsScript };
+}

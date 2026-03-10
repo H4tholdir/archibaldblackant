@@ -571,7 +571,7 @@ export function FresisHistoryPage() {
           >
             Esporta verso Arca
           </button>
-          <ArcaSyncButton onSyncComplete={wsRefetch} onGoToSubclients={() => setActiveTab('sottoclienti')} />
+          <ArcaSyncButton onSyncComplete={wsRefetch} />
           {syncMessage && (
             <span style={{ fontSize: "11px", color: "#666", alignSelf: "center" }}>
               {syncMessage}
