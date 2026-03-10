@@ -19,7 +19,7 @@ import {
 import type { DbPool } from "../db/pool";
 import * as fresisHistoryRepo from "../db/repositories/fresis-history";
 import type { FresisHistoryInput } from "../db/repositories/fresis-history";
-import { upsertSubclients, getSubclientByCustomerProfile, getAllSubclients } from "../db/repositories/subclients";
+import { upsertSubclients, getSubclientByCustomerProfile, getAllSubclients, mapRowToSubclient } from "../db/repositories/subclients";
 import type { Subclient } from "../db/repositories/subclients";
 import { getKtEligibleOrders } from "../db/repositories/orders";
 import { getOrderArticles } from "../db/repositories/orders";
@@ -308,7 +308,78 @@ function buildExecScriptScadenza(
   return lines;
 }
 
-function generateSyncVbs(records: VbsExportRecord[]): string {
+function escapeVfpString(value: string | null): string {
+  if (!value) return '';
+  return value.replace(/[\r\n]/g, ' ').replace(/]/g, '').replace(/"/g, '""');
+}
+
+function buildExecScriptAnagrafe(sc: Subclient): string[] {
+  const lines: string[] = [];
+  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
+  lines.push('prgFile.WriteLine "IF USED([_ins])"');
+  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('prgFile.WriteLine "ENDIF"');
+  lines.push('prgFile.WriteLine "USE ANAGRAFE IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
+  lines.push('prgFile.WriteLine "SELECT _ins"');
+  lines.push('prgFile.WriteLine "APPEND BLANK"');
+
+  const fields: Array<[string, string | null]> = [
+    ['CODICE', sc.codice],
+    ['DESCRIZION', sc.ragioneSociale],
+    ['SUPRAGSOC', sc.supplRagioneSociale],
+    ['INDIRIZZO', sc.indirizzo],
+    ['CAP', sc.cap],
+    ['LOCALITA', sc.localita],
+    ['PROV', sc.prov],
+    ['TELEFONO', sc.telefono],
+    ['TELEFONO2', sc.telefono2],
+    ['TELEFONO3', sc.telefono3],
+    ['FAX', sc.fax],
+    ['EMAIL', sc.email],
+    ['PARTIVA', sc.partitaIva],
+    ['CODFISCALE', sc.codFiscale],
+    ['ZONA', sc.zona],
+    ['AGENTE', sc.agente],
+    ['AGENTE2', sc.agente2],
+    ['SETTORE', sc.settore],
+    ['CLASSE', sc.classe],
+    ['PAG', sc.pag],
+    ['LISTINO', sc.listino],
+    ['BANCA', sc.banca],
+    ['VALUTA', sc.valuta],
+    ['COD_NAZIONE', sc.codNazione],
+    ['ALIIVA', sc.aliiva],
+    ['CONTOSCAR', sc.contoscar],
+    ['TIPOFATT', sc.tipofatt],
+    ['PERSDACONT', sc.persDaContattare],
+    ['URL', sc.url],
+    ['CB_NAZIONE', sc.cbNazione],
+    ['CB_BIC', sc.cbBic],
+    ['CB_CIN_UE', sc.cbCinUe],
+    ['CB_CIN_IT', sc.cbCinIt],
+    ['ABICAB', sc.abicab],
+    ['CONTOCORR', sc.contocorr],
+  ];
+
+  for (const [field, value] of fields) {
+    const escaped = escapeVfpString(value);
+    lines.push(`prgFile.WriteLine "REPLACE ${field} WITH [${escaped}]"`);
+  }
+
+  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
+  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
+  lines.push('prgFile.Close');
+  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
+  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
+  return lines;
+}
+
+export type AnagrafeExportRecord = {
+  subclient: Subclient;
+};
+
+function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeExportRecord[]): string {
   const lines: string[] = [];
 
   lines.push("On Error Resume Next");
@@ -418,6 +489,28 @@ function generateSyncVbs(records: VbsExportRecord[]): string {
     lines.push("");
   }
 
+  // ANAGRAFE export for new/modified subclients
+  if (anagrafeRecords && anagrafeRecords.length > 0) {
+    lines.push("' --- ANAGRAFE Export ---");
+    for (const { subclient } of anagrafeRecords) {
+      lines.push(`' --- ANAGRAFE ${sanitizeVbsComment(subclient.codice)} ---`);
+      lines.push("Err.Clear");
+      for (const l of buildExecScriptAnagrafe(subclient)) {
+        lines.push(l);
+      }
+      lines.push("If Err.Number <> 0 Then");
+      lines.push(
+        `  logFile.WriteLine "ERROR anagrafe ${sanitizeVbsComment(subclient.codice)}: " & Err.Description`,
+      );
+      lines.push("  errCount = errCount + 1");
+      lines.push("  Err.Clear");
+      lines.push("Else");
+      lines.push("  okCount = okCount + 1");
+      lines.push("End If");
+      lines.push("");
+    }
+  }
+
   lines.push("conn.Close");
   lines.push(
     'logFile.WriteLine "Completed: " & okCount & " OK, " & errCount & " errors"',
@@ -516,13 +609,13 @@ function generateWatcherSetupBat(): string {
   return lines.join("\r\n");
 }
 
-export function generateVbsScript(records: VbsExportRecord[]): VbsResult {
-  if (records.length === 0) {
+export function generateVbsScript(records: VbsExportRecord[], anagrafeRecords?: AnagrafeExportRecord[]): VbsResult {
+  if (records.length === 0 && (!anagrafeRecords || anagrafeRecords.length === 0)) {
     return { vbs: "", bat: "", watcher: "", watcherSetup: "" };
   }
 
   return {
-    vbs: generateSyncVbs(records),
+    vbs: generateSyncVbs(records, anagrafeRecords),
     bat: generateBatWrapper(),
     watcher: generateWatcherVbs(),
     watcherSetup: generateWatcherSetupBat(),
@@ -1109,10 +1202,72 @@ export async function performArcaSync(
     }
   }
 
+  // 10. ANAGRAFE export: new/modified subclients → VBS INSERT
+  const anagrafeExportRecords: AnagrafeExportRecord[] = [];
+  const { rows: exportableSubclients } = await pool.query<{
+    codice: string;
+    ragione_sociale: string;
+    suppl_ragione_sociale: string | null;
+    indirizzo: string | null;
+    cap: string | null;
+    localita: string | null;
+    prov: string | null;
+    telefono: string | null;
+    fax: string | null;
+    email: string | null;
+    partita_iva: string | null;
+    cod_fiscale: string | null;
+    zona: string | null;
+    pers_da_contattare: string | null;
+    email_amministraz: string | null;
+    agente: string | null;
+    agente2: string | null;
+    settore: string | null;
+    classe: string | null;
+    pag: string | null;
+    listino: string | null;
+    banca: string | null;
+    valuta: string | null;
+    cod_nazione: string | null;
+    aliiva: string | null;
+    contoscar: string | null;
+    tipofatt: string | null;
+    telefono2: string | null;
+    telefono3: string | null;
+    url: string | null;
+    cb_nazione: string | null;
+    cb_bic: string | null;
+    cb_cin_ue: string | null;
+    cb_cin_it: string | null;
+    abicab: string | null;
+    contocorr: string | null;
+    matched_customer_profile_id: string | null;
+    match_confidence: string | null;
+    arca_synced_at: string | null;
+  }>(
+    `SELECT * FROM shared.sub_clients
+     WHERE arca_synced_at IS NULL OR updated_at > arca_synced_at`,
+  );
+
+  for (const row of exportableSubclients) {
+    anagrafeExportRecords.push({ subclient: mapRowToSubclient(row) });
+  }
+
+  if (anagrafeExportRecords.length > 0) {
+    // Update arca_synced_at for exported subclients
+    const codici = anagrafeExportRecords.map((r) => r.subclient.codice);
+    const placeholders = codici.map((_, i) => `$${i + 1}`).join(', ');
+    await pool.query(
+      `UPDATE shared.sub_clients SET arca_synced_at = NOW() WHERE codice IN (${placeholders})`,
+      codici,
+    );
+    logger.info(`Arca sync: ${anagrafeExportRecords.length} subclients to export to ANAGRAFE`);
+  }
+
   let vbsScript: VbsResult | null = null;
-  if (exportRecords.length > 0) {
-    vbsScript = generateVbsScript(exportRecords);
-    logger.info(`Arca sync: ${exportRecords.length} total records to export for user ${userId}`);
+  if (exportRecords.length > 0 || anagrafeExportRecords.length > 0) {
+    vbsScript = generateVbsScript(exportRecords, anagrafeExportRecords);
+    logger.info(`Arca sync: ${exportRecords.length} docs + ${anagrafeExportRecords.length} anagrafe to export for user ${userId}`);
   }
 
   return {
