@@ -93,11 +93,22 @@ async function createSubclient(data: Partial<Subclient> & { codice: string; ragi
   return json.data;
 }
 
+async function deleteSubclient(codice: string): Promise<void> {
+  const res = await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export {
   getSubclients,
   setSubclientMatch,
   clearSubclientMatch,
   updateSubclient,
   createSubclient,
+  deleteSubclient,
   type Subclient,
 };
