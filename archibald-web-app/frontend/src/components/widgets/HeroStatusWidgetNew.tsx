@@ -95,6 +95,13 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
     cooldownMs: 24 * 60 * 60 * 1000,
   });
 
+  useConfettiCelebration({
+    enabled: data.bonusMilestonesReached > 0,
+    key: `bonus-milestone-${data.bonusMilestonesReached}-${now.getFullYear()}`,
+    variant: "fireworks",
+    cooldownMs: 365 * 24 * 60 * 60 * 1000,
+  });
+
   // Format currency
   const formatCurrency = formatCurrencyCompact;
 

@@ -49,6 +49,7 @@ export interface HeroStatusData {
   missingToMonthlyTarget: number;
   progressMonthly: number; // 0-1 decimal (es. 0.64 = 64%)
   progressNextBonus: number; // 0-1 decimal (es. 0.21 = 21%)
+  bonusMilestonesReached: number; // numero di milestone bonus annuali raggiunti
   microCopy: string;
   projectedProgress: number; // proiezione fine mese / target (es. 1.5 = 150%)
   projectedMonthRevenue: number; // fatturato proiettato a fine mese
