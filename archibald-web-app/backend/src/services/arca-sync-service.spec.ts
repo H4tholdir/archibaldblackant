@@ -565,17 +565,24 @@ describe("generateVbsScript", () => {
 
 function createMockPool(overrides?: {
   existingIds?: string[];
+  existingInvoiceNumbers?: string[];
   pwaExportRows?: Array<{ id: string; arca_data: string; invoice_number: string }>;
   ftCounterCalls?: Array<unknown[]>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
+  const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
   const pwaExportRows = overrides?.pwaExportRows ?? [];
   const ftCounterCalls = overrides?.ftCounterCalls ?? [];
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
-      if (text.includes("SELECT id FROM agents.fresis_history")) {
-        return { rows: existingIds.map((id) => ({ id })) };
+      if (text.includes("FROM agents.fresis_history WHERE user_id") && !text.includes("arca_data")) {
+        return {
+          rows: existingIds.map((id, i) => ({
+            id,
+            invoice_number: existingInvoiceNumbers[i] ?? null,
+          })),
+        };
       }
       if (text.includes("INSERT INTO agents.fresis_history")) {
         // Simulate upsertRecords: count placeholders to determine record count
@@ -684,9 +691,10 @@ function createMockPool(overrides?: {
         new Map(),
       );
       const allIds = parsed.records.map((r) => r.id);
+      const allInvoiceNumbers = parsed.records.map((r) => r.invoice_number);
 
-      // Mock pool with all existing IDs
-      const pool = createMockPool({ existingIds: allIds });
+      // Mock pool with all existing IDs + invoice_numbers
+      const pool = createMockPool({ existingIds: allIds, existingInvoiceNumbers: allInvoiceNumbers });
 
       const result = await performArcaSync(
         pool,
