@@ -51,12 +51,14 @@ describe('createOperationProcessor', () => {
     broadcast?: ReturnType<typeof createMockBroadcast>;
     enqueue?: ReturnType<typeof createMockEnqueue>;
     handlers?: Record<string, any>;
+    onJobStarted?: (...args: any[]) => Promise<void>;
   } = {}) {
     const agentLock = opts.agentLock ?? createMockAgentLock();
     const browserPool = opts.browserPool ?? createMockBrowserPool();
     const broadcast = opts.broadcast ?? createMockBroadcast();
     const enqueue = opts.enqueue ?? createMockEnqueue();
     const handlers = opts.handlers ?? { 'submit-order': dummyHandler };
+    const onJobStarted = opts.onJobStarted;
 
     return {
       processor: createOperationProcessor({
@@ -65,11 +67,13 @@ describe('createOperationProcessor', () => {
         broadcast,
         enqueue,
         handlers,
+        onJobStarted,
       }),
       agentLock,
       browserPool,
       broadcast,
       enqueue,
+      onJobStarted,
     };
   }
 
@@ -288,5 +292,39 @@ describe('createOperationProcessor', () => {
     await expect(processor.processJob(job as any)).rejects.toThrow(
       'No handler registered for operation type: sync-customers',
     );
+  });
+
+  test('calls onJobStarted with type, data, userId, and jobId after JOB_STARTED broadcast', async () => {
+    const onJobStarted = vi.fn().mockResolvedValue(undefined);
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      onJobStarted,
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(onJobStarted).toHaveBeenCalledWith(
+      'submit-order',
+      { orderId: '1' },
+      'user-a',
+      'job-123',
+    );
+  });
+
+  test('does not fail if onJobStarted throws', async () => {
+    const onJobStarted = vi.fn().mockRejectedValue(new Error('tracking failed'));
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      onJobStarted,
+    });
+    const job = createMockJob();
+
+    const result = await processor.processJob(job as any);
+
+    expect(result.success).toBe(true);
+    expect(onJobStarted).toHaveBeenCalled();
   });
 });

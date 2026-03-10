@@ -12,6 +12,7 @@ import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
 import { getProductVariants, getAllProducts, updateProductPrice } from './db/repositories/products';
+import { updateJobTracking } from './db/repositories/pending-orders';
 import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
@@ -710,6 +711,11 @@ async function bootstrap(): Promise<void> {
     },
     enqueue: queue.enqueue,
     handlers,
+    onJobStarted: async (type, data, _userId, jobId) => {
+      if (type === 'submit-order' && data.pendingOrderId) {
+        await updateJobTracking(pool, data.pendingOrderId as string, jobId);
+      }
+    },
     onJobFailed: async (type, data, _userId, errorMessage) => {
       if (type === 'submit-order') {
         const pendingOrderId = (data as Record<string, unknown>).pendingOrderId as string | undefined;

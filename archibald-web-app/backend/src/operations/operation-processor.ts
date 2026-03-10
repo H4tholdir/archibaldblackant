@@ -33,6 +33,8 @@ type JobLike = {
 
 type OnJobFailedFn = (type: OperationType, data: Record<string, unknown>, userId: string, error: string) => Promise<void>;
 
+type OnJobStartedFn = (type: OperationType, data: Record<string, unknown>, userId: string, jobId: string) => Promise<void>;
+
 type ProcessorDeps = {
   agentLock: AgentLock;
   browserPool: BrowserPoolLike;
@@ -40,6 +42,7 @@ type ProcessorDeps = {
   enqueue: EnqueueFn;
   handlers: Partial<Record<OperationType, OperationHandler>>;
   onJobFailed?: OnJobFailedFn;
+  onJobStarted?: OnJobStartedFn;
 };
 
 type ProcessJobResult = {
@@ -83,7 +86,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationType: s
 }
 
 function createOperationProcessor(deps: ProcessorDeps) {
-  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed } = deps;
+  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed, onJobStarted } = deps;
 
   async function processJob(job: JobLike): Promise<ProcessJobResult> {
     const startTime = Date.now();
@@ -127,6 +130,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
         jobId: job.id,
         type,
       });
+
+      if (onJobStarted) {
+        await onJobStarted(type, data, userId, job.id).catch(() => {});
+      }
 
       const onProgress = (progress: number, label?: string) => {
         job.updateProgress(label ? { progress, label } : progress);
@@ -205,4 +212,5 @@ export {
   type JobLike,
   type ProcessorDeps,
   type ProcessJobResult,
+  type OnJobStartedFn,
 };
