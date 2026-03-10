@@ -16,4 +16,4 @@ async function getNextFtNumber(
   return result.rows[0].last_number;
 }
 
-export { getNextFtNumber };
+export { getNextFtNumber, getNextFtNumber as getNextDocNumber };

@@ -972,10 +972,10 @@ export async function performArcaSync(
     }
   }
 
-  // 6. Update ft_counter with max NUMERODOC per ESERCIZIO (FT only)
+  // 6. Update ft_counter with max NUMERODOC per ESERCIZIO (FT + KT share counter)
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
-    if (tipodoc !== "FT") continue;
+    if (tipodoc !== "FT" && tipodoc !== "KT") continue;
     await pool.query(
       `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
        VALUES ($1, $2, $3)
