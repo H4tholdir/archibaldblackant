@@ -212,14 +212,16 @@ async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<
     return 0;
   }
 
+  const deduped = [...new Map(subclients.map(sc => [sc.codice, sc])).values()];
+
   const valuePlaceholders: string[] = [];
   const params: unknown[] = [];
 
-  for (let i = 0; i < subclients.length; i++) {
+  for (let i = 0; i < deduped.length; i++) {
     const offset = i * COLUMN_COUNT;
     const placeholders = Array.from({ length: COLUMN_COUNT }, (_, j) => `$${offset + j + 1}`);
     valuePlaceholders.push(`(${placeholders.join(', ')})`);
-    params.push(...subclientToParams(subclients[i]));
+    params.push(...subclientToParams(deduped[i]));
   }
 
   const result = await pool.query(
