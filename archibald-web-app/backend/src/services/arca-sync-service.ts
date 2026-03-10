@@ -19,6 +19,8 @@ import {
 import type { DbPool } from "../db/pool";
 import * as fresisHistoryRepo from "../db/repositories/fresis-history";
 import type { FresisHistoryInput } from "../db/repositories/fresis-history";
+import { upsertSubclients } from "../db/repositories/subclients";
+import type { Subclient } from "../db/repositories/subclients";
 import { logger } from "../logger";
 
 export type VbsExportRecord = {
@@ -528,6 +530,7 @@ const FRESIS_DEFAULT_DISCOUNT = 63;
 
 export type NativeParseResult = {
   records: FresisHistoryRow[];
+  subclients: Subclient[];
   errors: string[];
   stats: {
     totalDocuments: number;
@@ -577,8 +580,9 @@ export async function parseNativeArcaFiles(
     // For native files, the .fpt is separate — we only have the .dbf buffers
     // dbffile handles VFP9 memo fields from .fpt automatically if present
 
-    // 1. Parse ANAGRAFE -> Map<codice, name>
+    // 1. Parse ANAGRAFE -> Map<codice, name> + full Subclient records
     const clientNameMap = new Map<string, string>();
+    const subclients: Subclient[] = [];
     if (anagrafeBuf) {
       const anagrafePath = path.join(tmpDir, "ANAGRAFE.DBF");
       fs.writeFileSync(anagrafePath, anagrafeBuf);
@@ -587,12 +591,52 @@ export async function parseNativeArcaFiles(
       });
       const anagrafeRows = await anagrafeFile.readRecords();
       for (const row of anagrafeRows) {
-        const codice = normalizeSubClientCode(
-          trimStr((row as Record<string, unknown>).CODICE),
-        );
-        const name = trimStr((row as Record<string, unknown>).DESCRIZION);
+        const r = row as Record<string, unknown>;
+        const codice = normalizeSubClientCode(trimStr(r.CODICE));
+        const name = trimStr(r.DESCRIZION);
         if (codice && name) {
           clientNameMap.set(codice, name);
+          subclients.push({
+            codice,
+            ragioneSociale: name,
+            supplRagioneSociale: trimStr(r.SUPRAGSOC) || null,
+            indirizzo: trimStr(r.INDIRIZZO) || null,
+            cap: trimStr(r.CAP) || null,
+            localita: trimStr(r.LOCALITA) || null,
+            prov: trimStr(r.PROV) || null,
+            telefono: trimStr(r.TELEFONO) || null,
+            fax: trimStr(r.FAX) || null,
+            email: trimStr(r.EMAIL) || null,
+            partitaIva: trimStr(r.PARTIVA) || null,
+            codFiscale: trimStr(r.CODFISCALE) || null,
+            zona: trimStr(r.ZONA) || null,
+            persDaContattare: trimStr(r.PERSDACONT) || null,
+            emailAmministraz: trimStr(r.EMAILAMMIN) || null,
+            agente: trimStr(r.AGENTE) || null,
+            agente2: trimStr(r.AGENTE2) || null,
+            settore: trimStr(r.SETTORE) || null,
+            classe: trimStr(r.CLASSE) || null,
+            pag: trimStr(r.PAG) || null,
+            listino: trimStr(r.LISTINO) || null,
+            banca: trimStr(r.BANCA) || null,
+            valuta: trimStr(r.VALUTA) || null,
+            codNazione: trimStr(r.COD_NAZIONE) || 'IT',
+            aliiva: trimStr(r.ALIIVA) || null,
+            contoscar: trimStr(r.CONTOSCAR) || null,
+            tipofatt: trimStr(r.TIPOFATT) || null,
+            telefono2: trimStr(r.TELEFONO2) || null,
+            telefono3: trimStr(r.TELEFONO3) || null,
+            url: trimStr(r.URL) || null,
+            cbNazione: trimStr(r.CB_NAZIONE) || null,
+            cbBic: trimStr(r.CB_BIC) || null,
+            cbCinUe: trimStr(r.CB_CIN_UE) || null,
+            cbCinIt: trimStr(r.CB_CIN_IT) || null,
+            abicab: trimStr(r.ABICAB) || null,
+            contocorr: trimStr(r.CONTOCORR) || null,
+            matchedCustomerProfileId: null,
+            matchConfidence: null,
+            arcaSyncedAt: null,
+          });
         }
       }
     }
@@ -801,6 +845,7 @@ export async function parseNativeArcaFiles(
 
     return {
       records,
+      subclients,
       errors,
       stats: {
         totalDocuments: records.length,
@@ -910,7 +955,17 @@ export async function performArcaSync(
     logger.info(`Arca sync: imported ${imported} new records for user ${userId}`);
   }
 
-  // 5. Update ft_counter with max NUMERODOC per ESERCIZIO (FT only)
+  // 5. Upsert subclients from ANAGRAFE
+  if (parsed.subclients.length > 0) {
+    const SUBCLIENT_BATCH = 500;
+    for (let i = 0; i < parsed.subclients.length; i += SUBCLIENT_BATCH) {
+      const batch = parsed.subclients.slice(i, i + SUBCLIENT_BATCH);
+      await upsertSubclients(pool, batch);
+    }
+    logger.info(`Arca sync: upserted ${parsed.subclients.length} subclients for user ${userId}`);
+  }
+
+  // 6. Update ft_counter with max NUMERODOC per ESERCIZIO (FT only)
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
     if (tipodoc !== "FT") continue;

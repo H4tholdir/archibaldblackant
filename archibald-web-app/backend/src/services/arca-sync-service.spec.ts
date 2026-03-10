@@ -153,6 +153,57 @@ function readCoop16File(filename: string): Buffer {
   );
 
   test(
+    "parses full ANAGRAFE fields into subclients",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      const result = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        anagrafeBuf,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+
+      expect(result.subclients.length).toBe(1865);
+
+      // Verify first subclient has all expected fields
+      const first = result.subclients[0];
+      expect(first.codice).toBeTruthy();
+      expect(first.ragioneSociale).toBeTruthy();
+      // ANAGRAFE-specific fields should be present (at least some populated)
+      const hasAnagrafeFields = result.subclients.some(
+        (s) => s.pag !== null || s.zona !== null || s.agente !== null,
+      );
+      expect(hasAnagrafeFields).toBe(true);
+    },
+    120000,
+  );
+
+  test(
+    "returns empty subclients when no ANAGRAFE provided",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const result = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        null,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+
+      expect(result.subclients).toEqual([]);
+    },
+    120000,
+  );
+
+  test(
     "maxNumerodocByKey tracks separate FT/KT counters",
     async () => {
       const doctesBuf = readCoop16File("doctes.dbf");
@@ -579,6 +630,40 @@ function createMockPool(overrides?: {
         ([sql]: [string]) => typeof sql === "string" && sql.includes("ft_counter"),
       );
       expect(ftCounterCalls.length).toBeGreaterThan(0);
+    },
+    60000,
+  );
+
+  test(
+    "syncs ANAGRAFE records to sub_clients table",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      const pool = createMockPool();
+
+      await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        anagrafeBuf,
+      );
+
+      // Verify sub_clients upsert was called
+      const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const subclientCalls = queryCalls.filter(
+        ([sql]: [string]) => typeof sql === "string" && sql.includes("INSERT INTO shared.sub_clients"),
+      );
+      expect(subclientCalls.length).toBeGreaterThan(0);
+
+      // Verify params include all ANAGRAFE fields (39 per subclient)
+      const firstCall = subclientCalls[0];
+      const params = firstCall[1] as unknown[];
+      // Should have 39 params per subclient × batch size
+      expect(params.length).toBeGreaterThan(0);
+      expect(params.length % 39).toBe(0);
     },
     60000,
   );
