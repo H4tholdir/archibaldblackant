@@ -18,6 +18,7 @@ import { createOrdersRouter } from './routes/orders';
 import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
 import { createArcaSyncRouter } from './routes/arca-sync';
+import { createKtSyncRouter } from './routes/kt-sync';
 import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
 import { createDeltaSyncRouter } from './routes/delta-sync';
 import type { ResetSyncType } from './routes/sync-status';
@@ -667,6 +668,8 @@ function createApp(deps: AppDeps): Express {
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     enqueueJob: (type, userId, data) => queue.enqueue(type, userId, data),
   }));
+
+  app.use('/api/kt-sync', authenticateJWT, createKtSyncRouter({ pool }));
 
   const syncSchedulerDeps = {
     start: (intervals?: unknown) => syncScheduler.start(intervals as any),
