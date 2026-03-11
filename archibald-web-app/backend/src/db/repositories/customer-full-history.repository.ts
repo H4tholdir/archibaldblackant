@@ -28,6 +28,7 @@ type FresisHistoryRow = {
   id: string;
   archibald_order_id: string | null;
   archibald_order_number: string | null;
+  invoice_number: string | null;
   discount_percent: number | null;
   target_total_with_vat: number | null;
   created_at: string;
@@ -102,6 +103,7 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
     const totalAmount = targetTotal ?? Math.round(rawTotal * 100) / 100;
 
     const orderNumber = row.archibald_order_number
+      || row.invoice_number
       || (row.archibald_order_id ? `Ord. ${row.archibald_order_id}` : row.id);
 
     return {
@@ -166,7 +168,7 @@ async function getCustomerFullHistory(
 
     subClientCodice
       ? pool.query<FresisHistoryRow>(
-          `SELECT id, archibald_order_id, archibald_order_number,
+          `SELECT id, archibald_order_id, archibald_order_number, invoice_number,
               discount_percent, target_total_with_vat, created_at, items
            FROM agents.fresis_history
            WHERE user_id = $1
