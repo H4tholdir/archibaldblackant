@@ -91,7 +91,7 @@ function emptySubclient(codice: string): Subclient {
 
 // ─── Customer Picker Modal ───────────────────────────────────────────
 
-function CustomerPickerModal({
+export function CustomerPickerModal({
   onSelect,
   onClose,
 }: {

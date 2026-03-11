@@ -63,6 +63,7 @@ type SubclientsRouterDeps = {
   getAllSubclients: () => Promise<Subclient[]>;
   searchSubclients: (query: string) => Promise<Subclient[]>;
   getSubclientByCodice: (codice: string) => Promise<Subclient | null>;
+  getSubclientByCustomerProfile: (profileId: string) => Promise<Subclient | null>;
   deleteSubclient: (codice: string) => Promise<boolean>;
   setSubclientMatch: (codice: string, customerProfileId: string, confidence: string) => Promise<boolean>;
   clearSubclientMatch: (codice: string) => Promise<boolean>;
@@ -71,7 +72,7 @@ type SubclientsRouterDeps = {
 
 function createSubclientsRouter(deps: SubclientsRouterDeps) {
   const {
-    getAllSubclients, searchSubclients, getSubclientByCodice,
+    getAllSubclients, searchSubclients, getSubclientByCodice, getSubclientByCustomerProfile,
     deleteSubclient, setSubclientMatch, clearSubclientMatch, upsertSubclients,
   } = deps;
   const router = Router();
@@ -251,6 +252,15 @@ function createSubclientsRouter(deps: SubclientsRouterDeps) {
     } catch (error) {
       logger.error('Error creating subclient', { error });
       res.status(500).json({ success: false, error: 'Errore creazione sottocliente' });
+    }
+  });
+
+  router.get('/by-customer/:profileId', async (req, res) => {
+    try {
+      const subclient = await getSubclientByCustomerProfile(req.params.profileId);
+      res.json({ subclient: subclient ?? null });
+    } catch {
+      res.status(500).json({ error: 'Errore nel recupero del sottocliente' });
     }
   });
 

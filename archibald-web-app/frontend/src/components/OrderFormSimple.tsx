@@ -26,6 +26,14 @@ import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
+import { CustomerHistoryModal } from './CustomerHistoryModal';
+import { SubClientPickerModal } from './SubClientPickerModal';
+import { CustomerPickerModal } from './SubclientsTab';
+import {
+  getSubclients as fetchSubclients,
+  setSubclientMatch,
+  getSubclientByMatchedCustomer,
+} from '../services/subclients.service';
 
 interface OrderItem {
   id: string;
@@ -290,24 +298,10 @@ export default function OrderFormSimple() {
     }>
   >([]);
 
-  // Fresis history: search in history modal
-  const [showHistorySearchModal, setShowHistorySearchModal] = useState(false);
-  const [historySearchQuery, setHistorySearchQuery] = useState("");
-  const [historySearchResults, setHistorySearchResults] = useState<
-    Array<{
-      orderId: string;
-      orderDate: string;
-      items: Array<{
-        articleCode: string;
-        productName?: string;
-        description?: string;
-        quantity: number;
-        price: number;
-        discount?: number;
-        vat: number;
-      }>;
-    }>
-  >([]);
+  // Customer history modals
+  const [showCustomerHistoryModal, setShowCustomerHistoryModal] = useState(false);
+  const [showSubClientPickerModal, setShowSubClientPickerModal] = useState(false);
+  const [showCustomerPickerForHistory, setShowCustomerPickerForHistory] = useState(false);
 
   // Reset noShipping when subtotal goes above shipping threshold
   useEffect(() => {
@@ -825,72 +819,45 @@ export default function OrderFormSimple() {
     setShowTopSoldModal(true);
   };
 
-  const searchInHistory = async (query: string) => {
-    if (!selectedCustomer || !query.trim()) {
-      setHistorySearchResults([]);
-      return;
-    }
-
-    const allOrders = await loadOrderHistory();
-
-    const q = query.toLowerCase();
-    const results: typeof historySearchResults = [];
-
-    for (const order of allOrders) {
-      const matchingItems = order.items.filter(
-        (item) =>
-          item.articleCode?.toLowerCase().includes(q) ||
-          item.productName?.toLowerCase().includes(q) ||
-          item.description?.toLowerCase().includes(q),
-      );
-
-      if (matchingItems.length > 0) {
-        results.push({
-          orderId: order.id,
-          orderDate: order.createdAt || (order as { updatedAt?: string }).updatedAt || "",
-          items: matchingItems.map((item) => ({
-            articleCode: item.articleCode,
-            productName: item.productName,
-            description: item.description,
-            quantity: item.quantity,
-            price: item.price,
-            discount: item.discount,
-            vat: item.vat,
-          })),
-        });
-      }
-    }
-
-    results.sort((a, b) => b.orderDate.localeCompare(a.orderDate));
-    setHistorySearchResults(results);
-  };
-
-  const historySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const handleHistorySearchChange = (value: string) => {
-    setHistorySearchQuery(value);
-    if (historySearchDebounceRef.current) {
-      clearTimeout(historySearchDebounceRef.current);
-    }
-    historySearchDebounceRef.current = setTimeout(() => {
-      searchInHistory(value);
-    }, 300);
-  };
-
   const selectArticleFromHistory = async (articleCode: string) => {
     const products = await productService.searchProducts(articleCode);
     if (products.length > 0) {
       handleSelectProduct(products[0]);
     }
     setShowTopSoldModal(false);
-    setShowHistorySearchModal(false);
-    // Focus quantity after modal closes and React re-renders
     setTimeout(() => {
       quantityInputRef.current?.focus();
     }, 150);
   };
+
+  const handleHistorySearchClick = useCallback(async () => {
+    if (!selectedCustomer) return;
+
+    if (isFresis(selectedCustomer) && selectedSubClient) {
+      try {
+        const subs = await fetchSubclients(selectedSubClient.codice);
+        const fullSub = subs.find(s => s.codice === selectedSubClient.codice);
+        if (fullSub && !fullSub.matchedCustomerProfileId) {
+          setShowCustomerPickerForHistory(true);
+          return;
+        }
+      } catch {
+        // If query fails, still open history with available data
+      }
+    } else if (!isFresis(selectedCustomer)) {
+      try {
+        const linked = await getSubclientByMatchedCustomer(selectedCustomer.id);
+        if (!linked) {
+          setShowSubClientPickerModal(true);
+          return;
+        }
+      } catch {
+        // If query fails, still open history with available data
+      }
+    }
+
+    setShowCustomerHistoryModal(true);
+  }, [selectedCustomer, selectedSubClient]);
 
   // Handle keyboard navigation in product dropdown
   const handleProductKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -3085,11 +3052,7 @@ export default function OrderFormSimple() {
             I più venduti
           </button>
           <button
-            onClick={() => {
-              setHistorySearchQuery("");
-              setHistorySearchResults([]);
-              setShowHistorySearchModal(true);
-            }}
+            onClick={handleHistorySearchClick}
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
@@ -5019,187 +4982,94 @@ export default function OrderFormSimple() {
         </div>
       )}
 
-      {/* Modal: Cerca nello Storico */}
-      {showHistorySearchModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: isMobile ? "0" : "2rem",
+      {/* Modal storico completo */}
+      {showCustomerHistoryModal && selectedCustomer && (
+        <CustomerHistoryModal
+          isOpen={showCustomerHistoryModal}
+          onClose={() => setShowCustomerHistoryModal(false)}
+          customerName={isFresis(selectedCustomer) ? (selectedSubClient?.ragioneSociale ?? selectedCustomer.name) : selectedCustomer.name}
+          customerProfileId={isFresis(selectedCustomer) ? null : selectedCustomer.id}
+          subClientCodice={selectedSubClient?.codice ?? null}
+          isFresisClient={isFresis(selectedCustomer)}
+          currentOrderItems={items.map((i) => ({
+            articleCode: i.article,
+            productName: i.productName,
+            description: i.description ?? '',
+            quantity: i.quantity,
+            price: i.unitPrice,
+            vat: i.vatRate,
+            discount: i.discount,
+          }))}
+          onAddArticle={(newItem, replace) => {
+            setItems((prev) => {
+              const filtered = replace
+                ? prev.filter((existing) => existing.article !== newItem.articleCode)
+                : prev;
+              return [...filtered, {
+                id: crypto.randomUUID(),
+                productId: newItem.articleCode,
+                article: newItem.articleCode,
+                productName: newItem.productName ?? newItem.articleCode,
+                description: newItem.description ?? '',
+                quantity: newItem.quantity,
+                unitPrice: newItem.price,
+                vatRate: newItem.vat,
+                discount: newItem.discount ?? 0,
+                subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
+                vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
+                total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
+                originalListPrice: newItem.price,
+              }];
+            });
           }}
-          onClick={() => setShowHistorySearchModal(false)}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: isMobile ? "0" : "12px",
-              width: isMobile ? "100%" : "600px",
-              height: isMobile ? "100%" : "auto",
-              maxHeight: isMobile ? "100%" : "80vh",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                padding: "1rem",
-                borderBottom: "1px solid #e5e7eb",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
-                Cerca nello Storico — {selectedSubClient?.ragioneSociale}
-              </h3>
-              <button
-                onClick={() => setShowHistorySearchModal(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: "1.5rem",
-                  cursor: "pointer",
-                  padding: "0.25rem",
-                  lineHeight: 1,
-                  color: "#6b7280",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ padding: "0.75rem 1rem" }}>
-              <input
-                type="text"
-                value={historySearchQuery}
-                onChange={(e) => handleHistorySearchChange(e.target.value)}
-                placeholder="Cerca per codice articolo o descrizione..."
-                autoFocus
-                style={{
-                  width: "100%",
-                  padding: isMobile ? "0.875rem" : "0.75rem",
-                  fontSize: isMobile ? "16px" : "1rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                }}
-              />
-            </div>
-            <div
-              style={{ flex: 1, overflowY: "auto", padding: "0 0.5rem 0.5rem" }}
-            >
-              {historySearchResults.length === 0 &&
-                historySearchQuery.trim() && (
-                  <div
-                    style={{
-                      padding: "2rem",
-                      textAlign: "center",
-                      color: "#6b7280",
-                    }}
-                  >
-                    Nessun risultato
-                  </div>
-                )}
-              {historySearchResults.map((order) => (
-                <div
-                  key={order.orderId}
-                  style={{
-                    marginBottom: "0.75rem",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: "0.5rem 0.75rem",
-                      background: "#f9fafb",
-                      fontSize: isMobile ? "0.75rem" : "0.8rem",
-                      fontWeight: "600",
-                      color: "#374151",
-                    }}
-                  >
-                    Ordine del{" "}
-                    {new Date(order.orderDate).toLocaleDateString("it-IT")}
-                  </div>
-                  {order.items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => selectArticleFromHistory(item.articleCode)}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        borderTop: "1px solid #f3f4f6",
-                        cursor: "pointer",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.5rem",
-                        alignItems: "center",
-                        fontSize: isMobile ? "0.75rem" : "0.8rem",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "#f3f4f6";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "monospace",
-                          fontWeight: "600",
-                          fontSize: isMobile ? "0.7rem" : "0.75rem",
-                        }}
-                      >
-                        {item.articleCode}
-                      </span>
-                      <span
-                        style={{
-                          color: "#374151",
-                          fontWeight: "700",
-                        }}
-                      >
-                        Qt: {item.quantity}
-                      </span>
-                      <span style={{ color: "#6b7280" }}>
-                        {formatCurrency(item.price)}
-                      </span>
-                      {item.discount ? (
-                        <span style={{ color: "#dc2626" }}>
-                          Sc: {item.discount}%
-                        </span>
-                      ) : null}
-                      <span style={{ color: "#374151" }}>IVA {item.vat}%</span>
-                      <span style={{ color: "#2563eb", fontWeight: "600" }}>
-                        Netto:{" "}
-                        {(() => {
-                          const netto =
-                            item.price -
-                            (item.price * (item.discount || 0)) / 100;
-                          return formatCurrency(netto);
-                        })()}
-                      </span>
-                      <span style={{ color: "#059669", fontWeight: "700" }}>
-                        Totale:{" "}
-                        {(() => {
-                          const netto =
-                            item.price -
-                            (item.price * (item.discount || 0)) / 100;
-                          const total = netto * (1 + item.vat / 100);
-                          return formatCurrency(total);
-                        })()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          onAddOrder={(newItems, replace) => {
+            const mapped = newItems.map((newItem) => ({
+              id: crypto.randomUUID(),
+              productId: newItem.articleCode,
+              article: newItem.articleCode,
+              productName: newItem.productName ?? newItem.articleCode,
+              description: newItem.description ?? '',
+              quantity: newItem.quantity,
+              unitPrice: newItem.price,
+              vatRate: newItem.vat,
+              discount: newItem.discount ?? 0,
+              subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
+              vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
+              total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
+              originalListPrice: newItem.price,
+            }));
+            if (replace) {
+              setItems(mapped);
+            } else {
+              setItems((prev) => [...prev, ...mapped]);
+            }
+          }}
+        />
+      )}
+
+      {/* CustomerPickerModal — Fresis: collega sottocliente a cliente Archibald */}
+      {showCustomerPickerForHistory && selectedSubClient && (
+        <CustomerPickerModal
+          onSelect={async (profileId) => {
+            await setSubclientMatch(selectedSubClient.codice, profileId);
+            setShowCustomerPickerForHistory(false);
+            setShowCustomerHistoryModal(true);
+          }}
+          onClose={() => setShowCustomerPickerForHistory(false)}
+        />
+      )}
+
+      {/* SubClientPickerModal — cliente diretto: collega a sottocliente Fresis */}
+      {showSubClientPickerModal && selectedCustomer && !isFresis(selectedCustomer) && (
+        <SubClientPickerModal
+          customerProfileId={selectedCustomer.id}
+          customerName={selectedCustomer.name}
+          onMatched={() => {
+            setShowSubClientPickerModal(false);
+            setShowCustomerHistoryModal(true);
+          }}
+          onClose={() => setShowSubClientPickerModal(false)}
+        />
       )}
       {/* QUANTITY EDIT MODAL */}
       {quantityEditModal && (

@@ -494,6 +494,7 @@ describe('mapRowToFresisHistory', () => {
       notes: 'Test note',
       archibaldOrderId: 'AO-001',
       archibaldOrderNumber: 'AON-001',
+      currentState: 'confirmed',
       state: 'confirmed',
       stateUpdatedAt: '2026-01-12T08:00:00Z',
       ddtNumber: 'DDT-001',

@@ -34,7 +34,9 @@ import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
 import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
+import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
+import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
 import * as orderNotesRepo from './db/repositories/order-notes';
@@ -820,11 +822,20 @@ function createApp(deps: AppDeps): Express {
     getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
+    getSubclientByCustomerProfile: (profileId) => subclientsRepo.getSubclientByCustomerProfile(pool, profileId),
     deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
     setSubclientMatch: (codice, profileId, confidence) => subclientsRepo.setSubclientMatch(pool, codice, profileId, confidence),
     clearSubclientMatch: (codice) => subclientsRepo.clearSubclientMatch(pool, codice),
     upsertSubclients: (subclients) => subclientsRepo.upsertSubclients(pool, subclients),
   }));
+
+  app.use(
+    '/api/history',
+    authenticateJWT,
+    createCustomerFullHistoryRouter({
+      getCustomerFullHistory: (userId, params) => getCustomerFullHistory(pool, userId, params),
+    }),
+  );
 
   app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
     getStacks: (userId) => orderStacksRepo.getStacks(pool, userId),
