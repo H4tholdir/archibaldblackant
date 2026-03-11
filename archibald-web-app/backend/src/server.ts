@@ -820,6 +820,7 @@ function createApp(deps: AppDeps): Express {
     getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
+    getSubclientByCustomerProfile: (profileId) => subclientsRepo.getSubclientByCustomerProfile(pool, profileId),
     deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),
     setSubclientMatch: (codice, profileId, confidence) => subclientsRepo.setSubclientMatch(pool, codice, profileId, confidence),
     clearSubclientMatch: (codice) => subclientsRepo.clearSubclientMatch(pool, codice),
