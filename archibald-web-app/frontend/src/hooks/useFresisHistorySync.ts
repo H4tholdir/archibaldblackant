@@ -11,7 +11,7 @@ export interface UseFresisHistorySyncReturn {
   refetch: () => Promise<void>;
 }
 
-export function useFresisHistorySync(from?: string, to?: string): UseFresisHistorySyncReturn {
+export function useFresisHistorySync(from?: string, to?: string, search?: string): UseFresisHistorySyncReturn {
   const { state, subscribe } = useWebSocketContext();
   const [historyOrders, setHistoryOrders] = useState<FresisHistoryOrder[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -21,7 +21,7 @@ export function useFresisHistorySync(from?: string, to?: string): UseFresisHisto
   const loadOrders = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const orders = await getFresisHistory(undefined, from, to);
+      const orders = await getFresisHistory(undefined, from, to, search);
       setHistoryOrders(orders);
     } catch (error) {
       console.error(
@@ -31,7 +31,7 @@ export function useFresisHistorySync(from?: string, to?: string): UseFresisHisto
     } finally {
       setIsSyncing(false);
     }
-  }, [from, to]);
+  }, [from, to, search]);
 
   const refetch = useCallback(async () => {
     await loadOrders();

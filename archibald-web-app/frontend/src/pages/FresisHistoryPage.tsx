@@ -61,7 +61,7 @@ export function FresisHistoryPage() {
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
 
-  // Search & filter state (declared before hook to compute isSearchActive)
+  // Search & filter state (declared before hook to compute isBackendSearch)
   const [globalSearch, setGlobalSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
@@ -75,11 +75,17 @@ export function FresisHistoryPage() {
     useState(-1);
   const subClientDropdownRef = useRef<HTMLDivElement>(null);
 
-  // When search is active, fetch all documents bypassing date filters
-  const isSearchActive = debouncedSearch.length > 0 || selectedSubClient !== null || subClientQuery.length >= 2;
+  // Backend search: when search term has 2+ chars, send to backend (bypasses date filters)
+  const isBackendSearch = debouncedSearch.length >= 2;
+  const isBackendSearchRef = useRef(false);
+  isBackendSearchRef.current = isBackendSearch;
 
   const { historyOrders: wsOrders, refetch: wsRefetch } =
-    useFresisHistorySync(isSearchActive ? undefined : dateFrom, isSearchActive ? undefined : dateTo);
+    useFresisHistorySync(
+      isBackendSearch ? undefined : dateFrom,
+      isBackendSearch ? undefined : dateTo,
+      isBackendSearch ? debouncedSearch : undefined,
+    );
 
   // Progressive loading state
   const [allOrders, setAllOrders] = useState<FresisHistoryOrder[]>([]);
@@ -122,15 +128,15 @@ export function FresisHistoryPage() {
     return () => clearTimeout(timer);
   }, [globalSearch]);
 
-  // Clear orders when entering/leaving search-all mode
-  const prevSearchActiveRef = useRef(false);
+  // Clear orders when leaving search mode; disable progressive loading during search
+  const prevBackendSearchRef = useRef(false);
   useEffect(() => {
-    if (isSearchActive !== prevSearchActiveRef.current) {
-      setAllOrders([]);
-      setCanLoadMore(!isSearchActive);
-      prevSearchActiveRef.current = isSearchActive;
+    if (isBackendSearch !== prevBackendSearchRef.current) {
+      if (!isBackendSearch) setAllOrders([]);
+      setCanLoadMore(!isBackendSearch);
+      prevBackendSearchRef.current = isBackendSearch;
     }
-  }, [isSearchActive]);
+  }, [isBackendSearch]);
 
   // Loading state
   useEffect(() => {
@@ -141,9 +147,13 @@ export function FresisHistoryPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Accumulate orders when wsOrders changes (new data from hook)
+  // Accumulate orders when wsOrders changes
+  // Backend search: replace entirely (results are the complete filtered set)
+  // Date range browsing: accumulate for progressive loading
   useEffect(() => {
-    if (wsOrders.length > 0) {
+    if (isBackendSearchRef.current) {
+      setAllOrders(wsOrders);
+    } else if (wsOrders.length > 0) {
       setAllOrders(prev => {
         const existingIds = new Set(prev.map(o => o.id));
         const newOrders = wsOrders.filter(o => !existingIds.has(o.id));
@@ -237,13 +247,13 @@ export function FresisHistoryPage() {
     if (selectedSubClient) {
       result = filterBySubClient(result, selectedSubClient.codice);
     }
-    if (debouncedSearch) {
+    if (debouncedSearch && !isBackendSearch) {
       result = result.filter((o) =>
         matchesFresisGlobalSearch(o, debouncedSearch),
       );
     }
     return result;
-  }, [allOrders, motherOrderFilter, selectedSubClient, debouncedSearch]);
+  }, [allOrders, motherOrderFilter, selectedSubClient, debouncedSearch, isBackendSearch]);
 
   // Keep selectedOrder in sync with data changes
   useEffect(() => {
@@ -805,7 +815,7 @@ export function FresisHistoryPage() {
               </button>
             );
           })}
-          {isSearchActive && (
+          {isBackendSearch && (
             <span style={{ fontSize: "10px", color: "#1976d2", fontStyle: "italic", alignSelf: "center", marginLeft: "4px" }}>
               Ricerca su tutti i documenti
             </span>

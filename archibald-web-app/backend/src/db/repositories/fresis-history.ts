@@ -216,10 +216,52 @@ function mapRowToFresisDiscount(row: FresisDiscountRow): FresisDiscount {
   };
 }
 
+const COLUMNS_WITHOUT_ARCA_DATA = `id, user_id, original_pending_order_id, sub_client_codice, sub_client_name,
+  sub_client_data, customer_id, customer_name, items, discount_percent,
+  target_total_with_vat, shipping_cost, shipping_tax, revenue,
+  merged_into_order_id, merged_at, created_at, updated_at,
+  notes, archibald_order_id, archibald_order_number,
+  current_state, state_updated_at, ddt_number, ddt_delivery_date,
+  tracking_number, tracking_url, tracking_courier, delivery_completed_date,
+  invoice_number, invoice_date, invoice_amount, invoice_closed,
+  invoice_remaining_amount, invoice_due_date, NULL::jsonb AS arca_data,
+  parent_customer_name, source`;
+
 async function getAll(pool: DbPool, userId: string): Promise<FresisHistoryRecord[]> {
   const { rows } = await pool.query<FresisHistoryRow>(
     'SELECT * FROM agents.fresis_history WHERE user_id = $1',
     [userId],
+  );
+  return rows.map(mapRowToFresisHistory);
+}
+
+async function searchAll(pool: DbPool, userId: string, search: string): Promise<FresisHistoryRecord[]> {
+  const pattern = `%${search}%`;
+  const { rows } = await pool.query<FresisHistoryRow>(
+    `SELECT ${COLUMNS_WITHOUT_ARCA_DATA}
+     FROM agents.fresis_history
+     WHERE user_id = $1 AND (
+       sub_client_name ILIKE $2
+       OR sub_client_codice ILIKE $2
+       OR customer_name ILIKE $2
+       OR archibald_order_number ILIKE $2
+       OR current_state ILIKE $2
+       OR notes ILIKE $2
+       OR ddt_number ILIKE $2
+       OR tracking_number ILIKE $2
+       OR tracking_courier ILIKE $2
+       OR invoice_number ILIKE $2
+       OR invoice_date ILIKE $2
+       OR invoice_amount ILIKE $2
+       OR EXISTS (
+         SELECT 1 FROM jsonb_array_elements(items) AS item
+         WHERE item->>'articleCode' ILIKE $2
+            OR item->>'productName' ILIKE $2
+            OR item->>'description' ILIKE $2
+       )
+     )
+     ORDER BY created_at DESC`,
+    [userId, pattern],
   );
   return rows.map(mapRowToFresisHistory);
 }
@@ -631,6 +673,7 @@ async function deleteDiscount(pool: DbPool, userId: string, id: string): Promise
 
 export {
   getAll,
+  searchAll,
   getAllWithDateFilter,
   getBySubClient,
   getById,

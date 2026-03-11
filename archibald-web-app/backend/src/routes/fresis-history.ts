@@ -10,6 +10,7 @@ import { logger } from '../logger';
 type FresisHistoryRouterDeps = {
   pool: DbPool;
   getAll: (userId: string) => Promise<FresisHistoryRecord[]>;
+  searchAll: (userId: string, search: string) => Promise<FresisHistoryRecord[]>;
   getAllWithDateFilter: (userId: string, from?: string, to?: string) => Promise<FresisHistoryRecord[]>;
   getBySubClient: (userId: string, subClientCodice: string) => Promise<FresisHistoryRecord[]>;
   getById: (userId: string, recordId: string) => Promise<FresisHistoryRecord | null>;
@@ -103,7 +104,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   const {
-    getAll, getAllWithDateFilter, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
+    getAll, searchAll, getAllWithDateFilter, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
     updateRecord, reassignMerged, broadcast,
@@ -115,9 +116,12 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       const subClient = req.query.subClient as string | undefined;
       const from = req.query.from as string | undefined;
       const to = req.query.to as string | undefined;
+      const search = req.query.search as string | undefined;
 
       let records;
-      if (subClient) {
+      if (search && search.length >= 2) {
+        records = await searchAll(req.user!.userId, search);
+      } else if (subClient) {
         records = await getBySubClient(req.user!.userId, subClient);
       } else if (from || to) {
         records = await getAllWithDateFilter(req.user!.userId, from, to);

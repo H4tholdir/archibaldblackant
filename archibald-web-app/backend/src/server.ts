@@ -545,6 +545,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
     pool,
     getAll: (userId) => fresisHistoryRepo.getAll(pool, userId),
+    searchAll: (userId, search) => fresisHistoryRepo.searchAll(pool, userId, search),
     getAllWithDateFilter: (userId, from, to) => fresisHistoryRepo.getAllWithDateFilter(pool, userId, from, to),
     getBySubClient: (userId, subClientCodice) => fresisHistoryRepo.getBySubClient(pool, userId, subClientCodice),
     getById: (userId, id) => fresisHistoryRepo.getById(pool, userId, id),

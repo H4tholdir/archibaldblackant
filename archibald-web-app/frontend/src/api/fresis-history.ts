@@ -4,8 +4,9 @@ import { enqueueOperation } from "./operations";
 
 const API_BASE = "";
 
-export async function getFresisHistory(subClient?: string, from?: string, to?: string): Promise<FresisHistoryOrder[]> {
+export async function getFresisHistory(subClient?: string, from?: string, to?: string, search?: string): Promise<FresisHistoryOrder[]> {
   const params = new URLSearchParams();
+  if (search) params.append('search', search);
   if (subClient) params.append('subClient', subClient);
   if (from) params.append('from', from);
   if (to) params.append('to', to);
