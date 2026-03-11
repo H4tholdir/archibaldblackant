@@ -213,7 +213,7 @@ async function syncCustomers(
 
 function computeSimpleHash(customer: ParsedCustomer): string {
   const data = [
-    customer.customerProfile, customer.name, customer.vatNumber,
+    customer.customerProfile, customer.internalId, customer.name, customer.vatNumber,
     customer.fiscalCode, customer.phone, customer.email,
     customer.street, customer.postalCode, customer.city,
   ].map((v) => String(v ?? '')).join('|');
