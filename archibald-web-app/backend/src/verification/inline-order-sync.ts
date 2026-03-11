@@ -118,6 +118,27 @@ async function saveArticlesToDb(
   );
 }
 
+async function loadSnapshotDiscounts(
+  pool: DbPool,
+  orderId: string,
+  userId: string,
+): Promise<Map<string, number>> {
+  const { rows } = await pool.query<{ article_code: string; line_discount_percent: number | null }>(
+    `SELECT si.article_code, si.line_discount_percent
+     FROM agents.order_verification_snapshot_items si
+     JOIN agents.order_verification_snapshots s ON s.id = si.snapshot_id
+     WHERE s.order_id = $1 AND s.user_id = $2`,
+    [orderId, userId],
+  );
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    if (row.line_discount_percent !== null) {
+      map.set(row.article_code, row.line_discount_percent);
+    }
+  }
+  return map;
+}
+
 async function performInlineOrderSync(
   deps: InlineSyncDeps,
   orderId: string,
@@ -128,8 +149,8 @@ async function performInlineOrderSync(
 
   onProgress(72, 'Sincronizzazione articoli...');
 
-  // Wait for Archibald to finalize price recalculations after save
-  await delay(2000);
+  // Wait for Archibald to finalize price recalculations after the N/A workaround saves
+  await delay(5000);
 
   const pdfPath = await downloadWithRetry(downloadOrderArticlesPDF, orderId);
   if (!pdfPath) {
@@ -140,13 +161,20 @@ async function performInlineOrderSync(
     onProgress(78, 'Analisi articoli...');
     const parsedArticles = await parsePdf(pdfPath);
 
+    // Load snapshot discounts to replace reverse-engineered PDF values
+    // (PDF may be captured before Archibald finishes recalculating after N/A workaround)
+    const snapshotDiscountMap = await loadSnapshotDiscounts(pool, orderId, userId);
+
     const enrichedArticles = await Promise.all(
       parsedArticles.map(async (article) => {
         const rawVat = await getProductVat(article.articleCode);
         const vatPercent = rawVat ?? (/^spese di trasporto/i.test(article.articleCode) ? 22 : 0);
         const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
         const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
-        return { ...article, vatPercent, vatAmount, lineTotalWithVat };
+
+        const discountPercent = snapshotDiscountMap.get(article.articleCode) ?? article.discountPercent;
+
+        return { ...article, discountPercent, vatPercent, vatAmount, lineTotalWithVat };
       }),
     );
 
@@ -154,7 +182,11 @@ async function performInlineOrderSync(
 
     onProgress(84, 'Articoli sincronizzati');
 
-    return parsedArticles;
+    // Return articles with snapshot discount override for verification
+    return parsedArticles.map(a => ({
+      ...a,
+      discountPercent: snapshotDiscountMap.get(a.articleCode) ?? a.discountPercent,
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn('[InlineSync] Sync failed after PDF download', {

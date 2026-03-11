@@ -5880,15 +5880,39 @@ export class ArchibaldBot {
 
       // STEP 9.5: N/A line discount workaround
       // Go to "Prezzi e sconti" tab, check LINEDISC value and article SCONTO %.
-      // If "Discount to get street price" with 20% on articles → set N/A, save, re-set N/A, save.
+      // If "Discount to get street price" with 20% on articles → clear LINEDISC, save — repeat until clean.
       // If already N/A/null with 0% on articles → skip.
+      // IMPORTANT: After each save, DevExpress may switch back to Panoramica tab,
+      // so we must re-open "Prezzi e sconti" before every round.
       {
         try {
           await this.runOp(
             "order.na_discount_workaround",
             async () => {
-              await openPrezziEScontiTab();
-              await this.waitForDevExpressIdle({ timeout: 10000, label: "na-open-tab" });
+              const checkArticlesHave20Percent = async (): Promise<boolean> => {
+                return this.page!.evaluate(() => {
+                  const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                  for (const row of rows) {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    for (const cell of cells) {
+                      const text = (cell.textContent || '').trim();
+                      if (text.match(/^20[.,]00\s*%$/)) return true;
+                    }
+                  }
+                  return false;
+                });
+              };
+
+              const openTabAndWait = async (label: string) => {
+                const opened = await openPrezziEScontiTab();
+                if (!opened) {
+                  logger.warn(`"Prezzi e sconti" tab not found at ${label}`);
+                }
+                await this.waitForDevExpressIdle({ timeout: 10000, label });
+                return opened;
+              };
+
+              await openTabAndWait("na-open-tab-initial");
 
               // Read LINEDISC value
               const lineDiscValue = await this.page!.evaluate(() => {
@@ -5900,19 +5924,7 @@ export class ArchibaldBot {
               const isAlreadyNA = lineDiscValue.toUpperCase() === 'N/A' || lineDiscValue === '';
 
               if (isAlreadyNA) {
-                // Check if articles have 0% discount — if so, skip
-                const hasNonZeroDiscount = await this.page!.evaluate(() => {
-                  const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-                  for (const row of rows) {
-                    const cells = Array.from(row.querySelectorAll('td'));
-                    for (const cell of cells) {
-                      const text = (cell.textContent || '').trim();
-                      if (text.match(/^20[.,]00\s*%$/)) return true;
-                    }
-                  }
-                  return false;
-                });
-
+                const hasNonZeroDiscount = await checkArticlesHave20Percent();
                 if (!hasNonZeroDiscount) {
                   logger.info('LINEDISC already N/A and articles have 0% discount — skipping workaround');
                   return;
@@ -5925,7 +5937,7 @@ export class ArchibaldBot {
               // button doesn't open the popup (DevExpress needs real mouse events).
               // The Clear button has an inline onclick calling ASPx.BEClick() which
               // properly resets the hidden _VI value and triggers server-side recalculation.
-              const clearLineDisc = async () => {
+              const clearLineDisc = async (): Promise<boolean> => {
                 const clearResult = await this.page!.evaluate(() => {
                   // Find the Clear button (B1, not B-1 which is the dropdown button)
                   const clearBtn = document.querySelector('td[id*="LINEDISC"][id$="_B1"]') as HTMLElement | null;
@@ -5947,14 +5959,12 @@ export class ArchibaldBot {
                 if (clearResult) {
                   logger.info('LINEDISC Clear button clicked', clearResult);
                 } else {
-                  logger.warn('LINEDISC Clear button not found');
+                  logger.warn('LINEDISC Clear button not found — tab may not be active');
                 }
                 await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
+                return clearResult !== null;
               };
 
-              // Clear + save twice without reopening the tab.
-              // Round 1: clear resets first row's discount, save persists.
-              // Round 2: clear resets remaining rows, save persists.
               const saveWithRetry = async (label: string) => {
                 for (let attempt = 1; attempt <= 3; attempt++) {
                   try {
@@ -5971,14 +5981,35 @@ export class ArchibaldBot {
                 }
               };
 
-              for (let round = 1; round <= 2; round++) {
-                logger.debug(`LINEDISC workaround round ${round}/2...`);
-                await clearLineDisc();
+              // Round 1: clear first row discount + save.
+              // Round 2: clear remaining rows discount + save.
+              // Re-open tab before each round because save switches back to Panoramica.
+              const MAX_ROUNDS = 3;
+              for (let round = 1; round <= MAX_ROUNDS; round++) {
+                logger.debug(`LINEDISC workaround round ${round}/${MAX_ROUNDS}...`);
+
+                await openTabAndWait(`na-reopen-tab-round-${round}`);
+
+                const cleared = await clearLineDisc();
+                if (!cleared) {
+                  logger.warn(`LINEDISC Clear button not found in round ${round} — retrying after tab reopen`);
+                  await this.wait(1000);
+                  await openTabAndWait(`na-reopen-tab-round-${round}-retry`);
+                  await clearLineDisc();
+                }
+
                 await saveWithRetry(`linedisc-round-${round}`);
                 await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
               }
 
-              logger.info('✅ LINEDISC workaround applied (2x clear + save)');
+              // Verification: re-open tab and check articles no longer have 20%
+              await openTabAndWait("na-verify-tab");
+              const stillHas20 = await checkArticlesHave20Percent();
+              if (stillHas20) {
+                logger.error('LINEDISC workaround FAILED — articles still show 20% discount after all rounds');
+              } else {
+                logger.info('LINEDISC workaround verified — no 20% discount found on articles');
+              }
             },
             "form.discount",
           );
