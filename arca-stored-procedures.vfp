@@ -1,0 +1,1589 @@
+#INCLUDE "INCLUDE\FACILE.H"
+
+** ------------------------------------------------------------------------------------------
+** TRIGGERS
+** ------------------------------------------------------------------------------------------
+
+** ------------------------------------------------------------------------------------------
+** Teste
+
+Trigger
+Function OnDelTeste()
+
+	Local yID, nOldWa
+
+	If TYPE('NoTriggerOnDelTeste') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	nOldWa = SELECT(0)
+
+	yID = ID
+
+	Delete FROM Private!Righe		WHERE ID_Testa 		= yID
+	Delete FROM Private!Scadenze	WHERE ID_Pnota 		= yID
+	Delete FROM Private!Intra		WHERE ID_Pnota 		= yID
+	Delete FROM Private!Rit_Mov		WHERE Ft_IDPnota 		= yID
+	Delete FROM Private!CanTeste	WHERE ID_Pnota 		= yID
+	Delete FROM Private!RrTes   	WHERE ID_PnTeste 		= yID
+
+	Select (nOldWa)
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** Righe
+
+Trigger
+Function OnInsRighe()
+
+	If TYPE('NoTriggerOnInsRighe') != 'U' OR TYPE('NoTriggerOnIns') != 'U'
+		Return .T.
+	Endif
+
+	Local oRg
+
+	** N.B.: La WorkArea corrente viene salvata da OnRighe()
+
+	Scatter MEMO NAME oRg
+	=OnRighe(oRg)
+
+Endfunc
+
+Trigger
+Function OnUpdRighe()
+
+	If TYPE('NoTriggerOnUpdRighe') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	** N.B.: La WorkArea corrente viene salvata da OnRighe() (chiamato da OnDelRighe() e OnInsRighe())
+
+	=OnDelRighe()
+	=OnInsRighe()
+
+Endfunc
+
+Trigger
+Function OnDelRighe()
+
+	If TYPE('NoTriggerOnDelRighe') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Local oRg, nRecNoScad, lContabil, nImportoPag, lPagato, dDataPag, ;
+		lPortafog, lSBF, lInsoluto, nIdRagg
+	Local yId_Testa
+
+	Delete FROM Private!CspMov WHERE CspMov.IdMovCon == Righe.ID
+
+	** Cancello eventuale movimento di rateo/risconto
+	Delete FROM Private!RrRig WHERE Id_RatRis == Righe.ID
+
+	** Elimino il collegamento con l'eventuale movimento di storno di rateo/risconto
+	If !USED('RrRig')
+		Use Private!RrRig IN 0
+	Endif
+	Seek Righe.Id ORDER TAG Id_Storno IN RrRig
+	If FOUND('RrRig')
+		Replace Id_Storno WITH $0 IN RrRig
+	Endif
+
+	** Cancello l'eventuale riga di pagamento nei movimenti di ritenuta
+	** NOTA: in modifica del movimento contabile la riga viene cancellata e ricreata con lo stesso Id;
+	** in questo caso non devo cancellare e ricreare anche la riga di pagamento del movimento di ritenuta d'acconto,
+	** altrimenti perdo le modifiche fatte e l'eventuale data di versamento.
+	** Se, invece, sto proprio cancellando la riga del movimento contabile, allora è correto cancellare anche la riga
+	** di pagamento nel movimento di ritenuta d'acconto.
+	** Distinguo i due casi in funzione dell'esistenza della variabile NoTriggerOnDelRitMovR.
+	If TYPE('NoTriggerOnDelRitMovR') != 'U'
+	Else
+		If !USED('Rit_MovR')
+			Use Private!Rit_MovR IN 0
+		Endif
+		Seek Righe.Id ORDER TAG Id_Righe IN Rit_MovR
+		If FOUND('Rit_MovR')
+			Delete IN Rit_MovR
+		Endif
+	Endif
+
+
+	** N.B.: La WorkArea corrente viene salvata da OnRighe()
+
+	Select Righe
+	Scatter MEMO NAME oRg
+
+	oRg.TipoRiga	=  OLDVAL('TipoRiga',	'Righe')
+	oRg.Causale		=  OLDVAL('Causale',   	'Righe')
+	oRg.ImportoLit	= -OLDVAL('Importolit',	'Righe')
+	oRg.CodiceCF	=  OLDVAL('CodiceCF',	'Righe')
+	oRg.CodConto	=  OLDVAL('CodConto',	'Righe')
+	oRg.DareFlag	=  OLDVAL('DareFlag',	'Righe')
+	oRg.SoloIva		=  OLDVAL('SoloIva',		'Righe')
+	oRg.Imponibile	= -OLDVAL('Imponibile',	'Righe')
+	oRg.CodIva		=  OLDVAL('CodIva',		'Righe')
+	oRg.DataReg		=  OLDVAL('DataReg',		'Righe')
+	oRg.EsReg		=  OLDVAL('EsReg',		'Righe')
+	oRg.DataComp	=  OLDVAL('DataComp',	'Righe')
+	oRg.EsComp		=  OLDVAL('EsComp',		'Righe')
+	oRg.CodReg		=  OLDVAL('CodReg',		'Righe')
+	oRg.DataComIva	=  OLDVAL('DataComIva',	'Righe')
+	oRg.TipoFatt	=  OLDVAL('TipoFatt',	'Righe')
+
+	** Se la riga da cancellare è una scadenza prelevata o contabilizzata !EMPTY(IDScad)
+	** ed è effettivamente da cancellare ripristino l'importo prelevato della scadenza
+
+	If !EMPTY(oRg.IdScad) AND DELETED()
+		If !USED('Scadenze')
+			Use Private!Scadenze IN 0
+		Endif
+		Seek oRg.IdScad ORDER TAG Id IN Scadenze
+
+		** Scadenze presenta un Table buffering per cui testo se è cambiato qualche campo per effetto del prelievo in PN.
+		** Il caso : Modifico un movimento cancellando una riga di scadenza prelevata e la riprelevo nella stessa sessione.
+		** Devo quindi evitare che lo storno dovuto alla cancellazione annulli l'effetto dell'aggiornamento del prelievo.
+		If FOUND('Scadenze') AND !(('2' $ GETFLDSTATE(-1, 'Scadenze')) OR ('4' $ GETFLDSTATE(-1, 'Scadenze')))
+
+			** Tolgo il flag di contabilizzato e pagato se è una registrazione di contabiliz.
+			If oRg.TipoCau == 'C'
+				*!*			REPLACE Contabil WITH .F., ContrBanca WITH '' IN Scadenze
+				Replace Contabil WITH .F. IN Scadenze
+
+				** Nel caso la contabilizzazione abbia messo pagato .T. riporto la scadenza come non pagata
+				If Scadenze.Pagato
+					Replace	ImportoPag WITH 0, ;
+						Pagato WITH .F., ;
+						DataPag WITH CTOD('') ;
+						IN Scadenze
+				Endif
+
+				If Scadenze.Portafog
+					Replace Portafog WITH .F., EffAttivi WITH '' IN Scadenze
+				Endif
+				If Scadenze.SBF
+					Replace SBF WITH .F., ContoSbf WITH '' IN Scadenze
+				Endif
+
+			Endif
+
+			** Se è un incasso annullo l'importo pagato, il flag e la data di pagamento
+			If oRg.TipoCau $ 'AB'
+				Replace	ImportoPag WITH (ABS(Scadenze.ImportoPag) - ABS(oRg.ImportoVal)) * SIGN(Scadenze.ImportoPag), ;
+					Pagato WITH .F., ;
+					DataPag WITH CTOD('') ;
+					IN Scadenze
+			Endif
+
+			** Tolgo il flag di insoluto se è una registrazione di insoluto
+			If oRg.TipoCau == 'D'
+				Replace Insoluto WITH .F. IN Scadenze
+			Endif
+
+			** Reimposto anche i flag sulla scadenza madre
+			*			IF !EMPTY(nIdRagg)
+			If !EMPTY(Scadenze.IdRagg)
+				nIdRagg = Scadenze.IdRagg
+				Set ORDER TO TAG IdRagg IN Scadenze
+				nRecNoScad = RECNO('Scadenze')
+
+				lContabil	= Scadenze.Contabil
+				nImportoPag = Scadenze.ImportoPag
+				lPagato		= Scadenze.Pagato
+				dDataPag		= Scadenze.DataPag
+				lPortafog	= Scadenze.Portafog
+				lSBF			= Scadenze.SBF
+				lInsoluto	= Scadenze.Insoluto
+				nIdRagg		= Scadenze.IdRagg
+
+				If SEEK(Scadenze.IdRagg, 'Scadenze', 'Id')
+					Do WHILE Scadenze.IdRagg = nIdRagg
+						If Scadenze.TipoAcc == 'M'
+							Replace	Contabil		WITH lContabil, ;
+								ImportoPag	WITH nImportoPag, ;
+								Pagato		WITH lPagato, ;
+								DataPag		WITH dDataPag, ;
+								Portafog		WITH lPortafog, ;
+								SBF			WITH lSBF, ;
+								Insoluto		WITH lInsoluto ;
+								IN Scadenze
+							Exit
+						Endif
+						Skip 1 IN Scadenze
+					Enddo
+				Endif
+				Go (nRecNoScad) IN Scadenze
+			Endif
+
+			If CURSORGETPROP('Buffering', 'Scadenze') != 1
+				Tableupdate(2, .T., 'Scadenze')
+			Endif
+		Endif
+	Endif
+
+	=OnRighe(oRg)
+
+Endfunc
+
+STATIC
+Function OnRighe(oRg)
+
+	Local nOldWa
+
+	nOldWa = SELECT(0)
+
+	=OnRigheSaldiContabili(oRg)
+	*!*		=OnRigheTotaliIva	   (oRg)
+
+	Select (nOldWa)
+
+Endfunc
+
+STATIC
+Function OnRigheSaldiContabili(oRg)
+
+	=SP_OpenTable('Saldi')
+
+	=OnRigheSaldoConto(oRg, 'C')
+	=OnRigheSaldoConto(oRg, 'R')
+
+Endfunc
+
+STATIC
+Function OnRigheSaldoConto(oRg, cType)
+
+	** cType  --> 'C'/'R'  Competenza/Registrazione
+
+	Local cEsercizio, nMese, nAnno, dDate, cEser
+	Local ARRAY aFlds[1]
+
+	If oRg.TipoCau = '9'	&& Rettifica di Bilancio --> comanda la data di competenza
+		cType = 'C'			&& anche per saldi per Data Registrazione
+	Endif
+
+	dDate = IIF(cType='C', oRg.DataComp, oRg.DataReg)
+	cEser = IIF(cType='C', oRg.EsComp,   oRg.EsReg  )
+
+	If EMPTY(dDate)
+		Return
+	Endif
+
+	Do CASE
+		Case oRg.TipoCau = 'E'		&& causale di apertura
+			nMese = 00
+			nAnno = YEAR(GetInizioEsercizio(dDate))
+		Case oRg.TipoCau = 'F'		&& causale di chiusura
+			nMese = 13
+			nAnno = YEAR(GetFineEsercizio  (dDate))
+		Otherwise
+			nMese = MONTH(dDate)
+			nAnno =  YEAR(dDate)
+	Endcase
+
+	Seek cEser+STR(nAnno)+STR(nMese)+oRg.CodConto+oRg.CodiceCF ORDER TAG Codice IN Saldi
+	If !FOUND('Saldi')
+		=FLOCK('Saldi')
+		Seek cEser+STR(nAnno)+STR(nMese)+oRg.CodConto+oRg.CodiceCF ORDER TAG Codice IN Saldi
+		If !FOUND('Saldi')
+			Insert INTO Saldi (esercizio,anno, mese, CodConto, clifor) VALUES ;
+				(cEser, nAnno, nMese, oRg.CodConto, oRg.CodiceCF )
+		Endif
+		Unlock IN ('Saldi')
+	Endif
+
+	If LOCK('Saldi')
+		If cType = 'R'
+			If oRg.DareFlag='D'
+				Replace Saldi.DareR  WITH Saldi.DareR  + oRg.ImportoLit IN Saldi
+			Else
+				Replace Saldi.AvereR WITH Saldi.AvereR + oRg.ImportoLit IN Saldi
+			Endif
+		Else
+			If oRg.DareFlag='D'
+				Replace Saldi.DareC  WITH Saldi.DareC  + oRg.ImportoLit IN Saldi
+			Else
+				Replace Saldi.AvereC WITH Saldi.AvereC + oRg.ImportoLit IN Saldi
+			Endif
+		Endif
+		Unlock IN Saldi
+	Endif
+Endfunc
+
+STATIC
+Function OnRigheTotaliIva(oRg)
+	Local cSeekExp, nIdx
+	Local ARRAY aFlds[1]
+
+	If EMPTY(oRg.CodReg) OR !(oRg.TipoRiga $ '24')		&& Ignora righe 3 (Iva Indetraibile) e 5 (Iva in sospensione)
+		Return
+	Endif
+
+	=SP_OpenTable('Aliquote')
+	Seek oRg.CodIva ORDER TAG Codice IN Aliquote
+	If Aliquote.FuoriIva
+		Return
+	Endif
+
+	SP_OpenTable('Registri')
+	SP_OpenTable('TotIva'  )
+
+	Seek oRg.CodReg ORDER TAG Codice IN Registri
+
+	cSeekExp = ;
+		STR(YEAR(oRg.DataComIva))	+ ;
+		Registri.Tipo			 		+ ;
+		oRg.CodReg						+ ;
+		STR(Aliquote.Aliquota) 		+ ;
+		STR(Aliquote.Indetra)		+ ;
+		oRg.CodIva						+ ;
+		IIF(oRg.FlagCee,'S','N')   + ;
+		IIF(oRg.TipoRiga='4','S','N')
+
+
+
+	Seek cSeekExp ORDER TAG Codice IN TotIva
+	If !FOUND('TotIva')
+		=FLOCK('TotIva')
+		Seek cSeekExp ORDER TAG Codice IN TotIva
+		If !FOUND('TotIva')
+			Insert INTO TotIva (				;
+				AnnoComp, 						;
+				TipoReg, 						;
+				Reg, 								;
+				Aliquota, 						;
+				PercIndetr, 					;
+				CodIva, 							;
+				FlagCee,							;
+				AutoFat			) 				;
+				VALUES 				(				;
+				YEAR(oRg.DataComIva), 		;
+				Registri.Tipo, 				;
+				oRg.CodReg, 					;
+				Aliquote.Aliquota, 			;
+				Aliquote.Indetra, 			;
+				oRg.CodIva, 					;
+				IIF(oRg.FlagCee,'S','N'), 	;
+				IIF(oRg.TipoRiga=='4','S','N'))
+		Endif
+		Unlock IN TotIva
+	Endif
+
+	If LOCK('TotIva')
+		Select TotIva
+		Scatter MEMO TO aFlds
+
+		*		IF !oRg.SoloIva
+		nIdx			= MONTH(oRg.DataComIva) + 7
+		aFlds[nIdx]	= aFlds[nIdx]+oRg.Imponibile * IIF(oRg.DareFlag='D',1,-1)
+		*		ENDIF
+		nIdx				= MONTH(oRg.DataComIva) + 19
+		aFlds[nIdx]		= aFlds[nIdx]+oRg.ImportoLit * IIF(oRg.DareFlag='D',1,-1)
+
+		Gather FROM aFlds MEMO
+		Unlock IN TotIva
+	Endif
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** Anagrafiche
+
+Trigger
+Function OnUpdAnagrafe()
+
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+
+	If TYPE('NoTriggerOnUpdAnagrafe') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	** 16/07/2007 : Non permettiamo più di modificare il codice di Anagrafe (bloccato il cascade update)
+
+	If !(Codice == CURVAL('Codice'))
+		xMessageBox("Non è possibile modificare il codice dell'anagrafica.", 16)	
+		TableRevert()		&& revert del record corrente di Anagrafe
+		Return .F.
+	EndIf 
+	
+**		cOldCodice	= CURVAL('Codice')
+**		If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+
+**			nOldWa = SELECT(0)
+
+**			cNewCodice	= Codice
+
+**			Update Private!DocTran		SET DocTran.CodCF			= cNewCodice		WHERE DocTran.CodCF == cOldCodice
+**			Update Private!Scadenze		SET Scadenze.CodCF		= cNewCodice		WHERE Scadenze.CodCF == cOldCodice
+**			Update Private!Saldi			SET Saldi.clifor			= cNewCodice		WHERE Saldi.clifor == cOldCodice
+**			Update Private!Teste			SET Teste.CodiceCF		= cNewCodice		WHERE Teste.CodiceCF == cOldCodice
+**			Update Private!Righe			SET Righe.CodiceCF		= cNewCodice		WHERE Righe.CodiceCF == cOldCodice
+**			Update Private!DocTes		SET DocTes.CodiceCF		= cNewCodice		WHERE DocTes.CodiceCF == cOldCodice
+**			Update Private!DocRig		SET DocRig.CodiceCF		= cNewCodice		WHERE DocRig.CodiceCF == cOldCodice
+**			Update Private!Destinaz		SET Destinaz.CodiceCF	= cNewCodice		WHERE Destinaz.CodiceCF == cOldCodice
+**			Update Private!CodAlt		SET CodAlt.CodCliFor		= cNewCodice		WHERE CodAlt.CodCliFor == cOldCodice
+**			Update Private!Listini		SET Listini.CodCliFor	= cNewCodice		WHERE Listini.CodCliFor == cOldCodice
+**			Update Private!RetIntra		SET RetIntra.CodCliFor	= cNewCodice		WHERE RetIntra.CodCliFor == cOldCodice
+**			Update Private!Intra			SET Intra.CodCliFor		= cNewCodice		WHERE Intra.CodCliFor == cOldCodice
+**			Update Private!CspAna		SET CspAna.CodCli			= cNewCodice		WHERE CspAna.CodCli == cOldCodice
+**			Update Private!CspAna		SET CspAna.CodFor			= cNewCodice		WHERE CspAna.CodFor == cOldCodice
+**			Update Private!MagArt		SET MagArt.FornStd		= cNewCodice		WHERE MagArt.FornStd == cOldCodice
+**			Update Private!MagArt		SET MagArt.UAFornitor	= cNewCodice		WHERE MagArt.UAFornitor == cOldCodice
+**			Update Private!MagArt		SET MagArt.UVCliente		= cNewCodice		WHERE MagArt.UVCliente == cOldCodice
+**			Update Private!MagMov		SET MagMov.CodiceCF		= cNewCodice		WHERE MagMov.CodiceCF == cOldCodice
+**			Update Private!Rit_ana		SET Rit_ana.CodFor		= cNewCodice		WHERE Rit_ana.CodFor == cOldCodice
+**			Update Private!Rit_Mov		SET Rit_Mov.CodFor 		= cNewCodice		WHERE Rit_Mov.CodFor == cOldCodice
+**			Update Private!Agenti		SET Agenti.Fornitore		= cNewCodice		WHERE Agenti.Fornitore == cOldCodice
+**			Select (nOldWa)
+
+**		Endif
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** Conti
+
+Trigger
+Function OnUpdConti()
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+	If TYPE('NoTriggerOnUpdConti') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	Private NoTriggerOnUpd
+	NoTriggerOnUpd = .T.
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+
+		nOldWa = SELECT(0)
+
+		cNewCodice	= Codice
+
+		Update Private!Anagrafe		SET Anagrafe.Contrabit	=	cNewCodice	WHERE	Anagrafe.Contrabit	==	cOldCodice
+		Update Private!Anagrafe		SET Anagrafe.Contrpart	=	cNewCodice	WHERE	Anagrafe.Contrpart	==	cOldCodice
+		Update Private!Banche		SET Banche.Conto			=	cNewCodice	WHERE	Banche.Conto			==	cOldCodice
+		Update Private!Banche		SET Banche.ContoSbf		=	cNewCodice	WHERE	Banche.ContoSbf		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCCostoAA	=	cNewCodice	WHERE	CspAna.PDCCostoAA		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCCostoAO	=	cNewCodice	WHERE	CspAna.PDCCostoAO		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCFondoAA	=	cNewCodice	WHERE	CspAna.PDCFondoAA		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCFondoAO	=	cNewCodice	WHERE	CspAna.PDCFondoAO		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCImmob		=	cNewCodice	WHERE	CspAna.PDCImmob		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCMinVal		=	cNewCodice	WHERE	CspAna.PDCMinVal		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCPlusVal	=	cNewCodice	WHERE	CspAna.PDCPlusVal		==	cOldCodice
+		Update Private!CspAna		SET CspAna.PDCRiserva	=	cNewCodice	WHERE	CspAna.PDCRiserva		==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCCostoAA	=	cNewCodice	WHERE	CspCatCn.PDCCostoAA	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCCostoAO	=	cNewCodice	WHERE	CspCatCn.PDCCostoAO	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCFondoAA	=	cNewCodice	WHERE	CspCatCn.PDCFondoAA	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCFondoAO	=	cNewCodice	WHERE	CspCatCn.PDCFondoAO	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCImmob	=	cNewCodice	WHERE	CspCatCn.PDCImmob		==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCMinVal	=	cNewCodice	WHERE	CspCatCn.PDCMinVal	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCPlusVal	=	cNewCodice	WHERE	CspCatCn.PDCPlusVal	==	cOldCodice
+		Update Private!CspCatCn		SET CspCatCn.PDCRiserva	=	cNewCodice	WHERE	CspCatCn.PDCRiserva	==	cOldCodice
+		Update Private!Ditta			SET Ditta.ContoCli		=	cNewCodice	WHERE	Ditta.ContoCli			==	cOldCodice
+		Update Private!Ditta			SET Ditta.ContoFor		=	cNewCodice	WHERE	Ditta.ContoFor			==	cOldCodice
+		Update Private!DocTran		SET DocTran.CodPDC		=	cNewCodice	WHERE	DocTran.CodPDC			==	cOldCodice
+		Update Private!Integra		SET Integra.CodConto		=	cNewCodice	WHERE	Integra.CodConto		==	cOldCodice
+		Update Private!RicVal		SET RicVal.CodConto		=	cNewCodice	WHERE	RicVal.CodConto		==	cOldCodice
+		Update Private!Righe			SET Righe.CodConto		=	cNewCodice	WHERE	Righe.CodConto			==	cOldCodice
+		Update Private!Righe			SET Righe.Contrpart		=	cNewCodice	WHERE	Righe.Contrpart		==	cOldCodice
+		Update Private!Saldi			SET Saldi.CodConto		=	cNewCodice	WHERE	Saldi.CodConto			==	cOldCodice
+		Update Private!Scadenze		SET Scadenze.ContoSbf	=	cNewCodice	WHERE	Scadenze.ContoSbf		==	cOldCodice
+		Update Private!Scadenze		SET Scadenze.ContrBanca	=	cNewCodice	WHERE	Scadenze.ContrBanca	==	cOldCodice
+		Update Private!Scadenze		SET Scadenze.EffAttivi	=	cNewCodice	WHERE	Scadenze.EffAttivi	==	cOldCodice
+		Update Private!VincFatt		SET VincFatt.Conto		=	cNewCodice	WHERE	VincFatt.Conto			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.Cassa			=	cNewCodice	WHERE	Vincoli.Cassa			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.CIvaAcqCEE	=	cNewCodice	WHERE	Vincoli.CIvaAcqCEE	==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.DifAttCmb	=	cNewCodice	WHERE	Vincoli.DifAttCmb		==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.DifPasCmb	=	cNewCodice	WHERE	Vincoli.DifPasCmb		==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.Erario		=	cNewCodice	WHERE	Vincoli.Erario			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.IvaAcq		=	cNewCodice	WHERE	Vincoli.IvaAcq			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.IvaAcqCEE	=	cNewCodice	WHERE	Vincoli.IvaAcqCEE		==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.IvaOmaggio	=	cNewCodice	WHERE	Vincoli.IvaOmaggio	==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.IvaSos		=	cNewCodice	WHERE	Vincoli.IvaSos			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.IvaVen		=	cNewCodice	WHERE	Vincoli.IvaVen			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCAbbAtt	=	cNewCodice	WHERE	Vincoli.PDCAbbAtt		==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCAbbPass	=	cNewCodice	WHERE	Vincoli.PDCAbbPass	==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCAcc		=	cNewCodice	WHERE	Vincoli.PDCAcc			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCEffAtt	=	cNewCodice	WHERE	Vincoli.PDCEffAtt		==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCEffPass	=	cNewCodice	WHERE	Vincoli.PDCEffPass	==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCInc		=	cNewCodice	WHERE	Vincoli.PDCInc			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCOmaggio	=	cNewCodice	WHERE	Vincoli.PDCOmaggio	==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.PDCPag		=	cNewCodice	WHERE	Vincoli.PDCPag			==	cOldCodice
+		Update Private!Vincoli		SET Vincoli.Vendite		=	cNewCodice	WHERE	Vincoli.Vendite		==	cOldCodice
+		Update Private!CauAuto		SET CauAuto.CodConto		=	cNewCodice	WHERE	CauAuto.CodConto		==	cOldCodice
+
+		Select (nOldWa)
+
+	Endif
+Endfunc
+
+Trigger
+Function OnDelConti()
+
+	If TYPE('NoTriggerOnDelConti') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	If EMPTY(Codice)
+		Return .T.
+	Endif
+
+	Local cCodice
+	Local nOldWa
+
+	nOldWa = SELECT(0)
+
+	cCodice = Codice
+	Delete FROM Private!CauAuto WHERE CodConto == cCodice
+
+	Select (nOldWa)
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** Scadenze
+
+Trigger
+Function OnInsScadenze()
+
+	If TYPE('NoTriggerOnInsScadenze') != 'U' OR TYPE('NoTriggerOnIns') != 'U'
+		Return .T.
+	Endif
+
+	If Insoluto AND !Pagato								&& Se la scadenza in inserimento è insoluta e non pagata...
+		OnScadenze(CodCF, +1, ImpEff)
+	Endif
+
+Endfunc
+
+Trigger
+Function OnUpdScadenze()
+
+	If TYPE('NoTriggerOnUpdScadenze') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	Local lEraInsoluta, lEraPagata, lSaraInsoluta, lSaraPagata
+
+	lEraInsoluta 	= OldVal('Insoluto') 
+	lEraPagata		= OldVal('Pagato')
+	lSaraInsoluta 	= Insoluto 	
+	lSaraPagata    = Pagato 
+
+	Do Case
+		Case (					 !lEraInsoluta) And (!lSaraPagata And  lSaraInsoluta)		&& registrazione insoluto
+			OnScadenze(CodCF, +1,  ImpEff)
+			
+		Case (!lEraPagata And  lEraInsoluta) And (!lSaraPagata And !lSaraInsoluta)		&& elimino registrazione insoluto
+			OnScadenze(CodCF, -1, -ImpEff)
+		
+		Case (!lEraPagata And  lEraInsoluta) And ( lSaraPagata And  lSaraInsoluta)		&& pagamento insoluto
+			** niente
+
+		Case ( lEraPagata And  lEraInsoluta) And (!lSaraPagata And  lSaraInsoluta)		&& elimino pagamento insoluto
+			** niente
+		
+		Case (lEraPagata = lSaraPagata) And lEraInsoluta And lSaraInsoluta And ImpEff != OldVal('ImpEff') && modifico solo l'importo
+			OnScadenze(CodCF, 0, ImpEff - OldVal('ImpEff'))
+			
+	EndCase
+
+Endfunc
+
+Trigger
+Function OnDelScadenze()
+
+	If TYPE('NoTriggerOnDelScadenze') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Local nIdRagg
+
+	If OLDVAL('Insoluto') AND !OLDVAL('Pagato')			&& Se la scadenza in cancellazione era insoluta e non pagata...
+		=OnScadenze(CodCF, -1, -OLDVAL('ImpEff'))
+	Endif
+
+Endfunc
+
+STATIC
+Function OnScadenze(cCodCF, nDeltaNumIns, nDeltaValIns)
+
+	** Deve eseguire l'update degli insoluti soltanto se non si tratta di una scadenza madre.
+	If !(TipoAcc == 'M')
+		Update Private!Anagrafe ;
+			SET ;
+			Anagrafe.NumIns = Anagrafe.NumIns + nDeltaNumIns, ;
+			Anagrafe.TotIns = Anagrafe.TotIns + nDeltaValIns ;
+			WHERE Anagrafe.Codice == cCodCF
+	Endif
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** CspMov
+
+Function OnDelCspMov()
+
+	If TYPE('NoTriggerOnDelCspMov') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	If EMPTY(CspMov.Cespite)
+		Return .T.
+	Endif
+
+	** Il Test su tipocau == 5  e` superfluo in quanto la simulazione, va settata solo per gli ammortamenti
+	** (tipo 5 appunto), ma siccome non sono sicuro di aver fatto tutto giusto, in questo modo mi paro le
+	** chiappe ed evito di non aggiornare angrafiche per aver lasciato un TRUE su simulato di un movimento
+	** che non sia di ammortamento!
+	If Simulato AND TipoCau == 5
+		Return .T.
+	Endif
+
+	Do CASE
+		Case TipoCau == 1			&& Acquisizione
+			Update Private!CspAna SET 		;
+				CspAna.DataDecorr = {//}, 	;
+				CspAna.DataUtiliz = {//}, 	;
+				CspAna.CodFor 	 	= '',	 	;
+				CspAna.DataAcq 	= {//},	;
+				CspAna.NumRifAcq 	= '',	 	;
+				CspAna.Protocollo = '',    ;
+				CspAna.IdMovAcq   = $0     ;
+				WHERE CspAna.Codice = CspMov.Cespite
+
+		Case TipoCau == 2			&& Dismissione
+			Update Private!CspAna SET		;
+				CspAna.CodCli		= '', 	;
+				CspAna.DataVen		= {//},	;
+				CspAna.NumRifVen	= '',		;
+				CspAna.IdMovVen   = $0     ;
+				WHERE CspAna.Codice = CspMov.Cespite
+	Endcase
+
+	**		LOCAL nOldWA
+	**		LOCAL cTmpMovAlias
+	**		LOCAL dUltAmm
+	**		LOCAL yId
+	**		LOCAL lDeleteRec
+	**		lDeleteRec = .F.
+	**		dUltAmm = {//}
+	**		nOldWa = SELECT(0)
+	**		IF !Simulato
+	**			IF !USED('CspAna')
+	**				USE Private!CspAna ALIAS CspAna IN 0 AGAIN
+	**			ENDIF
+	**			** Se si tratta di un ammortamento bisogna prestare attenzione
+	**			** agli eventuali aggiornamenti che ha eseguito in CspAna! (es. DataUltimoAmmortamento)
+	**			DO CASE
+	**	**				CASE TipoCau == 5
+	**	**					yId = ID
+	**	**					IF SEEK(Cespite, 'CspAna', 'Codice')
+	**	**						IF CspAna.DataUltAmm == DataReg
+	**	**							cTmpMovAlias = GetLegalFileName()
+	**	**							SELECT DataReg FROM Private!CspMov WHERE Cespite == CspAna.Codice AND TipoCau == 5 AND ID != yID INTO CURSOR (cTmpMovAlias) ORDER BY DataReg DESC NOFILTER
+	**	**							IF _TALLY > 0
+	**	**								LOCATE
+	**	**								dUltAmm = DataReg
+	**	**							ENDIF
+	**	**							USE IN (cTmpMovAlias)
+	**	**							REPLACE CspAna.DataUltAmm WITH dUltAmm IN CspAna
+	**	**							SELECT (nOldWA)
+	**	**							lDeleteRec = .T.
+	**	**						ELSE
+	**	**							xMessageBox("E` possibile cancellare solo l'ultimo ammortamento eseguito!")
+	**	**						ENDIF
+	**	**					ENDIF
+
+	**	** Acquisizione
+	**				CASE TipoCau == 1
+
+	**					IF SEEK(Cespite, 'CspAna', 'Codice')
+	**						REPLACE cspAna.DataDecorr 	WITH {//}
+	**						REPLACE cspAna.DataUtiliz 	WITH {//}
+	**						REPLACE cspAna.CodFor 	 	WITH SPACE(6)
+	**						REPLACE cspAna.DataAcq 	 	WITH {//}
+	**						REPLACE cspana.NumRifAcq 	WITH SPACE(10)
+	**						SELECT (nOldWA)
+	**						lDeleteRec = .T.
+	**	**					ELSE
+	**	**						 xMessageBox("Non e` possibile aggioirnare l'anagrafica del cespite!")
+	**					ENDIF
+	**	** Dismissione
+	**				CASE TipoCau == 2
+	**					IF SEEK(Cespite, 'CspAna', 'Codice')
+	**						REPLACE cspAna.CodCli		WITH SPACE(6)
+	**						REPLACE cspAna.DataVen		WITH {//}
+	**						REPLACE cspana.NumRifVen	WITH SPACE(10)
+	**						SELECT (nOldWA)
+	**						lDeleteRec = .T.
+	**	**					ELSE
+	**	**						 xMessageBox("Non e` possibile aggioirnare l'anagrafica del cespite!")
+	**					ENDIF
+	**			ENDCASE
+	**		ELSE
+	**			lDeleteRec = .T.
+	**		ENDIF
+	**		** Nel caso lDeleteRec risulti FALSE il trigger fallisce, e ne viene trappato l'errore (1539) nell'error event della browse form!
+	**		RETURN lDeleteRec
+Endfunc
+
+
+** ------------------------------------------------------------------------------------------
+** MagArt
+
+**	TRIGGER
+**	FUNCTION OnInsMagArt()
+
+**		IF TYPE('NoTriggerOnInsMagArt') != 'U' OR TYPE('NoTriggerOnIns') != 'U'
+**			RETURN .T.
+**		ENDIF
+**
+**	ENDFUNC
+
+Trigger
+Function OnDelMagArt()
+
+	If TYPE('NoTriggerOnDelMagArt') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	If EMPTY(Codice)
+		Return .T.
+	Endif
+	Local cCodice
+	Local nOldWa
+
+	nOldWa = SELECT(0)
+
+	cCodice = Codice
+	Delete FROM Private!MagAlias	WHERE	CodiceArti			   ==	cCodice
+	Delete FROM Private!MagLang	WHERE	CodiceArti			   ==	cCodice
+	Delete FROM Private!Listini	WHERE	CodiceArti			   ==	cCodice
+	Delete FROM Private!MagGiac	WHERE	Articolo				   ==	cCodice
+	Delete FROM Private!MagGiacS	WHERE	Articolo				   ==	cCodice
+	Delete FROM Private!CodAlt		WHERE	CodiceArti			   ==	cCodice
+	Delete FROM Private!DistBase	WHERE	DistBase.CodComp	   ==	cCodice
+	Delete FROM Private!DistBase	WHERE	DistBase.CodPadre	   ==	cCodice
+	Delete FROM Private!DocRig		WHERE	DocRig.CodiceArti	   ==	cCodice
+	Delete FROM Private!MagOI		WHERE	MagOI.Articolo		   ==	cCodice
+	Delete FROM Private!MagOIL 	WHERE	MagOIL.Articolo	   ==	cCodice
+	Delete FROM Private!PrdGiac	WHERE	PrdGiac.Articolo	   ==	cCodice
+	Delete FROM Private!PrdMrp		WHERE	PrdMrp.Articolo	   ==	cCodice
+	Delete FROM Private!PrdMrp		WHERE	PrdMrp.IndotDaArt	   ==	cCodice
+	Delete FROM Private!PrdSim		WHERE	PrdSim.CodiceArti	   ==	cCodice
+	Delete FROM Private!MagImage	WHERE	MagImage.CodiceArti	==	cCodice
+	Delete FROM Private!MagMov		WHERE	MagMov.CodiceArti	   ==	cCodice
+
+	Delete FROM Private!RcRighe	WHERE	CodiceArti	   		==	cCodice
+	Delete FROM Private!TpCicli	WHERE	Articolo	   			==	cCodice
+	Delete FROM Private!Lotti		WHERE	CodiceArti	   		==	cCodice
+	Delete FROM Private!MagGiacL	WHERE	Articolo	   			==	cCodice
+	Delete FROM Private!MagGiacS	WHERE	Articolo	   			==	cCodice
+	Delete FROM Private!AmOrderTemplate	WHERE	CodiceArti	   ==	cCodice
+	
+	Select (nOldWa)
+
+Endfunc
+
+Trigger
+Function OnUpdMagArt()
+
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+	If TYPE('NoTriggerOnUpdMagArt') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	If TipoParte != OLDVAL('TipoParte')
+		Local cTipoParte, cCodArt
+		cTipoParte = TipoParte
+		cCodArt	  = Codice
+		Update Private!DistBase SET TipoParte = cTipoParte WHERE CodComp == cCodArt
+	Endif
+
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+		Private NoTriggerOnUpdMagMov
+
+		nOldWa = SELECT(0)
+
+		cNewCodice	= Codice
+
+		Update Private!CodAlt		SET CodAlt.CodiceArti	=	cNewCodice	WHERE	CodAlt.CodiceArti		==	cOldCodice
+		Update Private!DistBase		SET DistBase.CodComp		=	cNewCodice	WHERE	DistBase.CodComp		==	cOldCodice
+		Update Private!DistBase		SET DistBase.CodPadre	=	cNewCodice	WHERE	DistBase.CodPadre		==	cOldCodice
+		Update Private!DocRig		SET DocRig.CodiceArti	=	cNewCodice	WHERE	DocRig.CodiceArti		==	cOldCodice
+		Update Private!Listini		SET Listini.CodiceArti	=	cNewCodice	WHERE	Listini.CodiceArti	==	cOldCodice
+		Update Private!MagAlias		SET MagAlias.CodiceArti	=	cNewCodice	WHERE	MagAlias.CodiceArti	==	cOldCodice
+		Update Private!MagGiac		SET MagGiac.Articolo		=	cNewCodice	WHERE	MagGiac.Articolo		==	cOldCodice
+		Update Private!MagGiacS		SET MagGiacS.Articolo	=	cNewCodice	WHERE	MagGiacS.Articolo		==	cOldCodice
+		Update Private!MagOI			SET MagOI.Articolo		=	cNewCodice	WHERE	MagOI.Articolo			==	cOldCodice
+		Update Private!MagOIL		SET MagOIL.Articolo		=	cNewCodice	WHERE	MagOIL.Articolo		==	cOldCodice
+		Update Private!PrdGiac		SET PrdGiac.Articolo		=	cNewCodice	WHERE	PrdGiac.Articolo		==	cOldCodice
+		Update Private!PrdMrp		SET PrdMrp.Articolo		=	cNewCodice	WHERE	PrdMrp.Articolo		==	cOldCodice
+		Update Private!PrdMrp		SET PrdMrp.IndotDaArt	=	cNewCodice	WHERE	PrdMrp.IndotDaArt		==	cOldCodice
+		Update Private!PrdSim		SET PrdSim.CodiceArti	=	cNewCodice	WHERE	PrdSim.CodiceArti		==	cOldCodice
+		Update Private!MagImage		SET MagImage.CodiceArti	=	cNewCodice	WHERE	MagImage.CodiceArti	==	cOldCodice
+		Update Private!MagLang		SET MagLang.CodiceArti	=	cNewCodice	WHERE	MagLang.CodiceArti	==	cOldCodice
+		** Impedisco al trigger di MagMov di eseguire eventuali storni che mi andrebbero a creare un record in Maggiac
+		** con il vecchio codice articolo!
+		NoTriggerOnUpdMagMov = .T.
+		Update Private!MagMov		SET MagMov.CodiceArti	=	cNewCodice	WHERE	MagMov.CodiceArti		==	cOldCodice
+
+		Select (nOldWa)
+
+	Endif
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** TpFasi
+Trigger
+Function OnUpdTpFasi()
+
+	If TYPE('NoTriggerOnUpdTpFasi') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	If ConsFisso != OLDVAL('ConsFisso')
+		Local lConsFisso, cCodFase
+		lConsFisso = ConsFisso
+		cCodFase  = Codice
+		Update Private!TpCicli  SET ConsFisso = lConsFisso WHERE CodFase == cCodFase
+		*		UPDATE Private!TpLpCicl SET ConsFisso = lConsFisso WHERE CodFase == cCodFase AND Stato == 1
+	Endif
+
+Endfunc
+
+
+** ------------------------------------------------------------------------------------------
+** MagGrp
+Trigger
+Function OnUpdMagGrp()
+
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+	If TYPE('NoTriggerOnUpdMagGrp') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+
+		nOldWa = SELECT(0)
+		cNewCodice	= Codice
+
+		Update Private!MagArt		SET MagArt.Gruppo		=	cNewCodice	WHERE	MagArt.Gruppo		==	cOldCodice
+		Update Private!DocRig		SET DocRig.Gruppo		=	cNewCodice	WHERE	DocRig.Gruppo		==	cOldCodice
+		Update Private!Listini		SET Listini.GruppoMag	=	cNewCodice	WHERE	Listini.GruppoMag	==	cOldCodice
+		Update Private!MagMov		SET MagMov.Gruppo		=	cNewCodice	WHERE	MagMov.Gruppo		==	cOldCodice
+
+		Select (nOldWa)
+
+	Endif
+
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** --- Classi di magazzino
+Trigger
+Function OnUpdMagCls()
+
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+	If TYPE('NoTriggerOnUpdMagCls') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+
+		nOldWa = SELECT(0)
+
+		cNewCodice	= Codice
+
+		Update Private!MagArt	SET MagArt.Classe	= cNewCodice	WHERE MagArt.Classe == cOldCodice
+		Update Private!DocRig	SET DocRig.Classe	= cNewCodice	WHERE DocRig.Classe == cOldCodice
+		Update Private!MagMov	SET MagMov.Classe	= cNewCodice	WHERE MagMov.Classe == cOldCodice
+		Select (nOldWa)
+
+	Endif
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** MagMov
+** Attualmente gestiscono solo la variazione di Articolo
+** Esercizio Magazzino
+** Non è gestita la variazione dei flag di movimentazione...
+** Ci dovrebbe pensare il programma di ins/modifica doc.
+
+Trigger
+Function OnInsMagMov()
+
+	If TYPE('NoTriggerOnInsMagMov') != 'U' OR TYPE('NoTriggerOnIns') != 'U'
+		Return .T.
+	Endif
+
+	OnMagMov(		 	;
+		esercizio, 		;
+		Magazzino,		;
+		CodiceArti,		;
+		Lotto,        	;
+		Quantita,   	;
+		QuantitaRe, 	;
+		Valore        	)
+Endfunc
+
+Trigger
+Function OnDelMagMov()
+
+	If TYPE('NoTriggerOnDelMagMov') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	OnMagMov( 						;
+		CURVAL('Esercizio' ),	;
+		CURVAL('Magazzino' ),	;
+		CURVAL('CodiceArti'),	;
+		CURVAL('Lotto'     ), 	;
+		-CURVAL('Quantita'  ), 	;
+		-CURVAL('QuantitaRe'), 	;
+		-CURVAL('Valore'    )  	)
+Endfunc
+
+Trigger
+Function OnUpdMagMov()
+
+	If TYPE('NoTriggerOnUpdMagMov') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	If Esercizio  	== CURVAL('Esercizio' )  AND ;
+		Magazzino  	== CURVAL('Magazzino' )  AND ;
+		CodiceArti 	== CURVAL('CodiceArti')  AND ;
+		Lotto      	== CURVAL('Lotto'     )
+
+		OnMagMov(										;
+			esercizio, 									;
+			Magazzino,									;
+			CodiceArti,									;
+			Lotto,                              ;
+			Quantita   - CURVAL('Quantita'  ),	;
+			QuantitaRe - CURVAL('QuantitaRe'), 	;
+			Valore     - CURVAL('Valore'    ) 	)
+	Else
+		OnDelMagMov()
+		OnInsMagMov()
+	Endif
+Endfunc
+
+STATIC
+Function OnMagMov(cEsercizio, cMagazzino, cArticolo, cLotto, nDeltaQta, nDeltaQtaRe, nDeltaVal)
+
+	Local lChgQta, lChgVal, lChgOI, lChgOIL, lChgLot, nDeltaValOI
+	Local cKeyToSearch
+	Local ARRAY aEser[1]
+	Local oMagMovRec
+
+	Scatter NAME oMagMovRec
+
+	If !USED('MagGiac')
+		Use PRIVATE!MagGiac IN 0
+		CursorSetProp('Buffering', 3, 'MagGiac')
+	Endif
+
+	lChgQta = (nDeltaQta   != 0) .AND. (!EMPTY(oMagMovRec.QtaCar) .OR. !EMPTY(oMagMovRec.QtaScar) .OR. !EMPTY(oMagMovRec.QtaTCar) .OR. !EMPTY(oMagMovRec.QtaTScar) .OR. !EMPTY(oMagMovRec.QtaRet))
+	lChgVal = (nDeltaVal   != 0) .AND. (!EMPTY(oMagMovRec.ValCar) .OR. !EMPTY(oMagMovRec.ValScar) .OR. !EMPTY(oMagMovRec.ValTCar) .OR. !EMPTY(oMagMovRec.ValTScar) .OR. !EMPTY(oMagMovRec.ValRet))
+	lChgOI  = (nDeltaQtaRe != 0) .AND. (!EMPTY(oMagMovRec.Ordin ) .OR. !EMPTY(oMagMovRec.Impegn))
+	lChgLot = (nDeltaQta   != 0) .AND. !EMPTY(cLotto) .AND. (!EMPTY(oMagMovRec.QtaCar) .OR. !EMPTY(oMagMovRec.QtaScar) .OR. !EMPTY(oMagMovRec.QtaTCar) .OR. !EMPTY(oMagMovRec.QtaTScar) .OR. !EMPTY(oMagMovRec.QtaRet))
+	lChgOIL = (nDeltaQtaRe != 0) .AND. !EMPTY(cLotto) .AND. (!EMPTY(oMagMovRec.Ordin ) .OR. !EMPTY(oMagMovRec.Impegn))
+
+	If (lChgQta .OR. lChgVal)
+
+		cKeyToSearch = cEsercizio + cMagazzino + cArticolo
+
+		Seek cKeyToSearch ORDER TAG Codice IN MagGiac
+		If !FOUND('MagGiac')
+			Flock('MagGiac')
+			Seek cKeyToSearch ORDER TAG Codice IN MagGiac
+			If !FOUND('MagGiac')
+				Insert INTO MagGiac (esercizio, Magazzino, Articolo) VALUES (cEsercizio, cMagazzino, cArticolo)
+			Endif
+			Unlock IN MagGiac
+		Endif
+
+		If RLOCK('MagGiac')
+			If lChgQta
+				Replace 																						;
+					ProgQtaCar WITH ProgQtaCar + (oMagMovRec.QtaCar     * nDeltaQta),	;
+					ProgQtaSca WITH ProgQtaSca + (oMagMovRec.QtaScar    * nDeltaQta),	;
+					ProgQtaTCa WITH ProgQtaTCa + (oMagMovRec.QtaTCar    * nDeltaQta),	;
+					ProgQtaTSc WITH ProgQtaTSc + (oMagMovRec.QtaTScar   * nDeltaQta),	;
+					ProgQtaRet WITH ProgQtaRet + (oMagMovRec.QtaRet     * nDeltaQta), ;
+					Timestamp  WITH DATETIME()														;
+					IN MagGiac
+			Endif
+			If lChgVal
+				Replace 																						;
+					ProgValCar WITH ProgValCar + (oMagMovRec.ValCar     * nDeltaVal),	;
+					ProgValSca WITH ProgValSca + (oMagMovRec.ValScar    * nDeltaVal),	;
+					ProgValTCa WITH ProgValTCa + (oMagMovRec.ValTCar    * nDeltaVal),	;
+					ProgValTSc WITH ProgValTSc + (oMagMovRec.ValTScar   * nDeltaVal),	;
+					ProgValRet WITH ProgValRet + (oMagMovRec.ValRet     * nDeltaVal), ;
+					Timestamp  WITH DATETIME()														;
+					IN MagGiac
+			Endif
+			Unlock IN MagGiac
+		Endif
+
+	Endif
+
+	If (lChgOI)
+
+		Local yValoreOrdImp
+
+		If oMagMovRec.Quantita != 0
+			yValoreOrdImp = ROUND(((oMagMovRec.Valore/oMagMovRec.Quantita) * nDeltaQtaRe), 0)
+		Else
+			yValoreOrdImp = $0
+		Endif
+
+		If !USED('MagOI')
+			Use PRIVATE!MagOI IN 0
+			CursorSetProp('Buffering', 3, 'MagOI')
+		Endif
+
+		cKeyToSearch = cMagazzino + cArticolo
+
+		Seek cKeyToSearch ORDER TAG Codice IN MagOI
+		If !FOUND('MagOI')
+			Flock('MagOI')
+			Seek cKeyToSearch ORDER TAG Codice IN MagOI
+			If !FOUND('MagOI')
+				Insert INTO MagOI (Magazzino, Articolo) VALUES (cMagazzino, cArticolo)
+			Endif
+			Unlock IN MagOI
+		Endif
+
+		If LOCK('MagOI')
+			Replace 																				;
+				Ordinato  WITH Ordinato  + (oMagMovRec.Ordin  * nDeltaQtaRe),	;
+				Impegnato WITH Impegnato + (oMagMovRec.Impegn * nDeltaQtaRe),	;
+				ValOrd	 WITH ValOrd    + (oMagMovRec.Ordin  * yValoreOrdImp),;
+				ValImp	 WITH ValImp    + (oMagMovRec.Impegn * yValoreOrdImp),;
+				Timestamp WITH DATETIME() 													;
+				IN MagOI
+
+			If EMPTY(MagOI.Ordinato) .AND. EMPTY(MagOI.Impegnato) .AND. EMPTY(MagOI.ValOrd) .AND. EMPTY(MagOI.ValImp)
+				Delete IN MagOI
+			Endif
+
+			Unlock IN MagOI
+		Endif
+
+	Endif
+
+&& Aggiorna giacenze per lotto
+	If (lChgLot)
+
+		If !USED('MagGiacL')
+			Use PRIVATE!MagGiacL IN 0
+			CursorSetProp('Buffering', 3, 'MagGiacL')
+		Endif
+
+		cKeyToSearch = cMagazzino + cArticolo + PADR(cLotto, 20, ' ')
+
+		Seek cKeyToSearch ORDER TAG Codice IN MagGiacL
+		If !FOUND('MagGiacL')
+			Flock('MagGiacL')
+			Seek cKeyToSearch ORDER TAG Codice IN MagGiacL
+			If !FOUND('MagGiacL')
+				Insert INTO MagGiacL (Magazzino, Articolo, Lotto) VALUES (cMagazzino, cArticolo, PADR(cLotto, 20, ' '))
+			Endif
+			Unlock IN MagGiacL
+		Endif
+
+		If RLOCK('MagGiacL')
+			Replace 																					;
+				ProgQtaCar WITH ProgQtaCar + (oMagMovRec.QtaCar     * nDeltaQta),	;
+				ProgQtaSca WITH ProgQtaSca + (oMagMovRec.QtaScar    * nDeltaQta),	;
+				ProgQtaTCa WITH ProgQtaTCa + (oMagMovRec.QtaTCar    * nDeltaQta),	;
+				ProgQtaTSc WITH ProgQtaTSc + (oMagMovRec.QtaTScar   * nDeltaQta),	;
+				ProgQtaRet WITH ProgQtaRet + (oMagMovRec.QtaRet     * nDeltaQta),	;
+				TimeStamp  WITH DATETIME() 													;
+				IN MagGiacL
+
+			Unlock IN MagGiacL
+		Endif
+
+	Endif
+
+&& Aggiorna ordinato/impegnato per lotto
+	If (lChgOIL)
+
+		If !USED('MagOIL')
+			Use PRIVATE!MagOIL IN 0
+			CursorSetProp('Buffering', 3, 'MagOIL')
+		Endif
+
+		cKeyToSearch = cMagazzino + cArticolo + cLotto
+
+		Seek cKeyToSearch ORDER TAG Codice IN MagOIL
+		If !FOUND('MagOIL')
+			Flock('MagOIL')
+			Seek cKeyToSearch ORDER TAG Codice IN MagOIL
+			If !FOUND('MagOIL')
+				Insert INTO MagOIL (Magazzino, Articolo, Lotto) VALUES (cMagazzino, cArticolo, cLotto)
+			Endif
+			Unlock IN MagOIL
+		Endif
+
+		If LOCK('MagOIL')
+			Replace 																				;
+				Ordinato  WITH Ordinato  + (oMagMovRec.Ordin  * nDeltaQtaRe),	;
+				Impegnato WITH Impegnato + (oMagMovRec.Impegn * nDeltaQtaRe),	;
+				Timestamp WITH DATETIME() 													;
+				IN MagOIL
+
+			If EMPTY(MagOIL.Ordinato) .AND. EMPTY(MagOIL.Impegnato)
+				Delete IN MagOIL
+			Endif
+
+			Unlock IN MagOIL
+		Endif
+
+	Endif
+
+Endfunc
+
+
+** --------------------------------------------------------------------------------------------------------
+** DocTes
+
+Trigger
+Function OnDelDocTes
+
+	If TYPE('NoTriggerOnDelDocTes') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Local nIDTestaDoc
+	nIDTestaDoc = ID
+	Delete FROM Private!DocTran  WHERE ID_Doc   == nIDTestaDoc
+	Delete FROM Private!Intra 	  WHERE ID_Doc   == nIDTestaDoc AND Transit
+	Delete FROM Private!Scadenze WHERE ID_Doc   == nIDTestaDoc AND Transit
+
+	** Inizio modifiche 12/12/2000 mc & rv
+
+	**DELETE FROM Private!DocRig   WHERE ID_Testa == nIDTestaDoc
+
+	If !USED('_DocRig4Trg_')
+		Use Private!DocRig ALIAS _DocRig4Trg_ AGAIN ORDER ID_Testa IN 0
+	Endif
+
+	** Nel Caso in cui nIDTestaDoc = 0 la procedura dava errore
+	** Aggiunto AND !EOF(...) e chiusura alias alla fine
+	Seek nIDTestaDoc IN _DocRig4Trg_
+	Do WHILE _DocRig4Trg_.ID_Testa = nIDTestaDoc AND !EOF('_DocRig4Trg_')
+		Delete  IN _DocRig4Trg_
+		Skip +1 IN _DocRig4Trg_
+	Enddo
+
+	Use IN _DocRig4Trg_
+
+Endfunc
+
+** --------------------------------------------------------------------------------------------------------
+** DocRig
+
+Trigger
+Function OnDelDocRig()
+
+	If TYPE('NoTriggerOnDelDocRig') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Local nIDRigaDoc
+	nIDRigaDoc = ID
+
+	**	DELETE FROM Private!MagMov WHERE ID_DocRig = nIDRigaDoc
+
+	** Inizio modifiche 12/12/2000 mc & rv
+
+	If !USED('_MagMov4Trg_')
+		Use Private!MagMov ALIAS _MagMov4Trg_ AGAIN ORDER Id_DocRig IN 0
+	Endif
+
+	** Nel Caso in cui nIDRigaDoc = 0 la procedura dava errore
+	** Aggiunto AND !EOF(...) e chiusura alias alla fine
+	Seek nIDRigaDoc IN _MagMov4Trg_
+	Do WHILE _MagMov4Trg_.Id_DocRig = nIDRigaDoc AND !EOF('_MagMov4Trg_')
+		Delete  IN _MagMov4Trg_
+		Skip +1 IN _MagMov4Trg_
+	Enddo
+
+	Use IN _MagMov4Trg_
+
+Endfunc
+
+*** --- Analitica
+Trigger
+Function OnDelCanTeste()
+
+	If TYPE('NoTriggerOnDelCanTeste') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Delete FROM Private!CanRighe WHERE ID_Testa = CanTeste.ID
+
+Endfunc
+
+
+*** --- Produzione
+Trigger
+Function OnDelPrdAnap()
+
+	Local cCodicePiano
+	Local nOldWa
+
+	If TYPE('NoTriggerOnDelPrdAnap') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	cCodicePiano = Codice
+	If EMPTY(cCodicePiano)
+		Return .T.
+	Endif
+
+	nOldWa = SELECT (0)
+
+	Delete FROM Private!PrdMrp	 WHERE	PrdMrp.CodPiano	== cCodicePiano
+	Delete FROM Private!PrdGiac WHERE	PrdGiac.CodPiano	== cCodicePiano
+
+	Select (nOldWa)
+
+Endfunc
+
+** Causali contabili
+Trigger
+Function OnDelCausali()
+
+	Local cCodice
+
+	If TYPE('NoTriggerOnDelCausali') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	cCodice = Codice
+
+	If EMPTY(cCodice)
+		Return .T.
+	Endif
+
+	Delete FROM Private!CauAuto WHERE Causale == cCodice
+
+Endfunc
+
+Trigger
+Function OnUpdCausali()
+
+	Local cOldCodice, cNewCodice, nOldWa
+
+	If TYPE('NoTriggerOnUpdCausali') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+		nOldWa = SELECT(0)
+		cNewCodice	= Codice
+		Update Private!CauAuto	SET Causale = cNewCodice WHERE Causale == cOldCodice
+		Select (nOldWa)
+	Endif
+
+Endfunc
+
+** Valute
+
+Trigger
+Function OnUpdCambi()
+
+	Local cOldCodice, cNewCodice
+	Local nOldWa
+
+	If TYPE('NoTriggerOnUpdCambi') != 'U' OR TYPE('NoTriggerOnUpd') != 'U'
+		Return .T.
+	Endif
+
+	Private NoTriggerOnUpd
+
+	cOldCodice	= CURVAL('Codice')
+	If !EMPTY(cOldCodice) AND !EMPTY(Codice) AND !(Codice == cOldCodice)
+
+		nOldWa = SELECT(0)
+
+		cNewCodice	= Codice
+
+		Update Private!Ditta		SET Ditta.MonetaDiCo		= cNewCodice	WHERE Ditta.MonetaDiCo		== cOldCodice
+		Update Private!ListCfg	SET ListCfg.Valuta		= cNewCodice	WHERE ListCfg.Valuta 		== cOldCodice
+		Update Private!Listini	SET Listini.CodValuta	= cNewCodice	WHERE Listini.CodValuta 	== cOldCodice
+		Update Private!Teste		SET Teste.CodValuta		= cNewCodice	WHERE Teste.CodValuta 		== cOldCodice
+		Update Private!DocTran	SET DocTran.CodValuta	= cNewCodice	WHERE DocTran.CodValuta 	== cOldCodice
+		Update Private!Anagrafe	SET Anagrafe.Valuta		= cNewCodice	WHERE Anagrafe.Valuta 		== cOldCodice
+		Update Private!DocRig	SET DocRig.Valuta			= cNewCodice	WHERE DocRig.Valuta 			== cOldCodice
+		Update Private!DocTes	SET DocTes.Valuta 		= cNewCodice	WHERE DocTes.Valuta 			== cOldCodice
+		Update Private!Fixing	SET Fixing.CodValuta		= cNewCodice	WHERE Fixing.CodValuta 		== cOldCodice
+		Update Private!Intra		SET Intra.CodVal			= cNewCodice	WHERE Intra.CodVal 			== cOldCodice
+		Update Private!Scadenze	SET Scadenze.CodCambio	= cNewCodice	WHERE Scadenze.CodCambio	== cOldCodice
+
+		Select (nOldWa)
+
+	Endif
+Endfunc
+
+** ------------------------------------------------------------------------------------------
+** Stored Procedures - Funzioni di utilità generale ad uso dei triggers e dei programmi esterni...
+** ------------------------------------------------------------------------------------------
+
+* ----------------------------------------------------
+* SCOPO  : Incrementa un contatore
+* RETURN : [Numeric] Nuovo contatore incrementato
+* ----------------------------------------------------
+Function NewID()
+
+	Local nOldReprocess
+	Local nOldWa, 	 nNewVal, cOldDeleted
+	Local cDBFName, cTableName
+
+	nOldReprocess 	= SET('REPROCESS')
+	nOldWa 			= SELECT(0)
+
+	Set REPROCESS TO 30
+	Set FULLPATH ON
+	Set MULTILOCKS ON
+
+	cDBFName   = DBF()
+	cTableName = SUBSTR(cDBFName, RAT('\', cDBFName) + 1)
+	cTableName = LEFT(cTableName, LEN(cTableName) - 4)
+
+	=SP_OpenTable('Setup_pv', 'Codice')
+
+	cTableName = PADR(cTableName, LEN(Tavola))	&& Tavola == Setup_pv.Tavola
+
+	If SEEK(cTableName)
+		=LOCK()
+		nNewVal = Val + 1
+	Else
+		=FLOCK()
+		If SEEK(cTableName)
+			nNewVal = Val + 1					&& Val == Setup_pv.Val
+		Else
+			Insert INTO Setup_pv (Tavola) VALUES (cTableName)
+			Set DELETED OFF
+			Select 0
+			Use (cDBFName) AGAIN ALIAS _Calc_Max_ ORDER TAG ID DESC
+			nNewVal = ID + 1		&& ID == _Calc_Max_.ID
+			Use
+			Set DELETED ON
+		Endif
+	Endif
+	Select Setup_pv
+	Replace Val WITH nNewVal
+	Unlock
+
+	Select (nOldWa)
+	Set REPROCESS TO (nOldReprocess)
+	Return nNewVal
+
+Endfunc
+
+
+EXPORTED
+Function SP_SafeGoTo(nRec, cAlias)
+
+	** cAlias opzionale
+	** Ripristina il numero record precedentemente salvato con RECNO()
+	** Gestisce correttamente il caso in cui la tavola sia in EOF() quando chiamo RECNO()
+	** solo se nel frattempo non sono stati inseriti records...
+
+	If EMPTY(cAlias)
+		cAlias = ALIAS()
+	Endif
+
+	If TYPE('nRec') == 'N' .AND. nRec != 0
+		If nRec > RECCOUNT(cAlias)							&& se maggiore mi devo riposizionare in EOF()
+			If !EOF(cAlias)									&& ... lo faccio solo se non lo sono già (tavola vuota)
+				Go BOTTOM IN (cAlias)
+				If !EOF(cAlias)
+					Skip +1 IN (cAlias)
+				Endif
+			Endif
+		Else
+			Go nRec IN (cAlias)
+		Endif
+	Endif
+
+Endfunc
+
+EXPORTED
+Function SP_OpenTable(cTable, cOrder)
+
+	** Apre una tavolo o la rende corrente; se passato imposta anche l'indice corrente.
+	** In caso di apertura, sa in Arca97, imposta anche un buffering a 3
+
+	If !USED(cTable)
+		Select 0
+		Use ('Private!' + cTable) AGAIN
+		If TYPE('oApp') == 'O' && Se richiamato da Trigger o Default value tramite ODBC, CursorSetProp sembra non supportato...
+			=CURSORSETPROP('Buffering', 3)
+		Endif
+	Else
+		Select (cTable)
+	Endif
+
+	If !EMPTY(cOrder)
+		Set ORDER TO (cOrder)
+	Endif
+
+Endfunc
+
+**	FUNCTION SP_APrograms(aPrg)
+**		EXTERNAL ARRAY aPrg
+**		LOCAL N
+**
+**		N = 1
+**		DO WHILE !EMPTY(PROGRAM(N))
+**			DIMENSION aPrg[n,2]
+**			aPrg[n,1] = PROGRAM(N)
+**			aPrg[n,2] = SYS(16, N)
+**			N = N + 1
+**		ENDDO
+**
+**		** Tolgo il nome della funzione AProgram
+**		N = N-2
+**		DIMENSION aPrg[n,2]
+**
+**		RETURN N
+**	ENDFUNC
+**
+**
+**	FUNCTION SP_WriteLogFile(oRg,rcn)
+**		LOCAL ARRAY aPrgs[1,2]
+**		LOCAL N,x, cMsg
+**
+**		=WriteGenericLog('PNerr.log',ALLTRIM(STR(oRg.nummov))+' '+oRg.esercizio+' '+ALLTRIM(STR(rcn)))
+**		x=SP_APrograms(@aPrgs)
+**		cMsg=''
+**		FOR N=1 TO x-2 		&& elimino dal trace-functions questa funzione e il trigger
+**			cMsg=cMsg+'\'+aPrgs[n,1]
+**		NEXT N
+**		=WriteGenericLog('PNerr.log','   '+cMsg)
+**
+**	ENDFUNC
+
+**	FUNCTION SP_Str2File(cFilename, cStr, lAppend)
+
+**		LOCAL hFile, cRet, nLen
+
+**		IF lAppend
+**			hFile = FOPEN(cFilename, 12)
+**			IF hFile == -1
+**				hFile = FCREATE(cFilename, 0)
+**			ELSE
+**				=FSEEK(hFile, 0, 2)
+**				=FPUTS(hFile, '')
+**			ENDIF
+**		ELSE
+**			DECLARE INTEGER DeleteFile IN Win32API STRING lpszFileName
+**			=DeleteFile(cFilename)
+**			hFile = FCREATE(cFilename, 0)
+**		ENDIF
+
+**		IF hFile != -1
+**			=FWRITE(hFile, cStr)
+**			=FCLOSE(hFile)
+**			RETURN .T.
+**		ELSE
+**			RETURN .F.
+**		ENDIF
+
+**	ENDFUNC
+
+Trigger
+Function OnDelRrTes()
+
+	If TYPE('NoTriggerOnDelRrTes') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Delete FROM Private!RrRig WHERE ID_Testa = RrTes.ID
+
+Endfunc
+
+Trigger
+Function OnDelRitMov()
+
+	If TYPE('NoTriggerOnDelRitMov') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	Delete FROM Private!Rit_MovR WHERE Rit_MovR.ID_Testa = Rit_Mov.ID
+
+Endfunc
+
+Trigger
+Function OnDelF24Teste()
+
+	Local yID, nOldWa
+
+	If TYPE('NoTriggerOnDelF24Teste') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+
+	nOldWa = SELECT(0)
+
+	yID = ID
+
+	Delete FROM Private!F24Erario  WHERE ID_Testa = yID
+	Delete FROM Private!F24Inps	   WHERE ID_Testa = yID
+	Delete FROM Private!F24Regioni WHERE ID_Testa = yID
+	Delete FROM Private!F24Ici     WHERE ID_Testa = yID
+	Delete FROM Private!F24Inail   WHERE ID_Testa = yID
+	Delete FROM Private!F24Enti    WHERE ID_Testa = yID
+
+	Select (nOldWa)
+
+EndFunc
+
+
+Trigger
+Function OnDelVincoli()
+	Local i, cMsg
+	cMsg = 'ComputerName : ' + GetComputerName(.F.)
+	
+	For i = Program(-1) To  1 Step -1
+		cMsg = cMsg + Chr(13) + Chr(10) + Padr(i,3) + ' ' + Sys(16, i) + ' '
+	Next
+	
+	Error_Handler(0, 0, cMsg, "Cancellazione record Private!Vincoli")
+EndFunc
+
+Function OnDelBilTes()
+	If Type('NoTriggerOnDelBilTes') != 'U' Or Type('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+	Delete From Private!BilRig Where Codice = BilTes.Codice
+Endfunc
+
+Function OnDelOver3000T()
+	If TYPE('NoTriggerOnDelOver3000T') != 'U' OR TYPE('NoTriggerOnDel') != 'U'
+		Return .T.
+	Endif
+	Delete FROM Private!Over3000R WHERE ID_Testa = Over3000T.ID
+Endfunc
+

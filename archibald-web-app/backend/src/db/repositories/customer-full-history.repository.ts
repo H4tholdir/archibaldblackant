@@ -26,7 +26,10 @@ type OrderArticleRow = {
 
 type FresisHistoryRow = {
   id: string;
+  archibald_order_id: string | null;
   archibald_order_number: string | null;
+  discount_percent: number | null;
+  target_total_with_vat: number | null;
   created_at: string;
   items: unknown;
 };
@@ -47,6 +50,7 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
         orderNumber: row.order_number,
         orderDate: row.order_date,
         totalAmount: 0,
+        orderDiscountPercent: 0,
         articles: [],
       });
     }
@@ -89,14 +93,24 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       };
     });
 
-    const totalAmount = Math.round(articles.reduce((s, a) => s + a.lineTotalWithVat, 0) * 100) / 100;
+    const rawTotal = articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
+    const targetTotal = row.target_total_with_vat;
+    let orderDiscountPercent = row.discount_percent ?? 0;
+    if (!orderDiscountPercent && targetTotal && rawTotal > 0 && targetTotal < rawTotal) {
+      orderDiscountPercent = Math.round((1 - targetTotal / rawTotal) * 10000) / 100;
+    }
+    const totalAmount = targetTotal ?? Math.round(rawTotal * 100) / 100;
+
+    const orderNumber = row.archibald_order_number
+      || (row.archibald_order_id ? `Ord. ${row.archibald_order_id}` : row.id);
 
     return {
       source: 'fresis' as const,
       orderId: row.id,
-      orderNumber: row.archibald_order_number ?? row.id,
+      orderNumber,
       orderDate: row.created_at,
       totalAmount,
+      orderDiscountPercent,
       articles,
     };
   });
@@ -152,7 +166,8 @@ async function getCustomerFullHistory(
 
     subClientCodice
       ? pool.query<FresisHistoryRow>(
-          `SELECT id, archibald_order_number, created_at, items
+          `SELECT id, archibald_order_id, archibald_order_number,
+              discount_percent, target_total_with_vat, created_at, items
            FROM agents.fresis_history
            WHERE user_id = $1
              AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =

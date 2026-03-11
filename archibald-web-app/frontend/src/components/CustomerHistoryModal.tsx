@@ -66,7 +66,11 @@ export function CustomerHistoryModal({
   }, [orders, searchQuery]);
 
   const buildPendingItem = useCallback(
-    async (a: CustomerFullHistoryOrder['articles'][number]): Promise<PendingOrderItem & { _priceWarning?: boolean }> => {
+    async (a: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number): Promise<PendingOrderItem & { _priceWarning?: boolean }> => {
+      const combinedDiscount = orderDiscountPercent > 0
+        ? Math.round((1 - (1 - a.discountPercent / 100) * (1 - orderDiscountPercent / 100)) * 10000) / 100
+        : a.discountPercent;
+
       if (isFresisClient) {
         return {
           articleCode: a.articleCode,
@@ -75,7 +79,7 @@ export function CustomerHistoryModal({
           quantity: a.quantity,
           price: a.unitPrice,
           vat: a.vatPercent,
-          discount: a.discountPercent,
+          discount: combinedDiscount,
         };
       }
 
@@ -104,8 +108,8 @@ export function CustomerHistoryModal({
   );
 
   const handleAddSingle = useCallback(
-    async (article: CustomerFullHistoryOrder['articles'][number]) => {
-      const item = await buildPendingItem(article);
+    async (article: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number) => {
+      const item = await buildPendingItem(article, orderDiscountPercent);
       // Show dialog ONLY if this same code is already in the order
       const alreadyPresent = currentOrderItems.some((i) => i.articleCode === article.articleCode);
       if (alreadyPresent) {
@@ -131,7 +135,7 @@ export function CustomerHistoryModal({
           skipped.push(`${a.articleCode} — ${a.articleDescription}`);
           continue;
         }
-        validItems.push(await buildPendingItem(a));
+        validItems.push(await buildPendingItem(a, order.orderDiscountPercent));
       }
 
       const action: PendingAction = { type: 'order', items: validItems, skipped };
@@ -227,7 +231,7 @@ export function CustomerHistoryModal({
             <OrderCard
               key={order.orderId}
               order={order}
-              onAddArticle={(article) => handleAddSingle(article)}
+              onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent)}
               onCopyOrder={() => handleCopyOrder(order)}
             />
           ))}
@@ -295,6 +299,12 @@ function OrderCard({ order, onAddArticle, onCopyOrder }: OrderCardProps) {
           background: isFresis ? '#ede9fe' : '#dbeafe',
           color: isFresis ? '#7c3aed' : '#1d4ed8',
         }}>{isFresis ? 'Storico Fresis' : 'Storico ordini'}</span>
+        {order.orderDiscountPercent > 0 && (
+          <span style={{
+            padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+            background: '#fef9c3', color: '#854d0e',
+          }}>Sconto {order.orderDiscountPercent}%</span>
+        )}
         <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, color: '#059669' }}>€ {formatEur(totalAmount)}</span>
         <button onClick={onCopyOrder} style={{
           background: '#1e293b', color: 'white', border: 'none',

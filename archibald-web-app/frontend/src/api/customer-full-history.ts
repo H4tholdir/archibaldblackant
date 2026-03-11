@@ -16,6 +16,7 @@ export type CustomerFullHistoryOrder = {
   orderNumber: string;
   orderDate: string;
   totalAmount: number;
+  orderDiscountPercent: number;
   articles: CustomerFullHistoryArticle[];
 };
 

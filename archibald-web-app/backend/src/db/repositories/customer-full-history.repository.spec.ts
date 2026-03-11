@@ -22,7 +22,10 @@ const ORDER_ROW = {
 
 const FRESIS_ROW = {
   id: 'fh-1',
+  archibald_order_id: null,
   archibald_order_number: 'KT-2024-081',
+  discount_percent: null,
+  target_total_with_vat: null,
   created_at: '2024-07-15T00:00:00.000Z',
   items: JSON.stringify([
     {
@@ -62,6 +65,7 @@ describe('getCustomerFullHistory', () => {
         orderNumber: 'FT 247',
         orderDate: '2024-02-23T00:00:00.000Z',
         totalAmount: 44.47,
+        orderDiscountPercent: 0,
         articles: [
           {
             articleCode: '661.314.420',
@@ -96,6 +100,7 @@ describe('getCustomerFullHistory', () => {
         orderNumber: 'KT-2024-081',
         orderDate: '2024-07-15T00:00:00.000Z',
         totalAmount: 364,
+        orderDiscountPercent: 0,
         articles: [
           {
             articleCode: 'SFM7.000.1',
