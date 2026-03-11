@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
 import { enqueueOperation } from "../api/operations";
@@ -8,11 +8,11 @@ import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
 import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../types/pending-order";
-import { calculateShippingCosts, archibaldLineAmount } from "../utils/order-calculations";
+import { calculateShippingCosts, archibaldLineAmount, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { VerificationAlert } from "../components/VerificationAlert";
-import { isFresis } from "../utils/fresis-constants";
+import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders, applyFresisLineDiscounts } from "../utils/order-merge";
 import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
@@ -47,7 +47,12 @@ export function PendingOrdersPage() {
 
   // Merge Fresis state
   const [showMergeDialog, setShowMergeDialog] = useState(false);
-  const [mergeDiscount, setMergeDiscount] = useState("");
+
+  // Fresis shipping estimate
+  const [fresisEstimate, setFresisEstimate] = useState<{
+    imponibile: number;
+    loading: boolean;
+  } | null>(null);
 
   // Expand/collapse state for each order
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(
@@ -355,9 +360,47 @@ export function PendingOrdersPage() {
     }
   };
 
-  const selectedFresisOrders = orders.filter(
-    (o) => selectedOrderIds.has(o.id!) && isFresis({ id: o.customerId }),
+  const selectedFresisOrders = useMemo(
+    () => orders.filter(
+      (o) => selectedOrderIds.has(o.id!) && isFresis({ id: o.customerId }),
+    ),
+    [orders, selectedOrderIds],
   );
+
+  const calculateFresisEstimate = useCallback(async () => {
+    if (selectedFresisOrders.length < 2) {
+      setFresisEstimate(null);
+      return;
+    }
+    setFresisEstimate({ imponibile: 0, loading: true });
+    try {
+      const allDiscounts = await getFresisDiscounts();
+      const discountMap = new Map<string, number>();
+      for (const d of allDiscounts) {
+        discountMap.set(d.id, d.discountPercent);
+        discountMap.set(d.articleCode, d.discountPercent);
+      }
+
+      let imponibile = 0;
+      for (const order of selectedFresisOrders) {
+        for (const item of order.items) {
+          const lineDiscount =
+            discountMap.get(item.articleId ?? "") ??
+            discountMap.get(item.articleCode) ??
+            FRESIS_DEFAULT_DISCOUNT;
+          const listPrice = item.originalListPrice ?? item.price;
+          imponibile += archibaldLineAmount(item.quantity, listPrice, lineDiscount);
+        }
+      }
+      setFresisEstimate({ imponibile, loading: false });
+    } catch {
+      setFresisEstimate(null);
+    }
+  }, [selectedFresisOrders]);
+
+  useEffect(() => {
+    calculateFresisEstimate();
+  }, [calculateFresisEstimate]);
 
   const handleMergeFresis = async () => {
     if (selectedFresisOrders.length < 2) return;
@@ -373,11 +416,9 @@ export function PendingOrdersPage() {
       const mergedOrder = mergeFresisPendingOrders(
         selectedFresisOrders,
         discountMap,
-        parseFloat(mergeDiscount) || 0,
       );
 
       // Calculate revenue for merged order
-      const mergedGlobalDiscount = mergedOrder.discountPercent || 0;
       let mergedRevenue = 0;
       for (const item of mergedOrder.items) {
         const fresisDisc =
@@ -388,8 +429,7 @@ export function PendingOrdersPage() {
         const prezzoCliente =
           item.price *
           item.quantity *
-          (1 - (item.discount || 0) / 100) *
-          (1 - mergedGlobalDiscount / 100);
+          (1 - (item.discount || 0) / 100);
         const costoFresis =
           originalPrice * item.quantity * (1 - fresisDisc / 100);
         mergedRevenue += prezzoCliente - costoFresis;
@@ -398,7 +438,6 @@ export function PendingOrdersPage() {
 
       // Calculate revenue for each original order and tag as created in PWA
       const ordersToArchive = selectedFresisOrders.map((order) => {
-        const globalDisc = order.discountPercent || 0;
         let orderRevenue = 0;
         for (const item of order.items) {
           const fresisDisc =
@@ -409,8 +448,7 @@ export function PendingOrdersPage() {
           const prezzoCliente =
             item.price *
             item.quantity *
-            (1 - (item.discount || 0) / 100) *
-            (1 - globalDisc / 100);
+            (1 - (item.discount || 0) / 100);
           const costoFresis =
             originalPrice * item.quantity * (1 - fresisDisc / 100);
           orderRevenue += prezzoCliente - costoFresis;
@@ -750,6 +788,90 @@ export function PendingOrdersPage() {
             </button>
           )}
         </div>
+
+        {/* Fresis shipping threshold estimate */}
+        {selectedFresisOrders.length >= 2 && fresisEstimate && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.75rem 1rem",
+              borderRadius: "8px",
+              backgroundColor: fresisEstimate.loading
+                ? "#f3f4f6"
+                : fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                  ? "#f0fdf4"
+                  : "#fef2f2",
+              border: `1px solid ${
+                fresisEstimate.loading
+                  ? "#d1d5db"
+                  : fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                    ? "#bbf7d0"
+                    : "#fecaca"
+              }`,
+            }}
+          >
+            {fresisEstimate.loading ? (
+              <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
+                Calcolo imponibile...
+              </span>
+            ) : (
+              <>
+                <span
+                  style={{
+                    fontSize: "1.25rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                    ? "\u2705"
+                    : "\u26A0\uFE0F"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontWeight: "700",
+                      fontSize: "0.9375rem",
+                      color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                        ? "#166534"
+                        : "#991b1b",
+                    }}
+                  >
+                    Imponibile stimato: {formatCurrency(fresisEstimate.imponibile)}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.8125rem",
+                      color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                        ? "#15803d"
+                        : "#b91c1c",
+                      marginTop: "0.125rem",
+                    }}
+                  >
+                    {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                      ? "Spedizione gratuita"
+                      : `Sotto soglia ${formatCurrency(SHIPPING_THRESHOLD)} \u2014 spese di spedizione applicate`}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "1.125rem",
+                    flexShrink: 0,
+                    color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                      ? "#166534"
+                      : "#991b1b",
+                  }}
+                >
+                  {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
+                    ? "FREE"
+                    : "+\u00A015,45\u00A0\u20AC"}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Merge Fresis Dialog */}
@@ -794,30 +916,6 @@ export function PendingOrdersPage() {
               Unisci {selectedFresisOrders.length} ordini in un unico ordine
               Fresis. Gli articoli con lo stesso codice verranno sommati.
             </p>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontWeight: "600",
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Sconto globale aggiuntivo (%)
-              </label>
-              <input
-                type="number"
-                value={mergeDiscount}
-                onChange={(e) => setMergeDiscount(e.target.value)}
-                style={{
-                  width: "100px",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  fontSize: "1rem",
-                }}
-              />
-            </div>
 
             <div
               style={{

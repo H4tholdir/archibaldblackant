@@ -222,16 +222,10 @@ describe("mergeFresisPendingOrders", () => {
     expect(result.items[0].discount).toBe(FRESIS_DEFAULT_DISCOUNT);
   });
 
-  test("global discountPercent defaults to 0 when not provided", () => {
+  test("result has no global discountPercent", () => {
     const result = mergeFresisPendingOrders([makeOrder()], emptyMap);
 
-    expect(result.discountPercent).toBe(0);
-  });
-
-  test("uses custom global discount when provided", () => {
-    const result = mergeFresisPendingOrders([makeOrder()], emptyMap, 10);
-
-    expect(result.discountPercent).toBe(10);
+    expect(result.discountPercent).toBeUndefined();
   });
 
   test("result has Fresis customerId and customerName", () => {

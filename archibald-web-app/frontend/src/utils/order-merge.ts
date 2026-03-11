@@ -26,7 +26,6 @@ export function applyFresisLineDiscounts(
 export function mergeFresisPendingOrders(
   orders: PendingOrder[],
   discountMap: Map<string, number>,
-  globalDiscountPercent?: number,
 ): PendingOrder {
   if (orders.length === 0) {
     throw new Error("Cannot merge an empty array of orders");
@@ -101,7 +100,7 @@ export function mergeFresisPendingOrders(
     customerId: FRESIS_CUSTOMER_PROFILE,
     customerName: "Fresis Soc Cooperativa",
     items: mergedItems,
-    discountPercent: globalDiscountPercent || 0,
+    discountPercent: undefined,
     createdAt: now,
     updatedAt: now,
     status: "pending",
