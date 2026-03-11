@@ -135,6 +135,26 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     }
   });
 
+  router.get('/unique-subclients', async (req: AuthRequest, res) => {
+    try {
+      const { rows } = await deps.pool.query<{ sub_client_codice: string; sub_client_name: string }>(
+        `SELECT DISTINCT ON (UPPER(TRIM(sub_client_codice)))
+           sub_client_codice, sub_client_name
+         FROM agents.fresis_history
+         WHERE user_id = $1 AND sub_client_codice IS NOT NULL AND sub_client_codice != ''
+         ORDER BY UPPER(TRIM(sub_client_codice)), sub_client_name`,
+        [req.user!.userId],
+      );
+      res.json({
+        success: true,
+        subclients: rows.map(r => ({ codice: r.sub_client_codice, name: r.sub_client_name })),
+      });
+    } catch (error) {
+      logger.error('Error fetching unique subclients', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero sottoclienti' });
+    }
+  });
+
   router.get('/discounts', async (req: AuthRequest, res) => {
     try {
       const discounts = await getDiscounts(req.user!.userId);

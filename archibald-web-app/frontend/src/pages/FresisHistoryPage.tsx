@@ -8,6 +8,7 @@ import {
   deleteFresisHistory,
   deleteFromArchibald,
   updateFresisHistoryOrder,
+  getUniqueSubClients,
 } from "../api/fresis-history";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { PDFExportService } from "../services/pdf-export.service";
@@ -28,7 +29,6 @@ import {
   getDateRangeForPreset,
   filterBySubClient,
   matchesFresisGlobalSearch,
-  extractUniqueSubClients,
 } from "../utils/fresisHistoryFilters";
 import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
@@ -77,14 +77,16 @@ export function FresisHistoryPage() {
 
   // Backend search: when search term has 2+ chars, send to backend (bypasses date filters)
   const isBackendSearch = debouncedSearch.length >= 2;
-  const isBackendSearchRef = useRef(false);
-  isBackendSearchRef.current = isBackendSearch;
+  const shouldBypassDates = isBackendSearch || selectedSubClient !== null;
+  const shouldReplaceRef = useRef(false);
+  shouldReplaceRef.current = shouldBypassDates;
 
   const { historyOrders: wsOrders, refetch: wsRefetch } =
     useFresisHistorySync(
-      isBackendSearch ? undefined : dateFrom,
-      isBackendSearch ? undefined : dateTo,
-      isBackendSearch ? debouncedSearch : undefined,
+      shouldBypassDates ? undefined : dateFrom,
+      shouldBypassDates ? undefined : dateTo,
+      isBackendSearch && !selectedSubClient ? debouncedSearch : undefined,
+      selectedSubClient?.codice,
     );
 
   // Progressive loading state
@@ -128,15 +130,15 @@ export function FresisHistoryPage() {
     return () => clearTimeout(timer);
   }, [globalSearch]);
 
-  // Clear orders when leaving search mode; disable progressive loading during search
-  const prevBackendSearchRef = useRef(false);
+  // Clear orders when leaving backend-driven mode; disable progressive loading
+  const prevBypassRef = useRef(false);
   useEffect(() => {
-    if (isBackendSearch !== prevBackendSearchRef.current) {
-      if (!isBackendSearch) setAllOrders([]);
-      setCanLoadMore(!isBackendSearch);
-      prevBackendSearchRef.current = isBackendSearch;
+    if (shouldBypassDates !== prevBypassRef.current) {
+      if (!shouldBypassDates) setAllOrders([]);
+      setCanLoadMore(!shouldBypassDates);
+      prevBypassRef.current = shouldBypassDates;
     }
-  }, [isBackendSearch]);
+  }, [shouldBypassDates]);
 
   // Loading state
   useEffect(() => {
@@ -148,10 +150,10 @@ export function FresisHistoryPage() {
   }, []);
 
   // Accumulate orders when wsOrders changes
-  // Backend search: replace entirely (results are the complete filtered set)
+  // Backend search/subclient: replace entirely (results are the complete filtered set)
   // Date range browsing: accumulate for progressive loading
   useEffect(() => {
-    if (isBackendSearchRef.current) {
+    if (shouldReplaceRef.current) {
       setAllOrders(wsOrders);
     } else if (wsOrders.length > 0) {
       setAllOrders(prev => {
@@ -218,10 +220,13 @@ export function FresisHistoryPage() {
     if (item) item.scrollIntoView({ block: "nearest" });
   }, [highlightedSubClientIndex]);
 
-  const uniqueSubClients = useMemo(
-    () => extractUniqueSubClients(allOrders),
-    [allOrders],
-  );
+  // Fetch all unique sub-clients once from backend (lightweight, ~10KB)
+  const [uniqueSubClients, setUniqueSubClients] = useState<UniqueSubClient[]>([]);
+  useEffect(() => {
+    getUniqueSubClients()
+      .then(scs => setUniqueSubClients(scs.map(sc => ({ codice: sc.codice, name: sc.name }))))
+      .catch(err => console.error("[FresisHistoryPage] Failed to load sub-clients:", err));
+  }, []);
 
   const subClientResults = useMemo(() => {
     if (subClientQuery.length < 2) return [];
@@ -247,7 +252,7 @@ export function FresisHistoryPage() {
     if (selectedSubClient) {
       result = filterBySubClient(result, selectedSubClient.codice);
     }
-    if (debouncedSearch && !isBackendSearch) {
+    if (debouncedSearch && (!isBackendSearch || selectedSubClient)) {
       result = result.filter((o) =>
         matchesFresisGlobalSearch(o, debouncedSearch),
       );
@@ -815,7 +820,7 @@ export function FresisHistoryPage() {
               </button>
             );
           })}
-          {isBackendSearch && (
+          {shouldBypassDates && (
             <span style={{ fontSize: "10px", color: "#1976d2", fontStyle: "italic", alignSelf: "center", marginLeft: "4px" }}>
               Ricerca su tutti i documenti
             </span>

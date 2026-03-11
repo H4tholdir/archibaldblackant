@@ -21,6 +21,15 @@ export async function getFresisHistory(subClient?: string, from?: string, to?: s
   return data.records;
 }
 
+export async function getUniqueSubClients(): Promise<Array<{ codice: string; name: string }>> {
+  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history/unique-subclients`);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.subclients;
+}
+
 export async function getFresisHistoryById(
   id: string,
 ): Promise<FresisHistoryOrder> {
