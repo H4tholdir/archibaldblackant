@@ -456,6 +456,9 @@ export function OrderHistory() {
     }
   }, [highlightedCustomerIndex]);
 
+  // When search is active, bypass date filters to search all documents
+  const isSearchMode = debouncedSearch.length > 0;
+
   // Fetch orders — background=true skips loading spinner and preserves scroll
   const fetchOrders = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false;
@@ -470,8 +473,10 @@ export function OrderHistory() {
       const params = new URLSearchParams();
       if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
-      params.append("dateFrom", filters.dateFrom || `${new Date().getFullYear()}-01-01`);
-      if (filters.dateTo) params.append("dateTo", filters.dateTo);
+      if (!isSearchMode) {
+        params.append("dateFrom", filters.dateFrom || `${new Date().getFullYear()}-01-01`);
+        if (filters.dateTo) params.append("dateTo", filters.dateTo);
+      }
       params.append("limit", "10000");
 
       const response = await fetchWithRetry(
@@ -506,7 +511,7 @@ export function OrderHistory() {
         setLoading(false);
       }
     }
-  }, [selectedCustomer, filters.dateFrom, filters.dateTo]);
+  }, [selectedCustomer, filters.dateFrom, filters.dateTo, isSearchMode]);
 
   useEffect(() => {
     fetchOrders();
@@ -1554,6 +1559,11 @@ export function OrderHistory() {
               );
             })}
           </div>
+          {isSearchMode && (
+            <span style={{ fontSize: "11px", color: "#1976d2", fontStyle: "italic", marginTop: "4px" }}>
+              Ricerca su tutti i documenti
+            </span>
+          )}
         </div>
 
         {/* Row 3: Custom date inputs (only if preset === "custom") */}

@@ -61,8 +61,25 @@ export function FresisHistoryPage() {
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
 
+  // Search & filter state (declared before hook to compute isSearchActive)
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
+
+  // Sub-client search
+  const [subClientQuery, setSubClientQuery] = useState("");
+  const [selectedSubClient, setSelectedSubClient] =
+    useState<UniqueSubClient | null>(null);
+  const [showSubClientDropdown, setShowSubClientDropdown] = useState(false);
+  const [highlightedSubClientIndex, setHighlightedSubClientIndex] =
+    useState(-1);
+  const subClientDropdownRef = useRef<HTMLDivElement>(null);
+
+  // When search is active, fetch all documents bypassing date filters
+  const isSearchActive = debouncedSearch.length > 0 || selectedSubClient !== null || subClientQuery.length >= 2;
+
   const { historyOrders: wsOrders, refetch: wsRefetch } =
-    useFresisHistorySync(dateFrom, dateTo);
+    useFresisHistorySync(isSearchActive ? undefined : dateFrom, isSearchActive ? undefined : dateTo);
 
   // Progressive loading state
   const [allOrders, setAllOrders] = useState<FresisHistoryOrder[]>([]);
@@ -82,19 +99,6 @@ export function FresisHistoryPage() {
   >(null);
   const [deleteProgress, setDeleteProgress] =
     useState<DeleteProgressState | null>(null);
-  const [globalSearch, setGlobalSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
-
-  // Sub-client search
-  const [subClientQuery, setSubClientQuery] = useState("");
-  const [selectedSubClient, setSelectedSubClient] =
-    useState<UniqueSubClient | null>(null);
-  const [showSubClientDropdown, setShowSubClientDropdown] = useState(false);
-  const [highlightedSubClientIndex, setHighlightedSubClientIndex] =
-    useState(-1);
-  const subClientDropdownRef = useRef<HTMLDivElement>(null);
-
   // Delete progress listener
   useEffect(() => {
     if (!deletingFromArchibald) return;
@@ -117,6 +121,16 @@ export function FresisHistoryPage() {
     const timer = setTimeout(() => setDebouncedSearch(globalSearch), 300);
     return () => clearTimeout(timer);
   }, [globalSearch]);
+
+  // Clear orders when entering/leaving search-all mode
+  const prevSearchActiveRef = useRef(false);
+  useEffect(() => {
+    if (isSearchActive !== prevSearchActiveRef.current) {
+      setAllOrders([]);
+      setCanLoadMore(!isSearchActive);
+      prevSearchActiveRef.current = isSearchActive;
+    }
+  }, [isSearchActive]);
 
   // Loading state
   useEffect(() => {
@@ -791,6 +805,11 @@ export function FresisHistoryPage() {
               </button>
             );
           })}
+          {isSearchActive && (
+            <span style={{ fontSize: "10px", color: "#1976d2", fontStyle: "italic", alignSelf: "center", marginLeft: "4px" }}>
+              Ricerca su tutti i documenti
+            </span>
+          )}
           {hasActiveFilters && (
             <button onClick={handleClearFilters} style={clearFilterBtnStyle}>
               X Azzera filtri
