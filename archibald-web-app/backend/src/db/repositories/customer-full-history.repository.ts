@@ -79,10 +79,23 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       ? (row.items as PendingOrderItemRaw[])
       : (JSON.parse(row.items as string) as PendingOrderItemRaw[]);
 
+    // First pass: calculate raw totals to determine global discount
+    const rawTotal = rawItems.reduce((s, item) => {
+      const disc = item.discount ?? 0;
+      return s + Math.round(item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100) * 100) / 100;
+    }, 0);
+    const targetTotal = row.target_total_with_vat;
+    let orderDiscountPercent = row.discount_percent ?? 0;
+    if (!orderDiscountPercent && targetTotal && rawTotal > 0 && targetTotal < rawTotal) {
+      orderDiscountPercent = Math.round((1 - targetTotal / rawTotal) * 10000) / 100;
+    }
+    const globalFactor = orderDiscountPercent > 0 ? 1 - orderDiscountPercent / 100 : 1;
+
+    // Second pass: build articles with global discount applied to lineTotalWithVat
     const articles: FullHistoryArticle[] = rawItems.map((item) => {
       const disc = item.discount ?? 0;
-      const lineTotalWithVat =
-        Math.round(item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100) * 100) / 100;
+      const lineRaw = item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100);
+      const lineTotalWithVat = Math.round(lineRaw * globalFactor * 100) / 100;
       return {
         articleCode: item.articleCode,
         articleDescription: item.description ?? item.productName ?? '',
@@ -94,13 +107,7 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       };
     });
 
-    const rawTotal = articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
-    const targetTotal = row.target_total_with_vat;
-    let orderDiscountPercent = row.discount_percent ?? 0;
-    if (!orderDiscountPercent && targetTotal && rawTotal > 0 && targetTotal < rawTotal) {
-      orderDiscountPercent = Math.round((1 - targetTotal / rawTotal) * 10000) / 100;
-    }
-    const totalAmount = targetTotal ?? Math.round(rawTotal * 100) / 100;
+    const totalAmount = targetTotal ?? Math.round(articles.reduce((s, a) => s + a.lineTotalWithVat, 0) * 100) / 100;
 
     const orderNumber = row.archibald_order_number
       || row.invoice_number
