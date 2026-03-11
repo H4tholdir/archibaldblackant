@@ -216,17 +216,6 @@ function mapRowToFresisDiscount(row: FresisDiscountRow): FresisDiscount {
   };
 }
 
-const COLUMNS_WITHOUT_ARCA_DATA = `id, user_id, original_pending_order_id, sub_client_codice, sub_client_name,
-  sub_client_data, customer_id, customer_name, items, discount_percent,
-  target_total_with_vat, shipping_cost, shipping_tax, revenue,
-  merged_into_order_id, merged_at, created_at, updated_at,
-  notes, archibald_order_id, archibald_order_number,
-  current_state, state_updated_at, ddt_number, ddt_delivery_date,
-  tracking_number, tracking_url, tracking_courier, delivery_completed_date,
-  invoice_number, invoice_date, invoice_amount, invoice_closed,
-  invoice_remaining_amount, invoice_due_date, NULL::jsonb AS arca_data,
-  parent_customer_name, source`;
-
 async function getAll(pool: DbPool, userId: string): Promise<FresisHistoryRecord[]> {
   const { rows } = await pool.query<FresisHistoryRow>(
     'SELECT * FROM agents.fresis_history WHERE user_id = $1',
@@ -238,7 +227,7 @@ async function getAll(pool: DbPool, userId: string): Promise<FresisHistoryRecord
 async function searchAll(pool: DbPool, userId: string, search: string): Promise<FresisHistoryRecord[]> {
   const pattern = `%${search}%`;
   const { rows } = await pool.query<FresisHistoryRow>(
-    `SELECT ${COLUMNS_WITHOUT_ARCA_DATA}
+    `SELECT *
      FROM agents.fresis_history
      WHERE user_id = $1 AND (
        sub_client_name ILIKE $2
