@@ -65,6 +65,26 @@ export function WarehouseMatchAccordion({
       });
   }, [articleCode, description, excludeWarehouseItemIds]);
 
+  // Clamp selected quantities when matches change (e.g. after re-fetch)
+  useEffect(() => {
+    if (selectedMatches.size === 0) return;
+    let needsUpdate = false;
+    const clamped = new Map(selectedMatches);
+    for (const [itemId, qty] of clamped.entries()) {
+      const match = matches.find((m) => m.item.id === itemId);
+      if (!match) {
+        clamped.delete(itemId);
+        needsUpdate = true;
+      } else if (qty > match.availableQty) {
+        clamped.set(itemId, match.availableQty);
+        needsUpdate = true;
+      }
+    }
+    if (needsUpdate) {
+      setSelectedMatches(clamped);
+    }
+  }, [matches]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Notify parent when selection changes
   useEffect(() => {
     const selected: SelectedWarehouseMatch[] = [];
@@ -84,7 +104,6 @@ export function WarehouseMatchAccordion({
       }
     }
 
-    // 🔧 FIX #1: Notify parent of selected items and total quantity
     if (onSelect) {
       onSelect(selected);
     }

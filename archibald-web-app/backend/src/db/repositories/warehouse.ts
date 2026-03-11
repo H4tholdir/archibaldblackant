@@ -332,19 +332,32 @@ async function bulkStoreItems(
   });
 }
 
+type BatchReserveResult = {
+  reserved: number;
+  skipped: number;
+  totalRequestedQty: number;
+  totalReservedQty: number;
+  warnings: string[];
+};
+
 async function batchReserve(
   pool: DbPool,
   userId: string,
   items: Array<{ itemId: number; quantity: number }>,
   orderId: string,
   tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
-): Promise<{ reserved: number; skipped: number }> {
-  if (items.length === 0) return { reserved: 0, skipped: 0 };
+): Promise<BatchReserveResult> {
+  if (items.length === 0) return { reserved: 0, skipped: 0, totalRequestedQty: 0, totalReservedQty: 0, warnings: [] };
 
   let reserved = 0;
   let skipped = 0;
+  let totalRequestedQty = 0;
+  let totalReservedQty = 0;
+  const warnings: string[] = [];
 
   for (const { itemId, quantity: requestedQty } of items) {
+    totalRequestedQty += requestedQty;
+
     const { rows: [item] } = await pool.query<WarehouseItemRow>(
       `SELECT * FROM agents.warehouse_items
        WHERE id = $1 AND user_id = $2
@@ -354,7 +367,14 @@ async function batchReserve(
 
     if (!item) {
       skipped++;
+      warnings.push(`Item ${itemId}: non trovato o già riservato/venduto (richiesti ${requestedQty} pz)`);
       continue;
+    }
+
+    if (requestedQty > item.quantity) {
+      warnings.push(
+        `Item ${itemId} (${item.article_code}): richiesti ${requestedQty} pz ma disponibili solo ${item.quantity} pz — riservati ${item.quantity} pz`,
+      );
     }
 
     if (requestedQty >= item.quantity) {
@@ -365,6 +385,7 @@ async function batchReserve(
          WHERE id = $7 AND user_id = $2`,
         [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId],
       );
+      totalReservedQty += item.quantity;
     } else {
       await pool.query(
         `UPDATE agents.warehouse_items SET quantity = quantity - $1 WHERE id = $2 AND user_id = $3`,
@@ -378,11 +399,12 @@ async function batchReserve(
         [userId, item.article_code, item.description, requestedQty, item.box_name, orderId,
          item.uploaded_at, item.device_id, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
       );
+      totalReservedQty += requestedQty;
     }
     reserved++;
   }
 
-  return { reserved, skipped };
+  return { reserved, skipped, totalRequestedQty, totalReservedQty, warnings };
 }
 
 async function batchRelease(pool: DbPool, userId: string, orderId: string): Promise<number> {
@@ -489,4 +511,5 @@ export {
   type WarehouseBoxRow,
   type WarehouseBoxDetailRow,
   type WarehouseItemRow,
+  type BatchReserveResult,
 };

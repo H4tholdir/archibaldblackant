@@ -72,7 +72,7 @@ export async function batchReserve(
     orderDate?: string;
     orderNumber?: string;
   },
-): Promise<{ reserved: number; skipped: number }> {
+): Promise<{ reserved: number; skipped: number; totalRequestedQty: number; totalReservedQty: number; warnings: string[] }> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/warehouse/items/batch-reserve`,
     {
@@ -87,7 +87,13 @@ export async function batchReserve(
   }
 
   const data = await response.json();
-  return { reserved: data.reserved, skipped: data.skipped };
+  return {
+    reserved: data.reserved,
+    skipped: data.skipped,
+    totalRequestedQty: data.totalRequestedQty ?? 0,
+    totalReservedQty: data.totalReservedQty ?? 0,
+    warnings: data.warnings ?? [],
+  };
 }
 
 export async function batchRelease(

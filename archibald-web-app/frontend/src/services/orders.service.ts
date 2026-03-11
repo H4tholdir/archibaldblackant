@@ -85,10 +85,19 @@ export class OrderService {
 
       try {
         if (warehouseItems.length > 0) {
-          await batchReserve(warehouseItems, `pending-${id}`, {
+          const result = await batchReserve(warehouseItems, `pending-${id}`, {
             ...tracking,
             orderNumber: warehouseOrderId,
           });
+          if (result.totalReservedQty < result.totalRequestedQty) {
+            console.warn(
+              "[OrderService] Warehouse reservation quantity mismatch",
+              { orderId: id, requested: result.totalRequestedQty, reserved: result.totalReservedQty, warnings: result.warnings },
+            );
+            throw new Error(
+              `Quantità magazzino insufficiente: richiesti ${result.totalRequestedQty} pz, riservati solo ${result.totalReservedQty} pz. Controlla il magazzino e riprova.`,
+            );
+          }
         }
         console.log(
           "[OrderService] Warehouse items reserved (warehouse-only)",
@@ -99,14 +108,27 @@ export class OrderService {
           "[OrderService] Failed to reserve warehouse items",
           warehouseError,
         );
-        throw new Error(
-          "Impossibile completare ordine da magazzino: errore prenotazione items",
-        );
+        await batchRelease(`pending-${id}`).catch(() => {});
+        await apiDeletePendingOrder(id).catch(() => {});
+        throw warehouseError instanceof Error
+          ? warehouseError
+          : new Error("Impossibile completare ordine da magazzino: errore prenotazione items");
       }
     } else {
       try {
         if (warehouseItems.length > 0) {
-          await batchReserve(warehouseItems, `pending-${id}`, tracking);
+          const result = await batchReserve(warehouseItems, `pending-${id}`, tracking);
+          if (result.totalReservedQty < result.totalRequestedQty) {
+            console.warn(
+              "[OrderService] Warehouse reservation quantity mismatch (mixed order)",
+              { orderId: id, requested: result.totalRequestedQty, reserved: result.totalReservedQty, warnings: result.warnings },
+            );
+            await batchRelease(`pending-${id}`).catch(() => {});
+            await apiDeletePendingOrder(id).catch(() => {});
+            throw new Error(
+              `Quantità magazzino insufficiente: richiesti ${result.totalRequestedQty} pz, riservati solo ${result.totalReservedQty} pz. Controlla il magazzino e riprova.`,
+            );
+          }
         }
         console.log("[OrderService] Warehouse items reserved for order", {
           orderId: id,
@@ -116,6 +138,9 @@ export class OrderService {
           "[OrderService] Failed to reserve warehouse items",
           warehouseError,
         );
+        if (warehouseError instanceof Error && warehouseError.message.includes('insufficiente')) {
+          throw warehouseError;
+        }
       }
     }
 

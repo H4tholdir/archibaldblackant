@@ -22,7 +22,7 @@ type WarehouseRouterDeps = {
   ensureBoxExists: (userId: string, boxName: string) => Promise<void>;
   getAllItems: (userId: string) => Promise<WarehouseItem[]>;
   bulkStoreItems: (userId: string, items: Array<{ articleCode: string; description: string; quantity: number; boxName: string; deviceId: string }>, clearExisting: boolean) => Promise<number>;
-  batchReserve: (userId: string, items: Array<{ itemId: number; quantity: number }>, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<{ reserved: number; skipped: number }>;
+  batchReserve: (userId: string, items: Array<{ itemId: number; quantity: number }>, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<{ reserved: number; skipped: number; totalRequestedQty: number; totalReservedQty: number; warnings: string[] }>;
   batchRelease: (userId: string, orderId: string) => Promise<number>;
   batchMarkSold: (userId: string, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<number>;
   batchTransfer: (userId: string, fromOrderIds: string[], toOrderId: string) => Promise<number>;
@@ -305,6 +305,14 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
       const result = await batchReserve(req.user!.userId, parsed.data.items, parsed.data.orderId, parsed.data.tracking ?? undefined);
+      if (result.warnings.length > 0) {
+        logger.warn('Warehouse batch reserve quantity mismatch', {
+          orderId: parsed.data.orderId,
+          warnings: result.warnings,
+          totalRequestedQty: result.totalRequestedQty,
+          totalReservedQty: result.totalReservedQty,
+        });
+      }
       res.json({ success: true, ...result });
     } catch (error) {
       logger.error('Error batch reserving items', { error });

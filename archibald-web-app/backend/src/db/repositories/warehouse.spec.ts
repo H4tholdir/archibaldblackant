@@ -290,3 +290,173 @@ describe('deleteItem', () => {
     expect(result).toBe(false);
   });
 });
+
+describe('batchReserve', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('reports quantity mismatch when requested qty exceeds item qty', async () => {
+    const itemRow = {
+      id: 286,
+      user_id: TEST_USER_ID,
+      article_code: '8863.314.012',
+      description: 'DIA gr F - FIAMMA LUNGA',
+      quantity: 1,
+      box_name: 'SCATOLO 5',
+      reserved_for_order: null,
+      sold_in_order: null,
+      uploaded_at: 1770120121934,
+      device_id: 'dev-1',
+      customer_name: null,
+      sub_client_name: null,
+      order_date: null,
+      order_number: null,
+      return_reason: null,
+    };
+
+    const queryFn = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT')) {
+        return { rows: [itemRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      return { rows: [], rowCount: 1, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+
+    const { batchReserve } = await import('./warehouse');
+    const result = await batchReserve(
+      pool, TEST_USER_ID,
+      [{ itemId: 286, quantity: 5 }],
+      'pending-test-order',
+    );
+
+    expect(result).toEqual({
+      reserved: 1,
+      skipped: 0,
+      totalRequestedQty: 5,
+      totalReservedQty: 1,
+      warnings: [
+        'Item 286 (8863.314.012): richiesti 5 pz ma disponibili solo 1 pz — riservati 1 pz',
+      ],
+    });
+  });
+
+  test('reserves exact quantity when item has enough', async () => {
+    const itemRow = {
+      id: 314,
+      user_id: TEST_USER_ID,
+      article_code: '8863.314.012',
+      description: 'DIA gr F - FIAMMA LUNGA',
+      quantity: 5,
+      box_name: 'SCATOLO 5',
+      reserved_for_order: null,
+      sold_in_order: null,
+      uploaded_at: 1770120121934,
+      device_id: 'dev-1',
+      customer_name: null,
+      sub_client_name: null,
+      order_date: null,
+      order_number: null,
+      return_reason: null,
+    };
+
+    const queryFn = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT')) {
+        return { rows: [itemRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      return { rows: [], rowCount: 1, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+
+    const { batchReserve } = await import('./warehouse');
+    const result = await batchReserve(
+      pool, TEST_USER_ID,
+      [{ itemId: 314, quantity: 5 }],
+      'pending-test-order',
+    );
+
+    expect(result).toEqual({
+      reserved: 1,
+      skipped: 0,
+      totalRequestedQty: 5,
+      totalReservedQty: 5,
+      warnings: [],
+    });
+  });
+
+  test('splits item when requested qty is less than available', async () => {
+    const itemRow = {
+      id: 314,
+      user_id: TEST_USER_ID,
+      article_code: '8863.314.012',
+      description: 'DIA gr F - FIAMMA LUNGA',
+      quantity: 5,
+      box_name: 'SCATOLO 5',
+      reserved_for_order: null,
+      sold_in_order: null,
+      uploaded_at: 1770120121934,
+      device_id: 'dev-1',
+      customer_name: null,
+      sub_client_name: null,
+      order_date: null,
+      order_number: null,
+      return_reason: null,
+    };
+
+    const queryFn = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT')) {
+        return { rows: [itemRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      return { rows: [], rowCount: 1, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+
+    const { batchReserve } = await import('./warehouse');
+    const result = await batchReserve(
+      pool, TEST_USER_ID,
+      [{ itemId: 314, quantity: 3 }],
+      'pending-test-order',
+    );
+
+    expect(result).toEqual({
+      reserved: 1,
+      skipped: 0,
+      totalRequestedQty: 3,
+      totalReservedQty: 3,
+      warnings: [],
+    });
+
+    const updateCall = queryFn.mock.calls.find(
+      (c) => (c[0] as string).includes('quantity = quantity -'),
+    );
+    expect(updateCall).toBeDefined();
+    expect(updateCall![1]).toEqual([3, 314, TEST_USER_ID]);
+
+    const insertCall = queryFn.mock.calls.find(
+      (c) => (c[0] as string).includes('INSERT INTO agents.warehouse_items'),
+    );
+    expect(insertCall).toBeDefined();
+  });
+
+  test('skips items not found and reports warning', async () => {
+    const queryFn = vi.fn(async () => ({
+      rows: [], rowCount: 0, command: '', oid: 0, fields: [],
+    }));
+    const pool = createMockPool(queryFn);
+
+    const { batchReserve } = await import('./warehouse');
+    const result = await batchReserve(
+      pool, TEST_USER_ID,
+      [{ itemId: 999, quantity: 3 }],
+      'pending-test-order',
+    );
+
+    expect(result).toEqual({
+      reserved: 0,
+      skipped: 1,
+      totalRequestedQty: 3,
+      totalReservedQty: 0,
+      warnings: ['Item 999: non trovato o già riservato/venduto (richiesti 3 pz)'],
+    });
+  });
+});
