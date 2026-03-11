@@ -42,12 +42,13 @@ export function CustomerHistoryModal({
     setError(null);
     getCustomerFullHistory({
       customerProfileId: customerProfileId ?? undefined,
+      customerName: customerName || undefined,
       subClientCodice: subClientCodice ?? undefined,
     })
       .then(setOrders)
       .catch(() => setError('Errore nel caricamento dello storico'))
       .finally(() => setLoading(false));
-  }, [isOpen, customerProfileId, subClientCodice]);
+  }, [isOpen, customerProfileId, customerName, subClientCodice]);
 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.toLowerCase();

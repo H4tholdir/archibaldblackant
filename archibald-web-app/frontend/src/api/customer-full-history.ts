@@ -22,10 +22,12 @@ export type CustomerFullHistoryOrder = {
 
 export async function getCustomerFullHistory(params: {
   customerProfileId?: string;
+  customerName?: string;
   subClientCodice?: string;
 }): Promise<CustomerFullHistoryOrder[]> {
   const query = new URLSearchParams();
   if (params.customerProfileId) query.set('customerProfileId', params.customerProfileId);
+  if (params.customerName) query.set('customerName', params.customerName);
   if (params.subClientCodice) query.set('subClientCodice', params.subClientCodice);
 
   const res = await fetchWithRetry(`/api/history/customer-full-history?${query.toString()}`);
