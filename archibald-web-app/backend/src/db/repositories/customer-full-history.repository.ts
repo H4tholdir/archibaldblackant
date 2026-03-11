@@ -115,7 +115,7 @@ async function getCustomerFullHistory(
       `SELECT
          o.id AS order_id,
          o.order_number,
-         o.order_date,
+         o.creation_date AS order_date,
          a.article_code,
          a.article_description,
          a.quantity,
@@ -135,7 +135,7 @@ async function getCustomerFullHistory(
              AND nc.customer_profile_id = o.customer_profile_id
              AND nc.gross_amount = -o.gross_amount
          )
-       ORDER BY o.order_date DESC, a.article_code ASC`,
+       ORDER BY o.creation_date DESC, a.article_code ASC`,
       [userId, customerProfileId ?? null],
     ),
 
