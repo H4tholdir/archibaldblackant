@@ -80,7 +80,6 @@ describe('getCustomerFullHistory', () => {
 
   it('returns fresis orders when subClientCodice provided', async () => {
     const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [FRESIS_ROW] });
     const pool = makePool(query);
 

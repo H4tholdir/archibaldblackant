@@ -111,54 +111,56 @@ async function getCustomerFullHistory(
   if (!customerProfileId && !subClientCodice) return [];
 
   const [ordersResult, fresisResult] = await Promise.all([
-    pool.query<OrderArticleRow>(
-      `SELECT
-         o.id AS order_id,
-         o.order_number,
-         o.creation_date AS order_date,
-         a.article_code,
-         a.article_description,
-         a.quantity,
-         a.unit_price,
-         a.discount_percent,
-         a.vat_percent,
-         a.line_total_with_vat
-       FROM agents.order_records o
-       JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
-       WHERE o.user_id = $1
-         AND $2 IS NOT NULL
-         AND o.customer_profile_id = $2
-         AND o.articles_synced_at IS NOT NULL
-         AND o.gross_amount NOT LIKE '-%'
-         AND NOT EXISTS (
-           SELECT 1 FROM agents.order_records cn
-           WHERE cn.user_id = o.user_id
-             AND cn.customer_name = o.customer_name
-             AND cn.gross_amount LIKE '-%'
-             AND ABS(
-               CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-                 THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-                 ELSE 0 END
-               + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-                 THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-                 ELSE 0 END
-             ) < 1.0
-             AND cn.creation_date >= o.creation_date
-         )
-       ORDER BY o.creation_date DESC, a.article_code ASC`,
-      [userId, customerProfileId ?? null],
-    ),
+    customerProfileId
+      ? pool.query<OrderArticleRow>(
+          `SELECT
+             o.id AS order_id,
+             o.order_number,
+             o.creation_date AS order_date,
+             a.article_code,
+             a.article_description,
+             a.quantity,
+             a.unit_price,
+             a.discount_percent,
+             a.vat_percent,
+             a.line_total_with_vat
+           FROM agents.order_records o
+           JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
+           WHERE o.user_id = $1
+             AND o.customer_profile_id = $2
+             AND o.articles_synced_at IS NOT NULL
+             AND o.gross_amount NOT LIKE '-%'
+             AND NOT EXISTS (
+               SELECT 1 FROM agents.order_records cn
+               WHERE cn.user_id = o.user_id
+                 AND cn.customer_name = o.customer_name
+                 AND cn.gross_amount LIKE '-%'
+                 AND ABS(
+                   CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+                     THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+                     ELSE 0 END
+                   + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+                     THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+                     ELSE 0 END
+                 ) < 1.0
+                 AND cn.creation_date >= o.creation_date
+             )
+           ORDER BY o.creation_date DESC, a.article_code ASC`,
+          [userId, customerProfileId],
+        )
+      : Promise.resolve({ rows: [] as OrderArticleRow[] }),
 
-    pool.query<FresisHistoryRow>(
-      `SELECT id, archibald_order_number, created_at, items
-       FROM agents.fresis_history
-       WHERE user_id = $1
-         AND $2 IS NOT NULL
-         AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =
-             REGEXP_REPLACE($2, '^[Cc]0*', '')
-       ORDER BY created_at DESC`,
-      [userId, subClientCodice ?? null],
-    ),
+    subClientCodice
+      ? pool.query<FresisHistoryRow>(
+          `SELECT id, archibald_order_number, created_at, items
+           FROM agents.fresis_history
+           WHERE user_id = $1
+             AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =
+                 REGEXP_REPLACE($2, '^[Cc]0*', '')
+           ORDER BY created_at DESC`,
+          [userId, subClientCodice],
+        )
+      : Promise.resolve({ rows: [] as FresisHistoryRow[] }),
   ]);
 
   const orderOrders = mapOrderArticleRows(ordersResult.rows);
