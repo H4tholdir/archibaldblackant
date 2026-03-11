@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import type { FullHistoryOrder } from '../types/full-history';
+import { logger } from '../logger';
 
 type CustomerFullHistoryRouterDeps = {
   getCustomerFullHistory: (
@@ -24,7 +25,8 @@ function createCustomerFullHistoryRouter(deps: CustomerFullHistoryRouterDeps) {
       const userId = req.user!.userId;
       const orders = await deps.getCustomerFullHistory(userId, { customerProfileId, subClientCodice });
       res.json({ orders });
-    } catch {
+    } catch (err) {
+      logger.error('Error fetching customer full history', { error: err instanceof Error ? err.message : err });
       res.status(500).json({ error: 'Errore nel recupero dello storico' });
     }
   });

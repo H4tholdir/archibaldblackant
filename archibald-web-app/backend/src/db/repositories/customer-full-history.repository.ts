@@ -129,11 +129,21 @@ async function getCustomerFullHistory(
          AND $2 IS NOT NULL
          AND o.customer_profile_id = $2
          AND o.articles_synced_at IS NOT NULL
+         AND o.gross_amount NOT LIKE '-%'
          AND NOT EXISTS (
-           SELECT 1 FROM agents.order_records nc
-           WHERE nc.user_id = o.user_id
-             AND nc.customer_profile_id = o.customer_profile_id
-             AND nc.gross_amount = -o.gross_amount
+           SELECT 1 FROM agents.order_records cn
+           WHERE cn.user_id = o.user_id
+             AND cn.customer_name = o.customer_name
+             AND cn.gross_amount LIKE '-%'
+             AND ABS(
+               CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+                 THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+                 ELSE 0 END
+               + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
+                 THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+                 ELSE 0 END
+             ) < 1.0
+             AND cn.creation_date >= o.creation_date
          )
        ORDER BY o.creation_date DESC, a.article_code ASC`,
       [userId, customerProfileId ?? null],
