@@ -134,10 +134,10 @@ async function getCustomerFullHistory(
   const { customerProfileId, customerName, subClientCodice } = params;
   if (!customerProfileId && !customerName && !subClientCodice) return [];
 
-  const orderSearchKey = customerName || customerProfileId;
+  const hasCustomerSearch = !!(customerProfileId || customerName);
 
   const [ordersResult, fresisResult] = await Promise.all([
-    orderSearchKey
+    hasCustomerSearch
       ? pool.query<OrderArticleRow>(
           `SELECT
              o.id AS order_id,
@@ -153,7 +153,14 @@ async function getCustomerFullHistory(
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
            WHERE o.user_id = $1
-             AND LOWER(o.customer_name) = LOWER($2)
+             AND (
+               o.customer_profile_id = (
+                 SELECT c.internal_id FROM agents.customers c
+                 WHERE c.user_id = $1 AND c.customer_profile = $2 AND c.internal_id IS NOT NULL
+                 LIMIT 1
+               )
+               OR LOWER(o.customer_name) = LOWER($3)
+             )
              AND o.articles_synced_at IS NOT NULL
              AND o.gross_amount NOT LIKE '-%'
              AND NOT EXISTS (
@@ -172,7 +179,7 @@ async function getCustomerFullHistory(
                  AND cn.creation_date >= o.creation_date
              )
            ORDER BY o.creation_date DESC, a.article_code ASC`,
-          [userId, orderSearchKey],
+          [userId, customerProfileId ?? '', customerName ?? ''],
         )
       : Promise.resolve({ rows: [] as OrderArticleRow[] }),
 
