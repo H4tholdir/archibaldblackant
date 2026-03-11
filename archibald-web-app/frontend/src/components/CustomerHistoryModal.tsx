@@ -70,7 +70,7 @@ export function CustomerHistoryModal({
       if (isFresisClient) {
         return {
           articleCode: a.articleCode,
-          productName: a.articleDescription,
+          productName: a.articleCode,
           description: a.articleDescription,
           quantity: a.quantity,
           price: a.unitPrice,
@@ -91,7 +91,7 @@ export function CustomerHistoryModal({
 
       return {
         articleCode: a.articleCode,
-        productName: a.articleDescription,
+        productName: a.articleCode,
         description: a.articleDescription,
         quantity: a.quantity,
         price: currentListPrice,
