@@ -198,6 +198,7 @@ async function getCustomerFullHistory(
                  LIMIT 1
                ))
              )
+             AND (archibald_order_number IS NULL OR archibald_order_number NOT LIKE 'KT %')
            ORDER BY created_at DESC`,
           [userId, subClientCodice ?? '', customerProfileId ?? ''],
         )
