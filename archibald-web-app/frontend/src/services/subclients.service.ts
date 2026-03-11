@@ -103,6 +103,13 @@ async function deleteSubclient(codice: string): Promise<void> {
   }
 }
 
+async function getSubclientByMatchedCustomer(customerProfileId: string): Promise<Subclient | null> {
+  const res = await fetchWithRetry(`/api/subclients/by-customer/${encodeURIComponent(customerProfileId)}`);
+  if (!res.ok) throw new Error(`Errore: ${res.status}`);
+  const data = await res.json() as { subclient: Subclient | null };
+  return data.subclient;
+}
+
 export {
   getSubclients,
   setSubclientMatch,
@@ -110,5 +117,6 @@ export {
   updateSubclient,
   createSubclient,
   deleteSubclient,
+  getSubclientByMatchedCustomer,
   type Subclient,
 };
