@@ -183,16 +183,23 @@ async function getCustomerFullHistory(
         )
       : Promise.resolve({ rows: [] as OrderArticleRow[] }),
 
-    subClientCodice
+    (subClientCodice || customerProfileId)
       ? pool.query<FresisHistoryRow>(
           `SELECT id, archibald_order_id, archibald_order_number, invoice_number,
               discount_percent, target_total_with_vat, created_at, items
            FROM agents.fresis_history
            WHERE user_id = $1
-             AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =
-                 REGEXP_REPLACE($2, '^[Cc]0*', '')
+             AND (
+               ($2 != '' AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =
+                   REGEXP_REPLACE($2, '^[Cc]0*', ''))
+               OR ($2 = '' AND $3 != '' AND sub_client_codice = (
+                 SELECT codice FROM shared.sub_clients
+                 WHERE matched_customer_profile_id = $3
+                 LIMIT 1
+               ))
+             )
            ORDER BY created_at DESC`,
-          [userId, subClientCodice],
+          [userId, subClientCodice ?? '', customerProfileId ?? ''],
         )
       : Promise.resolve({ rows: [] as FresisHistoryRow[] }),
   ]);

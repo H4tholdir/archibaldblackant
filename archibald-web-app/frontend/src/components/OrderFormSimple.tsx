@@ -303,6 +303,7 @@ export default function OrderFormSimple() {
   const [showSubClientPickerModal, setShowSubClientPickerModal] = useState(false);
   const [showCustomerPickerForHistory, setShowCustomerPickerForHistory] = useState(false);
   const [historyMatchedProfileId, setHistoryMatchedProfileId] = useState<string | null>(null);
+  const [historyMatchedSubClientCodice, setHistoryMatchedSubClientCodice] = useState<string | null>(null);
 
   // Reset noShipping when subtotal goes above shipping threshold
   useEffect(() => {
@@ -855,6 +856,7 @@ export default function OrderFormSimple() {
           setShowSubClientPickerModal(true);
           return;
         }
+        setHistoryMatchedSubClientCodice(linked.codice);
       } catch {
         // If query fails, still open history with available data
       }
@@ -4993,7 +4995,7 @@ export default function OrderFormSimple() {
           onClose={() => setShowCustomerHistoryModal(false)}
           customerName={isFresis(selectedCustomer) ? (selectedSubClient?.ragioneSociale ?? selectedCustomer.name) : selectedCustomer.name}
           customerProfileId={isFresis(selectedCustomer) ? historyMatchedProfileId : selectedCustomer.id}
-          subClientCodice={selectedSubClient?.codice ?? null}
+          subClientCodice={selectedSubClient?.codice ?? historyMatchedSubClientCodice}
           isFresisClient={isFresis(selectedCustomer)}
           currentOrderItems={items.map((i) => ({
             articleCode: i.article,
@@ -5069,7 +5071,8 @@ export default function OrderFormSimple() {
         <SubClientPickerModal
           customerProfileId={selectedCustomer.id}
           customerName={selectedCustomer.name}
-          onMatched={() => {
+          onMatched={(sub) => {
+            setHistoryMatchedSubClientCodice(sub.codice);
             setShowSubClientPickerModal(false);
             setShowCustomerHistoryModal(true);
           }}
