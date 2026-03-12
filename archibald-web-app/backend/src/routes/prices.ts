@@ -11,8 +11,13 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 type PriceHistoryEntry = {
   id: number;
   productId: string;
+  productName: string;
+  variantId: string | null;
   oldPrice: string | null;
-  newPrice: string | null;
+  newPrice: string;
+  oldPriceNumeric: number | null;
+  newPriceNumeric: number;
+  percentageChange: number | null;
   changeType: string;
   changedAt: string;
   source: string | null;
@@ -177,8 +182,14 @@ function createPricesRouter(deps: PricesRouterDeps) {
       if (isNaN(days) || days < 1) {
         return res.status(400).json({ success: false, error: 'Parametro giorni non valido' });
       }
-      const changes = await getRecentPriceChanges(days);
-      res.json({ success: true, daysBack: days, historyCount: changes.length, history: changes });
+      const history = await getRecentPriceChanges(days);
+      const stats = {
+        totalChanges: history.length,
+        increases: history.filter((c) => c.changeType === 'increase').length,
+        decreases: history.filter((c) => c.changeType === 'decrease').length,
+        newPrices: history.filter((c) => c.changeType === 'new').length,
+      };
+      res.json({ success: true, daysBack: days, historyCount: history.length, history, stats });
     } catch (error) {
       logger.error('Error fetching recent price changes', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero variazioni prezzi recenti' });

@@ -6,9 +6,14 @@ import { createPricesRouter, type PricesRouterDeps } from './prices';
 const mockPriceHistory = {
   id: 1,
   productId: 'ART-001',
+  productName: 'Articolo Test',
+  variantId: null,
   oldPrice: '10.00',
   newPrice: '12.50',
-  changeType: 'update',
+  oldPriceNumeric: 10.0,
+  newPriceNumeric: 12.5,
+  percentageChange: 25.0,
+  changeType: 'increase',
   changedAt: '2026-01-15T10:00:00Z',
   source: 'excel-import',
 };
@@ -297,6 +302,18 @@ describe('createPricesRouter', () => {
       expect(res.body.daysBack).toBe(30);
       expect(res.body.history).toEqual([mockPriceHistory]);
       expect(deps.getRecentPriceChanges).toHaveBeenCalledWith(30);
+    });
+
+    test('returns computed stats alongside history', async () => {
+      const res = await request(app).get('/api/prices/history/recent');
+
+      expect(res.status).toBe(200);
+      expect(res.body.stats).toEqual({
+        totalChanges: 1,
+        increases: 1,
+        decreases: 0,
+        newPrices: 0,
+      });
     });
 
     test('accepts custom days parameter', async () => {

@@ -39,8 +39,13 @@ const SAMPLE_ROW = {
 const EXPECTED_ENTRY = {
   id: 1,
   productId: 'P001',
+  productName: 'Mozzarella DOP',
+  variantId: 'K2',
   oldPrice: '10,50',
   newPrice: '12,00',
+  oldPriceNumeric: 10.5,
+  newPriceNumeric: 12.0,
+  percentageChange: 14.29,
   changeType: 'increase',
   changedAt: '2026-02-20T10:00:00.000Z',
   source: 'pdf-sync',
@@ -74,7 +79,7 @@ describe('recordPriceChange', () => {
     expect(result).toEqual(EXPECTED_ENTRY);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO shared.price_history'),
-      ['P001', 'Mozzarella DOP', 'K2', '10,50', '12,00', 10.5, 12.0, 1.5, 14.29, 'increase', expect.any(Number), 'pdf-sync', 'EUR'],
+      ['P001', 'Mozzarella DOP', 'K2', '10,50', '12,00', 10.5, 12.0, 1.5, 14.29, 'increase', 'pdf-sync', 'EUR'],
     );
   });
 
@@ -104,15 +109,20 @@ describe('recordPriceChange', () => {
     expect(result).toEqual({
       id: 1,
       productId: 'P001',
+      productName: 'Mozzarella DOP',
+      variantId: null,
       oldPrice: null,
       newPrice: '12,00',
+      oldPriceNumeric: null,
+      newPriceNumeric: 12.0,
+      percentageChange: null,
       changeType: 'new',
       changedAt: '2026-02-20T10:00:00.000Z',
       source: 'pdf-sync',
     });
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO shared.price_history'),
-      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, 0, 0, 'new', expect.any(Number), 'excel-upload', null],
+      ['P001', 'Mozzarella DOP', null, null, '12,00', null, 12.0, 0, 0, 'new', 'excel-upload', null],
     );
   });
 });

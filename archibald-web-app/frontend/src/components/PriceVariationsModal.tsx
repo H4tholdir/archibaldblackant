@@ -7,11 +7,11 @@ interface PriceChange {
   productId: string;
   productName: string;
   variantId: string | null;
-  oldPrice: number | null;
-  newPrice: number;
-  percentageChange: number;
+  oldPriceNumeric: number | null;
+  newPriceNumeric: number;
+  percentageChange: number | null;
   changeType: "increase" | "decrease" | "new";
-  syncDate: number;
+  changedAt: string;
 }
 
 interface PriceStats {
@@ -74,7 +74,7 @@ export function PriceVariationsModal({
 
       const data = await response.json();
       if (data.success) {
-        setChanges(data.changes || []);
+        setChanges(data.history || []);
         setStats(
           data.stats || {
             totalChanges: 0,
@@ -104,17 +104,22 @@ export function PriceVariationsModal({
     // Apply sorting
     if (sortBy === "percentage") {
       filtered.sort(
-        (a, b) => Math.abs(b.percentageChange) - Math.abs(a.percentageChange),
+        (a, b) =>
+          Math.abs(b.percentageChange ?? 0) -
+          Math.abs(a.percentageChange ?? 0),
       );
     } else {
-      filtered.sort((a, b) => b.syncDate - a.syncDate);
+      filtered.sort(
+        (a, b) =>
+          new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
+      );
     }
 
     setFilteredChanges(filtered);
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString("it-IT");
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("it-IT");
   };
 
   const getChangeColor = (changeType: string) => {
@@ -343,10 +348,10 @@ export function PriceVariationsModal({
                             {change.variantId || "-"}
                           </td>
                           <td style={{ padding: "12px", textAlign: "right" }}>
-                            {formatPrice(change.oldPrice)}
+                            {formatPrice(change.oldPriceNumeric)}
                           </td>
                           <td style={{ padding: "12px", textAlign: "right" }}>
-                            {formatPrice(change.newPrice)}
+                            {formatPrice(change.newPriceNumeric)}
                           </td>
                           <td
                             style={{
@@ -357,10 +362,10 @@ export function PriceVariationsModal({
                             }}
                           >
                             {getChangeIcon(change.changeType)}{" "}
-                            {change.percentageChange.toFixed(2)}%
+                            {(change.percentageChange ?? 0).toFixed(2)}%
                           </td>
                           <td style={{ padding: "12px" }}>
-                            {formatDate(change.syncDate)}
+                            {formatDate(change.changedAt)}
                           </td>
                           <td style={{ padding: "12px", textAlign: "center" }}>
                             <button

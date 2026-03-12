@@ -19,6 +19,7 @@ type PriceHistoryRow = {
   created_at: string;
 };
 
+
 type PriceHistoryInsert = {
   productId: string;
   productName: string;
@@ -38,8 +39,13 @@ function toEntry(row: PriceHistoryRow): PriceHistoryEntry {
   return {
     id: row.id,
     productId: row.product_id,
+    productName: row.product_name,
+    variantId: row.variant_id,
     oldPrice: row.old_price,
     newPrice: row.new_price,
+    oldPriceNumeric: row.old_price_numeric,
+    newPriceNumeric: row.new_price_numeric,
+    percentageChange: row.percentage_change,
     changeType: row.change_type,
     changedAt: row.changed_at,
     source: row.source,
@@ -54,8 +60,8 @@ async function recordPriceChange(
     `INSERT INTO shared.price_history (
        product_id, product_name, variant_id,
        old_price, new_price, old_price_numeric, new_price_numeric,
-       price_change, percentage_change, change_type, sync_date, source, currency
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       price_change, percentage_change, change_type, source, currency
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      RETURNING *`,
     [
       data.productId,
@@ -68,7 +74,6 @@ async function recordPriceChange(
       data.priceChange ?? 0,
       data.percentageChange ?? 0,
       data.changeType,
-      Date.now(),
       data.source,
       data.currency ?? null,
     ],
