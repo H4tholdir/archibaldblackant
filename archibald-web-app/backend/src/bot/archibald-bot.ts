@@ -9801,9 +9801,11 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
+    // Step 1: Find the field, scroll into view, focus it, and clear it.
+    // We use the native value setter (not execCommand) to clear without
+    // triggering DevExpress events prematurely.
     const inputId = await this.page.evaluate(
-      (regex: string, val: string) => {
-        const w = window as any;
+      (regex: string) => {
         const inputs = Array.from(document.querySelectorAll("input"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
@@ -9811,37 +9813,34 @@ export class ArchibaldBot {
         if (!input) return null;
 
         input.scrollIntoView({ block: "center" });
-
-        // 1) execCommand to trigger real input events and mark dirty
         input.focus();
         input.click();
         input.select();
-        document.execCommand("delete");
-        document.execCommand("insertText", false, val);
 
-        // 2) SetValue via DevExpress API so value survives server re-renders
-        const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (collection) {
-          collection.ForEachControl((c: any) => {
-            try {
-              const el = c.GetInputElement?.();
-              if (el === input || (el && el.id === input.id)) {
-                if (typeof c.SetValue === "function") c.SetValue(val);
-                else if (typeof c.SetText === "function") c.SetText(val);
-              }
-            } catch {}
-          });
-        }
+        // Clear via native setter so page.type() appends to an empty field
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) setter.call(input, "");
+        else input.value = "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
 
         return input.id;
       },
       fieldRegex.source,
-      value,
     );
 
     if (!inputId) {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
+
+    // Step 2: Type the value via real CDP keyboard events.
+    // page.type() generates authentic keydown/keypress/keyup/input events that
+    // DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
+    // execCommand('insertText') only fires the 'input' event and does NOT cause
+    // DevExpress to commit the value to the server model, leading to save errors.
+    await this.page.type(`#${inputId}`, value, { delay: 5 });
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
@@ -9861,38 +9860,23 @@ export class ArchibaldBot {
         actual,
       });
 
-      await this.page.evaluate(
-        (regex: string, val: string) => {
-          const w = window as any;
-          const inputs = Array.from(document.querySelectorAll("input"));
-          const input = inputs.find((i) =>
-            new RegExp(regex).test(i.id),
-          ) as HTMLInputElement | null;
-          if (!input) return;
+      await this.page.evaluate((id: string) => {
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        if (!input) return;
+        input.scrollIntoView({ block: "center" });
+        input.focus();
+        input.click();
+        input.select();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) setter.call(input, "");
+        else input.value = "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }, inputId);
 
-          input.scrollIntoView({ block: "center" });
-          input.focus();
-          input.click();
-          input.select();
-          document.execCommand("delete");
-          document.execCommand("insertText", false, val);
-
-          const collection = w.ASPxClientControl?.GetControlCollection?.();
-          if (collection) {
-            collection.ForEachControl((c: any) => {
-              try {
-                const el = c.GetInputElement?.();
-                if (el === input || (el && el.id === input.id)) {
-                  if (typeof c.SetValue === "function") c.SetValue(val);
-                  else if (typeof c.SetText === "function") c.SetText(val);
-                }
-              } catch {}
-            });
-          }
-        },
-        fieldRegex.source,
-        value,
-      );
+      await this.page.type(`#${inputId}`, value, { delay: 5 });
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
@@ -10821,20 +10805,31 @@ export class ArchibaldBot {
   private async ensureNameFieldBeforeSave(expectedName: string): Promise<void> {
     if (!this.page) return;
 
-    const currentValue = await this.page.evaluate(() => {
+    const { currentValue, maxLength } = await this.page.evaluate(() => {
       const input = document.querySelector(
         'input[id*="dviNAME"][id$="_I"]',
       ) as HTMLInputElement | null;
-      return input?.value ?? null;
+      return {
+        currentValue: input?.value ?? null,
+        maxLength: input?.maxLength ?? 0,
+      };
     });
 
-    if (currentValue === expectedName) return;
+    // Truncate to field's maxLength so comparison and re-type use the actual storable value
+    const effectiveExpected =
+      maxLength > 0 ? expectedName.substring(0, maxLength) : expectedName;
 
-    logger.warn("NAME field empty/wrong before save, refilling via page.type()", {
-      expected: expectedName.substring(0, 60),
-      actual: String(currentValue).substring(0, 60),
-    });
+    if (currentValue !== effectiveExpected) {
+      logger.warn("NAME field empty/wrong before save", {
+        expected: effectiveExpected.substring(0, 60),
+        actual: String(currentValue).substring(0, 60),
+        maxLength,
+      });
+    }
 
+    // Always re-type NAME right before save to guarantee the server-side model has the
+    // latest value. Without this, rapid typing of subsequent fields (PEC, SDI, …) can
+    // race with NAME's DevExpress callback and leave the server model without NAME.
     const inputId = await this.page.evaluate(() => {
       const input = document.querySelector(
         'input[id*="dviNAME"][id$="_I"]',
@@ -10844,7 +10839,13 @@ export class ArchibaldBot {
       input.focus();
       input.click();
       input.select();
-      document.execCommand("delete");
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (setter) setter.call(input, "");
+      else input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
       return input.id;
     });
 
@@ -10853,7 +10854,7 @@ export class ArchibaldBot {
       return;
     }
 
-    await this.page.type(`#${inputId}`, expectedName, { delay: 20 });
+    await this.page.type(`#${inputId}`, effectiveExpected, { delay: 20 });
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({ timeout: 5000, label: "name-prefill" });
 
@@ -10861,10 +10862,10 @@ export class ArchibaldBot {
       return (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
     }, inputId);
 
-    logger.info("NAME field pre-save refill result", {
-      expected: expectedName.substring(0, 60),
+    logger.info("NAME field pre-save re-type result", {
+      expected: effectiveExpected.substring(0, 60),
       actual: verifiedValue.substring(0, 60),
-      ok: verifiedValue === expectedName,
+      ok: verifiedValue === effectiveExpected,
     });
   }
 
@@ -10874,7 +10875,7 @@ export class ArchibaldBot {
     logger.info("Saving customer (Salva e chiudi)");
 
     const saveAttempt = async (): Promise<boolean> => {
-      const directSaveClicked = await this.clickElementByText(
+      let directSaveClicked = await this.clickElementByText(
         "Salva e chiudi",
         {
           exact: true,
@@ -10882,13 +10883,20 @@ export class ArchibaldBot {
         },
       );
 
+      if (!directSaveClicked) {
+        directSaveClicked = await this.clickElementByText(
+          "Save and Close",
+          { exact: true, selectors: ["a", "span", "div", "li"] },
+        );
+      }
+
       if (directSaveClicked) {
-        logger.info('Clicked "Salva e chiudi" directly');
+        logger.info('Clicked save button directly');
         return true;
       }
 
       logger.debug(
-        'Direct "Salva e chiudi" not found, trying "Salvare" dropdown...',
+        'Direct save button not found, trying "Salvare" dropdown...',
       );
 
       const dropdownOpened = await this.page!.evaluate(() => {
@@ -10998,12 +11006,29 @@ export class ArchibaldBot {
     let warningFound: string | null = null;
     if (warningSelector) {
       if (warningSelector.selector) {
-        // Use Puppeteer native click for proper DevExpress event handling
-        await this.page.click(warningSelector.selector);
-        logger.info(
-          "Clicked warning element with native click",
-          warningSelector,
-        );
+        // Try DevExpress global control API first (most reliable for ASPxCheckBox)
+        const apiResult = await this.page.evaluate(() => {
+          const input = document.querySelector(
+            'input[id$="_ErrorInfo_Ch_S"]',
+          ) as HTMLInputElement | null;
+          if (!input) return null;
+          // DevExpress registers ASPxCheckBox as window[clientId]
+          const ctrl = (window as unknown as Record<string, unknown>)[input.id] as {
+            SetChecked?: (v: boolean) => void;
+          } | undefined;
+          if (ctrl?.SetChecked) {
+            ctrl.SetChecked(true);
+            return { method: "SetChecked-global", inputId: input.id };
+          }
+          return null;
+        });
+        if (apiResult) {
+          logger.info("Acknowledged warning checkbox via DevExpress API", apiResult);
+        } else {
+          // Fallback: Puppeteer native click
+          await this.page.click(warningSelector.selector);
+          logger.info("Clicked warning element with native click", warningSelector);
+        }
       } else {
         logger.info("Clicked warning element with JS click", warningSelector);
       }
@@ -11221,7 +11246,24 @@ export class ArchibaldBot {
       let lateWarning: string | null = null;
       if (lateSelector) {
         if (lateSelector.selector) {
-          await this.page.click(lateSelector.selector);
+          const lateApiResult = await this.page.evaluate(() => {
+            const input = document.querySelector(
+              'input[id$="_ErrorInfo_Ch_S"]',
+            ) as HTMLInputElement | null;
+            if (!input) return null;
+            const ctrl = (window as unknown as Record<string, unknown>)[input.id] as {
+              SetChecked?: (v: boolean) => void;
+            } | undefined;
+            if (ctrl?.SetChecked) {
+              ctrl.SetChecked(true);
+              return { method: "SetChecked-global", inputId: input.id };
+            }
+            return null;
+          });
+          if (!lateApiResult) {
+            await this.page.click(lateSelector.selector);
+          }
+          logger.info("Late warning acknowledged", { lateApiResult, lateSelector });
         }
         lateWarning = lateSelector.type;
       }
@@ -11842,8 +11884,19 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    if (customerData.mobile) {
+      await this.typeDevExpressField(
+        /xaf_dviCELLULARPHONE_Edit_I$/,
+        customerData.mobile,
+      );
+    }
+
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
     await this.ensureNameFieldBeforeSave(customerData.name);
@@ -12283,8 +12336,19 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    if (customerData.mobile) {
+      await this.typeDevExpressField(
+        /xaf_dviCELLULARPHONE_Edit_I$/,
+        customerData.mobile,
+      );
+    }
+
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
     if (customerData.lineDiscount) {
@@ -12731,8 +12795,19 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    if (customerData.mobile) {
+      await this.typeDevExpressField(
+        /xaf_dviCELLULARPHONE_Edit_I$/,
+        customerData.mobile,
+      );
+    }
+
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
     await this.ensureNameFieldBeforeSave(customerData.name);
