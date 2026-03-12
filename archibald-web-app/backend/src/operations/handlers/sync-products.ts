@@ -7,16 +7,19 @@ type SyncProductsBot = {
   downloadProductsPdf: () => Promise<string>;
 };
 
+type SoftDeleteGhostsFn = (syncedIds: string[]) => Promise<number>;
+
 function createSyncProductsHandler(
   pool: DbPool,
   parsePdf: (pdfPath: string) => Promise<ParsedProduct[]>,
   cleanupFile: (filePath: string) => Promise<void>,
   createBot: (userId: string) => SyncProductsBot,
+  softDeleteGhosts: SoftDeleteGhostsFn,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: ProductSyncResult = await syncProducts(
-      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile },
+      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts },
       onProgress,
       () => false,
     );

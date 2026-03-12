@@ -15,7 +15,15 @@ function parseItalianPrice(input: string | null): number | null {
 
   if (/[^0-9.,]/.test(stripped)) return null;
 
-  const normalized = stripped.replace(/\./g, '').replace(',', '.');
+  // Italian format: comma = decimal separator ("1.234,56" or "16,25").
+  // Italian integers: dot = thousands separator ("10.000" = 10000).
+  // US decimal: dot = decimal separator with 1–2 decimal digits ("1677.87", "16.25").
+  // Heuristic: if no comma and last dot group has exactly 3 digits → Italian thousands.
+  const normalized = stripped.includes(',')
+    ? stripped.replace(/\./g, '').replace(',', '.')
+    : /\.\d{3}$/.test(stripped)
+      ? stripped.replace(/\./g, '')
+      : stripped;
   const value = Number(normalized);
 
   if (Number.isNaN(value) || value < 0) return null;
@@ -70,6 +78,7 @@ type UnmatchedPrice = {
 type MatchPricesToProductsDeps = {
   getAllPrices: () => Promise<PriceRow[]>;
   getProductVariants: (name: string) => Promise<ProductRow[]>;
+  getProductById: (id: string) => Promise<ProductRow | null>;
   updateProductPrice: (id: string, price: number, vat: number | null, priceSource: string, vatSource: string | null) => Promise<boolean>;
   recordPriceChange: (data: PriceHistoryInsert) => Promise<void>;
 };
@@ -117,12 +126,38 @@ async function matchPricesToProducts(deps: MatchPricesToProductsDeps): Promise<M
 
     const products = await deps.getProductVariants(price.product_name);
     if (products.length === 0) {
-      unmatched++;
-      unmatchedPrices.push({
-        productId: price.product_id,
-        productName: price.product_name,
-        reason: 'product_not_found',
-      });
+      const byId = await deps.getProductById(price.product_id);
+      if (byId == null) {
+        unmatched++;
+        unmatchedPrices.push({
+          productId: price.product_id,
+          productName: price.product_name,
+          reason: 'product_not_found',
+        });
+        continue;
+      }
+      await deps.updateProductPrice(byId.id, parsedPrice, byId.vat, 'prices-db', null);
+      if (byId.price !== parsedPrice) {
+        const changeType = computeChangeType(byId.price, parsedPrice);
+        const priceChange = byId.price != null ? parsedPrice - byId.price : null;
+        const percentageChange = byId.price != null && byId.price !== 0
+          ? ((parsedPrice - byId.price) / byId.price) * 100
+          : null;
+        await deps.recordPriceChange({
+          productId: byId.id,
+          productName: byId.name,
+          variantId: price.item_selection,
+          oldPrice: byId.price != null ? String(byId.price) : null,
+          newPrice: String(parsedPrice),
+          oldPriceNumeric: byId.price,
+          newPriceNumeric: parsedPrice,
+          priceChange,
+          percentageChange,
+          changeType,
+          source: 'pdf-sync',
+        });
+      }
+      matched++;
       continue;
     }
 

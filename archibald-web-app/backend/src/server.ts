@@ -460,6 +460,7 @@ function createApp(deps: AppDeps): Express {
     matchPricesToProducts: () => matchPricesToProducts({
       getAllPrices: () => pricesRepo.getAllPrices(pool),
       getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
+      getProductById: (id) => productsRepo.getProductById(pool, id).then((r) => r ?? null),
       updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
       recordPriceChange: (data) => pricesHistoryRepo.recordPriceChange(pool, data).then(() => {}),
     }),

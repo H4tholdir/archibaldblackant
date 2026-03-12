@@ -81,6 +81,18 @@ describe('parseItalianPrice', () => {
     expect(parseItalianPrice('   ')).toEqual(null);
   });
 
+  test('parses US decimal format (no comma): "16.25" -> 16.25', () => {
+    expect(parseItalianPrice('16.25')).toEqual(16.25);
+  });
+
+  test('parses US decimal format larger number: "1677.87" -> 1677.87', () => {
+    expect(parseItalianPrice('1677.87')).toEqual(1677.87);
+  });
+
+  test('parses US decimal with only one decimal digit: "1534.7" -> 1534.7', () => {
+    expect(parseItalianPrice('1534.7')).toEqual(1534.7);
+  });
+
   describe('property-based tests', () => {
     test('non-negative integers formatted as Italian strings roundtrip correctly', () => {
       fc.assert(
@@ -203,6 +215,7 @@ function createMockDeps(overrides?: Partial<MatchPricesToProductsDeps>): MatchPr
   return {
     getAllPrices: vi.fn().mockResolvedValue([]),
     getProductVariants: vi.fn().mockResolvedValue([]),
+    getProductById: vi.fn().mockResolvedValue(null),
     updateProductPrice: vi.fn().mockResolvedValue(true),
     recordPriceChange: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -412,6 +425,38 @@ describe('matchPricesToProducts', () => {
     expect(recordPriceChange).toHaveBeenCalledWith(expect.objectContaining({
       variantId: 'K2',
     }));
+  });
+
+  test('falls back to product_id match when product_name finds no variants', async () => {
+    const price = makePriceRow({ product_id: '047791K2', product_name: 'DPL3.EM1.', unit_price: '243,28 €' });
+    const product = makeProduct({ id: '047791K2', name: 'DPL3.EM1.-', price: null, vat: 22 });
+
+    const updateProductPrice = vi.fn().mockResolvedValue(true);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([]),
+      getProductById: vi.fn().mockResolvedValue(product),
+      updateProductPrice,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result.result).toEqual({ matched: 1, unmatched: 0, skipped: 0 });
+    expect(updateProductPrice).toHaveBeenCalledWith('047791K2', 243.28, 22, 'prices-db', null);
+  });
+
+  test('counts product_not_found when neither name nor product_id finds a match', async () => {
+    const price = makePriceRow({ product_id: 'UNKNOWN-ID', product_name: 'NOME SCONOSCIUTO', unit_price: '10,00' });
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([price]),
+      getProductVariants: vi.fn().mockResolvedValue([]),
+      getProductById: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result.result).toEqual({ matched: 0, unmatched: 1, skipped: 0 });
+    expect(result.unmatchedPrices[0]).toEqual({ productId: 'UNKNOWN-ID', productName: 'NOME SCONOSCIUTO', reason: 'product_not_found' });
   });
 
   test('handles multiple prices with mixed outcomes', async () => {

@@ -44,6 +44,7 @@ type ProductSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedProduct[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  softDeleteGhosts: (syncedIds: string[]) => Promise<number>;
 };
 
 type ProductSyncResult = {
@@ -51,6 +52,7 @@ type ProductSyncResult = {
   productsProcessed: number;
   newProducts: number;
   updatedProducts: number;
+  ghostsDeleted: number;
   duration: number;
   error?: string;
 };
@@ -60,7 +62,7 @@ async function syncProducts(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<ProductSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
@@ -146,12 +148,15 @@ async function syncProducts(
       }
     }
 
+    const syncedIds = products.map((p) => p.id);
+    const ghostsDeleted = await softDeleteGhosts(syncedIds);
+
     onProgress(100, 'Sincronizzazione prodotti completata');
 
-    return { success: true, productsProcessed: products.length, newProducts, updatedProducts, duration: Date.now() - startTime };
+    return { success: true, productsProcessed: products.length, newProducts, updatedProducts, ghostsDeleted, duration: Date.now() - startTime };
   } catch (error) {
     return {
-      success: false, productsProcessed: 0, newProducts: 0, updatedProducts: 0,
+      success: false, productsProcessed: 0, newProducts: 0, updatedProducts: 0, ghostsDeleted: 0,
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };

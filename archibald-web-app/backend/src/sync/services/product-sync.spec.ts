@@ -10,7 +10,7 @@ function createMockPool(): DbPool {
   };
 }
 
-function createMockDeps(pool?: DbPool): ProductSyncDeps {
+function createMockDeps(pool?: DbPool, overrides?: Partial<ProductSyncDeps>): ProductSyncDeps {
   return {
     pool: pool ?? createMockPool(),
     downloadPdf: vi.fn().mockResolvedValue('/tmp/products.pdf'),
@@ -19,6 +19,8 @@ function createMockDeps(pool?: DbPool): ProductSyncDeps {
       { id: 'P-002', name: 'Gadget', searchName: 'GADGET', groupCode: 'GRP2', packageContent: 6 },
     ]),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
+    softDeleteGhosts: vi.fn().mockResolvedValue(0),
+    ...overrides,
   };
 }
 
@@ -48,5 +50,18 @@ describe('syncProducts', () => {
     const onProgress = vi.fn();
     await syncProducts(deps, onProgress, () => false);
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+
+  test('calls softDeleteGhosts with ids of all synced products', async () => {
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const deps = createMockDeps(undefined, { softDeleteGhosts });
+    await syncProducts(deps, vi.fn(), () => false);
+    expect(softDeleteGhosts).toHaveBeenCalledWith(['P-001', 'P-002']);
+  });
+
+  test('reports ghost count in result', async () => {
+    const deps = createMockDeps(undefined, { softDeleteGhosts: vi.fn().mockResolvedValue(3) });
+    const result = await syncProducts(deps, vi.fn(), () => false);
+    expect(result.ghostsDeleted).toBe(3);
   });
 });

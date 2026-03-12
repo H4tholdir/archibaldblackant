@@ -11,7 +11,7 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
-import { getProductVariants, getAllProducts, updateProductPrice } from './db/repositories/products';
+import { getProductVariants, getProductById, getAllProducts, updateProductPrice, findDeletedProducts, softDeleteProducts } from './db/repositories/products';
 import { updateJobTracking } from './db/repositories/pending-orders';
 import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
@@ -604,6 +604,7 @@ async function bootstrap(): Promise<void> {
       () => matchPricesToProducts({
         getAllPrices: () => getAllPrices(pool),
         getProductVariants: (name) => getProductVariants(pool, name),
+        getProductById: (id) => getProductById(pool, id).then((r) => r ?? null),
         updateProductPrice: (id, price, vat, priceSource, vatSource) => updateProductPrice(pool, id, price, vat, priceSource, vatSource),
         recordPriceChange: (data) => recordPriceChange(pool, data).then(() => {}),
       }),
@@ -690,6 +691,11 @@ async function bootstrap(): Promise<void> {
           }
         },
       }),
+      async (syncedIds) => {
+        const ghostIds = await findDeletedProducts(pool, syncedIds);
+        if (ghostIds.length === 0) return 0;
+        return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`);
+      },
     ),
     'sync-tracking': createSyncTrackingHandler(pool),
     'sync-order-states': createSyncOrderStatesHandler(pool),
