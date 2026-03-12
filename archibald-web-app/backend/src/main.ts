@@ -11,7 +11,7 @@ import { config } from './config';
 import { createPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
-import { getProductVariants, getProductById, getAllProducts, updateProductPrice, findDeletedProducts, softDeleteProducts } from './db/repositories/products';
+import { getProductVariants, getProductById, getAllProducts, updateProductPrice, findDeletedProducts, softDeleteProducts, trackProductCreated } from './db/repositories/products';
 import { updateJobTracking } from './db/repositories/pending-orders';
 import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
@@ -707,6 +707,7 @@ async function bootstrap(): Promise<void> {
         );
         return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
       },
+      (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
     ),
     'sync-tracking': createSyncTrackingHandler(pool),
     'sync-order-states': createSyncOrderStatesHandler(pool),

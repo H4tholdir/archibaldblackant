@@ -20,6 +20,7 @@ function createMockDeps(pool?: DbPool, overrides?: Partial<ProductSyncDeps>): Pr
     ]),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
     softDeleteGhosts: vi.fn().mockResolvedValue(0),
+    trackProductCreated: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -66,5 +67,50 @@ describe('syncProducts', () => {
     const deps = createMockDeps(undefined, { softDeleteGhosts: vi.fn().mockResolvedValue(3) });
     const result = await syncProducts(deps, vi.fn(), () => false);
     expect(result.ghostsDeleted).toBe(3);
+  });
+
+  test('tracks each new product as created', async () => {
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+    // pool returns empty rows → both P-001 and P-002 are new
+    const deps = createMockDeps(undefined, { trackProductCreated });
+    await syncProducts(deps, vi.fn(), () => false);
+    expect(trackProductCreated).toHaveBeenCalledTimes(2);
+    expect(trackProductCreated).toHaveBeenCalledWith('P-001', expect.any(String));
+    expect(trackProductCreated).toHaveBeenCalledWith('P-002', expect.any(String));
+  });
+
+  test('does not track existing non-deleted product as created', async () => {
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    // SELECT returns existing non-deleted product for both queries
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+      rows: [{ id: 'P-001', deleted_at: null }],
+      rowCount: 1,
+    });
+    const deps = createMockDeps(pool, { trackProductCreated });
+    await syncProducts(deps, vi.fn(), () => false);
+    expect(trackProductCreated).not.toHaveBeenCalled();
+  });
+
+  test('tracks restored soft-deleted product as created and clears deleted_at', async () => {
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    const softDeletedAt = '2026-03-01T00:00:00Z';
+    // P-001 SELECT → soft-deleted; UPDATE → ok; P-002 SELECT → soft-deleted; UPDATE → ok
+    (pool.query as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ rows: [{ id: 'P-001', deleted_at: softDeletedAt }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE P-001
+      .mockResolvedValueOnce({ rows: [{ id: 'P-002', deleted_at: softDeletedAt }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE P-002
+    const deps = createMockDeps(pool, { trackProductCreated });
+    await syncProducts(deps, vi.fn(), () => false);
+    expect(trackProductCreated).toHaveBeenCalledTimes(2);
+    expect(trackProductCreated).toHaveBeenCalledWith('P-001', expect.any(String));
+    expect(trackProductCreated).toHaveBeenCalledWith('P-002', expect.any(String));
+    // Verify deleted_at was cleared in the UPDATE
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([sql]: [string]) => typeof sql === 'string' && sql.includes('deleted_at = NULL'),
+    );
+    expect(updateCalls).toHaveLength(2);
   });
 });

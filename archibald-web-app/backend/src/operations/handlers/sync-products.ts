@@ -8,6 +8,7 @@ type SyncProductsBot = {
 };
 
 type SoftDeleteGhostsFn = (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
+type TrackProductCreatedFn = (productId: string, syncSessionId: string) => Promise<void>;
 
 function createSyncProductsHandler(
   pool: DbPool,
@@ -15,11 +16,12 @@ function createSyncProductsHandler(
   cleanupFile: (filePath: string) => Promise<void>,
   createBot: (userId: string) => SyncProductsBot,
   softDeleteGhosts: SoftDeleteGhostsFn,
+  trackProductCreated: TrackProductCreatedFn,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: ProductSyncResult = await syncProducts(
-      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts },
+      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated },
       onProgress,
       () => false,
     );

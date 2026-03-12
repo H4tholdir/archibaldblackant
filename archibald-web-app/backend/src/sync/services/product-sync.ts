@@ -45,6 +45,7 @@ type ProductSyncDeps = {
   parsePdf: (pdfPath: string) => Promise<ParsedProduct[]>;
   cleanupFile: (filePath: string) => Promise<void>;
   softDeleteGhosts: (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
+  trackProductCreated: (productId: string, syncSessionId: string) => Promise<void>;
 };
 
 type ProductSyncResult = {
@@ -62,8 +63,9 @@ async function syncProducts(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<ProductSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated } = deps;
   const startTime = Date.now();
+  const syncSessionId = `sync-${startTime}`;
   let pdfPath: string | null = null;
 
   try {
@@ -92,8 +94,8 @@ async function syncProducts(
         const dbProgress = 40 + Math.round((i / products.length) * 55);
         onProgress(dbProgress, `Aggiornamento prodotti ${i}/${products.length}`);
       }
-      const { rows: [existing] } = await pool.query<{ id: string }>(
-        'SELECT id FROM shared.products WHERE id = $1',
+      const { rows: [existing] } = await pool.query<{ id: string; deleted_at: string | null }>(
+        'SELECT id, deleted_at FROM shared.products WHERE id = $1',
         [p.id],
       );
 
@@ -120,8 +122,10 @@ async function syncProducts(
             p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
           ],
         );
+        await trackProductCreated(p.id, syncSessionId);
         newProducts++;
       } else {
+        const isRestored = existing.deleted_at !== null;
         await pool.query(
           `UPDATE shared.products SET
             name=$2, search_name=$3, group_code=$4, package_content=$5,
@@ -131,7 +135,8 @@ async function syncProducts(
             configuration_id=$18, created_by=$19, created_date_field=$20, data_area_id=$21,
             default_qty=$22, display_product_number=$23, total_absolute_discount=$24, product_id_ext=$25,
             line_discount=$26, modified_by=$27, modified_datetime=$28, orderable_article=$29,
-            stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34
+            stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34,
+            deleted_at = NULL
           WHERE id=$1`,
           [
             p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
@@ -144,6 +149,9 @@ async function syncProducts(
             p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
           ],
         );
+        if (isRestored) {
+          await trackProductCreated(p.id, syncSessionId);
+        }
         updatedProducts++;
       }
     }

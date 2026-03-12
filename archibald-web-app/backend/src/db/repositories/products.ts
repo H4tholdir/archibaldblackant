@@ -366,6 +366,14 @@ async function softDeleteProducts(
   return rowCount ?? 0;
 }
 
+async function trackProductCreated(pool: DbPool, productId: string, syncSessionId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO shared.product_changes (product_id, change_type, changed_at, sync_session_id)
+     VALUES ($1, 'created', $2, $3)`,
+    [productId, Date.now(), syncSessionId],
+  );
+}
+
 async function updateProductPrice(
   pool: DbPool,
   productId: string,
@@ -750,6 +758,7 @@ export {
   upsertProducts,
   findDeletedProducts,
   softDeleteProducts,
+  trackProductCreated,
   updateProductPrice,
   getLastSyncTime,
   getAllProducts,
