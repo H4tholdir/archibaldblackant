@@ -52,11 +52,14 @@ describe('syncProducts', () => {
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
 
-  test('calls softDeleteGhosts with ids of all synced products', async () => {
+  test('calls softDeleteGhosts with ids and name map of all synced products', async () => {
     const softDeleteGhosts = vi.fn().mockResolvedValue(0);
     const deps = createMockDeps(undefined, { softDeleteGhosts });
     await syncProducts(deps, vi.fn(), () => false);
-    expect(softDeleteGhosts).toHaveBeenCalledWith(['P-001', 'P-002']);
+    expect(softDeleteGhosts).toHaveBeenCalledWith(
+      ['P-001', 'P-002'],
+      new Map([['Widget', 'P-001'], ['Gadget', 'P-002']]),
+    );
   });
 
   test('reports ghost count in result', async () => {

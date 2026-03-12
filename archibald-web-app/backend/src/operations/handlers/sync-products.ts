@@ -7,7 +7,7 @@ type SyncProductsBot = {
   downloadProductsPdf: () => Promise<string>;
 };
 
-type SoftDeleteGhostsFn = (syncedIds: string[]) => Promise<number>;
+type SoftDeleteGhostsFn = (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
 
 function createSyncProductsHandler(
   pool: DbPool,

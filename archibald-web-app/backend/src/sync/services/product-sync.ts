@@ -44,7 +44,7 @@ type ProductSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedProduct[]>;
   cleanupFile: (filePath: string) => Promise<void>;
-  softDeleteGhosts: (syncedIds: string[]) => Promise<number>;
+  softDeleteGhosts: (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
 };
 
 type ProductSyncResult = {
@@ -149,7 +149,8 @@ async function syncProducts(
     }
 
     const syncedIds = products.map((p) => p.id);
-    const ghostsDeleted = await softDeleteGhosts(syncedIds);
+    const syncedNames = new Map(products.map((p) => [p.name, p.id]));
+    const ghostsDeleted = await softDeleteGhosts(syncedIds, syncedNames);
 
     onProgress(100, 'Sincronizzazione prodotti completata');
 

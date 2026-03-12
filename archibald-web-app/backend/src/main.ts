@@ -691,10 +691,21 @@ async function bootstrap(): Promise<void> {
           }
         },
       }),
-      async (syncedIds) => {
+      async (syncedIds, syncedNames) => {
         const ghostIds = await findDeletedProducts(pool, syncedIds);
         if (ghostIds.length === 0) return 0;
-        return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`);
+        const placeholders = ghostIds.map((_, i) => `$${i + 1}`).join(',');
+        const { rows } = await pool.query<{ id: string; name: string }>(
+          `SELECT id, name FROM shared.products WHERE id IN (${placeholders})`,
+          ghostIds,
+        );
+        const renames = new Map(
+          rows.flatMap((r) => {
+            const newId = syncedNames.get(r.name);
+            return newId ? [[r.id, newId] as [string, string]] : [];
+          }),
+        );
+        return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
       },
     ),
     'sync-tracking': createSyncTrackingHandler(pool),

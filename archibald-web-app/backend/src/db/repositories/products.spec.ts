@@ -274,6 +274,25 @@ describe('softDeleteProducts', () => {
 
     expect(result).toBe(0);
   });
+
+  test('logs renamed product as updated with field_changed=id instead of deleted', async () => {
+    const insertCalls: string[][] = [];
+    const queryFn = vi.fn(async (text: string, params?: unknown[]) => {
+      if (text.includes('INSERT INTO shared.product_changes')) {
+        insertCalls.push(params as string[]);
+      }
+      return { rows: [], rowCount: 1, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+    const renames = new Map([['P001', 'P001-NEW']]);
+
+    await softDeleteProducts(pool, ['P001', 'P002'], 'sync-123', renames);
+
+    const renamedInsert = insertCalls.find((p) => p[0] === 'P001');
+    const deletedInsert = insertCalls.find((p) => p[0] === 'P002');
+    expect(renamedInsert).toEqual(['P001', 'id', 'P001', 'P001-NEW', expect.any(Number), 'sync-123']);
+    expect(deletedInsert).toEqual(['P002', expect.any(Number), 'sync-123']);
+  });
 });
 
 describe('updateProductPrice', () => {

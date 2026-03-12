@@ -329,6 +329,7 @@ async function softDeleteProducts(
   pool: DbPool,
   ids: string[],
   syncSessionId: string,
+  renames: Map<string, string> = new Map(),
 ): Promise<number> {
   if (ids.length === 0) {
     return 0;
@@ -344,12 +345,22 @@ async function softDeleteProducts(
   );
 
   for (const id of ids) {
-    await pool.query(
-      `INSERT INTO shared.product_changes
-       (product_id, change_type, changed_at, sync_session_id)
-       VALUES ($1, 'deleted', $2, $3)`,
-      [id, Date.now(), syncSessionId],
-    );
+    const newId = renames.get(id);
+    if (newId) {
+      await pool.query(
+        `INSERT INTO shared.product_changes
+         (product_id, change_type, field_changed, old_value, new_value, changed_at, sync_session_id)
+         VALUES ($1, 'updated', $2, $3, $4, $5, $6)`,
+        [id, 'id', id, newId, Date.now(), syncSessionId],
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO shared.product_changes
+         (product_id, change_type, changed_at, sync_session_id)
+         VALUES ($1, 'deleted', $2, $3)`,
+        [id, Date.now(), syncSessionId],
+      );
+    }
   }
 
   return rowCount ?? 0;
