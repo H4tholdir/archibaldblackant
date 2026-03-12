@@ -5,7 +5,7 @@ import { copyFile } from 'node:fs/promises';
 type ParsedPrice = {
   productId: string;
   productName: string;
-  unitPrice: number;
+  unitPrice: string | null;
   itemSelection?: string;
   packagingDescription?: string;
   currency?: string;

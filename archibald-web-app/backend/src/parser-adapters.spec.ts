@@ -300,7 +300,7 @@ describe('adaptProduct', () => {
 });
 
 describe('adaptPrice', () => {
-  test('maps snake_case to camelCase with type conversions', () => {
+  test('maps snake_case to camelCase preserving raw Italian price string', () => {
     const parsed = {
       product_id: 'ART001',
       product_name: 'Widget Pro',
@@ -321,7 +321,7 @@ describe('adaptPrice', () => {
 
     expect(result.productId).toBe('ART001');
     expect(result.productName).toBe('Widget Pro');
-    expect(result.unitPrice).toBe(12.5);
+    expect(result.unitPrice).toBe('12,50 €');
     expect(result.itemSelection).toBe('K2');
     expect(result.currency).toBe('EUR');
     expect(result.priceValidFrom).toBe('2025-01-01');
@@ -333,23 +333,23 @@ describe('adaptPrice', () => {
     expect(result.priceQtyTo).toBe(100);
   });
 
-  test('handles Italian number format for unitPrice', () => {
+  test('preserves Italian thousands+decimal format without conversion', () => {
     const parsed = {
       product_id: 'ART002',
       unit_price: '1.234,56 €',
     };
 
     const result = adaptPrice(parsed);
-    expect(result.unitPrice).toBe(1234.56);
+    expect(result.unitPrice).toBe('1.234,56 €');
   });
 
-  test('handles null unit_price as 0', () => {
+  test('handles null unit_price as null', () => {
     const parsed = {
       product_id: 'ART003',
       unit_price: null,
     };
 
     const result = adaptPrice(parsed);
-    expect(result.unitPrice).toBe(0);
+    expect(result.unitPrice).toBeNull();
   });
 });

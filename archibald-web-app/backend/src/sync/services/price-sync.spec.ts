@@ -15,8 +15,8 @@ function createMockDeps(pool?: DbPool): PriceSyncDeps {
     pool: pool ?? createMockPool(),
     downloadPdf: vi.fn().mockResolvedValue('/tmp/prices.pdf'),
     parsePdf: vi.fn().mockResolvedValue([
-      { productId: 'P-001', productName: 'Widget', unitPrice: 5.00, currency: 'EUR', priceValidFrom: '2026-01-01' },
-      { productId: 'P-002', productName: 'Gadget', unitPrice: 20.00, currency: 'EUR', priceValidFrom: '2026-01-01' },
+      { productId: 'P-001', productName: 'Widget', unitPrice: '5,00 €', currency: 'EUR', priceValidFrom: '2026-01-01' },
+      { productId: 'P-002', productName: 'Gadget', unitPrice: '20,00 €', currency: 'EUR', priceValidFrom: '2026-01-01' },
     ]),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
   };

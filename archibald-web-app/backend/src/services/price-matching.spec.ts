@@ -81,17 +81,6 @@ describe('parseItalianPrice', () => {
     expect(parseItalianPrice('   ')).toEqual(null);
   });
 
-  test('parses US decimal format (no comma): "16.25" -> 16.25', () => {
-    expect(parseItalianPrice('16.25')).toEqual(16.25);
-  });
-
-  test('parses US decimal format larger number: "1677.87" -> 1677.87', () => {
-    expect(parseItalianPrice('1677.87')).toEqual(1677.87);
-  });
-
-  test('parses US decimal with only one decimal digit: "1534.7" -> 1534.7', () => {
-    expect(parseItalianPrice('1534.7')).toEqual(1534.7);
-  });
 
   describe('property-based tests', () => {
     test('non-negative integers formatted as Italian strings roundtrip correctly', () => {

@@ -15,11 +15,6 @@ function n<T>(v: T | null | undefined): T | undefined {
   return v ?? undefined;
 }
 
-function parseItalianNumber(s: string | null | undefined): number {
-  if (!s) return 0;
-  const cleaned = s.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-  return parseFloat(cleaned) || 0;
-}
 
 function parseIntSafe(s: string | null | undefined): number | undefined {
   if (!s) return undefined;
@@ -176,7 +171,7 @@ function adaptPrice(p: ParserPrice): ParsedPrice {
   return {
     productId: p.product_id,
     productName: n(p.product_name) ?? '',
-    unitPrice: parseItalianNumber(p.unit_price),
+    unitPrice: p.unit_price ?? null,
     itemSelection: n(p.item_selection),
     currency: n(p.currency),
     priceValidFrom: n(p.price_valid_from),
