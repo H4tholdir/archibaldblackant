@@ -141,7 +141,7 @@ describe('createOperationProcessor', () => {
       'sync-customers',
       'user-a',
       { orderId: '1' },
-      'key-1',
+      expect.stringMatching(/^key-1-r\d+$/),
     );
   });
 

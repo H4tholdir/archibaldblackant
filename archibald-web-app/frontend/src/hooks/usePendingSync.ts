@@ -34,6 +34,7 @@ const WS_EVENTS_PENDING = [
   "JOB_PROGRESS",
   "JOB_COMPLETED",
   "JOB_FAILED",
+  "JOB_REQUEUED",
   "VERIFICATION_RESULT",
 ] as const;
 
@@ -212,6 +213,19 @@ export function usePendingSync(): UsePendingSyncReturn {
             return next;
           });
           fetchPendingOrders(); // Refetch to get persisted error from server
+          return;
+        } else if (eventType === "JOB_REQUEUED" && p.type === "submit-order") {
+          const originalJobId = p.originalJobId as string;
+          const newJobId = p.newJobId as string;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === originalJobId) {
+                next.set(orderId, { ...entry, jobId: newJobId, status: "queued" });
+              }
+            }
+            return next;
+          });
           return;
         } else if (eventType === "VERIFICATION_RESULT") {
           const orderId = p.orderId as string | undefined;

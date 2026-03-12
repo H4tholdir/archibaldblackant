@@ -117,7 +117,16 @@ function createOperationProcessor(deps: ProcessorDeps) {
       }
 
       if (!acquireResult.acquired) {
-        await enqueue(type, userId, data, idempotencyKey);
+        // Use a fresh key to guarantee BullMQ creates a new waiting job
+        // (same key would be a no-op when the active job's Redis key still exists)
+        const requeueKey = `${idempotencyKey}-r${Date.now()}`;
+        const newJobId = await enqueue(type, userId, data, requeueKey);
+        broadcast(userId, {
+          event: 'JOB_REQUEUED',
+          originalJobId: job.id,
+          newJobId,
+          type,
+        });
         return { success: false, requeued: true, duration: Date.now() - startTime };
       }
     }
