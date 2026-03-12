@@ -93,9 +93,11 @@ export function parseItalianCurrency(value: string | null): number {
   if (!value || value.trim() === "") return 0;
 
   let cleaned = value.replace(/€/g, "").trim();
-  cleaned = cleaned.replace(/\./g, "");
-  cleaned = cleaned.replace(/,/g, ".");
-
+  // Italian format ("1.791,01" or "409,85"): dots are thousands sep, comma is decimal.
+  // Plain numeric format ("409.85"): dot is decimal — no comma present.
+  if (cleaned.includes(",")) {
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  }
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
 }

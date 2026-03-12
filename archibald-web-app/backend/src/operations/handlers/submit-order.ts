@@ -245,8 +245,8 @@ async function handleSubmitOrder(
         null, // transferDate
         null, // completionDate
         data.discountPercent?.toString() ?? null,
-        grossAmount.toFixed(2),
-        total.toFixed(2),
+        grossAmount.toFixed(2).replace('.', ','),
+        total.toFixed(2).replace('.', ','),
         '', // hash
         Math.floor(Date.now() / 1000),
         now,

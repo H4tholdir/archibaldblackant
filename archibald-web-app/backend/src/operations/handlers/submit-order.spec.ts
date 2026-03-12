@@ -136,8 +136,9 @@ describe('handleSubmitOrder', () => {
 
     // grossAmount = (10*5*(1-10/100)) + (5*20*(1-0/100)) = 45 + 100 = 145
     // totalAmount = 145 * (1-5/100) = 137.75
-    const grossIdx = params.indexOf('145.00');
-    const totalIdx = params.indexOf('137.75');
+    // Stored as Italian format (comma as decimal separator)
+    const grossIdx = params.indexOf('145,00');
+    const totalIdx = params.indexOf('137,75');
     expect(grossIdx).toBeGreaterThan(-1);
     expect(totalIdx).toBeGreaterThan(-1);
   });
