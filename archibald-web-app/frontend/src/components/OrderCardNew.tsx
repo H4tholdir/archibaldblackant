@@ -3042,7 +3042,7 @@ function TabFinanziario({
               style={{
                 padding: "10px 16px",
                 backgroundColor:
-                  isDaysPastDueValid && daysPastDue <= 0 ? "#ffebee" : "#e8f5e9",
+                  isDaysPastDueValid && daysPastDue > 0 ? "#ffebee" : "#e8f5e9",
                 borderTop: "1px solid #e0e0e0",
                 display: "flex",
                 justifyContent: "space-between",
@@ -3061,7 +3061,7 @@ function TabFinanziario({
                     fontSize: "13px",
                     fontWeight: 600,
                     color:
-                      daysPastDue <= 0
+                      daysPastDue > 0
                         ? "#c62828"
                         : "#2e7d32",
                     display: "flex",
@@ -3075,15 +3075,15 @@ function TabFinanziario({
                       height: "8px",
                       borderRadius: "50%",
                       backgroundColor:
-                        daysPastDue <= 0
+                        daysPastDue > 0
                           ? "#c62828"
                           : "#2e7d32",
                       display: "inline-block",
                     }}
                   />
-                  {daysPastDue <= 0
-                    ? `Scaduta da ${Math.abs(daysPastDue)} giorni`
-                    : `${daysPastDue} giorni rimanenti`}
+                  {daysPastDue > 0
+                    ? `Scaduta da ${daysPastDue} giorni`
+                    : `${Math.abs(daysPastDue)} giorni rimanenti`}
                 </div>
               )}
             </div>
@@ -4038,8 +4038,8 @@ export function OrderCardNew({
                         <span style={{ fontSize: "12px", color: "#666" }}>
                           Scad: {formatDate(order.invoiceDueDate)}
                           {daysPastDue !== null && daysPastDue !== 0 && (
-                            <span style={{ marginLeft: "6px", fontWeight: 600, color: daysPastDue < 0 ? "#d32f2f" : "#2e7d32" }}>
-                              {daysPastDue < 0 ? `⚠️ ${Math.abs(daysPastDue)} gg fuori scadenza` : `${daysPastDue} gg rimanenti`}
+                            <span style={{ marginLeft: "6px", fontWeight: 600, color: daysPastDue > 0 ? "#d32f2f" : "#2e7d32" }}>
+                              {daysPastDue > 0 ? `⚠️ ${daysPastDue} gg fuori scadenza` : `${Math.abs(daysPastDue)} gg rimanenti`}
                             </span>
                           )}
                         </span>
