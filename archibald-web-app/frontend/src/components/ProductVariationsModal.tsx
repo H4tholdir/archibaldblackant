@@ -5,7 +5,9 @@ interface ProductVariation {
   productId: string;
   productName: string | null;
   changeType: "created" | "updated" | "deleted";
-  fieldsChanged: number;
+  fieldChanged: string | null;
+  oldValue: string | null;
+  newValue: string | null;
   changedAt: number;
   syncSessionId: string;
 }
@@ -372,8 +374,10 @@ export function ProductVariationsModal({
                             <td
                               style={{ padding: "12px", textAlign: "center" }}
                             >
-                              {change.changeType === "updated"
-                                ? change.fieldsChanged
+                              {change.changeType === "updated" && change.fieldChanged
+                                ? change.fieldChanged === "id"
+                                  ? `${change.oldValue} → ${change.newValue}`
+                                  : change.fieldChanged
                                 : "-"}
                             </td>
                             <td style={{ padding: "12px" }}>

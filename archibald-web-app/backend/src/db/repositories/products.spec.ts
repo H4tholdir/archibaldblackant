@@ -706,6 +706,30 @@ describe('getRecentProductChanges', () => {
 
     expect(result).toEqual([]);
   });
+
+  test('maps fieldChanged, oldValue, newValue for id-rename records', async () => {
+    const renameRow = {
+      product_id: '032278K0',
+      product_name: '9436C.204.045',
+      change_type: 'updated',
+      changed_at: '1773308686335',
+      sync_session_id: 'sync-1773308686335',
+      field_changed: 'id',
+      old_value: '032278K0',
+      new_value: '032278K1',
+    };
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [renameRow], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await getRecentProductChanges(pool, 30, 100);
+
+    expect(result[0]).toMatchObject({
+      fieldChanged: 'id',
+      oldValue: '032278K0',
+      newValue: '032278K1',
+    });
+  });
 });
 
 describe('getProductChangeStats', () => {

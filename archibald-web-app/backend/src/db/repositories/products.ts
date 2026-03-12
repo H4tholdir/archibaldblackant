@@ -424,6 +424,9 @@ type ProductChange = {
   productId: string;
   productName: string | null;
   changeType: string;
+  fieldChanged: string | null;
+  oldValue: string | null;
+  newValue: string | null;
   changedAt: number;
   syncSessionId: string | null;
 };
@@ -439,6 +442,9 @@ type ProductChangeRow = {
   product_id: string;
   product_name: string | null;
   change_type: string;
+  field_changed: string | null;
+  old_value: string | null;
+  new_value: string | null;
   changed_at: string;
   sync_session_id: string | null;
 };
@@ -448,6 +454,9 @@ function toProductChange(r: ProductChangeRow): ProductChange {
     productId: r.product_id,
     productName: r.product_name,
     changeType: r.change_type,
+    fieldChanged: r.field_changed,
+    oldValue: r.old_value,
+    newValue: r.new_value,
     changedAt: Number(r.changed_at),
     syncSessionId: r.sync_session_id,
   };
@@ -455,7 +464,9 @@ function toProductChange(r: ProductChangeRow): ProductChange {
 
 async function getProductChanges(pool: DbPool, productId: string): Promise<ProductChange[]> {
   const { rows } = await pool.query<ProductChangeRow>(
-    `SELECT pc.product_id, p.name AS product_name, pc.change_type, pc.changed_at, pc.sync_session_id
+    `SELECT pc.product_id, p.name AS product_name, pc.change_type,
+            pc.field_changed, pc.old_value, pc.new_value,
+            pc.changed_at, pc.sync_session_id
      FROM shared.product_changes pc
      LEFT JOIN shared.products p ON p.id = pc.product_id
      WHERE pc.product_id = $1
@@ -468,7 +479,9 @@ async function getProductChanges(pool: DbPool, productId: string): Promise<Produ
 async function getRecentProductChanges(pool: DbPool, days: number, limit: number): Promise<ProductChange[]> {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   const { rows } = await pool.query<ProductChangeRow>(
-    `SELECT pc.product_id, p.name AS product_name, pc.change_type, pc.changed_at, pc.sync_session_id
+    `SELECT pc.product_id, p.name AS product_name, pc.change_type,
+            pc.field_changed, pc.old_value, pc.new_value,
+            pc.changed_at, pc.sync_session_id
      FROM shared.product_changes pc
      LEFT JOIN shared.products p ON p.id = pc.product_id
      WHERE pc.changed_at >= $1
