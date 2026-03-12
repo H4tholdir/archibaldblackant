@@ -1,0 +1,27 @@
+# Keep Claude focused on editable source and config files.
+
+# Dependency trees
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build / test outputs
+backend/dist/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+backend/coverage/
+backend/profiling-reports/
+
+# Logs and runtime data
+logs/
+backend/logs/
+*.log
+backend/data/
+
+# Heavy screenshots and assets
+pre-merge-screenshots/
+immagini/
+backend/investigation-screenshots/
+backend/screen processo creazione ordine/
+

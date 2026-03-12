@@ -82,6 +82,23 @@ Soluzione **SaaS (Software as a Service)** con abbonamento mensile:
 - Zero-downtime updates
 - Automatic SSL renewal
 
+## 🧭 Claude Code Cost Control
+
+Per evitare consumi anomali con repository grandi:
+
+- Usa la guida: `docs/CLAUDE-COST-GUARDRAILS.md`
+- Avvia con profilo sicuro (Sonnet default):
+
+```bash
+./scripts/claude-launch.sh
+```
+
+- Opus solo on-demand, con conferma esplicita:
+
+```bash
+./scripts/claude-launch.sh --model opus --target backend --confirm-opus
+```
+
 ## 📄 License
 
 **PROPRIETARY** - All rights reserved.

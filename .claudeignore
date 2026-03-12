@@ -1,0 +1,72 @@
+# Keep Claude context focused on source code, not runtime artifacts.
+
+# VCS / workspace metadata
+.git/
+.worktrees/
+.cursor/
+.vscode/
+.idea/
+
+# Dependency trees and builds
+node_modules/
+**/node_modules/
+dist/
+build/
+out/
+coverage/
+.nyc_output/
+.cache/
+**/.cache/
+playwright-report/
+test-results/
+.playwright-mcp/
+
+# Logs, runtime data, temp files
+logs/
+**/logs/
+*.log
+*.pid
+*.pid.lock
+*.tmp
+*.temp
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Binary/media assets (high token cost, low coding value)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.pdf
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Project-specific heavy artifacts
+.planning/
+docs/mockups/
+docs/reports/
+intero flusso bot genera ordini.txt
+arca-stored-procedures.vfp
+VPS-ACCESS-CREDENTIALS.md
+
+# Extra runtime/build folders inside app
+archibald-web-app/backend/node_modules/
+archibald-web-app/frontend/node_modules/
+archibald-web-app/backend/dist/
+archibald-web-app/frontend/dist/
+archibald-web-app/backend/logs/
+archibald-web-app/backend/data/
+archibald-web-app/backend/coverage/
+archibald-web-app/backend/profiling-reports/
+archibald-web-app/backend/investigation-screenshots/
+archibald-web-app/backend/screen processo creazione ordine/
+archibald-web-app/frontend/playwright-report/
+archibald-web-app/frontend/test-results/
+archibald-web-app/pre-merge-screenshots/
+archibald-web-app/immagini/
+
