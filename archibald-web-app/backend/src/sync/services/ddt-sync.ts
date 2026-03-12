@@ -85,8 +85,11 @@ async function syncDdt(
           ddt_number=$1, ddt_delivery_date=$2, ddt_id=$3, ddt_customer_account=$4,
           ddt_sales_name=$5, ddt_delivery_name=$6, delivery_terms=$7, delivery_method=$8,
           delivery_city=$9, attention_to=$10, ddt_delivery_address=$11, ddt_total=$12,
-          ddt_customer_reference=$13, ddt_description=$14, tracking_number=$15,
-          tracking_url=$16, tracking_courier=$17, last_sync=$18
+          ddt_customer_reference=$13, ddt_description=$14,
+          tracking_number=COALESCE($15, tracking_number),
+          tracking_url=COALESCE($16, tracking_url),
+          tracking_courier=COALESCE($17, tracking_courier),
+          last_sync=$18
         WHERE id=$19 AND user_id=$20`,
         [
           ddt.ddtNumber, ddt.ddtDeliveryDate ?? null, ddt.ddtId ?? null, ddt.ddtCustomerAccount ?? null,
