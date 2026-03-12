@@ -10818,6 +10818,56 @@ export class ArchibaldBot {
     return result.dismissed;
   }
 
+  private async ensureNameFieldBeforeSave(expectedName: string): Promise<void> {
+    if (!this.page) return;
+
+    const currentValue = await this.page.evaluate(() => {
+      const input = document.querySelector(
+        'input[id*="dviNAME"][id$="_I"]',
+      ) as HTMLInputElement | null;
+      return input?.value ?? null;
+    });
+
+    if (currentValue === expectedName) return;
+
+    logger.warn("NAME field empty/wrong before save, refilling via page.type()", {
+      expected: expectedName.substring(0, 60),
+      actual: String(currentValue).substring(0, 60),
+    });
+
+    const inputId = await this.page.evaluate(() => {
+      const input = document.querySelector(
+        'input[id*="dviNAME"][id$="_I"]',
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      input.focus();
+      input.click();
+      input.select();
+      document.execCommand("delete");
+      return input.id;
+    });
+
+    if (!inputId) {
+      logger.warn("NAME field not found for pre-save refill");
+      return;
+    }
+
+    await this.page.type(`#${inputId}`, expectedName, { delay: 20 });
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: "name-prefill" });
+
+    const verifiedValue = await this.page.evaluate((id: string) => {
+      return (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
+    }, inputId);
+
+    logger.info("NAME field pre-save refill result", {
+      expected: expectedName.substring(0, 60),
+      actual: verifiedValue.substring(0, 60),
+      ok: verifiedValue === expectedName,
+    });
+  }
+
   private async saveAndCloseCustomer(): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -11796,6 +11846,8 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
+    await this.ensureNameFieldBeforeSave(customerData.name);
+
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
@@ -12682,6 +12734,8 @@ export class ArchibaldBot {
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
+
+    await this.ensureNameFieldBeforeSave(customerData.name);
 
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();

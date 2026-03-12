@@ -251,17 +251,18 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       const customerData = parsed.data as CustomerFormData;
       const session = sessionManager.getSession(sessionId, userId);
-      const existingBot = session ? sessionManager.getBot(sessionId) as CustomerBotLike | undefined : null;
-      const useInteractiveBot = !!session && !!existingBot;
+      const effectiveSession = session?.state === 'failed' ? null : session;
+      const existingBot = effectiveSession ? sessionManager.getBot(sessionId) as CustomerBotLike | undefined : null;
+      const useInteractiveBot = !!effectiveSession && !!existingBot;
 
-      if (session && session.state !== 'vat_complete' && session.state !== 'ready') {
+      if (effectiveSession && effectiveSession.state !== 'vat_complete' && effectiveSession.state !== 'ready') {
         return res.status(409).json({
           success: false,
-          error: `Sessione non pronta per il salvataggio (stato: ${session.state})`,
+          error: `Sessione non pronta per il salvataggio (stato: ${effectiveSession.state})`,
         });
       }
 
-      if (session) {
+      if (effectiveSession) {
         sessionManager.updateState(sessionId, 'saving');
       }
 
@@ -336,7 +337,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             await freshBot.createCustomer(customerData);
             await freshBot.close();
             customerProfileId = tempProfile;
-            if (session) {
+            if (effectiveSession) {
               sessionManager.updateState(sessionId, 'completed');
             }
           }
@@ -356,7 +357,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           });
         } catch (error) {
           await updateCustomerBotStatus(userId, tempProfile, 'failed');
-          if (session) {
+          if (effectiveSession) {
             sessionManager.setError(
               sessionId,
               error instanceof Error ? error.message : 'Errore salvataggio',

@@ -322,6 +322,25 @@ describe('createCustomerInteractiveRouter', () => {
       expect(res.status).toBe(409);
     });
 
+    test('falls back to fresh bot when session state is failed', async () => {
+      sessionManager.updateState(sessionId, 'failed');
+      const freshBot = createMockBot();
+      (deps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(freshBot);
+
+      const res = await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      expect(res.status).toBe(200);
+
+      await vi.waitFor(() => {
+        expect(freshBot.initialize).toHaveBeenCalled();
+        expect(freshBot.createCustomer).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Test Customer' }),
+        );
+      });
+    });
+
     test('allows save when session state is ready', async () => {
       sessionManager.updateState(sessionId, 'ready');
 
