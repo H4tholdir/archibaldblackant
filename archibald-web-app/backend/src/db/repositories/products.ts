@@ -403,6 +403,7 @@ async function getNoVatCount(pool: DbPool): Promise<number> {
 
 type ProductChange = {
   productId: string;
+  productName: string | null;
   changeType: string;
   changedAt: number;
   syncSessionId: string | null;
@@ -412,40 +413,51 @@ type ProductChangeStats = {
   created: number;
   updated: number;
   deleted: number;
+  totalChanges: number;
 };
 
+type ProductChangeRow = {
+  product_id: string;
+  product_name: string | null;
+  change_type: string;
+  changed_at: string;
+  sync_session_id: string | null;
+};
+
+function toProductChange(r: ProductChangeRow): ProductChange {
+  return {
+    productId: r.product_id,
+    productName: r.product_name,
+    changeType: r.change_type,
+    changedAt: Number(r.changed_at),
+    syncSessionId: r.sync_session_id,
+  };
+}
+
 async function getProductChanges(pool: DbPool, productId: string): Promise<ProductChange[]> {
-  const { rows } = await pool.query<{ product_id: string; change_type: string; changed_at: number; sync_session_id: string | null }>(
-    `SELECT product_id, change_type, changed_at, sync_session_id
-     FROM shared.product_changes
-     WHERE product_id = $1
-     ORDER BY changed_at DESC`,
+  const { rows } = await pool.query<ProductChangeRow>(
+    `SELECT pc.product_id, p.name AS product_name, pc.change_type, pc.changed_at, pc.sync_session_id
+     FROM shared.product_changes pc
+     LEFT JOIN shared.products p ON p.id = pc.product_id
+     WHERE pc.product_id = $1
+     ORDER BY pc.changed_at DESC`,
     [productId],
   );
-  return rows.map((r) => ({
-    productId: r.product_id,
-    changeType: r.change_type,
-    changedAt: r.changed_at,
-    syncSessionId: r.sync_session_id,
-  }));
+  return rows.map(toProductChange);
 }
 
 async function getRecentProductChanges(pool: DbPool, days: number, limit: number): Promise<ProductChange[]> {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const { rows } = await pool.query<{ product_id: string; change_type: string; changed_at: number; sync_session_id: string | null }>(
-    `SELECT product_id, change_type, changed_at, sync_session_id
-     FROM shared.product_changes
-     WHERE changed_at >= $1
-     ORDER BY changed_at DESC
+  const { rows } = await pool.query<ProductChangeRow>(
+    `SELECT pc.product_id, p.name AS product_name, pc.change_type, pc.changed_at, pc.sync_session_id
+     FROM shared.product_changes pc
+     LEFT JOIN shared.products p ON p.id = pc.product_id
+     WHERE pc.changed_at >= $1
+     ORDER BY pc.changed_at DESC
      LIMIT $2`,
     [cutoff, limit],
   );
-  return rows.map((r) => ({
-    productId: r.product_id,
-    changeType: r.change_type,
-    changedAt: r.changed_at,
-    syncSessionId: r.sync_session_id,
-  }));
+  return rows.map(toProductChange);
 }
 
 async function getProductChangeStats(pool: DbPool, days: number): Promise<ProductChangeStats> {
@@ -457,13 +469,13 @@ async function getProductChangeStats(pool: DbPool, days: number): Promise<Produc
      GROUP BY change_type`,
     [cutoff],
   );
-  const stats: ProductChangeStats = { created: 0, updated: 0, deleted: 0 };
+  const stats = { created: 0, updated: 0, deleted: 0 };
   for (const row of rows) {
     if (row.change_type === 'created') stats.created = row.count;
     else if (row.change_type === 'updated') stats.updated = row.count;
     else if (row.change_type === 'deleted') stats.deleted = row.count;
   }
-  return stats;
+  return { ...stats, totalChanges: stats.created + stats.updated + stats.deleted };
 }
 
 async function getAllProducts(pool: DbPool): Promise<ProductRow[]> {

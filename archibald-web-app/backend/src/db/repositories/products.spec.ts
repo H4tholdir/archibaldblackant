@@ -19,6 +19,8 @@ import {
   levenshteinDistance,
   calculateSimilarity,
   fuzzySearchProducts,
+  getRecentProductChanges,
+  getProductChangeStats,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -641,5 +643,79 @@ describe('fuzzySearchProducts', () => {
     const results = await fuzzySearchProducts(pool, 'H129', 5);
     expect(results[0].matchReason).toBe('exact');
     expect(results[0].confidence).toBeGreaterThanOrEqual(0.95);
+  });
+});
+
+describe('getRecentProductChanges', () => {
+  const SAMPLE_ROW = {
+    product_id: 'P001',
+    product_name: 'Fresa Pilota',
+    change_type: 'deleted',
+    changed_at: '1741234567890', // pg returns BIGINT as string
+    sync_session_id: 'session-abc',
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('maps changedAt from string to number', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [SAMPLE_ROW], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await getRecentProductChanges(pool, 30, 100);
+
+    expect(typeof result[0].changedAt).toBe('number');
+    expect(result[0].changedAt).toBe(1741234567890);
+  });
+
+  test('includes productName from joined products table', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({ rows: [SAMPLE_ROW], rowCount: 1, command: '', oid: 0, fields: [] })),
+    );
+
+    const result = await getRecentProductChanges(pool, 30, 100);
+
+    expect(result[0].productName).toBe('Fresa Pilota');
+  });
+
+  test('returns empty array when no changes in period', async () => {
+    const pool = createMockPool();
+
+    const result = await getRecentProductChanges(pool, 7, 100);
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe('getProductChangeStats', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns totalChanges as sum of all change types', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [
+          { change_type: 'created', count: 5 },
+          { change_type: 'updated', count: 10 },
+          { change_type: 'deleted', count: 3 },
+        ],
+        rowCount: 3, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const result = await getProductChangeStats(pool, 30);
+
+    expect(result).toEqual({ created: 5, updated: 10, deleted: 3, totalChanges: 18 });
+  });
+
+  test('returns zero totalChanges when no changes', async () => {
+    const pool = createMockPool();
+
+    const result = await getProductChangeStats(pool, 30);
+
+    expect(result).toEqual({ created: 0, updated: 0, deleted: 0, totalChanges: 0 });
   });
 });

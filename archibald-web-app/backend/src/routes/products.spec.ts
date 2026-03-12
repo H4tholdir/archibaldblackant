@@ -28,6 +28,7 @@ const mockProduct = {
 
 const mockProductChange = {
   productId: 'ART-001',
+  productName: 'Articolo Test',
   changeType: 'updated',
   changedAt: 1708300000,
   syncSessionId: 'session-1',
@@ -37,6 +38,7 @@ const mockChangeStats = {
   created: 5,
   updated: 10,
   deleted: 2,
+  totalChanges: 17,
 };
 
 function createMockDeps(): ProductsRouterDeps {
