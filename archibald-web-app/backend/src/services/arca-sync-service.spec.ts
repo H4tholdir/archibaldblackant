@@ -561,6 +561,18 @@ describe("generateVbsScript", () => {
 
     expect(result.vbs).toContain("[     1]");
   });
+
+  test("TIPOMOD in scadenza usa TIPODOC del documento, non FT fisso", () => {
+    const arcaDataFt = makeArcaData({ testata: { TIPODOC: "FT" } });
+    const arcaDataKt = makeArcaData({ testata: { TIPODOC: "KT" } });
+
+    const resultFt = generateVbsScript([{ invoiceNumber: "FT 1/2026", arcaData: arcaDataFt }]);
+    const resultKt = generateVbsScript([{ invoiceNumber: "KT 1/2026", arcaData: arcaDataKt }]);
+
+    expect(resultFt.vbs).toContain("REPLACE TIPOMOD WITH [FT]");
+    expect(resultKt.vbs).toContain("REPLACE TIPOMOD WITH [KT]");
+    expect(resultKt.vbs).not.toContain("REPLACE TIPOMOD WITH [FT]");
+  });
 });
 
 function createMockPool(overrides?: {

@@ -259,6 +259,7 @@ function buildExecScriptScadenza(
   const protocollo = String(testata.NUMERODOC).trim().padStart(8, " ").replace(/]/g, "").replace(/"/g, '""');
   const codcf = String(testata.CODICECF ?? "").replace(/]/g, "").replace(/"/g, '""');
   const codpag = String(testata.PAG || "0001").replace(/]/g, "").replace(/"/g, '""');
+  const tipomod = String(testata.TIPODOC || "FT").replace(/]/g, "").replace(/"/g, '""');
   const totDoc = testata.TOTDOC ?? 0;
   const totNetto = testata.TOTNETTO ?? 0;
   const esercizio = testata.ESERCIZIO ?? "";
@@ -283,7 +284,7 @@ function buildExecScriptScadenza(
   lines.push(`prgFile.WriteLine "REPLACE CODBANCA WITH [1]"`);
   lines.push(`prgFile.WriteLine "REPLACE CODCF WITH [${codcf}]"`);
   lines.push(`prgFile.WriteLine "REPLACE TIPO WITH [A]"`);
-  lines.push(`prgFile.WriteLine "REPLACE TIPOMOD WITH [FT]"`);
+  lines.push(`prgFile.WriteLine "REPLACE TIPOMOD WITH [${tipomod}]"`);
   lines.push(`prgFile.WriteLine "REPLACE IMPEFF WITH ${totDoc}"`);
   lines.push(`prgFile.WriteLine "REPLACE IMPEFFVAL WITH ${totDoc}"`);
   lines.push(`prgFile.WriteLine "REPLACE IMPTOTFATT WITH ${totDoc}"`);
