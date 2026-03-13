@@ -3,7 +3,6 @@ export type SyncProgress =
   | { stage: 'reading-files' }
   | { stage: 'uploading'; filesSize: number }
   | { stage: 'syncing' }
-  | { stage: 'writing-vbs' }
   | { stage: 'done'; result: ArcaSyncResponse };
 
 export type ArcaSyncResponse = {
@@ -12,7 +11,6 @@ export type ArcaSyncResponse = {
     imported: number;
     skipped: number;
     exported: number;
-    ktExported?: number;
     ktNeedingMatch?: Array<{ orderId: string; customerName: string }>;
     ktMissingArticles?: string[];
     errors: string[];
@@ -23,12 +21,7 @@ export type ArcaSyncResponse = {
     totalClients: number;
     skippedOtherTypes: number;
   };
-  vbsScript: {
-    vbs: string;
-    bat: string;
-    watcher: string;
-    watcherSetup: string;
-  } | null;
+  ftExportRecords: Array<{ invoiceNumber: string; arcaData: unknown }>;
 };
 
 const IDB_NAME = 'arca-sync-handles';
@@ -189,7 +182,7 @@ async function writeFile(
 
 async function writeVbsFiles(
   dirHandle: FileSystemDirectoryHandle,
-  vbs: ArcaSyncResponse['vbsScript'],
+  vbs: KtExportResult['vbsScript'],
 ): Promise<void> {
   if (!vbs) return;
 
@@ -211,7 +204,12 @@ export type KtSyncStatus = {
 
 export type KtExportResult = {
   ktExported: number;
-  vbsScript: ArcaSyncResponse['vbsScript'];
+  vbsScript: {
+    vbs: string;
+    bat: string;
+    watcher: string;
+    watcherSetup: string;
+  } | null;
 };
 
 function authHeaders(): HeadersInit {
@@ -226,8 +224,14 @@ export async function fetchKtStatus(): Promise<KtSyncStatus> {
   return json.data;
 }
 
-export async function finalizeKtExport(): Promise<KtExportResult> {
-  const res = await fetch('/api/arca-sync/finalize-kt', { method: 'POST', headers: authHeaders() });
+export async function finalizeKtExport(
+  ftExportRecords: Array<{ invoiceNumber: string; arcaData: unknown }>,
+): Promise<KtExportResult> {
+  const res = await fetch('/api/arca-sync/finalize-kt', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ftExportRecords }),
+  });
   if (!res.ok) throw new Error(`finalize-kt failed: ${res.status}`);
   const json = await res.json();
   return json.data;
@@ -235,7 +239,7 @@ export async function finalizeKtExport(): Promise<KtExportResult> {
 
 export async function writeVbsToDirectory(
   dirHandle: FileSystemDirectoryHandle,
-  vbs: ArcaSyncResponse['vbsScript'],
+  vbs: KtExportResult['vbsScript'],
 ): Promise<void> {
   await writeVbsFiles(dirHandle, vbs);
 }
@@ -266,11 +270,7 @@ export async function performBrowserArcaSync(
   onProgress({ stage: 'syncing' });
   const result = await uploadFiles(files);
 
-  if (result.vbsScript) {
-    onProgress({ stage: 'writing-vbs' });
-    await writeVbsFiles(dirHandle, result.vbsScript);
-  }
-
+  // NON scrivere VBS qui — il VBS si genera solo in finalizeKtExport
   onProgress({ stage: 'done', result });
   return result;
 }
