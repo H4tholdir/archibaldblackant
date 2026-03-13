@@ -41,9 +41,9 @@ export function CustomerHistoryModal({
     setLoading(true);
     setError(null);
     getCustomerFullHistory({
-      customerProfileId: customerProfileId ?? undefined,
+      customerProfileIds: customerProfileId ? [customerProfileId] : undefined,
       customerName: customerName || undefined,
-      subClientCodice: subClientCodice ?? undefined,
+      subClientCodices: subClientCodice ? [subClientCodice] : undefined,
     })
       .then(setOrders)
       .catch(() => setError('Errore nel caricamento dello storico'))
