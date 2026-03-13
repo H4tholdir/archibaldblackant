@@ -35,6 +35,27 @@ describe('getMatchesForSubClient', () => {
   });
 });
 
+describe('getMatchesForCustomer', () => {
+  it('returns customerProfileId and subClientCodices', async () => {
+    const pool = { query: vi.fn()
+      .mockResolvedValueOnce({ rows: [{ sub_client_codice: 'C00099' }] })  // subclientMatches
+      .mockResolvedValueOnce({ rows: [] })                                 // pref
+    } as unknown as DbPool;
+    const result = await repo.getMatchesForCustomer(pool, 1, 'P001');
+    expect(result.customerProfileIds).toEqual(['P001']);
+    expect(result.subClientCodices).toEqual(['C00099']);
+  });
+
+  it('returns skipModal from pref when set', async () => {
+    const pool = { query: vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ skip_matching_modal: true }] })
+    } as unknown as DbPool;
+    const result = await repo.getMatchesForCustomer(pool, 2, 'P002');
+    expect(result.skipModal).toBe(true);
+  });
+});
+
 describe('addCustomerMatch / removeCustomerMatch', () => {
   it('addCustomerMatch calls INSERT with correct params', async () => {
     const pool = makePool();
