@@ -580,11 +580,22 @@ function createMockPool(overrides?: {
   existingInvoiceNumbers?: string[];
   pwaExportRows?: Array<{ id: string; arca_data: string; invoice_number: string }>;
   ftCounterCalls?: Array<unknown[]>;
+  ktEligibleOrders?: Array<{
+    id: string;
+    order_number: string;
+    customer_name: string;
+    customer_profile_id: string | null;
+    creation_date: string;
+    discount_percent: string | null;
+    remaining_sales_financial: string | null;
+    articles_synced_at: string | null;
+  }>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
   const pwaExportRows = overrides?.pwaExportRows ?? [];
   const ftCounterCalls = overrides?.ftCounterCalls ?? [];
+  const ktEligibleOrders = overrides?.ktEligibleOrders ?? [];
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
@@ -610,6 +621,9 @@ function createMockPool(overrides?: {
       }
       if (text.includes("SELECT id, arca_data, invoice_number")) {
         return { rows: pwaExportRows };
+      }
+      if (text.includes("arca_kt_synced_at IS NULL")) {
+        return { rows: ktEligibleOrders };
       }
       return { rows: [], rowCount: 0 };
     }),
@@ -798,6 +812,42 @@ function createMockPool(overrides?: {
 
       expect(result.exported).toBe(0);
       expect(result.vbsScript).toBeNull();
+    },
+    60000,
+  );
+
+  test(
+    "KT order without articles yet appears in ktMissingArticles (not silently ignored)",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const orderId = "kt-order-no-articles";
+      const pool = createMockPool({
+        ktEligibleOrders: [
+          {
+            id: orderId,
+            order_number: "ORD-2026-001",
+            customer_name: "Cliente Test",
+            customer_profile_id: "profile-123",
+            creation_date: "2026-03-13T08:00:00Z",
+            discount_percent: null,
+            remaining_sales_financial: null,
+            articles_synced_at: null,  // articoli non ancora sincronizzati
+          },
+        ],
+      });
+
+      const result = await performArcaSync(
+        pool,
+        TEST_USER_ID,
+        doctesBuf,
+        docrigBuf,
+        null,
+      );
+
+      expect(result.ktMissingArticles).toContain(orderId);
+      expect(result.ktExported).toBe(0);
     },
     60000,
   );
