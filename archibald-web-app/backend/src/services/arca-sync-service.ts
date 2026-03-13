@@ -592,7 +592,7 @@ function generateWatcherVbs(): string {
   lines.push("    fso.DeleteFile syncScript, True");
   lines.push("  End If");
   lines.push("");
-  lines.push("  WScript.Sleep 10000");
+  lines.push("  WScript.Sleep 5000");
   lines.push("Loop");
 
   return lines.join("\r\n");
