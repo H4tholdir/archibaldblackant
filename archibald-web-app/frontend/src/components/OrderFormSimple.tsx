@@ -486,8 +486,13 @@ export default function OrderFormSimple() {
           return;
         }
 
-        // Save original order items for potential restoration
+        // Save original order items and tracking for potential restoration
         setOriginalOrderItems(order.items);
+        originalOrderTrackingRef.current = {
+          customerName: order.customerName,
+          subClientName: order.subClientName,
+          orderDate: order.createdAt,
+        };
 
         // Release warehouse reservations when starting edit
         // This ensures a clean slate - items will be re-reserved when order is saved
@@ -608,6 +613,8 @@ export default function OrderFormSimple() {
 
   // Track whether order was saved to prevent warehouse reservation restoration on unmount
   const orderSavedSuccessfullyRef = useRef(false);
+  // Preserve original tracking data (subClientName etc.) so cleanup can restore it after batchRelease
+  const originalOrderTrackingRef = useRef<{ customerName?: string; subClientName?: string; orderDate?: string }>({});
 
   // === CLEANUP: RESTORE WAREHOUSE RESERVATIONS IF USER EXITS WITHOUT SAVING ===
   useEffect(() => {
@@ -636,7 +643,7 @@ export default function OrderFormSimple() {
               .flatMap((item) => item.warehouseSources ?? [])
               .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
             if (warehouseItems.length > 0) {
-              await batchReserve(warehouseItems, `pending-${editingOrderId}`);
+              await batchReserve(warehouseItems, `pending-${editingOrderId}`, originalOrderTrackingRef.current);
               console.log(
                 "[OrderForm] Warehouse reservations restored after exit without save",
               );
