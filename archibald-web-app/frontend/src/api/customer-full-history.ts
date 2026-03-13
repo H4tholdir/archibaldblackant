@@ -17,18 +17,25 @@ export type CustomerFullHistoryOrder = {
   orderDate: string;
   totalAmount: number;
   orderDiscountPercent: number;
+  customerProfileId?: string;
+  customerCity?: string;
+  customerRagioneSociale?: string;
   articles: CustomerFullHistoryArticle[];
 };
 
 export async function getCustomerFullHistory(params: {
-  customerProfileId?: string;
+  customerProfileIds?: string[];
   customerName?: string;
-  subClientCodice?: string;
+  subClientCodices?: string[];
 }): Promise<CustomerFullHistoryOrder[]> {
   const query = new URLSearchParams();
-  if (params.customerProfileId) query.set('customerProfileId', params.customerProfileId);
   if (params.customerName) query.set('customerName', params.customerName);
-  if (params.subClientCodice) query.set('subClientCodice', params.subClientCodice);
+  for (const id of params.customerProfileIds ?? []) {
+    query.append('customerProfileIds[]', id);
+  }
+  for (const c of params.subClientCodices ?? []) {
+    query.append('subClientCodices[]', c);
+  }
 
   const res = await fetchWithRetry(`/api/history/customer-full-history?${query.toString()}`);
   if (!res.ok) throw new Error(`Errore storico: ${res.status}`);

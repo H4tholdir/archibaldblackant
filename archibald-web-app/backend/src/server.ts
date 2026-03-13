@@ -35,8 +35,10 @@ import { createOrderNotesRouter } from './routes/order-notes';
 import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
+import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
+import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
 import * as subclientsRepo from './db/repositories/subclients';
 import * as orderStacksRepo from './db/repositories/order-stacks';
 import * as orderNotesRepo from './db/repositories/order-notes';
@@ -838,6 +840,16 @@ function createApp(deps: AppDeps): Express {
       getCustomerFullHistory: (userId, params) => getCustomerFullHistory(pool, userId, params),
     }),
   );
+
+  app.use('/api/sub-client-matches', authenticateJWT, createSubClientMatchesRouter({
+    getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, parseInt(userId, 10), codice),
+    getMatchesForCustomer: (userId, profileId) => subClientMatchesRepo.getMatchesForCustomer(pool, parseInt(userId, 10), profileId),
+    addCustomerMatch: (codice, customerProfileId) => subClientMatchesRepo.addCustomerMatch(pool, codice, customerProfileId),
+    removeCustomerMatch: (codice, customerProfileId) => subClientMatchesRepo.removeCustomerMatch(pool, codice, customerProfileId),
+    addSubClientMatch: (codiceA, codiceB) => subClientMatchesRepo.addSubClientMatch(pool, codiceA, codiceB),
+    removeSubClientMatch: (codiceA, codiceB) => subClientMatchesRepo.removeSubClientMatch(pool, codiceA, codiceB),
+    upsertSkipModal: (userId, entityType, entityId, skip) => subClientMatchesRepo.upsertSkipModal(pool, parseInt(userId, 10), entityType, entityId, skip),
+  }));
 
   app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
     getStacks: (userId) => orderStacksRepo.getStacks(pool, userId),

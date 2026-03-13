@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   getSubclients,
-  clearSubclientMatch,
-  setSubclientMatch,
   updateSubclient,
   createSubclient,
   deleteSubclient,
 } from '../services/subclients.service';
 import type { Subclient } from '../services/subclients.service';
-import { customerService } from '../services/customers.service';
-import type { Customer } from '../types/local-customer';
+import { MatchingManagerModal } from './MatchingManagerModal';
 
 function matchBadge(confidence: string | null) {
   if (!confidence) return { label: 'Non matchato', bg: '#EF4444' };
@@ -87,105 +84,6 @@ function emptySubclient(codice: string): Subclient {
     abicab: null, contocorr: null,
     matchedCustomerProfileId: null, matchConfidence: null, arcaSyncedAt: null,
   };
-}
-
-// ─── Customer Picker Modal ───────────────────────────────────────────
-
-export function CustomerPickerModal({
-  onSelect,
-  onClose,
-}: {
-  onSelect: (customerProfileId: string) => void;
-  onClose: () => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [results, setResults] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2) {
-      setResults([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    customerService.searchCustomers(debouncedQuery, 30).then((r) => {
-      if (!cancelled) { setResults(r); setLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, [debouncedQuery]);
-
-  return (
-    <div
-      style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '16px',
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{
-        backgroundColor: '#fff', borderRadius: '16px', padding: '20px',
-        maxWidth: '500px', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Collega cliente Archibald</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#999' }}>×</button>
-        </div>
-        <input
-          autoFocus
-          type="text"
-          placeholder="Cerca per nome, P.IVA, telefono, indirizzo..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: '8px',
-            border: '1px solid #ddd', fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px',
-          }}
-        />
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>Ricerca...</div>}
-          {!loading && debouncedQuery.length >= 2 && results.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>Nessun risultato</div>
-          )}
-          {results.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => onSelect(c.id)}
-              style={{
-                padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-                marginBottom: '4px', border: '1px solid #eee',
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f0f7ff'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#fff'; }}
-            >
-              <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{c.name}</div>
-              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                {c.code}
-                {c.taxCode && ` · ${c.taxCode}`}
-              </div>
-              {(c.address || c.city) && (
-                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {c.address}{c.city && `, ${c.city}`}
-                </div>
-              )}
-              {(c.phone || c.email) && (
-                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {c.phone}{c.email && ` · ${c.email}`}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Subclient Form Modal (View / Edit / Create) ────────────────────
@@ -415,12 +313,10 @@ function SubclientFormModal({
 function SubclientCard({
   subclient,
   onSelect,
-  onUnlink,
   onLink,
 }: {
   subclient: Subclient;
   onSelect: () => void;
-  onUnlink: () => void;
   onLink: () => void;
 }) {
   const badge = matchBadge(subclient.matchConfidence);
@@ -467,29 +363,16 @@ function SubclientCard({
           >
             {badge.label}
           </span>
-          {subclient.matchedCustomerProfileId ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onUnlink(); }}
-              style={{
-                padding: '3px 8px', borderRadius: '10px', border: '1px solid #ddd',
-                backgroundColor: '#fff', fontSize: '10px', cursor: 'pointer', color: '#666',
-              }}
-              title="Scollega match"
-            >
-              Scollega
-            </button>
-          ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); onLink(); }}
-              style={{
-                padding: '3px 8px', borderRadius: '10px', border: '1px solid #2563EB',
-                backgroundColor: '#EFF6FF', fontSize: '10px', cursor: 'pointer', color: '#2563EB', fontWeight: 600,
-              }}
-              title="Collega a cliente Archibald"
-            >
-              Collega
-            </button>
-          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onLink(); }}
+            style={{
+              padding: '3px 8px', borderRadius: '10px', border: '1px solid #2563EB',
+              backgroundColor: '#EFF6FF', fontSize: '10px', cursor: 'pointer', color: '#2563EB', fontWeight: 600,
+            }}
+            title="Gestisci matching storico"
+          >
+            Gestisci
+          </button>
         </div>
       </div>
     </div>
@@ -505,7 +388,7 @@ function SubclientsTab() {
   const [loading, setLoading] = useState(true);
   const [selectedSubclient, setSelectedSubclient] = useState<Subclient | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
-  const [linkingCodice, setLinkingCodice] = useState<string | null>(null);
+  const [linkingSubclient, setLinkingSubclient] = useState<Subclient | null>(null);
 
   const existingCodici = useMemo(() => new Set(subclients.map((s) => s.codice)), [subclients]);
 
@@ -527,33 +410,6 @@ function SubclientsTab() {
   }, [debouncedSearch]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleUnlink = useCallback(async (codice: string) => {
-    try {
-      await clearSubclientMatch(codice);
-      setSubclients((prev) =>
-        prev.map((s) =>
-          s.codice === codice ? { ...s, matchedCustomerProfileId: null, matchConfidence: null } : s,
-        ),
-      );
-    } catch {
-      // silently handle
-    }
-  }, []);
-
-  const handleLink = useCallback(async (codice: string, customerProfileId: string) => {
-    try {
-      await setSubclientMatch(codice, customerProfileId);
-      setSubclients((prev) =>
-        prev.map((s) =>
-          s.codice === codice ? { ...s, matchedCustomerProfileId: customerProfileId, matchConfidence: 'manual' } : s,
-        ),
-      );
-      setLinkingCodice(null);
-    } catch {
-      // silently handle
-    }
-  }, []);
 
   const handleSave = useCallback(async (data: Subclient, isNew: boolean) => {
     if (isNew) {
@@ -624,8 +480,7 @@ function SubclientsTab() {
           key={sc.codice}
           subclient={sc}
           onSelect={() => setSelectedSubclient(sc)}
-          onUnlink={() => handleUnlink(sc.codice)}
-          onLink={() => setLinkingCodice(sc.codice)}
+          onLink={() => setLinkingSubclient(sc)}
         />
       ))}
 
@@ -653,11 +508,15 @@ function SubclientsTab() {
         />
       )}
 
-      {/* Customer Picker Modal */}
-      {linkingCodice && (
-        <CustomerPickerModal
-          onSelect={(profileId) => handleLink(linkingCodice, profileId)}
-          onClose={() => setLinkingCodice(null)}
+      {/* Matching Manager Modal */}
+      {linkingSubclient && (
+        <MatchingManagerModal
+          mode="subclient"
+          subClientCodice={linkingSubclient.codice}
+          entityName={linkingSubclient.ragioneSociale}
+          onConfirm={() => setLinkingSubclient(null)}
+          onSkip={() => setLinkingSubclient(null)}
+          onClose={() => setLinkingSubclient(null)}
         />
       )}
     </div>

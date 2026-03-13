@@ -2,6 +2,9 @@
 # Archibald Black Ant - Git Ignore Rules
 # ============================================
 
+# ===== Superpowers brainstorm sessions =====
+.superpowers/
+
 # ===== OS Files =====
 .DS_Store
 .DS_Store?

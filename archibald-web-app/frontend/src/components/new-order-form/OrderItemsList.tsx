@@ -6,12 +6,14 @@ interface OrderItemsListProps {
   items: OrderItem[];
   onEditItem: (itemId: string, updates: Partial<OrderItem>) => void;
   onDeleteItem: (itemId: string) => void;
+  newItemIds?: Set<string>;
 }
 
 export function OrderItemsList({
   items,
   onEditItem,
   onDeleteItem,
+  newItemIds,
 }: OrderItemsListProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
@@ -74,16 +76,21 @@ export function OrderItemsList({
         </div>
 
         {/* Table Body */}
-        {items.map((item) => (
+        {items.map((item) => {
+          const isNew = newItemIds?.has(item.id) ?? false;
+          return (
           <div
             key={item.id}
+            data-new-item={isNew ? 'true' : undefined}
             style={{
               display: "grid",
               gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 100px",
               gap: "1rem",
               padding: "1rem",
               borderBottom: "1px solid #e5e7eb",
-              backgroundColor: "white",
+              backgroundColor: isNew ? "#f0fdf4" : "white",
+              borderLeft: isNew ? "3px solid #059669" : undefined,
+              transition: "background 2s ease, border-left 2s ease",
             }}
           >
             {/* Product Name & Description */}
@@ -164,7 +171,8 @@ export function OrderItemsList({
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Edit Modal (if editing) */}

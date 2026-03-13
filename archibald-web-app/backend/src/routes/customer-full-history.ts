@@ -6,7 +6,11 @@ import { logger } from '../logger';
 type CustomerFullHistoryRouterDeps = {
   getCustomerFullHistory: (
     userId: string,
-    params: { customerProfileId?: string; customerName?: string; subClientCodice?: string },
+    params: {
+      customerProfileIds?: string[];
+      customerName?: string;
+      subClientCodices?: string[];
+    },
   ) => Promise<FullHistoryOrder[]>;
 };
 
@@ -14,16 +18,21 @@ function createCustomerFullHistoryRouter(deps: CustomerFullHistoryRouterDeps) {
   const router = Router();
 
   router.get('/customer-full-history', async (req: AuthRequest, res) => {
-    const { customerProfileId, customerName, subClientCodice } = req.query as Record<string, string | undefined>;
+    const query = req.query as Record<string, string | string[] | undefined>;
 
-    if (!customerProfileId && !customerName && !subClientCodice) {
-      res.status(400).json({ error: 'Almeno uno tra customerProfileId, customerName e subClientCodice è richiesto' });
+    // Express parses repeated params as arrays: ?customerProfileIds[]=X&customerProfileIds[]=Y
+    const customerProfileIds = normalizeArray(query['customerProfileIds[]'] ?? query['customerProfileIds']);
+    const subClientCodices = normalizeArray(query['subClientCodices[]'] ?? query['subClientCodices']);
+    const customerName = typeof query['customerName'] === 'string' ? query['customerName'] : undefined;
+
+    if (customerProfileIds.length === 0 && !customerName && subClientCodices.length === 0) {
+      res.status(400).json({ error: 'Almeno uno tra customerProfileIds, customerName e subClientCodices è richiesto' });
       return;
     }
 
     try {
       const userId = req.user!.userId;
-      const orders = await deps.getCustomerFullHistory(userId, { customerProfileId, customerName, subClientCodice });
+      const orders = await deps.getCustomerFullHistory(userId, { customerProfileIds, customerName, subClientCodices });
       res.json({ orders });
     } catch (err) {
       logger.error('Error fetching customer full history', { error: err instanceof Error ? err.message : err });
@@ -32,6 +41,11 @@ function createCustomerFullHistoryRouter(deps: CustomerFullHistoryRouterDeps) {
   });
 
   return router;
+}
+
+function normalizeArray(val: string | string[] | undefined): string[] {
+  if (!val) return [];
+  return Array.isArray(val) ? val.filter(Boolean) : [val];
 }
 
 export { createCustomerFullHistoryRouter, type CustomerFullHistoryRouterDeps };

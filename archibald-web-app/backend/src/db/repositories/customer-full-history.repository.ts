@@ -15,6 +15,9 @@ type OrderArticleRow = {
   order_id: string;
   order_number: string;
   order_date: string;
+  customer_profile_id: string | null;
+  customer_city: string | null;
+  customer_rag_sociale: string | null;
   article_code: string;
   article_description: string | null;
   quantity: number;
@@ -36,9 +39,9 @@ type FresisHistoryRow = {
 };
 
 type HistoryParams = {
-  customerProfileId?: string;
+  customerProfileIds?: string[];
   customerName?: string;
-  subClientCodice?: string;
+  subClientCodices?: string[];
 };
 
 function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
@@ -53,6 +56,9 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
         orderDate: row.order_date,
         totalAmount: 0,
         orderDiscountPercent: 0,
+        customerProfileId: row.customer_profile_id ?? undefined,
+        customerCity: row.customer_city ?? undefined,
+        customerRagioneSociale: row.customer_rag_sociale ?? undefined,
         articles: [],
       });
     }
@@ -131,10 +137,19 @@ async function getCustomerFullHistory(
   userId: string,
   params: HistoryParams,
 ): Promise<FullHistoryOrder[]> {
-  const { customerProfileId, customerName, subClientCodice } = params;
-  if (!customerProfileId && !customerName && !subClientCodice) return [];
+  const {
+    customerProfileIds = [],
+    customerName,
+    subClientCodices = [],
+  } = params;
 
-  const hasCustomerSearch = !!(customerProfileId || customerName);
+  const hasCustomerIds = customerProfileIds.length > 0;
+  const hasCustomerName = !!(customerName?.trim());
+  const hasSubClients = subClientCodices.length > 0;
+
+  if (!hasCustomerIds && !hasCustomerName && !hasSubClients) return [];
+
+  const hasCustomerSearch = hasCustomerIds || hasCustomerName;
 
   const [ordersResult, fresisResult] = await Promise.all([
     hasCustomerSearch
@@ -143,6 +158,9 @@ async function getCustomerFullHistory(
              o.id AS order_id,
              o.order_number,
              o.creation_date AS order_date,
+             c2.customer_profile AS customer_profile_id,
+             c2.city AS customer_city,
+             c2.name AS customer_rag_sociale,
              a.article_code,
              a.article_description,
              a.quantity,
@@ -152,14 +170,14 @@ async function getCustomerFullHistory(
              a.line_total_with_vat
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
+           LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.internal_id = o.customer_profile_id
            WHERE o.user_id = $1
              AND (
-               o.customer_profile_id = (
+               ($2::text[] != '{}' AND o.customer_profile_id IN (
                  SELECT c.internal_id FROM agents.customers c
-                 WHERE c.user_id = $1 AND c.customer_profile = $2 AND c.internal_id IS NOT NULL
-                 LIMIT 1
-               )
-               OR LOWER(o.customer_name) = LOWER($3)
+                 WHERE c.user_id = $1 AND c.customer_profile = ANY($2::text[]) AND c.internal_id IS NOT NULL
+               ))
+               OR ($3 != '' AND LOWER(o.customer_name) = LOWER($3))
              )
              AND o.articles_synced_at IS NOT NULL
              AND o.gross_amount NOT LIKE '-%'
@@ -179,28 +197,20 @@ async function getCustomerFullHistory(
                  AND cn.creation_date >= o.creation_date
              )
            ORDER BY o.creation_date DESC, a.article_code ASC`,
-          [userId, customerProfileId ?? '', customerName ?? ''],
+          [userId, customerProfileIds, customerName ?? ''],
         )
       : Promise.resolve({ rows: [] as OrderArticleRow[] }),
 
-    (subClientCodice || customerProfileId)
+    hasSubClients
       ? pool.query<FresisHistoryRow>(
           `SELECT id, archibald_order_id, archibald_order_number, invoice_number,
               discount_percent, target_total_with_vat, created_at, items
            FROM agents.fresis_history
            WHERE user_id = $1
-             AND (
-               ($2 != '' AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') =
-                   REGEXP_REPLACE($2, '^[Cc]0*', ''))
-               OR ($2 = '' AND $3 != '' AND sub_client_codice = (
-                 SELECT codice FROM shared.sub_clients
-                 WHERE matched_customer_profile_id = $3
-                 LIMIT 1
-               ))
-             )
+             AND sub_client_codice = ANY($2::text[])
              AND (archibald_order_number IS NULL OR archibald_order_number NOT LIKE 'KT %')
            ORDER BY created_at DESC`,
-          [userId, subClientCodice ?? '', customerProfileId ?? ''],
+          [userId, subClientCodices],
         )
       : Promise.resolve({ rows: [] as FresisHistoryRow[] }),
   ]);

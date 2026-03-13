@@ -11,6 +11,7 @@ const MOCK_ORDERS: FullHistoryOrder[] = [
     orderNumber: 'FT 247',
     orderDate: '2024-02-23T00:00:00.000Z',
     totalAmount: 44.47,
+    orderDiscountPercent: 0,
     articles: [],
   },
 ];
@@ -33,45 +34,37 @@ describe('GET /api/history/customer-full-history', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns orders when customerProfileId provided', async () => {
+  it('returns orders for single customerProfileIds[]', async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get('/api/history/customer-full-history')
-      .query({ customerProfileId: 'C10181' });
-
+      .query({ 'customerProfileIds[]': 'C10181' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ orders: MOCK_ORDERS });
   });
 
-  it('passes userId from req.user to handler', async () => {
+  it('passes customerProfileIds array to handler', async () => {
     const { app, getHistory } = buildApp();
     await request(app)
       .get('/api/history/customer-full-history')
-      .query({ customerProfileId: 'C10181' });
-
+      .query({ 'customerProfileIds[]': ['C10181', 'C10182'] });
     expect(getHistory).toHaveBeenCalledWith(
       'user-1',
-      { customerProfileId: 'C10181', subClientCodice: undefined },
+      expect.objectContaining({ customerProfileIds: ['C10181', 'C10182'] }),
     );
   });
 
-  it('accepts both params together', async () => {
-    const { app, getHistory } = buildApp();
-    await request(app)
-      .get('/api/history/customer-full-history')
-      .query({ customerProfileId: 'C10181', subClientCodice: 'C00042' });
-
-    expect(getHistory).toHaveBeenCalledWith(
-      'user-1',
-      { customerProfileId: 'C10181', subClientCodice: 'C00042' },
-    );
+  it('returns 400 when only empty arrays provided', async () => {
+    const { app } = buildApp();
+    const res = await request(app).get('/api/history/customer-full-history');
+    expect(res.status).toBe(400);
   });
 
   it('returns 500 on error', async () => {
     const { app } = buildApp(vi.fn().mockRejectedValue(new Error('DB error')));
     const res = await request(app)
       .get('/api/history/customer-full-history')
-      .query({ customerProfileId: 'C10181' });
+      .query({ 'customerProfileIds[]': 'C10181' });
     expect(res.status).toBe(500);
   });
 });
