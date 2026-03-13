@@ -23,7 +23,6 @@ vi.mock('../services/customers.service', () => ({
 import {
   getMatchesForSubClient,
   getMatchesForCustomer,
-  addCustomerMatch,
   removeCustomerMatch,
 } from '../services/sub-client-matches.service';
 
