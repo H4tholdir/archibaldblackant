@@ -9,6 +9,7 @@ import type { ArticleMismatch } from '../../verification/verify-order-articles';
 import { formatVerificationNotification } from '../../verification/format-notification';
 import type { VerificationNotification } from '../../verification/format-notification';
 import { batchTransfer } from '../../db/repositories/warehouse';
+import { getUnitPricesByProductIds } from '../../db/repositories/prices';
 import { logger } from '../../logger';
 
 type SubmitOrderItem = {
@@ -316,20 +317,30 @@ async function handleSubmitOrder(
         return { ...item, quantity: kometQty };
       });
 
+      const catalogPrices = await getUnitPricesByProductIds(
+        pool,
+        kometItems.map(item => item.articleCode),
+      );
+
+      const snapshotItems = kometItems.map(item => {
+        const unitPrice = catalogPrices.get(item.articleCode) ?? item.price;
+        return {
+          articleCode: item.articleCode,
+          articleDescription: item.description ?? item.productName ?? null,
+          quantity: item.quantity,
+          unitPrice,
+          lineDiscountPercent: item.discount ?? null,
+          expectedLineAmount: archibaldLineAmount(item.quantity, unitPrice, item.discount || 0),
+        };
+      });
+
       const { grossAmount: kometGross, total: kometTotal } = calculateAmounts(kometItems, data.discountPercent);
 
       await saveOrderVerificationSnapshot(tx, orderId, userId, {
         globalDiscountPercent: data.discountPercent,
         expectedGrossAmount: kometGross,
         expectedTotalAmount: kometTotal,
-        items: kometItems.map(item => ({
-          articleCode: item.articleCode,
-          articleDescription: item.description ?? item.productName ?? null,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          lineDiscountPercent: item.discount ?? null,
-          expectedLineAmount: archibaldLineAmount(item.quantity, item.price, item.discount || 0),
-        })),
+        items: snapshotItems,
       });
     }
 

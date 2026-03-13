@@ -2,10 +2,17 @@ import { describe, expect, test, vi } from 'vitest';
 import { handleSubmitOrder, type SubmitOrderBot, type SubmitOrderData } from './submit-order';
 import type { DbPool } from '../../db/pool';
 
-function createMockPool(): DbPool {
-  const query = vi.fn().mockImplementation((sql: string) => {
+function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
+  const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
     if (typeof sql === 'string' && sql.includes('RETURNING id')) {
       return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
+    }
+    if (typeof sql === 'string' && sql.includes('shared.prices') && Array.isArray(params?.[0])) {
+      const requestedCodes = params![0] as string[];
+      const rows = requestedCodes
+        .filter((code) => catalogPrices[code] !== undefined)
+        .map((code) => ({ product_id: code, unit_price: String(catalogPrices[code]) }));
+      return Promise.resolve({ rows, rowCount: rows.length });
     }
     return Promise.resolve({ rows: [], rowCount: 0 });
   });
@@ -210,5 +217,58 @@ describe('handleSubmitOrder', () => {
     await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(bot.setProgressCallback).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  describe('snapshot uses current catalog price', () => {
+    const historicalPrice = 17.21;
+    const catalogPrice = 32.31;
+    const qty = 5;
+    const discount = 63;
+
+    const dataWithStalePrice: SubmitOrderData = {
+      pendingOrderId: 'pending-stale',
+      customerId: 'CUST-FRESIS',
+      customerName: 'Fresis Soc Cooperativa',
+      items: [
+        { articleCode: 'H162SL.314.014', quantity: qty, price: historicalPrice, discount },
+      ],
+    };
+
+    test('uses catalog price from shared.prices instead of submitted stale price', async () => {
+      const pool = createMockPool({ 'H162SL.314.014': catalogPrice });
+      const bot = createMockBot('ORD-002');
+      const onProgress = vi.fn();
+
+      await handleSubmitOrder(pool, bot, dataWithStalePrice, 'user-1', onProgress);
+
+      const snapshotItemCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+        .filter((call: unknown[]) => typeof call[0] === 'string' &&
+          (call[0] as string).includes('INSERT INTO agents.order_verification_snapshot_items'));
+      expect(snapshotItemCalls).toHaveLength(1);
+
+      const params = snapshotItemCalls[0][1] as unknown[];
+      // unitPrice deve essere il prezzo di catalogo corrente
+      expect(params).toContain(catalogPrice);
+      expect(params).not.toContain(historicalPrice);
+      // expectedLineAmount ricalcolato con il prezzo corrente: 5 * 32.31 * (1 - 63/100) = 59.77
+      const expectedAmount = Math.round(qty * catalogPrice * (1 - discount / 100) * 100) / 100;
+      expect(params).toContain(expectedAmount);
+    });
+
+    test('falls back to submitted price when article not found in shared.prices', async () => {
+      const pool = createMockPool({}); // nessun prezzo in catalogo
+      const bot = createMockBot('ORD-003');
+      const onProgress = vi.fn();
+
+      await handleSubmitOrder(pool, bot, dataWithStalePrice, 'user-1', onProgress);
+
+      const snapshotItemCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+        .filter((call: unknown[]) => typeof call[0] === 'string' &&
+          (call[0] as string).includes('INSERT INTO agents.order_verification_snapshot_items'));
+      expect(snapshotItemCalls).toHaveLength(1);
+
+      const params = snapshotItemCalls[0][1] as unknown[];
+      expect(params).toContain(historicalPrice);
+    });
   });
 });

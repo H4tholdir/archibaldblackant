@@ -176,6 +176,35 @@ describe("mergeFresisPendingOrders", () => {
     expect(result.items).toHaveLength(2);
   });
 
+  test("does not merge items with same articleCode when both have articleId=null", () => {
+    const articleCode = "H162SL.314.014";
+    const order1 = makeOrder({
+      items: [makeItem({ articleCode, articleId: undefined, quantity: 5 })],
+    });
+    const order2 = makeOrder({
+      items: [makeItem({ articleCode, articleId: undefined, quantity: 1 })],
+    });
+
+    const result = mergeFresisPendingOrders([order1, order2], emptyMap);
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map((i) => i.quantity).sort((a, b) => a - b)).toEqual([1, 5]);
+  });
+
+  test("does not merge items when one has articleId=null and other has non-null", () => {
+    const articleCode = "A1";
+    const order1 = makeOrder({
+      items: [makeItem({ articleCode, articleId: "V1", quantity: 5 })],
+    });
+    const order2 = makeOrder({
+      items: [makeItem({ articleCode, articleId: undefined, quantity: 1 })],
+    });
+
+    const result = mergeFresisPendingOrders([order1, order2], emptyMap);
+
+    expect(result.items).toHaveLength(2);
+  });
+
   test("sets per-line discount from discountMap by articleId", () => {
     const discountMap = new Map([["V1", 45]]);
     const order = makeOrder({
@@ -255,12 +284,12 @@ describe("mergeFresisPendingOrders", () => {
   test("sums warehouseQuantity across orders", () => {
     const order1 = makeOrder({
       items: [
-        makeItem({ articleCode: "A1", quantity: 5, warehouseQuantity: 2 }),
+        makeItem({ articleCode: "A1", articleId: "V1", quantity: 5, warehouseQuantity: 2 }),
       ],
     });
     const order2 = makeOrder({
       items: [
-        makeItem({ articleCode: "A1", quantity: 3, warehouseQuantity: 1 }),
+        makeItem({ articleCode: "A1", articleId: "V1", quantity: 3, warehouseQuantity: 1 }),
       ],
     });
 
@@ -300,6 +329,7 @@ describe("mergeFresisPendingOrders", () => {
       items: [
         makeItem({
           articleCode: "A1",
+          articleId: "V1",
           quantity: 5,
           warehouseQuantity: 2,
           warehouseSources: [source1],
@@ -310,6 +340,7 @@ describe("mergeFresisPendingOrders", () => {
       items: [
         makeItem({
           articleCode: "A1",
+          articleId: "V1",
           quantity: 3,
           warehouseQuantity: 3,
           warehouseSources: [source2],

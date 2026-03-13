@@ -192,10 +192,35 @@ async function getSyncStats(pool: DbPool): Promise<SyncStats> {
   return rows[0];
 }
 
+async function getUnitPricesByProductIds(
+  pool: DbPool,
+  productIds: string[],
+): Promise<Map<string, number>> {
+  if (productIds.length === 0) return new Map();
+
+  const { rows } = await pool.query<{ product_id: string; unit_price: string }>(
+    `SELECT DISTINCT ON (product_id) product_id, unit_price
+     FROM shared.prices
+     WHERE product_id = ANY($1::text[]) AND unit_price IS NOT NULL
+     ORDER BY product_id, item_selection NULLS FIRST`,
+    [productIds],
+  );
+
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const price = parseFloat(row.unit_price);
+    if (!isNaN(price) && price > 0) {
+      map.set(row.product_id, price);
+    }
+  }
+  return map;
+}
+
 export {
   upsertPrice,
   getPrice,
   getPricesByProductId,
+  getUnitPricesByProductIds,
   getTotalCount,
   getAllPrices,
   getSyncStats,

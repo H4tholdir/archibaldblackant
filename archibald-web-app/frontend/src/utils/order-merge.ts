@@ -41,9 +41,14 @@ export function mergeFresisPendingOrders(
     }
   >();
 
+  let nullItemCounter = 0;
+
   for (const order of orders) {
     for (const item of order.items) {
-      const key = `${item.articleCode}|${item.articleId ?? ""}`;
+      const key =
+        item.articleId != null
+          ? `${item.articleCode}|${item.articleId}`
+          : `${item.articleCode}|__null_${nullItemCounter++}`;
       const existing = itemMap.get(key);
 
       if (existing) {
