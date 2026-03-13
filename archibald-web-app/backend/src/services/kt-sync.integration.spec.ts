@@ -155,7 +155,7 @@ describe('KT sync round-trip', () => {
 
     // Verify SCADENZE record is included
     expect(vbs.vbs).toContain('USE SCADENZE IN 0 SHARED AGAIN ALIAS _ins');
-    expect(vbs.vbs).toContain('REPLACE TIPOMOD WITH [FT]');
+    expect(vbs.vbs).toContain('REPLACE TIPOMOD WITH [KT]');
     expect(vbs.vbs).toContain('REPLACE TIPO WITH [A]');
     expect(vbs.vbs).toContain('REPLACE TRANSIT WITH .T.');
 
