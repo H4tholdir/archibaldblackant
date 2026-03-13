@@ -5001,8 +5001,8 @@ export default function OrderFormSimple() {
           isOpen={showCustomerHistoryModal}
           onClose={() => setShowCustomerHistoryModal(false)}
           customerName={isFresis(selectedCustomer) ? (selectedSubClient?.ragioneSociale ?? selectedCustomer.name) : selectedCustomer.name}
-          customerProfileId={isFresis(selectedCustomer) ? historyMatchedProfileId : selectedCustomer.id}
-          subClientCodice={selectedSubClient?.codice ?? historyMatchedSubClientCodice}
+          customerProfileIds={(() => { const id = isFresis(selectedCustomer) ? historyMatchedProfileId : selectedCustomer.id; return id ? [id] : []; })()}
+          subClientCodices={(() => { const c = selectedSubClient?.codice ?? historyMatchedSubClientCodice; return c ? [c] : []; })()}
           isFresisClient={isFresis(selectedCustomer)}
           currentOrderItems={items.map((i) => ({
             articleCode: i.article,
