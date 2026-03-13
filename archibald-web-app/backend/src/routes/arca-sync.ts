@@ -3,6 +3,7 @@ import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
 import { performArcaSync, getKtSyncStatus, generateKtExportVbs } from '../services/arca-sync-service';
+import type { VbsExportRecord } from '../services/arca-sync-service';
 import { logger } from '../logger';
 
 const upload = multer({
@@ -60,7 +61,6 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
           payload: {
             imported: result.imported,
             exported: result.exported,
-            ktExported: result.ktExported,
             skipped: result.skipped,
           },
           timestamp: new Date().toISOString(),
@@ -72,13 +72,12 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
             imported: result.imported,
             skipped: result.skipped,
             exported: result.exported,
-            ktExported: result.ktExported,
             ktNeedingMatch: result.ktNeedingMatch,
             ktMissingArticles: result.ktMissingArticles,
             errors: result.errors,
           },
           parseStats: result.parseStats,
-          vbsScript: result.vbsScript,
+          ftExportRecords: result.ftExportRecords,
         });
       } catch (err: any) {
         console.error('Arca sync error:', err);
@@ -100,7 +99,8 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
   router.post('/finalize-kt', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const result = await generateKtExportVbs(deps.pool, userId);
+      const ftExportRecords: VbsExportRecord[] = req.body?.ftExportRecords ?? [];
+      const result = await generateKtExportVbs(deps.pool, userId, ftExportRecords);
       res.json({ success: true, data: result });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to finalize KT' });
