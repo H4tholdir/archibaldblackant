@@ -24,6 +24,43 @@ import { OrderNotes } from "./OrderNotes";
 import { TrackingDotBar } from "./TrackingProgressBar";
 import { TrackingTimeline } from "./TrackingTimeline";
 
+type DueDaysInfo = {
+  absDays: number;
+  isOverdue: boolean;
+  color: string;
+  bgColor: string;
+  summaryLabel: string;
+  detailLabel: string;
+};
+
+function computeDueDaysInfo(dueDateStr: string): DueDaysInfo | null {
+  const due = new Date(dueDateStr);
+  if (isNaN(due.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  const isOverdue = diffDays < 0;
+  const absDays = Math.abs(diffDays);
+
+  const color = isOverdue
+    ? absDays > 30 ? "#c62828" : "#e65100"
+    : absDays <= 30 ? "#f57c00" : "#2e7d32";
+  const bgColor = isOverdue
+    ? absDays > 30 ? "#ffebee" : "#fff3e0"
+    : absDays <= 30 ? "#fff8e1" : "#e8f5e9";
+  const summaryLabel = isOverdue
+    ? `⚠️ ${absDays} gg fuori scadenza`
+    : absDays <= 30
+    ? `⏳ ${absDays} gg alla scadenza`
+    : `${absDays} gg alla scadenza`;
+  const detailLabel = isOverdue
+    ? `Scaduta da ${absDays} giorni`
+    : `${absDays} giorni alla scadenza`;
+
+  return { absDays, isOverdue, color, bgColor, summaryLabel, detailLabel };
+}
+
 interface OrderCardProps {
   order: Order;
   expanded: boolean;
@@ -3035,14 +3072,12 @@ function TabFinanziario({
           </div>
 
           {order.invoiceDueDate && (() => {
-            const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
-            const isDaysPastDueValid = daysPastDue !== null && !isNaN(daysPastDue);
+            const dueDaysInfo = computeDueDaysInfo(order.invoiceDueDate);
             return (
             <div
               style={{
                 padding: "10px 16px",
-                backgroundColor:
-                  isDaysPastDueValid && daysPastDue > 0 ? "#ffebee" : "#e8f5e9",
+                backgroundColor: dueDaysInfo?.bgColor ?? "#e8f5e9",
                 borderTop: "1px solid #e0e0e0",
                 display: "flex",
                 justifyContent: "space-between",
@@ -3055,15 +3090,12 @@ function TabFinanziario({
                 <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
                 {formatDate(order.invoiceDueDate)}
               </div>
-              {isDaysPastDueValid && (
+              {dueDaysInfo !== null && (
                 <div
                   style={{
                     fontSize: "13px",
                     fontWeight: 600,
-                    color:
-                      daysPastDue > 0
-                        ? "#c62828"
-                        : "#2e7d32",
+                    color: dueDaysInfo.color,
                     display: "flex",
                     alignItems: "center",
                     gap: "6px",
@@ -3074,16 +3106,11 @@ function TabFinanziario({
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor:
-                        daysPastDue > 0
-                          ? "#c62828"
-                          : "#2e7d32",
+                      backgroundColor: dueDaysInfo.color,
                       display: "inline-block",
                     }}
                   />
-                  {daysPastDue > 0
-                    ? `Scaduta da ${daysPastDue} giorni`
-                    : `${Math.abs(daysPastDue)} giorni rimanenti`}
+                  {dueDaysInfo.detailLabel}
                 </div>
               )}
             </div>
@@ -4026,7 +4053,7 @@ export function OrderCardNew({
                     ? parsedTotalWithVat
                     : undefined);
 
-                const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
+                const dueDaysInfo = order.invoiceDueDate ? computeDueDaysInfo(order.invoiceDueDate) : null;
 
                 return (
                   <div>
@@ -4037,9 +4064,9 @@ export function OrderCardNew({
                       {order.invoiceNumber && order.invoiceDueDate && (
                         <span style={{ fontSize: "12px", color: "#666" }}>
                           Scad: {formatDate(order.invoiceDueDate)}
-                          {daysPastDue !== null && daysPastDue !== 0 && (
-                            <span style={{ marginLeft: "6px", fontWeight: 600, color: daysPastDue > 0 ? "#d32f2f" : "#2e7d32" }}>
-                              {daysPastDue > 0 ? `⚠️ ${daysPastDue} gg fuori scadenza` : `${Math.abs(daysPastDue)} gg rimanenti`}
+                          {dueDaysInfo !== null && (
+                            <span style={{ marginLeft: "6px", fontWeight: 600, color: dueDaysInfo.color }}>
+                              {dueDaysInfo.summaryLabel}
                             </span>
                           )}
                         </span>
