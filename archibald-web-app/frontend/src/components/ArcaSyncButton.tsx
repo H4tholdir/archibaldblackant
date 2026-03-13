@@ -28,7 +28,6 @@ const STAGE_MESSAGES: Record<string, string> = {
   'reading-files': 'Lettura DBF...',
   'uploading': 'Upload file...',
   'syncing': 'Sincronizzazione...',
-  'writing-vbs': 'Scrittura script...',
   'done': 'Completato!',
 };
 
@@ -186,13 +185,14 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [phase1Result, setPhase1Result] = useState<{
     imported: number; skipped: number; exported: number;
-    ktExported: number; errors: string[]; hasVbs: boolean;
+    errors: string[];
   } | null>(null);
   const [ktStatus, setKtStatus] = useState<KtSyncStatus | null>(null);
   const [ktFinalExported, setKtFinalExported] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showMatcher, setShowMatcher] = useState(false);
   const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const ftExportRecordsRef = useRef<Array<{ invoiceNumber: string; arcaData: unknown }>>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Cleanup polling on unmount
@@ -211,36 +211,30 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
 
       const syncResult = await performBrowserArcaSync(setProgress);
 
+      // Salva ftExportRecords per usarli nel finalize
+      ftExportRecordsRef.current = syncResult.ftExportRecords ?? [];
+
       setPhase1Result({
         imported: syncResult.sync.imported,
         skipped: syncResult.sync.skipped,
         exported: syncResult.sync.exported,
-        ktExported: syncResult.sync.ktExported ?? 0,
         errors: syncResult.sync.errors,
-        hasVbs: syncResult.vbsScript !== null,
       });
 
-      const hasKtIssues = (syncResult.sync.ktNeedingMatch?.length ?? 0) > 0
-        || (syncResult.sync.ktMissingArticles?.length ?? 0) > 0;
-
-      if (!hasKtIssues) {
-        setPhase('done');
-        onSyncComplete?.();
-        return;
-      }
-
-      // Fetch detailed KT status
+      // Fetch KT status per decidere il prossimo step
       const status = await fetchKtStatus();
       setKtStatus(status);
 
-      // Phase 2: show matcher if there are unmatched
       if (status.unmatched.length > 0) {
+        // Ci sono KT senza sottocliente → mostra matcher
         setPhase('matching');
         setShowMatcher(true);
-        // The matcher will call handleMatchingDone when complete
-      } else {
-        // Skip to article polling
+      } else if (status.articlesPending > 0) {
+        // Ci sono KT con articoli non pronti → polling
         startArticlePolling();
+      } else {
+        // Tutto pronto → genera VBS subito
+        await finalizeKt();
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
@@ -283,7 +277,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
   const finalizeKt = useCallback(async () => {
     setPhase('finalizing-kt');
     try {
-      const result = await finalizeKtExport();
+      const result = await finalizeKtExport(ftExportRecordsRef.current);
       setKtFinalExported(result.ktExported);
 
       if (result.vbsScript && dirHandleRef.current) {
@@ -353,14 +347,9 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
               {phase1Result.exported > 0 && (
                 <div>Esportati: <strong>{phase1Result.exported} FT</strong> verso Arca</div>
               )}
-              {(phase1Result.ktExported > 0 || ktFinalExported > 0) && (
+              {ktFinalExported > 0 && (
                 <div>
-                  Esportati: <strong>{phase1Result.ktExported + ktFinalExported} KT</strong> verso Arca
-                </div>
-              )}
-              {phase1Result.hasVbs && (
-                <div style={{ marginTop: 4, fontWeight: 600, color: '#7c3aed' }}>
-                  Il watcher eseguira sync_arca.vbs automaticamente
+                  Esportati: <strong>{ktFinalExported} KT</strong> verso Arca
                 </div>
               )}
               {phase === 'waiting-articles' && ktStatus && (
