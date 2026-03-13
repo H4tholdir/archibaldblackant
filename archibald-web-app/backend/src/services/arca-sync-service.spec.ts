@@ -5,6 +5,7 @@ import {
   parseNativeArcaFiles,
   generateVbsScript,
   performArcaSync,
+  generateKtExportVbs,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -654,7 +655,7 @@ function createMockPool(overrides?: {
       expect(result.imported).toBe(14996);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
-      expect(result.vbsScript).toBeNull();
+      expect(result.ftExportRecords).toHaveLength(0);
       expect(result.parseStats.totalDocuments).toBe(14996);
 
       // ft_counter should have been called for FT esercizi
@@ -733,7 +734,7 @@ function createMockPool(overrides?: {
       expect(result.imported).toBe(0);
       expect(result.skipped).toBe(14996);
       expect(result.exported).toBe(0);
-      expect(result.vbsScript).toBeNull();
+      expect(result.ftExportRecords).toHaveLength(0);
     },
     60000,
   );
@@ -767,9 +768,8 @@ function createMockPool(overrides?: {
       );
 
       expect(result.exported).toBe(1);
-      expect(result.vbsScript).not.toBeNull();
-      expect(result.vbsScript!.vbs).toContain("EXECSCRIPT(FILETOSTR(");
-      expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
+      expect(result.ftExportRecords).toHaveLength(1);
+      expect(result.ftExportRecords[0].invoiceNumber).toBe("FT 99999/2026");
     },
     60000,
   );
@@ -811,7 +811,7 @@ function createMockPool(overrides?: {
       );
 
       expect(result.exported).toBe(0);
-      expect(result.vbsScript).toBeNull();
+      expect(result.ftExportRecords).toHaveLength(0);
     },
     60000,
   );
@@ -847,6 +847,97 @@ function createMockPool(overrides?: {
       );
 
       expect(result.ktMissingArticles).toContain(orderId);
+    },
+    60000,
+  );
+
+  test(
+    "restituisce ftExportRecords invece di vbsScript",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const pwaArcaData = makeArcaData({
+        testata: { ESERCIZIO: "2026", TIPODOC: "FT", NUMERODOC: "99999" },
+      });
+      const pool = createMockPool({
+        pwaExportRows: [{
+          id: "pwa-record-1",
+          arca_data: JSON.stringify(pwaArcaData),
+          invoice_number: "FT 99999/2026",
+        }],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      expect((result as any).vbsScript).toBeUndefined();
+      expect(result.ftExportRecords).toHaveLength(1);
+      expect(result.ftExportRecords[0].invoiceNumber).toBe("FT 99999/2026");
+    },
+    60000,
+  );
+});
+
+(COOP16_EXISTS ? describe : describe.skip)("generateKtExportVbs", () => {
+  test(
+    "combina ftExportRecords e KT in un VBS unico",
+    async () => {
+      const ftRecord = makeArcaData({
+        testata: { ESERCIZIO: "2026", TIPODOC: "FT", NUMERODOC: "99999" },
+      });
+      const ftExportRecords: VbsExportRecord[] = [
+        { invoiceNumber: "FT 99999/2026", arcaData: ftRecord },
+      ];
+
+      const pool = createMockPool({
+        ktEligibleOrders: [
+          {
+            id: "kt-order-ready",
+            order_number: "ORD-001",
+            customer_name: "Cliente KT",
+            customer_profile_id: "profile-kt",
+            creation_date: "2026-03-13T08:00:00Z",
+            discount_percent: null,
+            remaining_sales_financial: null,
+            articles_synced_at: "2026-03-13T09:00:00Z",
+          },
+        ],
+      });
+
+      const result = await generateKtExportVbs(pool, "test-user", ftExportRecords);
+
+      expect(result.vbsScript).not.toBeNull();
+      expect(result.vbsScript!.vbs).toContain("FT 99999/2026");
+      expect(result.ktExported).toBe(0); // nessun subclient matchato in questo mock
+    },
+    60000,
+  );
+
+  test(
+    "genera VBS solo con FT se non ci sono KT idonee",
+    async () => {
+      const ftRecord = makeArcaData({
+        testata: { ESERCIZIO: "2026", TIPODOC: "FT", NUMERODOC: "88888" },
+      });
+      const ftExportRecords: VbsExportRecord[] = [
+        { invoiceNumber: "FT 88888/2026", arcaData: ftRecord },
+      ];
+      const pool = createMockPool(); // nessun kt eligible
+
+      const result = await generateKtExportVbs(pool, "test-user", ftExportRecords);
+
+      expect(result.vbsScript).not.toBeNull();
+      expect(result.vbsScript!.vbs).toContain("FT 88888/2026");
+      expect(result.ktExported).toBe(0);
+    },
+    60000,
+  );
+
+  test(
+    "restituisce vbsScript null se non ci sono né FT né KT",
+    async () => {
+      const pool = createMockPool();
+      const result = await generateKtExportVbs(pool, "test-user", []);
+      expect(result.vbsScript).toBeNull();
       expect(result.ktExported).toBe(0);
     },
     60000,
