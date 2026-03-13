@@ -27,13 +27,8 @@ import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
-import { SubClientPickerModal } from './SubClientPickerModal';
-import { CustomerPickerModal } from './SubclientsTab';
-import {
-  getSubclients as fetchSubclients,
-  setSubclientMatch,
-  getSubclientByMatchedCustomer,
-} from '../services/subclients.service';
+import { MatchingManagerModal } from './MatchingManagerModal';
+import { getMatchesForSubClient, getMatchesForCustomer } from '../services/sub-client-matches.service';
 
 interface OrderItem {
   id: string;
@@ -300,10 +295,12 @@ export default function OrderFormSimple() {
 
   // Customer history modals
   const [showCustomerHistoryModal, setShowCustomerHistoryModal] = useState(false);
-  const [showSubClientPickerModal, setShowSubClientPickerModal] = useState(false);
-  const [showCustomerPickerForHistory, setShowCustomerPickerForHistory] = useState(false);
-  const [historyMatchedProfileId, setHistoryMatchedProfileId] = useState<string | null>(null);
-  const [historyMatchedSubClientCodice, setHistoryMatchedSubClientCodice] = useState<string | null>(null);
+  const [showMatchingManagerModal, setShowMatchingManagerModal] = useState(false);
+  const [historyCustomerProfileIds, setHistoryCustomerProfileIds] = useState<string[]>([]);
+  const [historySubClientCodices, setHistorySubClientCodices] = useState<string[]>([]);
+
+  // Animazione nuove righe
+  const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
 
   // Reset noShipping when subtotal goes above shipping threshold
   useEffect(() => {
@@ -842,35 +839,42 @@ export default function OrderFormSimple() {
   const handleHistorySearchClick = useCallback(async () => {
     if (!selectedCustomer) return;
 
-    if (isFresis(selectedCustomer) && selectedSubClient) {
-      try {
-        const subs = await fetchSubclients(selectedSubClient.codice);
-        const fullSub = subs.find(s => s.codice === selectedSubClient.codice);
-        if (fullSub && !fullSub.matchedCustomerProfileId) {
-          setShowCustomerPickerForHistory(true);
-          return;
-        }
-        if (fullSub?.matchedCustomerProfileId) {
-          setHistoryMatchedProfileId(fullSub.matchedCustomerProfileId);
-        }
-      } catch {
-        // If query fails, still open history with available data
-      }
-    } else if (!isFresis(selectedCustomer)) {
-      try {
-        const linked = await getSubclientByMatchedCustomer(selectedCustomer.id);
-        if (!linked) {
-          setShowSubClientPickerModal(true);
-          return;
-        }
-        setHistoryMatchedSubClientCodice(linked.codice);
-      } catch {
-        // If query fails, still open history with available data
-      }
-    }
+    try {
+      let result: { customerProfileIds: string[]; subClientCodices: string[]; skipModal: boolean };
 
-    setShowCustomerHistoryModal(true);
+      if (isFresis(selectedCustomer) && selectedSubClient) {
+        result = await getMatchesForSubClient(selectedSubClient.codice);
+      } else if (!isFresis(selectedCustomer)) {
+        result = await getMatchesForCustomer(selectedCustomer.id);
+      } else {
+        // Fresis senza sottocliente selezionato: apri direttamente
+        setShowCustomerHistoryModal(true);
+        return;
+      }
+
+      setHistoryCustomerProfileIds(result.customerProfileIds);
+      setHistorySubClientCodices(result.subClientCodices);
+
+      if (result.skipModal) {
+        setShowCustomerHistoryModal(true);
+      } else {
+        setShowMatchingManagerModal(true);
+      }
+    } catch {
+      // Se la chiamata fallisce, apri lo storico con i dati disponibili
+      setShowCustomerHistoryModal(true);
+    }
   }, [selectedCustomer, selectedSubClient]);
+
+  const addItemsWithAnimation = useCallback((newItems: OrderItem[]) => {
+    const ids = new Set(newItems.map((i) => i.id));
+    setRecentlyAddedIds((prev) => new Set([...prev, ...ids]));
+    for (const id of ids) {
+      setTimeout(() => {
+        setRecentlyAddedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      }, 2500);
+    }
+  }, []);
 
   // Handle keyboard navigation in product dropdown
   const handleProductKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -3894,7 +3898,12 @@ export default function OrderFormSimple() {
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    style={{ borderBottom: "1px solid #f3f4f6" }}
+                    data-new-item={recentlyAddedIds.has(item.id) ? 'true' : undefined}
+                    style={{
+                      borderBottom: "1px solid #f3f4f6",
+                      background: recentlyAddedIds.has(item.id) ? '#f0fdf4' : undefined,
+                      transition: 'background 2s ease',
+                    }}
                   >
                     <td
                       style={{
@@ -5001,8 +5010,8 @@ export default function OrderFormSimple() {
           isOpen={showCustomerHistoryModal}
           onClose={() => setShowCustomerHistoryModal(false)}
           customerName={isFresis(selectedCustomer) ? (selectedSubClient?.ragioneSociale ?? selectedCustomer.name) : selectedCustomer.name}
-          customerProfileIds={(() => { const id = isFresis(selectedCustomer) ? historyMatchedProfileId : selectedCustomer.id; return id ? [id] : []; })()}
-          subClientCodices={(() => { const c = selectedSubClient?.codice ?? historyMatchedSubClientCodice; return c ? [c] : []; })()}
+          customerProfileIds={historyCustomerProfileIds}
+          subClientCodices={historySubClientCodices}
           isFresisClient={isFresis(selectedCustomer)}
           currentOrderItems={items.map((i) => ({
             articleCode: i.article,
@@ -5014,29 +5023,30 @@ export default function OrderFormSimple() {
             discount: i.discount,
           }))}
           onAddArticle={(newItem, replace) => {
+            const newId = crypto.randomUUID();
+            const mapped: OrderItem = {
+              id: newId,
+              productId: newItem.articleCode,
+              article: newItem.articleCode,
+              productName: newItem.productName ?? newItem.articleCode,
+              description: newItem.description ?? '',
+              quantity: newItem.quantity,
+              unitPrice: newItem.price,
+              vatRate: newItem.vat,
+              discount: newItem.discount ?? 0,
+              subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
+              vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
+              total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
+              originalListPrice: newItem.price,
+            };
             setItems((prev) => {
-              const filtered = replace
-                ? prev.filter((existing) => existing.article !== newItem.articleCode)
-                : prev;
-              return [...filtered, {
-                id: crypto.randomUUID(),
-                productId: newItem.articleCode,
-                article: newItem.articleCode,
-                productName: newItem.productName ?? newItem.articleCode,
-                description: newItem.description ?? '',
-                quantity: newItem.quantity,
-                unitPrice: newItem.price,
-                vatRate: newItem.vat,
-                discount: newItem.discount ?? 0,
-                subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
-                vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
-                total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
-                originalListPrice: newItem.price,
-              }];
+              const filtered = replace ? prev.filter((e) => e.article !== newItem.articleCode) : prev;
+              return [...filtered, mapped];
             });
+            addItemsWithAnimation([mapped]);
           }}
           onAddOrder={(newItems, replace) => {
-            const mapped = newItems.map((newItem) => ({
+            const mapped: OrderItem[] = newItems.map((newItem) => ({
               id: crypto.randomUUID(),
               productId: newItem.articleCode,
               article: newItem.articleCode,
@@ -5056,35 +5066,56 @@ export default function OrderFormSimple() {
             } else {
               setItems((prev) => [...prev, ...mapped]);
             }
+            addItemsWithAnimation(mapped);
           }}
         />
       )}
 
-      {/* CustomerPickerModal — Fresis: collega sottocliente a cliente Archibald */}
-      {showCustomerPickerForHistory && selectedSubClient && (
-        <CustomerPickerModal
-          onSelect={async (profileId) => {
-            await setSubclientMatch(selectedSubClient.codice, profileId);
-            setHistoryMatchedProfileId(profileId);
-            setShowCustomerPickerForHistory(false);
-            setShowCustomerHistoryModal(true);
-          }}
-          onClose={() => setShowCustomerPickerForHistory(false)}
-        />
-      )}
-
-      {/* SubClientPickerModal — cliente diretto: collega a sottocliente Fresis */}
-      {showSubClientPickerModal && selectedCustomer && !isFresis(selectedCustomer) && (
-        <SubClientPickerModal
-          customerProfileId={selectedCustomer.id}
-          customerName={selectedCustomer.name}
-          onMatched={(sub) => {
-            setHistoryMatchedSubClientCodice(sub.codice);
-            setShowSubClientPickerModal(false);
-            setShowCustomerHistoryModal(true);
-          }}
-          onClose={() => setShowSubClientPickerModal(false)}
-        />
+      {/* MatchingManagerModal — gestione N:M matching */}
+      {showMatchingManagerModal && selectedCustomer && (
+        (() => {
+          if (isFresis(selectedCustomer) && selectedSubClient) {
+            return (
+              <MatchingManagerModal
+                mode="subclient"
+                subClientCodice={selectedSubClient.codice}
+                entityName={selectedSubClient.ragioneSociale ?? selectedSubClient.codice}
+                onConfirm={(ids) => {
+                  setHistoryCustomerProfileIds(ids.customerProfileIds);
+                  setHistorySubClientCodices(ids.subClientCodices);
+                  setShowMatchingManagerModal(false);
+                  setShowCustomerHistoryModal(true);
+                }}
+                onSkip={() => {
+                  setShowMatchingManagerModal(false);
+                  setShowCustomerHistoryModal(true);
+                }}
+                onClose={() => setShowMatchingManagerModal(false)}
+              />
+            );
+          }
+          if (!isFresis(selectedCustomer)) {
+            return (
+              <MatchingManagerModal
+                mode="customer"
+                customerProfileId={selectedCustomer.id}
+                entityName={selectedCustomer.name}
+                onConfirm={(ids) => {
+                  setHistoryCustomerProfileIds(ids.customerProfileIds);
+                  setHistorySubClientCodices(ids.subClientCodices);
+                  setShowMatchingManagerModal(false);
+                  setShowCustomerHistoryModal(true);
+                }}
+                onSkip={() => {
+                  setShowMatchingManagerModal(false);
+                  setShowCustomerHistoryModal(true);
+                }}
+                onClose={() => setShowMatchingManagerModal(false)}
+              />
+            );
+          }
+          return null;
+        })()
       )}
       {/* QUANTITY EDIT MODAL */}
       {quantityEditModal && (
