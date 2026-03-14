@@ -11,6 +11,7 @@ vi.mock('../services/prices.service', () => ({
 }));
 
 import { getCustomerFullHistory } from '../api/customer-full-history';
+import { priceService } from '../services/prices.service';
 
 const mockOrder = (overrides: Partial<CustomerFullHistoryOrder> = {}): CustomerFullHistoryOrder => ({
   source: 'orders',
@@ -98,5 +99,79 @@ describe('CustomerHistoryModal', () => {
     render(<CustomerHistoryModal {...defaultProps} />);
 
     await screen.findByText(/errore nel caricamento/i);
+  });
+
+  it('badge ×N increments correctly on each click', async () => {
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Articolo Uno', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+    ]);
+
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} />);
+
+    await screen.findByText('ART001');
+    const addBtns = screen.getAllByText('+ Aggiungi');
+    fireEvent.click(addBtns[0]);
+
+    // Cart counter appears when addedCount > 0
+    await waitFor(() => expect(document.getElementById('cart-counter')).not.toBeNull());
+
+    // Second click: button now shows "Aggiunto" text; click it again
+    const aggiuntoBtn = screen.getAllByRole('button').find((b) => b.textContent?.includes('Aggiunto'));
+    expect(aggiuntoBtn).toBeDefined();
+    fireEvent.click(aggiuntoBtn!);
+
+    // Counter now shows 2 articles
+    await waitFor(() =>
+      expect(document.getElementById('cart-counter')?.textContent).toMatch(/2/),
+    );
+  });
+
+  it('buildPendingItem uses current list price for non-Fresis clients', async () => {
+    const listPrice = 20;
+    vi.mocked(priceService.getPriceAndVat).mockResolvedValue({ price: listPrice, vat: 22 });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+    ]);
+
+    const onAddArticle = vi.fn();
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={false} onAddArticle={onAddArticle} />);
+
+    await screen.findByText('ART001');
+    const addBtns = screen.getAllByText('+ Aggiungi');
+    fireEvent.click(addBtns[0]);
+
+    await waitFor(
+      () => expect(onAddArticle).toHaveBeenCalledWith(
+        expect.objectContaining({ price: listPrice }),
+        false,
+      ),
+      { timeout: 3000 },
+    );
+  });
+
+  it('shows ⚠ warning when historical unit price exceeds current list price', async () => {
+    vi.mocked(priceService.getPriceAndVat).mockResolvedValue({ price: 5, vat: 22 });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+    ]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+
+    await waitFor(() =>
+      expect(screen.getByTitle(/Prezzo storico superiore al listino attuale/)).toBeDefined(),
+    );
+  });
+
+  it('shows — in listino columns when getPriceAndVat returns null', async () => {
+    vi.mocked(priceService.getPriceAndVat).mockResolvedValue(null);
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([mockOrder()]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+
+    await screen.findByText('ART001');
+    await waitFor(() => {
+      const dashes = screen.getAllByText('—');
+      expect(dashes.length).toBeGreaterThanOrEqual(2);
+    });
   });
 });

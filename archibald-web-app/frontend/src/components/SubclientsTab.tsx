@@ -7,13 +7,18 @@ import {
 } from '../services/subclients.service';
 import type { Subclient } from '../services/subclients.service';
 import { MatchingManagerModal } from './MatchingManagerModal';
+import { getMatchesForSubClient } from '../services/sub-client-matches.service';
 
-function matchBadge(confidence: string | null) {
-  if (!confidence) return { label: 'Non matchato', bg: '#EF4444' };
-  if (confidence === 'vat') return { label: 'P.IVA', bg: '#16a34a' };
-  if (confidence === 'multi-field') return { label: 'Multi-campo', bg: '#ca8a04' };
-  if (confidence === 'manual') return { label: 'Manuale', bg: '#2563EB' };
-  return { label: confidence, bg: '#6b7280' };
+type MatchCount = { customerCount: number; subClientCount: number };
+
+function matchCountBadge(counts: MatchCount | undefined) {
+  if (!counts || (counts.customerCount === 0 && counts.subClientCount === 0)) {
+    return { label: 'Non matchato', bg: '#EF4444' };
+  }
+  const parts: string[] = [];
+  if (counts.customerCount > 0) parts.push(counts.customerCount === 1 ? '1 cliente' : `${counts.customerCount} clienti`);
+  if (counts.subClientCount > 0) parts.push(counts.subClientCount === 1 ? '1 sottocliente' : `${counts.subClientCount} sottoclienti`);
+  return { label: parts.join(' · '), bg: '#16a34a' };
 }
 
 function computeNextCodice(subclients: Subclient[]): string {
@@ -312,14 +317,16 @@ function SubclientFormModal({
 
 function SubclientCard({
   subclient,
+  matchCount,
   onSelect,
   onLink,
 }: {
   subclient: Subclient;
+  matchCount: MatchCount | undefined;
   onSelect: () => void;
   onLink: () => void;
 }) {
-  const badge = matchBadge(subclient.matchConfidence);
+  const badge = matchCountBadge(matchCount);
 
   return (
     <div
@@ -371,7 +378,7 @@ function SubclientCard({
             }}
             title="Gestisci matching storico"
           >
-            Gestisci
+            Collega
           </button>
         </div>
       </div>
@@ -389,6 +396,7 @@ function SubclientsTab() {
   const [selectedSubclient, setSelectedSubclient] = useState<Subclient | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [linkingSubclient, setLinkingSubclient] = useState<Subclient | null>(null);
+  const [matchCounts, setMatchCounts] = useState<Map<string, MatchCount>>(new Map());
 
   const existingCodici = useMemo(() => new Set(subclients.map((s) => s.codice)), [subclients]);
 
@@ -402,6 +410,16 @@ function SubclientsTab() {
     try {
       const data = await getSubclients(debouncedSearch || undefined);
       setSubclients(data);
+      void Promise.all(
+        data.map(async (sc): Promise<[string, MatchCount | null]> => {
+          const r = await getMatchesForSubClient(sc.codice).catch(() => null);
+          return [sc.codice, r ? { customerCount: r.customerProfileIds.length, subClientCount: r.subClientCodices.length } : null];
+        }),
+      ).then((entries) => {
+        setMatchCounts(new Map(
+          entries.filter((e): e is [string, MatchCount] => e[1] !== null),
+        ));
+      });
     } catch {
       // silently handle
     } finally {
@@ -479,6 +497,7 @@ function SubclientsTab() {
         <SubclientCard
           key={sc.codice}
           subclient={sc}
+          matchCount={matchCounts.get(sc.codice)}
           onSelect={() => setSelectedSubclient(sc)}
           onLink={() => setLinkingSubclient(sc)}
         />
@@ -514,7 +533,14 @@ function SubclientsTab() {
           mode="subclient"
           subClientCodice={linkingSubclient.codice}
           entityName={linkingSubclient.ragioneSociale}
-          onConfirm={() => setLinkingSubclient(null)}
+          onConfirm={(ids) => {
+            const codice = linkingSubclient.codice;
+            setMatchCounts((prev) => new Map([...prev, [codice, {
+              customerCount: ids.customerProfileIds.length,
+              subClientCount: ids.subClientCodices.length,
+            }]]));
+            setLinkingSubclient(null);
+          }}
           onSkip={() => setLinkingSubclient(null)}
           onClose={() => setLinkingSubclient(null)}
         />

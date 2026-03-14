@@ -24,6 +24,7 @@ import {
   getMatchesForSubClient,
   getMatchesForCustomer,
   removeCustomerMatch,
+  upsertSkipModal,
 } from '../services/sub-client-matches.service';
 
 const emptyMatch = { customerProfileIds: [], subClientCodices: [], skipModal: false };
@@ -91,5 +92,18 @@ describe('MatchingManagerModal', () => {
     fireEvent.click(screen.getByText(/Salta/i));
 
     expect(subClientProps.onSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls upsertSkipModal when skip checkbox is checked on confirm', async () => {
+    render(<MatchingManagerModal {...subClientProps} />);
+    await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    fireEvent.click(screen.getByText(/conferma/i));
+
+    await waitFor(() =>
+      expect(upsertSkipModal).toHaveBeenCalledWith('subclient', 'C00001', true),
+    );
   });
 });

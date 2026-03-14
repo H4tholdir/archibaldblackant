@@ -407,10 +407,11 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
           }}>Sconto {order.orderDiscountPercent}%</span>
         )}
         <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, color: '#059669' }}>€ {formatEur(totalAmount)}</span>
-        <button onClick={onCopyOrder} style={{
-          background: '#1e293b', color: 'white', border: 'none',
-          padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>⊕ Copia tutto l'ordine</button>
+        <button onClick={onCopyOrder} disabled={isCopying} style={{
+          background: isCopying ? '#475569' : '#1e293b', color: 'white', border: 'none',
+          padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+          cursor: isCopying ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+        }}>{isCopying ? '⏳ Copiando...' : '⊕ Copia tutto l\'ordine'}</button>
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
@@ -523,12 +524,18 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
         {listinoUnit !== null ? (
           <>
             <span style={{ fontWeight: 700, color: '#6366f1' }}>{formatEur(listinoUnit)}</span>
-            {delta !== null && Math.abs(delta) > 0.1 && (
+            {article.unitPrice > listinoUnit && (
+              <span
+                title="Prezzo storico superiore al listino attuale — l'articolo verrà aggiunto a prezzo listino con sconto 0%"
+                style={{ display: 'block', fontSize: 8, color: '#f97316', cursor: 'help' }}
+              >⚠</span>
+            )}
+            {delta !== null && Math.abs(delta) > 0.001 && (
               <span style={{ display: 'block', fontSize: 8, fontWeight: 600, color: delta > 0 ? '#dc2626' : '#059669' }}>
                 {delta > 0 ? `▲ +${delta}%` : `▼ −${Math.abs(delta)}%`}
               </span>
             )}
-            {delta !== null && Math.abs(delta) <= 0.1 && (
+            {delta !== null && Math.abs(delta) <= 0.001 && (
               <span style={{ display: 'block', fontSize: 8, color: '#94a3b8' }}>= invariato</span>
             )}
           </>

@@ -236,7 +236,7 @@ export function MatchingManagerModal(props: Props) {
               onClick={onSkip}
               style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}
             >
-              Salta — apri storico senza salvare
+              Salta — apri storico senza matching
             </button>
             <button
               onClick={handleConfirm}

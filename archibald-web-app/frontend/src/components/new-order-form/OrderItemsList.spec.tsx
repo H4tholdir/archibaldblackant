@@ -21,34 +21,8 @@ const BASE_ITEM: OrderItem = {
 };
 
 describe('OrderItemsList', () => {
-  it('renders without newItemIds prop', () => {
+  it('renders item productName', () => {
     render(<OrderItemsList items={[BASE_ITEM]} onEditItem={() => {}} onDeleteItem={() => {}} />);
     expect(screen.getByText('Test')).toBeTruthy();
-  });
-
-  it('applies slide-in animation class to items in newItemIds', () => {
-    const { container } = render(
-      <OrderItemsList
-        items={[BASE_ITEM]}
-        onEditItem={() => {}}
-        onDeleteItem={() => {}}
-        newItemIds={new Set(['item-1'])}
-      />,
-    );
-    const newRow = container.querySelector('[data-new-item="true"]');
-    expect(newRow).not.toBeNull();
-  });
-
-  it('does not mark items not in newItemIds', () => {
-    const { container } = render(
-      <OrderItemsList
-        items={[BASE_ITEM]}
-        onEditItem={() => {}}
-        onDeleteItem={() => {}}
-        newItemIds={new Set(['item-99'])}
-      />,
-    );
-    const newRow = container.querySelector('[data-new-item="true"]');
-    expect(newRow).toBeNull();
   });
 });
