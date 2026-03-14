@@ -6,7 +6,7 @@ type MatchResult = {
   skipModal: boolean;
 };
 
-async function getMatchesForSubClient(pool: DbPool, userId: number, codice: string): Promise<MatchResult> {
+async function getMatchesForSubClient(pool: DbPool, userId: string, codice: string): Promise<MatchResult> {
   const [custRows, subRows, prefRow] = await Promise.all([
     pool.query<{ customer_profile_id: string }>(
       `SELECT customer_profile_id FROM shared.sub_client_customer_matches WHERE sub_client_codice = $1`,
@@ -33,7 +33,7 @@ async function getMatchesForSubClient(pool: DbPool, userId: number, codice: stri
   };
 }
 
-async function getMatchesForCustomer(pool: DbPool, userId: number, customerProfileId: string): Promise<MatchResult> {
+async function getMatchesForCustomer(pool: DbPool, userId: string, customerProfileId: string): Promise<MatchResult> {
   const [subRows, prefRow] = await Promise.all([
     pool.query<{ sub_client_codice: string }>(
       `SELECT sub_client_codice FROM shared.sub_client_customer_matches WHERE customer_profile_id = $1`,
@@ -91,7 +91,7 @@ async function removeSubClientMatch(pool: DbPool, codiceA: string, codiceB: stri
 
 async function upsertSkipModal(
   pool: DbPool,
-  userId: number,
+  userId: string,
   entityType: 'subclient' | 'customer',
   entityId: string,
   skip: boolean,

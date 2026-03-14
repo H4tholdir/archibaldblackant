@@ -842,13 +842,13 @@ function createApp(deps: AppDeps): Express {
   );
 
   app.use('/api/sub-client-matches', authenticateJWT, createSubClientMatchesRouter({
-    getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, parseInt(userId, 10), codice),
-    getMatchesForCustomer: (userId, profileId) => subClientMatchesRepo.getMatchesForCustomer(pool, parseInt(userId, 10), profileId),
+    getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, userId, codice),
+    getMatchesForCustomer: (userId, profileId) => subClientMatchesRepo.getMatchesForCustomer(pool, userId, profileId),
     addCustomerMatch: (codice, customerProfileId) => subClientMatchesRepo.addCustomerMatch(pool, codice, customerProfileId),
     removeCustomerMatch: (codice, customerProfileId) => subClientMatchesRepo.removeCustomerMatch(pool, codice, customerProfileId),
     addSubClientMatch: (codiceA, codiceB) => subClientMatchesRepo.addSubClientMatch(pool, codiceA, codiceB),
     removeSubClientMatch: (codiceA, codiceB) => subClientMatchesRepo.removeSubClientMatch(pool, codiceA, codiceB),
-    upsertSkipModal: (userId, entityType, entityId, skip) => subClientMatchesRepo.upsertSkipModal(pool, parseInt(userId, 10), entityType, entityId, skip),
+    upsertSkipModal: (userId, entityType, entityId, skip) => subClientMatchesRepo.upsertSkipModal(pool, userId, entityType, entityId, skip),
   }));
 
   app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
