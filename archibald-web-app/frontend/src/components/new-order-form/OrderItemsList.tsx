@@ -6,12 +6,26 @@ interface OrderItemsListProps {
   items: OrderItem[];
   onEditItem: (itemId: string, updates: Partial<OrderItem>) => void;
   onDeleteItem: (itemId: string) => void;
+  newItemIds?: Set<string>;
 }
+
+const NEW_ITEM_STYLES = `
+  @keyframes slideInItem {
+    0%   { opacity: 0; transform: translateX(-12px); }
+    60%  { transform: translateX(3px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes fadeBadge {
+    0%, 70% { opacity: 1; }
+    100%    { opacity: 0; }
+  }
+`;
 
 export function OrderItemsList({
   items,
   onEditItem,
   onDeleteItem,
+  newItemIds,
 }: OrderItemsListProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
@@ -34,6 +48,7 @@ export function OrderItemsList({
 
   return (
     <div style={{ width: "100%" }}>
+      <style>{NEW_ITEM_STYLES}</style>
       <h3
         style={{
           fontSize: "1.125rem",
@@ -75,96 +90,117 @@ export function OrderItemsList({
 
         {/* Table Body */}
         {items.map((item) => {
+          const isNew = newItemIds?.has(item.id) ?? false;
           return (
-          <div
-            key={item.id}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 100px",
-              gap: "1rem",
-              padding: "1rem",
-              borderBottom: "1px solid #e5e7eb",
-              backgroundColor: "white",
-            }}
-          >
-            {/* Product Name & Description */}
-            <div>
-              <div style={{ fontWeight: "500" }}>{item.productName}</div>
-              {item.article && (
-                <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-                  Codice: {item.article}
+            <div
+              key={item.id}
+              role="row"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 100px",
+                gap: "1rem",
+                padding: "1rem",
+                borderBottom: "1px solid #e5e7eb",
+                backgroundColor: isNew ? "#f0fdf4" : "white",
+                borderLeft: isNew ? "3px solid #059669" : undefined,
+                animation: isNew ? "slideInItem 0.4s cubic-bezier(0.34,1.56,0.64,1)" : undefined,
+              }}
+            >
+              {/* Product Name & Description */}
+              <div>
+                <div style={{ fontWeight: "500", display: "flex", alignItems: "center", gap: 6 }}>
+                  {item.productName}
+                  {isNew && (
+                    <span
+                      style={{
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        color: "#059669",
+                        background: "#dcfce7",
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                        animation: "fadeBadge 2.2s ease forwards",
+                      }}
+                    >
+                      ✓ nuovo
+                    </span>
+                  )}
                 </div>
-              )}
-              {item.description && (
-                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                  {item.description}
-                </div>
-              )}
-              {item.packageContent && (
-                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                  Confezione: {item.packageContent}
-                </div>
-              )}
+                {item.article && (
+                  <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                    Codice: {item.article}
+                  </div>
+                )}
+                {item.description && (
+                  <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    {item.description}
+                  </div>
+                )}
+                {item.packageContent && (
+                  <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    Confezione: {item.packageContent}
+                  </div>
+                )}
+              </div>
+
+              {/* Quantity */}
+              <div>{item.quantity}</div>
+
+              {/* Unit Price */}
+              <div>{formatCurrency(item.unitPrice)}</div>
+
+              {/* Discount */}
+              <div>
+                {item.discount > 0 ? (
+                  <span style={{ color: "#dc2626" }}>{item.discount}%</span>
+                ) : (
+                  <span style={{ color: "#9ca3af" }}>—</span>
+                )}
+              </div>
+
+              {/* Total */}
+              <div style={{ fontWeight: "600" }}>
+                {formatCurrency(item.total)}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={() => setEditingItemId(item.id)}
+                  aria-label={`Modifica ${item.productName}`}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.875rem",
+                    backgroundColor: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Rimuovere ${item.productName} dall'ordine?`)) {
+                      onDeleteItem(item.id);
+                    }
+                  }}
+                  aria-label={`Elimina ${item.productName}`}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.875rem",
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
-
-            {/* Quantity */}
-            <div>{item.quantity}</div>
-
-            {/* Unit Price */}
-            <div>{formatCurrency(item.unitPrice)}</div>
-
-            {/* Discount */}
-            <div>
-              {item.discount > 0 ? (
-                <span style={{ color: "#dc2626" }}>{item.discount}%</span>
-              ) : (
-                <span style={{ color: "#9ca3af" }}>—</span>
-              )}
-            </div>
-
-            {/* Total */}
-            <div style={{ fontWeight: "600" }}>
-              {formatCurrency(item.total)}
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button
-                onClick={() => setEditingItemId(item.id)}
-                aria-label={`Modifica ${item.productName}`}
-                style={{
-                  padding: "0.25rem 0.5rem",
-                  fontSize: "0.875rem",
-                  backgroundColor: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Rimuovere ${item.productName} dall'ordine?`)) {
-                    onDeleteItem(item.id);
-                  }
-                }}
-                aria-label={`Elimina ${item.productName}`}
-                style={{
-                  padding: "0.25rem 0.5rem",
-                  fontSize: "0.875rem",
-                  backgroundColor: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                🗑️
-              </button>
-            </div>
-          </div>
           );
         })}
       </div>

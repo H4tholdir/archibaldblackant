@@ -3783,6 +3783,18 @@ export default function OrderFormSimple() {
 
           {/* Desktop: Table view */}
           {!isMobile && (
+            <>
+            <style>{`
+              @keyframes slideInItem {
+                0%   { opacity: 0; transform: translateX(-12px); }
+                60%  { transform: translateX(3px); }
+                100% { opacity: 1; transform: translateX(0); }
+              }
+              @keyframes fadeBadge {
+                0%, 70% { opacity: 1; }
+                100%    { opacity: 0; }
+              }
+            `}</style>
             <table
               style={{
                 width: "100%",
@@ -3877,11 +3889,11 @@ export default function OrderFormSimple() {
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    data-new-item={recentlyAddedIds.has(item.id) ? 'true' : undefined}
                     style={{
                       borderBottom: "1px solid #f3f4f6",
                       background: recentlyAddedIds.has(item.id) ? '#f0fdf4' : undefined,
-                      transition: 'background 2s ease',
+                      borderLeft: recentlyAddedIds.has(item.id) ? '3px solid #059669' : undefined,
+                      animation: recentlyAddedIds.has(item.id) ? 'slideInItem 0.4s cubic-bezier(0.34,1.56,0.64,1)' : undefined,
                     }}
                   >
                     <td
@@ -3896,7 +3908,17 @@ export default function OrderFormSimple() {
                         }
                       }}
                     >
-                      <strong>{item.productName}</strong>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <strong>{item.productName}</strong>
+                        {recentlyAddedIds.has(item.id) && (
+                          <span style={{
+                            fontSize: '0.65rem', fontWeight: 700,
+                            color: '#059669', background: '#dcfce7',
+                            borderRadius: 4, padding: '1px 5px',
+                            animation: 'fadeBadge 2.2s ease forwards',
+                          }}>✓ nuovo</span>
+                        )}
+                      </span>
                       {item.description && (
                         <p
                           style={{
@@ -4096,6 +4118,7 @@ export default function OrderFormSimple() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
 
           {/* Mobile: Card view */}
