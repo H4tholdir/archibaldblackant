@@ -5075,14 +5075,16 @@ export default function OrderFormSimple() {
                 entityName={selectedSubClient.ragioneSociale ?? selectedSubClient.codice}
                 onConfirm={(ids) => {
                   setHistoryCustomerProfileIds(ids.customerProfileIds);
-                  setHistorySubClientCodices(ids.subClientCodices);
+                  setHistorySubClientCodices([selectedSubClient.codice, ...ids.subClientCodices]);
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
                 onSkip={(matches) => {
                   if (matches) {
                     setHistoryCustomerProfileIds(matches.customerProfileIds);
-                    setHistorySubClientCodices(matches.subClientCodices);
+                    setHistorySubClientCodices([selectedSubClient.codice, ...matches.subClientCodices]);
+                  } else {
+                    setHistorySubClientCodices([selectedSubClient.codice]);
                   }
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
