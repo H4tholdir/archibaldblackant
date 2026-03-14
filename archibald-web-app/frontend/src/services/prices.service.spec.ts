@@ -23,6 +23,9 @@ function makeProductsResponse(products: any[]) {
   } as Response;
 }
 
+// Realistic product: id = internal Archibald ID, name = article code (used by callers)
+const realisticProduct = { id: "005299K2", name: "6830L.314.014", price: 12.5, vat: 22 };
+
 describe("PriceService", () => {
   let service: PriceService;
 
@@ -32,14 +35,24 @@ describe("PriceService", () => {
   });
 
   describe("getPriceByArticleId", () => {
-    test("returns price from API products response", async () => {
+    test("returns price matched by product name (article code)", async () => {
       mockFetchWithRetry.mockResolvedValue(
-        makeProductsResponse([{ id: "P001", name: "Vite M6", price: 12.5, vat: 22 }]),
+        makeProductsResponse([realisticProduct]),
       );
 
-      const price = await service.getPriceByArticleId("P001");
+      const price = await service.getPriceByArticleId(realisticProduct.name);
 
       expect(price).toBe(12.5);
+    });
+
+    test("does not match by internal product id", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([realisticProduct]),
+      );
+
+      const price = await service.getPriceByArticleId(realisticProduct.id);
+
+      expect(price).toBeNull();
     });
 
     test("returns null when product not found", async () => {
@@ -52,24 +65,34 @@ describe("PriceService", () => {
 
     test("returns null when product has no price", async () => {
       mockFetchWithRetry.mockResolvedValue(
-        makeProductsResponse([{ id: "NO_PRICE", name: "No price product" }]),
+        makeProductsResponse([{ id: "INT001", name: "6830L.NO.PRICE" }]),
       );
 
-      const price = await service.getPriceByArticleId("NO_PRICE");
+      const price = await service.getPriceByArticleId("6830L.NO.PRICE");
 
       expect(price).toBeNull();
     });
   });
 
   describe("getPriceAndVat", () => {
-    test("returns price and vat from API", async () => {
+    test("returns price and vat matched by product name (article code)", async () => {
       mockFetchWithRetry.mockResolvedValue(
-        makeProductsResponse([{ id: "P001", name: "Vite M6", price: 12.5, vat: 22 }]),
+        makeProductsResponse([realisticProduct]),
       );
 
-      const result = await service.getPriceAndVat("P001");
+      const result = await service.getPriceAndVat(realisticProduct.name);
 
       expect(result).toEqual({ price: 12.5, vat: 22 });
+    });
+
+    test("does not match by internal product id", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([realisticProduct]),
+      );
+
+      const result = await service.getPriceAndVat(realisticProduct.id);
+
+      expect(result).toBeNull();
     });
 
     test("returns null when product not found", async () => {
@@ -82,20 +105,20 @@ describe("PriceService", () => {
 
     test("defaults vat to 22 when not set", async () => {
       mockFetchWithRetry.mockResolvedValue(
-        makeProductsResponse([{ id: "NO_VAT", name: "No VAT", price: 10 }]),
+        makeProductsResponse([{ id: "INT002", name: "6830L.NO.VAT", price: 10 }]),
       );
 
-      const result = await service.getPriceAndVat("NO_VAT");
+      const result = await service.getPriceAndVat("6830L.NO.VAT");
 
       expect(result).toEqual({ price: 10, vat: 22 });
     });
 
     test("returns null when product has no price", async () => {
       mockFetchWithRetry.mockResolvedValue(
-        makeProductsResponse([{ id: "NO_PRICE", name: "No price" }]),
+        makeProductsResponse([{ id: "INT003", name: "6830L.NO.PRICE.2" }]),
       );
 
-      const result = await service.getPriceAndVat("NO_PRICE");
+      const result = await service.getPriceAndVat("6830L.NO.PRICE.2");
 
       expect(result).toBeNull();
     });

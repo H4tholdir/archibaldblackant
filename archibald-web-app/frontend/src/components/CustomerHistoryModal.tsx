@@ -12,14 +12,9 @@ type Props = {
   customerProfileIds: string[];
   subClientCodices: string[];
   isFresisClient: boolean;
-  currentOrderItems: PendingOrderItem[];
   onAddArticle: (item: PendingOrderItem, replace: boolean) => void;
   onAddOrder: (items: PendingOrderItem[], replace: boolean) => void;
 };
-
-type PendingAction =
-  | { type: 'single'; item: PendingOrderItem; existingCode: string }
-  | { type: 'order'; items: PendingOrderItem[]; skipped: string[] };
 
 function formatEur(n: number): string {
   return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,13 +22,12 @@ function formatEur(n: number): string {
 
 export function CustomerHistoryModal({
   isOpen, onClose, customerName, customerProfileIds, subClientCodices,
-  isFresisClient, currentOrderItems, onAddArticle, onAddOrder,
+  isFresisClient, onAddArticle, onAddOrder,
 }: Props) {
   const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [skippedDialog, setSkippedDialog] = useState<string[]>([]);
 
   // Listino prices: Map<articleCode, { price: number; vat: number } | null>
@@ -140,13 +134,7 @@ export function CustomerHistoryModal({
   const handleAddSingle = useCallback(
     async (article: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number) => {
       const item = await buildPendingItem(article, orderDiscountPercent);
-      const alreadyPresent = currentOrderItems.some((i) => i.articleCode === article.articleCode);
-      if (alreadyPresent) {
-        setPendingAction({ type: 'single', item, existingCode: article.articleCode });
-        return;
-      }
       onAddArticle(item, false);
-      // Animazioni
       setAddedCount((c) => c + 1);
       setArticleBadges((prev) => {
         const m = new Map(prev);
@@ -158,7 +146,7 @@ export function CustomerHistoryModal({
         setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; });
       }, 1200);
     },
-    [buildPendingItem, currentOrderItems, onAddArticle],
+    [buildPendingItem, onAddArticle],
   );
 
   const handleCopyOrder = useCallback(
@@ -173,13 +161,6 @@ export function CustomerHistoryModal({
           : await priceService.getPriceAndVat(a.articleCode);
         if (!priceInfo) { skipped.push(`${a.articleCode} — ${a.articleDescription}`); continue; }
         validItems.push(await buildPendingItem(a, order.orderDiscountPercent));
-      }
-
-      const action: PendingAction = { type: 'order', items: validItems, skipped };
-      if (currentOrderItems.length > 0) {
-        setCopyingOrderId(null);
-        setPendingAction(action);
-        return;
       }
 
       onAddOrder(validItems, false);
@@ -200,21 +181,7 @@ export function CustomerHistoryModal({
         setCopiedOrderIds((prev) => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
     },
-    [buildPendingItem, currentOrderItems.length, isFresisClient, onAddOrder],
-  );
-
-  const handleConflictChoice = useCallback(
-    (replace: boolean) => {
-      if (!pendingAction) return;
-      if (pendingAction.type === 'single') {
-        onAddArticle(pendingAction.item, replace);
-      } else {
-        onAddOrder(pendingAction.items, replace);
-        if (pendingAction.skipped.length > 0) setSkippedDialog(pendingAction.skipped);
-      }
-      setPendingAction(null);
-    },
-    [onAddArticle, onAddOrder, pendingAction],
+    [buildPendingItem, isFresisClient, onAddOrder],
   );
 
   if (!isOpen) return null;
@@ -334,16 +301,6 @@ export function CustomerHistoryModal({
             }}>Chiudi</button>
           </div>
         </div>
-
-        {pendingAction && (
-          <ConflictDialog
-            existingCount={currentOrderItems.length}
-            isOrderCopy={pendingAction.type === 'order'}
-            onAppend={() => handleConflictChoice(false)}
-            onReplace={() => handleConflictChoice(true)}
-            onCancel={() => setPendingAction(null)}
-          />
-        )}
 
         {skippedDialog.length > 0 && (
           <SkippedDialog skipped={skippedDialog} onClose={() => setSkippedDialog([])} />
@@ -594,33 +551,6 @@ function FooterItem({ label, value, green }: { label: string; value: string; gre
 
 function Divider() {
   return <div style={{ width: 1, height: 30, background: '#e2e8f0' }} />;
-}
-
-function ConflictDialog({ existingCount, isOrderCopy, onAppend, onReplace, onCancel }: {
-  existingCount: number;
-  isOrderCopy: boolean;
-  onAppend: () => void;
-  onReplace: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 10, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Ordine non vuoto</div>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>
-          Hai già <strong>{existingCount}</strong> {existingCount === 1 ? 'articolo' : 'articoli'} nell'ordine.{' '}
-          {isOrderCopy
-            ? "Vuoi aggiungere gli articoli in coda o sovrascrivere tutto l'ordine?"
-            : 'Questo articolo è già presente. Vuoi aggiungerlo in coda o sostituire quello esistente?'}
-        </p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Annulla</button>
-          <button onClick={onReplace} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Sovrascrivi</button>
-          <button onClick={onAppend} style={{ background: '#6366f1', color: 'white', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Aggiungi in coda</button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function SkippedDialog({ skipped, onClose }: { skipped: string[]; onClose: () => void }) {

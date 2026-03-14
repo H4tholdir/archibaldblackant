@@ -85,13 +85,13 @@ describe('MatchingManagerModal', () => {
     );
   });
 
-  it('calls onSkip when the skip button is clicked', async () => {
+  it('calls onSkip with current matches when the skip button is clicked', async () => {
     render(<MatchingManagerModal {...subClientProps} />);
-    await screen.findByText(/Salta/i);
+    await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());
 
     fireEvent.click(screen.getByText(/Salta/i));
 
-    expect(subClientProps.onSkip).toHaveBeenCalledTimes(1);
+    expect(subClientProps.onSkip).toHaveBeenCalledWith({ customerProfileIds: [], subClientCodices: [] });
   });
 
   it('calls upsertSkipModal when skip checkbox is checked on confirm', async () => {

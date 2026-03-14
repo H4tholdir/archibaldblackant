@@ -41,7 +41,6 @@ const defaultProps = {
   customerProfileIds: ['PROF-1'],
   subClientCodices: [],
   isFresisClient: false,
-  currentOrderItems: [],
   onAddArticle: vi.fn(),
   onAddOrder: vi.fn(),
 };

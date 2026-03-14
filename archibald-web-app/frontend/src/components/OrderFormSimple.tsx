@@ -28,7 +28,6 @@ import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
-import { getMatchesForSubClient, getMatchesForCustomer } from '../services/sub-client-matches.service';
 
 interface OrderItem {
   id: string;
@@ -836,34 +835,14 @@ export default function OrderFormSimple() {
     }, 150);
   };
 
-  const handleHistorySearchClick = useCallback(async () => {
+  const handleHistorySearchClick = useCallback(() => {
     if (!selectedCustomer) return;
-
-    try {
-      let result: { customerProfileIds: string[]; subClientCodices: string[]; skipModal: boolean };
-
-      if (isFresis(selectedCustomer) && selectedSubClient) {
-        result = await getMatchesForSubClient(selectedSubClient.codice);
-      } else if (!isFresis(selectedCustomer)) {
-        result = await getMatchesForCustomer(selectedCustomer.id);
-      } else {
-        // Fresis senza sottocliente selezionato: apri direttamente
-        setShowCustomerHistoryModal(true);
-        return;
-      }
-
-      setHistoryCustomerProfileIds(result.customerProfileIds);
-      setHistorySubClientCodices(result.subClientCodices);
-
-      if (result.skipModal) {
-        setShowCustomerHistoryModal(true);
-      } else {
-        setShowMatchingManagerModal(true);
-      }
-    } catch {
-      // Se la chiamata fallisce, apri lo storico con i dati disponibili
+    if (isFresis(selectedCustomer) && !selectedSubClient) {
+      // Fresis senza sottocliente selezionato: apri direttamente storico
       setShowCustomerHistoryModal(true);
+      return;
     }
+    setShowMatchingManagerModal(true);
   }, [selectedCustomer, selectedSubClient]);
 
   const addItemsWithAnimation = useCallback((newItems: OrderItem[]) => {
@@ -5013,15 +4992,6 @@ export default function OrderFormSimple() {
           customerProfileIds={historyCustomerProfileIds}
           subClientCodices={historySubClientCodices}
           isFresisClient={isFresis(selectedCustomer)}
-          currentOrderItems={items.map((i) => ({
-            articleCode: i.article,
-            productName: i.productName,
-            description: i.description ?? '',
-            quantity: i.quantity,
-            price: i.unitPrice,
-            vat: i.vatRate,
-            discount: i.discount,
-          }))}
           onAddArticle={(newItem, replace) => {
             const newId = crypto.randomUUID();
             const mapped: OrderItem = {
@@ -5086,7 +5056,11 @@ export default function OrderFormSimple() {
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
-                onSkip={() => {
+                onSkip={(matches) => {
+                  if (matches) {
+                    setHistoryCustomerProfileIds(matches.customerProfileIds);
+                    setHistorySubClientCodices(matches.subClientCodices);
+                  }
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
@@ -5106,7 +5080,11 @@ export default function OrderFormSimple() {
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
-                onSkip={() => {
+                onSkip={(matches) => {
+                  if (matches) {
+                    setHistoryCustomerProfileIds(matches.customerProfileIds);
+                    setHistorySubClientCodices(matches.subClientCodices);
+                  }
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}

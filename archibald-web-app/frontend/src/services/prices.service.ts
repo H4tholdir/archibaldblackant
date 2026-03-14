@@ -13,7 +13,7 @@ export class PriceService {
       const data = await response.json();
       const products: any[] = data.data?.products || [];
 
-      const match = products.find((p: any) => p.id === articleId);
+      const match = products.find((p: any) => p.name === articleId);
       return match?.price ?? null;
     } catch (error) {
       console.error("[PriceService] Failed to get price:", error);
@@ -33,7 +33,7 @@ export class PriceService {
       const data = await response.json();
       const products: any[] = data.data?.products || [];
 
-      const match = products.find((p: any) => p.id === articleId);
+      const match = products.find((p: any) => p.name === articleId);
       if (!match) return null;
 
       const price = match.price;

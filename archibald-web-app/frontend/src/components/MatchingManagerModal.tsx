@@ -1,25 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getMatchesForSubClient, getMatchesForCustomer, addCustomerMatch, removeCustomerMatch, addSubClientMatch, removeSubClientMatch, upsertSkipModal } from '../services/sub-client-matches.service';
 import { getSubclients } from '../services/subclients.service';
 import { customerService } from '../services/customers.service';
 import type { Customer } from '../types/local-customer';
 import type { Subclient } from '../services/subclients.service';
 
+type MatchIds = { customerProfileIds: string[]; subClientCodices: string[] };
+
 type Props =
   | {
       mode: 'subclient';
       subClientCodice: string;
       entityName: string;
-      onConfirm: (ids: { customerProfileIds: string[]; subClientCodices: string[] }) => void;
-      onSkip: () => void;
+      onConfirm: (ids: MatchIds) => void;
+      onSkip: (matches?: MatchIds) => void;
       onClose: () => void;
     }
   | {
       mode: 'customer';
       customerProfileId: string;
       entityName: string;
-      onConfirm: (ids: { customerProfileIds: string[]; subClientCodices: string[] }) => void;
-      onSkip: () => void;
+      onConfirm: (ids: MatchIds) => void;
+      onSkip: (matches?: MatchIds) => void;
       onClose: () => void;
     };
 
@@ -49,6 +51,8 @@ export function MatchingManagerModal(props: Props) {
   const [resolvedCustomerNames, setResolvedCustomerNames] = useState<Map<string, string>>(new Map());
 
   const entityId = mode === 'subclient' ? props.subClientCodice : props.customerProfileId;
+  const onSkipRef = useRef(onSkip);
+  onSkipRef.current = onSkip;
 
   useEffect(() => {
     const load = async () => {
@@ -60,6 +64,11 @@ export function MatchingManagerModal(props: Props) {
         setInitialMatch(state);
         setCurrentMatch(state);
         setSkipModal(result.skipModal);
+
+        if (result.skipModal) {
+          onSkipRef.current(state);
+          return;
+        }
 
         // Resolve names for already-matched customer IDs so chips show "ID · name"
         if (state.customerProfileIds.length > 0) {
@@ -82,6 +91,7 @@ export function MatchingManagerModal(props: Props) {
       }
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, entityId]);
 
   useEffect(() => {
@@ -233,7 +243,7 @@ export function MatchingManagerModal(props: Props) {
           </label>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={onSkip}
+              onClick={() => onSkip(currentMatch)}
               style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}
             >
               Salta — apri storico senza matching
