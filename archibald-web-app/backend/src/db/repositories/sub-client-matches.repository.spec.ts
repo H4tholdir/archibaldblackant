@@ -113,6 +113,12 @@ describe('addSubClientMatch / removeSubClientMatch — canonical ordering', () =
     const call2 = (pool2.query as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call1[1]).toEqual(call2[1]);
   });
+
+  it('addSubClientMatch does nothing when codiceA equals codiceB (self-match guard)', async () => {
+    const pool = makePool();
+    await repo.addSubClientMatch(pool, 'C01376', 'C01376');
+    expect(pool.query).not.toHaveBeenCalled();
+  });
 });
 
 describe('upsertSkipModal', () => {

@@ -128,11 +128,12 @@ export function MatchingManagerModal(props: Props) {
   }, []);
 
   const addSubclient = useCallback((codice: string) => {
+    if (mode === 'subclient' && codice === entityId) return;
     if (currentMatch.subClientCodices.includes(codice)) return;
     setCurrentMatch((prev) => ({ ...prev, subClientCodices: [...prev.subClientCodices, codice] }));
     setSubclientQuery('');
     setShowSubclientSearch(false);
-  }, [currentMatch.subClientCodices]);
+  }, [mode, entityId, currentMatch.subClientCodices]);
 
   const removeSubclient = useCallback((codice: string) => {
     setCurrentMatch((prev) => ({ ...prev, subClientCodices: prev.subClientCodices.filter((c) => c !== codice) }));
@@ -222,7 +223,9 @@ export function MatchingManagerModal(props: Props) {
               showSearch={showSubclientSearch}
               onToggleSearch={() => setShowSubclientSearch((v) => !v)}
               searchPlaceholder="Cerca sottocliente..."
-              searchResults={subclientResults.map((s) => ({ id: s.codice, label: `${s.codice} · ${s.ragioneSociale}` }))}
+              searchResults={subclientResults
+                .filter((s) => !(mode === 'subclient' && s.codice === entityId))
+                .map((s) => ({ id: s.codice, label: `${s.codice} · ${s.ragioneSociale}` }))}
               onSelectResult={(id) => addSubclient(id)}
             />
           </div>

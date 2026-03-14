@@ -94,6 +94,31 @@ describe('MatchingManagerModal', () => {
     expect(subClientProps.onSkip).toHaveBeenCalledWith({ customerProfileIds: [], subClientCodices: [] });
   });
 
+  it('filters out the entity own codice from subclient search results (prevents self-match)', async () => {
+    const { getSubclients } = await import('../services/subclients.service');
+    vi.mocked(getSubclients).mockResolvedValue([
+      { codice: 'C00001', ragioneSociale: 'Rossi Srl' } as any,
+      { codice: 'C00002', ragioneSociale: 'Bianchi Srl' } as any,
+    ]);
+
+    render(<MatchingManagerModal {...subClientProps} />);
+    await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());
+
+    // Open subclient search (last '+ Aggiungi' button)
+    const addBtns = screen.getAllByText('+ Aggiungi', { selector: 'button' });
+    fireEvent.click(addBtns[addBtns.length - 1]);
+
+    fireEvent.change(screen.getByPlaceholderText('Cerca sottocliente...'), { target: { value: 'C000' } });
+
+    // Wait through 250ms debounce
+    await waitFor(() => expect(getSubclients).toHaveBeenCalledWith('C000'), { timeout: 1000 });
+
+    // C00002 should appear (another result)
+    await waitFor(() => expect(screen.queryByText('C00002 · Bianchi Srl')).not.toBeNull());
+    // Entity's own codice (C00001 = subClientProps.subClientCodice) must NOT appear
+    expect(screen.queryByText('C00001 · Rossi Srl')).toBeNull();
+  });
+
   it('calls upsertSkipModal when skip checkbox is checked on confirm', async () => {
     render(<MatchingManagerModal {...subClientProps} />);
     await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());

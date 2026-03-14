@@ -73,6 +73,7 @@ function canonicalize(a: string, b: string): [string, string] {
 }
 
 async function addSubClientMatch(pool: DbPool, codiceA: string, codiceB: string): Promise<void> {
+  if (codiceA === codiceB) return;
   const [a, b] = canonicalize(codiceA, codiceB);
   await pool.query(
     `INSERT INTO shared.sub_client_sub_client_matches (sub_client_codice_a, sub_client_codice_b)
