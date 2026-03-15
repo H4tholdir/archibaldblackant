@@ -384,9 +384,9 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
         </div>
       )}
       <div style={{
-        background: '#f8fafc', padding: '10px 14px',
+        background: isFresis ? '#ede9fe' : '#dbeafe', padding: '10px 14px',
         display: 'flex', alignItems: 'center', gap: 10,
-        borderBottom: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
+        borderBottom: `1px solid ${isFresis ? '#c4b5fd' : '#93c5fd'}`, borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
@@ -540,7 +540,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
             <span style={{ fontWeight: 700, color: '#6366f1' }}>{formatEur(listinoUnit)}</span>
             {article.unitPrice > listinoUnit && (
               <span
-                title="Prezzo storico superiore al listino attuale — l'articolo verrà aggiunto a prezzo listino con sconto 0%"
+                title="Prezzo storico superiore al listino attuale — verrà applicato uno sconto per mantenere il totale storico"
                 style={{ display: 'block', fontSize: 8, color: '#f97316', cursor: 'help' }}
               >⚠</span>
             )}
