@@ -18,6 +18,7 @@ type EnqueueFn = (
   userId: string,
   data: Record<string, unknown>,
   idempotencyKey?: string,
+  delayMs?: number,
 ) => Promise<string>;
 
 type BrowserPoolLike = {
@@ -53,7 +54,8 @@ type ProcessJobResult = {
 };
 
 const PREEMPTION_WAIT_MS = 2000;
-const REQUEUE_DELAY_MS = 2000;
+const REQUEUE_DELAY_MS = 5000;
+const MAX_REQUEUE_COUNT = 3;
 
 const SUBMIT_ORDER_BASE_TIMEOUT_MS = 60_000;
 const SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS = 30_000;
@@ -117,10 +119,15 @@ function createOperationProcessor(deps: ProcessorDeps) {
       }
 
       if (!acquireResult.acquired) {
+        const requeueCount = (idempotencyKey.match(/-r\d+/g) ?? []).length;
+        if (requeueCount >= MAX_REQUEUE_COUNT) {
+          return { success: false, requeued: false, duration: Date.now() - startTime };
+        }
         // Use a fresh key to guarantee BullMQ creates a new waiting job
-        // (same key would be a no-op when the active job's Redis key still exists)
+        // (same key would be a no-op when the active job's Redis key still exists).
+        // Delay prevents tight requeue loops when the lock is held for a long time.
         const requeueKey = `${idempotencyKey}-r${Date.now()}`;
-        const newJobId = await enqueue(type, userId, data, requeueKey);
+        const newJobId = await enqueue(type, userId, data, requeueKey, REQUEUE_DELAY_MS);
         broadcast(userId, {
           event: 'JOB_REQUEUED',
           originalJobId: job.id,

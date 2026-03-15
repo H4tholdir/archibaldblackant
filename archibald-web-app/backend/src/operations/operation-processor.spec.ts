@@ -142,7 +142,24 @@ describe('createOperationProcessor', () => {
       'user-a',
       { orderId: '1' },
       expect.stringMatching(/^key-1-r\d+$/),
+      5000,
     );
+  });
+
+  test('drops job without requeueing when MAX_REQUEUE_COUNT reached', async () => {
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'existing-job', type: 'sync-customers' },
+      preemptable: false,
+    });
+    const { processor, enqueue } = createProcessor({ agentLock: busyLock });
+    const idempotencyKey = 'key-1-r1000-r1001-r1002'; // 3 requeues = MAX_REQUEUE_COUNT
+    const job = createMockJob({ idempotencyKey });
+
+    const result = await processor.processJob(job as any);
+
+    expect(result).toEqual({ success: false, requeued: false, duration: expect.any(Number) });
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   test('calls requestStop on active sync when write job arrives for same agent (preemption)', async () => {

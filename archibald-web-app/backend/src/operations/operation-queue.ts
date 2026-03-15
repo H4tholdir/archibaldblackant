@@ -70,6 +70,7 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
     userId: string,
     data: Record<string, unknown>,
     idempotencyKey?: string,
+    delayMs?: number,
   ): Promise<string> {
     const jobData: OperationJobData = {
       type,
@@ -81,6 +82,7 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
 
     const jobOpts = getJobOptions(type);
     jobOpts.jobId = jobData.idempotencyKey;
+    if (delayMs) jobOpts.delay = delayMs;
     const job = await queue.add(type, jobData, jobOpts);
     return job.id!;
   }
