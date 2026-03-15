@@ -85,6 +85,11 @@ export default function OrderFormSimple() {
     null,
   );
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [hoveredCustomerId, setHoveredCustomerId] = useState<string | null>(null);
+  const [hiddenCustomers, setHiddenCustomers] = useState<Customer[] | null>(null);
+  const [showHiddenCustomers, setShowHiddenCustomers] = useState(false);
+  const [hidingCustomerId, setHidingCustomerId] = useState<string | null>(null);
+  const [restoringCustomerId, setRestoringCustomerId] = useState<string | null>(null);
 
   // Step 1b: Sub-client selection (Fresis only)
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
@@ -704,6 +709,45 @@ export default function OrderFormSimple() {
         productSearchInputRef.current?.focus();
       }
     }, 100);
+  };
+
+  const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setHidingCustomerId(customer.id);
+    try {
+      await customerService.setCustomerHidden(customer.id, true);
+      setCustomerResults((prev) => prev.filter((c) => c.id !== customer.id));
+      setHiddenCustomers((prev) => prev ? [customer, ...prev] : [customer]);
+    } catch {
+      // silently ignore
+    } finally {
+      setHidingCustomerId(null);
+    }
+  };
+
+  const handleRestoreCustomer = async (customer: Customer) => {
+    setRestoringCustomerId(customer.id);
+    try {
+      await customerService.setCustomerHidden(customer.id, false);
+      setHiddenCustomers((prev) => prev ? prev.filter((c) => c.id !== customer.id) : []);
+    } catch {
+      // silently ignore
+    } finally {
+      setRestoringCustomerId(null);
+    }
+  };
+
+  const handleToggleHiddenCustomers = async () => {
+    if (!showHiddenCustomers) {
+      if (hiddenCustomers === null) {
+        const list = await customerService.getHiddenCustomers();
+        setHiddenCustomers(list);
+      }
+      setShowHiddenCustomers(true);
+    } else {
+      setShowHiddenCustomers(false);
+    }
   };
 
   const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -2875,84 +2919,174 @@ export default function OrderFormSimple() {
                         index === highlightedCustomerIndex
                           ? "#e0f2fe"
                           : "white",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
                     }}
-                    onMouseEnter={() => setHighlightedCustomerIndex(index)}
+                    onMouseEnter={() => { setHighlightedCustomerIndex(index); setHoveredCustomerId(customer.id); }}
+                    onMouseLeave={() => setHoveredCustomerId(null)}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                      }}
-                    >
-                      <strong
-                        style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                        }}
                       >
-                        {customer.name}
-                      </strong>
-                      {customer.code && (
-                        <span
-                          style={{
-                            marginLeft: "0.5rem",
-                            color: "#6b7280",
-                            fontSize: isMobile ? "0.875rem" : "0.75rem",
-                            flexShrink: 0,
-                          }}
+                        <strong
+                          style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
                         >
-                          {customer.code}
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: isMobile ? "0.8rem" : "0.75rem",
-                        color: "#6b7280",
-                        marginTop: "0.125rem",
-                      }}
-                    >
-                      {customer.taxCode && (
-                        <span style={{ fontWeight: "600", color: "#374151" }}>
-                          P.IVA: {customer.taxCode}
-                        </span>
-                      )}
-                      {(customer.address || customer.cap || customer.city) && (
-                        <span
-                          style={{
-                            marginLeft: customer.taxCode ? "0.75rem" : 0,
-                          }}
-                        >
-                          {[
-                            customer.address,
-                            customer.cap,
-                            customer.city &&
-                              `${customer.city}${customer.province ? ` (${customer.province})` : ""}`,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                      )}
-                      {customer.lastOrderDate &&
-                        customer.lastOrderDate >
-                          new Date(
-                            Date.now() - 30 * 24 * 60 * 60 * 1000,
-                          ).toISOString() && (
+                          {customer.name}
+                        </strong>
+                        {customer.code && (
                           <span
                             style={{
                               marginLeft: "0.5rem",
-                              background: "#dcfce7",
-                              color: "#166534",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "4px",
-                              fontSize: isMobile ? "0.7rem" : "0.65rem",
-                              fontWeight: "500",
+                              color: "#6b7280",
+                              fontSize: isMobile ? "0.875rem" : "0.75rem",
+                              flexShrink: 0,
                             }}
                           >
-                            Ordine recente
+                            {customer.code}
                           </span>
                         )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: isMobile ? "0.8rem" : "0.75rem",
+                          color: "#6b7280",
+                          marginTop: "0.125rem",
+                        }}
+                      >
+                        {customer.taxCode && (
+                          <span style={{ fontWeight: "600", color: "#374151" }}>
+                            P.IVA: {customer.taxCode}
+                          </span>
+                        )}
+                        {(customer.address || customer.cap || customer.city) && (
+                          <span
+                            style={{
+                              marginLeft: customer.taxCode ? "0.75rem" : 0,
+                            }}
+                          >
+                            {[
+                              customer.address,
+                              customer.cap,
+                              customer.city &&
+                                `${customer.city}${customer.province ? ` (${customer.province})` : ""}`,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        )}
+                        {customer.lastOrderDate &&
+                          customer.lastOrderDate >
+                            new Date(
+                              Date.now() - 30 * 24 * 60 * 60 * 1000,
+                            ).toISOString() && (
+                            <span
+                              style={{
+                                marginLeft: "0.5rem",
+                                background: "#dcfce7",
+                                color: "#166534",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "4px",
+                                fontSize: isMobile ? "0.7rem" : "0.65rem",
+                                fontWeight: "500",
+                              }}
+                            >
+                              Ordine recente
+                            </span>
+                          )}
+                      </div>
                     </div>
+                    {hoveredCustomerId === customer.id && (
+                      <button
+                        onClick={(e) => handleHideCustomer(e, customer)}
+                        disabled={hidingCustomerId === customer.id}
+                        style={{
+                          flexShrink: 0,
+                          padding: "2px 8px",
+                          fontSize: "11px",
+                          borderRadius: "4px",
+                          border: "1px solid #fca5a5",
+                          backgroundColor: "#fff1f2",
+                          color: "#dc2626",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Nascondi
+                      </button>
+                    )}
                   </div>
                 ))}
+                {/* Footer: mostra nascosti */}
+                {(hiddenCustomers === null || hiddenCustomers.length > 0) && (
+                  <div
+                    onClick={handleToggleHiddenCustomers}
+                    style={{
+                      padding: "6px 12px",
+                      borderTop: "1px solid #e5e7eb",
+                      fontSize: "12px",
+                      color: "#6b7280",
+                      cursor: "pointer",
+                      backgroundColor: "#f9fafb",
+                      textAlign: "center",
+                    }}
+                  >
+                    {showHiddenCustomers ? "▲ Nascondi nascosti" : `👁 Mostra nascosti${hiddenCustomers ? ` (${hiddenCustomers.length})` : ""}`}
+                  </div>
+                )}
+                {/* Hidden customers list */}
+                {showHiddenCustomers && hiddenCustomers && hiddenCustomers.length > 0 && (
+                  <div style={{ borderTop: "1px solid #e5e7eb", maxHeight: "160px", overflowY: "auto", backgroundColor: "#fafafa" }}>
+                    {hiddenCustomers.map((hc) => (
+                      <div
+                        key={hc.id}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          borderBottom: "1px solid #f3f4f6",
+                          opacity: 0.7,
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "13px", fontWeight: "500", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {hc.name}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#9ca3af" }}>{hc.code}</div>
+                        </div>
+                        <button
+                          onClick={() => handleRestoreCustomer(hc)}
+                          disabled={restoringCustomerId === hc.id}
+                          style={{
+                            padding: "2px 8px",
+                            fontSize: "11px",
+                            borderRadius: "4px",
+                            border: "1px solid #86efac",
+                            backgroundColor: "#f0fdf4",
+                            color: "#16a34a",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Ripristina
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {showHiddenCustomers && hiddenCustomers?.length === 0 && (
+                  <div style={{ padding: "8px 12px", fontSize: "12px", color: "#9ca3af", backgroundColor: "#fafafa", textAlign: "center" }}>
+                    Nessun cliente nascosto
+                  </div>
+                )}
               </div>
             )}
           </>
