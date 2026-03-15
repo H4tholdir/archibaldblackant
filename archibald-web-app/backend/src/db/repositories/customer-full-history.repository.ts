@@ -36,6 +36,7 @@ type FresisHistoryRow = {
   target_total_with_vat: number | null;
   created_at: string;
   items: unknown;
+  sub_client_codice: string | null;
 };
 
 type HistoryParams = {
@@ -127,6 +128,7 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       orderDate: row.created_at,
       totalAmount,
       orderDiscountPercent,
+      subClientCodice: row.sub_client_codice ?? undefined,
       articles,
     };
   });
@@ -204,7 +206,7 @@ async function getCustomerFullHistory(
     hasSubClients
       ? pool.query<FresisHistoryRow>(
           `SELECT id, archibald_order_id, archibald_order_number, invoice_number,
-              discount_percent, target_total_with_vat, created_at, items
+              discount_percent, target_total_with_vat, created_at, items, sub_client_codice
            FROM agents.fresis_history
            WHERE user_id = $1
              AND sub_client_codice = ANY($2::text[])

@@ -117,10 +117,11 @@ describe('CustomerHistoryModal', () => {
     // Cart counter appears when addedCount > 0
     await waitFor(() => expect(document.getElementById('cart-counter')).not.toBeNull());
 
-    // Second click: button now shows "Aggiunto" text; click it again
-    const aggiuntoBtn = screen.getAllByRole('button').find((b) => b.textContent?.includes('Aggiunto'));
-    expect(aggiuntoBtn).toBeDefined();
-    fireEvent.click(aggiuntoBtn!);
+    // Button always stays "+ Aggiungi" (violet) — badge is outside button
+    expect(screen.queryByText('Aggiunto')).toBeNull();
+
+    // Second click on the same button
+    fireEvent.click(addBtns[0]);
 
     // Counter now shows 2 articles
     await waitFor(() =>

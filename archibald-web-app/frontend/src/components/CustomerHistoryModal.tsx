@@ -269,7 +269,7 @@ export function CustomerHistoryModal({
           </div>
 
           {/* BODY */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, background: '#f1f5f9' }}>
             {loading && <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Caricamento storico...</div>}
             {error && <div style={{ textAlign: 'center', padding: 40, color: '#dc2626' }}>{error}</div>}
             {!loading && !error && filteredOrders.map((order) => (
@@ -332,7 +332,7 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
 
   return (
-    <div style={{ position: 'relative', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accent}`, borderRadius: 8, width: '100%' }}>
+    <div style={{ position: 'relative', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accent}`, borderRadius: 8, width: '100%', background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
       {(isCopying || isCopied) && (
         <div style={{
           position: 'absolute', inset: 0, background: 'rgba(5,150,105,0.15)', borderRadius: 8,
@@ -351,6 +351,11 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
           {(order.customerProfileId || order.customerCity || order.customerRagioneSociale) && (
             <div style={{ fontSize: 11, color: '#94a3b8' }}>
               Cliente: {[order.customerProfileId, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
+            </div>
+          )}
+          {isFresis && order.subClientCodice && (
+            <div style={{ fontSize: 11, color: '#a78bfa' }}>
+              Sottocliente: {order.subClientCodice}
             </div>
           )}
         </div>
@@ -517,27 +522,26 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
         {listinoTot !== null ? formatEur(listinoTot) : <span style={{ color: '#94a3b8' }}>—</span>}
       </td>
 
-      <td style={{ padding: '8px 8px' }}>
+      <td style={{ padding: '8px 8px', position: 'relative' }}>
         <button onClick={onAdd} style={{
-          opacity: hovered || badgeCount > 0 ? 1 : 0,
-          background: badgeCount > 0 ? '#059669' : '#6366f1', color: 'white',
+          opacity: hovered ? 1 : 0,
+          background: '#6366f1', color: 'white',
           border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
           fontWeight: 600, cursor: 'pointer', width: '100%', whiteSpace: 'nowrap',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
         }}>
-          {badgeCount > 0 ? (
-            <>
-              Aggiunto
-              <span style={{
-                background: '#4ade80', color: '#14532d',
-                borderRadius: 10, padding: '0 5px', fontSize: 9, fontWeight: 700,
-                animation: badgeCount === 1 ? 'badgePop 0.3s ease' : 'badgeBump 0.2s ease',
-              }}>
-                ✓ ×{badgeCount}
-              </span>
-            </>
-          ) : '+ Aggiungi'}
+          + Aggiungi
         </button>
+        {badgeCount > 0 && (
+          <span style={{
+            position: 'absolute', top: 2, right: 2,
+            background: '#4ade80', color: '#14532d',
+            borderRadius: 10, padding: '1px 6px', fontSize: 9, fontWeight: 700,
+            animation: badgeCount === 1 ? 'badgePop 0.3s ease' : 'badgeBump 0.2s ease',
+            pointerEvents: 'none', lineHeight: '14px',
+          }}>
+            ✓ ×{badgeCount}
+          </span>
+        )}
       </td>
     </tr>
   );

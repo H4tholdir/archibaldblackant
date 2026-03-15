@@ -186,6 +186,10 @@ export function MatchingManagerModal(props: Props) {
     }
   }, [currentMatch, initialMatch, mode, entityId, skipModal, initialSkipModal, onConfirm, props]);
 
+  // Non renderizzare nulla durante il caricamento iniziale (a meno che forceShow):
+  // evita il flash visivo quando skipModal=true e la modale viene chiusa immediatamente.
+  if (loading && !forceShow) return null;
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'white', borderRadius: 12, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
