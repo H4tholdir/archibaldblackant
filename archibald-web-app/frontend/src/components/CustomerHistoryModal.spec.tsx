@@ -111,17 +111,17 @@ describe('CustomerHistoryModal', () => {
     render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} />);
 
     await screen.findByText('ART001');
-    const addBtns = screen.getAllByText('+ Aggiungi');
-    fireEvent.click(addBtns[0]);
+    const addBtn = screen.getAllByRole('button', { name: '+ Aggiungi' })[0];
+    fireEvent.click(addBtn);
 
     // Cart counter appears when addedCount > 0
     await waitFor(() => expect(document.getElementById('cart-counter')).not.toBeNull());
 
-    // Button always stays "+ Aggiungi" (violet) — badge is outside button
-    expect(screen.queryByText('Aggiunto')).toBeNull();
+    // Button shows "Aggiunto ✓" (green flash state)
+    expect(screen.getByText('Aggiunto ✓')).toBeDefined();
 
-    // Second click on the same button
-    fireEvent.click(addBtns[0]);
+    // Second click on the same button element (still valid DOM ref)
+    fireEvent.click(addBtn);
 
     // Counter now shows 2 articles
     await waitFor(() =>
@@ -140,7 +140,7 @@ describe('CustomerHistoryModal', () => {
     render(<CustomerHistoryModal {...defaultProps} isFresisClient={false} onAddArticle={onAddArticle} />);
 
     await screen.findByText('ART001');
-    const addBtns = screen.getAllByText('+ Aggiungi');
+    const addBtns = screen.getAllByRole('button', { name: '+ Aggiungi' });
     fireEvent.click(addBtns[0]);
 
     await waitFor(

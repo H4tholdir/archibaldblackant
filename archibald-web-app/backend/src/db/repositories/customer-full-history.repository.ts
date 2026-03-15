@@ -37,6 +37,8 @@ type FresisHistoryRow = {
   created_at: string;
   items: unknown;
   sub_client_codice: string | null;
+  sub_client_city: string | null;
+  sub_client_rag_sociale: string | null;
 };
 
 type HistoryParams = {
@@ -71,7 +73,7 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
       quantity: row.quantity,
       unitPrice: row.unit_price ?? 0,
       discountPercent: row.discount_percent ?? 0,
-      vatPercent: row.vat_percent ?? 22,
+      vatPercent: row.vat_percent || 22,
       lineTotalWithVat,
     };
     order.articles.push(article);
@@ -129,6 +131,8 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       totalAmount,
       orderDiscountPercent,
       subClientCodice: row.sub_client_codice ?? undefined,
+      subClientCity: row.sub_client_city ?? undefined,
+      subClientRagioneSociale: row.sub_client_rag_sociale ?? undefined,
       articles,
     };
   });
@@ -205,13 +209,16 @@ async function getCustomerFullHistory(
 
     hasSubClients
       ? pool.query<FresisHistoryRow>(
-          `SELECT id, archibald_order_id, archibald_order_number, invoice_number,
-              discount_percent, target_total_with_vat, created_at, items, sub_client_codice
-           FROM agents.fresis_history
-           WHERE user_id = $1
-             AND sub_client_codice = ANY($2::text[])
-             AND (archibald_order_number IS NULL OR archibald_order_number NOT LIKE 'KT %')
-           ORDER BY created_at DESC`,
+          `SELECT fh.id, fh.archibald_order_id, fh.archibald_order_number, fh.invoice_number,
+              fh.discount_percent, fh.target_total_with_vat, fh.created_at, fh.items, fh.sub_client_codice,
+              sc.localita AS sub_client_city,
+              sc.ragione_sociale AS sub_client_rag_sociale
+           FROM agents.fresis_history fh
+           LEFT JOIN shared.sub_clients sc ON sc.codice = fh.sub_client_codice
+           WHERE fh.user_id = $1
+             AND fh.sub_client_codice = ANY($2::text[])
+             AND (fh.archibald_order_number IS NULL OR fh.archibald_order_number NOT LIKE 'KT %')
+           ORDER BY fh.created_at DESC`,
           [userId, subClientCodices],
         )
       : Promise.resolve({ rows: [] as FresisHistoryRow[] }),

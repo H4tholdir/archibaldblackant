@@ -296,7 +296,7 @@ export function CustomerHistoryModal({
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 12,
           }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              Hover su una riga → <strong>+ Aggiungi</strong> per inserire · <strong>⊕ Copia tutto l'ordine</strong> per copiare l'ordine
+              <strong>+ Aggiungi</strong> per inserire una riga · <strong>⊕ Copia tutto l'ordine</strong> per copiare l'intero ordine
             </span>
             <button onClick={onClose} style={{
               background: '#f1f5f9', color: '#475569', border: 'none',
@@ -347,7 +347,11 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
         borderBottom: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{order.orderNumber}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+            {order.orderNumber}
+            {' '}
+            <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>{new Date(order.orderDate).toLocaleDateString('it-IT')}</span>
+          </span>
           {(order.customerProfileId || order.customerCity || order.customerRagioneSociale) && (
             <div style={{ fontSize: 11, color: '#94a3b8' }}>
               Cliente: {[order.customerProfileId, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
@@ -355,16 +359,10 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
           )}
           {isFresis && order.subClientCodice && (
             <div style={{ fontSize: 11, color: '#a78bfa' }}>
-              Sottocliente: {order.subClientCodice}
+              Sottocliente: {[order.subClientCodice, order.subClientRagioneSociale, order.subClientCity].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>
-        <span style={{ fontSize: 12, color: '#64748b' }}>{new Date(order.orderDate).toLocaleDateString('it-IT')}</span>
-        <span style={{
-          padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-          background: isFresis ? '#ede9fe' : '#dbeafe',
-          color: isFresis ? '#7c3aed' : '#1d4ed8',
-        }}>{isFresis ? 'Storico Fresis' : 'Storico ordini'}</span>
         {order.orderDiscountPercent > 0 && (
           <span style={{
             padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
@@ -448,7 +446,6 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
   onAdd: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-
   const listinoUnit = listinoInfo ? listinoInfo.price : null;
   const listinoTot = listinoInfo !== null && listinoUnit !== null
     ? Math.round(article.quantity * listinoUnit * (1 + article.vatPercent / 100) * 100) / 100
@@ -524,12 +521,12 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
 
       <td style={{ padding: '8px 8px', position: 'relative' }}>
         <button onClick={onAdd} style={{
-          opacity: hovered ? 1 : 0,
-          background: '#6366f1', color: 'white',
+          background: isFlashing ? '#16a34a' : '#6366f1', color: 'white',
           border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
           fontWeight: 600, cursor: 'pointer', width: '100%', whiteSpace: 'nowrap',
+          transition: 'background 0.15s',
         }}>
-          + Aggiungi
+          {isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
         </button>
         {badgeCount > 0 && (
           <span style={{

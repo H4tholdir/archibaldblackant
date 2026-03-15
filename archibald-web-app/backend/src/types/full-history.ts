@@ -19,5 +19,7 @@ export type FullHistoryOrder = {
   customerCity?: string;
   customerRagioneSociale?: string;
   subClientCodice?: string;
+  subClientCity?: string;
+  subClientRagioneSociale?: string;
   articles: FullHistoryArticle[];
 };
