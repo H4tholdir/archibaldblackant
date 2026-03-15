@@ -40,6 +40,8 @@ type Subclient = {
   matchedCustomerProfileId: string | null;
   matchConfidence: string | null;
   arcaSyncedAt: string | null;
+  customerMatchCount: number;
+  subClientMatchCount: number;
 };
 
 async function getSubclients(search?: string): Promise<Subclient[]> {

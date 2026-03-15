@@ -8,7 +8,6 @@ import {
 } from '../services/subclients.service';
 import type { Subclient } from '../services/subclients.service';
 import { MatchingManagerModal } from './MatchingManagerModal';
-import { getMatchesForSubClient } from '../services/sub-client-matches.service';
 
 type MatchCount = { customerCount: number; subClientCount: number };
 
@@ -89,6 +88,8 @@ function emptySubclient(codice: string): Subclient {
     url: null, cbNazione: null, cbBic: null, cbCinUe: null, cbCinIt: null,
     abicab: null, contocorr: null,
     matchedCustomerProfileId: null, matchConfidence: null, arcaSyncedAt: null,
+    customerMatchCount: 0,
+    subClientMatchCount: 0,
   };
 }
 
@@ -414,16 +415,13 @@ function SubclientsTab() {
     try {
       const data = await getSubclients(debouncedSearch || undefined);
       setSubclients(data);
-      void Promise.all(
-        data.map(async (sc): Promise<[string, MatchCount | null]> => {
-          const r = await getMatchesForSubClient(sc.codice).catch(() => null);
-          return [sc.codice, r ? { customerCount: r.customerProfileIds.length, subClientCount: r.subClientCodices.length } : null];
-        }),
-      ).then((entries) => {
-        setMatchCounts(new Map(
-          entries.filter((e): e is [string, MatchCount] => e[1] !== null),
-        ));
-      });
+      const counts = new Map<string, MatchCount>(
+        data.map((sc) => [
+          sc.codice,
+          { customerCount: sc.customerMatchCount, subClientCount: sc.subClientMatchCount },
+        ]),
+      );
+      setMatchCounts(counts);
     } catch {
       // silently handle
     } finally {
@@ -437,7 +435,7 @@ function SubclientsTab() {
     if (isNew) {
       await createSubclient(data);
     } else {
-      const { codice: _, matchedCustomerProfileId: _m, matchConfidence: _c, arcaSyncedAt: _a, ...updates } = data;
+      const { codice: _, matchedCustomerProfileId: _m, matchConfidence: _c, arcaSyncedAt: _a, customerMatchCount: _cc, subClientMatchCount: _scc, ...updates } = data;
       await updateSubclient(data.codice, updates);
     }
     setSelectedSubclient(null);
