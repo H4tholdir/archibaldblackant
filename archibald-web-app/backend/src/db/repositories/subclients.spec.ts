@@ -172,7 +172,7 @@ describe('getAllSubclients', () => {
         ...anagrafeNullsCamel,
       },
     ]);
-    expect(getQueryCall(pool, 0).text).toContain('ORDER BY ragione_sociale');
+    expect(getQueryCall(pool, 0).text).toContain('ORDER BY sc.ragione_sociale');
   });
 
   test('returns empty array when no subclients exist', async () => {
@@ -182,6 +182,20 @@ describe('getAllSubclients', () => {
     const result = await getAllSubclients(pool);
 
     expect(result).toEqual([]);
+  });
+
+  test('includes customer and sub-client match count subqueries in SQL', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const { getAllSubclients } = await import('./subclients');
+    await getAllSubclients(pool);
+
+    const { text } = getQueryCall(pool, 0);
+    expect(text).toContain('customer_match_count');
+    expect(text).toContain('sub_client_match_count');
+    expect(text).toContain('sub_client_customer_matches');
+    expect(text).toContain('sub_client_sub_client_matches');
   });
 });
 
@@ -230,6 +244,18 @@ describe('searchSubclients', () => {
     const result = await searchSubclients(pool, 'NonExistent');
 
     expect(result).toEqual([]);
+  });
+
+  test('includes customer and sub-client match count subqueries in SQL', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const { searchSubclients } = await import('./subclients');
+    await searchSubclients(pool, 'acme');
+
+    const { text } = getQueryCall(pool, 0);
+    expect(text).toContain('customer_match_count');
+    expect(text).toContain('sub_client_match_count');
   });
 });
 

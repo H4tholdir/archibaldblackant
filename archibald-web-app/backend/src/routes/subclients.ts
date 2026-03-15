@@ -272,6 +272,8 @@ function createSubclientsRouter(deps: SubclientsRouterDeps) {
         matchedCustomerProfileId: null,
         matchConfidence: null,
         arcaSyncedAt: null,
+        customerMatchCount: 0,
+        subClientMatchCount: 0,
       };
 
       await upsertSubclients([newSubclient]);

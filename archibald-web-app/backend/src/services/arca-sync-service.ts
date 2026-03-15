@@ -746,6 +746,8 @@ export async function parseNativeArcaFiles(
             matchedCustomerProfileId: null,
             matchConfidence: null,
             arcaSyncedAt: null,
+            customerMatchCount: 0,
+            subClientMatchCount: 0,
           });
         }
       }
@@ -1319,6 +1321,8 @@ export async function generateKtExportVbs(
     matched_customer_profile_id: string | null;
     match_confidence: string | null;
     arca_synced_at: string | null;
+    customer_match_count: number;
+    sub_client_match_count: number;
   }>(
     `SELECT * FROM shared.sub_clients
      WHERE arca_synced_at IS NULL OR updated_at > arca_synced_at`,

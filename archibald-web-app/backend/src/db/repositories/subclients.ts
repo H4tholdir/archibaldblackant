@@ -152,7 +152,25 @@ function mapRowToSubclient(row: SubclientRow): Subclient {
 
 async function getAllSubclients(pool: DbPool): Promise<Subclient[]> {
   const { rows } = await pool.query<SubclientRow>(
-    `SELECT ${COLUMNS} FROM shared.sub_clients WHERE hidden = FALSE ORDER BY ragione_sociale ASC`,
+    `SELECT sc.codice, sc.ragione_sociale, sc.suppl_ragione_sociale,
+       sc.indirizzo, sc.cap, sc.localita, sc.prov,
+       sc.telefono, sc.fax, sc.email,
+       sc.partita_iva, sc.cod_fiscale, sc.zona,
+       sc.pers_da_contattare, sc.email_amministraz,
+       sc.agente, sc.agente2, sc.settore, sc.classe,
+       sc.pag, sc.listino, sc.banca, sc.valuta, sc.cod_nazione,
+       sc.aliiva, sc.contoscar, sc.tipofatt,
+       sc.telefono2, sc.telefono3, sc.url,
+       sc.cb_nazione, sc.cb_bic, sc.cb_cin_ue, sc.cb_cin_it, sc.abicab, sc.contocorr,
+       sc.matched_customer_profile_id, sc.match_confidence, sc.arca_synced_at,
+       (SELECT COUNT(*)::int FROM shared.sub_client_customer_matches
+        WHERE sub_client_codice = sc.codice) AS customer_match_count,
+       (SELECT COUNT(*)::int FROM shared.sub_client_sub_client_matches
+        WHERE sub_client_codice_a = sc.codice OR sub_client_codice_b = sc.codice
+       ) AS sub_client_match_count
+     FROM shared.sub_clients sc
+     WHERE sc.hidden = FALSE
+     ORDER BY sc.ragione_sociale ASC`,
   );
   return rows.map(mapRowToSubclient);
 }
@@ -160,23 +178,39 @@ async function getAllSubclients(pool: DbPool): Promise<Subclient[]> {
 async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[]> {
   const pattern = `%${query}%`;
   const { rows } = await pool.query<SubclientRow>(
-    `SELECT ${COLUMNS} FROM shared.sub_clients
-     WHERE hidden = FALSE
-       AND (ragione_sociale ILIKE $1
-        OR suppl_ragione_sociale ILIKE $1
-        OR codice ILIKE $1
-        OR partita_iva ILIKE $1
-        OR localita ILIKE $1
-        OR cod_fiscale ILIKE $1
-        OR indirizzo ILIKE $1
-        OR cap ILIKE $1
-        OR telefono ILIKE $1
-        OR email ILIKE $1
-        OR zona ILIKE $1
-        OR agente ILIKE $1
-        OR pag ILIKE $1
-        OR listino ILIKE $1)
-     ORDER BY ragione_sociale ASC`,
+    `SELECT sc.codice, sc.ragione_sociale, sc.suppl_ragione_sociale,
+       sc.indirizzo, sc.cap, sc.localita, sc.prov,
+       sc.telefono, sc.fax, sc.email,
+       sc.partita_iva, sc.cod_fiscale, sc.zona,
+       sc.pers_da_contattare, sc.email_amministraz,
+       sc.agente, sc.agente2, sc.settore, sc.classe,
+       sc.pag, sc.listino, sc.banca, sc.valuta, sc.cod_nazione,
+       sc.aliiva, sc.contoscar, sc.tipofatt,
+       sc.telefono2, sc.telefono3, sc.url,
+       sc.cb_nazione, sc.cb_bic, sc.cb_cin_ue, sc.cb_cin_it, sc.abicab, sc.contocorr,
+       sc.matched_customer_profile_id, sc.match_confidence, sc.arca_synced_at,
+       (SELECT COUNT(*)::int FROM shared.sub_client_customer_matches
+        WHERE sub_client_codice = sc.codice) AS customer_match_count,
+       (SELECT COUNT(*)::int FROM shared.sub_client_sub_client_matches
+        WHERE sub_client_codice_a = sc.codice OR sub_client_codice_b = sc.codice
+       ) AS sub_client_match_count
+     FROM shared.sub_clients sc
+     WHERE sc.hidden = FALSE
+       AND (sc.ragione_sociale ILIKE $1
+        OR sc.suppl_ragione_sociale ILIKE $1
+        OR sc.codice ILIKE $1
+        OR sc.partita_iva ILIKE $1
+        OR sc.localita ILIKE $1
+        OR sc.cod_fiscale ILIKE $1
+        OR sc.indirizzo ILIKE $1
+        OR sc.cap ILIKE $1
+        OR sc.telefono ILIKE $1
+        OR sc.email ILIKE $1
+        OR sc.zona ILIKE $1
+        OR sc.agente ILIKE $1
+        OR sc.pag ILIKE $1
+        OR sc.listino ILIKE $1)
+     ORDER BY sc.ragione_sociale ASC`,
     [pattern],
   );
   return rows.map(mapRowToSubclient);

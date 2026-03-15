@@ -131,6 +131,8 @@ function mapRowToSubclient(
     matchedCustomerProfileId: null,
     matchConfidence: null,
     arcaSyncedAt: null,
+    customerMatchCount: 0,
+    subClientMatchCount: 0,
   };
 }
 
