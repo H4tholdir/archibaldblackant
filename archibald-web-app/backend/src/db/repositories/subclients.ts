@@ -40,6 +40,8 @@ type SubclientRow = {
   matched_customer_profile_id: string | null;
   match_confidence: string | null;
   arca_synced_at: string | null;
+  customer_match_count: number;
+  sub_client_match_count: number;
 };
 
 type Subclient = {
@@ -82,6 +84,8 @@ type Subclient = {
   matchedCustomerProfileId: string | null;
   matchConfidence: string | null;
   arcaSyncedAt: string | null;
+  customerMatchCount: number;
+  subClientMatchCount: number;
 };
 
 const COLUMN_COUNT = 39;
@@ -141,6 +145,8 @@ function mapRowToSubclient(row: SubclientRow): Subclient {
     matchedCustomerProfileId: row.matched_customer_profile_id,
     matchConfidence: row.match_confidence,
     arcaSyncedAt: row.arca_synced_at,
+    customerMatchCount: row.customer_match_count,
+    subClientMatchCount: row.sub_client_match_count,
   };
 }
 

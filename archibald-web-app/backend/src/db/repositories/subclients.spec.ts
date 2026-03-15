@@ -42,6 +42,8 @@ const anagrafeNulls = {
   matched_customer_profile_id: null,
   match_confidence: null,
   arca_synced_at: null,
+  customer_match_count: 0,
+  sub_client_match_count: 0,
 };
 
 const anagrafeNullsCamel = {
@@ -69,6 +71,8 @@ const anagrafeNullsCamel = {
   matchedCustomerProfileId: null,
   matchConfidence: null,
   arcaSyncedAt: null,
+  customerMatchCount: 0,
+  subClientMatchCount: 0,
 };
 
 const sampleRow = {
@@ -88,6 +92,8 @@ const sampleRow = {
   pers_da_contattare: 'Mario Rossi',
   email_amministraz: 'admin@acme.it',
   ...anagrafeNulls,
+  customer_match_count: 2,
+  sub_client_match_count: 1,
 };
 
 const sampleRow2 = {
@@ -107,6 +113,8 @@ const sampleRow2 = {
   pers_da_contattare: null,
   email_amministraz: null,
   ...anagrafeNulls,
+  customer_match_count: 0,
+  sub_client_match_count: 0,
 };
 
 describe('getAllSubclients', () => {
@@ -142,6 +150,8 @@ describe('getAllSubclients', () => {
         persDaContattare: 'Mario Rossi',
         emailAmministraz: 'admin@acme.it',
         ...anagrafeNullsCamel,
+        customerMatchCount: 2,
+        subClientMatchCount: 1,
       },
       {
         codice: 'SC002',
@@ -524,6 +534,8 @@ describe('mapRowToSubclient', () => {
       persDaContattare: 'Mario Rossi',
       emailAmministraz: 'admin@acme.it',
       ...anagrafeNullsCamel,
+      customerMatchCount: 2,
+      subClientMatchCount: 1,
     });
   });
 
