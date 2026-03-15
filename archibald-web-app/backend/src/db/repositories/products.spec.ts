@@ -21,6 +21,7 @@ import {
   fuzzySearchProducts,
   getRecentProductChanges,
   getProductChangeStats,
+  getProductPricesByNames,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -760,5 +761,88 @@ describe('getProductChangeStats', () => {
     const result = await getProductChangeStats(pool, 30);
 
     expect(result).toEqual({ created: 0, updated: 0, deleted: 0, totalChanges: 0 });
+  });
+});
+
+describe('getProductPricesByNames', () => {
+  const artA = '6830L.314.014';
+  const artB = '9436C.204.045';
+
+  test('returns empty Map when names array is empty', async () => {
+    const pool = createMockPool();
+
+    const result = await getProductPricesByNames(pool, []);
+
+    expect(result.size).toBe(0);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  test('returns price and vat for each found article name', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [
+          { name: artA, price: 12.5, vat: 22 },
+          { name: artB, price: 7.0, vat: 4 },
+        ],
+        rowCount: 2, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const result = await getProductPricesByNames(pool, [artA, artB]);
+
+    expect(result.get(artA)).toEqual({ price: 12.5, vat: 22 });
+    expect(result.get(artB)).toEqual({ price: 7.0, vat: 4 });
+  });
+
+  test('maps null for requested name not found in DB', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [{ name: artA, price: 12.5, vat: 22 }],
+        rowCount: 1, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const result = await getProductPricesByNames(pool, [artA, artB]);
+
+    expect(result.get(artA)).toEqual({ price: 12.5, vat: 22 });
+    expect(result.get(artB)).toBeNull();
+  });
+
+  test('defaults vat to 22 when DB row has null vat', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [{ name: artA, price: 5.0, vat: null }],
+        rowCount: 1, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const result = await getProductPricesByNames(pool, [artA]);
+
+    expect(result.get(artA)).toEqual({ price: 5.0, vat: 22 });
+  });
+
+  test('maps null when DB row has null price', async () => {
+    const pool = createMockPool(
+      vi.fn(async () => ({
+        rows: [{ name: artA, price: null, vat: 22 }],
+        rowCount: 1, command: '', oid: 0, fields: [],
+      })),
+    );
+
+    const result = await getProductPricesByNames(pool, [artA]);
+
+    expect(result.get(artA)).toBeNull();
+  });
+
+  test('uses ANY($1::text[]) and passes names array as single param', async () => {
+    const mockQuery = vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] }));
+    const pool = createMockPool(mockQuery);
+
+    await getProductPricesByNames(pool, [artA, artB]);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('ANY($1::text[])'),
+      [[artA, artB]],
+    );
   });
 });

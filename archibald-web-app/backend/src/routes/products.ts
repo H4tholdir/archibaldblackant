@@ -96,6 +96,7 @@ type ProductsRouterDeps = {
   getDistinctProductNamesCount: (searchQuery?: string) => Promise<number>;
   getVariantPackages: (articleName: string) => Promise<string[]>;
   getVariantPriceRange: (articleName: string) => Promise<{ min: number | null; max: number | null }>;
+  getProductPricesByNames?: (names: string[]) => Promise<Map<string, { price: number; vat: number } | null>>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -332,6 +333,29 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     } catch (error) {
       logger.error('Error fetching last sync session', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero ultima sessione sync' });
+    }
+  });
+
+  router.get('/prices', async (req: AuthRequest, res) => {
+    if (!deps.getProductPricesByNames) {
+      return res.status(501).json({ success: false, error: 'Endpoint prezzi batch non configurato' });
+    }
+    try {
+      const raw = req.query.names as string | undefined;
+      if (!raw || raw.trim() === '') {
+        return res.status(400).json({ success: false, error: "Query parameter 'names' è obbligatorio" });
+      }
+      const names = raw.split(',').map((n) => n.trim()).filter(Boolean);
+      if (names.length > 200) {
+        return res.status(400).json({ success: false, error: 'Massimo 200 articoli per richiesta' });
+      }
+      const priceMap = await deps.getProductPricesByNames(names);
+      const data: Record<string, { price: number; vat: number } | null> = {};
+      for (const [name, value] of priceMap) data[name] = value;
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error fetching product prices by names', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero prezzi articoli' });
     }
   });
 

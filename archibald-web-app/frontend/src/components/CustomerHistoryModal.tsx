@@ -64,13 +64,9 @@ export function CustomerHistoryModal({
   useEffect(() => {
     if (!isOpen || orders.length === 0) return;
     const codes = Array.from(new Set(orders.flatMap((o) => o.articles.map((a) => a.articleCode))));
-    const priceMap = new Map<string, { price: number; vat: number } | null>();
-    Promise.all(
-      codes.map(async (code) => {
-        const info = await priceService.getPriceAndVat(code).catch(() => null);
-        priceMap.set(code, info ?? null);
-      }),
-    ).then(() => setListinoPrices(new Map(priceMap)));
+    priceService.getPriceAndVatBatch(codes)
+      .then((map) => setListinoPrices(map))
+      .catch(() => {});
   }, [isOpen, orders]);
 
   const filteredOrders = useMemo(() => {

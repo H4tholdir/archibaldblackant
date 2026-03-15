@@ -443,6 +443,7 @@ function createApp(deps: AppDeps): Express {
     getDistinctProductNamesCount: (search) => productsRepo.getDistinctProductNamesCount(pool, search),
     getVariantPackages: (name) => productsRepo.getVariantPackages(pool, name),
     getVariantPriceRange: (name) => productsRepo.getVariantPriceRange(pool, name),
+    getProductPricesByNames: (names) => productsRepo.getProductPricesByNames(pool, names),
   }));
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({

@@ -459,4 +459,51 @@ describe('createProductsRouter', () => {
       expect(res.body).toEqual({ success: false, error: 'Last sync non configurato' });
     });
   });
+
+  describe('GET /api/products/prices', () => {
+    const artA = '6830L.314.014';
+    const artB = '9436C.204.045';
+
+    beforeEach(() => {
+      deps.getProductPricesByNames = vi.fn().mockResolvedValue(
+        new Map([[artA, { price: 12.5, vat: 22 }], [artB, null]]),
+      );
+      app = createApp(deps);
+    });
+
+    test('returns price map for requested names', async () => {
+      const res = await request(app).get(`/api/products/prices?names=${artA},${artB}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data[artA]).toEqual({ price: 12.5, vat: 22 });
+      expect(res.body.data[artB]).toBeNull();
+      expect(deps.getProductPricesByNames).toHaveBeenCalledWith([artA, artB]);
+    });
+
+    test('returns 400 when names param is missing', async () => {
+      const res = await request(app).get('/api/products/prices');
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when more than 200 names are requested', async () => {
+      const names = Array.from({ length: 201 }, (_, i) => `ART-${i}`).join(',');
+      const res = await request(app).get(`/api/products/prices?names=${names}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns empty object for empty names list', async () => {
+      deps.getProductPricesByNames = vi.fn().mockResolvedValue(new Map());
+      app = createApp(deps);
+
+      const res = await request(app).get(`/api/products/prices?names=${artA}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({});
+    });
+  });
 });

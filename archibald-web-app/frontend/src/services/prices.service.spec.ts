@@ -130,4 +130,89 @@ describe("PriceService", () => {
       expect(mockFetchWithRetry).not.toHaveBeenCalled();
     });
   });
+
+  describe("getPriceAndVatBatch", () => {
+    const artA = "6830L.314.014";
+    const artB = "9436C.204.045";
+
+    function makeBatchResponse(data: Record<string, { price: number; vat: number } | null>) {
+      return {
+        ok: true,
+        json: async () => ({ success: true, data }),
+      } as Response;
+    }
+
+    test("returns price and vat for each article code in the batch", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeBatchResponse({ [artA]: { price: 12.5, vat: 22 }, [artB]: { price: 7.0, vat: 4 } }),
+      );
+
+      const result = await service.getPriceAndVatBatch([artA, artB]);
+
+      expect(result.get(artA)).toEqual({ price: 12.5, vat: 22 });
+      expect(result.get(artB)).toEqual({ price: 7.0, vat: 4 });
+    });
+
+    test("maps null for article not found in batch response", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeBatchResponse({ [artA]: { price: 12.5, vat: 22 }, [artB]: null }),
+      );
+
+      const result = await service.getPriceAndVatBatch([artA, artB]);
+
+      expect(result.get(artB)).toBeNull();
+    });
+
+    test("sends comma-separated names as query param", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeBatchResponse({}));
+
+      await service.getPriceAndVatBatch([artA, artB]);
+
+      expect(mockFetchWithRetry).toHaveBeenCalledWith(
+        expect.stringContaining(`names=${encodeURIComponent(artA)},${encodeURIComponent(artB)}`),
+      );
+    });
+
+    test("caches results — second call for same codes does not fetch again", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeBatchResponse({ [artA]: { price: 12.5, vat: 22 } }),
+      );
+
+      await service.getPriceAndVatBatch([artA]);
+      await service.getPriceAndVatBatch([artA]);
+
+      expect(mockFetchWithRetry).toHaveBeenCalledTimes(1);
+    });
+
+    test("only fetches uncached codes on second call with mixed codes", async () => {
+      mockFetchWithRetry
+        .mockResolvedValueOnce(makeBatchResponse({ [artA]: { price: 12.5, vat: 22 } }))
+        .mockResolvedValueOnce(makeBatchResponse({ [artB]: { price: 7.0, vat: 4 } }));
+
+      await service.getPriceAndVatBatch([artA]);
+      const result = await service.getPriceAndVatBatch([artA, artB]);
+
+      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2);
+      expect(mockFetchWithRetry).toHaveBeenLastCalledWith(
+        expect.stringContaining(encodeURIComponent(artB)),
+      );
+      expect(result.get(artA)).toEqual({ price: 12.5, vat: 22 });
+      expect(result.get(artB)).toEqual({ price: 7.0, vat: 4 });
+    });
+
+    test("returns empty Map for empty input without fetching", async () => {
+      const result = await service.getPriceAndVatBatch([]);
+
+      expect(result.size).toBe(0);
+      expect(mockFetchWithRetry).not.toHaveBeenCalled();
+    });
+
+    test("returns all-null Map when fetch fails", async () => {
+      mockFetchWithRetry.mockRejectedValue(new Error("network error"));
+
+      const result = await service.getPriceAndVatBatch([artA]);
+
+      expect(result.get(artA)).toBeNull();
+    });
+  });
 });

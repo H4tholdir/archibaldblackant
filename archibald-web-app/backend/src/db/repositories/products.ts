@@ -748,6 +748,25 @@ async function getVariantPackages(
   return rows.map((r) => r.package_content);
 }
 
+async function getProductPricesByNames(
+  pool: DbPool,
+  names: string[],
+): Promise<Map<string, { price: number; vat: number } | null>> {
+  if (names.length === 0) return new Map();
+  const { rows } = await pool.query<{ name: string; price: number | null; vat: number | null }>(
+    `SELECT name, price, vat FROM shared.products
+     WHERE name = ANY($1::text[]) AND deleted_at IS NULL`,
+    [names],
+  );
+  const result = new Map<string, { price: number; vat: number } | null>(names.map((n) => [n, null]));
+  for (const row of rows) {
+    if (row.price !== null) {
+      result.set(row.name, { price: row.price, vat: row.vat ?? 22 });
+    }
+  }
+  return result;
+}
+
 async function getVariantPriceRange(
   pool: DbPool, articleName: string,
 ): Promise<{ min: number | null; max: number | null }> {
@@ -789,6 +808,7 @@ export {
   getDistinctProductNamesCount,
   getVariantPackages,
   getVariantPriceRange,
+  getProductPricesByNames,
   type ProductRow,
   type ProductWithoutVatRow,
   type ProductUpsertInput,

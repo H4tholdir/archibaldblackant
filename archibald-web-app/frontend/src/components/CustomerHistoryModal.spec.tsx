@@ -7,7 +7,10 @@ vi.mock('../api/customer-full-history', () => ({
   getCustomerFullHistory: vi.fn(),
 }));
 vi.mock('../services/prices.service', () => ({
-  priceService: { getPriceAndVat: vi.fn().mockResolvedValue(null) },
+  priceService: {
+    getPriceAndVat: vi.fn().mockResolvedValue(null),
+    getPriceAndVatBatch: vi.fn().mockResolvedValue(new Map()),
+  },
 }));
 
 import { getCustomerFullHistory } from '../api/customer-full-history';
@@ -149,7 +152,9 @@ describe('CustomerHistoryModal', () => {
   });
 
   it('shows ⚠ warning when historical unit price exceeds current list price', async () => {
-    vi.mocked(priceService.getPriceAndVat).mockResolvedValue({ price: 5, vat: 22 });
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(
+      new Map([['ART001', { price: 5, vat: 22 }]]),
+    );
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
       mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
     ]);
@@ -161,8 +166,10 @@ describe('CustomerHistoryModal', () => {
     );
   });
 
-  it('shows — in listino columns when getPriceAndVat returns null', async () => {
-    vi.mocked(priceService.getPriceAndVat).mockResolvedValue(null);
+  it('shows — in listino columns when getPriceAndVatBatch returns null for code', async () => {
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(
+      new Map([['ART001', null]]),
+    );
     vi.mocked(getCustomerFullHistory).mockResolvedValue([mockOrder()]);
 
     render(<CustomerHistoryModal {...defaultProps} />);

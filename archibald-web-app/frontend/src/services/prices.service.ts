@@ -1,6 +1,35 @@
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class PriceService {
+  private readonly cache = new Map<string, { price: number; vat: number } | null>();
+
+  async getPriceAndVatBatch(codes: string[]): Promise<Map<string, { price: number; vat: number } | null>> {
+    if (codes.length === 0) return new Map();
+
+    const uncached = codes.filter((c) => !this.cache.has(c));
+    if (uncached.length > 0) {
+      try {
+        const namesParam = uncached.map(encodeURIComponent).join(',');
+        const response = await fetchWithRetry(`/api/products/prices?names=${namesParam}`);
+        if (response.ok) {
+          const data = await response.json();
+          const prices: Record<string, { price: number; vat: number } | null> = data.data ?? {};
+          for (const code of uncached) {
+            this.cache.set(code, prices[code] ?? null);
+          }
+        } else {
+          for (const code of uncached) this.cache.set(code, null);
+        }
+      } catch {
+        for (const code of uncached) this.cache.set(code, null);
+      }
+    }
+
+    const result = new Map<string, { price: number; vat: number } | null>();
+    for (const code of codes) result.set(code, this.cache.get(code) ?? null);
+    return result;
+  }
+
   async getPriceByArticleId(articleId: string): Promise<number | null> {
     try {
       const params = new URLSearchParams();
