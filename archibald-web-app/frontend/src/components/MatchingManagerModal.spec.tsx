@@ -131,4 +131,37 @@ describe('MatchingManagerModal', () => {
       expect(upsertSkipModal).toHaveBeenCalledWith('subclient', 'C00001', true),
     );
   });
+
+  it('renders the modal (does not auto-skip) when forceShow=true even if skipModal is true in DB', async () => {
+    vi.mocked(getMatchesForSubClient).mockResolvedValue({
+      customerProfileIds: [],
+      subClientCodices: [],
+      skipModal: true,
+    });
+
+    render(<MatchingManagerModal {...subClientProps} forceShow />);
+
+    await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());
+
+    expect(subClientProps.onSkip).not.toHaveBeenCalled();
+    expect(screen.getByRole('checkbox')).toBeChecked();
+  });
+
+  it('calls upsertSkipModal(false) when skip checkbox is unchecked on confirm via forceShow', async () => {
+    vi.mocked(getMatchesForSubClient).mockResolvedValue({
+      customerProfileIds: [],
+      subClientCodices: [],
+      skipModal: true,
+    });
+
+    render(<MatchingManagerModal {...subClientProps} forceShow />);
+    await waitFor(() => expect(screen.queryByText('Caricamento...')).toBeNull());
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByText(/conferma/i));
+
+    await waitFor(() =>
+      expect(upsertSkipModal).toHaveBeenCalledWith('subclient', 'C00001', false),
+    );
+  });
 });

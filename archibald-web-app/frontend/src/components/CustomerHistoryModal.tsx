@@ -14,6 +14,7 @@ type Props = {
   isFresisClient: boolean;
   onAddArticle: (item: PendingOrderItem, replace: boolean) => void;
   onAddOrder: (items: PendingOrderItem[], replace: boolean) => void;
+  onEditMatching?: () => void;
 };
 
 function formatEur(n: number): string {
@@ -22,7 +23,7 @@ function formatEur(n: number): string {
 
 export function CustomerHistoryModal({
   isOpen, onClose, customerName, customerProfileIds, subClientCodices,
-  isFresisClient, onAddArticle, onAddOrder,
+  isFresisClient, onAddArticle, onAddOrder, onEditMatching,
 }: Props) {
   const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -227,6 +228,12 @@ export function CustomerHistoryModal({
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
                   {addedCount} articol{addedCount === 1 ? 'o' : 'i'} nell'ordine
                 </div>
+              )}
+              {onEditMatching && (
+                <button onClick={onEditMatching} style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', color: '#94a3b8',
+                  padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+                }}>✎ Modifica collegamenti</button>
               )}
               <button onClick={onClose} style={{
                 background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',

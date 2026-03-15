@@ -166,6 +166,21 @@ describe('CustomerHistoryModal', () => {
     );
   });
 
+  it('shows "Modifica collegamenti" button when onEditMatching prop is provided', async () => {
+    const onEditMatching = vi.fn();
+    render(<CustomerHistoryModal {...defaultProps} onEditMatching={onEditMatching} />);
+
+    const editBtn = await screen.findByText(/modifica collegamenti/i);
+    fireEvent.click(editBtn);
+
+    expect(onEditMatching).toHaveBeenCalledOnce();
+  });
+
+  it('does not show "Modifica collegamenti" button when onEditMatching is not provided', () => {
+    render(<CustomerHistoryModal {...defaultProps} />);
+    expect(screen.queryByText(/modifica collegamenti/i)).toBeNull();
+  });
+
   it('shows — in listino columns when getPriceAndVatBatch returns null for code', async () => {
     vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(
       new Map([['ART001', null]]),

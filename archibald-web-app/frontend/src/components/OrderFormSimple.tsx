@@ -295,6 +295,7 @@ export default function OrderFormSimple() {
   // Customer history modals
   const [showCustomerHistoryModal, setShowCustomerHistoryModal] = useState(false);
   const [showMatchingManagerModal, setShowMatchingManagerModal] = useState(false);
+  const [matchingForceShow, setMatchingForceShow] = useState(false);
   const [historyCustomerProfileIds, setHistoryCustomerProfileIds] = useState<string[]>([]);
   const [historySubClientCodices, setHistorySubClientCodices] = useState<string[]>([]);
 
@@ -5061,6 +5062,11 @@ export default function OrderFormSimple() {
             }
             addItemsWithAnimation(mapped);
           }}
+          onEditMatching={selectedCustomer && !(isFresis(selectedCustomer) && !selectedSubClient) ? () => {
+            setShowCustomerHistoryModal(false);
+            setMatchingForceShow(true);
+            setShowMatchingManagerModal(true);
+          } : undefined}
         />
       )}
 
@@ -5073,9 +5079,11 @@ export default function OrderFormSimple() {
                 mode="subclient"
                 subClientCodice={selectedSubClient.codice}
                 entityName={selectedSubClient.ragioneSociale ?? selectedSubClient.codice}
+                forceShow={matchingForceShow}
                 onConfirm={(ids) => {
                   setHistoryCustomerProfileIds(ids.customerProfileIds);
                   setHistorySubClientCodices([selectedSubClient.codice, ...ids.subClientCodices]);
+                  setMatchingForceShow(false);
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
@@ -5086,10 +5094,11 @@ export default function OrderFormSimple() {
                   } else {
                     setHistorySubClientCodices([selectedSubClient.codice]);
                   }
+                  setMatchingForceShow(false);
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
-                onClose={() => setShowMatchingManagerModal(false)}
+                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
               />
             );
           }
@@ -5099,9 +5108,11 @@ export default function OrderFormSimple() {
                 mode="customer"
                 customerProfileId={selectedCustomer.id}
                 entityName={selectedCustomer.name}
+                forceShow={matchingForceShow}
                 onConfirm={(ids) => {
                   setHistoryCustomerProfileIds(ids.customerProfileIds);
                   setHistorySubClientCodices(ids.subClientCodices);
+                  setMatchingForceShow(false);
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
@@ -5110,10 +5121,11 @@ export default function OrderFormSimple() {
                     setHistoryCustomerProfileIds(matches.customerProfileIds);
                     setHistorySubClientCodices(matches.subClientCodices);
                   }
+                  setMatchingForceShow(false);
                   setShowMatchingManagerModal(false);
                   setShowCustomerHistoryModal(true);
                 }}
-                onClose={() => setShowMatchingManagerModal(false)}
+                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
               />
             );
           }

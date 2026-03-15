@@ -12,6 +12,7 @@ type Props =
       mode: 'subclient';
       subClientCodice: string;
       entityName: string;
+      forceShow?: boolean;
       onConfirm: (ids: MatchIds) => void;
       onSkip: (matches?: MatchIds) => void;
       onClose: () => void;
@@ -20,6 +21,7 @@ type Props =
       mode: 'customer';
       customerProfileId: string;
       entityName: string;
+      forceShow?: boolean;
       onConfirm: (ids: MatchIds) => void;
       onSkip: (matches?: MatchIds) => void;
       onClose: () => void;
@@ -32,10 +34,12 @@ type MatchState = {
 
 export function MatchingManagerModal(props: Props) {
   const { mode, entityName, onConfirm, onSkip, onClose } = props;
+  const forceShow = props.forceShow ?? false;
 
   const [initialMatch, setInitialMatch] = useState<MatchState>({ customerProfileIds: [], subClientCodices: [] });
   const [currentMatch, setCurrentMatch] = useState<MatchState>({ customerProfileIds: [], subClientCodices: [] });
   const [skipModal, setSkipModal] = useState(false);
+  const [initialSkipModal, setInitialSkipModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +51,10 @@ export function MatchingManagerModal(props: Props) {
   const [subclientResults, setSubclientResults] = useState<Subclient[]>([]);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [showSubclientSearch, setShowSubclientSearch] = useState(false);
-  // Names of already-matched customer IDs, resolved at load time for chip labels
-  const [resolvedCustomerNames, setResolvedCustomerNames] = useState<Map<string, string>>(new Map());
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [subclientSearchLoading, setSubclientSearchLoading] = useState(false);
+  // City+name of already-matched customer IDs, resolved at load time for chip labels
+  const [resolvedCustomers, setResolvedCustomers] = useState<Map<string, { name: string; city: string }>>(new Map());
 
   const entityId = mode === 'subclient' ? props.subClientCodice : props.customerProfileId;
   const onSkipRef = useRef(onSkip);
@@ -64,25 +70,26 @@ export function MatchingManagerModal(props: Props) {
         setInitialMatch(state);
         setCurrentMatch(state);
         setSkipModal(result.skipModal);
+        setInitialSkipModal(result.skipModal);
 
-        if (result.skipModal) {
+        if (result.skipModal && !forceShow) {
           onSkipRef.current(state);
           return;
         }
 
-        // Resolve names for already-matched customer IDs so chips show "ID · name"
+        // Resolve city+name for already-matched customer IDs so chips show "ID · city"
         if (state.customerProfileIds.length > 0) {
-          const nameMap = new Map<string, string>();
+          const resolved = new Map<string, { name: string; city: string }>();
           await Promise.all(
             state.customerProfileIds.map(async (id) => {
               try {
                 const results = await customerService.searchCustomers(id);
                 const match = results.find((c) => c.id === id);
-                if (match) nameMap.set(id, match.name);
+                if (match) resolved.set(id, { name: match.name, city: match.city });
               } catch { /* non critico: chip mostra solo ID */ }
             })
           );
-          setResolvedCustomerNames(nameMap);
+          setResolvedCustomers(resolved);
         }
       } catch {
         setError('Errore nel caricamento dei match');
@@ -95,23 +102,29 @@ export function MatchingManagerModal(props: Props) {
   }, [mode, entityId]);
 
   useEffect(() => {
-    if (!customerQuery.trim()) { setCustomerResults([]); return; }
+    if (!customerQuery.trim()) { setCustomerResults([]); setCustomerSearchLoading(false); return; }
+    setCustomerSearchLoading(true);
     const timer = setTimeout(async () => {
       try {
         const res = await customerService.searchCustomers(customerQuery);
         setCustomerResults(res.slice(0, 8));
-      } catch { /* ignore */ }
+      } catch { /* ignore */ } finally {
+        setCustomerSearchLoading(false);
+      }
     }, 250);
     return () => clearTimeout(timer);
   }, [customerQuery]);
 
   useEffect(() => {
-    if (!subclientQuery.trim()) { setSubclientResults([]); return; }
+    if (!subclientQuery.trim()) { setSubclientResults([]); setSubclientSearchLoading(false); return; }
+    setSubclientSearchLoading(true);
     const timer = setTimeout(async () => {
       try {
         const all = await getSubclients(subclientQuery);
         setSubclientResults(all.slice(0, 8));
-      } catch { /* ignore */ }
+      } catch { /* ignore */ } finally {
+        setSubclientSearchLoading(false);
+      }
     }, 250);
     return () => clearTimeout(timer);
   }, [subclientQuery]);
@@ -163,7 +176,7 @@ export function MatchingManagerModal(props: Props) {
         // mode=customer non gestisce subclient-subclient match
       }
 
-      if (skipModal) ops.push(upsertSkipModal(mode, entityId, true));
+      if (skipModal !== initialSkipModal) ops.push(upsertSkipModal(mode, entityId, skipModal));
 
       await Promise.all(ops);
       onConfirm({ customerProfileIds: currentMatch.customerProfileIds, subClientCodices: currentMatch.subClientCodices });
@@ -171,7 +184,7 @@ export function MatchingManagerModal(props: Props) {
       setError('Errore nel salvataggio dei match. Riprova.');
       setSaving(false);
     }
-  }, [currentMatch, initialMatch, mode, entityId, skipModal, onConfirm, props]);
+  }, [currentMatch, initialMatch, mode, entityId, skipModal, initialSkipModal, onConfirm, props]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -196,8 +209,8 @@ export function MatchingManagerModal(props: Props) {
                 title="Clienti Archibald collegati"
                 chips={currentMatch.customerProfileIds.map((id) => {
                   const fromSearch = customerResults.find((c) => c.id === id);
-                  const name = fromSearch?.name ?? resolvedCustomerNames.get(id);
-                  return { id, label: name ? `${id} · ${name}` : id };
+                  const city = fromSearch?.city ?? resolvedCustomers.get(id)?.city;
+                  return { id, label: city ? `${id} · ${city}` : id };
                 })}
                 onRemoveChip={removeCustomer}
                 searchValue={customerQuery}
@@ -205,8 +218,13 @@ export function MatchingManagerModal(props: Props) {
                 showSearch={showCustomerSearch}
                 onToggleSearch={() => setShowCustomerSearch((v) => !v)}
                 searchPlaceholder="Cerca cliente Archibald..."
-                searchResults={customerResults.map((c) => ({ id: c.id, label: `${c.id} · ${c.name}` }))}
+                searchResults={customerResults.map((c) => ({
+                  id: c.id,
+                  label: c.name,
+                  sublabel: `${c.id}${c.city ? ` · ${c.city}` : ''}`,
+                }))}
                 onSelectResult={(id) => addCustomer(id)}
+                isLoading={customerSearchLoading}
               />
             )}
 
@@ -227,6 +245,7 @@ export function MatchingManagerModal(props: Props) {
                 .filter((s) => !(mode === 'subclient' && s.codice === entityId))
                 .map((s) => ({ id: s.codice, label: `${s.codice} · ${s.ragioneSociale}` }))}
               onSelectResult={(id) => addSubclient(id)}
+              isLoading={subclientSearchLoading}
             />
           </div>
         )}
@@ -270,7 +289,7 @@ export function MatchingManagerModal(props: Props) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-type SearchResult = { id: string; label: string };
+type SearchResult = { id: string; label: string; sublabel?: string };
 
 function Section(props: {
   title: string;
@@ -283,7 +302,32 @@ function Section(props: {
   searchPlaceholder: string;
   searchResults: SearchResult[];
   onSelectResult: (id: string) => void;
+  isLoading?: boolean;
 }) {
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  useEffect(() => { setHighlightedIndex(-1); }, [props.searchResults]);
+  useEffect(() => { if (!props.showSearch) setHighlightedIndex(-1); }, [props.showSearch]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!props.searchResults.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, props.searchResults.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0 && highlightedIndex < props.searchResults.length) {
+        props.onSelectResult(props.searchResults[highlightedIndex].id);
+        setHighlightedIndex(-1);
+      }
+    } else if (e.key === 'Escape') {
+      props.onToggleSearch();
+    }
+  };
+
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -309,13 +353,30 @@ function Section(props: {
             placeholder={props.searchPlaceholder}
             value={props.searchValue}
             onChange={(e) => props.onSearchChange(e.target.value)}
+            onKeyDown={handleKeyDown}
             style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12 }}
           />
-          {props.searchResults.length > 0 && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: 180, overflowY: 'auto' }}>
-              {props.searchResults.map((r) => (
-                <button key={r.id} onClick={() => props.onSelectResult(r.id)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', border: 'none', borderBottom: '1px solid #f1f5f9', background: 'white', cursor: 'pointer', fontSize: 12 }}>
-                  {r.label}
+          {props.isLoading && (
+            <div style={{ fontSize: 11, color: '#94a3b8', padding: '4px 0' }}>Ricerca in corso...</div>
+          )}
+          {!props.isLoading && props.searchResults.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: 240, overflowY: 'auto' }}>
+              {props.searchResults.map((r, i) => (
+                <button
+                  key={r.id}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { props.onSelectResult(r.id); setHighlightedIndex(-1); }}
+                  onMouseEnter={() => setHighlightedIndex(i)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '7px 12px', border: 'none',
+                    borderBottom: i < props.searchResults.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    background: i === highlightedIndex ? '#bfdbfe' : 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 500 }}>{r.label}</div>
+                  {r.sublabel && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{r.sublabel}</div>}
                 </button>
               ))}
             </div>
