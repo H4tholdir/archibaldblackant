@@ -73,6 +73,29 @@ export class CustomerService {
     }
   }
 
+  async getHiddenCustomers(): Promise<Customer[]> {
+    try {
+      const response = await fetchWithRetry('/api/customers/hidden');
+      if (!response.ok) throw new Error('API fetch failed');
+      const data = await response.json();
+      return (data.data?.customers || []).map(mapBackendCustomer);
+    } catch {
+      return [];
+    }
+  }
+
+  async setCustomerHidden(customerProfile: string, hidden: boolean): Promise<void> {
+    const response = await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}/hidden`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden }),
+      },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  }
+
   async syncCustomers(): Promise<void> {
     console.log("[CustomerService] syncCustomers is a no-op (server is source of truth)");
   }

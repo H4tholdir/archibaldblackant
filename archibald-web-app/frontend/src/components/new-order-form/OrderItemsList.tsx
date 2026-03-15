@@ -19,6 +19,11 @@ const NEW_ITEM_STYLES = `
     0%, 70% { opacity: 1; }
     100%    { opacity: 0; }
   }
+  @keyframes slideOutItem {
+    0%   { opacity: 1; transform: translateX(0); max-height: 120px; }
+    60%  { opacity: 0; transform: translateX(32px); }
+    100% { opacity: 0; transform: translateX(40px); max-height: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+  }
 `;
 
 export function OrderItemsList({
@@ -28,6 +33,7 @@ export function OrderItemsList({
   newItemIds,
 }: OrderItemsListProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -91,6 +97,7 @@ export function OrderItemsList({
         {/* Table Body */}
         {items.map((item) => {
           const isNew = newItemIds?.has(item.id) ?? false;
+          const isRemoving = removingItemId === item.id;
           return (
             <div
               key={item.id}
@@ -103,7 +110,12 @@ export function OrderItemsList({
                 borderBottom: "1px solid #e5e7eb",
                 backgroundColor: isNew ? "#f0fdf4" : "white",
                 borderLeft: isNew ? "3px solid #059669" : undefined,
-                animation: isNew ? "slideInItem 0.4s cubic-bezier(0.34,1.56,0.64,1)" : undefined,
+                animation: isRemoving
+                  ? "slideOutItem 0.28s ease forwards"
+                  : isNew
+                    ? "slideInItem 0.4s cubic-bezier(0.34,1.56,0.64,1)"
+                    : undefined,
+                overflow: "hidden",
               }}
             >
               {/* Product Name & Description */}
@@ -183,7 +195,11 @@ export function OrderItemsList({
                 <button
                   onClick={() => {
                     if (confirm(`Rimuovere ${item.productName} dall'ordine?`)) {
-                      onDeleteItem(item.id);
+                      setRemovingItemId(item.id);
+                      setTimeout(() => {
+                        onDeleteItem(item.id);
+                        setRemovingItemId(null);
+                      }, 280);
                     }
                   }}
                   aria-label={`Elimina ${item.productName}`}

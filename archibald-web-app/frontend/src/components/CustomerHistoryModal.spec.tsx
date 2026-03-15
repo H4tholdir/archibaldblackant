@@ -153,21 +153,6 @@ describe('CustomerHistoryModal', () => {
     );
   });
 
-  it('shows ⚠ warning when historical unit price exceeds current list price', async () => {
-    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(
-      new Map([['ART001', { price: 5, vat: 22 }]]),
-    );
-    vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
-    ]);
-
-    render(<CustomerHistoryModal {...defaultProps} />);
-
-    await waitFor(() =>
-      expect(screen.getByTitle(/Prezzo storico superiore al listino attuale/)).toBeDefined(),
-    );
-  });
-
   it('shows "Modifica collegamenti" button when onEditMatching prop is provided', async () => {
     const onEditMatching = vi.fn();
     render(<CustomerHistoryModal {...defaultProps} onEditMatching={onEditMatching} />);

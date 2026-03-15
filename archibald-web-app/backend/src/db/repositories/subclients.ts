@@ -146,7 +146,7 @@ function mapRowToSubclient(row: SubclientRow): Subclient {
 
 async function getAllSubclients(pool: DbPool): Promise<Subclient[]> {
   const { rows } = await pool.query<SubclientRow>(
-    `SELECT ${COLUMNS} FROM shared.sub_clients ORDER BY ragione_sociale ASC`,
+    `SELECT ${COLUMNS} FROM shared.sub_clients WHERE hidden = FALSE ORDER BY ragione_sociale ASC`,
   );
   return rows.map(mapRowToSubclient);
 }
@@ -155,7 +155,8 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
   const pattern = `%${query}%`;
   const { rows } = await pool.query<SubclientRow>(
     `SELECT ${COLUMNS} FROM shared.sub_clients
-     WHERE ragione_sociale ILIKE $1
+     WHERE hidden = FALSE
+       AND (ragione_sociale ILIKE $1
         OR suppl_ragione_sociale ILIKE $1
         OR codice ILIKE $1
         OR partita_iva ILIKE $1
@@ -168,11 +169,26 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
         OR zona ILIKE $1
         OR agente ILIKE $1
         OR pag ILIKE $1
-        OR listino ILIKE $1
+        OR listino ILIKE $1)
      ORDER BY ragione_sociale ASC`,
     [pattern],
   );
   return rows.map(mapRowToSubclient);
+}
+
+async function getHiddenSubclients(pool: DbPool): Promise<Subclient[]> {
+  const { rows } = await pool.query<SubclientRow>(
+    `SELECT ${COLUMNS} FROM shared.sub_clients WHERE hidden = TRUE ORDER BY ragione_sociale ASC`,
+  );
+  return rows.map(mapRowToSubclient);
+}
+
+async function setSubclientHidden(pool: DbPool, codice: string, hidden: boolean): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shared.sub_clients SET hidden = $2, updated_at = NOW() WHERE codice = $1`,
+    [codice, hidden],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 async function getSubclientByCodice(pool: DbPool, codice: string): Promise<Subclient | null> {
@@ -354,6 +370,8 @@ async function getSubclientByCustomerProfile(
 export {
   getAllSubclients,
   searchSubclients,
+  getHiddenSubclients,
+  setSubclientHidden,
   getSubclientByCodice,
   deleteSubclient,
   upsertSubclients,

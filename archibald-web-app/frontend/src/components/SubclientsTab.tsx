@@ -3,7 +3,8 @@ import {
   getSubclients,
   updateSubclient,
   createSubclient,
-  deleteSubclient,
+  setSubclientHidden,
+  getHiddenSubclients,
 } from '../services/subclients.service';
 import type { Subclient } from '../services/subclients.service';
 import { MatchingManagerModal } from './MatchingManagerModal';
@@ -98,14 +99,14 @@ function SubclientFormModal({
   isNew,
   existingCodici,
   onSave,
-  onDelete,
+  onHide,
   onClose,
 }: {
   subclient: Subclient;
   isNew: boolean;
   existingCodici: Set<string>;
   onSave: (data: Subclient, isNew: boolean) => Promise<void>;
-  onDelete: (codice: string) => Promise<void>;
+  onHide: (codice: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(isNew);
@@ -137,9 +138,9 @@ function SubclientFormModal({
   const handleDelete = async () => {
     setSaving(true);
     try {
-      await onDelete(subclient.codice);
+      await onHide(subclient.codice);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Errore nell\'eliminazione');
+      setError(e instanceof Error ? e.message : 'Errore nel nascondere il sottocliente');
       setSaving(false);
       setConfirmDelete(false);
     }
@@ -254,12 +255,12 @@ function SubclientFormModal({
                   backgroundColor: '#fff', color: '#EF4444', cursor: 'pointer', fontSize: '13px',
                 }}
               >
-                Elimina
+                Nascondi
               </button>
             )}
             {confirmDelete && (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: '#EF4444' }}>Sei sicuro?</span>
+                <span style={{ fontSize: '12px', color: '#EF4444' }}>Nascondere?</span>
                 <button
                   onClick={handleDelete}
                   disabled={saving}
@@ -397,6 +398,9 @@ function SubclientsTab() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [linkingSubclient, setLinkingSubclient] = useState<Subclient | null>(null);
   const [matchCounts, setMatchCounts] = useState<Map<string, MatchCount>>(new Map());
+  const [showHiddenSection, setShowHiddenSection] = useState(false);
+  const [hiddenList, setHiddenList] = useState<Subclient[] | null>(null);
+  const [restoringCodice, setRestoringCodice] = useState<string | null>(null);
 
   const existingCodici = useMemo(() => new Set(subclients.map((s) => s.codice)), [subclients]);
 
@@ -441,9 +445,10 @@ function SubclientsTab() {
     await fetchData();
   }, [fetchData]);
 
-  const handleDelete = useCallback(async (codice: string) => {
-    await deleteSubclient(codice);
+  const handleHide = useCallback(async (codice: string) => {
+    await setSubclientHidden(codice, true);
     setSelectedSubclient(null);
+    setHiddenList(null); // force reload next time
     await fetchData();
   }, [fetchData]);
 
@@ -503,6 +508,70 @@ function SubclientsTab() {
         />
       ))}
 
+      {/* Sezione nascosti */}
+      <div style={{ marginTop: '16px' }}>
+        <button
+          onClick={async () => {
+            if (!showHiddenSection) {
+              if (hiddenList === null) {
+                const list = await getHiddenSubclients();
+                setHiddenList(list);
+              }
+              setShowHiddenSection(true);
+            } else {
+              setShowHiddenSection(false);
+            }
+          }}
+          style={{
+            padding: '6px 12px', borderRadius: '8px', border: '1px solid #d1d5db',
+            backgroundColor: '#f9fafb', color: '#6b7280', cursor: 'pointer',
+            fontSize: '12px', fontWeight: 500,
+          }}
+        >
+          {showHiddenSection ? '▲ Nascondi nascosti' : `👁 Mostra nascosti${hiddenList ? ` (${hiddenList.length})` : ''}`}
+        </button>
+
+        {showHiddenSection && hiddenList && (
+          <div style={{ marginTop: '8px' }}>
+            {hiddenList.length === 0 && (
+              <div style={{ fontSize: '12px', color: '#9ca3af', padding: '8px 0' }}>Nessun sottocliente nascosto</div>
+            )}
+            {hiddenList.map((sc) => (
+              <div key={sc.codice} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', borderRadius: '8px', marginBottom: '4px',
+                backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', opacity: 0.75,
+              }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>{sc.ragioneSociale}</div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>{sc.codice}{sc.partitaIva && ` · P.IVA: ${sc.partitaIva}`}</div>
+                </div>
+                <button
+                  onClick={async () => {
+                    setRestoringCodice(sc.codice);
+                    try {
+                      await setSubclientHidden(sc.codice, false);
+                      setHiddenList((prev) => prev ? prev.filter((x) => x.codice !== sc.codice) : []);
+                      await fetchData();
+                    } finally {
+                      setRestoringCodice(null);
+                    }
+                  }}
+                  disabled={restoringCodice === sc.codice}
+                  style={{
+                    padding: '4px 10px', borderRadius: '6px', border: '1px solid #86efac',
+                    backgroundColor: '#f0fdf4', color: '#16a34a', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 500,
+                  }}
+                >
+                  {restoringCodice === sc.codice ? '...' : 'Ripristina'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Detail/Edit Modal */}
       {selectedSubclient && (
         <SubclientFormModal
@@ -510,7 +579,7 @@ function SubclientsTab() {
           isNew={false}
           existingCodici={existingCodici}
           onSave={handleSave}
-          onDelete={handleDelete}
+          onHide={handleHide}
           onClose={() => setSelectedSubclient(null)}
         />
       )}
@@ -522,7 +591,7 @@ function SubclientsTab() {
           isNew={true}
           existingCodici={existingCodici}
           onSave={handleSave}
-          onDelete={handleDelete}
+          onHide={handleHide}
           onClose={() => setCreatingNew(false)}
         />
       )}

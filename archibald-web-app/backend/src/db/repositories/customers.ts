@@ -236,6 +236,7 @@ async function getCustomers(
     const { rows } = await pool.query<CustomerRow>(
       `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
        WHERE user_id = $1
+         AND hidden = FALSE
          AND (name ILIKE $2
            OR customer_profile ILIKE $2
            OR vat_number ILIKE $2
@@ -260,11 +261,35 @@ async function getCustomers(
 
   const { rows } = await pool.query<CustomerRow>(
     `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
-     WHERE user_id = $1
+     WHERE user_id = $1 AND hidden = FALSE
      ORDER BY name ASC`,
     [userId],
   );
   return rows.map(mapRowToCustomer);
+}
+
+async function getHiddenCustomers(pool: DbPool, userId: string): Promise<Customer[]> {
+  const { rows } = await pool.query<CustomerRow>(
+    `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
+     WHERE user_id = $1 AND hidden = TRUE
+     ORDER BY name ASC`,
+    [userId],
+  );
+  return rows.map(mapRowToCustomer);
+}
+
+async function setCustomerHidden(
+  pool: DbPool,
+  userId: string,
+  customerProfile: string,
+  hidden: boolean,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE agents.customers SET hidden = $3, updated_at = NOW()
+     WHERE user_id = $1 AND customer_profile = $2`,
+    [userId, customerProfile, hidden],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 async function getCustomerByProfile(
@@ -583,6 +608,8 @@ async function deleteCustomerPhoto(
 
 export {
   getCustomers,
+  getHiddenCustomers,
+  setCustomerHidden,
   getCustomerByProfile,
   getCustomerCount,
   getLastSyncTime,

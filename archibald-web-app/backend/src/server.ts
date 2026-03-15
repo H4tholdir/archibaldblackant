@@ -321,6 +321,8 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/customers', authenticateJWT, createCustomersRouter({
     queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
+    getHiddenCustomers: (userId) => customersRepo.getHiddenCustomers(pool, userId),
+    setCustomerHidden: (userId, profile, hidden) => customersRepo.setCustomerHidden(pool, userId, profile, hidden),
     getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
     getCustomerCount: (userId) => customersRepo.getCustomerCount(pool, userId),
     getLastSyncTime: (userId) => customersRepo.getLastSyncTime(pool, userId),
@@ -826,6 +828,8 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
     getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
+    getHiddenSubclients: () => subclientsRepo.getHiddenSubclients(pool),
+    setSubclientHidden: (codice, hidden) => subclientsRepo.setSubclientHidden(pool, codice, hidden),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),
     getSubclientByCustomerProfile: (profileId) => subclientsRepo.getSubclientByCustomerProfile(pool, profileId),
     deleteSubclient: (codice) => subclientsRepo.deleteSubclient(pool, codice),

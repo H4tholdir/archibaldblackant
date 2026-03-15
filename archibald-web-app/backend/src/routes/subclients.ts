@@ -62,6 +62,8 @@ const subclientCreateSchema = subclientUpdateSchema.extend({
 type SubclientsRouterDeps = {
   getAllSubclients: () => Promise<Subclient[]>;
   searchSubclients: (query: string) => Promise<Subclient[]>;
+  getHiddenSubclients: () => Promise<Subclient[]>;
+  setSubclientHidden: (codice: string, hidden: boolean) => Promise<boolean>;
   getSubclientByCodice: (codice: string) => Promise<Subclient | null>;
   getSubclientByCustomerProfile: (profileId: string) => Promise<Subclient | null>;
   deleteSubclient: (codice: string) => Promise<boolean>;
@@ -72,7 +74,8 @@ type SubclientsRouterDeps = {
 
 function createSubclientsRouter(deps: SubclientsRouterDeps) {
   const {
-    getAllSubclients, searchSubclients, getSubclientByCodice, getSubclientByCustomerProfile,
+    getAllSubclients, searchSubclients, getHiddenSubclients, setSubclientHidden,
+    getSubclientByCodice, getSubclientByCustomerProfile,
     deleteSubclient, setSubclientMatch, clearSubclientMatch, upsertSubclients,
   } = deps;
   const router = Router();
@@ -89,6 +92,30 @@ function createSubclientsRouter(deps: SubclientsRouterDeps) {
     } catch (error) {
       logger.error('Error fetching subclients', { error });
       res.status(500).json({ success: false, error: 'Errore recupero sottoclienti' });
+    }
+  });
+
+  router.get('/hidden', async (_req, res) => {
+    try {
+      const data = await getHiddenSubclients();
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error fetching hidden subclients', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero sottoclienti nascosti' });
+    }
+  });
+
+  router.patch('/:codice/hidden', async (req: AuthRequest, res) => {
+    try {
+      const parsed = codiceSchema.safeParse(req.params);
+      if (!parsed.success) return res.status(400).json({ success: false, error: 'Codice non valido' });
+      const hidden = Boolean(req.body?.hidden);
+      const updated = await setSubclientHidden(parsed.data.codice, hidden);
+      if (!updated) return res.status(404).json({ success: false, error: 'Sottocliente non trovato' });
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error setting subclient hidden', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento sottocliente' });
     }
   });
 

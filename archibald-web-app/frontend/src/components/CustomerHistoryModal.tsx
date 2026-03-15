@@ -538,12 +538,6 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         {listinoUnit !== null ? (
           <>
             <span style={{ fontWeight: 700, color: '#6366f1' }}>{formatEur(listinoUnit)}</span>
-            {article.unitPrice > listinoUnit && (
-              <span
-                title="Prezzo storico superiore al listino attuale — verrà applicato uno sconto per mantenere il totale storico"
-                style={{ display: 'block', fontSize: 8, color: '#f97316', cursor: 'help' }}
-              >⚠</span>
-            )}
             {delta !== null && Math.abs(delta) > 0.001 && (
               <span style={{ display: 'block', fontSize: 8, fontWeight: 600, color: delta > 0 ? '#dc2626' : '#059669' }}>
                 {delta > 0 ? `▲ +${delta}%` : `▼ −${Math.abs(delta)}%`}

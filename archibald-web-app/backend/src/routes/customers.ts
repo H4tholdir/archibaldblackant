@@ -32,6 +32,8 @@ type CustomerSyncMetrics = {
 type CustomersRouterDeps = {
   queue: QueueLike;
   getCustomers: (userId: string, searchQuery?: string) => Promise<Customer[]>;
+  getHiddenCustomers: (userId: string) => Promise<Customer[]>;
+  setCustomerHidden: (userId: string, customerProfile: string, hidden: boolean) => Promise<boolean>;
   getCustomerByProfile: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
   getCustomerCount: (userId: string) => Promise<number>;
   getLastSyncTime: (userId: string) => Promise<number | null>;
@@ -62,7 +64,8 @@ const createCustomerSchema = z.object({
 
 function createCustomersRouter(deps: CustomersRouterDeps) {
   const {
-    queue, getCustomers, getCustomerByProfile, getCustomerCount, getLastSyncTime,
+    queue, getCustomers, getHiddenCustomers, setCustomerHidden,
+    getCustomerByProfile, getCustomerCount, getLastSyncTime,
     getCustomerPhoto, setCustomerPhoto, deleteCustomerPhoto,
     upsertSingleCustomer, updateCustomerBotStatus, updateArchibaldName,
     smartCustomerSync, resumeOtherSyncs,
@@ -118,6 +121,29 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     } catch (error) {
       logger.error('Error fetching customers', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero clienti' });
+    }
+  });
+
+  router.get('/hidden', async (req: AuthRequest, res) => {
+    try {
+      const customers = await getHiddenCustomers(req.user!.userId);
+      res.json({ success: true, data: { customers, total: customers.length } });
+    } catch (error) {
+      logger.error('Error fetching hidden customers', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero clienti nascosti' });
+    }
+  });
+
+  router.patch('/:customerProfile/hidden', async (req: AuthRequest, res) => {
+    try {
+      const { customerProfile } = req.params;
+      const hidden = Boolean(req.body?.hidden);
+      const updated = await setCustomerHidden(req.user!.userId, customerProfile, hidden);
+      if (!updated) return res.status(404).json({ success: false, error: 'Cliente non trovato' });
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error setting customer hidden', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento cliente' });
     }
   });
 

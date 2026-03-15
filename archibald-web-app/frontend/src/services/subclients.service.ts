@@ -103,6 +103,24 @@ async function deleteSubclient(codice: string): Promise<void> {
   }
 }
 
+async function setSubclientHidden(codice: string, hidden: boolean): Promise<void> {
+  const res = await fetchWithRetry(`/api/subclients/${encodeURIComponent(codice)}/hidden`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hidden }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
+async function getHiddenSubclients(): Promise<Subclient[]> {
+  const res = await fetchWithRetry('/api/subclients/hidden');
+  const data = await res.json();
+  return data.data ?? [];
+}
+
 async function getSubclientByMatchedCustomer(customerProfileId: string): Promise<Subclient | null> {
   const res = await fetchWithRetry(`/api/subclients/by-customer/${encodeURIComponent(customerProfileId)}`);
   if (!res.ok) throw new Error(`Errore: ${res.status}`);
@@ -117,6 +135,8 @@ export {
   updateSubclient,
   createSubclient,
   deleteSubclient,
+  setSubclientHidden,
+  getHiddenSubclients,
   getSubclientByMatchedCustomer,
   type Subclient,
 };
