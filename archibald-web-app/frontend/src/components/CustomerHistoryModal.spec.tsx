@@ -10,6 +10,7 @@ vi.mock('../services/prices.service', () => ({
   priceService: {
     getPriceAndVat: vi.fn().mockResolvedValue(null),
     getPriceAndVatBatch: vi.fn().mockResolvedValue(new Map()),
+    fuzzyMatchArticleCode: vi.fn().mockResolvedValue(null),
   },
 }));
 
@@ -180,6 +181,63 @@ describe('CustomerHistoryModal', () => {
   it('does not show "Modifica collegamenti" button when onEditMatching is not provided', () => {
     render(<CustomerHistoryModal {...defaultProps} />);
     expect(screen.queryByText(/modifica collegamenti/i)).toBeNull();
+  });
+
+  it('shows substitution indicator when fuzzy match found for Fresis article', async () => {
+    const oldCode = 'OLD-123';
+    const newCode = 'NEW-124';
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[oldCode, null]]));
+    vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(newCode);
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+    ]);
+
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} />);
+
+    await screen.findByText(oldCode);
+    await waitFor(() => expect(screen.getByText(`→ ${newCode}`)).toBeDefined());
+  });
+
+  it('uses substitute code when copying Fresis order with stale article code', async () => {
+    const oldCode = 'OLD-123';
+    const newCode = 'NEW-124';
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[oldCode, null]]));
+    vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(newCode);
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+    ]);
+
+    const onAddOrder = vi.fn();
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} onAddOrder={onAddOrder} />);
+
+    await screen.findByText(oldCode);
+    await waitFor(() => expect(screen.getByText(`→ ${newCode}`)).toBeDefined());
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Copia tutto l'ordine/ })[0]);
+    await waitFor(() =>
+      expect(onAddOrder).toHaveBeenCalledWith(
+        [expect.objectContaining({ articleCode: newCode })],
+        false,
+      ),
+    );
+  });
+
+  it('skips Fresis article and shows "non nel catalogo" when no fuzzy match found', async () => {
+    const staleCode = 'GONE-999';
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[staleCode, null]]));
+    vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(null);
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ source: 'fresis', orderId: 'F-2', articles: [{ articleCode: staleCode, articleDescription: 'Gone Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+    ]);
+
+    const onAddOrder = vi.fn();
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} onAddOrder={onAddOrder} />);
+
+    await screen.findByText(staleCode);
+    await waitFor(() => expect(screen.getByText('non nel catalogo')).toBeDefined());
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Copia tutto l'ordine/ })[0]);
+    await waitFor(() => expect(onAddOrder).toHaveBeenCalledWith([], false));
   });
 
   it('shows — in listino columns when getPriceAndVatBatch returns null for code', async () => {

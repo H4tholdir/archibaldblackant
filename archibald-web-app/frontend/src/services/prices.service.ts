@@ -77,6 +77,21 @@ export class PriceService {
     }
   }
 
+  async fuzzyMatchArticleCode(code: string): Promise<string | null> {
+    try {
+      const res = await fetchWithRetry(
+        `/api/products/search?q=${encodeURIComponent(code)}&limit=5`,
+      );
+      if (!res.ok) return null;
+      const data = await res.json() as { success: boolean; data: Array<{ name: string; confidence: number }> };
+      if (!data.success || !Array.isArray(data.data) || data.data.length === 0) return null;
+      const top = data.data[0];
+      return top.confidence >= 90 ? top.name : null;
+    } catch {
+      return null;
+    }
+  }
+
   async syncPrices(): Promise<void> {
     console.log("[PriceService] Price sync skipped - prices are stored in products on server");
   }

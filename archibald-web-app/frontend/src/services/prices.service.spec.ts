@@ -124,6 +124,60 @@ describe("PriceService", () => {
     });
   });
 
+  describe("fuzzyMatchArticleCode", () => {
+    const origCode = "6830L.314.014";
+    const newCode = "6830L.315.014";
+
+    function makeFuzzyResponse(results: Array<{ name: string; confidence: number }>) {
+      return {
+        ok: true,
+        json: async () => ({ success: true, data: results }),
+      } as Response;
+    }
+
+    test("returns substitute code when top result confidence >= 90", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeFuzzyResponse([{ name: newCode, confidence: 92 }]));
+
+      const result = await service.fuzzyMatchArticleCode(origCode);
+
+      expect(result).toBe(newCode);
+    });
+
+    test("returns null when top result confidence < 90", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeFuzzyResponse([{ name: newCode, confidence: 85 }]));
+
+      const result = await service.fuzzyMatchArticleCode(origCode);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null when no results returned", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeFuzzyResponse([]));
+
+      const result = await service.fuzzyMatchArticleCode(origCode);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null on network error", async () => {
+      mockFetchWithRetry.mockRejectedValue(new Error("network error"));
+
+      const result = await service.fuzzyMatchArticleCode(origCode);
+
+      expect(result).toBeNull();
+    });
+
+    test("calls search endpoint with URL-encoded article code", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeFuzzyResponse([]));
+
+      await service.fuzzyMatchArticleCode(origCode);
+
+      expect(mockFetchWithRetry).toHaveBeenCalledWith(
+        `/api/products/search?q=${encodeURIComponent(origCode)}&limit=5`,
+      );
+    });
+  });
+
   describe("syncPrices", () => {
     test("is a no-op", async () => {
       await service.syncPrices();

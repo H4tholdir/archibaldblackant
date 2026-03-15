@@ -33,6 +33,8 @@ export function CustomerHistoryModal({
 
   // Listino prices: Map<articleCode, { price: number; vat: number } | null>
   const [listinoPrices, setListinoPrices] = useState<Map<string, { price: number; vat: number } | null>>(new Map());
+  // Codici sostituiti via fuzzy match: Map<oldCode, newCode>
+  const [codeSubstitutions, setCodeSubstitutions] = useState<Map<string, string>>(new Map());
   // Contatore articoli aggiunti
   const [addedCount, setAddedCount] = useState(0);
   // Badge counter per riga: Map<articleCode, count>
@@ -70,6 +72,27 @@ export function CustomerHistoryModal({
       .catch(() => {});
   }, [isOpen, orders]);
 
+  // Per i codici non trovati nel catalogo, cerca corrispondenze fuzzy
+  useEffect(() => {
+    if (!isOpen || listinoPrices.size === 0) return;
+    const nullCodes = [...listinoPrices.entries()]
+      .filter(([, v]) => v === null)
+      .map(([code]) => code);
+    if (nullCodes.length === 0) return;
+    Promise.allSettled(
+      nullCodes.map(async (code) => {
+        const match = await priceService.fuzzyMatchArticleCode(code);
+        return match !== null ? ([code, match] as const) : null;
+      }),
+    ).then((results) => {
+      const subs = new Map<string, string>();
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) subs.set(r.value[0], r.value[1]);
+      }
+      setCodeSubstitutions(subs);
+    });
+  }, [isOpen, listinoPrices]);
+
   const filteredOrders = useMemo(() => {
     const q = searchQuery.toLowerCase();
     if (!q) return orders;
@@ -87,15 +110,20 @@ export function CustomerHistoryModal({
   }, [orders, searchQuery]);
 
   const buildPendingItem = useCallback(
-    async (a: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number): Promise<PendingOrderItem & { _priceWarning?: boolean }> => {
+    async (
+      a: CustomerFullHistoryOrder['articles'][number],
+      orderDiscountPercent: number,
+      substituteCode?: string,
+    ): Promise<PendingOrderItem & { _priceWarning?: boolean }> => {
+      const effectiveCode = substituteCode ?? a.articleCode;
       const combinedDiscount = orderDiscountPercent > 0
         ? Math.round((1 - (1 - a.discountPercent / 100) * (1 - orderDiscountPercent / 100)) * 10000) / 100
         : a.discountPercent;
 
       if (isFresisClient) {
         return {
-          articleCode: a.articleCode,
-          productName: a.articleCode,
+          articleCode: effectiveCode,
+          productName: effectiveCode,
           description: a.articleDescription,
           quantity: a.quantity,
           price: a.unitPrice,
@@ -105,7 +133,7 @@ export function CustomerHistoryModal({
       }
 
       // Direct client: fetch current list price and calculate discount
-      const priceInfo = await priceService.getPriceAndVat(a.articleCode);
+      const priceInfo = await priceService.getPriceAndVat(effectiveCode);
       const currentListPrice = priceInfo?.price ?? a.unitPrice;
       const lineAmountNoVat = a.lineTotalWithVat / (1 + a.vatPercent / 100);
       const calculatedDiscount =
@@ -115,8 +143,8 @@ export function CustomerHistoryModal({
       const isValid = calculatedDiscount >= 0 && calculatedDiscount <= 100;
 
       return {
-        articleCode: a.articleCode,
-        productName: a.articleCode,
+        articleCode: effectiveCode,
+        productName: effectiveCode,
         description: a.articleDescription,
         quantity: a.quantity,
         price: currentListPrice,
@@ -129,8 +157,13 @@ export function CustomerHistoryModal({
   );
 
   const handleAddSingle = useCallback(
-    async (article: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number) => {
-      const item = await buildPendingItem(article, orderDiscountPercent);
+    async (
+      article: CustomerFullHistoryOrder['articles'][number],
+      orderDiscountPercent: number,
+      orderSource: 'orders' | 'fresis',
+    ) => {
+      const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+      const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
       onAddArticle(item, false);
       setAddedCount((c) => c + 1);
       setArticleBadges((prev) => {
@@ -143,32 +176,39 @@ export function CustomerHistoryModal({
         setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; });
       }, 1200);
     },
-    [buildPendingItem, onAddArticle],
+    [buildPendingItem, onAddArticle, codeSubstitutions],
   );
 
   const handleCopyOrder = useCallback(
     async (order: CustomerFullHistoryOrder) => {
       setCopyingOrderId(order.orderId);
-      const validItems: PendingOrderItem[] = [];
+      const validPairs: Array<{ originalCode: string; item: PendingOrderItem }> = [];
       const skipped: string[] = [];
 
       for (const a of order.articles) {
-        const priceInfo = isFresisClient
-          ? { price: a.unitPrice, vat: a.vatPercent }
-          : await priceService.getPriceAndVat(a.articleCode);
-        if (!priceInfo) { skipped.push(`${a.articleCode} — ${a.articleDescription}`); continue; }
-        validItems.push(await buildPendingItem(a, order.orderDiscountPercent));
+        const inCatalog = listinoPrices.get(a.articleCode) !== null;
+        const substituteCode = order.source === 'fresis' ? codeSubstitutions.get(a.articleCode) : undefined;
+        // skipOnMissing: Fresis source (always) OR direct orders for non-Fresis customer
+        const skipOnMissing = order.source === 'fresis' || !isFresisClient;
+        if (skipOnMissing && !inCatalog && substituteCode === undefined) {
+          skipped.push(`${a.articleCode} — ${a.articleDescription}`);
+          continue;
+        }
+        validPairs.push({
+          originalCode: a.articleCode,
+          item: await buildPendingItem(a, order.orderDiscountPercent, substituteCode),
+        });
       }
 
+      const validItems = validPairs.map((p) => p.item);
       onAddOrder(validItems, false);
       if (skipped.length > 0) setSkippedDialog(skipped);
 
-      // Animazioni copia ordine
       setAddedCount((c) => c + validItems.length);
-      for (const item of validItems) {
+      for (const { originalCode } of validPairs) {
         setArticleBadges((prev) => {
           const m = new Map(prev);
-          m.set(item.articleCode, (m.get(item.articleCode) ?? 0) + 1);
+          m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
           return m;
         });
       }
@@ -178,7 +218,7 @@ export function CustomerHistoryModal({
         setCopiedOrderIds((prev) => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
     },
-    [buildPendingItem, isFresisClient, onAddOrder],
+    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder],
   );
 
   if (!isOpen) return null;
@@ -279,9 +319,10 @@ export function CustomerHistoryModal({
                 listinoPrices={listinoPrices}
                 articleBadges={articleBadges}
                 flashingArticles={flashingArticles}
+                codeSubstitutions={codeSubstitutions}
                 isCopying={copyingOrderId === order.orderId}
                 isCopied={copiedOrderIds.has(order.orderId)}
-                onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent)}
+                onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent, order.source)}
                 onCopyOrder={() => handleCopyOrder(order)}
               />
             ))}
@@ -320,13 +361,14 @@ type OrderCardProps = {
   listinoPrices: Map<string, { price: number; vat: number } | null>;
   articleBadges: Map<string, number>;
   flashingArticles: Set<string>;
+  codeSubstitutions: Map<string, string>;
   isCopying: boolean;
   isCopied: boolean;
   onAddArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onCopyOrder: () => void;
 };
 
-function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
+function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
   const accent = isFresis ? '#8b5cf6' : '#3b82f6';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
@@ -415,6 +457,8 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
               listinoInfo={listinoPrices.get(article.articleCode) ?? null}
               badgeCount={articleBadges.get(article.articleCode) ?? 0}
               isFlashing={flashingArticles.has(article.articleCode)}
+              substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
+              isUnmatched={isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode)}
               onAdd={() => onAddArticle(article)}
             />
           ))}
@@ -438,11 +482,13 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, isCo
   );
 }
 
-function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
+function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, onAdd }: {
   article: CustomerFullHistoryOrder['articles'][number];
   listinoInfo: { price: number; vat: number } | null;
   badgeCount: number;
   isFlashing: boolean;
+  substituteCode?: string;
+  isUnmatched?: boolean;
   onAdd: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -470,6 +516,12 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
         <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#6366f1', fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {article.articleCode}
         </span>
+        {substituteCode && (
+          <span style={{ display: 'block', fontSize: 9, color: '#d97706', fontWeight: 600 }}>→ {substituteCode}</span>
+        )}
+        {isUnmatched && (
+          <span style={{ display: 'block', fontSize: 9, color: '#dc2626' }}>non nel catalogo</span>
+        )}
       </td>
       <td style={{ padding: '8px 8px', overflow: 'hidden' }}>
         <span style={{ fontSize: 12, color: '#1e293b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -520,13 +572,13 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, onAdd }: {
       </td>
 
       <td style={{ padding: '8px 8px', position: 'relative' }}>
-        <button onClick={onAdd} style={{
-          background: isFlashing ? '#16a34a' : '#6366f1', color: 'white',
-          border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
-          fontWeight: 600, cursor: 'pointer', width: '100%', whiteSpace: 'nowrap',
-          transition: 'background 0.15s',
+        <button onClick={onAdd} disabled={isUnmatched} style={{
+          background: isUnmatched ? '#94a3b8' : isFlashing ? '#16a34a' : '#6366f1',
+          color: 'white', border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
+          fontWeight: 600, cursor: isUnmatched ? 'not-allowed' : 'pointer',
+          width: '100%', whiteSpace: 'nowrap', transition: 'background 0.15s',
         }}>
-          {isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
+          {isUnmatched ? '⚠ Non trovato' : isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
         </button>
         {badgeCount > 0 && (
           <span style={{
