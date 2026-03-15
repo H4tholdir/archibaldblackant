@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { searchSubClients, deleteSubClient } from "../../api/subclients";
+import { searchSubClients, setSubClientHidden, getHiddenSubClients } from "../../api/subclients";
 import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 import type { SubClient } from "../../types/sub-client";
 
@@ -30,8 +30,13 @@ export function SubClientSelector({
   const [swipeX, setSwipeX] = useState<Record<string, number>>({});
   const touchStartX = useRef(0);
   const swipingCodice = useRef<string | null>(null);
-  const [confirmDeleteSubClient, setConfirmDeleteSubClient] =
+  const [confirmHideSubClient, setConfirmHideSubClient] =
     useState<SubClient | null>(null);
+  const [hidingCodice, setHidingCodice] = useState<string | null>(null);
+
+  const [hiddenSubclients, setHiddenSubclients] = useState<SubClient[] | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+  const [restoringCodice, setRestoringCodice] = useState<string | null>(null);
 
   const [hoveredCodice, setHoveredCodice] = useState<string | null>(null);
 
@@ -164,22 +169,49 @@ export function SubClientSelector({
     if (swipingCodice.current !== codice) return;
     const currentX = swipeX[codice] ?? 0;
     if (currentX >= 80) {
-      setConfirmDeleteSubClient(sc);
+      setConfirmHideSubClient(sc);
     }
     setSwipeX((prev) => ({ ...prev, [codice]: 0 }));
     swipingCodice.current = null;
   };
 
-  const handleConfirmDelete = async () => {
-    if (!confirmDeleteSubClient) return;
-    const codice = confirmDeleteSubClient.codice;
+  const handleConfirmHide = async () => {
+    if (!confirmHideSubClient) return;
+    const sc = confirmHideSubClient;
+    setHidingCodice(sc.codice);
     try {
-      await deleteSubClient(codice);
-      setResults((prev) => prev.filter((sc) => sc.codice !== codice));
+      await setSubClientHidden(sc.codice, true);
+      setResults((prev) => prev.filter((c) => c.codice !== sc.codice));
+      setHiddenSubclients((prev) => prev ? [sc, ...prev] : [sc]);
     } catch (err) {
-      console.error("[SubClientSelector] Delete failed:", err);
+      console.error("[SubClientSelector] Hide failed:", err);
     } finally {
-      setConfirmDeleteSubClient(null);
+      setConfirmHideSubClient(null);
+      setHidingCodice(null);
+    }
+  };
+
+  const handleRestore = async (sc: SubClient) => {
+    setRestoringCodice(sc.codice);
+    try {
+      await setSubClientHidden(sc.codice, false);
+      setHiddenSubclients((prev) => prev ? prev.filter((c) => c.codice !== sc.codice) : []);
+    } catch (err) {
+      console.error("[SubClientSelector] Restore failed:", err);
+    } finally {
+      setRestoringCodice(null);
+    }
+  };
+
+  const handleToggleHidden = async () => {
+    if (!showHidden) {
+      if (hiddenSubclients === null) {
+        const list = await getHiddenSubClients();
+        setHiddenSubclients(list);
+      }
+      setShowHidden(true);
+    } else {
+      setShowHidden(false);
     }
   };
 
@@ -317,7 +349,7 @@ export function SubClientSelector({
                       right: 0,
                       bottom: 0,
                       width: "120px",
-                      backgroundColor: "#f44336",
+                      backgroundColor: "#f59e0b",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -327,7 +359,7 @@ export function SubClientSelector({
                       zIndex: 1,
                     }}
                   >
-                    Elimina
+                    Nascondi
                   </div>
                 )}
                 <div
@@ -414,15 +446,16 @@ export function SubClientSelector({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        setConfirmDeleteSubClient(sc);
+                        setConfirmHideSubClient(sc);
                       }}
+                      disabled={hidingCodice === sc.codice}
                       style={{
                         flexShrink: 0,
                         marginLeft: "0.5rem",
                         padding: "0.25rem 0.5rem",
-                        background: "#fee2e2",
-                        color: "#dc2626",
-                        border: "1px solid #fecaca",
+                        background: "#fef3c7",
+                        color: "#92400e",
+                        border: "1px solid #fde68a",
                         borderRadius: "4px",
                         cursor: "pointer",
                         fontSize: "0.75rem",
@@ -430,19 +463,85 @@ export function SubClientSelector({
                         lineHeight: 1,
                       }}
                     >
-                      Elimina
+                      Nascondi
                     </button>
                   )}
                 </div>
               </div>
             );
           })}
+          {/* Footer: mostra nascosti */}
+          {(hiddenSubclients === null || hiddenSubclients.length > 0) && (
+            <div
+              onClick={handleToggleHidden}
+              style={{
+                padding: "6px 12px",
+                borderTop: "1px solid #fde68a",
+                fontSize: "12px",
+                color: "#92400e",
+                cursor: "pointer",
+                backgroundColor: "#fffbeb",
+                textAlign: "center",
+              }}
+            >
+              {showHidden ? "▲ Nascondi nascosti" : `👁 Mostra nascosti${hiddenSubclients ? ` (${hiddenSubclients.length})` : ""}`}
+            </div>
+          )}
+
+          {/* Hidden subclients list */}
+          {showHidden && hiddenSubclients && hiddenSubclients.length > 0 && (
+            <div style={{ borderTop: "1px solid #fde68a", maxHeight: "160px", overflowY: "auto", backgroundColor: "#fffbeb" }}>
+              {hiddenSubclients.map((hsc) => (
+                <div
+                  key={hsc.codice}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "0.5rem",
+                    borderBottom: "1px solid #fef3c7",
+                    opacity: 0.7,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", fontWeight: "500", color: "#78350f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {hsc.ragioneSociale}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#92400e" }}>{hsc.codice}</div>
+                  </div>
+                  <button
+                    onClick={() => handleRestore(hsc)}
+                    disabled={restoringCodice === hsc.codice}
+                    style={{
+                      padding: "2px 8px",
+                      fontSize: "11px",
+                      borderRadius: "4px",
+                      border: "1px solid #86efac",
+                      backgroundColor: "#f0fdf4",
+                      color: "#16a34a",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Ripristina
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showHidden && hiddenSubclients?.length === 0 && (
+            <div style={{ padding: "8px 12px", fontSize: "12px", color: "#9ca3af", backgroundColor: "#fffbeb", textAlign: "center" }}>
+              Nessun sotto-cliente nascosto
+            </div>
+          )}
         </div>
       )}
 
-      {confirmDeleteSubClient && (
+      {confirmHideSubClient && (
         <div
-          onClick={() => setConfirmDeleteSubClient(null)}
+          onClick={() => setConfirmHideSubClient(null)}
           style={{
             position: "fixed",
             top: 0,
@@ -474,10 +573,10 @@ export function SubClientSelector({
                 color: "#92400e",
               }}
             >
-              Eliminare sotto-cliente?
+              Nascondere sotto-cliente?
             </h3>
             <p style={{ margin: "0 0 0.5rem 0", fontWeight: 500 }}>
-              {confirmDeleteSubClient.ragioneSociale}
+              {confirmHideSubClient.ragioneSociale}
             </p>
             <p
               style={{
@@ -486,9 +585,9 @@ export function SubClientSelector({
                 color: "#6b7280",
               }}
             >
-              Codice: {confirmDeleteSubClient.codice}
+              Codice: {confirmHideSubClient.codice}
             </p>
-            {confirmDeleteSubClient.supplRagioneSociale && (
+            {confirmHideSubClient.supplRagioneSociale && (
               <p
                 style={{
                   margin: "0 0 1rem 0",
@@ -496,7 +595,7 @@ export function SubClientSelector({
                   color: "#6b7280",
                 }}
               >
-                {confirmDeleteSubClient.supplRagioneSociale}
+                {confirmHideSubClient.supplRagioneSociale}
               </p>
             )}
             <div
@@ -507,7 +606,7 @@ export function SubClientSelector({
               }}
             >
               <button
-                onClick={() => setConfirmDeleteSubClient(null)}
+                onClick={() => setConfirmHideSubClient(null)}
                 style={{
                   flex: 1,
                   padding: "0.625rem",
@@ -523,20 +622,21 @@ export function SubClientSelector({
                 Annulla
               </button>
               <button
-                onClick={handleConfirmDelete}
+                onClick={handleConfirmHide}
+                disabled={hidingCodice !== null}
                 style={{
                   flex: 1,
                   padding: "0.625rem",
                   fontSize: "1rem",
                   fontWeight: 600,
-                  backgroundColor: "#f44336",
+                  backgroundColor: "#f59e0b",
                   color: "white",
                   border: "none",
                   borderRadius: "8px",
                   cursor: "pointer",
                 }}
               >
-                Elimina
+                Nascondi
               </button>
             </div>
           </div>
