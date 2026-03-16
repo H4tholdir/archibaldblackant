@@ -1,5 +1,14 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, ARTICLE_SYNC_DELAY_MS, type SyncIntervals } from './sync-scheduler';
+import {
+  createSyncScheduler,
+  SAFETY_TIMEOUT_MS,
+  ARTICLE_SYNC_BATCH_LIMIT,
+  ARTICLE_SYNC_DELAY_MS,
+  ADDRESS_SYNC_BATCH_LIMIT,
+  ADDRESS_SYNC_DELAY_MS,
+  type SyncIntervals,
+  type GetCustomersNeedingAddressSyncFn,
+} from './sync-scheduler';
 import type { OperationType } from '../operations/operation-types';
 
 function createMockEnqueue(): ReturnType<typeof vi.fn> {
@@ -308,6 +317,105 @@ describe('createSyncScheduler', () => {
       await vi.advanceTimersByTimeAsync(ARTICLE_SYNC_DELAY_MS);
 
       expect(enqueue).not.toHaveBeenCalledWith('sync-order-articles', expect.any(String), expect.any(Object));
+    });
+  });
+
+  describe('address sync auto-enqueue', () => {
+    test('enqueues sync-customer-addresses after ADDRESS_SYNC_DELAY_MS for customers needing address sync', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
+        { customer_profile: 'CUST-001', name: 'Rossi Mario' },
+        { customer_profile: 'CUST-002', name: 'Verdi Luca' },
+      ]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+
+      await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
+
+      expect(getCustomersNeedingAddressSync).toHaveBeenCalledWith('user-1', ADDRESS_SYNC_BATCH_LIMIT);
+      expect(enqueue).toHaveBeenCalledWith('sync-customer-addresses', 'user-1', {
+        customerProfile: 'CUST-001',
+        customerName: 'Rossi Mario',
+      });
+      expect(enqueue).toHaveBeenCalledWith('sync-customer-addresses', 'user-1', {
+        customerProfile: 'CUST-002',
+        customerName: 'Verdi Luca',
+      });
+
+      scheduler.stop();
+    });
+
+    test('calls getCustomersNeedingAddressSync for each active agent', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+
+      expect(getCustomersNeedingAddressSync).toHaveBeenCalledWith('user-1', ADDRESS_SYNC_BATCH_LIMIT);
+      expect(getCustomersNeedingAddressSync).toHaveBeenCalledWith('user-2', ADDRESS_SYNC_BATCH_LIMIT);
+
+      scheduler.stop();
+    });
+
+    test('does not enqueue address syncs when no customers need sync', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('does not call getCustomersNeedingAddressSync when not provided', async () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('swallows errors from getCustomersNeedingAddressSync gracefully', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockRejectedValue(new Error('db error'));
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await expect(vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS)).resolves.not.toThrow();
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('stop() cancels pending address sync timeouts', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
+        { customer_profile: 'CUST-001', name: 'Rossi' },
+      ]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100);
+      scheduler.stop();
+
+      enqueue.mockClear();
+      await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
     });
   });
 

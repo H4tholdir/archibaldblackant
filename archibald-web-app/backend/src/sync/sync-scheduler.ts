@@ -9,6 +9,11 @@ type EnqueueFn = (
 
 type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<string[]>;
 
+type GetCustomersNeedingAddressSyncFn = (
+  userId: string,
+  limit: number,
+) => Promise<Array<{ customer_profile: string; name: string }>>;
+
 type SyncIntervals = {
   agentSyncMs: number;
   sharedSyncMs: number;
@@ -17,11 +22,14 @@ type SyncIntervals = {
 const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTICLE_SYNC_BATCH_LIMIT = 10;
 const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
+const ADDRESS_SYNC_BATCH_LIMIT = 10;
+const ADDRESS_SYNC_DELAY_MS = 5 * 60 * 1000;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getActiveAgentIds: () => string[],
   getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
+  getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -51,6 +59,24 @@ function createSyncScheduler(
                 logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
               });
             }, ARTICLE_SYNC_DELAY_MS));
+          }
+
+          if (getCustomersNeedingAddressSync) {
+            const agentUserId = userId;
+            pendingTimeouts.push(setTimeout(() => {
+              getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
+                .then((customers) => {
+                  for (const c of customers) {
+                    enqueue('sync-customer-addresses', agentUserId, {
+                      customerProfile: c.customer_profile,
+                      customerName: c.name,
+                    });
+                  }
+                })
+                .catch((error) => {
+                  logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
+                });
+            }, ADDRESS_SYNC_DELAY_MS));
           }
         }
       }, intervals.agentSyncMs),
@@ -162,4 +188,16 @@ function createSyncScheduler(
 
 type SyncScheduler = ReturnType<typeof createSyncScheduler>;
 
-export { createSyncScheduler, SAFETY_TIMEOUT_MS, ARTICLE_SYNC_BATCH_LIMIT, ARTICLE_SYNC_DELAY_MS, type SyncScheduler, type SyncIntervals, type EnqueueFn, type GetOrdersNeedingArticleSyncFn };
+export {
+  createSyncScheduler,
+  SAFETY_TIMEOUT_MS,
+  ARTICLE_SYNC_BATCH_LIMIT,
+  ARTICLE_SYNC_DELAY_MS,
+  ADDRESS_SYNC_BATCH_LIMIT,
+  ADDRESS_SYNC_DELAY_MS,
+  type SyncScheduler,
+  type SyncIntervals,
+  type EnqueueFn,
+  type GetOrdersNeedingArticleSyncFn,
+  type GetCustomersNeedingAddressSyncFn,
+};
