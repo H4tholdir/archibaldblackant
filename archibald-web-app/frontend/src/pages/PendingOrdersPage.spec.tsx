@@ -187,6 +187,10 @@ describe("PendingOrdersPage", () => {
     vi.clearAllMocks();
     mockPendingOrders = [];
     mockIsSyncing = false;
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { customers: [] } }),
+    });
   });
 
   test("renders empty state when no pending orders", () => {

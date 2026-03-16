@@ -19,6 +19,8 @@ import { EmailShareDialog } from "../components/EmailShareDialog";
 import { formatCurrency } from "../utils/format-currency";
 import { getCustomers } from "../api/customers";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
+import { checkCustomerCompleteness } from "../utils/customer-completeness";
+import type { Customer as RichCustomer } from "../types/customer";
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -71,6 +73,8 @@ export function PendingOrdersPage() {
   const [emailDialogLoading, setEmailDialogLoading] = useState(false);
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
+  const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
+
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -80,6 +84,20 @@ export function PendingOrdersPage() {
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/customers?limit=500')
+      .then((res) => res.json())
+      .then((data) => {
+        const customers: RichCustomer[] = data.data?.customers ?? [];
+        const map = new Map<string, RichCustomer>();
+        for (const c of customers) {
+          map.set(c.customerProfile, c);
+        }
+        setCustomersMap(map);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSelectOrder = (orderId: string) => {
@@ -1113,6 +1131,28 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
+                    {(() => {
+                      const richCustomer = customersMap.get(order.customerId);
+                      if (!richCustomer) return null;
+                      const completeness = checkCustomerCompleteness(richCustomer);
+                      if (completeness.ok) return null;
+                      return (
+                        <span
+                          style={{
+                            background: '#fff3cd',
+                            color: '#856404',
+                            border: '1px solid #ffc107',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '12px',
+                            display: 'inline-block',
+                            marginBottom: '0.25rem',
+                          }}
+                        >
+                          ⚠ Cliente incompleto
+                        </span>
+                      );
+                    })()}
                     {order.subClientCodice && (
                       <div
                         style={{
