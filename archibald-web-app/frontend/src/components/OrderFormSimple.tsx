@@ -28,6 +28,9 @@ import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
+import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
+import type { Customer as RichCustomer } from '../types/customer';
+import { CustomerCreateModal } from './CustomerCreateModal';
 
 interface OrderItem {
   id: string;
@@ -90,6 +93,11 @@ export default function OrderFormSimple() {
   const [showHiddenCustomers, setShowHiddenCustomers] = useState(false);
   const [hidingCustomerId, setHidingCustomerId] = useState<string | null>(null);
   const [restoringCustomerId, setRestoringCustomerId] = useState<string | null>(null);
+
+  // Customer completeness check
+  const [selectedCustomerFull, setSelectedCustomerFull] = useState<RichCustomer | null>(null);
+  const [customerCompleteness, setCustomerCompleteness] = useState<CompletenessResult | null>(null);
+  const [editCustomerForCompleteness, setEditCustomerForCompleteness] = useState<RichCustomer | null>(null);
 
   // Step 1b: Sub-client selection (Fresis only)
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
@@ -709,6 +717,23 @@ export default function OrderFormSimple() {
         productSearchInputRef.current?.focus();
       }
     }, 100);
+    // Fetch rich customer for completeness check
+    fetch(`/api/customers?search=${encodeURIComponent(customer.id)}&limit=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
+        const rich = richCustomers.find((c) => c.customerProfile === customer.id) ?? richCustomers[0] ?? null;
+        setSelectedCustomerFull(rich);
+        if (rich) {
+          setCustomerCompleteness(checkCustomerCompleteness(rich));
+        } else {
+          setCustomerCompleteness(null);
+        }
+      })
+      .catch(() => {
+        setSelectedCustomerFull(null);
+        setCustomerCompleteness(null);
+      });
   };
 
   const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
@@ -1084,6 +1109,8 @@ export default function OrderFormSimple() {
     setCustomerSearch("");
     setCustomerResults([]);
     setSelectedCustomer(null);
+    setSelectedCustomerFull(null);
+    setCustomerCompleteness(null);
     setSearchingCustomer(false);
 
     // Reset product
@@ -2759,6 +2786,24 @@ export default function OrderFormSimple() {
 
   const totals = calculateTotals();
 
+  const handleCompletionModalClose = () => {
+    setEditCustomerForCompleteness(null);
+    if (!selectedCustomer) return;
+    fetch(`/api/customers?search=${encodeURIComponent(selectedCustomer.id)}&limit=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
+        const rich = richCustomers.find((c) => c.customerProfile === selectedCustomer.id) ?? richCustomers[0] ?? null;
+        setSelectedCustomerFull(rich);
+        if (rich) {
+          setCustomerCompleteness(checkCustomerCompleteness(rich));
+        } else {
+          setCustomerCompleteness(null);
+        }
+      })
+      .catch(() => {});
+  };
+
   return (
     <div
       style={{
@@ -3112,6 +3157,8 @@ export default function OrderFormSimple() {
             <button
               onClick={() => {
                 setSelectedCustomer(null);
+                setSelectedCustomerFull(null);
+                setCustomerCompleteness(null);
                 setCustomerSearch("");
                 setSelectedSubClient(null);
                 setGlobalDiscountPercent("");
@@ -3130,6 +3177,37 @@ export default function OrderFormSimple() {
               }}
             >
               Cambia
+            </button>
+          </div>
+        )}
+
+        {customerCompleteness && !customerCompleteness.ok && (
+          <div
+            style={{
+              background: '#fff3cd',
+              border: '1px solid #ffc107',
+              color: '#856404',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              marginTop: '8px',
+              fontSize: '0.875rem',
+            }}
+          >
+            ⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}
+            <button
+              onClick={() => setEditCustomerForCompleteness(selectedCustomerFull)}
+              style={{
+                marginLeft: '12px',
+                background: 'none',
+                border: '1px solid #856404',
+                color: '#856404',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              Aggiorna scheda →
             </button>
           </div>
         )}
@@ -6181,6 +6259,15 @@ export default function OrderFormSimple() {
             </button>
           </div>
         </div>
+      )}
+
+      {editCustomerForCompleteness && (
+        <CustomerCreateModal
+          isOpen={true}
+          onClose={handleCompletionModalClose}
+          onSaved={handleCompletionModalClose}
+          editCustomer={editCustomerForCompleteness}
+        />
       )}
     </div>
   );
