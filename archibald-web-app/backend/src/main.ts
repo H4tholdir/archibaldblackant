@@ -17,6 +17,7 @@ import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
+import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
@@ -227,6 +228,7 @@ async function bootstrap(): Promise<void> {
     queue.enqueue,
     () => cachedAgentIds,
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
+    (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
   );
 
   const wsServer = createWebSocketServer({
