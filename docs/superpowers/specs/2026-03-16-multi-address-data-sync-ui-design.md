@@ -80,6 +80,10 @@ type CustomerAddress = {
   stato: string | null;
   idRegione: string | null;
   contra: string | null;
+  // Note: created_at/updated_at are intentionally omitted from this type.
+  // The getAddressesByCustomer query must SELECT only the non-timestamp columns:
+  //   id, user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra
+  // This keeps AltAddress (Omit<CustomerAddress, 'id'|'userId'|'customerProfile'>) free of timestamp fields.
 };
 
 // getAddressesByCustomer(pool, userId, customerProfile): Promise<CustomerAddress[]>
@@ -151,12 +155,15 @@ async readAltAddresses(): Promise<AltAddress[]>
 ```typescript
 // Input: { customerProfile: string, customerName: string }
 // 1. bot.initialize()
-// 2. bot.navigateToEditCustomerForm(customerName)
-// 3. addresses = await bot.readAltAddresses()
-// 4. upsertAddressesForCustomer(pool, userId, customerProfile, addresses)
-// 5. UPDATE agents.customers SET addresses_synced_at = NOW()
-//    WHERE customer_profile = $1 AND user_id = $2
-// 6. await bot.close()
+// 2. try {
+//      bot.navigateToEditCustomerForm(customerName)
+//      addresses = await bot.readAltAddresses()
+//      upsertAddressesForCustomer(pool, userId, customerProfile, addresses)
+//      UPDATE agents.customers SET addresses_synced_at = NOW()
+//        WHERE customer_profile = $1 AND user_id = $2
+//    } finally {
+//      await bot.close()   // MUST be in finally block to prevent browser context leak
+//    }
 ```
 
 ### operation-types.ts changes
@@ -202,7 +209,7 @@ Inside the `agentSyncMs` interval, after the article sync timeout block (same cl
 
 ```typescript
 const ADDRESS_SYNC_BATCH_LIMIT = 10;
-const ADDRESS_SYNC_DELAY_MS = 2 * 60 * 1000; // 2 min (after article sync)
+const ADDRESS_SYNC_DELAY_MS = 5 * 60 * 1000; // 5 min (after article sync at 3 min)
 
 if (getCustomersNeedingAddressSync) {
   const agentUserId = userId;  // capture loop variable, same as article sync pattern
@@ -228,7 +235,7 @@ if (getCustomersNeedingAddressSync) {
 SELECT customer_profile, name FROM agents.customers
 WHERE user_id = $1
   AND addresses_synced_at IS NULL
-ORDER BY last_sync DESC
+ORDER BY addresses_synced_at ASC NULLS FIRST
 LIMIT $2
 ```
 
@@ -256,6 +263,8 @@ await deps.setAddressesSyncedAt(userId, customer.customerProfile);
 ```
 
 This is **inline in the route handler**, not queued. The bot is already open (we are in an interactive session), so this adds no extra browser startup cost. The addresses are fresh by the time the edit modal opens.
+
+**Error handling:** if `readAltAddresses()` or `upsertAddressesForCustomer()` throws, catch the error, log a warning, and continue — do NOT fail the entire `start-edit` session. Address refresh is best-effort; the user can still edit the customer even if the address refresh fails. The existing `catch` block at the end of the `start-edit` async handler must NOT be reached for address errors — wrap only the address block in its own try/catch.
 
 **Required interface changes:**
 
@@ -371,9 +380,10 @@ type AddressEntry = {
 - `frontend/src/components/CustomerCreateModal.tsx` — removes `address-question` / `delivery-field` steps, adds `addresses` step
 - `frontend/src/services/customers.service.ts` — contains **three** separate inline type definitions with delivery fields: the `createCustomer` parameter type (~line 118), the `updateCustomer` parameter type (~line 153), and the `saveInteractiveCustomer` parameter type (~line 262); remove delivery fields from all three
 - `frontend/src/utils/vat-diff.spec.ts` — contains hardcoded `deliveryStreet: ''`, `deliveryPostalCode: ''`, `deliveryPostalCodeCity: ''`, `deliveryPostalCodeCountry: ''` in baseline objects; remove all four fields from every `baseForm`/baseline object in that file
-- `backend/src/types.ts` — defines `CustomerFormData` with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`; add `addresses?: AddressEntry[]`. Also define `AddressEntry` here (do NOT defer to Spec C — it must be defined now to avoid undefined type reference):
+- `backend/src/types.ts` — defines `CustomerFormData` (as an `interface` — keep the `interface` declaration) with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`; add `addresses?: AddressEntry[]`. Also define `AddressEntry` as a **module-level `type` declaration** (NOT nested inside the interface) in the same file (do NOT defer to Spec C — it must be defined now to avoid undefined type reference):
   ```typescript
-  type AddressEntry = {
+  // Module-level declaration, alongside CustomerFormData:
+  export type AddressEntry = {
     tipo: string;
     nome?: string;
     via?: string;
@@ -385,9 +395,9 @@ type AddressEntry = {
     contra?: string;
   };
   ```
-  Export `AddressEntry` from this file. Spec C imports it from here.
+  Spec C imports it from here: `import type { AddressEntry } from '../types'`.
 - `backend/src/routes/customer-interactive.ts` — `saveSchema` has `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` as optional fields; remove only these four (keep `postalCodeCity` and `postalCodeCountry`)
-- `backend/src/operations/handlers/create-customer.ts` — `CustomerFormData` usage must drop delivery fields; bot now writes via `writeAltAddresses` (Spec C)
+- `backend/src/operations/handlers/create-customer.ts` — this handler defines its own **local `CreateCustomerData` type** (not importing from `backend/src/types.ts`). That local type also contains the old delivery fields (`deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`). Remove those 4 delivery fields from the local `CreateCustomerData` type. The bot's `createCustomer` method takes `CustomerFormData` (from `backend/src/types.ts`), so the `data` object passed to `bot.createCustomer(data)` must be compatible — removing the same fields from both is required for structural compatibility.
 - `backend/src/bot/archibald-bot.ts` — **Spec B removes the old `fillDeliveryAddress` call blocks** from `createCustomer`, `updateCustomer`, and `completeCustomerCreation` (the `if (customerData.deliveryStreet && customerData.deliveryPostalCode) { await this.fillDeliveryAddress(...) }` blocks). This is required in Spec B because removing `deliveryStreet` from `CustomerFormData` makes these accesses a TypeScript error. Do NOT add `writeAltAddresses` yet — that is Spec C's job. After Spec B, these methods simply omit delivery address handling entirely; Spec C adds the new multi-address logic.
 - `backend/src/operations/handlers/update-customer.ts` — `UpdateCustomerData` has delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` and add `addresses?: AddressEntry[]` (this change is part of **Spec C**, not Spec B — listed here for cross-spec awareness)
 
@@ -442,9 +452,11 @@ Shows list of added addresses (tipo + via + città) as read-only rows.
 
 ## 6. Frontend — `/customers` Page
 
-In the customer profile card/detail view, add a read-only "Indirizzi alternativi" section:
+The customer detail content is rendered in `frontend/src/components/CustomerCard.tsx` inside the `{expanded && (...)}` block — NOT in `CustomerList.tsx`. The modification targets `CustomerCard.tsx`.
 
-- Calls `GET /api/customers/:profile/addresses`
+In `CustomerCard.tsx`, inside the `expanded` block, add a read-only "Indirizzi alternativi" section:
+
+- **Data fetching:** add a `useState<CustomerAddress[]>` and a `useEffect` that fires when `expanded` becomes `true`, calling `getCustomerAddresses(customer.customerProfile)`. On error, log and show the empty state.
 - Displays a table: Tipo | Via | CAP | Città
 - Empty state: "Nessun indirizzo alternativo registrato"
 - No edit controls here (editing done via CustomerCreateModal)
@@ -477,7 +489,7 @@ In the customer profile card/detail view, add a read-only "Indirizzi alternativi
 | `frontend/src/services/customers.service.ts` | Modify (remove inline delivery field type definitions) |
 | `frontend/src/utils/vat-diff.spec.ts` | Modify (remove hardcoded delivery fields from test baseline objects) |
 | `frontend/src/components/CustomerCreateModal.tsx` | Modify (remove address-question/delivery-field steps, add `addresses` step) |
-| `frontend/src/pages/CustomerList.tsx` (or equivalent customers page) | Modify (add addresses section) |
+| `frontend/src/components/CustomerCard.tsx` | Modify (add addresses section in expanded block, with internal `useEffect` fetch) |
 | `frontend/src/types/customer-address.ts` | Create (`CustomerAddress` frontend type) |
 | `frontend/src/services/customer-addresses.ts` | Create (API calls) |
 
