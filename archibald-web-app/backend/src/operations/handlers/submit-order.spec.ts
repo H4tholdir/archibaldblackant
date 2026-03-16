@@ -4,6 +4,18 @@ import type { DbPool } from '../../db/pool';
 
 function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
   const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
+    if (typeof sql === 'string' && sql.includes('vat_validated_at') && sql.includes('agents.customers')) {
+      return Promise.resolve({
+        rows: [{
+          vat_validated_at: '2026-01-01T00:00:00Z',
+          pec: 'test@pec.it',
+          sdi: null,
+          street: 'Via Test 1',
+          postal_code: '80100',
+        }],
+        rowCount: 1,
+      });
+    }
     if (typeof sql === 'string' && sql.includes('RETURNING id')) {
       return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
     }
@@ -270,5 +282,87 @@ describe('handleSubmitOrder', () => {
       const params = snapshotItemCalls[0][1] as unknown[];
       expect(params).toContain(historicalPrice);
     });
+  });
+});
+
+function createMockPoolWithCustomer(
+  customerRow: Record<string, string | null> | null,
+  catalogPrices: Record<string, number> = {},
+): DbPool {
+  const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
+    if (typeof sql === 'string' && sql.includes('vat_validated_at') && sql.includes('agents.customers')) {
+      return Promise.resolve({
+        rows: customerRow ? [customerRow] : [],
+        rowCount: customerRow ? 1 : 0,
+      });
+    }
+    if (typeof sql === 'string' && sql.includes('RETURNING id')) {
+      return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
+    }
+    if (typeof sql === 'string' && sql.includes('shared.prices') && Array.isArray(params?.[0])) {
+      const requestedCodes = params![0] as string[];
+      const rows = requestedCodes
+        .filter((code) => catalogPrices[code] !== undefined)
+        .map((code) => ({ product_id: code, unit_price: String(catalogPrices[code]) }));
+      return Promise.resolve({ rows, rowCount: rows.length });
+    }
+    return Promise.resolve({ rows: [], rowCount: 0 });
+  });
+  return {
+    query,
+    withTransaction: vi.fn(async (fn) => fn({ query })),
+    end: vi.fn(),
+    getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+  };
+}
+
+describe('handleSubmitOrder — completeness guard', () => {
+  const INCOMPLETE_CUSTOMER = {
+    vat_validated_at: null,
+    pec: null,
+    sdi: null,
+    street: 'Via Roma 1',
+    postal_code: '80100',
+  };
+
+  const COMPLETE_CUSTOMER = {
+    vat_validated_at: '2026-01-01T00:00:00Z',
+    pec: 'mario@pec.it',
+    sdi: null,
+    street: 'Via Roma 1',
+    postal_code: '80100',
+  };
+
+  test('returns success:false when customer not found in DB', async () => {
+    const pool = createMockPoolWithCustomer(null);
+    const bot = createMockBot();
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress) as unknown as Record<string, unknown>;
+
+    expect(result).toEqual({ success: false, error: 'Cliente non trovato' });
+    expect(bot.createOrder).not.toHaveBeenCalled();
+  });
+
+  test('throws Error when customer data is incomplete', async () => {
+    const pool = createMockPoolWithCustomer(INCOMPLETE_CUSTOMER);
+    const bot = createMockBot();
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).rejects.toThrow('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
+    expect(bot.createOrder).not.toHaveBeenCalled();
+  });
+
+  test('proceeds normally when customer data is complete', async () => {
+    const pool = createMockPoolWithCustomer(COMPLETE_CUSTOMER);
+    const bot = createMockBot('ORD-COMPLETE');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
+
+    expect(result.orderId).toBe('ORD-COMPLETE');
+    expect(bot.createOrder).toHaveBeenCalled();
   });
 });

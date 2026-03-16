@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import { isCustomerComplete } from '../../utils/customer-completeness-backend';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
 import type { VerificationStatus } from '../../db/repositories/order-verification';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
@@ -127,6 +128,28 @@ async function handleSubmitOrder(
   inlineSyncDeps?: InlineSyncDeps,
   broadcastVerification?: BroadcastVerificationFn,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
+  // Completeness guard: verify customer has all required fields before any bot work
+  const { rows: [completenessRow] } = await pool.query<{
+    vat_validated_at: string | null;
+    pec: string | null;
+    sdi: string | null;
+    street: string | null;
+    postal_code: string | null;
+  }>(
+    `SELECT vat_validated_at, pec, sdi, street, postal_code
+     FROM agents.customers
+     WHERE customer_profile = $1 AND user_id = $2`,
+    [data.customerId, userId],
+  );
+
+  if (!completenessRow) {
+    return { success: false, error: 'Cliente non trovato' } as unknown as { orderId: string; verificationStatus?: string };
+  }
+
+  if (!isCustomerComplete(completenessRow)) {
+    throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
+  }
+
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
       const current = metadata.currentArticle as number;
