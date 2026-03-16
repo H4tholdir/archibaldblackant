@@ -10,7 +10,7 @@ import { config } from "../config";
 import { logger } from "../logger";
 import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
-import type { OrderData } from "../types";
+import type { OrderData, AddressEntry } from "../types";
 import type { AltAddress } from '../db/repositories/customer-addresses';
 import {
   buildVariantCandidates,
@@ -11441,6 +11441,245 @@ export class ArchibaldBot {
     }
 
     logger.info("Customer saved (form closed successfully)");
+  }
+
+  private async writeAltAddresses(addresses: AddressEntry[]): Promise<void> {
+    if (!this.page) throw new Error('Browser page is null');
+
+    await this.openCustomerTab('Indirizzo alt');
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-write' });
+
+    // ── 1. Discover grid name ──────────────────────────────────────────────────
+    const altGridName = await this.page.evaluate(() => {
+      const w = window as any;
+      if (!w.ASPxClientControl?.GetControlCollection) return '';
+      let found = '';
+      w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
+        if (typeof c?.GetGridView === 'function') {
+          const gv = c.GetGridView?.();
+          const name = gv?.GetName?.() || c.GetName?.() || '';
+          if (name.includes('LOGISTICS') || name.includes('Address') || name.includes('address')) {
+            found = c.GetName?.() || '';
+          }
+        }
+        const cName = c?.name || c?.GetName?.() || '';
+        if (
+          (cName.includes('LOGISTICS') || cName.includes('Address') || cName.includes('address')) &&
+          typeof c?.AddNewRow === 'function'
+        ) {
+          found = cName;
+        }
+      });
+      return found;
+    });
+
+    // ── 2. Delete all existing rows ────────────────────────────────────────────
+    const rowCount = await this.page.evaluate(() => {
+      return document.querySelectorAll('.dxgvDataRow').length;
+    });
+
+    if (rowCount > 0) {
+      const selectAllEl = await this.page.$('[id*="SelectAll"], .dxgvSelectAllCheckBox');
+      if (selectAllEl) {
+        await selectAllEl.click();
+        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-select-all' });
+      }
+
+      try {
+        await this.page.click('[id*="btnDelete"], [title="Delete"]');
+        await this.page.waitForSelector('.dxpc-content', { timeout: 3000 }).catch(() => null);
+        const okBtn = await this.page.$('button[id*="Btn_Yes"], button[id*="btnOK"], .dxpc-button:first-child');
+        if (okBtn) {
+          await okBtn.click();
+        }
+        await this.waitForDevExpressIdle({ timeout: 5000, label: 'alt-delete-confirm' });
+      } catch (deleteErr) {
+        logger.warn('writeAltAddresses: delete step failed, continuing with inserts', {
+          error: String(deleteErr),
+        });
+      }
+    }
+
+    // ── 3. Insert each address ─────────────────────────────────────────────────
+    for (const address of addresses) {
+      const via = address.via ?? null;
+      const cap = address.cap ?? null;
+      const citta = address.citta ?? null;
+
+      if (!via && !cap && !citta) continue;
+
+      // 3a. Add new row
+      if (altGridName) {
+        await this.page.evaluate((name: string) => {
+          const w = window as any;
+          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+          if (grid) grid.AddNewRow();
+        }, altGridName);
+      } else {
+        const addNewResult = await this.page.evaluate(() => {
+          const candidates = Array.from(
+            document.querySelectorAll('a[data-args*="AddNew"]'),
+          ).filter((node) => {
+            const el = node as HTMLElement;
+            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          }) as HTMLElement[];
+          if (candidates.length > 0) { candidates[0].click(); return true; }
+          return false;
+        });
+        if (!addNewResult) {
+          logger.warn('writeAltAddresses: AddNew button not found, skipping row');
+          continue;
+        }
+      }
+
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-addnew' });
+
+      // 3b. Set TIPO
+      const tipoValue = address.tipo || 'Consegna';
+      const tipoSet = await this.page.evaluate((tipo: string) => {
+        const inputs = Array.from(document.querySelectorAll('input[type="text"]')).filter(
+          (i) => (i as HTMLElement).offsetParent !== null,
+        ) as HTMLInputElement[];
+        const tipoInput = inputs.find((i) => {
+          const id = i.id.toLowerCase();
+          return id.includes('type') || id.includes('tipo') || id.includes('addresstype');
+        });
+        if (tipoInput) {
+          tipoInput.focus();
+          tipoInput.click();
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(tipoInput, tipo);
+          else tipoInput.value = tipo;
+          tipoInput.dispatchEvent(new Event('input', { bubbles: true }));
+          tipoInput.dispatchEvent(new Event('change', { bubbles: true }));
+          return { found: true, id: tipoInput.id };
+        }
+        for (const inp of inputs) {
+          const row = inp.closest('tr');
+          if (row && row.classList.toString().includes('dxgvEditingRow')) {
+            inp.focus();
+            inp.click();
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            if (setter) setter.call(inp, tipo);
+            else inp.value = tipo;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+            return { found: true, id: inp.id };
+          }
+        }
+        return { found: false, id: '' };
+      }, tipoValue);
+
+      if (!tipoSet.found) {
+        logger.warn('writeAltAddresses: TIPO input not found, typing directly');
+        await this.page.keyboard.press('Tab');
+      }
+      await this.page.keyboard.press('Tab');
+      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-tipo-set' });
+
+      // 3c. NOME column
+      const nomeValue = address.nome ?? '';
+      if (nomeValue) {
+        await this.page.evaluate((nome: string) => {
+          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
+          if (!editingRow) return;
+          const active = document.activeElement as HTMLInputElement;
+          if (active && active.tagName === 'INPUT' && editingRow.contains(active)) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            if (setter) setter.call(active, nome);
+            else active.value = nome;
+            active.dispatchEvent(new Event('input', { bubbles: true }));
+            active.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, nomeValue);
+      }
+      await this.page.keyboard.press('Tab');
+      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-nome-set' });
+
+      // 3d. VIA column
+      if (via) {
+        const viaSet = await this.page.evaluate((street: string) => {
+          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
+          if (!editingRow) return false;
+          const active = document.activeElement as HTMLInputElement;
+          if (active && active.tagName === 'INPUT' && editingRow.contains(active)) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            if (setter) setter.call(active, street);
+            else active.value = street;
+            active.dispatchEvent(new Event('input', { bubbles: true }));
+            active.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }, via);
+        if (!viaSet) {
+          logger.warn('writeAltAddresses: VIA active element not in editing row, typing directly');
+          await this.page.keyboard.type(via, { delay: 30 });
+        }
+      }
+      await this.page.keyboard.press('Tab');
+      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-via-set' });
+
+      // 3e. CAP column — lookup field
+      if (cap) {
+        const findBtnId = await this.page.evaluate(() => {
+          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
+          if (editingRow) {
+            const btns = Array.from(editingRow.querySelectorAll('td, img, button, a, div')).filter(
+              (el) => /LOGISTICSADDRESSZIPCODE.*_B0$|_find_Edit_B0$/.test(el.id),
+            );
+            if (btns.length > 0) return btns[0].id;
+          }
+          const allBtns = Array.from(document.querySelectorAll('td, img, button, a, div')).filter((el) => {
+            const h = el as HTMLElement;
+            return h.offsetParent !== null && /LOGISTICSADDRESSZIPCODE.*_B0$/.test(el.id);
+          });
+          return allBtns.length > 0 ? allBtns[allBtns.length - 1].id : null;
+        });
+
+        if (findBtnId) {
+          await this.selectFromDevExpressLookup(
+            new RegExp(findBtnId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+            cap,
+            citta ?? undefined,
+          );
+        } else {
+          logger.warn('writeAltAddresses: CAP find button not found, typing directly');
+          await this.page.keyboard.type(cap, { delay: 20 });
+          await this.page.keyboard.press('Tab');
+          await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-cap-direct' });
+        }
+      }
+
+      // 3f. Confirm row with UpdateEdit
+      if (altGridName) {
+        await this.page.evaluate((name: string) => {
+          const w = window as any;
+          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+          if (grid) grid.UpdateEdit();
+        }, altGridName);
+      } else {
+        const updateResult = await this.page.evaluate(() => {
+          const candidates = Array.from(
+            document.querySelectorAll('a[data-args*="UpdateEdit"]'),
+          ).filter((node) => {
+            const el = node as HTMLElement;
+            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          }) as HTMLElement[];
+          if (candidates.length > 0) { candidates[0].click(); return true; }
+          return false;
+        });
+        if (!updateResult) {
+          logger.warn('writeAltAddresses: UpdateEdit not found, pressing Enter');
+          await this.page.keyboard.press('Enter');
+        }
+      }
+
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-update-edit' });
+      logger.debug('writeAltAddresses: row confirmed', { tipo: tipoValue, via, cap });
+    }
+
+    logger.info('writeAltAddresses: complete', { addressCount: addresses.length });
   }
 
   private async fillDeliveryAddress(
