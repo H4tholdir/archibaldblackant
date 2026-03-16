@@ -70,6 +70,8 @@ function createMockDeps(sessionManager?: InteractiveSessionManager): CustomerInt
     broadcast: vi.fn(),
     upsertSingleCustomer: vi.fn().mockResolvedValue(mockCustomer),
     updateCustomerBotStatus: vi.fn().mockResolvedValue(undefined),
+    updateVatValidatedAt: vi.fn().mockResolvedValue(undefined),
+    getCustomerByProfile: vi.fn().mockResolvedValue(mockCustomer),
     pauseSyncs: vi.fn().mockResolvedValue(undefined),
     resumeSyncs: vi.fn(),
   };
