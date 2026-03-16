@@ -6,12 +6,14 @@ import type { InteractiveSessionManager, BotLike } from '../interactive-session-
 import type { Customer, CustomerFormInput } from '../db/repositories/customers';
 import type { VatLookupResult, CustomerFormData } from '../types';
 import { logger } from '../logger';
+import type { AltAddress } from '../db/repositories/customer-addresses';
 
 type CustomerBotLike = BotLike & {
   initialize: () => Promise<void>;
   navigateToNewCustomerForm: () => Promise<void>;
   navigateToEditCustomerForm: (name: string) => Promise<void>;
   readEditFormFieldValues: () => Promise<Record<string, string>>;
+  readAltAddresses: () => Promise<AltAddress[]>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
   completeCustomerCreation: (formData: CustomerFormData) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
@@ -32,6 +34,8 @@ type CustomerInteractiveRouterDeps = {
   getCustomerByProfile: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
   pauseSyncs: () => Promise<void>;
   resumeSyncs: () => void;
+  upsertAddressesForCustomer: (userId: string, customerProfile: string, addresses: AltAddress[]) => Promise<void>;
+  setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>;
   smartCustomerSync?: () => Promise<void>;
   getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
 };
@@ -54,12 +58,19 @@ const saveSchema = z.object({
   deliveryMode: z.string().optional(),
   paymentTerms: z.string().optional(),
   lineDiscount: z.string().optional(),
-  deliveryStreet: z.string().optional(),
-  deliveryPostalCode: z.string().optional(),
   postalCodeCity: z.string().optional(),
   postalCodeCountry: z.string().optional(),
-  deliveryPostalCodeCity: z.string().optional(),
-  deliveryPostalCodeCountry: z.string().optional(),
+  addresses: z.array(z.object({
+    tipo: z.string(),
+    nome: z.string().optional(),
+    via: z.string().optional(),
+    cap: z.string().optional(),
+    citta: z.string().optional(),
+    contea: z.string().optional(),
+    stato: z.string().optional(),
+    idRegione: z.string().optional(),
+    contra: z.string().optional(),
+  })).optional().default([]),
 });
 
 const startEditSchema = z.object({
@@ -76,6 +87,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     upsertSingleCustomer, updateCustomerBotStatus,
     updateVatValidatedAt, getCustomerByProfile,
     pauseSyncs, resumeSyncs,
+    upsertAddressesForCustomer, setAddressesSyncedAt,
     smartCustomerSync, getCustomerProgressMilestone,
   } = deps;
   const router = Router();
@@ -211,6 +223,14 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           await bot.navigateToEditCustomerForm(customer.name);
           const archibaldFields = await bot.readEditFormFieldValues();
+
+          try {
+            const altAddresses = await bot.readAltAddresses();
+            await upsertAddressesForCustomer(userId, customer.customerProfile, altAddresses);
+            await setAddressesSyncedAt(userId, customer.customerProfile);
+          } catch (addressErr) {
+            logger.warn('start-edit: address refresh failed (non-fatal)', { error: addressErr, userId });
+          }
 
           sessionManager.updateState(sessionId, 'ready');
           broadcast(userId, {
