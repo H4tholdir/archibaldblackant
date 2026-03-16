@@ -26,6 +26,7 @@ type PendingOrderRow = {
   notes: string | null;
   job_id: string | null;
   job_started_at: string | null;
+  delivery_address_id: number | null;
 };
 
 type PendingOrder = {
@@ -54,6 +55,7 @@ type PendingOrder = {
   notes: string | null;
   jobId: string | null;
   jobStartedAt: string | null;
+  deliveryAddressId: number | null;
 };
 
 type PendingOrderInput = {
@@ -74,6 +76,7 @@ type PendingOrderInput = {
   noShipping?: boolean;
   notes?: string | null;
   idempotencyKey?: string | null;
+  deliveryAddressId?: number | null;
 };
 
 type UpsertResult = {
@@ -109,6 +112,7 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     notes: row.notes,
     jobId: row.job_id,
     jobStartedAt: row.job_started_at,
+    deliveryAddressId: row.delivery_address_id,
   };
 }
 
@@ -139,8 +143,9 @@ async function upsertPendingOrder(
       id, user_id, customer_id, customer_name, items_json, status,
       discount_percent, target_total_with_vat, device_id, origin_draft_id,
       shipping_cost, shipping_tax, sub_client_codice, sub_client_name,
-      sub_client_data_json, no_shipping, notes, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      sub_client_data_json, no_shipping, notes, created_at, updated_at,
+      delivery_address_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
     ON CONFLICT (id) DO UPDATE SET
       customer_id = EXCLUDED.customer_id,
       customer_name = EXCLUDED.customer_name,
@@ -157,7 +162,8 @@ async function upsertPendingOrder(
       no_shipping = EXCLUDED.no_shipping,
       notes = EXCLUDED.notes,
       updated_at = EXCLUDED.updated_at,
-      origin_draft_id = EXCLUDED.origin_draft_id`,
+      origin_draft_id = EXCLUDED.origin_draft_id,
+      delivery_address_id = EXCLUDED.delivery_address_id`,
     [
       order.id, userId, order.customerId, order.customerName,
       JSON.stringify(order.itemsJson), order.status ?? 'pending',
@@ -168,6 +174,7 @@ async function upsertPendingOrder(
       order.subClientDataJson ? JSON.stringify(order.subClientDataJson) : null,
       order.noShipping ?? false, order.notes ?? null,
       now, now,
+      order.deliveryAddressId ?? null,
     ],
   );
 
