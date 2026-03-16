@@ -220,11 +220,27 @@ After `completeCustomerCreation(formData)` returns the `customerProfile` string,
 
 ```typescript
 // INSIDE if (useInteractiveBot) { ... } branch:
+// Note: variable is `customerData` (line 329 of customer-interactive.ts), not `formData`
 customerProfileId = await existingBot!.completeCustomerCreation(customerData);
-await deps.upsertAddressesForCustomer(userId, customerProfileId, formData.addresses ?? []);
+const altAddresses: AltAddress[] = (customerData.addresses ?? []).map(a => ({
+  tipo: a.tipo,
+  nome: a.nome ?? null,
+  via: a.via ?? null,
+  cap: a.cap ?? null,
+  citta: a.citta ?? null,
+  contea: a.contea ?? null,
+  stato: a.stato ?? null,
+  idRegione: a.idRegione ?? null,
+  contra: a.contra ?? null,
+}));
+await deps.upsertAddressesForCustomer(userId, customerProfileId, altAddresses);
 await sessionManager.removeBot(sessionId);
 sessionManager.updateState(sessionId, 'completed');
 ```
+
+**Variable name**: the parsed form data in `customer-interactive.ts` save route is `customerData` (line 329: `const customerData = parsed.data as CustomerFormData`). Do NOT use `formData` — that variable does not exist in this scope.
+
+**Type mapping note**: `AddressEntry` optional fields use `string | undefined` (TypeScript `?` syntax), while `AltAddress` fields use `string | null` (DB convention). These are NOT structurally identical under `strictNullChecks`. The explicit map above coerces `undefined → null` to produce a valid `AltAddress[]`.
 
 **Placement is critical**: `upsertAddressesForCustomer` must be inside the `if (useInteractiveBot)` block, NOT after the if/else. The fallback path (`useInteractiveBot = false`) sets `customerProfileId = tempProfile` (a `TEMP-<timestamp>` placeholder) — do NOT call `upsertAddressesForCustomer` there.
 
@@ -235,8 +251,6 @@ sessionManager.updateState(sessionId, 'completed');
 upsertAddressesForCustomer: (userId: string, customerProfile: string, addresses: AltAddress[]) => Promise<void>;
 setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>;
 ```
-
-**Note:** `formData.addresses ?? []` is `AddressEntry[]`. `AltAddress` and `AddressEntry` are structurally identical (same fields), so TypeScript structural typing allows passing `AddressEntry[]` where `AltAddress[]` is expected — no compile error.
 
 **Fallback path exclusion**: The bot still calls `createCustomer(formData)` which calls `writeAltAddresses`, but the DB upsert is skipped in the fallback path. The scheduler's `sync-customer-addresses` job will sync addresses once the customer is properly created.
 
