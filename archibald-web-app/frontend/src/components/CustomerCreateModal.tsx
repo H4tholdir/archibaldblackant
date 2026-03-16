@@ -123,7 +123,7 @@ function customerToFormData(customer: Customer): CustomerFormData {
         ? customer.mobile
         : `+39 ${customer.mobile}`
       : "+39",
-    email: customer.pec || "",
+    email: customer.email || "",
     url: customer.url || "",
     deliveryStreet: "",
     deliveryPostalCode: "",

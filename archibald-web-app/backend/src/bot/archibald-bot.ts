@@ -11945,46 +11945,18 @@ export class ArchibaldBot {
   private async updateCustomerName(newName: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.info(
-      "updateCustomerName: clearing NOME DI RICERCA and setting NOME",
-      { newName },
-    );
+    logger.info("updateCustomerName", { newName });
 
-    const searchNameCleared = await this.page.evaluate(() => {
+    // Clear NOME DI RICERCA so DevExpress re-autofills it from NAME after commit.
+    // Only clear when the exact SEARCHNAME/NAMEALIAS field is found by ID regex —
+    // the previous "next visible input" fallback was unsafe (could hit VATNUM).
+    const searchNameFound = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
       const searchNameInput = inputs.find((i) =>
         /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/.test(i.id),
       ) as HTMLInputElement | null;
 
-      if (!searchNameInput) {
-        const nameInput = inputs.find((i) => /xaf_dviNAME_Edit_I$/.test(i.id));
-        if (nameInput) {
-          const allVisible = inputs.filter(
-            (i) => i.offsetParent !== null && i.type !== "hidden",
-          );
-          const nameIdx = allVisible.indexOf(nameInput as HTMLInputElement);
-          if (nameIdx >= 0 && nameIdx + 1 < allVisible.length) {
-            const candidate = allVisible[nameIdx + 1];
-            candidate.scrollIntoView({ block: "center" });
-            candidate.focus();
-            candidate.click();
-            const setter = Object.getOwnPropertyDescriptor(
-              HTMLInputElement.prototype,
-              "value",
-            )?.set;
-            if (setter) setter.call(candidate, "");
-            else candidate.value = "";
-            candidate.dispatchEvent(new Event("input", { bubbles: true }));
-            candidate.dispatchEvent(new Event("change", { bubbles: true }));
-            return {
-              cleared: true,
-              id: candidate.id,
-              method: "fallback-next-input",
-            };
-          }
-        }
-        return { cleared: false, id: "", method: "not-found" };
-      }
+      if (!searchNameInput) return false;
 
       searchNameInput.scrollIntoView({ block: "center" });
       searchNameInput.focus();
@@ -11997,62 +11969,24 @@ export class ArchibaldBot {
       else searchNameInput.value = "";
       searchNameInput.dispatchEvent(new Event("input", { bubbles: true }));
       searchNameInput.dispatchEvent(new Event("change", { bubbles: true }));
-      return { cleared: true, id: searchNameInput.id, method: "direct-match" };
+      return true;
     });
 
-    if (searchNameCleared.cleared) {
+    if (searchNameFound) {
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
         timeout: 5000,
         label: "clear-searchname",
       });
-      logger.debug("NOME DI RICERCA cleared", searchNameCleared);
+      logger.debug("NOME DI RICERCA cleared");
     } else {
-      logger.warn(
-        "NOME DI RICERCA field not found, proceeding without clearing",
-      );
+      logger.warn("NOME DI RICERCA field not found, proceeding without clearing");
     }
 
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName + ".");
-    await this.page.evaluate(() => {
-      (document.activeElement as HTMLElement)?.blur();
-      document.body.click();
-    });
-    await this.waitForDevExpressIdle({
-      timeout: 5000,
-      label: "name-blur-autoupdate",
-    });
-
-    // Use keyboard-based select-all + backspace to clear the field before retyping.
-    // The native-value-setter approach fires an `input` event that can trigger a
-    // DevExpress async restore of the committed value, causing the new text to be
-    // appended to the old value (duplication bug).
-    const nameInputId = await this.page.evaluate(() => {
-      const input = document.querySelector(
-        'input[id*="dviNAME"][id$="_I"]',
-      ) as HTMLInputElement | null;
-      if (!input) return null;
-      input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
-      return input.id;
-    });
-
-    if (nameInputId) {
-      await this.page.keyboard.down("Control");
-      await this.page.keyboard.press("a");
-      await this.page.keyboard.up("Control");
-      await this.page.keyboard.press("Backspace");
-      await this.page.type(`#${nameInputId}`, newName, { delay: 5 });
-      await this.page.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({
-        timeout: 8000,
-        label: "name-retype-keyboard",
-      });
-    } else {
-      logger.warn("NAME field not found for keyboard retype, falling back");
-      await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
-    }
+    // Single typeDevExpressField call: clears NAME then types newName in one shot.
+    // The previous two-step approach (type "newName.", blur, retype "newName") caused
+    // duplication because the second call appended to a DevExpress-restored value.
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
 
     logger.info("updateCustomerName completed", { newName });
   }
