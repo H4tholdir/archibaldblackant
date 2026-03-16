@@ -11,7 +11,8 @@ import { logger } from "../logger";
 import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
 import type { OrderData, AddressEntry } from "../types";
-import type { AltAddress } from '../db/repositories/customer-addresses';
+import type { AltAddress, CustomerAddress } from '../db/repositories/customer-addresses';
+import type { SubmitOrderData } from '../operations/handlers/submit-order';
 import {
   buildVariantCandidates,
   buildTextMatchCandidates,
@@ -3003,6 +3004,34 @@ export class ArchibaldBot {
     logger.info('Order notes fields filled successfully');
   }
 
+  private async selectDeliveryAddress(address: CustomerAddress): Promise<void> {
+    if (!this.page) return;
+
+    const dropdown = await this.page.waitForSelector(
+      '[id*="SELEZIONARE_L_INDIRIZZO"], [title*="SELEZIONARE"]',
+      { timeout: 3000 },
+    ).catch(() => null);
+
+    if (!dropdown) return;
+
+    const via = address.via ?? '';
+    const clicked = await this.page.evaluate((viaText: string) => {
+      const items = Array.from(document.querySelectorAll('.dxeListBoxItem, li[class*="item"]'));
+      const match = items.find(el =>
+        el.textContent?.toLowerCase().includes(viaText.toLowerCase().trim()),
+      ) as HTMLElement | undefined;
+      if (match) { match.click(); return true; }
+      return false;
+    }, via);
+
+    if (!clicked) {
+      logger.warn('selectDeliveryAddress: no matching option found', {
+        via: address.via,
+        cap: address.cap,
+      });
+    }
+  }
+
   /**
    * Create a new order in Archibald
    * @param orderData - Order data with customer and items
@@ -3010,7 +3039,7 @@ export class ArchibaldBot {
    * @returns Order ID
    */
   async createOrder(
-    orderData: OrderData,
+    orderData: SubmitOrderData,
     slowdownConfig?: SlowdownConfig,
   ): Promise<string> {
     if (!this.page) throw new Error("Browser non inizializzato");
@@ -3595,6 +3624,10 @@ export class ArchibaldBot {
       );
 
       await this.emitProgress("form.customer");
+
+      if (orderData.deliveryAddress) {
+        await this.selectDeliveryAddress(orderData.deliveryAddress);
+      }
 
       // Helper: open "Prezzi e sconti" tab
       const openPrezziEScontiTab = async (): Promise<boolean> => {

@@ -2,6 +2,12 @@ import { describe, expect, test, vi } from 'vitest';
 import { handleSubmitOrder, type SubmitOrderBot, type SubmitOrderData } from './submit-order';
 import type { DbPool } from '../../db/pool';
 
+vi.mock('../../db/repositories/customer-addresses', () => ({
+  getAddressById: vi.fn(),
+}));
+
+import { getAddressById } from '../../db/repositories/customer-addresses';
+
 function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
   const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
     if (typeof sql === 'string' && sql.includes('vat_validated_at') && sql.includes('agents.customers')) {
@@ -315,6 +321,53 @@ function createMockPoolWithCustomer(
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   };
 }
+
+const deliveryAddress = {
+  id: 42,
+  userId: 'user-1',
+  customerProfile: 'CUST-001',
+  tipo: 'Consegna',
+  nome: null,
+  via: 'Via Roma 1',
+  cap: '37100',
+  citta: 'Verona',
+  contea: null,
+  stato: null,
+  idRegione: null,
+  contra: null,
+};
+
+describe('handleSubmitOrder — delivery address resolution', () => {
+  test('resolves deliveryAddress from DB and passes to bot when deliveryAddressId provided', async () => {
+    vi.mocked(getAddressById).mockResolvedValue(deliveryAddress);
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-ADDR');
+    const onProgress = vi.fn();
+
+    const dataWithAddressId: SubmitOrderData = {
+      ...sampleData,
+      deliveryAddressId: 42,
+    };
+
+    await handleSubmitOrder(pool, bot, dataWithAddressId, 'user-1', onProgress);
+
+    expect(getAddressById).toHaveBeenCalledWith(pool, 'user-1', 42);
+    expect(bot.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ deliveryAddress }),
+    );
+  });
+
+  test('does not call getAddressById when deliveryAddressId not provided', async () => {
+    vi.mocked(getAddressById).mockClear();
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-NO-ADDR');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
+
+    expect(getAddressById).not.toHaveBeenCalled();
+  });
+});
 
 describe('handleSubmitOrder — completeness guard', () => {
   const INCOMPLETE_CUSTOMER = {

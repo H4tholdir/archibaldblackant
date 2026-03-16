@@ -12,6 +12,8 @@ import type { VerificationNotification } from '../../verification/format-notific
 import { batchTransfer } from '../../db/repositories/warehouse';
 import { getUnitPricesByProductIds } from '../../db/repositories/prices';
 import { logger } from '../../logger';
+import type { CustomerAddress } from '../../db/repositories/customer-addresses';
+import { getAddressById } from '../../db/repositories/customer-addresses';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -21,6 +23,8 @@ type SubmitOrderItem = {
   price: number;
   discount?: number;
   vat?: number;
+  articleId?: string;
+  packageContent?: number;
   warehouseQuantity?: number;
   warehouseSources?: Array<{ warehouseItemId: number; boxName: string; quantity: number }>;
 };
@@ -35,6 +39,8 @@ type SubmitOrderData = {
   targetTotalWithVAT?: number;
   noShipping?: boolean;
   notes?: string;
+  deliveryAddressId?: number;
+  deliveryAddress?: CustomerAddress | null;
 };
 
 type SubmitOrderBot = {
@@ -223,6 +229,10 @@ async function handleSubmitOrder(
     if (customerRow?.internal_id) {
       data = { ...data, customerInternalId: customerRow.internal_id };
     }
+  }
+
+  if (data.deliveryAddressId) {
+    data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
   }
 
   const orderId = await bot.createOrder(data);
