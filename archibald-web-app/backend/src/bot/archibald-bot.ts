@@ -12132,6 +12132,9 @@ export class ArchibaldBot {
 
     await this.ensureNameFieldBeforeSave(customerData.name);
 
+    // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
+    await this.writeAltAddresses(customerData.addresses ?? []);
+
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
@@ -13062,6 +13065,10 @@ export class ArchibaldBot {
     }
 
     await this.ensureNameFieldBeforeSave(customerData.name);
+
+    // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
+    await this.emitProgress("customer.tab.indirizzo");
+    await this.writeAltAddresses(customerData.addresses ?? []);
 
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();

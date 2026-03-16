@@ -127,3 +127,90 @@ describe('writeAltAddresses', () => {
     expect(evaluateCalls).toHaveLength(2);
   });
 });
+
+describe('createCustomer — writeAltAddresses integration', () => {
+  it('calls writeAltAddresses with addresses from CustomerFormData', async () => {
+    const page = makePageMock();
+    (page as any).goto = vi.fn().mockResolvedValue(undefined);
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).clickElementByText = vi.fn().mockResolvedValue(true);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).getCustomerProfileId = vi.fn().mockResolvedValue('PROFILE-001');
+
+    const addresses: AddressEntry[] = [
+      { tipo: 'Consegna', via: 'Via Verdi 3', cap: '37122', citta: 'Verona' },
+    ];
+
+    await (bot as any).createCustomer({ name: 'Test S.r.l.', addresses });
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(addresses);
+  });
+
+  it('calls writeAltAddresses with empty array when addresses field absent', async () => {
+    const page = makePageMock();
+    (page as any).goto = vi.fn().mockResolvedValue(undefined);
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).clickElementByText = vi.fn().mockResolvedValue(true);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).getCustomerProfileId = vi.fn().mockResolvedValue('PROFILE-001');
+
+    await (bot as any).createCustomer({ name: 'Test S.r.l.' });
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith([]);
+  });
+});
+
+describe('completeCustomerCreation — writeAltAddresses integration', () => {
+  it('calls writeAltAddresses with addresses from CustomerFormData', async () => {
+    const page = makePageMock();
+    (page as any).goto = vi.fn().mockResolvedValue(undefined);
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).getCustomerProfileId = vi.fn().mockResolvedValue('PROFILE-001');
+
+    const addresses: AddressEntry[] = [{ tipo: 'Ufficio', via: 'Via Scala 2', cap: '20121', citta: 'Milano' }];
+
+    await (bot as any).completeCustomerCreation({ name: 'Test', addresses });
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(addresses);
+  });
+});
