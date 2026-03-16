@@ -214,3 +214,51 @@ describe('completeCustomerCreation — writeAltAddresses integration', () => {
     expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(addresses);
   });
 });
+
+describe('updateCustomer — writeAltAddresses integration', () => {
+  function makeUpdateBot(): ArchibaldBot {
+    const page = makePageMock();
+    (page as any).goto = vi.fn().mockResolvedValue(undefined);
+    (page as any).url = vi.fn().mockReturnValue('http://test/CUSTTABLE_ListView_Agent/');
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).updateCustomerName = vi.fn().mockResolvedValue(undefined);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).navigateToEditCustomerForm = vi.fn().mockResolvedValue(undefined);
+    (bot as any).clickElementByText = vi.fn().mockResolvedValue(true);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).searchAndOpenCustomer = vi.fn().mockResolvedValue(undefined);
+    return bot;
+  }
+
+  const profile = 'CUST-001';
+  const formData = { name: 'Acme S.r.l.', addresses: [{ tipo: 'Consegna', via: 'Via Dante 7', cap: '20100', citta: 'Milano' }] };
+
+  it('calls writeAltAddresses with addresses when provided', async () => {
+    const bot = makeUpdateBot();
+
+    await bot.updateCustomer(profile, formData as any, 'Acme');
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(formData.addresses);
+  });
+
+  it('calls writeAltAddresses with empty array when addresses absent', async () => {
+    const bot = makeUpdateBot();
+    const dataWithoutAddresses = { name: 'Acme S.r.l.' };
+
+    await bot.updateCustomer(profile, dataWithoutAddresses as any, 'Acme');
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith([]);
+  });
+});

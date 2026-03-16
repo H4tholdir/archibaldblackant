@@ -12407,6 +12407,9 @@ export class ArchibaldBot {
       );
     }
 
+    // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
+    await this.writeAltAddresses(customerData.addresses ?? []);
+
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
