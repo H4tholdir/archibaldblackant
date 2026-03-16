@@ -205,6 +205,7 @@ vi.mock('./operations/handlers', () => ({
   createSyncProductsHandler: vi.fn(() => vi.fn()),
   createSyncOrderStatesHandler: vi.fn(() => vi.fn()),
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
+  createSyncCustomerAddressesHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('bullmq', () => {
@@ -312,7 +313,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 15 operation handlers', async () => {
+  test('registers all 18 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -339,8 +340,9 @@ describe('bootstrap', () => {
       'sync-products',
       'sync-order-states',
       'sync-tracking',
+      'sync-customer-addresses',
     ]));
-    expect(handlerKeys).toHaveLength(17);
+    expect(handlerKeys).toHaveLength(18);
   });
 
   test('getActiveAgentIds returns whitelisted user IDs', async () => {

@@ -12,12 +12,12 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['submit-order']).toBe(1);
   });
 
-  test('sync-prices has lowest priority (16)', () => {
-    expect(OPERATION_PRIORITIES['sync-prices']).toBe(16);
+  test('sync-customer-addresses has lowest priority (18)', () => {
+    expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(18);
   });
 
-  test('all 17 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(17);
+  test('all 18 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(18);
   });
 });
 
@@ -43,6 +43,7 @@ describe('isWriteOperation', () => {
     'sync-products',
     'sync-prices',
     'sync-tracking',
+    'sync-customer-addresses',
   ];
 
   test.each(writeOps)('%s is a write operation', (op) => {
@@ -64,6 +65,7 @@ describe('isScheduledSync', () => {
     'sync-prices',
     'sync-order-articles',
     'sync-tracking',
+    'sync-customer-addresses',
   ];
 
   const nonScheduledSyncs: OperationType[] = [
