@@ -436,6 +436,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
               contra: a.contra ?? null,
             }));
             await upsertAddressesForCustomer(userId, customerProfileId, altAddresses);
+            await setAddressesSyncedAt(userId, customerProfileId);
             await sessionManager.removeBot(sessionId);
             sessionManager.updateState(sessionId, 'completed');
           } else {
