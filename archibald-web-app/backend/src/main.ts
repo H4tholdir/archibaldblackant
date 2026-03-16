@@ -31,6 +31,7 @@ import {
   createDownloadDdtPdfHandler,
   createDownloadInvoicePdfHandler,
   createSyncOrderArticlesHandler,
+  createSyncCustomerAddressesHandler,
   createSyncPricesHandler,
   createSyncCustomersHandler,
   createSyncOrdersHandler,
@@ -588,6 +589,15 @@ async function bootstrap(): Promise<void> {
         };
       },
     ),
+    'sync-customer-addresses': createSyncCustomerAddressesHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      return {
+        initialize: async () => bot.initialize(),
+        navigateToEditCustomerForm: async (name) => bot.navigateToEditCustomerForm(name),
+        readAltAddresses: async () => bot.readAltAddresses(),
+        close: async () => bot.close(),
+      };
+    }),
     'sync-prices': createSyncPricesHandler(
       pool,
       async (pdfPath) => (await pricesParser.parsePDF(pdfPath)).map(adaptPrice),

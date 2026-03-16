@@ -11,6 +11,7 @@ import { logger } from "../logger";
 import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
 import type { OrderData } from "../types";
+import type { AltAddress } from '../db/repositories/customer-addresses';
 import {
   buildVariantCandidates,
   buildTextMatchCandidates,
@@ -11788,16 +11789,7 @@ export class ArchibaldBot {
       customerData.lineDiscount || "N/A",
     );
 
-    // Step 2: "Indirizzo alt." tab — fill delivery address (if present)
-    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
-      await this.fillDeliveryAddress(
-        customerData.deliveryStreet,
-        customerData.deliveryPostalCode,
-        customerData.deliveryPostalCodeCity,
-      );
-    }
-
-    // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    // Step 2: Back to "Principale" tab — fill ALL fields last so they persist at save time
     // Order: lookups first (they trigger callbacks), then combo boxes, then text fields
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
@@ -12173,14 +12165,6 @@ export class ArchibaldBot {
       );
     }
 
-    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
-      await this.fillDeliveryAddress(
-        customerData.deliveryStreet,
-        customerData.deliveryPostalCode,
-        customerData.deliveryPostalCodeCity,
-      );
-    }
-
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
@@ -12399,6 +12383,37 @@ export class ArchibaldBot {
 
     logger.info("readEditFormFieldValues", values);
     return values;
+  }
+
+  async readAltAddresses(): Promise<AltAddress[]> {
+    if (!this.page) throw new Error('Browser page is null');
+
+    await this.openCustomerTab('Indirizzo alt');
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-read' });
+
+    const addresses = await this.page.evaluate(() => {
+      const grid = document.querySelector('.dxgvControl_Aqua') as HTMLElement | null;
+      if (!grid) return [];
+
+      const rows = Array.from(grid.querySelectorAll('tr.dxgvDataRow_Aqua'));
+      return rows.map((row) => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        const cellText = (i: number) => cells[i]?.textContent?.trim() || null;
+        return {
+          tipo: cellText(0) ?? '',
+          nome: cellText(1),
+          via: cellText(2),
+          cap: cellText(3),
+          citta: cellText(4),
+          contea: cellText(5),
+          stato: cellText(6),
+          idRegione: cellText(7),
+          contra: cellText(8),
+        };
+      });
+    }) as AltAddress[];
+
+    return addresses;
   }
 
   // ─── Interactive Customer Creation (VAT auto-fill flow) ───────────
@@ -12718,17 +12733,7 @@ export class ArchibaldBot {
       customerData.lineDiscount || "N/A",
     );
 
-    // Step 2: "Indirizzo alt." tab — fill delivery address (if present)
-    await this.emitProgress("customer.tab.indirizzo");
-    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
-      await this.fillDeliveryAddress(
-        customerData.deliveryStreet,
-        customerData.deliveryPostalCode,
-        customerData.deliveryPostalCodeCity,
-      );
-    }
-
-    // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    // Step 2: Back to "Principale" tab — fill ALL fields last so they persist at save time
     await this.emitProgress("customer.tab.principale");
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
