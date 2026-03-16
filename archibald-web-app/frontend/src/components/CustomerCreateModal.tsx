@@ -1570,7 +1570,98 @@ export function CustomerCreateModal({
         )}
 
         {/* VAT Diff Review step — rendered by Task 13 */}
-        {isVatDiffReview && vatDiffFields.length >= 0 && vatDiffSelections !== undefined && null}
+        {isVatDiffReview && vatDiffFields.length > 0 && (
+          <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ fontSize: "16px", fontWeight: 600, color: "#1a1a1a" }}>
+              Confronto dati P.IVA
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
+                    Campo
+                  </th>
+                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
+                    Valore attuale
+                  </th>
+                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
+                    Archibald
+                  </th>
+                  <th style={{ textAlign: "center", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
+                    Usa Archibald
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {vatDiffFields.map((field) => {
+                  const checked = vatDiffSelections[field.key] !== undefined
+                    ? vatDiffSelections[field.key]
+                    : field.preSelected;
+                  const isDiff = field.current !== field.archibald;
+                  return (
+                    <tr key={field.key} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "10px 8px", fontWeight: 500, color: "#374151" }}>
+                        {field.label}
+                      </td>
+                      <td style={{ padding: "10px 8px", color: isDiff ? "#dc2626" : "#374151" }}>
+                        {field.current || (
+                          <span style={{ color: "#9ca3af", fontStyle: "italic" }}>vuoto</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 8px", color: isDiff ? "#059669" : "#374151" }}>
+                        {field.archibald || (
+                          <span style={{ color: "#9ca3af", fontStyle: "italic" }}>vuoto</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setVatDiffSelections((prev) => ({
+                              ...prev,
+                              [field.key]: !prev[field.key],
+                            }));
+                          }}
+                          style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <button
+              onClick={() => {
+                const updates: Partial<CustomerFormData> = {};
+                vatDiffFields.forEach((field) => {
+                  const isSelected = vatDiffSelections[field.key] !== undefined
+                    ? vatDiffSelections[field.key]
+                    : field.preSelected;
+                  if (isSelected) {
+                    updates[field.key] = field.archibald as any;
+                  }
+                });
+                setFormData((prev) => ({ ...prev, ...updates }));
+                setVatWasValidated(true);
+                setCurrentStep({ kind: "field", fieldIndex: 0 });
+              }}
+              style={{
+                alignSelf: "flex-end",
+                padding: "10px 24px",
+                background: "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              Applica selezione →
+            </button>
+          </div>
+        )}
 
         {/* Field input step */}
         {isFieldStep && currentField && !isPaymentTermsStep && (
