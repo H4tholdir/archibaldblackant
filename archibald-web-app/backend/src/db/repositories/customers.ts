@@ -39,6 +39,7 @@ type CustomerRow = {
   bot_status: string | null;
   archibald_name: string | null;
   photo: string | null;
+  vat_validated_at: string | null;
 };
 
 type Customer = {
@@ -78,6 +79,7 @@ type Customer = {
   updatedAt: string | null;
   botStatus: string | null;
   archibaldName: string | null;
+  vatValidatedAt: string | null;
   photo: string | null;
 };
 
@@ -143,7 +145,7 @@ const COLUMNS_WITHOUT_PHOTO = `
   previous_order_count_1, previous_sales_1,
   previous_order_count_2, previous_sales_2,
   external_account_number, our_account_number,
-  hash, last_sync, created_at, updated_at, bot_status, archibald_name
+  hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -184,6 +186,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     updatedAt: row.updated_at,
     botStatus: row.bot_status,
     archibaldName: row.archibald_name,
+    vatValidatedAt: row.vat_validated_at,
     photo: row.photo,
   };
 }
@@ -568,6 +571,19 @@ async function updateArchibaldName(
   );
 }
 
+async function updateVatValidatedAt(
+  pool: DbPool,
+  userId: string,
+  customerProfile: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers
+     SET vat_validated_at = NOW()
+     WHERE customer_profile = $1 AND user_id = $2`,
+    [customerProfile, userId],
+  );
+}
+
 async function getCustomerPhoto(
   pool: DbPool,
   userId: string,
@@ -621,6 +637,7 @@ export {
   upsertSingleCustomer,
   updateCustomerBotStatus,
   updateArchibaldName,
+  updateVatValidatedAt,
   getCustomerPhoto,
   setCustomerPhoto,
   deleteCustomerPhoto,
