@@ -11,7 +11,7 @@ import { waitForJobViaWebSocket } from "../api/operations";
 import type { CustomerFormData } from "../types/customer-form-data";
 import type { VatLookupResult } from "../types/vat-lookup-result";
 import { determineVatEditStep } from "../utils/vat-edit-step";
-import { buildVatDiff } from "../utils/vat-diff";
+import { buildVatDiff, vatCompanyName } from "../utils/vat-diff";
 import type { VatEditStepDecision } from "../utils/vat-edit-step";
 import type { VatDiffField } from "../utils/vat-diff";
 
@@ -512,7 +512,7 @@ export function CustomerCreateModal({
           setFormData((prev) => ({
             ...prev,
             vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
-            name: result.parsed?.companyName || prev.name,
+            name: vatCompanyName(result) || prev.name,
             street: result.parsed?.street || prev.street,
             postalCode: result.parsed?.postalCode || prev.postalCode,
             postalCodeCity: result.parsed?.city || prev.postalCodeCity,
@@ -1362,7 +1362,7 @@ export function CustomerCreateModal({
                 </div>
               )}
 
-              {vatResult.parsed.companyName && (
+              {vatCompanyName(vatResult) && (
                 <div
                   style={{
                     display: "flex",
