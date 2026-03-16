@@ -31,6 +31,8 @@ import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
 import type { Customer as RichCustomer } from '../types/customer';
 import { CustomerCreateModal } from './CustomerCreateModal';
+import type { CustomerAddress } from '../types/customer-address';
+import { getCustomerAddresses } from '../services/customer-addresses';
 
 interface OrderItem {
   id: string;
@@ -280,6 +282,8 @@ export default function OrderFormSimple() {
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [noShipping, setNoShipping] = useState(false);
   const [orderNotes, setOrderNotes] = useState("");
+  const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<number | null>(null);
 
   // Fresis history: article purchase history for selected sub-client
   const [articleHistory, setArticleHistory] = useState<{
@@ -737,6 +741,18 @@ export default function OrderFormSimple() {
       }
     }, 100);
     fetchAndSetCustomerCompleteness(customer.id);
+    getCustomerAddresses(customer.id)
+      .then((addresses) => {
+        const delivery = addresses.filter(
+          (a) => a.tipo === 'Consegna' || a.tipo === 'Indir. cons. alt.',
+        );
+        setDeliveryAddresses(delivery);
+        setSelectedDeliveryAddressId(delivery.length === 1 ? delivery[0].id : null);
+      })
+      .catch(() => {
+        setDeliveryAddresses([]);
+        setSelectedDeliveryAddressId(null);
+      });
   };
 
   const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
@@ -2748,6 +2764,7 @@ export default function OrderFormSimple() {
         subClientData: selectedSubClient ?? undefined,
         noShipping: noShipping || undefined,
         notes: orderNotes.trim() || undefined,
+        deliveryAddressId: selectedDeliveryAddressId ?? undefined,
       });
 
       // Show specific message for warehouse-only orders
@@ -3156,6 +3173,8 @@ export default function OrderFormSimple() {
                 setGlobalDiscountPercent("");
                 setItemDiscount("");
                 setListPrice("");
+                setDeliveryAddresses([]);
+                setSelectedDeliveryAddressId(null);
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
@@ -3201,6 +3220,28 @@ export default function OrderFormSimple() {
             >
               Aggiorna scheda →
             </button>
+          </div>
+        )}
+
+        {/* Delivery address picker (shown when customer has ≥2 delivery addresses) */}
+        {selectedCustomer && deliveryAddresses.length >= 2 && (
+          <div style={{ marginTop: 12, marginBottom: 4 }}>
+            <label style={{ fontWeight: 600, marginBottom: 4, display: 'block', fontSize: '0.875rem' }}>
+              Indirizzo di consegna
+            </label>
+            <select
+              value={selectedDeliveryAddressId ?? ''}
+              onChange={(e) => setSelectedDeliveryAddressId(e.target.value ? Number(e.target.value) : null)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontSize: '0.875rem' }}
+            >
+              <option value="">— Seleziona indirizzo —</option>
+              {deliveryAddresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {[a.via, a.cap && a.citta ? `${a.cap} ${a.citta}` : a.citta].filter(Boolean).join(', ')}
+                  {a.tipo ? ` (${a.tipo})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -5033,16 +5074,17 @@ export default function OrderFormSimple() {
 
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null)}
+            title={deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null ? 'Seleziona un indirizzo di consegna' : undefined}
             style={{
               padding: isMobile ? "1rem 2rem" : "1rem 2rem",
-              background: submitting ? "#d1d5db" : "#22c55e",
+              background: submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null) ? "#d1d5db" : "#22c55e",
               color: "white",
               border: "none",
               borderRadius: "8px",
               fontSize: isMobile ? "1.125rem" : "1.125rem",
               fontWeight: "600",
-              cursor: submitting ? "not-allowed" : "pointer",
+              cursor: submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null) ? "not-allowed" : "pointer",
               width: isMobile ? "100%" : "auto",
               flex: isMobile ? "0" : "1",
               maxWidth: isMobile ? "100%" : "600px",
