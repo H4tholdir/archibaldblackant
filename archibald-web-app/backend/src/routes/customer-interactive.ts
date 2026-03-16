@@ -424,6 +424,18 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           if (useInteractiveBot) {
             setupProgressCallback(existingBot!);
             customerProfileId = await existingBot!.completeCustomerCreation(customerData);
+            const altAddresses: AltAddress[] = (customerData.addresses ?? []).map(a => ({
+              tipo: a.tipo,
+              nome: a.nome ?? null,
+              via: a.via ?? null,
+              cap: a.cap ?? null,
+              citta: a.citta ?? null,
+              contea: a.contea ?? null,
+              stato: a.stato ?? null,
+              idRegione: a.idRegione ?? null,
+              contra: a.contra ?? null,
+            }));
+            await upsertAddressesForCustomer(userId, customerProfileId, altAddresses);
             await sessionManager.removeBot(sessionId);
             sessionManager.updateState(sessionId, 'completed');
           } else {

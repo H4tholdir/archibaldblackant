@@ -74,6 +74,8 @@ function createMockDeps(sessionManager?: InteractiveSessionManager): CustomerInt
     getCustomerByProfile: vi.fn().mockResolvedValue(mockCustomer),
     pauseSyncs: vi.fn().mockResolvedValue(undefined),
     resumeSyncs: vi.fn(),
+    upsertAddressesForCustomer: vi.fn().mockResolvedValue(undefined),
+    setAddressesSyncedAt: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -443,6 +445,60 @@ describe('createCustomerInteractiveRouter', () => {
       await vi.waitFor(() => {
         expect(deps.resumeSyncs).toHaveBeenCalled();
       });
+    });
+
+    test('calls upsertAddressesForCustomer with mapped addresses after completeCustomerCreation', async () => {
+      const mockBot = createMockBot();
+      sessionManager.setBot(sessionId, mockBot);
+      const upsertAddresses = vi.fn().mockResolvedValue(undefined);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        upsertAddressesForCustomer: upsertAddresses,
+      };
+      const customApp = createApp(customDeps);
+
+      const payloadWithAddresses = {
+        name: 'Test Customer',
+        addresses: [{ tipo: 'Consegna', via: 'Via Dante 5', cap: '37100', citta: 'Verona' }],
+      };
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(payloadWithAddresses);
+
+      await vi.waitFor(() => {
+        expect(upsertAddresses).toHaveBeenCalledWith(
+          'user-1',
+          'PROFILE-123',
+          [{ tipo: 'Consegna', nome: null, via: 'Via Dante 5', cap: '37100', citta: 'Verona', contea: null, stato: null, idRegione: null, contra: null }],
+        );
+      });
+    });
+
+    test('does not call upsertAddressesForCustomer in fallback non-interactive path', async () => {
+      const freshBot = createMockBot();
+      const upsertAddresses = vi.fn().mockResolvedValue(undefined);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        upsertAddressesForCustomer: upsertAddresses,
+      };
+      (customDeps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(freshBot);
+      const customApp = createApp(customDeps);
+
+      const payloadWithAddresses = {
+        name: 'Test Customer',
+        addresses: [{ tipo: 'Consegna', via: 'Via Dante 5', cap: '37100', citta: 'Verona' }],
+      };
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(payloadWithAddresses);
+
+      await vi.waitFor(() => {
+        expect(freshBot.createCustomer).toHaveBeenCalled();
+      });
+
+      expect(upsertAddresses).not.toHaveBeenCalled();
     });
   });
 
