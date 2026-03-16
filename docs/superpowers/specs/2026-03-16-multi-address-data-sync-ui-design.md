@@ -370,10 +370,24 @@ type AddressEntry = {
 - `frontend/src/components/CustomerCreateModal.tsx` — removes `address-question` / `delivery-field` steps, adds `addresses` step
 - `frontend/src/services/customers.service.ts` — contains **three** separate inline type definitions with delivery fields: the `createCustomer` parameter type (~line 118), the `updateCustomer` parameter type (~line 153), and the `saveInteractiveCustomer` parameter type (~line 262); remove delivery fields from all three
 - `frontend/src/utils/vat-diff.spec.ts` — contains hardcoded `deliveryStreet: ''`, `deliveryPostalCode: ''`, `deliveryPostalCodeCity: ''`, `deliveryPostalCodeCountry: ''` in baseline objects; remove all four fields from every `baseForm`/baseline object in that file
-- `backend/src/types.ts` — defines `CustomerFormData` with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`; add `addresses?: AddressEntry[]` where `AddressEntry` is the backend type defined in Spec C alongside `CustomerFormData` (same file)
+- `backend/src/types.ts` — defines `CustomerFormData` with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`; add `addresses?: AddressEntry[]`. Also define `AddressEntry` here (do NOT defer to Spec C — it must be defined now to avoid undefined type reference):
+  ```typescript
+  type AddressEntry = {
+    tipo: string;
+    nome?: string;
+    via?: string;
+    cap?: string;
+    citta?: string;
+    contea?: string;
+    stato?: string;
+    idRegione?: string;
+    contra?: string;
+  };
+  ```
+  Export `AddressEntry` from this file. Spec C imports it from here.
 - `backend/src/routes/customer-interactive.ts` — `saveSchema` has `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` as optional fields; remove only these four (keep `postalCodeCity` and `postalCodeCountry`)
 - `backend/src/operations/handlers/create-customer.ts` — `CustomerFormData` usage must drop delivery fields; bot now writes via `writeAltAddresses` (Spec C)
-- `backend/src/bot/archibald-bot.ts` — `createCustomer` no longer reads `deliveryStreet`; replaced by `writeAltAddresses` (Spec C)
+- `backend/src/bot/archibald-bot.ts` — **Spec B removes the old `fillDeliveryAddress` call blocks** from `createCustomer`, `updateCustomer`, and `completeCustomerCreation` (the `if (customerData.deliveryStreet && customerData.deliveryPostalCode) { await this.fillDeliveryAddress(...) }` blocks). This is required in Spec B because removing `deliveryStreet` from `CustomerFormData` makes these accesses a TypeScript error. Do NOT add `writeAltAddresses` yet — that is Spec C's job. After Spec B, these methods simply omit delivery address handling entirely; Spec C adds the new multi-address logic.
 - `backend/src/operations/handlers/update-customer.ts` — `UpdateCustomerData` has delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` and add `addresses?: AddressEntry[]` (this change is part of **Spec C**, not Spec B — listed here for cross-spec awareness)
 
 In edit mode, the `addresses` step is pre-populated by calling `GET /api/customers/:profile/addresses` when the modal opens (alongside the existing `start-edit` bot session).
@@ -382,6 +396,7 @@ In edit mode, the `addresses` step is pre-populated by calling `GET /api/custome
 
 ```typescript
 import type { CustomerAddress } from '../types/customer-address';  // new file, NOT '../types/customer'
+import type { AddressEntry } from '../types/customer-form-data';
 
 async function getCustomerAddresses(customerProfile: string): Promise<CustomerAddress[]>
 // GET /api/customers/:customerProfile/addresses
@@ -451,7 +466,7 @@ In the customer profile card/detail view, add a read-only "Indirizzi alternativi
 | `backend/src/sync/sync-scheduler.ts` | Modify (add 4th param `getCustomersNeedingAddressSync`, address sync timeout block) |
 | `backend/src/sync/sync-scheduler.spec.ts` | Modify |
 | `backend/src/sync/services/customer-sync.ts` | Modify (add `addresses_synced_at = NULL` to existing UPDATE query) |
-| `backend/src/bot/archibald-bot.ts` | Modify (add `readAltAddresses`) |
+| `backend/src/bot/archibald-bot.ts` | Modify (add `readAltAddresses`; remove `fillDeliveryAddress` call blocks from `createCustomer`, `updateCustomer`, `completeCustomerCreation`) |
 | `backend/src/routes/customer-interactive.ts` | Modify (inline on-demand refresh in `start-edit`; remove delivery fields from `saveSchema`) |
 | `backend/src/server.ts` | Modify (mount `customer-addresses` router at `/api/customers/:customerProfile/addresses`; add `upsertAddressesForCustomer` and `setAddressesSyncedAt` closure injections to `createCustomerInteractiveRouter` call) |
 | `backend/src/main.ts` | Modify (wire `getCustomersNeedingAddressSync` as 4th param to `createSyncScheduler`) |

@@ -31,6 +31,8 @@ CustomerCreateModal
 
 **Important: `addresses` in `CustomerFormData` must be optional** (`addresses?: AddressEntry[]`), not required. This allows structural compatibility with `UpdateCustomerData.addresses?: AddressEntry[]` — since `ArchibaldBot.updateCustomer` accepts `CustomerFormData`, passing a `UpdateCustomerData` (where `addresses` is optional) to a function expecting `CustomerFormData` (where `addresses` is also optional) is structurally safe. Both the bot's `createCustomer` and `updateCustomer` use `formData.addresses ?? []` to handle the absent case.
 
+**`AddressEntry` is defined in `backend/src/types.ts` (by Spec B)** — it is NOT redefined in Spec C. Spec C imports it: `import type { AddressEntry } from '../types'`.
+
 ```typescript
 type AddressEntry = {
   tipo: string;
