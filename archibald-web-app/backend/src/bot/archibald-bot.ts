@@ -12062,163 +12062,21 @@ export class ArchibaldBot {
 
     await this.emitProgress("customer.navigation");
 
-    const searchAndFindCustomer = async (
-      nameToSearch: string,
-    ): Promise<{
-      found: boolean;
-      reason: string;
-      rowCount: number;
-      rowNames?: string[];
-    }> => {
-      // Fill search field
-      const fieldId = await this.page!.evaluate((name: string) => {
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const searchInput = inputs.find((i) =>
-          /SearchAC.*Ed_I$/.test(i.id),
-        ) as HTMLInputElement | null;
-        if (!searchInput) return null;
-
-        searchInput.scrollIntoView({ block: "center" });
-        searchInput.focus();
-        searchInput.click();
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
-        if (setter) setter.call(searchInput, name);
-        else searchInput.value = name;
-        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-        searchInput.dispatchEvent(new Event("change", { bubbles: true }));
-        return searchInput.id;
-      }, nameToSearch);
-
-      if (!fieldId) throw new Error("Search input not found");
-
-      // Try clicking the search/find button if present, otherwise press Enter
-      const searchBtnClicked = await this.page!.evaluate(() => {
-        const btns = Array.from(
-          document.querySelectorAll(
-            'img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]',
-          ),
-        );
-        for (const btn of btns) {
-          if ((btn as HTMLElement).offsetParent !== null) {
-            (btn as HTMLElement).click();
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (!searchBtnClicked) {
-        await this.page!.keyboard.press("Enter");
-      }
-
-      await this.wait(1000);
-      await this.waitForDevExpressIdle({
-        timeout: 15000,
-        label: "customer-search",
-      });
-      await this.wait(500);
-
-      logger.info("Customer search completed", {
-        nameToSearch,
-        searchBtnClicked,
-      });
-
-      // Find exact match in filtered results and click Edit
-      const result = await this.page!.evaluate((targetName: string) => {
-        const nameLower = targetName.trim().toLowerCase();
-        const rows = Array.from(
-          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-        ).filter((r) => (r as HTMLElement).offsetParent !== null);
-
-        if (rows.length === 0)
-          return { found: false, reason: "no-rows", rowCount: 0 };
-
-        const getCellTexts = (row: Element): string[] => {
-          return Array.from(row.querySelectorAll("td"))
-            .map((c) => {
-              const clone = c.cloneNode(true) as HTMLElement;
-              clone
-                .querySelectorAll("script, style")
-                .forEach((s) => s.remove());
-              return (clone.innerText || clone.textContent || "")
-                .replace(/\s+/g, " ")
-                .trim()
-                .toLowerCase();
-            })
-            .filter(Boolean);
-        };
-
-        for (const row of rows) {
-          const cellTexts = getCellTexts(row);
-          if (cellTexts.some((t) => t === nameLower)) {
-            const editBtn = row.querySelector(
-              'img[title="Modifica"], a[data-args*="Edit"]',
-            );
-            if (editBtn) {
-              const target =
-                editBtn.tagName === "IMG"
-                  ? editBtn.closest("a") || editBtn
-                  : editBtn;
-              (target as HTMLElement).click();
-              return {
-                found: true,
-                reason: "exact-match",
-                rowCount: rows.length,
-              };
-            }
-          }
-        }
-
-        for (const row of rows) {
-          const cellTexts = getCellTexts(row);
-          if (cellTexts.some((t) => t.includes(nameLower))) {
-            const editBtn = row.querySelector(
-              'img[title="Modifica"], a[data-args*="Edit"]',
-            );
-            if (editBtn) {
-              const target =
-                editBtn.tagName === "IMG"
-                  ? editBtn.closest("a") || editBtn
-                  : editBtn;
-              (target as HTMLElement).click();
-              return {
-                found: true,
-                reason: "contains-match",
-                rowCount: rows.length,
-              };
-            }
-          }
-        }
-
-        const sampleTexts = rows.slice(0, 5).map((r) =>
-          getCellTexts(r)
-            .filter((t) => t.length > 0 && t.length < 100)
-            .join(" | "),
-        );
-
-        return {
-          found: false,
-          reason: "no-match",
-          rowCount: rows.length,
-          rowNames: sampleTexts,
-        };
-      }, nameToSearch);
-
-      return result;
-    };
-
     // Try searching with the original name first
-    let editResult = await searchAndFindCustomer(searchName);
-    logger.info("Customer edit selection (primary)", editResult);
+    let searchError: Error | null = null;
+    try {
+      await this.searchAndOpenCustomer(searchName);
+      logger.info("Customer edit selection (primary)", { searchName });
+    } catch (err) {
+      searchError = err as Error;
+      logger.info("Primary search failed, retrying with new name", {
+        searchName,
+        error: String(err),
+      });
+    }
 
     // Fallback 1: if not found and we have an alternative name, retry with new name
-    if (!editResult.found && fallbackName) {
-      logger.info("Primary search failed, retrying with new name", {
-        fallbackName,
-      });
+    if (searchError && fallbackName) {
       await this.page.goto(
         `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
         {
@@ -12227,12 +12085,21 @@ export class ArchibaldBot {
         },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
-      editResult = await searchAndFindCustomer(fallbackName);
-      logger.info("Customer edit selection (fallback name)", editResult);
+      try {
+        await this.searchAndOpenCustomer(fallbackName);
+        logger.info("Customer edit selection (fallback name)", { fallbackName });
+        searchError = null;
+      } catch (err) {
+        searchError = err as Error;
+        logger.info("Fallback name search failed, retrying with customerProfile", {
+          fallbackName,
+          error: String(err),
+        });
+      }
     }
 
     // Fallback 2: search by customerProfile code
-    if (!editResult.found) {
+    if (searchError) {
       logger.info("Name searches failed, retrying with customerProfile", {
         customerProfile,
       });
@@ -12244,23 +12111,22 @@ export class ArchibaldBot {
         },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
-      editResult = await searchAndFindCustomer(customerProfile);
-      logger.info("Customer edit selection (fallback profile)", editResult);
+      try {
+        await this.searchAndOpenCustomer(customerProfile);
+        logger.info("Customer edit selection (fallback profile)", { customerProfile });
+        searchError = null;
+      } catch (err) {
+        searchError = err as Error;
+      }
     }
 
     await this.emitProgress("customer.search");
 
-    if (!editResult.found) {
+    if (searchError) {
       throw new Error(
-        `Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`,
+        `Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati`,
       );
     }
-
-    await this.page.waitForFunction(
-      () => !window.location.href.includes("ListView"),
-      { timeout: 15000, polling: 200 },
-    );
-    await this.waitForDevExpressReady({ timeout: 10000 });
 
     await this.emitProgress("customer.edit_loaded");
 
@@ -12392,6 +12258,191 @@ export class ArchibaldBot {
     });
 
     await this.emitProgress("customer.complete");
+  }
+
+  private async searchAndOpenCustomer(nameToSearch: string): Promise<void> {
+    // Fill search field
+    const fieldId = await this.page!.evaluate((name: string) => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const searchInput = inputs.find((i) =>
+        /SearchAC.*Ed_I$/.test(i.id),
+      ) as HTMLInputElement | null;
+      if (!searchInput) return null;
+
+      searchInput.scrollIntoView({ block: "center" });
+      searchInput.focus();
+      searchInput.click();
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (setter) setter.call(searchInput, name);
+      else searchInput.value = name;
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      searchInput.dispatchEvent(new Event("change", { bubbles: true }));
+      return searchInput.id;
+    }, nameToSearch);
+
+    if (!fieldId) throw new Error("Search input not found");
+
+    // Try clicking the search/find button if present, otherwise press Enter
+    const searchBtnClicked = await this.page!.evaluate(() => {
+      const btns = Array.from(
+        document.querySelectorAll(
+          'img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]',
+        ),
+      );
+      for (const btn of btns) {
+        if ((btn as HTMLElement).offsetParent !== null) {
+          (btn as HTMLElement).click();
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!searchBtnClicked) {
+      await this.page!.keyboard.press("Enter");
+    }
+
+    await this.wait(1000);
+    await this.waitForDevExpressIdle({
+      timeout: 15000,
+      label: "customer-search",
+    });
+    await this.wait(500);
+
+    logger.info("Customer search completed", {
+      nameToSearch,
+      searchBtnClicked,
+    });
+
+    // Find exact match in filtered results and click Edit
+    const result = await this.page!.evaluate((targetName: string) => {
+      const nameLower = targetName.trim().toLowerCase();
+      const rows = Array.from(
+        document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+      ).filter((r) => (r as HTMLElement).offsetParent !== null);
+
+      if (rows.length === 0)
+        return { found: false, reason: "no-rows", rowCount: 0 };
+
+      const getCellTexts = (row: Element): string[] => {
+        return Array.from(row.querySelectorAll("td"))
+          .map((c) => {
+            const clone = c.cloneNode(true) as HTMLElement;
+            clone
+              .querySelectorAll("script, style")
+              .forEach((s) => s.remove());
+            return (clone.innerText || clone.textContent || "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .toLowerCase();
+          })
+          .filter(Boolean);
+      };
+
+      for (const row of rows) {
+        const cellTexts = getCellTexts(row);
+        if (cellTexts.some((t) => t === nameLower)) {
+          const editBtn = row.querySelector(
+            'img[title="Modifica"], a[data-args*="Edit"]',
+          );
+          if (editBtn) {
+            const target =
+              editBtn.tagName === "IMG"
+                ? editBtn.closest("a") || editBtn
+                : editBtn;
+            (target as HTMLElement).click();
+            return {
+              found: true,
+              reason: "exact-match",
+              rowCount: rows.length,
+            };
+          }
+        }
+      }
+
+      for (const row of rows) {
+        const cellTexts = getCellTexts(row);
+        if (cellTexts.some((t) => t.includes(nameLower))) {
+          const editBtn = row.querySelector(
+            'img[title="Modifica"], a[data-args*="Edit"]',
+          );
+          if (editBtn) {
+            const target =
+              editBtn.tagName === "IMG"
+                ? editBtn.closest("a") || editBtn
+                : editBtn;
+            (target as HTMLElement).click();
+            return {
+              found: true,
+              reason: "contains-match",
+              rowCount: rows.length,
+            };
+          }
+        }
+      }
+
+      const sampleTexts = rows.slice(0, 5).map((r) =>
+        getCellTexts(r)
+          .filter((t) => t.length > 0 && t.length < 100)
+          .join(" | "),
+      );
+
+      return {
+        found: false,
+        reason: "no-match",
+        rowCount: rows.length,
+        rowNames: sampleTexts,
+      };
+    }, nameToSearch);
+
+    if (!result.found) {
+      throw new Error(`Cliente non trovato: ${nameToSearch}`);
+    }
+
+    await this.page!.waitForFunction(
+      () => !window.location.href.includes("ListView"),
+      { timeout: 15000, polling: 200 },
+    );
+    await this.waitForDevExpressReady({ timeout: 10000 });
+  }
+
+  async navigateToEditCustomerForm(name: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("navigateToEditCustomerForm: navigating via list", { name });
+
+    await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    if (this.page.url().includes("Login.aspx")) {
+      throw new Error("Sessione scaduta: reindirizzato al login");
+    }
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.searchAndOpenCustomer(name);
+
+    // Clicca il pulsante Edit / Modifica se non già in edit mode
+    const isEditMode = this.page.url().includes("mode=Edit");
+    if (!isEditMode) {
+      await this.page.evaluate(() => {
+        const editBtn = Array.from(document.querySelectorAll("a, button")).find(
+          (el) => /modifica|edit/i.test(el.textContent || ""),
+        );
+        (editBtn as HTMLElement)?.click();
+      });
+      await this.page.waitForNavigation({
+        waitUntil: "networkidle2",
+        timeout: 30000,
+      });
+    }
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+    logger.info("navigateToEditCustomerForm: edit form loaded", { name });
   }
 
   // ─── Interactive Customer Creation (VAT auto-fill flow) ───────────
