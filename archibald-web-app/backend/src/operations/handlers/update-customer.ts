@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { updateVatValidatedAt } from '../../db/repositories/customers';
 
 type UpdateCustomerData = {
   customerProfile: string;
@@ -23,6 +24,7 @@ type UpdateCustomerData = {
   postalCodeCountry?: string;
   deliveryPostalCodeCity?: string;
   deliveryPostalCodeCountry?: string;
+  vatWasValidated?: boolean;
 };
 
 type UpdateCustomerBot = {
@@ -77,6 +79,10 @@ async function handleUpdateCustomer(
 
   onProgress(20, 'Aggiornamento su Archibald');
   await bot.updateCustomer(data.customerProfile, data, originalName);
+
+  if (data.vatWasValidated) {
+    await updateVatValidatedAt(pool, userId, data.customerProfile);
+  }
 
   onProgress(80, 'Aggiornamento stato');
 
