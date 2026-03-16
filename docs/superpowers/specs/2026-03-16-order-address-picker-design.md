@@ -98,11 +98,13 @@ The bot's `createOrder(orderData: SubmitOrderData)` already takes `SubmitOrderDa
 
 ---
 
-## 3. Bot — `submitOrder` changes
+## 3. Bot — `createOrder` changes
 
-In `archibald-bot.ts`, `submitOrder(orderData)` method.
+In `archibald-bot.ts`, `createOrder(orderData)` method. Note: the actual bot method is `createOrder`, not `submitOrder`.
 
 After the bot selects the customer in Archibald's order form, it checks for the "SELEZIONARE L'INDIRIZZO" dropdown. This dropdown only appears when the customer has multiple delivery addresses configured in Archibald.
+
+**Type change required:** `ArchibaldBot.createOrder` currently takes `orderData: OrderData` (from `z.infer<typeof createOrderSchema>`). To access `orderData.deliveryAddress` inside the method body, the parameter type must be updated to `SubmitOrderData` (imported from `../operations/handlers/submit-order`). `SubmitOrderData` will gain `deliveryAddress?: CustomerAddress | null` via Section 2 of this spec. `SubmitOrderData` is a structural superset of `OrderData` (has all its fields plus extras), so `ArchibaldBot` continues to satisfy the `SubmitOrderBot` interface. Remove the existing `import type { OrderData } from "../types"` in `archibald-bot.ts` if unused after this change; add `import type { SubmitOrderData } from '../operations/handlers/submit-order'`.
 
 ### New logic
 
@@ -168,6 +170,8 @@ ALTER TABLE agents.pending_orders
 
 (`agents.` prefix required; `ON DELETE SET NULL` so deleting the address doesn't delete the order.)
 
+**Ordering requirement:** Migration 028 references `agents.customer_addresses(id)` which is created by migration 027 (Spec B). Migration runner applies files in filename/numeric order — 027 must be applied before 028. Since Spec B is a prerequisite of this spec, the deployment must apply Spec B (including its migration) before Spec D.
+
 ### `PendingOrderInput` (backend repository)
 
 In `backend/src/db/repositories/pending-orders.ts`, add to **all three** types:
@@ -226,7 +230,7 @@ When a pending order is retried:
 | `backend/src/routes/pending-orders.ts` | Modify: add `deliveryAddressId` to `pendingOrderSchema` |
 | `backend/src/operations/handlers/submit-order.ts` | Modify: add `deliveryAddressId`+`deliveryAddress` to `SubmitOrderData`, load address, pass to bot |
 | `backend/src/operations/handlers/submit-order.spec.ts` | Modify |
-| `backend/src/bot/archibald-bot.ts` | Modify: add `selectDeliveryAddress()` |
+| `backend/src/bot/archibald-bot.ts` | Modify: change `createOrder` param from `OrderData` to `SubmitOrderData`; add `selectDeliveryAddress()` |
 | `frontend/src/components/OrderFormSimple.tsx` | Modify: load addresses, show picker, include `deliveryAddressId` in save-pending call |
 | `frontend/src/api/pending-orders.ts` | Modify: add `deliveryAddressId` to `savePendingOrder` body and `mapBackendOrder` mapping |
 | `frontend/src/pages/PendingOrdersPage.tsx` | Modify: pass `deliveryAddressId` in BOTH `enqueueOperation('submit-order', ...)` call sites (submit + retry) |

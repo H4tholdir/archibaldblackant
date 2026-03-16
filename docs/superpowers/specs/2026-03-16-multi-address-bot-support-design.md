@@ -169,6 +169,8 @@ With:
 await this.writeAltAddresses(customerData.addresses ?? []);
 ```
 
+**Type compatibility note:** `ArchibaldBot.updateCustomer` accepts `customerData: CustomerFormData`. The handler calls `bot.updateCustomer(data.customerProfile, data, originalName)` where `data: UpdateCustomerData`. After Spec C's changes, both `UpdateCustomerData` and `CustomerFormData` have identical fields (delivery fields removed from both; `addresses?: AddressEntry[]` added to both). TypeScript structural typing allows passing `UpdateCustomerData` where `CustomerFormData` is expected because their shapes are identical. No interface change to `UpdateCustomerBot` is required.
+
 ---
 
 ## 4. `UpdateCustomerData` — replace delivery fields with `addresses[]`
@@ -214,22 +216,29 @@ This keeps DB in sync with what was written to Archibald in the same operation.
 
 **`saveSchema` and delivery field cleanup**: Spec B updates `saveSchema` in `customer-interactive.ts` to (a) remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` and (b) add the `addresses` array field. This is a prerequisite — without Spec B deployed, `addresses` will be stripped by Zod validation before reaching the bot. Spec C assumes Spec B is already deployed. No schema changes are made in Spec C.
 
-After `completeCustomerCreation(formData)` returns the `customerProfile` string, and after `upsertSingleCustomer` persists the customer, also call:
+After `completeCustomerCreation(formData)` returns the `customerProfile` string, add the `upsertAddressesForCustomer` call **inside the `if (useInteractiveBot)` branch**, immediately after `completeCustomerCreation`:
 
 ```typescript
-// customerProfile is the return value of completeCustomerCreation(formData)
-await deps.upsertAddressesForCustomer(userId, customerProfile, formData.addresses ?? []);
+// INSIDE if (useInteractiveBot) { ... } branch:
+customerProfileId = await existingBot!.completeCustomerCreation(customerData);
+await deps.upsertAddressesForCustomer(userId, customerProfileId, formData.addresses ?? []);
+await sessionManager.removeBot(sessionId);
+sessionManager.updateState(sessionId, 'completed');
 ```
+
+**Placement is critical**: `upsertAddressesForCustomer` must be inside the `if (useInteractiveBot)` block, NOT after the if/else. The fallback path (`useInteractiveBot = false`) sets `customerProfileId = tempProfile` (a `TEMP-<timestamp>` placeholder) — do NOT call `upsertAddressesForCustomer` there.
 
 **Signature clarification**: `deps.upsertAddressesForCustomer(userId, customerProfile, addresses)` has **3 args** (pool bound via closure in server.ts). The raw repository function has **4 args** (`pool, userId, customerProfile, addresses`). The dep wrapper pre-binds `pool` when wired in `server.ts` — see Spec B for the closure pattern.
 
-**`CustomerInteractiveRouterDeps` after Spec B** will include:
+**`CustomerInteractiveRouterDeps` after Spec B** will include (already defined; no changes in Spec C):
 ```typescript
 upsertAddressesForCustomer: (userId: string, customerProfile: string, addresses: AltAddress[]) => Promise<void>;
 setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>;
 ```
 
-**Fallback path exclusion**: The fallback path (`useInteractiveBot = false`) sets `customerProfileId = tempProfile` (a `TEMP-<timestamp>` placeholder). Do NOT call `upsertAddressesForCustomer` in the fallback path — the temp profile is not the real Archibald customer profile and the addresses must not be persisted under it. The bot still calls `createCustomer(formData)` which calls `writeAltAddresses`, but the DB upsert is skipped. The scheduler's `sync-customer-addresses` job will sync addresses once the customer is properly created.
+**Note:** `formData.addresses ?? []` is `AddressEntry[]`. `AltAddress` and `AddressEntry` are structurally identical (same fields), so TypeScript structural typing allows passing `AddressEntry[]` where `AltAddress[]` is expected — no compile error.
+
+**Fallback path exclusion**: The bot still calls `createCustomer(formData)` which calls `writeAltAddresses`, but the DB upsert is skipped in the fallback path. The scheduler's `sync-customer-addresses` job will sync addresses once the customer is properly created.
 
 ---
 
@@ -237,7 +246,7 @@ setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>
 
 | File | Action |
 |------|--------|
-| `backend/src/bot/archibald-bot.ts` | Modify: add `writeAltAddresses()`, update `createCustomer`, update `updateCustomer` |
+| `backend/src/bot/archibald-bot.ts` | Modify: add `writeAltAddresses()`, update `createCustomer`, update `completeCustomerCreation`, update `updateCustomer` |
 | `backend/src/operations/handlers/update-customer.ts` | Modify: add `addresses?` to `UpdateCustomerData`, call `upsertAddressesForCustomer` |
 | `backend/src/operations/handlers/update-customer.spec.ts` | Modify: add tests for addresses |
 | `backend/src/routes/customer-interactive.ts` | Modify: add `upsertAddressesForCustomer` call in save route |
