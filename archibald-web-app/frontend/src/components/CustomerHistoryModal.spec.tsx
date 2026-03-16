@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 
@@ -53,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getCustomerFullHistory).mockResolvedValue([]);
 });
+
 
 describe('CustomerHistoryModal', () => {
   it('renders nothing when isOpen is false', () => {
@@ -163,9 +164,10 @@ describe('CustomerHistoryModal', () => {
     expect(onEditMatching).toHaveBeenCalledOnce();
   });
 
-  it('does not show "Modifica collegamenti" button when onEditMatching is not provided', () => {
+  it('does not show "Modifica collegamenti" button when onEditMatching is not provided', async () => {
     render(<CustomerHistoryModal {...defaultProps} />);
     expect(screen.queryByText(/modifica collegamenti/i)).toBeNull();
+    await act(async () => {});
   });
 
   it('shows substitution indicator when fuzzy match found for Fresis article', async () => {
@@ -248,6 +250,7 @@ describe('CustomerHistoryModal', () => {
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-A');
     await screen.findByText('OF-B');
+    await act(async () => {});
 
     const clientSelect = screen.getByRole('combobox', { name: /filtra per cliente/i });
     fireEvent.change(clientSelect, { target: { value: 'customer:PROF-A' } });
@@ -263,6 +266,7 @@ describe('CustomerHistoryModal', () => {
 
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-A');
+    await screen.findByText('OF-B');
 
     const clientSelect = screen.getByRole('combobox', { name: /filtra per cliente/i });
     fireEvent.change(clientSelect, { target: { value: 'subclient:SC-1' } });
@@ -278,6 +282,8 @@ describe('CustomerHistoryModal', () => {
 
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-MI');
+    await screen.findByText('OF-RO');
+    await act(async () => {});
 
     const citySelect = screen.getByRole('combobox', { name: /filtra per città/i });
     fireEvent.change(citySelect, { target: { value: 'Milano' } });
@@ -292,6 +298,7 @@ describe('CustomerHistoryModal', () => {
 
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-X');
+    await act(async () => {});
 
     const citySelect = screen.getByRole('combobox', { name: /filtra per città/i });
     fireEvent.change(citySelect, { target: { value: 'Milano' } });
@@ -307,6 +314,8 @@ describe('CustomerHistoryModal', () => {
 
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-A-MI');
+    await screen.findByText('OF-A-RO');
+    await screen.findByText('OF-B-MI');
 
     fireEvent.change(screen.getByRole('combobox', { name: /filtra per cliente/i }), { target: { value: 'customer:PROF-A' } });
     fireEvent.change(screen.getByRole('combobox', { name: /filtra per città/i }), { target: { value: 'Milano' } });
@@ -344,6 +353,7 @@ describe('CustomerHistoryModal', () => {
     render(<CustomerHistoryModal {...defaultProps} />);
     await screen.findByText('OF-A');
     await screen.findByText('OF-B');
+    await act(async () => {});
 
     fireEvent.change(screen.getByRole('combobox', { name: /filtra per cliente/i }), { target: { value: 'customer:PROF-A' } });
 
