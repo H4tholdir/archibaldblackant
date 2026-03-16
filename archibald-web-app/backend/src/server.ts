@@ -29,6 +29,10 @@ import { createPendingOrdersRouter } from './routes/pending-orders';
 import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
+import { createCustomerAddressesRouter } from './routes/customer-addresses';
+import {
+  upsertAddressesForCustomer as upsertAddressesForCustomerRepo,
+} from './db/repositories/customer-addresses';
 import { createSubclientsRouter } from './routes/subclients';
 import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
@@ -318,6 +322,8 @@ function createApp(deps: AppDeps): Express {
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
   }));
 
+  app.use('/api/customers/:customerProfile/addresses', authenticateJWT, createCustomerAddressesRouter(pool));
+
   app.use('/api/customers', authenticateJWT, createCustomersRouter({
     queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
@@ -406,6 +412,13 @@ function createApp(deps: AppDeps): Express {
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
       updateVatValidatedAt: (userId, profile) => customersRepo.updateVatValidatedAt(pool, userId, profile),
       getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
+      upsertAddressesForCustomer: (userId, customerProfile, addresses) =>
+        upsertAddressesForCustomerRepo(pool, userId, customerProfile, addresses),
+      setAddressesSyncedAt: (userId, customerProfile) =>
+        pool.query(
+          'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE customer_profile = $1 AND user_id = $2',
+          [customerProfile, userId],
+        ).then(() => undefined),
       pauseSyncs: async () => { syncScheduler.stop(); },
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
       getCustomerProgressMilestone: (category: string) => {
