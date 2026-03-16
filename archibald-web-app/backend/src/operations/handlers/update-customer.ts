@@ -73,8 +73,20 @@ async function handleUpdateCustomer(
     ],
   );
 
+  const BOT_PROGRESS_LABELS: Record<string, { progress: number; label: string }> = {
+    'customer.navigation': { progress: 25, label: 'Navigazione al form cliente' },
+    'customer.search':     { progress: 35, label: 'Ricerca cliente' },
+    'customer.edit_loaded':{ progress: 45, label: 'Form cliente caricato' },
+    'customer.field':      { progress: 60, label: 'Compilazione campi' },
+    'customer.save':       { progress: 70, label: 'Salvataggio su Archibald' },
+    'customer.complete':   { progress: 75, label: 'Cliente aggiornato su Archibald' },
+  };
+
   bot.setProgressCallback(async (category) => {
-    onProgress(50, category);
+    const milestone = BOT_PROGRESS_LABELS[category];
+    if (milestone) {
+      onProgress(milestone.progress, milestone.label);
+    }
   });
 
   onProgress(20, 'Aggiornamento su Archibald');
