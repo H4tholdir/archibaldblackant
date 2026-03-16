@@ -29,6 +29,8 @@ export function CustomerHistoryModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClientFilter, setSelectedClientFilter] = useState('');
+  const [selectedCityFilter, setSelectedCityFilter] = useState('');
   const [skippedDialog, setSkippedDialog] = useState<string[]>([]);
 
   // Listino prices: Map<articleCode, { price: number; vat: number } | null>
@@ -48,6 +50,13 @@ export function CustomerHistoryModal({
   // Serializzato per evitare re-render infiniti con array come dipendenze
   const profileIdsKey = customerProfileIds.join(',');
   const subClientCodicesKey = subClientCodices.join(',');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedClientFilter('');
+      setSelectedCityFilter('');
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,11 +102,48 @@ export function CustomerHistoryModal({
     });
   }, [isOpen, listinoPrices]);
 
+  const clientOptions = useMemo(() => {
+    const customers = new Map<string, string>();
+    const subClients = new Map<string, string>();
+    orders.forEach((o) => {
+      if (o.customerProfileId)
+        customers.set(o.customerProfileId, o.customerRagioneSociale ?? o.customerProfileId);
+      if (o.subClientCodice)
+        subClients.set(o.subClientCodice, o.subClientRagioneSociale ?? o.subClientCodice);
+    });
+    const sortedCustomers = [...customers.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    const sortedSubClients = [...subClients.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    return { sortedCustomers, sortedSubClients };
+  }, [orders]);
+
+  const cityOptions = useMemo(() => {
+    const cities = new Set<string>();
+    orders.forEach((o) => {
+      if (o.customerCity) cities.add(o.customerCity);
+      if (o.subClientCity) cities.add(o.subClientCity);
+    });
+    return [...cities].sort((a, b) => a.localeCompare(b));
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    if (!q) return orders;
     return orders
       .map((order) => {
+        const matchesClient =
+          selectedClientFilter === '' ||
+          (selectedClientFilter.startsWith('customer:') &&
+            order.customerProfileId === selectedClientFilter.slice('customer:'.length)) ||
+          (selectedClientFilter.startsWith('subclient:') &&
+            order.subClientCodice === selectedClientFilter.slice('subclient:'.length));
+        if (!matchesClient) return null;
+
+        const matchesCity =
+          selectedCityFilter === '' ||
+          order.customerCity === selectedCityFilter ||
+          order.subClientCity === selectedCityFilter;
+        if (!matchesCity) return null;
+
+        const q = searchQuery.toLowerCase();
+        if (!q) return order;
         if (order.orderNumber.toLowerCase().includes(q)) return order;
         const matched = order.articles.filter(
           (a) =>
@@ -107,7 +153,7 @@ export function CustomerHistoryModal({
         return matched.length > 0 ? { ...order, articles: matched } : null;
       })
       .filter((o): o is CustomerFullHistoryOrder => o !== null);
-  }, [orders, searchQuery]);
+  }, [orders, searchQuery, selectedClientFilter, selectedCityFilter]);
 
   const buildPendingItem = useCallback(
     async (
@@ -223,8 +269,8 @@ export function CustomerHistoryModal({
 
   if (!isOpen) return null;
 
-  const ordersCount = orders.filter((o) => o.source === 'orders').length;
-  const fresisCount = orders.filter((o) => o.source === 'fresis').length;
+  const ordersCount = filteredOrders.filter((o) => o.source === 'orders').length;
+  const fresisCount = filteredOrders.filter((o) => o.source === 'fresis').length;
 
   return (
     <>
@@ -297,6 +343,49 @@ export function CustomerHistoryModal({
                 border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13,
               }}
             />
+            <select
+              aria-label="Filtra per cliente o sottocliente"
+              value={selectedClientFilter}
+              onChange={(e) => setSelectedClientFilter(e.target.value)}
+              style={{
+                padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
+                fontSize: 13, background: 'white', cursor: 'pointer',
+                color: selectedClientFilter ? '#1e293b' : '#94a3b8',
+                maxWidth: 200, minWidth: 0,
+              }}
+            >
+              <option value="">Tutti i clienti/sottoclienti</option>
+              {clientOptions.sortedCustomers.length > 0 && (
+                <optgroup label="Clienti">
+                  {clientOptions.sortedCustomers.map(([id, name]) => (
+                    <option key={id} value={`customer:${id}`}>{id} — {name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {clientOptions.sortedSubClients.length > 0 && (
+                <optgroup label="Sottoclienti">
+                  {clientOptions.sortedSubClients.map(([cod, name]) => (
+                    <option key={cod} value={`subclient:${cod}`}>{cod} — {name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <select
+              aria-label="Filtra per città"
+              value={selectedCityFilter}
+              onChange={(e) => setSelectedCityFilter(e.target.value)}
+              style={{
+                padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
+                fontSize: 13, background: 'white', cursor: 'pointer',
+                color: selectedCityFilter ? '#1e293b' : '#94a3b8',
+                maxWidth: 160, minWidth: 0,
+              }}
+            >
+              <option value="">Tutte le città</option>
+              {cityOptions.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
             <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e0e7ff', color: '#4338ca', whiteSpace: 'nowrap' }}>
               Ordini: {ordersCount}
             </span>
@@ -304,7 +393,7 @@ export function CustomerHistoryModal({
               Fresis: {fresisCount}
             </span>
             <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
-              {orders.length} ordini · {orders.reduce((s, o) => s + o.articles.length, 0)} articoli
+              {filteredOrders.length} ordini · {filteredOrders.reduce((s, o) => s + o.articles.length, 0)} articoli
             </span>
           </div>
 

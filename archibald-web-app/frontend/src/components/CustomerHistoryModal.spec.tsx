@@ -239,4 +239,129 @@ describe('CustomerHistoryModal', () => {
       expect(dashes.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  it('filters orders by customerProfileId when client dropdown is changed', async () => {
+    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
+    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerProfileId: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderA, orderB]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-A');
+    await screen.findByText('OF-B');
+
+    const clientSelect = screen.getByRole('combobox', { name: /filtra per cliente/i });
+    fireEvent.change(clientSelect, { target: { value: 'customer:PROF-A' } });
+
+    expect(screen.getByText('OF-A')).toBeDefined();
+    expect(screen.queryByText('OF-B')).toBeNull();
+  });
+
+  it('filters orders by subClientCodice when client dropdown is changed', async () => {
+    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', subClientCodice: 'SC-1', subClientRagioneSociale: 'Sub Uno' });
+    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', subClientCodice: 'SC-2', subClientRagioneSociale: 'Sub Due' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderA, orderB]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-A');
+
+    const clientSelect = screen.getByRole('combobox', { name: /filtra per cliente/i });
+    fireEvent.change(clientSelect, { target: { value: 'subclient:SC-1' } });
+
+    expect(screen.getByText('OF-A')).toBeDefined();
+    expect(screen.queryByText('OF-B')).toBeNull();
+  });
+
+  it('filters orders by customerCity when city dropdown is changed', async () => {
+    const orderMi = mockOrder({ orderId: 'MI', orderNumber: 'OF-MI', customerCity: 'Milano' });
+    const orderRo = mockOrder({ orderId: 'RO', orderNumber: 'OF-RO', customerCity: 'Roma' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderMi, orderRo]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-MI');
+
+    const citySelect = screen.getByRole('combobox', { name: /filtra per città/i });
+    fireEvent.change(citySelect, { target: { value: 'Milano' } });
+
+    expect(screen.getByText('OF-MI')).toBeDefined();
+    expect(screen.queryByText('OF-RO')).toBeNull();
+  });
+
+  it('includes order when subClientCity matches city filter even if customerCity does not', async () => {
+    const order = mockOrder({ orderId: 'X', orderNumber: 'OF-X', customerCity: 'Roma', subClientCity: 'Milano' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([order]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-X');
+
+    const citySelect = screen.getByRole('combobox', { name: /filtra per città/i });
+    fireEvent.change(citySelect, { target: { value: 'Milano' } });
+
+    expect(screen.getByText('OF-X')).toBeDefined();
+  });
+
+  it('applies client and city filters with AND logic', async () => {
+    const orderAMi = mockOrder({ orderId: '1', orderNumber: 'OF-A-MI', customerProfileId: 'PROF-A', customerCity: 'Milano' });
+    const orderARo = mockOrder({ orderId: '2', orderNumber: 'OF-A-RO', customerProfileId: 'PROF-A', customerCity: 'Roma' });
+    const orderBMi = mockOrder({ orderId: '3', orderNumber: 'OF-B-MI', customerProfileId: 'PROF-B', customerCity: 'Milano' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderAMi, orderARo, orderBMi]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-A-MI');
+
+    fireEvent.change(screen.getByRole('combobox', { name: /filtra per cliente/i }), { target: { value: 'customer:PROF-A' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /filtra per città/i }), { target: { value: 'Milano' } });
+
+    expect(screen.getByText('OF-A-MI')).toBeDefined();
+    expect(screen.queryByText('OF-A-RO')).toBeNull();
+    expect(screen.queryByText('OF-B-MI')).toBeNull();
+  });
+
+  it('resets client and city filters when modal is closed and reopened', async () => {
+    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
+    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerProfileId: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderA, orderB]);
+
+    const { rerender } = render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-A');
+
+    fireEvent.change(screen.getByRole('combobox', { name: /filtra per cliente/i }), { target: { value: 'customer:PROF-A' } });
+    expect(screen.queryByText('OF-B')).toBeNull();
+
+    rerender(<CustomerHistoryModal {...defaultProps} isOpen={false} />);
+    rerender(<CustomerHistoryModal {...defaultProps} isOpen={true} />);
+
+    await screen.findByText('OF-B');
+    expect((screen.getByRole('combobox', { name: /filtra per cliente/i }) as HTMLSelectElement).value).toBe('');
+    expect(screen.getByText('OF-A')).toBeDefined();
+    expect(screen.getByText('OF-B')).toBeDefined();
+  });
+
+  it('shows order with no customerProfileId and no subClientCodice only when client filter is empty', async () => {
+    const orderWithClient = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A' });
+    const orderNoClient = mockOrder({ orderId: 'B', orderNumber: 'OF-B' });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([orderWithClient, orderNoClient]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-A');
+    await screen.findByText('OF-B');
+
+    fireEvent.change(screen.getByRole('combobox', { name: /filtra per cliente/i }), { target: { value: 'customer:PROF-A' } });
+
+    expect(screen.getByText('OF-A')).toBeDefined();
+    expect(screen.queryByText('OF-B')).toBeNull();
+  });
+
+  it('shows each city only once in the city dropdown when multiple orders share the same city', async () => {
+    const city = 'Milano';
+    const order1 = mockOrder({ orderId: '1', orderNumber: 'OF-1', customerCity: city });
+    const order2 = mockOrder({ orderId: '2', orderNumber: 'OF-2', customerCity: city });
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([order1, order2]);
+
+    render(<CustomerHistoryModal {...defaultProps} />);
+    await screen.findByText('OF-1');
+
+    const citySelect = screen.getByRole('combobox', { name: /filtra per città/i });
+    const milanOptions = Array.from((citySelect as HTMLSelectElement).querySelectorAll('option')).filter((o) => o.value === city);
+    expect(milanOptions).toHaveLength(1);
+  });
 });
