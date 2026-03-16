@@ -235,9 +235,10 @@ if (getCustomersNeedingAddressSync) {
 SELECT customer_profile, name FROM agents.customers
 WHERE user_id = $1
   AND addresses_synced_at IS NULL
-ORDER BY addresses_synced_at ASC NULLS FIRST
+ORDER BY name ASC
 LIMIT $2
 ```
+Note: `ORDER BY name ASC` gives stable pagination — all result rows have `NULL` `addresses_synced_at` (from the WHERE clause), so ordering by that column would be meaningless.
 
 ### Reset on customer data change
 
@@ -264,7 +265,18 @@ await deps.setAddressesSyncedAt(userId, customer.customerProfile);
 
 This is **inline in the route handler**, not queued. The bot is already open (we are in an interactive session), so this adds no extra browser startup cost. The addresses are fresh by the time the edit modal opens.
 
-**Error handling:** if `readAltAddresses()` or `upsertAddressesForCustomer()` throws, catch the error, log a warning, and continue — do NOT fail the entire `start-edit` session. Address refresh is best-effort; the user can still edit the customer even if the address refresh fails. The existing `catch` block at the end of the `start-edit` async handler must NOT be reached for address errors — wrap only the address block in its own try/catch.
+**Error handling:** if `readAltAddresses()` or `upsertAddressesForCustomer()` throws, catch the error, log a warning, and continue — do NOT rethrow. Execution MUST always proceed to `sessionManager.updateState(sessionId, 'ready')` and the `CUSTOMER_INTERACTIVE_READY` broadcast, even when the address refresh fails. Address refresh is best-effort. The outer `catch (err)` block (which broadcasts `CUSTOMER_INTERACTIVE_FAILED`) must NOT be reached for address errors — wrap only the address block in its own try/catch that does not rethrow:
+
+```typescript
+try {
+  const altAddresses = await bot.readAltAddresses();
+  await deps.upsertAddressesForCustomer(userId, customer.customerProfile, altAddresses);
+  await deps.setAddressesSyncedAt(userId, customer.customerProfile);
+} catch (addressErr) {
+  logger.warn('start-edit: address refresh failed (non-fatal)', { error: addressErr, userId });
+  // do NOT rethrow — session continues to ready state
+}
+```
 
 **Required interface changes:**
 
