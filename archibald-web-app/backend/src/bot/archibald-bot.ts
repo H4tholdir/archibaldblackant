@@ -3029,6 +3029,8 @@ export class ArchibaldBot {
         via: address.via,
         cap: address.cap,
       });
+    } else {
+      await this.waitForDevExpressIdle({ timeout: 5000, label: 'delivery-address-select' });
     }
   }
 
