@@ -170,23 +170,30 @@ ALTER TABLE agents.pending_orders
 
 ### `PendingOrderInput` (backend repository)
 
-In `backend/src/db/repositories/pending-orders.ts`, add to `PendingOrderInput`:
-```typescript
-deliveryAddressId?: number | null;
-```
+In `backend/src/db/repositories/pending-orders.ts`, add to **all three** types:
 
-Add to `PendingOrder` read type:
 ```typescript
+// PendingOrderRow (raw pg row type):
+delivery_address_id: number | null;
+
+// PendingOrderInput (write type):
+deliveryAddressId?: number | null;
+
+// PendingOrder (read type):
 deliveryAddressId: number | null;
 ```
 
-The `upsertPendingOrder` INSERT and UPDATE queries must include `delivery_address_id` in their column lists and bind `order.deliveryAddressId ?? null`.
+The `upsertPendingOrder` uses a single `INSERT ... ON CONFLICT DO UPDATE` pattern. Both the INSERT column list AND the `ON CONFLICT DO UPDATE SET` clause must include `delivery_address_id = EXCLUDED.delivery_address_id`, otherwise an existing pending order's address selection will be silently lost on conflict.
 
 `mapRowToPendingOrder` must map `row.delivery_address_id` → `deliveryAddressId`.
 
+**`getAddressById` scoping**: `agents.customer_addresses` has a `user_id` column (confirmed in Spec B DDL: `user_id TEXT NOT NULL`). The query filters by both `id` AND `user_id` for security — an agent cannot access another agent's addresses.
+
 ### Frontend — pending order save
 
-In `OrderFormSimple`, when saving a pending order (the `savePendingOrder` API call), include `deliveryAddressId: selectedDeliveryAddressId` in the request payload.
+In `OrderFormSimple`, when saving a pending order, include `deliveryAddressId: selectedDeliveryAddressId` in the request payload to `savePendingOrder`.
+
+**`frontend/src/api/pending-orders.ts`** — the `savePendingOrder` function serializes the request body. Add `deliveryAddressId` to the request body here (this is separate from `OrderFormSimple`'s call site). Also, `mapBackendOrder` (in the same file) maps raw backend JSON to the frontend `PendingOrder` type — add `deliveryAddressId: raw.deliveryAddressId ?? null` to the mapping.
 
 In the frontend pending order type (`frontend/src/types/pending-order.ts` or equivalent), add `deliveryAddressId?: number | null`.
 
@@ -194,7 +201,11 @@ The `pending-orders` route (`backend/src/routes/pending-orders.ts`) saves pendin
 
 ### `PendingOrdersPage.tsx` — enqueue with `deliveryAddressId`
 
-When the user clicks "Invia ad Archibald" on a pending order, `PendingOrdersPage.tsx` calls `enqueueOperation('submit-order', data)`. The `data` payload must include `deliveryAddressId: pendingOrder.deliveryAddressId` so the backend handler can load the correct address. This file is added to the Files list.
+`PendingOrdersPage.tsx` has **two** `enqueueOperation('submit-order', ...)` call sites that must both be updated:
+1. The bulk-submit path (user clicks "Invia ad Archibald" on a single order)
+2. The `handleRetryOrder` path (retry of a previously failed order)
+
+Both must include `deliveryAddressId: pendingOrder.deliveryAddressId` in the payload.
 
 ### Full retry flow
 
@@ -216,8 +227,9 @@ When a pending order is retried:
 | `backend/src/operations/handlers/submit-order.ts` | Modify: add `deliveryAddressId`+`deliveryAddress` to `SubmitOrderData`, load address, pass to bot |
 | `backend/src/operations/handlers/submit-order.spec.ts` | Modify |
 | `backend/src/bot/archibald-bot.ts` | Modify: add `selectDeliveryAddress()` |
-| `frontend/src/components/OrderFormSimple.tsx` | Modify: load addresses, show picker, include `deliveryAddressId` in save-pending payload |
-| `frontend/src/pages/PendingOrdersPage.tsx` | Modify: pass `deliveryAddressId` in `enqueueOperation('submit-order', ...)` payload |
+| `frontend/src/components/OrderFormSimple.tsx` | Modify: load addresses, show picker, include `deliveryAddressId` in save-pending call |
+| `frontend/src/api/pending-orders.ts` | Modify: add `deliveryAddressId` to `savePendingOrder` body and `mapBackendOrder` mapping |
+| `frontend/src/pages/PendingOrdersPage.tsx` | Modify: pass `deliveryAddressId` in BOTH `enqueueOperation('submit-order', ...)` call sites (submit + retry) |
 | `frontend/src/types/pending-order.ts` (or equivalent) | Modify: add `deliveryAddressId?: number \| null` |
 
 ---

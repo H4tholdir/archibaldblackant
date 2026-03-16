@@ -27,7 +27,9 @@ CustomerCreateModal
 
 ## Shared Type — `AddressEntry`
 
-`AddressEntry` is defined in `backend/src/types.ts` alongside `CustomerFormData` (which already lives there). It mirrors `frontend/src/types/customer-form-data.ts`:
+`AddressEntry` is defined in `backend/src/types.ts` alongside `CustomerFormData` (which already lives there). It mirrors `frontend/src/types/customer-form-data.ts`.
+
+**Important: `addresses` in `CustomerFormData` must be optional** (`addresses?: AddressEntry[]`), not required. This allows structural compatibility with `UpdateCustomerData.addresses?: AddressEntry[]` — since `ArchibaldBot.updateCustomer` accepts `CustomerFormData`, passing a `UpdateCustomerData` (where `addresses` is optional) to a function expecting `CustomerFormData` (where `addresses` is also optional) is structurally safe. Both the bot's `createCustomer` and `updateCustomer` use `formData.addresses ?? []` to handle the absent case.
 
 ```typescript
 type AddressEntry = {
@@ -191,6 +193,11 @@ In `handleUpdateCustomer`, after the main UPDATE query and `bot.updateCustomer` 
 await upsertAddressesForCustomer(pool, userId, data.customerProfile, data.addresses ?? []);
 ```
 
+Add the import at the top of `update-customer.ts`:
+```typescript
+import { upsertAddressesForCustomer } from '../../db/repositories/customer-addresses';
+```
+
 This keeps DB in sync with what was written to Archibald in the same operation.
 
 ---
@@ -203,7 +210,7 @@ This keeps DB in sync with what was written to Archibald in the same operation.
 
 ## 6. `customer-interactive.ts` — save route
 
-In the `/:sessionId/save` route, `formData.addresses` is already included in the payload (it's part of `CustomerFormData`). The bot receives it via `completeCustomerCreation(formData)` which calls `createCustomer(formData)`.
+**`saveSchema` and delivery field cleanup**: Spec B updates `saveSchema` in `customer-interactive.ts` to (a) remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` and (b) add the `addresses` array field. This is a prerequisite — without Spec B deployed, `addresses` will be stripped by Zod validation before reaching the bot. Spec C assumes Spec B is already deployed. No schema changes are made in Spec C.
 
 After `completeCustomerCreation(formData)` returns the `customerProfile` string, and after `upsertSingleCustomer` persists the customer, also call:
 
@@ -212,7 +219,15 @@ After `completeCustomerCreation(formData)` returns the `customerProfile` string,
 await deps.upsertAddressesForCustomer(userId, customerProfile, formData.addresses ?? []);
 ```
 
-Note: `deps.upsertAddressesForCustomer` is a dependency-injected function (added to `CustomerInteractiveRouterDeps` in Spec B). Do NOT access `pool` directly — use the deps wrapper.
+**Signature clarification**: `deps.upsertAddressesForCustomer(userId, customerProfile, addresses)` has **3 args** (pool bound via closure in server.ts). The raw repository function has **4 args** (`pool, userId, customerProfile, addresses`). The dep wrapper pre-binds `pool` when wired in `server.ts` — see Spec B for the closure pattern.
+
+**`CustomerInteractiveRouterDeps` after Spec B** will include:
+```typescript
+upsertAddressesForCustomer: (userId: string, customerProfile: string, addresses: AltAddress[]) => Promise<void>;
+setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>;
+```
+
+**Fallback path exclusion**: The fallback path (`useInteractiveBot = false`) sets `customerProfileId = tempProfile` (a `TEMP-<timestamp>` placeholder). Do NOT call `upsertAddressesForCustomer` in the fallback path — the temp profile is not the real Archibald customer profile and the addresses must not be persisted under it. The bot still calls `createCustomer(formData)` which calls `writeAltAddresses`, but the DB upsert is skipped. The scheduler's `sync-customer-addresses` job will sync addresses once the customer is properly created.
 
 ---
 

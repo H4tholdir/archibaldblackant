@@ -170,6 +170,15 @@ Note: `sync-customer-addresses` is **not** added to `WRITE_OPERATIONS`. The oper
 
 ### Scheduler integration
 
+**Export from `sync-scheduler.ts`:** Add `GetCustomersNeedingAddressSyncFn` to the existing named export list: `export { createSyncScheduler, ..., type GetCustomersNeedingAddressSyncFn }`.
+
+**Import in `main.ts`:** Add two new imports:
+```typescript
+import { type GetCustomersNeedingAddressSyncFn } from './sync/sync-scheduler';
+import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
+```
+Then pass `(userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit)` as the 4th arg to `createSyncScheduler`.
+
 In `sync-scheduler.ts`, add a 4th optional parameter (note: this does NOT mirror `GetOrdersNeedingArticleSyncFn` which returns `Promise<string[]>` — it returns an array of objects instead):
 
 ```typescript
@@ -336,7 +345,7 @@ deliveryPostalCodeCountry?: string;
 
 Add:
 ```typescript
-addresses: AddressEntry[];
+addresses?: AddressEntry[];  // optional — bot uses `formData.addresses ?? []`
 
 type AddressEntry = {
   tipo: string;
@@ -353,17 +362,15 @@ type AddressEntry = {
 
 `AddressEntry` is exported from `frontend/src/types/customer-form-data.ts` and re-used wherever needed.
 
-**`GetCustomersNeedingAddressSyncFn` export:** Add `GetCustomersNeedingAddressSyncFn` to the existing named export list in `sync-scheduler.ts` (e.g., `export { createSyncScheduler, ..., type GetCustomersNeedingAddressSyncFn }`) so `main.ts` can import and use it for the lambda type annotation.
-
-**`addresses: AddressEntry[]` initialization:** In every place where a full `CustomerFormData` object is constructed (e.g., default initial state in `CustomerCreateModal`), add `addresses: []`. This is required because `addresses` is a non-optional field. Current construction sites to update: `CustomerCreateModal.tsx` initial state object.
+**`addresses` initialization:** `addresses` is optional in `CustomerFormData`, so no construction sites need mandatory updates. However, `CustomerCreateModal`'s initial state should include `addresses: []` for clarity. The wizard step sets this field before submit.
 
 ---
 
 **Consumers of `deliveryStreet` that must be updated (all `deliveryStreet` references removed):**
 - `frontend/src/components/CustomerCreateModal.tsx` — removes `address-question` / `delivery-field` steps, adds `addresses` step
-- `frontend/src/services/customers.service.ts` — contains inline delivery field types in multiple type shapes; update to remove delivery fields
-- `frontend/src/utils/vat-diff.spec.ts` — contains hardcoded `deliveryStreet: ''` in baseline objects; update to remove these fields
-- `backend/src/types.ts` — defines `CustomerFormData` with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`
+- `frontend/src/services/customers.service.ts` — contains **three** separate inline type definitions with delivery fields: the `createCustomer` parameter type (~line 118), the `updateCustomer` parameter type (~line 153), and the `saveInteractiveCustomer` parameter type (~line 262); remove delivery fields from all three
+- `frontend/src/utils/vat-diff.spec.ts` — contains hardcoded `deliveryStreet: ''`, `deliveryPostalCode: ''`, `deliveryPostalCodeCity: ''`, `deliveryPostalCodeCountry: ''` in baseline objects; remove all four fields from every `baseForm`/baseline object in that file
+- `backend/src/types.ts` — defines `CustomerFormData` with delivery fields; remove `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry`; add `addresses?: AddressEntry[]` where `AddressEntry` is the backend type defined in Spec C alongside `CustomerFormData` (same file)
 - `backend/src/routes/customer-interactive.ts` — `saveSchema` has `deliveryStreet`, `deliveryPostalCode`, `deliveryPostalCodeCity`, `deliveryPostalCodeCountry` as optional fields; remove only these four (keep `postalCodeCity` and `postalCodeCountry`)
 - `backend/src/operations/handlers/create-customer.ts` — `CustomerFormData` usage must drop delivery fields; bot now writes via `writeAltAddresses` (Spec C)
 - `backend/src/bot/archibald-bot.ts` — `createCustomer` no longer reads `deliveryStreet`; replaced by `writeAltAddresses` (Spec C)
@@ -374,7 +381,7 @@ In edit mode, the `addresses` step is pre-populated by calling `GET /api/custome
 **`frontend/src/services/customer-addresses.ts`** — new file with these exported functions:
 
 ```typescript
-import type { CustomerAddress } from '../types/customer';
+import type { CustomerAddress } from '../types/customer-address';  // new file, NOT '../types/customer'
 
 async function getCustomerAddresses(customerProfile: string): Promise<CustomerAddress[]>
 // GET /api/customers/:customerProfile/addresses
@@ -446,7 +453,7 @@ In the customer profile card/detail view, add a read-only "Indirizzi alternativi
 | `backend/src/sync/services/customer-sync.ts` | Modify (add `addresses_synced_at = NULL` to existing UPDATE query) |
 | `backend/src/bot/archibald-bot.ts` | Modify (add `readAltAddresses`) |
 | `backend/src/routes/customer-interactive.ts` | Modify (inline on-demand refresh in `start-edit`; remove delivery fields from `saveSchema`) |
-| `backend/src/server.ts` | Modify (mount `customer-addresses` router at `/api/customers/:customerProfile/addresses`) |
+| `backend/src/server.ts` | Modify (mount `customer-addresses` router at `/api/customers/:customerProfile/addresses`; add `upsertAddressesForCustomer` and `setAddressesSyncedAt` closure injections to `createCustomerInteractiveRouter` call) |
 | `backend/src/main.ts` | Modify (wire `getCustomersNeedingAddressSync` as 4th param to `createSyncScheduler`) |
 | `backend/src/types.ts` | Modify (remove delivery fields from `CustomerFormData`) |
 | `backend/src/operations/handlers/create-customer.ts` | Modify (remove `deliveryStreet`/`deliveryPostalCode` from usage) |
