@@ -11983,10 +11983,20 @@ export class ArchibaldBot {
       logger.warn("NOME DI RICERCA field not found, proceeding without clearing");
     }
 
-    // Single typeDevExpressField call: clears NAME then types newName in one shot.
-    // The previous two-step approach (type "newName.", blur, retype "newName") caused
+    // Type newName in NAME, then blur to trigger DevExpress NOME DI RICERCA autofill.
+    // The old two-step approach (type "newName.", blur, retype "newName") caused
     // duplication because the second call appended to a DevExpress-restored value.
+    // Single type + blur is sufficient: NAME is committed correctly on Tab, and the
+    // explicit blur triggers the autofill of NOME DI RICERCA from the committed value.
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
+    await this.page.evaluate(() => {
+      (document.activeElement as HTMLElement)?.blur();
+      document.body.click();
+    });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "name-blur-autofill",
+    });
 
     logger.info("updateCustomerName completed", { newName });
   }
