@@ -198,6 +198,7 @@ export function PendingOrdersPage() {
             targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
             noShipping: order.noShipping,
             notes: order.notes,
+            deliveryAddressId: order.deliveryAddressId,
           });
         }),
       );
@@ -304,6 +305,7 @@ export function PendingOrdersPage() {
         targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
         noShipping: order.noShipping,
         notes: order.notes,
+        deliveryAddressId: order.deliveryAddressId,
       });
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);

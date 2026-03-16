@@ -332,6 +332,69 @@ describe("PendingOrdersPage", () => {
     });
   });
 
+  test("passes deliveryAddressId in bulk submit enqueueOperation payload", async () => {
+    const deliveryAddressId = 42;
+    const orderWithAddress: PendingOrder = {
+      ...testOrders[0],
+      id: "order-uuid-addr-001",
+      deliveryAddressId,
+    };
+    mockPendingOrders = [orderWithAddress];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobId: "job-addr-001" }),
+    } as Response);
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    render(<PendingOrdersPage />);
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]);
+
+    const submitButton = screen.getByRole("button", {
+      name: /Invia Ordini Selezionati \(1\)/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      const enqueueCalls = mockFetch.mock.calls.filter(
+        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      );
+      expect(enqueueCalls).toHaveLength(1);
+      const body = JSON.parse(enqueueCalls[0][1].body);
+      expect(body.data.deliveryAddressId).toBe(deliveryAddressId);
+    });
+  });
+
+  test("passes deliveryAddressId in retry enqueueOperation payload", async () => {
+    const deliveryAddressId = 99;
+    const errorOrderWithAddress: PendingOrder = {
+      ...testOrders[2],
+      id: "order-uuid-addr-retry",
+      deliveryAddressId,
+    };
+    mockPendingOrders = [errorOrderWithAddress];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobId: "job-retry-addr-001" }),
+    } as Response);
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    render(<PendingOrdersPage />);
+
+    const retryButton = screen.getByText(/Riprova Ordine/i);
+    fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      const enqueueCalls = mockFetch.mock.calls.filter(
+        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      );
+      expect(enqueueCalls).toHaveLength(1);
+      const body = JSON.parse(enqueueCalls[0][1].body);
+      expect(body.data.deliveryAddressId).toBe(deliveryAddressId);
+    });
+  });
+
   test("applies Fresis dealer discounts when submitting a sub-client order", async () => {
     const fresisOrder: PendingOrder = {
       id: "fresis-order-001",
