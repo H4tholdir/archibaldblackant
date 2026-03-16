@@ -1507,7 +1507,67 @@ export function CustomerCreateModal({
         )}
 
         {/* VAT Edit Check step — rendered by Task 12 */}
-        {isVatEditCheck && null}
+        {isVatEditCheck && (
+          <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ fontSize: "16px", color: "#1a1a1a" }}>
+              ✓ P.IVA già validata il{" "}
+              <strong>
+                {editCustomer?.vatValidatedAt
+                  ? new Date(editCustomer.vatValidatedAt).toLocaleDateString("it-IT", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : ""}
+              </strong>
+            </div>
+            <div style={{ color: "#666", fontSize: "14px" }}>
+              Vuoi riconvalidare per aggiornare i dati da Archibald?
+            </div>
+            <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+              <button
+                onClick={() => {
+                  setAutoSubmitVatOnReady(editCustomer!.vatNumber || "");
+                  setCurrentStep({ kind: "vat-processing" });
+                  customerService
+                    .startEditInteractiveSession(editCustomer!.customerProfile)
+                    .then(({ sessionId }) => setInteractiveSessionId(sessionId))
+                    .catch((err) => {
+                      setCurrentStep({ kind: "vat-edit-check" });
+                      setVatError(err.message || "Errore avvio sessione");
+                    });
+                }}
+                style={{
+                  padding: "10px 20px",
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Riconvalida
+              </button>
+              <button
+                onClick={() => setCurrentStep({ kind: "field", fieldIndex: 0 })}
+                style={{
+                  padding: "10px 20px",
+                  background: "#f3f4f6",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Salta
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* VAT Diff Review step — rendered by Task 13 */}
         {isVatDiffReview && vatDiffFields.length >= 0 && vatDiffSelections !== undefined && null}
