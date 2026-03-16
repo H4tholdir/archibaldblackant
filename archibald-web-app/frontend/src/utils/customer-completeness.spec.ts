@@ -91,6 +91,11 @@ describe('checkCustomerCompleteness', () => {
     expect(result).toEqual({ ok: false, missing: ['CAP mancante'] });
   });
 
+  test('postalCode empty string → missing includes CAP mancante (truthy check)', () => {
+    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, postalCode: '' });
+    expect(result).toEqual({ ok: false, missing: ['CAP mancante'] });
+  });
+
   test('multiple fields missing → all labels listed in order', () => {
     const result = checkCustomerCompleteness({
       ...BASE_COMPLETE,
