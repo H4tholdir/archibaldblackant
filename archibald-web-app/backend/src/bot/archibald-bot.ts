@@ -12023,7 +12023,36 @@ export class ArchibaldBot {
       label: "name-blur-autoupdate",
     });
 
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
+    // Use keyboard-based select-all + backspace to clear the field before retyping.
+    // The native-value-setter approach fires an `input` event that can trigger a
+    // DevExpress async restore of the committed value, causing the new text to be
+    // appended to the old value (duplication bug).
+    const nameInputId = await this.page.evaluate(() => {
+      const input = document.querySelector(
+        'input[id*="dviNAME"][id$="_I"]',
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      input.focus();
+      input.click();
+      return input.id;
+    });
+
+    if (nameInputId) {
+      await this.page.keyboard.down("Control");
+      await this.page.keyboard.press("a");
+      await this.page.keyboard.up("Control");
+      await this.page.keyboard.press("Backspace");
+      await this.page.type(`#${nameInputId}`, newName, { delay: 5 });
+      await this.page.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({
+        timeout: 8000,
+        label: "name-retype-keyboard",
+      });
+    } else {
+      logger.warn("NAME field not found for keyboard retype, falling back");
+      await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
+    }
 
     logger.info("updateCustomerName completed", { newName });
   }
@@ -12217,7 +12246,10 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
-    if (customerData.lineDiscount) {
+    // Always reset LINEDISC to N/A (or the requested value) to prevent
+    // "Discount to get street price" from remaining and causing issues with orders.
+    {
+      const targetLineDisc = customerData.lineDiscount || "N/A";
       await this.openCustomerTab("Prezzi e sconti");
 
       try {
@@ -12237,7 +12269,7 @@ export class ArchibaldBot {
 
       await this.setDevExpressComboBox(
         /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-        customerData.lineDiscount,
+        targetLineDisc,
       );
     }
 
