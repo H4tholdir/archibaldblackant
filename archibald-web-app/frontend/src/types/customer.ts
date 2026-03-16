@@ -1,6 +1,6 @@
 export interface Customer {
   customerProfile: string;
-  internalId: string;
+  internalId: string | null;
   name: string;
   vatNumber: string | null;
   fiscalCode: string | null;
@@ -34,4 +34,5 @@ export interface Customer {
   updatedAt: number;
   botStatus?: "pending" | "placed" | "failed" | null;
   photoUrl?: string | null;
+  vatValidatedAt: string | null;
 }

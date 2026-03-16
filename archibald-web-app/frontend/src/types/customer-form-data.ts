@@ -1,0 +1,20 @@
+export type CustomerFormData = {
+  name: string;
+  deliveryMode: string;
+  vatNumber: string;
+  paymentTerms: string;
+  pec: string;
+  sdi: string;
+  street: string;
+  postalCode: string;
+  phone: string;
+  mobile: string;
+  email: string;
+  url: string;
+  deliveryStreet: string;
+  deliveryPostalCode: string;
+  postalCodeCity: string;
+  postalCodeCountry: string;
+  deliveryPostalCodeCity: string;
+  deliveryPostalCodeCountry: string;
+};

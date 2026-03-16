@@ -8,46 +8,10 @@ import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { waitForJobViaWebSocket } from "../api/operations";
 
+import type { CustomerFormData } from "../types/customer-form-data";
+import type { VatLookupResult } from "../types/vat-lookup-result";
+
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
-
-type VatAddressInfo = {
-  companyName: string;
-  street: string;
-  postalCode: string;
-  city: string;
-  vatStatus: string;
-  internalId: string;
-};
-
-type VatLookupResult = {
-  lastVatCheck: string;
-  vatValidated: string;
-  vatAddress: string;
-  parsed: VatAddressInfo;
-  pec: string;
-  sdi: string;
-};
-
-interface CustomerFormData {
-  name: string;
-  deliveryMode: string;
-  vatNumber: string;
-  paymentTerms: string;
-  pec: string;
-  sdi: string;
-  street: string;
-  postalCode: string;
-  phone: string;
-  mobile: string;
-  email: string;
-  url: string;
-  deliveryStreet: string;
-  deliveryPostalCode: string;
-  postalCodeCity: string;
-  postalCodeCountry: string;
-  deliveryPostalCodeCity: string;
-  deliveryPostalCodeCountry: string;
-}
 
 interface CustomerCreateModalProps {
   isOpen: boolean;
