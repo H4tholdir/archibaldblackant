@@ -11947,56 +11947,12 @@ export class ArchibaldBot {
 
     logger.info("updateCustomerName", { newName });
 
-    // Clear NOME DI RICERCA so DevExpress re-autofills it from NAME after commit.
-    // Only clear when the exact SEARCHNAME/NAMEALIAS field is found by ID regex —
-    // the previous "next visible input" fallback was unsafe (could hit VATNUM).
-    const searchNameFound = await this.page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const searchNameInput = inputs.find((i) =>
-        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/.test(i.id),
-      ) as HTMLInputElement | null;
-
-      if (!searchNameInput) return false;
-
-      searchNameInput.scrollIntoView({ block: "center" });
-      searchNameInput.focus();
-      searchNameInput.click();
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      if (setter) setter.call(searchNameInput, "");
-      else searchNameInput.value = "";
-      searchNameInput.dispatchEvent(new Event("input", { bubbles: true }));
-      searchNameInput.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    });
-
-    if (searchNameFound) {
-      await this.page.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({
-        timeout: 5000,
-        label: "clear-searchname",
-      });
-      logger.debug("NOME DI RICERCA cleared");
-    } else {
-      logger.warn("NOME DI RICERCA field not found, proceeding without clearing");
-    }
-
-    // Type newName in NAME, then blur to trigger DevExpress NOME DI RICERCA autofill.
-    // The old two-step approach (type "newName.", blur, retype "newName") caused
-    // duplication because the second call appended to a DevExpress-restored value.
-    // Single type + blur is sufficient: NAME is committed correctly on Tab, and the
-    // explicit blur triggers the autofill of NOME DI RICERCA from the committed value.
+    // Set NAME field.
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
-    await this.page.evaluate(() => {
-      (document.activeElement as HTMLElement)?.blur();
-      document.body.click();
-    });
-    await this.waitForDevExpressIdle({
-      timeout: 5000,
-      label: "name-blur-autofill",
-    });
+
+    // DevExpress does not autofill NOME DI RICERCA (SEARCHNAME) on edit forms —
+    // only on record creation. Set it explicitly to the same value as NAME.
+    await this.typeDevExpressField(/SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/, newName);
 
     logger.info("updateCustomerName completed", { newName });
   }
