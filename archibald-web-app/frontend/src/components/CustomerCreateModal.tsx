@@ -473,12 +473,12 @@ export function CustomerCreateModal({
           const af = payload.archibaldFields as Record<string, string>;
           setFormData((prev) => ({
             ...prev,
-            email:    (af.email    && !prev.email)    ? af.email    : prev.email,
-            pec:      (af.pec      && !prev.pec)      ? af.pec      : prev.pec,
-            sdi:      (af.sdi      && !prev.sdi)      ? af.sdi      : prev.sdi,
-            phone:    (af.phone    && !prev.phone)     ? af.phone    : prev.phone,
-            street:   (af.street   && !prev.street)   ? af.street   : prev.street,
-            vatNumber:(af.vatNumber && !prev.vatNumber)? af.vatNumber: prev.vatNumber,
+            email:    (af.email     && !prev.email)                           ? af.email     : prev.email,
+            pec:      (af.pec       && !prev.pec)                             ? af.pec       : prev.pec,
+            sdi:      (af.sdi       && !prev.sdi)                             ? af.sdi       : prev.sdi,
+            phone:    (af.phone     && (!prev.phone || prev.phone === "+39")) ? af.phone     : prev.phone,
+            street:   (af.street    && !prev.street)                          ? af.street    : prev.street,
+            vatNumber:(af.vatNumber && !prev.vatNumber)                       ? af.vatNumber : prev.vatNumber,
           }));
         }
         // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata
