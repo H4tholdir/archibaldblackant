@@ -10,6 +10,10 @@ import { waitForJobViaWebSocket } from "../api/operations";
 
 import type { CustomerFormData } from "../types/customer-form-data";
 import type { VatLookupResult } from "../types/vat-lookup-result";
+import { determineVatEditStep } from "../utils/vat-edit-step";
+import { buildVatDiff } from "../utils/vat-diff";
+import type { VatEditStepDecision } from "../utils/vat-edit-step";
+import type { VatDiffField } from "../utils/vat-diff";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
@@ -141,7 +145,9 @@ type StepType =
       kind: "cap-disambiguation";
       targetField: "postalCode" | "deliveryPostalCode";
     }
-  | { kind: "summary" };
+  | { kind: "summary" }
+  | { kind: "vat-edit-check" }
+  | { kind: "vat-diff-review" };
 
 function getPaymentTermDisplay(id: string): string {
   const term = PAYMENT_TERMS.find((t) => t.id === id);
@@ -160,6 +166,7 @@ export function CustomerCreateModal({
   editCustomer,
 }: CustomerCreateModalProps) {
   const isEditMode = !!editCustomer;
+  const isEditModeRef = useRef(isEditMode);
   const [currentStep, setCurrentStep] = useState<StepType>({
     kind: "field",
     fieldIndex: 0,
@@ -167,6 +174,7 @@ export function CustomerCreateModal({
   const [formData, setFormData] = useState<CustomerFormData>({
     ...INITIAL_FORM,
   });
+  const formDataRef = useRef<CustomerFormData>({ ...INITIAL_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sameDeliveryAddress, setSameDeliveryAddress] = useState<
@@ -198,6 +206,11 @@ export function CustomerCreateModal({
   const earlyVatInputRef = useRef("");
   const [vatError, setVatError] = useState<string | null>(null);
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
+  const [autoSubmitVatOnReady, setAutoSubmitVatOnReady] = useState<string | null>(null);
+  const autoSubmitVatOnReadyRef = useRef<string | null>(null);
+  const [vatWasValidated, setVatWasValidated] = useState(false);
+  const [vatDiffFields, setVatDiffFields] = useState<VatDiffField[]>([]);
+  const [vatDiffSelections, setVatDiffSelections] = useState<Record<string, boolean>>({});
   const pollingProfileRef = useRef<string | null>(null);
 
   const { subscribe } = useWebSocketContext();
@@ -224,11 +237,21 @@ export function CustomerCreateModal({
     earlyVatInputRef.current = earlyVatInput;
   }, [earlyVatInput]);
 
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  useEffect(() => {
+    autoSubmitVatOnReadyRef.current = autoSubmitVatOnReady;
+  }, [autoSubmitVatOnReady]);
+
   const currentStepNumber = (() => {
     switch (currentStep.kind) {
       case "vat-input":
       case "vat-processing":
       case "vat-review":
+      case "vat-edit-check":
+      case "vat-diff-review":
         return 0;
       case "field":
         return currentStep.fieldIndex + 1;
@@ -289,12 +312,13 @@ export function CustomerCreateModal({
       setEarlyVatInput("");
       setVatError(null);
       setChangedFields(new Set());
+      setAutoSubmitVatOnReady(null);
+      setVatWasValidated(false);
+      setVatDiffFields([]);
+      setVatDiffSelections({});
       pollingProfileRef.current = null;
 
-      if (editCustomer) {
-        setFormData(customerToFormData(editCustomer));
-        setCurrentStep({ kind: "field", fieldIndex: 0 });
-      } else {
+      if (!isEditMode) {
         setFormData({ ...INITIAL_FORM });
         setCurrentStep({ kind: "vat-input" });
 
@@ -310,6 +334,32 @@ export function CustomerCreateModal({
             );
             setCurrentStep({ kind: "field", fieldIndex: 0 });
           });
+        return;
+      }
+
+      // Edit mode: set form data and route based on vatValidatedAt status
+      setFormData(customerToFormData(editCustomer!));
+      const decision: VatEditStepDecision = determineVatEditStep(editCustomer!);
+
+      if (decision === 'force-vat-input') {
+        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
+          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
+          .catch((err) => {
+            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
+          });
+        setCurrentStep({ kind: "vat-input" });
+      } else if (decision === 'auto-validate') {
+        setAutoSubmitVatOnReady(editCustomer!.vatNumber || '');
+        setCurrentStep({ kind: "vat-processing" });
+        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
+          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
+          .catch((err) => {
+            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
+            setCurrentStep({ kind: "vat-input" });
+          });
+      } else {
+        // show-validated-check
+        setCurrentStep({ kind: "vat-edit-check" });
       }
     } else {
       if (interactiveSessionIdRef.current) {
@@ -418,6 +468,17 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
         if (payload.sessionId !== interactiveSessionIdRef.current) return;
         setBotReady(true);
+        // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata
+        if (autoSubmitVatOnReadyRef.current) {
+          const vatToSubmit = autoSubmitVatOnReadyRef.current;
+          const sessionIdFromEvent = (payload as { sessionId: string }).sessionId;
+          setAutoSubmitVatOnReady(null);
+          setCurrentStep({ kind: "vat-processing" });
+          customerService.submitVatNumber(sessionIdFromEvent, vatToSubmit).catch((err) => {
+            setCurrentStep({ kind: "vat-input" });
+            setVatError(err.message || 'Errore validazione P.IVA');
+          });
+        }
       }),
     );
 
@@ -426,18 +487,26 @@ export function CustomerCreateModal({
         if (payload.sessionId !== interactiveSessionIdRef.current) return;
         const result = payload.vatResult as VatLookupResult;
         setVatResult(result);
-        setCurrentStep({ kind: "vat-review" });
 
-        setFormData((prev) => ({
-          ...prev,
-          vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
-          name: result.parsed?.companyName || prev.name,
-          street: result.parsed?.street || prev.street,
-          postalCode: result.parsed?.postalCode || prev.postalCode,
-          postalCodeCity: result.parsed?.city || prev.postalCodeCity,
-          pec: result.pec || prev.pec,
-          sdi: result.sdi || prev.sdi,
-        }));
+        if (isEditModeRef.current) {
+          // In edit mode: mostra diff invece di passare direttamente ai campi
+          setVatDiffFields(buildVatDiff(formDataRef.current, result));
+          setVatDiffSelections({});
+          setCurrentStep({ kind: "vat-diff-review" });
+        } else {
+          // Comportamento create esistente: autocompila e vai a vat-review
+          setCurrentStep({ kind: "vat-review" });
+          setFormData((prev) => ({
+            ...prev,
+            vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
+            name: result.parsed?.companyName || prev.name,
+            street: result.parsed?.street || prev.street,
+            postalCode: result.parsed?.postalCode || prev.postalCode,
+            postalCodeCity: result.parsed?.city || prev.postalCodeCity,
+            pec: result.pec || prev.pec,
+            sdi: result.sdi || prev.sdi,
+          }));
+        }
       }),
     );
 
@@ -818,8 +887,8 @@ export function CustomerCreateModal({
       if (isEditMode) {
         const payload =
           changedFields.size > 0
-            ? { ...dataToSend, changedFields: Array.from(changedFields) }
-            : dataToSend;
+            ? { ...dataToSend, changedFields: Array.from(changedFields), vatWasValidated }
+            : { ...dataToSend, vatWasValidated };
         const result = await customerService.updateCustomer(
           editCustomer!.customerProfile,
           payload,
@@ -878,6 +947,8 @@ export function CustomerCreateModal({
   const isVatInput = currentStep.kind === "vat-input";
   const isVatProcessing = currentStep.kind === "vat-processing";
   const isVatReview = currentStep.kind === "vat-review";
+  const isVatEditCheck = currentStep.kind === "vat-edit-check";
+  const isVatDiffReview = currentStep.kind === "vat-diff-review";
   const isFieldStep =
     currentStep.kind === "field" || currentStep.kind === "delivery-field";
   const isAddressQuestion = currentStep.kind === "address-question";
@@ -886,7 +957,7 @@ export function CustomerCreateModal({
   const isFirstStep =
     currentStep.kind === "field" && currentStep.fieldIndex === 0;
   const isProcessing = processingState !== "idle";
-  const isInteractiveStep = isVatInput || isVatProcessing || isVatReview;
+  const isInteractiveStep = isVatInput || isVatProcessing || isVatReview || isVatEditCheck || isVatDiffReview;
 
   return (
     <div
@@ -1434,6 +1505,12 @@ export function CustomerCreateModal({
             </button>
           </div>
         )}
+
+        {/* VAT Edit Check step — rendered by Task 12 */}
+        {isVatEditCheck && null}
+
+        {/* VAT Diff Review step — rendered by Task 13 */}
+        {isVatDiffReview && vatDiffFields.length >= 0 && vatDiffSelections !== undefined && null}
 
         {/* Field input step */}
         {isFieldStep && currentField && !isPaymentTermsStep && (
