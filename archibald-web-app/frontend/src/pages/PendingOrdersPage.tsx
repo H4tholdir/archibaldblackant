@@ -87,17 +87,19 @@ export function PendingOrdersPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/customers?limit=500')
-      .then((res) => res.json())
+    const token = localStorage.getItem("archibald_jwt") ?? "";
+    getCustomers(token)
       .then((data) => {
-        const customers: RichCustomer[] = data.data?.customers ?? [];
+        const customers = (data.data?.customers ?? []) as unknown as RichCustomer[];
         const map = new Map<string, RichCustomer>();
         for (const c of customers) {
           map.set(c.customerProfile, c);
         }
         setCustomersMap(map);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('Failed to load customers for completeness badges', err);
+      });
   }, []);
 
   const handleSelectOrder = (orderId: string) => {

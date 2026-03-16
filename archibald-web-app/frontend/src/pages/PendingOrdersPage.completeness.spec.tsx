@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, test, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { getCustomers } from '../api/customers';
 
 vi.mock('../hooks/usePendingSync', () => ({
   usePendingSync: () => ({
@@ -50,7 +51,7 @@ vi.mock('../api/fresis-history', () => ({
 }));
 
 vi.mock('../api/customers', () => ({
-  getCustomers: vi.fn().mockResolvedValue({ data: { customers: [] } }),
+  getCustomers: vi.fn(),
 }));
 
 vi.mock('../services/toast.service', () => ({
@@ -155,18 +156,16 @@ const mockCustomer = {
   vatValidatedAt: null,
 };
 
-global.fetch = vi.fn().mockResolvedValue({
-  ok: true,
-  json: () => Promise.resolve({
-    data: {
-      customers: [mockCustomer],
-    },
-  }),
-});
-
 import { PendingOrdersPage } from './PendingOrdersPage';
 
 describe('PendingOrdersPage — completeness badge', () => {
+  beforeEach(() => {
+    vi.mocked(getCustomers).mockResolvedValue({
+      success: true,
+      data: { customers: [mockCustomer as never], total: 1 },
+    });
+  });
+
   test('renders page without error when orders are present', () => {
     render(
       <MemoryRouter>
@@ -183,7 +182,6 @@ describe('PendingOrdersPage — completeness badge', () => {
       </MemoryRouter>,
     );
 
-    const { waitFor } = await import('@testing-library/react');
     await waitFor(() => {
       expect(screen.getByText('⚠ Cliente incompleto')).toBeTruthy();
     });
