@@ -133,7 +133,7 @@ async function syncCustomers(
             previous_order_count_1=$24, previous_sales_1=$25,
             previous_order_count_2=$26, previous_sales_2=$27,
             external_account_number=$28, our_account_number=$29,
-            hash=$30, last_sync=$31, updated_at=NOW()
+            hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at = NULL
           WHERE customer_profile=$1 AND user_id=$2`,
           [
             customer.customerProfile, userId, customer.internalId ?? null, customer.name,
