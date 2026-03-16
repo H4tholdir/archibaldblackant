@@ -156,6 +156,7 @@ export class CustomerService {
       postalCodeCountry?: string;
       deliveryPostalCodeCity?: string;
       deliveryPostalCodeCountry?: string;
+      vatWasValidated?: boolean;
     },
   ): Promise<{ taskId: string | null }> {
     const response = await fetchWithRetry(
@@ -208,6 +209,22 @@ export class CustomerService {
 
     if (!response.ok) {
       throw new Error(`Start session failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { sessionId: data.data?.sessionId || "" };
+  }
+
+  async startEditInteractiveSession(customerProfile: string): Promise<{ sessionId: string }> {
+    const response = await fetchWithRetry("/api/customers/interactive/start-edit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerProfile }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
