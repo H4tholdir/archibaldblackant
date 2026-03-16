@@ -404,6 +404,8 @@ function createApp(deps: AppDeps): Express {
       broadcast: broadcastFn,
       upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+      updateVatValidatedAt: (userId, profile) => customersRepo.updateVatValidatedAt(pool, userId, profile),
+      getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
       pauseSyncs: async () => { syncScheduler.stop(); },
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
       getCustomerProgressMilestone: (category: string) => {

@@ -10,6 +10,7 @@ import { logger } from '../logger';
 type CustomerBotLike = BotLike & {
   initialize: () => Promise<void>;
   navigateToNewCustomerForm: () => Promise<void>;
+  navigateToEditCustomerForm: (name: string) => Promise<void>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
   completeCustomerCreation: (formData: CustomerFormData) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
@@ -26,6 +27,8 @@ type CustomerInteractiveRouterDeps = {
   broadcast: BroadcastFn;
   upsertSingleCustomer: (userId: string, formData: CustomerFormInput, customerProfile: string, botStatus: string) => Promise<Customer>;
   updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
+  updateVatValidatedAt: (userId: string, customerProfile: string) => Promise<void>;
+  getCustomerByProfile: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
   pauseSyncs: () => Promise<void>;
   resumeSyncs: () => void;
   smartCustomerSync?: () => Promise<void>;
@@ -58,6 +61,10 @@ const saveSchema = z.object({
   deliveryPostalCodeCountry: z.string().optional(),
 });
 
+const startEditSchema = z.object({
+  customerProfile: z.string().min(1, 'customerProfile obbligatorio'),
+});
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -66,6 +73,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   const {
     sessionManager, createBot, broadcast,
     upsertSingleCustomer, updateCustomerBotStatus,
+    updateVatValidatedAt, getCustomerByProfile,
     pauseSyncs, resumeSyncs,
     smartCustomerSync, getCustomerProgressMilestone,
   } = deps;
@@ -157,6 +165,73 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         success: false,
         error: 'Errore avvio sessione interattiva',
       });
+    }
+  });
+
+  router.post('/start-edit', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const parsed = startEditSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+      }
+
+      const customer = await getCustomerByProfile(userId, parsed.data.customerProfile);
+      if (!customer) {
+        return res.status(404).json({ success: false, error: 'Cliente non trovato' });
+      }
+
+      const existing = sessionManager.getActiveSessionForUser(userId);
+      if (existing) {
+        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
+        await sessionManager.removeBot(existing.sessionId);
+        sessionManager.destroySession(existing.sessionId);
+        if (hadSyncsPaused) resumeSyncs();
+      }
+
+      const sessionId = sessionManager.createSession(userId);
+
+      res.json({
+        success: true,
+        data: { sessionId },
+        message: 'Sessione modifica cliente avviata',
+      });
+
+      (async () => {
+        let bot: CustomerBotLike | null = null;
+        try {
+          sessionManager.updateState(sessionId, 'starting');
+          await pauseSyncs();
+          sessionManager.markSyncsPaused(sessionId, true);
+
+          bot = createBot(userId);
+          await bot.initialize();
+          sessionManager.setBot(sessionId, bot);
+
+          await bot.navigateToEditCustomerForm(customer.name);
+
+          sessionManager.updateState(sessionId, 'ready');
+          broadcast(userId, {
+            type: 'CUSTOMER_INTERACTIVE_READY',
+            payload: { sessionId },
+            timestamp: now(),
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Errore avvio sessione modifica';
+          logger.error('start-edit session failed', { error: err, userId });
+          sessionManager.updateState(sessionId, 'failed');
+          broadcast(userId, {
+            type: 'CUSTOMER_INTERACTIVE_FAILED',
+            payload: { sessionId, error: message },
+            timestamp: now(),
+          });
+          if (bot) await sessionManager.removeBot(sessionId);
+          resumeSyncs();
+        }
+      })();
+    } catch (error) {
+      logger.error('Error starting edit session', { error });
+      res.status(500).json({ success: false, error: 'Errore interno del server' });
     }
   });
 
@@ -343,6 +418,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           }
 
           await updateCustomerBotStatus(userId, tempProfile, 'placed');
+          await updateVatValidatedAt(userId, customerProfileId);
 
           if (smartCustomerSync) {
             smartCustomerSync().catch((err) =>
