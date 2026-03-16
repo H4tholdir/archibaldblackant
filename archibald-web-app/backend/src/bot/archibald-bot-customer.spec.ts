@@ -213,6 +213,31 @@ describe('completeCustomerCreation — writeAltAddresses integration', () => {
 
     expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(addresses);
   });
+
+  it('calls writeAltAddresses with empty array when addresses field absent', async () => {
+    const page = makePageMock();
+    (page as any).goto = vi.fn().mockResolvedValue(undefined);
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).getCustomerProfileId = vi.fn().mockResolvedValue('PROFILE-001');
+
+    await (bot as any).completeCustomerCreation({ name: 'Test' });
+
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith([]);
+  });
 });
 
 describe('updateCustomer — writeAltAddresses integration', () => {
