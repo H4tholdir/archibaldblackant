@@ -16,12 +16,8 @@ const baseForm: CustomerFormData = {
   mobile: '+39456',
   email: 'mario@email.it',
   url: '',
-  deliveryStreet: '',
-  deliveryPostalCode: '',
   postalCodeCity: 'Napoli',
   postalCodeCountry: 'IT',
-  deliveryPostalCodeCity: '',
-  deliveryPostalCodeCountry: '',
 };
 
 const baseVatResult: VatLookupResult = {
