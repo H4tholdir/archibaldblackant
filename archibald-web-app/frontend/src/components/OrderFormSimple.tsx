@@ -705,6 +705,25 @@ export default function OrderFormSimple() {
     }
   };
 
+  const fetchAndSetCustomerCompleteness = (customerProfile: string) => {
+    fetch(`/api/customers?search=${encodeURIComponent(customerProfile)}&limit=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
+        const rich = richCustomers.find((c) => c.customerProfile === customerProfile) ?? richCustomers[0] ?? null;
+        setSelectedCustomerFull(rich);
+        if (rich) {
+          setCustomerCompleteness(checkCustomerCompleteness(rich));
+        } else {
+          setCustomerCompleteness(null);
+        }
+      })
+      .catch(() => {
+        setSelectedCustomerFull(null);
+        setCustomerCompleteness(null);
+      });
+  };
+
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setCustomerSearch(customer.name);
@@ -717,23 +736,7 @@ export default function OrderFormSimple() {
         productSearchInputRef.current?.focus();
       }
     }, 100);
-    // Fetch rich customer for completeness check
-    fetch(`/api/customers?search=${encodeURIComponent(customer.id)}&limit=1`)
-      .then((res) => res.json())
-      .then((data) => {
-        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
-        const rich = richCustomers.find((c) => c.customerProfile === customer.id) ?? richCustomers[0] ?? null;
-        setSelectedCustomerFull(rich);
-        if (rich) {
-          setCustomerCompleteness(checkCustomerCompleteness(rich));
-        } else {
-          setCustomerCompleteness(null);
-        }
-      })
-      .catch(() => {
-        setSelectedCustomerFull(null);
-        setCustomerCompleteness(null);
-      });
+    fetchAndSetCustomerCompleteness(customer.id);
   };
 
   const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
@@ -1111,6 +1114,7 @@ export default function OrderFormSimple() {
     setSelectedCustomer(null);
     setSelectedCustomerFull(null);
     setCustomerCompleteness(null);
+    setEditCustomerForCompleteness(null);
     setSearchingCustomer(false);
 
     // Reset product
@@ -2789,19 +2793,7 @@ export default function OrderFormSimple() {
   const handleCompletionModalClose = () => {
     setEditCustomerForCompleteness(null);
     if (!selectedCustomer) return;
-    fetch(`/api/customers?search=${encodeURIComponent(selectedCustomer.id)}&limit=1`)
-      .then((res) => res.json())
-      .then((data) => {
-        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
-        const rich = richCustomers.find((c) => c.customerProfile === selectedCustomer.id) ?? richCustomers[0] ?? null;
-        setSelectedCustomerFull(rich);
-        if (rich) {
-          setCustomerCompleteness(checkCustomerCompleteness(rich));
-        } else {
-          setCustomerCompleteness(null);
-        }
-      })
-      .catch(() => {});
+    fetchAndSetCustomerCompleteness(selectedCustomer.id);
   };
 
   return (

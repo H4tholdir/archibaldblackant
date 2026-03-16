@@ -1,5 +1,6 @@
 // archibald-web-app/frontend/src/components/OrderFormSimple.completeness.spec.tsx
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -52,7 +53,6 @@ vi.mock('../utils/customer-completeness', () => ({
   checkCustomerCompleteness: vi.fn().mockReturnValue({ ok: false, missing: ['P.IVA non validata', 'PEC o SDI mancante'] }),
 }));
 
-// Mock global fetch for the rich customer lookup
 const INCOMPLETE_RICH_CUSTOMER = {
   customerProfile: 'CUST-001',
   internalId: null,
@@ -92,12 +92,13 @@ const INCOMPLETE_RICH_CUSTOMER = {
   vatValidatedAt: null,
 };
 
-global.fetch = vi.fn().mockResolvedValue({
-  ok: true,
-  json: () => Promise.resolve({
-    data: { customers: [INCOMPLETE_RICH_CUSTOMER] },
-  }),
-});
+const CUSTOMER_SEARCH_RESULT = {
+  id: 'CUST-001',
+  name: 'Rossi Mario',
+  city: null,
+  customerType: null,
+  isHidden: false,
+};
 
 import OrderFormSimple from './OrderFormSimple';
 
@@ -110,14 +111,40 @@ describe('OrderFormSimple — completeness banner', () => {
         data: { customers: [INCOMPLETE_RICH_CUSTOMER] },
       }),
     });
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
-  test('renders without error', () => {
+  test('renders without error and banner is not shown initially', () => {
     render(
       <MemoryRouter>
         <OrderFormSimple />
       </MemoryRouter>,
     );
     expect(screen.getByText(/nuovo ordine/i)).toBeTruthy();
+    expect(screen.queryByText(/P\.IVA non validata/)).toBeNull();
+  });
+
+  test('shows completeness banner after customer selection with incomplete data', async () => {
+    const { customerService } = await import('../services/customers.service');
+    vi.mocked(customerService.searchCustomers).mockResolvedValue([CUSTOMER_SEARCH_RESULT] as any);
+
+    render(
+      <MemoryRouter>
+        <OrderFormSimple />
+      </MemoryRouter>,
+    );
+
+    const searchInput = screen.getByPlaceholderText(/cerca cliente/i);
+    await userEvent.type(searchInput, 'Rossi');
+
+    await waitFor(() => {
+      expect(screen.getByText('Rossi Mario')).toBeTruthy();
+    });
+
+    await userEvent.click(screen.getByText('Rossi Mario'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/P\.IVA non validata/)).toBeTruthy();
+    });
   });
 });
