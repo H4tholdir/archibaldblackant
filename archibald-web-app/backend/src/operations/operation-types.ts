@@ -16,6 +16,7 @@ const OPERATION_TYPES = [
   'sync-products',
   'sync-prices',
   'sync-tracking',
+  'sync-customer-addresses',
 ] as const;
 
 type OperationType = (typeof OPERATION_TYPES)[number];
@@ -38,6 +39,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'sync-products': 15,
   'sync-prices': 16,
   'sync-tracking': 17,
+  'sync-customer-addresses': 18,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([
@@ -58,6 +60,7 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-prices',
   'sync-order-articles',
   'sync-tracking',
+  'sync-customer-addresses',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {
