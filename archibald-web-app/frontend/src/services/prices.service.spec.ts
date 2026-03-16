@@ -23,7 +23,8 @@ function makeProductsResponse(products: any[]) {
   } as Response;
 }
 
-// Realistic product: id = internal Archibald ID, name = article code (used by callers)
+// Realistic product: id = variant code (e.g. "016869K2"), name = family name (e.g. "H129FSQ.104.023")
+// Both id and name can be used as lookup keys by different callers
 const realisticProduct = { id: "005299K2", name: "6830L.314.014", price: 12.5, vat: 22 };
 
 describe("PriceService", () => {
@@ -45,14 +46,14 @@ describe("PriceService", () => {
       expect(price).toBe(12.5);
     });
 
-    test("does not match by internal product id", async () => {
+    test("returns price matched by variant id", async () => {
       mockFetchWithRetry.mockResolvedValue(
         makeProductsResponse([realisticProduct]),
       );
 
       const price = await service.getPriceByArticleId(realisticProduct.id);
 
-      expect(price).toBeNull();
+      expect(price).toBe(12.5);
     });
 
     test("returns null when product not found", async () => {
@@ -85,14 +86,14 @@ describe("PriceService", () => {
       expect(result).toEqual({ price: 12.5, vat: 22 });
     });
 
-    test("does not match by internal product id", async () => {
+    test("returns price and vat matched by variant id", async () => {
       mockFetchWithRetry.mockResolvedValue(
         makeProductsResponse([realisticProduct]),
       );
 
       const result = await service.getPriceAndVat(realisticProduct.id);
 
-      expect(result).toBeNull();
+      expect(result).toEqual({ price: 12.5, vat: 22 });
     });
 
     test("returns null when product not found", async () => {
