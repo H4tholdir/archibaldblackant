@@ -170,7 +170,7 @@ Note: `sync-customer-addresses` is **not** added to `WRITE_OPERATIONS`. The oper
 
 ### Scheduler integration
 
-**Export from `sync-scheduler.ts`:** Add `GetCustomersNeedingAddressSyncFn` to the existing named export list: `export { createSyncScheduler, ..., type GetCustomersNeedingAddressSyncFn }`.
+**Export from `sync-scheduler.ts`:** Add `ADDRESS_SYNC_BATCH_LIMIT`, `ADDRESS_SYNC_DELAY_MS`, and `type GetCustomersNeedingAddressSyncFn` to the existing named export list (same as `ARTICLE_SYNC_BATCH_LIMIT` and `ARTICLE_SYNC_DELAY_MS` are already exported).
 
 **Import in `main.ts`:** Add two new imports:
 ```typescript
@@ -198,13 +198,14 @@ function createSyncScheduler(
 )
 ```
 
-Inside the `agentSyncMs` interval, after the article sync timeout block:
+Inside the `agentSyncMs` interval, after the article sync timeout block (same closure pattern as the article sync — create a local `const agentUserId = userId` alias to capture the loop variable):
 
 ```typescript
 const ADDRESS_SYNC_BATCH_LIMIT = 10;
 const ADDRESS_SYNC_DELAY_MS = 2 * 60 * 1000; // 2 min (after article sync)
 
 if (getCustomersNeedingAddressSync) {
+  const agentUserId = userId;  // capture loop variable, same as article sync pattern
   pendingTimeouts.push(setTimeout(() => {
     getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
       .then((customers) => {
@@ -468,7 +469,7 @@ In the customer profile card/detail view, add a read-only "Indirizzi alternativi
 | `backend/src/sync/services/customer-sync.ts` | Modify (add `addresses_synced_at = NULL` to existing UPDATE query) |
 | `backend/src/bot/archibald-bot.ts` | Modify (add `readAltAddresses`; remove `fillDeliveryAddress` call blocks from `createCustomer`, `updateCustomer`, `completeCustomerCreation`) |
 | `backend/src/routes/customer-interactive.ts` | Modify (inline on-demand refresh in `start-edit`; remove delivery fields from `saveSchema`) |
-| `backend/src/server.ts` | Modify (mount `customer-addresses` router at `/api/customers/:customerProfile/addresses`; add `upsertAddressesForCustomer` and `setAddressesSyncedAt` closure injections to `createCustomerInteractiveRouter` call) |
+| `backend/src/server.ts` | Modify (mount `customer-addresses` router at `/api/customers/:customerProfile/addresses` **BEFORE** `createCustomersRouter` to prevent Express route shadowing; add `upsertAddressesForCustomer` and `setAddressesSyncedAt` closure injections to `createCustomerInteractiveRouter` call) |
 | `backend/src/main.ts` | Modify (wire `getCustomersNeedingAddressSync` as 4th param to `createSyncScheduler`) |
 | `backend/src/types.ts` | Modify (remove delivery fields from `CustomerFormData`) |
 | `backend/src/operations/handlers/create-customer.ts` | Modify (remove `deliveryStreet`/`deliveryPostalCode` from usage) |
