@@ -330,6 +330,26 @@ describe('deleteCustomers', () => {
   });
 });
 
+describe('updateVatValidatedAt', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const TEST_CUSTOMER_PROFILE = 'CUST001';
+
+  test('issues UPDATE on agents.customers setting vat_validated_at', async () => {
+    const pool = createMockPool();
+
+    const { updateVatValidatedAt } = await import('./customers');
+    await updateVatValidatedAt(pool, TEST_USER_ID, TEST_CUSTOMER_PROFILE);
+
+    const call = pool.queryCalls[0];
+    expect(call.text).toContain('UPDATE agents.customers');
+    expect(call.text).toContain('SET vat_validated_at = NOW()');
+    expect(call.params).toEqual([TEST_CUSTOMER_PROFILE, TEST_USER_ID]);
+  });
+});
+
 describe('mapRowToCustomer', () => {
   test('maps snake_case row to camelCase customer', async () => {
     const { mapRowToCustomer } = await import('./customers');
