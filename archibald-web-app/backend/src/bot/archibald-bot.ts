@@ -12421,6 +12421,30 @@ export class ArchibaldBot {
     logger.info("navigateToEditCustomerForm: edit form loaded", { name });
   }
 
+  async readEditFormFieldValues(): Promise<Record<string, string>> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    const values = await this.page.evaluate(() => {
+      const getVal = (regex: RegExp): string => {
+        const input = Array.from(document.querySelectorAll("input")).find((i) =>
+          regex.test(i.id),
+        ) as HTMLInputElement | null;
+        return input?.value?.trim() ?? "";
+      };
+      return {
+        email:    getVal(/xaf_dviEMAIL_Edit_I$/),
+        pec:      getVal(/xaf_dviLEGALEMAIL_Edit_I$/),
+        sdi:      getVal(/xaf_dviLEGALAUTHORITY_Edit_I$/),
+        phone:    getVal(/xaf_dviPHONE_Edit_I$/),
+        street:   getVal(/xaf_dviSTREET_Edit_I$/),
+        vatNumber:getVal(/xaf_dviVATNUM_Edit_I$/),
+      };
+    });
+
+    logger.info("readEditFormFieldValues", values);
+    return values;
+  }
+
   // ─── Interactive Customer Creation (VAT auto-fill flow) ───────────
 
   async navigateToNewCustomerForm(): Promise<void> {

@@ -11,6 +11,7 @@ type CustomerBotLike = BotLike & {
   initialize: () => Promise<void>;
   navigateToNewCustomerForm: () => Promise<void>;
   navigateToEditCustomerForm: (name: string) => Promise<void>;
+  readEditFormFieldValues: () => Promise<Record<string, string>>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
   completeCustomerCreation: (formData: CustomerFormData) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
@@ -209,11 +210,12 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           sessionManager.setBot(sessionId, bot);
 
           await bot.navigateToEditCustomerForm(customer.name);
+          const archibaldFields = await bot.readEditFormFieldValues();
 
           sessionManager.updateState(sessionId, 'ready');
           broadcast(userId, {
             type: 'CUSTOMER_INTERACTIVE_READY',
-            payload: { sessionId },
+            payload: { sessionId, archibaldFields },
             timestamp: now(),
           });
         } catch (err) {

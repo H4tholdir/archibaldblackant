@@ -468,6 +468,19 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
         if (payload.sessionId !== interactiveSessionIdRef.current) return;
         setBotReady(true);
+        // Se il bot ha letto dei campi dal form Archibald, riempiamo i campi vuoti nel modal
+        if (isEditModeRef.current && payload.archibaldFields) {
+          const af = payload.archibaldFields as Record<string, string>;
+          setFormData((prev) => ({
+            ...prev,
+            email:    (af.email    && !prev.email)    ? af.email    : prev.email,
+            pec:      (af.pec      && !prev.pec)      ? af.pec      : prev.pec,
+            sdi:      (af.sdi      && !prev.sdi)      ? af.sdi      : prev.sdi,
+            phone:    (af.phone    && !prev.phone)     ? af.phone    : prev.phone,
+            street:   (af.street   && !prev.street)   ? af.street   : prev.street,
+            vatNumber:(af.vatNumber && !prev.vatNumber)? af.vatNumber: prev.vatNumber,
+          }));
+        }
         // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata
         if (autoSubmitVatOnReadyRef.current) {
           const vatToSubmit = autoSubmitVatOnReadyRef.current;

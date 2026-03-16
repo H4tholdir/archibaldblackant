@@ -21,6 +21,7 @@ function makeDeps(overrides: Partial<CustomerInteractiveRouterDeps> = {}): Custo
     createBot: vi.fn().mockReturnValue({
       initialize: vi.fn().mockResolvedValue(undefined),
       navigateToEditCustomerForm: vi.fn().mockResolvedValue(undefined),
+      readEditFormFieldValues: vi.fn().mockResolvedValue({ email: '', pec: '', sdi: '', phone: '', street: '', vatNumber: '' }),
       setProgressCallback: vi.fn(),
     }),
     broadcast: vi.fn(),
