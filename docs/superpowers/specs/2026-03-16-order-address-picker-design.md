@@ -72,7 +72,7 @@ If `deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null`:
 
 ---
 
-## 2. `SubmitOrderData` — add `deliveryAddressId`
+## 2. `SubmitOrderData` — add `deliveryAddressId` and `deliveryAddress`
 
 In `backend/src/operations/handlers/submit-order.ts`:
 
@@ -80,19 +80,21 @@ In `backend/src/operations/handlers/submit-order.ts`:
 type SubmitOrderData = {
   // ... existing fields ...
   deliveryAddressId?: number;
+  deliveryAddress?: CustomerAddress | null;  // resolved from DB, not sent by client
 };
 ```
 
-In the handler, when `deliveryAddressId` is present, load the address from DB using `getAddressById` (defined in Spec B repository):
+`deliveryAddressId` comes in the job payload from the frontend. `deliveryAddress` is resolved inside the handler and set on the data object before calling the bot:
 
 ```typescript
-let deliveryAddress: CustomerAddress | null = null;
 if (data.deliveryAddressId) {
-  deliveryAddress = await getAddressById(pool, userId, data.deliveryAddressId);
+  data.deliveryAddress = await getAddressById(pool, userId, data.deliveryAddressId) ?? null;
 }
 ```
 
-Pass `deliveryAddress` to the bot.
+The bot's `createOrder(orderData: SubmitOrderData)` already takes `SubmitOrderData`, so adding `deliveryAddress` to the type is sufficient — no change to `SubmitOrderBot` interface is needed.
+
+`CustomerAddress` is imported from `backend/src/db/repositories/customer-addresses.ts` (defined in Spec B).
 
 ---
 
@@ -154,9 +156,9 @@ The order must not fail because of an address mismatch. Archibald may have sligh
 
 ---
 
-## 4. Order persistence — `agents.pending_orders` table
+## 4. Order persistence — full `deliveryAddressId` chain
 
-Migration 028 adds `delivery_address_id` to the `agents.pending_orders` table (separate file from migration 027):
+### Migration 028
 
 ```sql
 ALTER TABLE agents.pending_orders
@@ -164,12 +166,42 @@ ALTER TABLE agents.pending_orders
   REFERENCES agents.customer_addresses(id) ON DELETE SET NULL;
 ```
 
-Note:
-- Schema prefix `agents.` is required.
-- `ON DELETE SET NULL` — if the referenced address is deleted, the column becomes NULL (order is not deleted).
-- `DEFAULT NULL` — existing pending orders are not affected.
+(`agents.` prefix required; `ON DELETE SET NULL` so deleting the address doesn't delete the order.)
 
-When the order is saved as pending, store `deliveryAddressId`. When the order is submitted (retried), the handler reads `deliveryAddressId` from the pending order row.
+### `PendingOrderInput` (backend repository)
+
+In `backend/src/db/repositories/pending-orders.ts`, add to `PendingOrderInput`:
+```typescript
+deliveryAddressId?: number | null;
+```
+
+Add to `PendingOrder` read type:
+```typescript
+deliveryAddressId: number | null;
+```
+
+The `upsertPendingOrder` INSERT and UPDATE queries must include `delivery_address_id` in their column lists and bind `order.deliveryAddressId ?? null`.
+
+`mapRowToPendingOrder` must map `row.delivery_address_id` → `deliveryAddressId`.
+
+### Frontend — pending order save
+
+In `OrderFormSimple`, when saving a pending order (the `savePendingOrder` API call), include `deliveryAddressId: selectedDeliveryAddressId` in the request payload.
+
+In the frontend pending order type (`frontend/src/types/pending-order.ts` or equivalent), add `deliveryAddressId?: number | null`.
+
+The `pending-orders` route (`backend/src/routes/pending-orders.ts`) saves pending orders; the `pendingOrderSchema` Zod object must accept `deliveryAddressId: z.number().optional().nullable()`.
+
+### `PendingOrdersPage.tsx` — enqueue with `deliveryAddressId`
+
+When the user clicks "Invia ad Archibald" on a pending order, `PendingOrdersPage.tsx` calls `enqueueOperation('submit-order', data)`. The `data` payload must include `deliveryAddressId: pendingOrder.deliveryAddressId` so the backend handler can load the correct address. This file is added to the Files list.
+
+### Full retry flow
+
+When a pending order is retried:
+1. `submit-order` handler receives `deliveryAddressId` from the stored payload
+2. Loads the address via `getAddressById(pool, userId, deliveryAddressId)`
+3. Sets `data.deliveryAddress` and passes to bot
 
 ---
 
@@ -179,10 +211,14 @@ When the order is saved as pending, store `deliveryAddressId`. When the order is
 |------|--------|
 | `backend/src/db/migrations/028-pending-order-delivery-address.sql` | Create |
 | `backend/src/db/repositories/customer-addresses.ts` | Modify: add `getAddressById` (if not already in Spec B) |
-| `backend/src/operations/handlers/submit-order.ts` | Modify: add `deliveryAddressId`, load address, pass to bot |
+| `backend/src/db/repositories/pending-orders.ts` | Modify: add `deliveryAddressId` to `PendingOrderInput`, `PendingOrder`, upsert queries, `mapRowToPendingOrder` |
+| `backend/src/routes/pending-orders.ts` | Modify: add `deliveryAddressId` to `pendingOrderSchema` |
+| `backend/src/operations/handlers/submit-order.ts` | Modify: add `deliveryAddressId`+`deliveryAddress` to `SubmitOrderData`, load address, pass to bot |
 | `backend/src/operations/handlers/submit-order.spec.ts` | Modify |
 | `backend/src/bot/archibald-bot.ts` | Modify: add `selectDeliveryAddress()` |
-| `frontend/src/components/OrderFormSimple.tsx` | Modify: load addresses, show picker, pass to submit |
+| `frontend/src/components/OrderFormSimple.tsx` | Modify: load addresses, show picker, include `deliveryAddressId` in save-pending payload |
+| `frontend/src/pages/PendingOrdersPage.tsx` | Modify: pass `deliveryAddressId` in `enqueueOperation('submit-order', ...)` payload |
+| `frontend/src/types/pending-order.ts` (or equivalent) | Modify: add `deliveryAddressId?: number \| null` |
 
 ---
 

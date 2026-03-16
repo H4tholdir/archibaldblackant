@@ -127,17 +127,27 @@ Called with empty array → only deletes existing rows (clears the tab).
 
 ---
 
-## 2. Bot — `createCustomer` changes
+## 2. Bot — `createCustomer` and `completeCustomerCreation` changes
 
-In `createCustomer(formData: CustomerFormData)`:
+In `archibald-bot.ts`, **both** customer creation methods have a delivery address block that must be replaced:
 
-After filling all main fields, call:
+### `createCustomer(formData: CustomerFormData)`
+
+After filling all main fields, replace the old `if (customerData.deliveryStreet && ...) { await this.fillDeliveryAddress(...) }` block with:
 
 ```typescript
 await this.writeAltAddresses(formData.addresses ?? []);
 ```
 
-The old single `deliveryStreet` / `deliveryPostalCode` path is removed (Spec B migration). `writeAltAddresses` is now the sole path for alt addresses.
+### `completeCustomerCreation(formData: CustomerFormData)`
+
+This method is the interactive-session path (called from `customer-interactive.ts` save route). It has its own separate `fillDeliveryAddress` call. Replace that block with the same call:
+
+```typescript
+await this.writeAltAddresses(formData.addresses ?? []);
+```
+
+The old `fillDeliveryAddress` private method remains in the file (other non-customer flows may use it), but is no longer called from these two methods.
 
 ---
 
