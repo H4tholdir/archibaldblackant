@@ -3012,7 +3012,7 @@ export class ArchibaldBot {
       return;
     }
 
-    const fieldContainer = await this.page.$('[id*="SELEZIONARE_L_INDIRIZZO"]');
+    const fieldContainer = await this.page.$('[id$="DELIVERYPOSTALADDRESS_Edit"]');
     if (!fieldContainer) {
       logger.warn('selectDeliveryAddress: field container not found');
       return;
@@ -3027,7 +3027,7 @@ export class ArchibaldBot {
     await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
 
     const rowCount = await this.page.evaluate(
-      () => document.querySelectorAll('.dxgvDataRow').length,
+      () => document.querySelectorAll('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv"] .dxgvDataRow').length,
     );
 
     if (rowCount === 0) {
@@ -3040,7 +3040,7 @@ export class ArchibaldBot {
     }
 
     await this.page.evaluate(() => {
-      const row = document.querySelector('.dxgvDataRow') as HTMLElement | null;
+      const row = document.querySelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv"] .dxgvDataRow') as HTMLElement | null;
       row?.click();
     });
 

@@ -74,7 +74,7 @@ describe('selectDeliveryAddress', () => {
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
-    expect(page.$).toHaveBeenCalledWith('[id*="SELEZIONARE_L_INDIRIZZO"]');
+    expect(page.$).toHaveBeenCalledWith('[id$="DELIVERYPOSTALADDRESS_Edit"]');
     expect(fieldEl.click).toHaveBeenCalled();
     expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca');
   });
