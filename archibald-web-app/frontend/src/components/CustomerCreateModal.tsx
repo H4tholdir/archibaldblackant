@@ -769,7 +769,18 @@ export function CustomerCreateModal({
 
       let resultTaskId: string | null = null;
 
-      if (isEditMode) {
+      if (interactiveSessionId) {
+        // Interactive session active (new or edit): use this path so addresses are handled.
+        const result = await customerService.saveInteractiveCustomer(
+          interactiveSessionId,
+          dataToSend,
+        );
+        resultTaskId = result.taskId;
+        if (result.customer?.id) {
+          pollingProfileRef.current = result.customer.id;
+        }
+      } else if (isEditMode) {
+        // Edit without interactive session (session expired): fallback to direct update.
         const payload =
           changedFields.size > 0
             ? { ...dataToSend, changedFields: Array.from(changedFields), vatWasValidated }
@@ -779,15 +790,6 @@ export function CustomerCreateModal({
           payload,
         );
         resultTaskId = result.taskId;
-      } else if (interactiveSessionId) {
-        const result = await customerService.saveInteractiveCustomer(
-          interactiveSessionId,
-          dataToSend,
-        );
-        resultTaskId = result.taskId;
-        if (result.customer?.id) {
-          pollingProfileRef.current = result.customer.id;
-        }
       } else {
         const result = await customerService.createCustomer(dataToSend);
         resultTaskId = result.taskId;
