@@ -9,7 +9,8 @@ type SyncType =
   | "sync-products"
   | "sync-prices"
   | "sync-order-articles"
-  | "sync-tracking";
+  | "sync-tracking"
+  | "sync-customer-addresses";
 
 type HistoryEntry = {
   timestamp: string | null;
@@ -64,6 +65,7 @@ const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
   { type: "sync-invoices", label: "Fatture", icon: "📄" },
   { type: "sync-order-articles" as SyncType, label: "Articoli Ordini", icon: "📋" },
   { type: "sync-tracking", label: "Tracking FedEx", icon: "📍" },
+  { type: "sync-customer-addresses" as SyncType, label: "Indirizzi Clienti", icon: "🏠" },
 ];
 
 function getHealthBadge(health: "healthy" | "degraded" | "idle") {

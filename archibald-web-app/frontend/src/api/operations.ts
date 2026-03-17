@@ -13,7 +13,8 @@ type OperationType =
   | 'sync-ddt'
   | 'sync-invoices'
   | 'sync-products'
-  | 'sync-prices';
+  | 'sync-prices'
+  | 'sync-customer-addresses';
 
 type EnqueueResponse = {
   success: boolean;

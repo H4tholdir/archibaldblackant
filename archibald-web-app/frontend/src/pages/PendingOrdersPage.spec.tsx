@@ -464,4 +464,39 @@ describe("PendingOrdersPage", () => {
       expect(body.data.targetTotalWithVAT).toBeUndefined();
     });
   });
+
+  test("renders delivery address when deliveryAddressResolved is set", () => {
+    const via = "Via Francesco Petrarca 10";
+    const citta = "Napoli";
+    const tipo = "ALT";
+    const orderWithAddress: PendingOrder = {
+      ...testOrders[0],
+      id: "order-uuid-addr-render-001",
+      deliveryAddressResolved: {
+        via,
+        cap: "80125",
+        citta,
+        tipo,
+        nome: "Sede secondaria",
+      },
+    };
+    mockPendingOrders = [orderWithAddress];
+
+    render(<PendingOrdersPage />);
+
+    expect(screen.getByText(/📍\s+Via Francesco Petrarca 10\s*—\s*Napoli\s*\(ALT\)/)).toBeInTheDocument();
+  });
+
+  test("does not render address line when deliveryAddressResolved is null", () => {
+    const orderWithNullAddress: PendingOrder = {
+      ...testOrders[0],
+      id: "order-uuid-addr-render-002",
+      deliveryAddressResolved: null,
+    };
+    mockPendingOrders = [orderWithNullAddress];
+
+    render(<PendingOrdersPage />);
+
+    expect(screen.queryByText(/📍/)).not.toBeInTheDocument();
+  });
 });

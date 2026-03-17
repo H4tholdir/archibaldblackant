@@ -3006,32 +3006,43 @@ export class ArchibaldBot {
 
   private async selectDeliveryAddress(address: CustomerAddress): Promise<void> {
     if (!this.page) return;
-
-    const dropdown = await this.page.waitForSelector(
-      '[id*="SELEZIONARE_L_INDIRIZZO"], [title*="SELEZIONARE"]',
-      { timeout: 3000 },
-    ).catch(() => null);
-
-    if (!dropdown) return;
-
-    const via = address.via ?? '';
-    const clicked = await this.page.evaluate((viaText: string) => {
-      const items = Array.from(document.querySelectorAll('.dxeListBoxItem, li[class*="item"]'));
-      const match = items.find(el =>
-        el.textContent?.toLowerCase().includes(viaText.toLowerCase().trim()),
-      ) as HTMLElement | undefined;
-      if (match) { match.click(); return true; }
-      return false;
-    }, via);
-
-    if (!clicked) {
-      logger.warn('selectDeliveryAddress: no matching option found', {
-        via: address.via,
-        cap: address.cap,
-      });
-    } else {
-      await this.waitForDevExpressIdle({ timeout: 5000, label: 'delivery-address-select' });
+    const via = address.via?.trim() ?? '';
+    if (!via) {
+      logger.warn('selectDeliveryAddress: via is empty, skipping');
+      return;
     }
+
+    const fieldContainer = await this.page.$('[id*="SELEZIONARE_L_INDIRIZZO"]');
+    if (!fieldContainer) {
+      logger.warn('selectDeliveryAddress: field container not found');
+      return;
+    }
+
+    await fieldContainer.click();
+    await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
+
+    await this.page.keyboard.type(via);
+    await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
+
+    const rowCount = await this.page.evaluate(
+      () => document.querySelectorAll('.dxgvDataRow').length,
+    );
+
+    if (rowCount === 0) {
+      logger.warn('selectDeliveryAddress: no rows found after search', {
+        via,
+        cap: address.cap,
+        citta: address.citta,
+      });
+      return;
+    }
+
+    await this.page.evaluate(() => {
+      const row = document.querySelector('.dxgvDataRow') as HTMLElement | null;
+      row?.click();
+    });
+
+    await this.waitForDevExpressIdle({ label: 'delivery-address-select' });
   }
 
   /**

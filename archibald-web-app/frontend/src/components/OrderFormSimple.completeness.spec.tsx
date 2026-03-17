@@ -108,7 +108,8 @@ describe('OrderFormSimple — completeness banner', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
-        data: { customers: [INCOMPLETE_RICH_CUSTOMER] },
+        success: true,
+        data: INCOMPLETE_RICH_CUSTOMER,
       }),
     });
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -146,5 +147,34 @@ describe('OrderFormSimple — completeness banner', () => {
     await waitFor(() => {
       expect(screen.getByText(/P\.IVA non validata/)).toBeTruthy();
     });
+  });
+
+  test('fetches completeness via direct customer endpoint, not search endpoint', async () => {
+    const { customerService } = await import('../services/customers.service');
+    vi.mocked(customerService.searchCustomers).mockResolvedValue([CUSTOMER_SEARCH_RESULT] as any);
+
+    render(
+      <MemoryRouter>
+        <OrderFormSimple />
+      </MemoryRouter>,
+    );
+
+    const searchInput = screen.getByPlaceholderText(/cerca cliente/i);
+    await userEvent.type(searchInput, 'Rossi');
+
+    await waitFor(() => {
+      expect(screen.getByText('Rossi Mario')).toBeTruthy();
+    });
+
+    await userEvent.click(screen.getByText('Rossi Mario'));
+
+    await screen.findByText(/P\.IVA non validata/);
+
+    const completenessCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url]: unknown[]) => typeof url === 'string' && url.includes('/api/customers/'),
+    );
+    const calledUrl = completenessCall?.[0] as string;
+    expect(calledUrl).toBe('/api/customers/CUST-001');
+    expect(calledUrl).not.toContain('search=');
   });
 });

@@ -11,35 +11,48 @@ function createMockPool() {
   };
 }
 
+const baseRow: PendingOrderRow = {
+  id: 'po-1',
+  user_id: 'user-1',
+  customer_id: 'cust-1',
+  customer_name: 'Test Customer',
+  items_json: [],
+  status: 'pending',
+  discount_percent: null,
+  target_total_with_vat: null,
+  retry_count: 0,
+  error_message: null,
+  created_at: 1000,
+  updated_at: 2000,
+  device_id: 'dev-1',
+  origin_draft_id: null,
+  synced_to_archibald: false,
+  shipping_cost: 0,
+  shipping_tax: 0,
+  sub_client_codice: null,
+  sub_client_name: null,
+  sub_client_data_json: null,
+  archibald_order_id: null,
+  no_shipping: false,
+  notes: null,
+  job_id: null,
+  job_started_at: null,
+  delivery_address_id: null,
+  addr_via: null,
+  addr_cap: null,
+  addr_citta: null,
+  addr_tipo: null,
+  addr_nome: null,
+};
+
 describe('mapRowToPendingOrder', () => {
   test('maps job_id and job_started_at from row to camelCase', () => {
     const row: PendingOrderRow = {
+      ...baseRow,
       id: 'po-1',
-      user_id: 'user-1',
-      customer_id: 'cust-1',
-      customer_name: 'Test Customer',
-      items_json: [],
       status: 'processing',
-      discount_percent: null,
-      target_total_with_vat: null,
-      retry_count: 0,
-      error_message: null,
-      created_at: 1000,
-      updated_at: 2000,
-      device_id: 'dev-1',
-      origin_draft_id: null,
-      synced_to_archibald: false,
-      shipping_cost: 0,
-      shipping_tax: 0,
-      sub_client_codice: null,
-      sub_client_name: null,
-      sub_client_data_json: null,
-      archibald_order_id: null,
-      no_shipping: false,
-      notes: null,
       job_id: 'job-abc',
       job_started_at: '2026-03-10T10:00:00Z',
-      delivery_address_id: null,
     };
 
     const result = mapRowToPendingOrder(row);
@@ -49,39 +62,38 @@ describe('mapRowToPendingOrder', () => {
   });
 
   test('maps null job tracking fields', () => {
+    const result = mapRowToPendingOrder({ ...baseRow, id: 'po-2' });
+
+    expect(result.jobId).toBeNull();
+    expect(result.jobStartedAt).toBeNull();
+  });
+
+  test('sets deliveryAddressResolved when address fields are joined', () => {
     const row: PendingOrderRow = {
-      id: 'po-2',
-      user_id: 'user-1',
-      customer_id: 'cust-1',
-      customer_name: 'Test Customer',
-      items_json: [],
-      status: 'pending',
-      discount_percent: null,
-      target_total_with_vat: null,
-      retry_count: 0,
-      error_message: null,
-      created_at: 1000,
-      updated_at: 2000,
-      device_id: 'dev-1',
-      origin_draft_id: null,
-      synced_to_archibald: false,
-      shipping_cost: 0,
-      shipping_tax: 0,
-      sub_client_codice: null,
-      sub_client_name: null,
-      sub_client_data_json: null,
-      archibald_order_id: null,
-      no_shipping: false,
-      notes: null,
-      job_id: null,
-      job_started_at: null,
-      delivery_address_id: null,
+      ...baseRow,
+      delivery_address_id: 42,
+      addr_via: 'Via Francesco Petrarca, 26',
+      addr_cap: '83055',
+      addr_citta: 'Lioni',
+      addr_tipo: 'Indir. cons. alt.',
+      addr_nome: null,
     };
 
     const result = mapRowToPendingOrder(row);
 
-    expect(result.jobId).toBeNull();
-    expect(result.jobStartedAt).toBeNull();
+    expect(result.deliveryAddressResolved).toEqual({
+      via: 'Via Francesco Petrarca, 26',
+      cap: '83055',
+      citta: 'Lioni',
+      tipo: 'Indir. cons. alt.',
+      nome: null,
+    });
+  });
+
+  test('sets deliveryAddressResolved to null when no address is joined', () => {
+    const result = mapRowToPendingOrder({ ...baseRow, delivery_address_id: null });
+
+    expect(result.deliveryAddressResolved).toBeNull();
   });
 });
 
