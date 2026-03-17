@@ -3012,13 +3012,16 @@ export class ArchibaldBot {
       return;
     }
 
-    const fieldContainer = await this.page.$('[id$="DELIVERYPOSTALADDRESS_Edit"]');
-    if (!fieldContainer) {
+    const fieldInput = await this.page.$('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
+    if (!fieldInput) {
       logger.warn('selectDeliveryAddress: field container not found');
       return;
     }
 
-    await fieldContainer.click();
+    // Scroll input into view before clicking to prevent Puppeteer "not clickable" errors
+    // when the field is below the viewport fold in headless Chrome.
+    await fieldInput.evaluate(el => (el as HTMLElement).scrollIntoView({ block: 'center' }));
+    await fieldInput.click();
     await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
 
     // Use only the street name (before the comma) to avoid filtering issues with house numbers
