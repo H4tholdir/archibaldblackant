@@ -170,12 +170,10 @@ describe('OrderFormSimple — completeness banner', () => {
 
     await screen.findByText(/P\.IVA non validata/);
 
-    const fetchMock = vi.mocked(global.fetch);
-    const completenessCall = fetchMock.mock.calls.find(
-      ([url]) => typeof url === 'string' && url.includes('/api/customers/'),
+    const completenessCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url]: unknown[]) => typeof url === 'string' && url.includes('/api/customers/'),
     );
-    expect(completenessCall).toBeTruthy();
-    const calledUrl = completenessCall![0] as string;
+    const calledUrl = completenessCall?.[0] as string;
     expect(calledUrl).toBe('/api/customers/CUST-001');
     expect(calledUrl).not.toContain('search=');
   });

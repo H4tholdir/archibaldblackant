@@ -718,7 +718,7 @@ export default function OrderFormSimple() {
         if (!res.ok) throw new Error('not found');
         return res.json();
       })
-      .then((body: { data: RichCustomer }) => {
+      .then((body: { success: boolean; data: RichCustomer }) => {
         const rich = body.data ?? null;
         setSelectedCustomerFull(rich);
         setCustomerCompleteness(rich ? checkCustomerCompleteness(rich) : null);
