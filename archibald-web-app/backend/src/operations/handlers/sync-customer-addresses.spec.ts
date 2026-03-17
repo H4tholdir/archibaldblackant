@@ -99,4 +99,21 @@ describe('handleSyncCustomerAddresses', () => {
 
     expect(result).toEqual({ addressesCount: 0 });
   });
+
+  it('resets addresses_synced_at for all customers when called without customer data (manual trigger)', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const onProgress = vi.fn();
+    const emptyData = {} as unknown as SyncCustomerAddressesData;
+
+    const result = await handleSyncCustomerAddresses(pool, bot, emptyData, userId, onProgress);
+
+    const resetCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NULL'),
+    );
+    expect(resetCall).toBeDefined();
+    expect(resetCall![1]).toEqual([userId]);
+    expect(bot.initialize).not.toHaveBeenCalled();
+    expect(result).toEqual({ addressesCount: 0 });
+  });
 });

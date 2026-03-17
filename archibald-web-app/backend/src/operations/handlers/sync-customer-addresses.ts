@@ -26,6 +26,16 @@ async function handleSyncCustomerAddresses(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<SyncCustomerAddressesResult> {
+  if (!data.customerProfile || !data.customerName) {
+    onProgress(50, 'Reset sync indirizzi');
+    await pool.query(
+      'UPDATE agents.customers SET addresses_synced_at = NULL WHERE user_id = $1',
+      [userId],
+    );
+    onProgress(100, 'Reset completato — scheduler rieseguirà la sync');
+    return { addressesCount: 0 };
+  }
+
   onProgress(10, 'Navigazione al cliente');
   await bot.initialize();
   try {
