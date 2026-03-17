@@ -12823,56 +12823,27 @@ export class ArchibaldBot {
     await this.openCustomerTab('Indirizzo alt');
     await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-read' });
 
-    // Resolve the grid container ID via the ASPxClientControl API (same approach as
-    // writeAltAddresses). This works regardless of the DevExpress CSS theme (_Aqua vs
-    // _XafTheme) and targets the correct grid (LOGISTICS/Address) rather than any other
-    // grid that may be present on the page (e.g. SALESTABLES on the default tab).
-    const gridContainerId = await this.page.evaluate(() => {
-      const w = window as any;
-      if (!w.ASPxClientControl?.GetControlCollection) return '';
-      let found = '';
-      w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
-        const cName: string = c?.name || c?.GetName?.() || '';
-        if (
-          (cName.includes('LOGISTICS') || cName.toUpperCase().includes('ADDRESS')) &&
-          typeof c?.GetMainElement === 'function'
-        ) {
-          found = c.GetMainElement?.()?.id || '';
-        }
-      });
-      return found;
-    });
-
-    // Wait until the resolved grid (or any visible alt-address grid) has rows or shows
-    // the empty-data indicator. Theme-agnostic: matches _Aqua, _XafTheme, etc.
+    // The alt-addresses grid is loaded asynchronously after the tab click.
+    // Its DOM element has an ID containing "ADDRESSes" (XAF property name).
+    // Wait until that grid element appears in the DOM.
     await this.page.waitForFunction(
-      (containerId: string) => {
-        const root: Element | null = containerId
-          ? document.getElementById(containerId)
-          : document.querySelector('[class*="dxgvControl"]');
-        if (!root) return false;
-        return (
-          root.querySelector('[class*="dxgvDataRow_"]') !== null ||
-          root.querySelector('[class*="EmptyData"]') !== null ||
-          root.querySelector('[class*="emptyData"]') !== null
-        );
-      },
-      { timeout: 10000, polling: 300 },
-      gridContainerId,
+      () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null,
+      { timeout: 12000, polling: 300 },
     ).catch(() => {
-      logger.warn('readAltAddresses: grid-ready timeout — proceeding with whatever is in DOM');
+      logger.warn('readAltAddresses: ADDRESSes grid not found after 12s — proceeding with DOM snapshot');
     });
 
-    const addresses = await this.page.evaluate((containerId: string) => {
-      const root: Element | null = containerId
-        ? document.getElementById(containerId)
-        : document.querySelector('[class*="dxgvControl"]');
-      if (!root) return [];
+    const addresses = await this.page.evaluate(() => {
+      // Target the alt-addresses list-editor grid by its XAF property-name fragment.
+      // Using [id*="ADDRESSes"] avoids theme-suffix coupling (_Aqua vs _XafTheme) and
+      // skips other grids on the page (e.g. SALESTABLES) whose IDs never contain "ADDRESSes".
+      const grid = document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') as HTMLElement | null;
+      if (!grid) return [];
 
-      const rows = Array.from(root.querySelectorAll('[class*="dxgvDataRow_"]'));
+      const rows = Array.from(grid.querySelectorAll('[class*="dxgvDataRow_"]'));
       return rows.map((row) => {
         const cells = Array.from(row.querySelectorAll('td'));
-        const cellText = (i: number) => (cells[i]?.textContent?.trim() || null);
+        const cellText = (i: number) => cells[i]?.textContent?.trim() || null;
         return {
           tipo: cellText(0) ?? '',
           nome: cellText(1),
@@ -12885,7 +12856,7 @@ export class ArchibaldBot {
           contra: cellText(8),
         };
       });
-    }, gridContainerId) as AltAddress[];
+    }) as AltAddress[];
 
     return addresses;
   }
