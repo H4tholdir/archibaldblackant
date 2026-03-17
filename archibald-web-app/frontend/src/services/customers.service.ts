@@ -115,12 +115,8 @@ export class CustomerService {
     email?: string;
     deliveryMode?: string;
     paymentTerms?: string;
-    deliveryStreet?: string;
-    deliveryPostalCode?: string;
     postalCodeCity?: string;
     postalCodeCountry?: string;
-    deliveryPostalCodeCity?: string;
-    deliveryPostalCodeCountry?: string;
   }): Promise<{ taskId: string | null }> {
     const response = await fetchWithRetry("/api/customers", {
       method: "POST",
@@ -150,12 +146,8 @@ export class CustomerService {
       email?: string;
       deliveryMode?: string;
       paymentTerms?: string;
-      deliveryStreet?: string;
-      deliveryPostalCode?: string;
       postalCodeCity?: string;
       postalCodeCountry?: string;
-      deliveryPostalCodeCity?: string;
-      deliveryPostalCodeCountry?: string;
       vatWasValidated?: boolean;
     },
   ): Promise<{ taskId: string | null }> {
@@ -259,12 +251,8 @@ export class CustomerService {
       email?: string;
       deliveryMode?: string;
       paymentTerms?: string;
-      deliveryStreet?: string;
-      deliveryPostalCode?: string;
       postalCodeCity?: string;
       postalCodeCountry?: string;
-      deliveryPostalCodeCity?: string;
-      deliveryPostalCodeCountry?: string;
     },
   ): Promise<{ customer: Customer | null; taskId: string | null }> {
     const response = await fetchWithRetry(

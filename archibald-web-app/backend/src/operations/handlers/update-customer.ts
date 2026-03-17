@@ -1,6 +1,8 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { updateVatValidatedAt } from '../../db/repositories/customers';
+import type { AddressEntry } from '../../types';
+import { upsertAddressesForCustomer } from '../../db/repositories/customer-addresses';
 
 type UpdateCustomerData = {
   customerProfile: string;
@@ -18,13 +20,10 @@ type UpdateCustomerData = {
   deliveryMode?: string;
   paymentTerms?: string;
   lineDiscount?: string;
-  deliveryStreet?: string;
-  deliveryPostalCode?: string;
   postalCodeCity?: string;
   postalCodeCountry?: string;
-  deliveryPostalCodeCity?: string;
-  deliveryPostalCodeCountry?: string;
   vatWasValidated?: boolean;
+  addresses?: AddressEntry[];
 };
 
 type UpdateCustomerBot = {
@@ -91,6 +90,18 @@ async function handleUpdateCustomer(
 
   onProgress(20, 'Aggiornamento su Archibald');
   await bot.updateCustomer(data.customerProfile, data, originalName);
+  const addressesForUpsert = (data.addresses ?? []).map((a) => ({
+    tipo: a.tipo,
+    nome: a.nome ?? null,
+    via: a.via ?? null,
+    cap: a.cap ?? null,
+    citta: a.citta ?? null,
+    contea: a.contea ?? null,
+    stato: a.stato ?? null,
+    idRegione: a.idRegione ?? null,
+    contra: a.contra ?? null,
+  }));
+  await upsertAddressesForCustomer(pool, userId, data.customerProfile, addressesForUpsert);
 
   if (data.vatWasValidated) {
     await updateVatValidatedAt(pool, userId, data.customerProfile);

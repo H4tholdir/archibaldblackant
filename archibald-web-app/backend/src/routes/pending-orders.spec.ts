@@ -24,6 +24,7 @@ const mockPendingOrder = {
   subClientCodice: null,
   subClientName: null,
   subClientDataJson: null,
+  deliveryAddressId: null,
 };
 
 const upsertResult = { id: 'po-1', action: 'created' as const, serverUpdatedAt: 1708300100 };

@@ -28,6 +28,11 @@ import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
+import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
+import type { Customer as RichCustomer } from '../types/customer';
+import { CustomerCreateModal } from './CustomerCreateModal';
+import type { CustomerAddress } from '../types/customer-address';
+import { getCustomerAddresses } from '../services/customer-addresses';
 
 interface OrderItem {
   id: string;
@@ -90,6 +95,11 @@ export default function OrderFormSimple() {
   const [showHiddenCustomers, setShowHiddenCustomers] = useState(false);
   const [hidingCustomerId, setHidingCustomerId] = useState<string | null>(null);
   const [restoringCustomerId, setRestoringCustomerId] = useState<string | null>(null);
+
+  // Customer completeness check
+  const [selectedCustomerFull, setSelectedCustomerFull] = useState<RichCustomer | null>(null);
+  const [customerCompleteness, setCustomerCompleteness] = useState<CompletenessResult | null>(null);
+  const [editCustomerForCompleteness, setEditCustomerForCompleteness] = useState<RichCustomer | null>(null);
 
   // Step 1b: Sub-client selection (Fresis only)
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
@@ -272,6 +282,8 @@ export default function OrderFormSimple() {
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [noShipping, setNoShipping] = useState(false);
   const [orderNotes, setOrderNotes] = useState("");
+  const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<number | null>(null);
 
   // Fresis history: article purchase history for selected sub-client
   const [articleHistory, setArticleHistory] = useState<{
@@ -697,6 +709,25 @@ export default function OrderFormSimple() {
     }
   };
 
+  const fetchAndSetCustomerCompleteness = (customerProfile: string) => {
+    fetch(`/api/customers?search=${encodeURIComponent(customerProfile)}&limit=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
+        const rich = richCustomers.find((c) => c.customerProfile === customerProfile) ?? richCustomers[0] ?? null;
+        setSelectedCustomerFull(rich);
+        if (rich) {
+          setCustomerCompleteness(checkCustomerCompleteness(rich));
+        } else {
+          setCustomerCompleteness(null);
+        }
+      })
+      .catch(() => {
+        setSelectedCustomerFull(null);
+        setCustomerCompleteness(null);
+      });
+  };
+
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setCustomerSearch(customer.name);
@@ -709,6 +740,19 @@ export default function OrderFormSimple() {
         productSearchInputRef.current?.focus();
       }
     }, 100);
+    fetchAndSetCustomerCompleteness(customer.id);
+    getCustomerAddresses(customer.id)
+      .then((addresses) => {
+        const delivery = addresses.filter(
+          (a) => a.tipo === 'Consegna' || a.tipo === 'Indir. cons. alt.',
+        );
+        setDeliveryAddresses(delivery);
+        setSelectedDeliveryAddressId(delivery.length === 1 ? delivery[0].id : null);
+      })
+      .catch(() => {
+        setDeliveryAddresses([]);
+        setSelectedDeliveryAddressId(null);
+      });
   };
 
   const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
@@ -1084,6 +1128,9 @@ export default function OrderFormSimple() {
     setCustomerSearch("");
     setCustomerResults([]);
     setSelectedCustomer(null);
+    setSelectedCustomerFull(null);
+    setCustomerCompleteness(null);
+    setEditCustomerForCompleteness(null);
     setSearchingCustomer(false);
 
     // Reset product
@@ -2717,6 +2764,7 @@ export default function OrderFormSimple() {
         subClientData: selectedSubClient ?? undefined,
         noShipping: noShipping || undefined,
         notes: orderNotes.trim() || undefined,
+        deliveryAddressId: selectedDeliveryAddressId ?? undefined,
       });
 
       // Show specific message for warehouse-only orders
@@ -2758,6 +2806,12 @@ export default function OrderFormSimple() {
   };
 
   const totals = calculateTotals();
+
+  const handleCompletionModalClose = () => {
+    setEditCustomerForCompleteness(null);
+    if (!selectedCustomer) return;
+    fetchAndSetCustomerCompleteness(selectedCustomer.id);
+  };
 
   return (
     <div
@@ -3112,11 +3166,15 @@ export default function OrderFormSimple() {
             <button
               onClick={() => {
                 setSelectedCustomer(null);
+                setSelectedCustomerFull(null);
+                setCustomerCompleteness(null);
                 setCustomerSearch("");
                 setSelectedSubClient(null);
                 setGlobalDiscountPercent("");
                 setItemDiscount("");
                 setListPrice("");
+                setDeliveryAddresses([]);
+                setSelectedDeliveryAddressId(null);
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
@@ -3131,6 +3189,59 @@ export default function OrderFormSimple() {
             >
               Cambia
             </button>
+          </div>
+        )}
+
+        {customerCompleteness && !customerCompleteness.ok && (
+          <div
+            style={{
+              background: '#fff3cd',
+              border: '1px solid #ffc107',
+              color: '#856404',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              marginTop: '8px',
+              fontSize: '0.875rem',
+            }}
+          >
+            ⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}
+            <button
+              onClick={() => setEditCustomerForCompleteness(selectedCustomerFull)}
+              style={{
+                marginLeft: '12px',
+                background: 'none',
+                border: '1px solid #856404',
+                color: '#856404',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              Aggiorna scheda →
+            </button>
+          </div>
+        )}
+
+        {/* Delivery address picker (shown when customer has ≥2 delivery addresses) */}
+        {selectedCustomer && deliveryAddresses.length >= 2 && (
+          <div style={{ marginTop: 12, marginBottom: 4 }}>
+            <label style={{ fontWeight: 600, marginBottom: 4, display: 'block', fontSize: '0.875rem' }}>
+              Indirizzo di consegna
+            </label>
+            <select
+              value={selectedDeliveryAddressId ?? ''}
+              onChange={(e) => setSelectedDeliveryAddressId(e.target.value ? Number(e.target.value) : null)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontSize: '0.875rem' }}
+            >
+              <option value="">— Seleziona indirizzo —</option>
+              {deliveryAddresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {[a.via, a.cap && a.citta ? `${a.cap} ${a.citta}` : a.citta].filter(Boolean).join(', ')}
+                  {a.tipo ? ` (${a.tipo})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -4963,16 +5074,17 @@ export default function OrderFormSimple() {
 
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null)}
+            title={deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null ? 'Seleziona un indirizzo di consegna' : undefined}
             style={{
               padding: isMobile ? "1rem 2rem" : "1rem 2rem",
-              background: submitting ? "#d1d5db" : "#22c55e",
+              background: submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null) ? "#d1d5db" : "#22c55e",
               color: "white",
               border: "none",
               borderRadius: "8px",
               fontSize: isMobile ? "1.125rem" : "1.125rem",
               fontWeight: "600",
-              cursor: submitting ? "not-allowed" : "pointer",
+              cursor: submitting || (deliveryAddresses.length >= 2 && selectedDeliveryAddressId === null) ? "not-allowed" : "pointer",
               width: isMobile ? "100%" : "auto",
               flex: isMobile ? "0" : "1",
               maxWidth: isMobile ? "100%" : "600px",
@@ -6181,6 +6293,15 @@ export default function OrderFormSimple() {
             </button>
           </div>
         </div>
+      )}
+
+      {editCustomerForCompleteness && (
+        <CustomerCreateModal
+          isOpen={true}
+          onClose={handleCompletionModalClose}
+          onSaved={handleCompletionModalClose}
+          editCustomer={editCustomerForCompleteness}
+        />
       )}
     </div>
   );

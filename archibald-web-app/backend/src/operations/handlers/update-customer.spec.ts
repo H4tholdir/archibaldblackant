@@ -1,6 +1,13 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { handleUpdateCustomer, type UpdateCustomerBot, type UpdateCustomerData } from './update-customer';
 import type { DbPool } from '../../db/pool';
+import type { AddressEntry } from '../../types';
+import { upsertAddressesForCustomer } from '../../db/repositories/customer-addresses';
+
+vi.mock('../../db/repositories/customer-addresses', () => ({
+  upsertAddressesForCustomer: vi.fn().mockResolvedValue(undefined),
+  getAddressById: vi.fn().mockResolvedValue(null),
+}));
 
 function createMockPool(): DbPool {
   return {
@@ -88,5 +95,35 @@ describe('handleUpdateCustomer', () => {
     await handleUpdateCustomer(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+});
+
+describe('handleUpdateCustomer — addresses', () => {
+  const addressEntry: AddressEntry = { tipo: 'Consegna', via: 'Via Verdi 1', cap: '37100', citta: 'Verona' };
+  const mappedAddress = { tipo: 'Consegna', nome: null, via: 'Via Verdi 1', cap: '37100', citta: 'Verona', contea: null, stato: null, idRegione: null, contra: null };
+  const userId = 'user-1';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('calls upsertAddressesForCustomer with provided addresses after bot update', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const data: UpdateCustomerData = { ...sampleData, addresses: [addressEntry] };
+
+    await handleUpdateCustomer(pool, bot, data, userId, vi.fn());
+
+    expect(upsertAddressesForCustomer).toHaveBeenCalledWith(pool, userId, sampleData.customerProfile, [mappedAddress]);
+  });
+
+  test('calls upsertAddressesForCustomer with empty array when addresses absent', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const { addresses: _, ...dataWithoutAddresses } = { ...sampleData, addresses: undefined };
+
+    await handleUpdateCustomer(pool, bot, dataWithoutAddresses, userId, vi.fn());
+
+    expect(upsertAddressesForCustomer).toHaveBeenCalledWith(pool, userId, sampleData.customerProfile, []);
   });
 });

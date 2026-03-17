@@ -24,6 +24,18 @@ export type Product = {
   price: number;
 };
 
+export type AddressEntry = {
+  tipo: string;
+  nome?: string;
+  via?: string;
+  cap?: string;
+  citta?: string;
+  contea?: string;
+  stato?: string;
+  idRegione?: string;
+  contra?: string;
+};
+
 export interface CustomerFormData {
   // Required fields
   name: string;
@@ -44,15 +56,11 @@ export interface CustomerFormData {
   paymentTerms?: string; // Default: "206"
   lineDiscount?: "N/A" | string; // Default: N/A
 
-  // Optional fields - Delivery address (tab "Indirizzo alt.")
-  deliveryStreet?: string;
-  deliveryPostalCode?: string;
-
   // Optional fields - CAP disambiguation hints (frontend → bot, not persisted)
   postalCodeCity?: string;
   postalCodeCountry?: string;
-  deliveryPostalCodeCity?: string;
-  deliveryPostalCodeCountry?: string;
+
+  addresses?: AddressEntry[];
 }
 
 export type ApiResponse<T = unknown> = {

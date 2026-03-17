@@ -17,6 +17,7 @@ import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
+import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
 import { createOperationQueue } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
@@ -30,6 +31,7 @@ import {
   createDownloadDdtPdfHandler,
   createDownloadInvoicePdfHandler,
   createSyncOrderArticlesHandler,
+  createSyncCustomerAddressesHandler,
   createSyncPricesHandler,
   createSyncCustomersHandler,
   createSyncOrdersHandler,
@@ -227,6 +229,7 @@ async function bootstrap(): Promise<void> {
     queue.enqueue,
     () => cachedAgentIds,
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
+    (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
   );
 
   const wsServer = createWebSocketServer({
@@ -586,6 +589,15 @@ async function bootstrap(): Promise<void> {
         };
       },
     ),
+    'sync-customer-addresses': createSyncCustomerAddressesHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      return {
+        initialize: async () => bot.initialize(),
+        navigateToEditCustomerForm: async (name) => bot.navigateToEditCustomerForm(name),
+        readAltAddresses: async () => bot.readAltAddresses(),
+        close: async () => bot.close(),
+      };
+    }),
     'sync-prices': createSyncPricesHandler(
       pool,
       async (pdfPath) => (await pricesParser.parsePDF(pdfPath)).map(adaptPrice),

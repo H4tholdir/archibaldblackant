@@ -16,12 +16,6 @@ type CreateCustomerData = {
   deliveryMode?: string;
   paymentTerms?: string;
   lineDiscount?: string;
-  deliveryStreet?: string;
-  deliveryPostalCode?: string;
-  postalCodeCity?: string;
-  postalCodeCountry?: string;
-  deliveryPostalCodeCity?: string;
-  deliveryPostalCodeCountry?: string;
 };
 
 type CreateCustomerBot = {

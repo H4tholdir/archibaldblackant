@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import { isCustomerComplete } from '../../utils/customer-completeness-backend';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
 import type { VerificationStatus } from '../../db/repositories/order-verification';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
@@ -11,6 +12,8 @@ import type { VerificationNotification } from '../../verification/format-notific
 import { batchTransfer } from '../../db/repositories/warehouse';
 import { getUnitPricesByProductIds } from '../../db/repositories/prices';
 import { logger } from '../../logger';
+import type { CustomerAddress } from '../../db/repositories/customer-addresses';
+import { getAddressById } from '../../db/repositories/customer-addresses';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -20,6 +23,8 @@ type SubmitOrderItem = {
   price: number;
   discount?: number;
   vat?: number;
+  articleId?: string;
+  packageContent?: number;
   warehouseQuantity?: number;
   warehouseSources?: Array<{ warehouseItemId: number; boxName: string; quantity: number }>;
 };
@@ -34,6 +39,8 @@ type SubmitOrderData = {
   targetTotalWithVAT?: number;
   noShipping?: boolean;
   notes?: string;
+  deliveryAddressId?: number;
+  deliveryAddress?: CustomerAddress | null;
 };
 
 type SubmitOrderBot = {
@@ -127,6 +134,28 @@ async function handleSubmitOrder(
   inlineSyncDeps?: InlineSyncDeps,
   broadcastVerification?: BroadcastVerificationFn,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
+  // Completeness guard: verify customer has all required fields before any bot work
+  const { rows: [completenessRow] } = await pool.query<{
+    vat_validated_at: string | null;
+    pec: string | null;
+    sdi: string | null;
+    street: string | null;
+    postal_code: string | null;
+  }>(
+    `SELECT vat_validated_at, pec, sdi, street, postal_code
+     FROM agents.customers
+     WHERE customer_profile = $1 AND user_id = $2`,
+    [data.customerId, userId],
+  );
+
+  if (!completenessRow) {
+    return { success: false, error: 'Cliente non trovato' } as unknown as { orderId: string; verificationStatus?: string };
+  }
+
+  if (!isCustomerComplete(completenessRow)) {
+    throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
+  }
+
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
       const current = metadata.currentArticle as number;
@@ -200,6 +229,10 @@ async function handleSubmitOrder(
     if (customerRow?.internal_id) {
       data = { ...data, customerInternalId: customerRow.internal_id };
     }
+  }
+
+  if (data.deliveryAddressId) {
+    data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
   }
 
   const orderId = await bot.createOrder(data);

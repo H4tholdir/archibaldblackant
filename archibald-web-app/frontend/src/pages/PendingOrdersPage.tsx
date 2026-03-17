@@ -19,6 +19,8 @@ import { EmailShareDialog } from "../components/EmailShareDialog";
 import { formatCurrency } from "../utils/format-currency";
 import { getCustomers } from "../api/customers";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
+import { checkCustomerCompleteness } from "../utils/customer-completeness";
+import type { Customer as RichCustomer } from "../types/customer";
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -71,6 +73,8 @@ export function PendingOrdersPage() {
   const [emailDialogLoading, setEmailDialogLoading] = useState(false);
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
+  const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
+
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -80,6 +84,22 @@ export function PendingOrdersPage() {
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("archibald_jwt") ?? "";
+    getCustomers(token)
+      .then((data) => {
+        const customers = (data.data?.customers ?? []) as unknown as RichCustomer[];
+        const map = new Map<string, RichCustomer>();
+        for (const c of customers) {
+          map.set(c.customerProfile, c);
+        }
+        setCustomersMap(map);
+      })
+      .catch((err) => {
+        console.warn('Failed to load customers for completeness badges', err);
+      });
   }, []);
 
   const handleSelectOrder = (orderId: string) => {
@@ -178,6 +198,7 @@ export function PendingOrdersPage() {
             targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
             noShipping: order.noShipping,
             notes: order.notes,
+            deliveryAddressId: order.deliveryAddressId,
           });
         }),
       );
@@ -284,6 +305,7 @@ export function PendingOrdersPage() {
         targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
         noShipping: order.noShipping,
         notes: order.notes,
+        deliveryAddressId: order.deliveryAddressId,
       });
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
@@ -1113,6 +1135,28 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
+                    {(() => {
+                      const richCustomer = customersMap.get(order.customerId);
+                      if (!richCustomer) return null;
+                      const completeness = checkCustomerCompleteness(richCustomer);
+                      if (completeness.ok) return null;
+                      return (
+                        <span
+                          style={{
+                            background: '#fff3cd',
+                            color: '#856404',
+                            border: '1px solid #ffc107',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '12px',
+                            display: 'inline-block',
+                            marginBottom: '0.25rem',
+                          }}
+                        >
+                          ⚠ Cliente incompleto
+                        </span>
+                      );
+                    })()}
                     {order.subClientCodice && (
                       <div
                         style={{

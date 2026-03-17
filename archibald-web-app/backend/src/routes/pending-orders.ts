@@ -32,6 +32,7 @@ const pendingOrderSchema = z.object({
   subClientName: z.string().nullable().optional(),
   subClientDataJson: z.unknown().optional(),
   idempotencyKey: z.string().nullable().optional(),
+  deliveryAddressId: z.number().optional().nullable(),
 });
 
 const batchUpsertSchema = z.object({

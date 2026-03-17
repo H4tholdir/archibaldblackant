@@ -66,6 +66,7 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     subClientCodice: raw.subClientCodice as string | undefined,
     subClientName: raw.subClientName as string | undefined,
     subClientData,
+    deliveryAddressId: (raw.deliveryAddressId as number | null | undefined) ?? null,
   };
 }
 
@@ -104,6 +105,7 @@ export async function savePendingOrder(
           subClientCodice: order.subClientCodice ?? null,
           subClientName: order.subClientName ?? null,
           subClientDataJson: order.subClientData ?? null,
+          deliveryAddressId: order.deliveryAddressId ?? null,
           idempotencyKey: `${order.id}-${order.updatedAt}`,
         },
       ],

@@ -8,12 +8,14 @@ import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { waitForJobViaWebSocket } from "../api/operations";
 
-import type { CustomerFormData } from "../types/customer-form-data";
+import type { CustomerFormData, AddressEntry } from "../types/customer-form-data";
 import type { VatLookupResult } from "../types/vat-lookup-result";
 import { determineVatEditStep } from "../utils/vat-edit-step";
 import { buildVatDiff, vatCompanyName } from "../utils/vat-diff";
 import type { VatEditStepDecision } from "../utils/vat-edit-step";
 import type { VatDiffField } from "../utils/vat-diff";
+import { getCustomerAddresses } from "../services/customer-addresses";
+import type { CustomerAddress } from "../types/customer-address";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
@@ -66,21 +68,6 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
   { key: "email", label: "Email", defaultValue: "", type: "email" },
 ];
 
-const DELIVERY_ADDRESS_FIELDS: FieldDef[] = [
-  { key: "deliveryStreet", label: "Via e civico (consegna)", defaultValue: "" },
-  {
-    key: "deliveryPostalCode",
-    label: "CAP (consegna)",
-    defaultValue: "",
-    maxLength: 5,
-    fieldType: "cap",
-  },
-];
-
-const ALL_DISPLAY_FIELDS: FieldDef[] = [
-  ...FIELDS_BEFORE_ADDRESS_QUESTION,
-  ...DELIVERY_ADDRESS_FIELDS,
-];
 
 const INITIAL_FORM: CustomerFormData = {
   name: "",
@@ -95,12 +82,9 @@ const INITIAL_FORM: CustomerFormData = {
   mobile: "+39",
   email: "",
   url: "",
-  deliveryStreet: "",
-  deliveryPostalCode: "",
   postalCodeCity: "",
   postalCodeCountry: "",
-  deliveryPostalCodeCity: "",
-  deliveryPostalCodeCountry: "",
+  addresses: [],
 };
 
 function customerToFormData(customer: Customer): CustomerFormData {
@@ -125,12 +109,9 @@ function customerToFormData(customer: Customer): CustomerFormData {
       : "+39",
     email: customer.email || "",
     url: customer.url || "",
-    deliveryStreet: "",
-    deliveryPostalCode: "",
     postalCodeCity: "",
     postalCodeCountry: "",
-    deliveryPostalCodeCity: "",
-    deliveryPostalCodeCountry: "",
+    addresses: [],
   };
 }
 
@@ -139,12 +120,8 @@ type StepType =
   | { kind: "vat-processing" }
   | { kind: "vat-review" }
   | { kind: "field"; fieldIndex: number }
-  | { kind: "address-question" }
-  | { kind: "delivery-field"; fieldIndex: number }
-  | {
-      kind: "cap-disambiguation";
-      targetField: "postalCode" | "deliveryPostalCode";
-    }
+  | { kind: "addresses" }
+  | { kind: "cap-disambiguation"; targetField: "postalCode" }
   | { kind: "summary" }
   | { kind: "vat-edit-check" }
   | { kind: "vat-diff-review" };
@@ -177,9 +154,15 @@ export function CustomerCreateModal({
   const formDataRef = useRef<CustomerFormData>({ ...INITIAL_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sameDeliveryAddress, setSameDeliveryAddress] = useState<
-    boolean | null
-  >(null);
+  const [localAddresses, setLocalAddresses] = useState<AddressEntry[]>([]);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState<AddressEntry>({
+    tipo: 'Consegna',
+    via: '',
+    cap: '',
+    citta: '',
+    nome: '',
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [paymentTermsSearch, setPaymentTermsSearch] = useState("");
@@ -221,13 +204,8 @@ export function CustomerCreateModal({
   } = useKeyboardScroll();
 
   const totalFieldsBefore = FIELDS_BEFORE_ADDRESS_QUESTION.length;
-  const totalDeliveryFields = DELIVERY_ADDRESS_FIELDS.length;
 
-  const totalSteps =
-    totalFieldsBefore +
-    1 +
-    (sameDeliveryAddress === false ? totalDeliveryFields : 0) +
-    1;
+  const totalSteps = totalFieldsBefore + 1 + 1;
 
   useEffect(() => {
     interactiveSessionIdRef.current = interactiveSessionId;
@@ -255,21 +233,12 @@ export function CustomerCreateModal({
         return 0;
       case "field":
         return currentStep.fieldIndex + 1;
-      case "address-question":
+      case "addresses":
         return totalFieldsBefore + 1;
-      case "delivery-field":
-        return totalFieldsBefore + 1 + currentStep.fieldIndex + 1;
       case "cap-disambiguation":
-        return currentStep.targetField === "postalCode"
-          ? FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
-              (f) => f.key === "postalCode",
-            ) + 1
-          : totalFieldsBefore +
-              1 +
-              DELIVERY_ADDRESS_FIELDS.findIndex(
-                (f) => f.key === "deliveryPostalCode",
-              ) +
-              1;
+        return FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+          (f) => f.key === "postalCode",
+        ) + 1;
       case "summary":
         return totalSteps;
     }
@@ -297,7 +266,9 @@ export function CustomerCreateModal({
     if (isOpen) {
       setError(null);
       setSaving(false);
-      setSameDeliveryAddress(null);
+      setLocalAddresses([]);
+      setShowAddressForm(false);
+      setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setCapDisambiguationEntries([]);
@@ -339,6 +310,23 @@ export function CustomerCreateModal({
 
       // Edit mode: set form data and route based on vatValidatedAt status
       setFormData(customerToFormData(editCustomer!));
+      getCustomerAddresses(editCustomer!.customerProfile)
+        .then((addrs: CustomerAddress[]) => {
+          setLocalAddresses(addrs.map((a) => ({
+            tipo: a.tipo,
+            nome: a.nome ?? undefined,
+            via: a.via ?? undefined,
+            cap: a.cap ?? undefined,
+            citta: a.citta ?? undefined,
+            contea: a.contea ?? undefined,
+            stato: a.stato ?? undefined,
+            idRegione: a.idRegione ?? undefined,
+            contra: a.contra ?? undefined,
+          })));
+        })
+        .catch((err: unknown) => {
+          console.error('[CustomerCreateModal] Failed to load addresses:', err);
+        });
       const decision: VatEditStepDecision = determineVatEditStep(editCustomer!);
 
       if (decision === 'force-vat-input') {
@@ -542,7 +530,7 @@ export function CustomerCreateModal({
 
   const resolveCapAndAdvance = (
     capValue: string,
-    targetField: "postalCode" | "deliveryPostalCode",
+    targetField: "postalCode",
     nextStepFn: () => void,
   ) => {
     if (!capValue) {
@@ -552,18 +540,10 @@ export function CustomerCreateModal({
     const entries = CAP_BY_CODE.get(capValue);
     if (!entries || entries.length <= 1) {
       if (entries && entries.length === 1) {
-        const cityKey =
-          targetField === "postalCode"
-            ? "postalCodeCity"
-            : "deliveryPostalCodeCity";
-        const countryKey =
-          targetField === "postalCode"
-            ? "postalCodeCountry"
-            : "deliveryPostalCodeCountry";
         setFormData((prev) => ({
           ...prev,
-          [cityKey]: entries[0].citta,
-          [countryKey]: entries[0].paese,
+          postalCodeCity: entries[0].citta,
+          postalCodeCountry: entries[0].paese,
         }));
       }
       nextStepFn();
@@ -588,7 +568,7 @@ export function CustomerCreateModal({
             });
           if (isCapField) {
             resolveCapAndAdvance(
-              formData[field.key],
+              formData[field.key] as string,
               field.key as "postalCode",
               nextStep,
             );
@@ -596,10 +576,10 @@ export function CustomerCreateModal({
             nextStep();
           }
         } else {
-          const nextStep = () => setCurrentStep({ kind: "address-question" });
+          const nextStep = () => setCurrentStep({ kind: "addresses" });
           if (isCapField) {
             resolveCapAndAdvance(
-              formData[field.key],
+              formData[field.key] as string,
               field.key as "postalCode",
               nextStep,
             );
@@ -609,42 +589,7 @@ export function CustomerCreateModal({
         }
         break;
       }
-      case "address-question":
-        break;
-      case "delivery-field": {
-        const field = DELIVERY_ADDRESS_FIELDS[currentStep.fieldIndex];
-        const isCapField =
-          field && "fieldType" in field && field.fieldType === "cap";
-
-        if (currentStep.fieldIndex < totalDeliveryFields - 1) {
-          const nextStep = () =>
-            setCurrentStep({
-              kind: "delivery-field",
-              fieldIndex: currentStep.fieldIndex + 1,
-            });
-          if (isCapField) {
-            resolveCapAndAdvance(
-              formData[field.key],
-              field.key as "deliveryPostalCode",
-              nextStep,
-            );
-          } else {
-            nextStep();
-          }
-        } else {
-          const nextStep = () => setCurrentStep({ kind: "summary" });
-          if (isCapField) {
-            resolveCapAndAdvance(
-              formData[field.key],
-              field.key as "deliveryPostalCode",
-              nextStep,
-            );
-          } else {
-            nextStep();
-          }
-        }
-        break;
-      }
+      case "addresses":
       case "cap-disambiguation":
       case "summary":
         break;
@@ -662,77 +607,29 @@ export function CustomerCreateModal({
         }
         break;
       }
-      case "address-question":
+      case "addresses":
         setCurrentStep({ kind: "field", fieldIndex: totalFieldsBefore - 1 });
         break;
-      case "delivery-field": {
-        if (currentStep.fieldIndex > 0) {
-          setCurrentStep({
-            kind: "delivery-field",
-            fieldIndex: currentStep.fieldIndex - 1,
-          });
-        } else {
-          setSameDeliveryAddress(null);
-          setCurrentStep({ kind: "address-question" });
-        }
-        break;
-      }
       case "cap-disambiguation": {
-        if (currentStep.targetField === "postalCode") {
-          const idx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
-            (f) => f.key === "postalCode",
-          );
-          setCurrentStep({
-            kind: "field",
-            fieldIndex: idx >= 0 ? idx : totalFieldsBefore - 1,
-          });
-        } else {
-          const idx = DELIVERY_ADDRESS_FIELDS.findIndex(
-            (f) => f.key === "deliveryPostalCode",
-          );
-          setCurrentStep({
-            kind: "delivery-field",
-            fieldIndex: idx >= 0 ? idx : 0,
-          });
-        }
+        const idx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+          (f) => f.key === "postalCode",
+        );
+        setCurrentStep({
+          kind: "field",
+          fieldIndex: idx >= 0 ? idx : totalFieldsBefore - 1,
+        });
         break;
       }
       case "summary": {
-        if (sameDeliveryAddress === false) {
-          setCurrentStep({
-            kind: "delivery-field",
-            fieldIndex: totalDeliveryFields - 1,
-          });
-        } else {
-          setCurrentStep({ kind: "address-question" });
-        }
+        setCurrentStep({ kind: "addresses" });
         break;
       }
-    }
-  };
-
-  const handleAddressAnswer = (same: boolean) => {
-    setSameDeliveryAddress(same);
-    if (same) {
-      setFormData((prev) => ({
-        ...prev,
-        deliveryStreet: "",
-        deliveryPostalCode: "",
-        deliveryPostalCodeCity: "",
-        deliveryPostalCodeCountry: "",
-      }));
-      setCurrentStep({ kind: "summary" });
-    } else {
-      setCurrentStep({ kind: "delivery-field", fieldIndex: 0 });
     }
   };
 
   const getCurrentField = (): FieldDef | null => {
     if (currentStep.kind === "field") {
       return FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex] ?? null;
-    }
-    if (currentStep.kind === "delivery-field") {
-      return DELIVERY_ADDRESS_FIELDS[currentStep.fieldIndex] ?? null;
     }
     return null;
   };
@@ -763,44 +660,19 @@ export function CustomerCreateModal({
   };
 
   const handleCapDisambiguationSelect = (entry: CapEntry) => {
-    const targetField = (
-      currentStep as {
-        kind: "cap-disambiguation";
-        targetField: "postalCode" | "deliveryPostalCode";
-      }
-    ).targetField;
-    const cityKey =
-      targetField === "postalCode"
-        ? "postalCodeCity"
-        : "deliveryPostalCodeCity";
-    const countryKey =
-      targetField === "postalCode"
-        ? "postalCodeCountry"
-        : "deliveryPostalCodeCountry";
     setFormData((prev) => ({
       ...prev,
-      [cityKey]: entry.citta,
-      [countryKey]: entry.paese,
+      postalCodeCity: entry.citta,
+      postalCodeCountry: entry.paese,
     }));
 
-    if (targetField === "postalCode") {
-      const capIdx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
-        (f) => f.key === "postalCode",
-      );
-      if (capIdx < totalFieldsBefore - 1) {
-        setCurrentStep({ kind: "field", fieldIndex: capIdx + 1 });
-      } else {
-        setCurrentStep({ kind: "address-question" });
-      }
+    const capIdx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+      (f) => f.key === "postalCode",
+    );
+    if (capIdx < totalFieldsBefore - 1) {
+      setCurrentStep({ kind: "field", fieldIndex: capIdx + 1 });
     } else {
-      const capIdx = DELIVERY_ADDRESS_FIELDS.findIndex(
-        (f) => f.key === "deliveryPostalCode",
-      );
-      if (capIdx < totalDeliveryFields - 1) {
-        setCurrentStep({ kind: "delivery-field", fieldIndex: capIdx + 1 });
-      } else {
-        setCurrentStep({ kind: "summary" });
-      }
+      setCurrentStep({ kind: "addresses" });
     }
   };
 
@@ -843,7 +715,7 @@ export function CustomerCreateModal({
   };
 
   const handleFieldChange = (key: keyof CustomerFormData, value: string) => {
-    const field = ALL_DISPLAY_FIELDS.find((f) => f.key === key);
+    const field = FIELDS_BEFORE_ADDRESS_QUESTION.find((f) => f.key === key);
     const transformed = field?.transform ? field.transform(value) : value;
     setFormData((prev) => {
       const next = { ...prev, [key]: transformed };
@@ -962,9 +834,8 @@ export function CustomerCreateModal({
   const isVatReview = currentStep.kind === "vat-review";
   const isVatEditCheck = currentStep.kind === "vat-edit-check";
   const isVatDiffReview = currentStep.kind === "vat-diff-review";
-  const isFieldStep =
-    currentStep.kind === "field" || currentStep.kind === "delivery-field";
-  const isAddressQuestion = currentStep.kind === "address-question";
+  const isFieldStep = currentStep.kind === "field";
+  const isAddressesStep = currentStep.kind === "addresses";
   const isCapDisambiguation = currentStep.kind === "cap-disambiguation";
   const isSummary = currentStep.kind === "summary";
   const isFirstStep =
@@ -1045,7 +916,7 @@ export function CustomerCreateModal({
             {!isSummary && !isCapDisambiguation && (
               <p style={{ fontSize: "14px", color: "#999" }}>
                 Passo {currentStepNumber} di {totalSteps}
-                {!isAddressQuestion ? " — Premi Enter per avanzare" : ""}
+                {!isAddressesStep ? " — Premi Enter per avanzare" : ""}
               </p>
             )}
             {isEditMode && !isSummary && !isCapDisambiguation && (
@@ -1697,7 +1568,7 @@ export function CustomerCreateModal({
                   ? currentField.type
                   : "text"
               }
-              value={formData[currentField.key]}
+              value={formData[currentField.key] as string}
               onChange={(e) =>
                 handleFieldChange(currentField.key, e.target.value)
               }
@@ -1954,16 +1825,7 @@ export function CustomerCreateModal({
             >
               Il CAP{" "}
               <span style={{ color: "#1976d2" }}>
-                {
-                  formData[
-                    (
-                      currentStep as {
-                        kind: "cap-disambiguation";
-                        targetField: "postalCode" | "deliveryPostalCode";
-                      }
-                    ).targetField
-                  ]
-                }
+                {formData.postalCode}
               </span>{" "}
               corrisponde a più località. Seleziona:
             </p>
@@ -2043,96 +1905,194 @@ export function CustomerCreateModal({
           </div>
         )}
 
-        {/* Address question step */}
-        {isAddressQuestion && (
-          <div style={{ marginBottom: "24px" }}>
-            <p
-              style={{
-                fontSize: "16px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "20px",
-                textAlign: "center",
-              }}
-            >
-              L'indirizzo di consegna coincide con quello di fatturazione?
-            </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => handleAddressAnswer(true)}
-                style={{
-                  flex: 1,
-                  padding: "14px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  backgroundColor: "#4caf50",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                Si
-              </button>
-              <button
-                onClick={() => handleAddressAnswer(false)}
-                style={{
-                  flex: 1,
-                  padding: "14px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  backgroundColor: "#ff9800",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                No
-              </button>
+        {/* Addresses step */}
+        {isAddressesStep && (
+          <div>
+            <div style={{ fontSize: "18px", fontWeight: 700, marginBottom: "16px" }}>
+              Indirizzi alternativi
             </div>
-            {/* Progress bar */}
-            <div
-              style={{
-                marginTop: "16px",
-                height: "4px",
-                backgroundColor: "#e0e0e0",
-                borderRadius: "2px",
-                overflow: "hidden",
-              }}
-            >
+
+            {localAddresses.length === 0 && !showAddressForm && (
+              <div style={{ color: "#9e9e9e", marginBottom: "12px", fontSize: "14px" }}>
+                Nessun indirizzo alternativo aggiunto
+              </div>
+            )}
+
+            {localAddresses.map((addr, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  marginBottom: "8px",
+                  backgroundColor: "#f5f5f5",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                <span>
+                  <strong>{addr.tipo}</strong>
+                  {addr.via ? ` — ${addr.via}` : ""}
+                  {addr.cap ? `, ${addr.cap}` : ""}
+                  {addr.citta ? ` ${addr.citta}` : ""}
+                </span>
+                <button
+                  onClick={() => {
+                    setLocalAddresses((prev) => prev.filter((_, i) => i !== idx));
+                  }}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    backgroundColor: "#fff",
+                    color: "#f44336",
+                    border: "1px solid #f44336",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Elimina
+                </button>
+              </div>
+            ))}
+
+            {showAddressForm && (
               <div
                 style={{
-                  width: `${(currentStepNumber / totalSteps) * 100}%`,
-                  height: "100%",
-                  backgroundColor: "#1976d2",
-                  transition: "width 0.3s ease",
+                  padding: "12px",
+                  backgroundColor: "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: "8px",
+                  marginBottom: "12px",
                 }}
-              />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-start",
-                marginTop: "16px",
-              }}
-            >
+              >
+                <div style={{ marginBottom: "8px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                    Tipo *
+                  </label>
+                  <select
+                    value={addressForm.tipo}
+                    onChange={(e) => setAddressForm((f) => ({ ...f, tipo: e.target.value }))}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      fontSize: "14px",
+                      borderRadius: "6px",
+                      border: "1px solid #ccc",
+                    }}
+                  >
+                    <option value="Consegna">Consegna</option>
+                    <option value="Ufficio">Ufficio</option>
+                    <option value="Fattura">Fattura</option>
+                    <option value="Indir. cons. alt.">Indir. cons. alt.</option>
+                  </select>
+                </div>
+                {(["via", "cap", "citta", "nome"] as const).map((field) => (
+                  <div key={field} style={{ marginBottom: "8px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                      {field === "via" ? "Via e civico" : field === "cap" ? "CAP" : field === "citta" ? "Città" : "Nome (opzionale)"}
+                    </label>
+                    <input
+                      type="text"
+                      value={(addressForm as Record<string, string | undefined>)[field] ?? ""}
+                      onChange={(e) =>
+                        setAddressForm((f) => ({ ...f, [field]: e.target.value }))
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        fontSize: "14px",
+                        borderRadius: "6px",
+                        border: "1px solid #ccc",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    onClick={() => {
+                      if (!addressForm.tipo) return;
+                      setLocalAddresses((prev) => [...prev, { ...addressForm }]);
+                      setShowAddressForm(false);
+                      setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      backgroundColor: "#1976d2",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Conferma
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddressForm(false);
+                      setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      backgroundColor: "#fff",
+                      color: "#757575",
+                      border: "1px solid #ccc",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showAddressForm && (
               <button
-                onClick={goBack}
+                onClick={() => setShowAddressForm(true)}
                 style={{
-                  padding: "10px 20px",
+                  width: "100%",
+                  padding: "10px",
                   fontSize: "14px",
                   fontWeight: 600,
                   backgroundColor: "#fff",
-                  color: "#666",
-                  border: "1px solid #ddd",
+                  color: "#1976d2",
+                  border: "2px dashed #1976d2",
                   borderRadius: "8px",
                   cursor: "pointer",
+                  marginBottom: "16px",
                 }}
               >
-                Indietro
+                + Aggiungi indirizzo
               </button>
-            </div>
+            )}
+
+            <button
+              onClick={() => {
+                setFormData((f) => ({ ...f, addresses: localAddresses }));
+                setCurrentStep({ kind: "summary" });
+              }}
+              style={{
+                width: "100%",
+                padding: "14px",
+                fontSize: "16px",
+                fontWeight: 700,
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Avanti
+            </button>
           </div>
         )}
 
@@ -2148,7 +2108,7 @@ export function CustomerCreateModal({
               }}
             >
               {FIELDS_BEFORE_ADDRESS_QUESTION.map((field) => {
-                const value = formData[field.key];
+                const value = formData[field.key] as string | undefined;
                 if (!value) return null;
                 let displayValue = value;
                 if (field.key === "paymentTerms") {
@@ -2187,69 +2147,16 @@ export function CustomerCreateModal({
                   </div>
                 );
               })}
-              {sameDeliveryAddress === false &&
-                DELIVERY_ADDRESS_FIELDS.map((field) => {
-                  const value = formData[field.key];
-                  if (!value) return null;
-                  let displayValue = value;
-                  if (
-                    field.key === "deliveryPostalCode" &&
-                    formData.deliveryPostalCodeCity
-                  ) {
-                    displayValue = getCapCityDisplay(
-                      value,
-                      formData.deliveryPostalCodeCity,
-                    );
-                  }
-                  return (
-                    <div
-                      key={field.key}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "8px 0",
-                        borderBottom: "1px solid #e0e0e0",
-                        fontSize: "14px",
-                      }}
-                    >
-                      <span style={{ color: "#666", fontWeight: 600 }}>
-                        {field.label}
-                      </span>
-                      <span
-                        style={{
-                          color: "#333",
-                          maxWidth: "60%",
-                          textAlign: "right",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {displayValue}
-                      </span>
+              {formData.addresses && formData.addresses.length > 0 && (
+                <div style={{ marginTop: "8px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#616161" }}>Indirizzi alternativi</div>
+                  {formData.addresses.map((addr, i) => (
+                    <div key={i} style={{ fontSize: "13px", color: "#424242" }}>
+                      {addr.tipo}{addr.via ? ` — ${addr.via}` : ""}{addr.cap ? `, ${addr.cap}` : ""}{addr.citta ? ` ${addr.citta}` : ""}
                     </div>
-                  );
-                })}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "8px 0",
-                  fontSize: "14px",
-                }}
-              >
-                <span style={{ color: "#666", fontWeight: 600 }}>
-                  Indirizzo consegna
-                </span>
-                <span
-                  style={{
-                    color: sameDeliveryAddress ? "#4caf50" : "#ff9800",
-                    fontWeight: 600,
-                  }}
-                >
-                  {sameDeliveryAddress
-                    ? "Coincide con fatturazione"
-                    : "Diverso"}
-                </span>
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && (

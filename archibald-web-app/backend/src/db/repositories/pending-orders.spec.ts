@@ -39,6 +39,7 @@ describe('mapRowToPendingOrder', () => {
       notes: null,
       job_id: 'job-abc',
       job_started_at: '2026-03-10T10:00:00Z',
+      delivery_address_id: null,
     };
 
     const result = mapRowToPendingOrder(row);
@@ -74,6 +75,7 @@ describe('mapRowToPendingOrder', () => {
       notes: null,
       job_id: null,
       job_started_at: null,
+      delivery_address_id: null,
     };
 
     const result = mapRowToPendingOrder(row);

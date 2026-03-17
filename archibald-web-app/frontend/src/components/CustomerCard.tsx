@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import type { Customer } from "../types/customer";
+import type { CustomerAddress } from "../types/customer-address";
 import { formatCurrency } from "../utils/format-currency";
 import { PhotoCropModal } from "./PhotoCropModal";
+import { getCustomerAddresses } from "../services/customer-addresses";
 
 interface CustomerCardProps {
   customer: Customer;
@@ -30,6 +32,17 @@ export function CustomerCard({
     customer.botStatus === "failed" || customer.botStatus === "pending";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [altAddresses, setAltAddresses] = useState<CustomerAddress[]>([]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    getCustomerAddresses(customer.customerProfile)
+      .then(setAltAddresses)
+      .catch((err) => {
+        console.error('[CustomerCard] Failed to load alt addresses:', err);
+        setAltAddresses([]);
+      });
+  }, [expanded, customer.customerProfile]);
 
   const handleFileSelected = (file: File) => {
     const reader = new FileReader();
@@ -792,6 +805,58 @@ export function CustomerCard({
                   {formatAmount(customer.previousSales1)}
                 </div>
               </div>
+            </div>
+
+            {/* Indirizzi alternativi */}
+            <div style={{ marginTop: "20px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: "#616161",
+                  marginBottom: "10px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Indirizzi alternativi
+              </div>
+              {altAddresses.length === 0 ? (
+                <div style={{ fontSize: "13px", color: "#9e9e9e", fontStyle: "italic" }}>
+                  Nessun indirizzo alternativo registrato
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr>
+                      {(["Tipo", "Via", "CAP", "Città"] as const).map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: "left",
+                            padding: "6px 8px",
+                            borderBottom: "1px solid #e0e0e0",
+                            color: "#757575",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {altAddresses.map((addr) => (
+                      <tr key={addr.id}>
+                        <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0f0f0" }}>{addr.tipo}</td>
+                        <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0f0f0" }}>{addr.via ?? "—"}</td>
+                        <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0f0f0" }}>{addr.cap ?? "—"}</td>
+                        <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0f0f0" }}>{addr.citta ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {/* Actions */}
