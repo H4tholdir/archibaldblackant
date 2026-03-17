@@ -12842,10 +12842,10 @@ export class ArchibaldBot {
 
       const rows = Array.from(grid.querySelectorAll('[class*="dxgvDataRow_"]'));
       return rows.map((row) => {
-        // DevExpress data cells carry the class "dxgv"; command/button cells use
-        // "dxgvCommandColumnCell_*" and do NOT carry plain "dxgv". Filtering by .dxgv
-        // skips the leading button columns present in the XafTheme variant of the grid.
-        const cells = Array.from(row.querySelectorAll('td.dxgv'));
+        // Command column cells carry class "dxgvCommandColumn_XafTheme dxgv dx-ac".
+        // Data cells carry only "dxgv dx-al". The :not() filter skips the 2 leading
+        // command/button cells so indices map directly to data columns.
+        const cells = Array.from(row.querySelectorAll('td.dxgv:not([class*="dxgvCommandColumn"])'));
         const cellText = (i: number) => cells[i]?.textContent?.trim() || null;
         return {
           tipo: cellText(0) ?? '',
@@ -12854,8 +12854,8 @@ export class ArchibaldBot {
           cap: cellText(3),
           citta: cellText(4),
           contea: cellText(5),
-          stato: cellText(6),
-          idRegione: cellText(7),
+          idRegione: cellText(6),
+          stato: cellText(7),
           contra: cellText(8),
         };
       });
