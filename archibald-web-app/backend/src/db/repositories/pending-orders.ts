@@ -27,6 +27,11 @@ type PendingOrderRow = {
   job_id: string | null;
   job_started_at: string | null;
   delivery_address_id: number | null;
+  addr_via: string | null;
+  addr_cap: string | null;
+  addr_citta: string | null;
+  addr_tipo: string | null;
+  addr_nome: string | null;
 };
 
 type PendingOrder = {
@@ -56,6 +61,13 @@ type PendingOrder = {
   jobId: string | null;
   jobStartedAt: string | null;
   deliveryAddressId: number | null;
+  deliveryAddressResolved?: {
+    via: string | null;
+    cap: string | null;
+    citta: string | null;
+    tipo: string;
+    nome: string | null;
+  } | null;
 };
 
 type PendingOrderInput = {
@@ -113,12 +125,33 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     jobId: row.job_id,
     jobStartedAt: row.job_started_at,
     deliveryAddressId: row.delivery_address_id,
+    deliveryAddressResolved: row.addr_tipo
+      ? {
+          via: row.addr_via,
+          cap: row.addr_cap,
+          citta: row.addr_citta,
+          tipo: row.addr_tipo,
+          nome: row.addr_nome,
+        }
+      : null,
   };
 }
 
 async function getPendingOrders(pool: DbPool, userId: string): Promise<PendingOrder[]> {
   const { rows } = await pool.query<PendingOrderRow>(
-    'SELECT * FROM agents.pending_orders WHERE user_id = $1 ORDER BY updated_at DESC',
+    `SELECT
+      po.*,
+      ca.via   AS addr_via,
+      ca.cap   AS addr_cap,
+      ca.citta AS addr_citta,
+      ca.tipo  AS addr_tipo,
+      ca.nome  AS addr_nome
+    FROM agents.pending_orders po
+    LEFT JOIN agents.customer_addresses ca
+      ON ca.id = po.delivery_address_id
+     AND ca.user_id = po.user_id
+    WHERE po.user_id = $1
+    ORDER BY po.updated_at DESC`,
     [userId],
   );
   return rows.map(mapRowToPendingOrder);
