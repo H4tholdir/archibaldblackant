@@ -165,7 +165,7 @@ describe('createCustomersRouter', () => {
 
       expect(deps.upsertSingleCustomer).toHaveBeenCalledWith(
         'user-1',
-        validCustomer,
+        { ...validCustomer, addresses: [] },
         expect.stringMatching(/^TEMP-\d+$/),
         'pending',
       );
@@ -211,7 +211,7 @@ describe('createCustomersRouter', () => {
       expect(deps.getCustomerByProfile).toHaveBeenCalledWith('user-1', 'CUST-001');
       expect(deps.upsertSingleCustomer).toHaveBeenCalledWith(
         'user-1',
-        updateData,
+        { ...updateData, addresses: [] },
         'CUST-001',
         'pending',
       );

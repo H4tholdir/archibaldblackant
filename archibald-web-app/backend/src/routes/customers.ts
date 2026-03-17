@@ -60,6 +60,17 @@ const createCustomerSchema = z.object({
   email: z.string().optional(),
   url: z.string().optional(),
   deliveryMode: z.string().optional(),
+  addresses: z.array(z.object({
+    tipo: z.string(),
+    nome: z.string().optional(),
+    via: z.string().optional(),
+    cap: z.string().optional(),
+    citta: z.string().optional(),
+    contea: z.string().optional(),
+    stato: z.string().optional(),
+    idRegione: z.string().optional(),
+    contra: z.string().optional(),
+  })).optional().default([]),
 });
 
 function createCustomersRouter(deps: CustomersRouterDeps) {

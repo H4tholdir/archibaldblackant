@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AddressEntry } from '../types';
 
 const makePageMock = () => ({
-  evaluate: vi.fn().mockResolvedValue(0),           // rowCount = 0 by default
+  evaluate: vi.fn().mockResolvedValue(undefined),
   $: vi.fn().mockResolvedValue(null),
   click: vi.fn().mockResolvedValue(undefined),
+  once: vi.fn(),
   waitForSelector: vi.fn().mockResolvedValue(null),
   keyboard: { press: vi.fn().mockResolvedValue(undefined), type: vi.fn().mockResolvedValue(undefined) },
   waitForFunction: vi.fn().mockResolvedValue(undefined),
@@ -40,64 +41,64 @@ describe('writeAltAddresses', () => {
   });
 
   it('skips delete step when grid has no existing rows', async () => {
-    page.evaluate.mockResolvedValueOnce(0); // rowCount = 0
+    page.evaluate
+      .mockResolvedValueOnce('ADDRESSes_test')  // altGridName (truthy)
+      .mockResolvedValueOnce(0);                // rowCount = 0
 
     await (bot as any).writeAltAddresses([]);
 
-    expect(page.click).not.toHaveBeenCalledWith(expect.stringContaining('btnDelete'));
+    expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'alt-delete-confirm' }),
+    );
   });
 
   it('attempts select-all and delete when grid has existing rows', async () => {
+    const selBtnEl = { click: vi.fn().mockResolvedValue(undefined) };
+    page.waitForSelector.mockResolvedValueOnce(selBtnEl);
     page.evaluate
-      .mockResolvedValueOnce('')      // altGridName = '' (first evaluate)
-      .mockResolvedValueOnce(2)       // rowCount = 2
-      .mockResolvedValue(undefined);  // subsequent evaluate calls
-    const selectAllEl = { click: vi.fn().mockResolvedValue(undefined) };
-    page.$.mockResolvedValueOnce(selectAllEl); // selectAll checkbox found
+      .mockResolvedValueOnce('ADDRESSes_test')  // altGridName
+      .mockResolvedValueOnce(1)                 // rowCount = 1
+      .mockResolvedValueOnce(false)             // alreadyEnabled = false
+      .mockResolvedValueOnce(true)              // toolbarEnabled = true
+      .mockResolvedValueOnce(undefined)         // toolbar delete click
+      .mockResolvedValueOnce(0);               // polled rowCount = 0 (done)
 
     await (bot as any).writeAltAddresses([]);
 
-    expect(selectAllEl.click).toHaveBeenCalled();
-    expect(page.click).toHaveBeenCalledWith(expect.stringContaining('btnDelete'));
-    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalled();
+    expect(selBtnEl.click).toHaveBeenCalled();
+    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'alt-delete-confirm' }),
+    );
   });
 
   it('inserts each non-empty address', async () => {
-    // altGridName returns '' → fallback AddNew path
-    // AddNew evaluate returns true (row added)
-    // tipoSet evaluate returns { found: false, id: '' }
-    // viaSet evaluate returns false (direct typing fallback)
-    // findBtnId evaluate returns null (no CAP button found → skip lookup)
-    // UpdateEdit evaluate returns false (Enter fallback)
-    const perAddressMocks = [
-      true,                          // AddNew candidates found
-      { found: false, id: '' },      // TIPO set result
-      undefined,                     // NOME evaluate (no nome for addressA)
-      false,                         // VIA set result
-      null,                          // findBtnId (no CAP button)
-      false,                         // UpdateEdit candidates
-    ];
-
+    // Per address: AddNewRow, STREET, findBtnId (null→keyboard.type), CITY,
+    // dismiss-CITY-popup, SetValue TYPE, UpdateEdit.
+    // addressA has no nome; addressB has nome (extra evaluate call).
     page.evaluate
-      .mockResolvedValueOnce('')     // altGridName
-      .mockResolvedValueOnce(0)      // rowCount
-      .mockResolvedValueOnce(perAddressMocks[0])
-      .mockResolvedValueOnce(perAddressMocks[1])
-      .mockResolvedValueOnce(perAddressMocks[2])
-      .mockResolvedValueOnce(perAddressMocks[3])
-      .mockResolvedValueOnce(perAddressMocks[4])
-      .mockResolvedValueOnce(perAddressMocks[5])
-      // second address (addressB has nome)
-      .mockResolvedValueOnce(true)                  // AddNew
-      .mockResolvedValueOnce({ found: false, id: '' }) // TIPO
-      .mockResolvedValueOnce(undefined)             // NOME
-      .mockResolvedValueOnce(false)                 // VIA
-      .mockResolvedValueOnce(null)                  // findBtnId
-      .mockResolvedValueOnce(false);                // UpdateEdit
+      .mockResolvedValueOnce('ADDRESSes_test')  // altGridName (truthy)
+      .mockResolvedValueOnce(0)                 // rowCount = 0 (no delete)
+      // addressA
+      .mockResolvedValueOnce(undefined)         // AddNewRow
+      .mockResolvedValueOnce(undefined)         // STREET
+      .mockResolvedValueOnce(null)              // findBtnId (no CAP button)
+      .mockResolvedValueOnce(undefined)         // CITY
+      .mockResolvedValueOnce(undefined)         // dismiss CITY popup
+      .mockResolvedValueOnce(true)              // SetValue TYPE
+      .mockResolvedValueOnce(undefined)         // UpdateEdit
+      // addressB (has nome)
+      .mockResolvedValueOnce(undefined)         // AddNewRow
+      .mockResolvedValueOnce(undefined)         // NOME
+      .mockResolvedValueOnce(undefined)         // STREET
+      .mockResolvedValueOnce(null)              // findBtnId
+      .mockResolvedValueOnce(undefined)         // CITY
+      .mockResolvedValueOnce(undefined)         // dismiss CITY popup
+      .mockResolvedValueOnce(true)              // SetValue TYPE
+      .mockResolvedValueOnce(undefined);        // UpdateEdit
 
     await (bot as any).writeAltAddresses([addressA, addressB]);
 
-    // At minimum: tab-open idle + addnew idle for each of the 2 addresses
+    // At minimum: tab idle + (addnew + cap-done + city-done + update-edit) × 2 addresses
     const idleCallCount = (bot as any).waitForDevExpressIdle.mock.calls.length;
     expect(idleCallCount).toBeGreaterThanOrEqual(3);
   });
@@ -117,7 +118,9 @@ describe('writeAltAddresses', () => {
   });
 
   it('calls with empty array: only opens tab, skips insert loop entirely', async () => {
-    page.evaluate.mockResolvedValue(0);
+    page.evaluate
+      .mockResolvedValueOnce('ADDRESSes_test')  // altGridName (truthy)
+      .mockResolvedValueOnce(0);                // rowCount = 0
 
     await (bot as any).writeAltAddresses([]);
 
