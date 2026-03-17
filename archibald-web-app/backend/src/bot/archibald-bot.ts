@@ -3095,7 +3095,23 @@ export class ArchibaldBot {
       }
     }
 
-    await this.waitForDevExpressIdle({ label: 'delivery-address-select' });
+    // page.click() triggers a real DevExpress server postback to persist the selected
+    // address on the order. waitForDevExpressIdle alone is unreliable here because
+    // InCallback() may return false before the postback actually completes.
+    // Wait explicitly for the field value to change from 'N/A', which confirms the
+    // server roundtrip finished and the form is stable before article insertion starts.
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const inp = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null;
+          return Boolean(inp && inp.value && inp.value !== 'N/A');
+        },
+        { timeout: 15000, polling: 300 },
+      );
+    } catch {
+      logger.warn('selectDeliveryAddress: field value did not update after row click (postback may still be pending)');
+    }
+    await this.waitForDevExpressIdle({ label: 'delivery-address-select', timeout: 15000 });
   }
 
   /**
