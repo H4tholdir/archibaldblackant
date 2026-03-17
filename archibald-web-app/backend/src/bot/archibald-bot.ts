@@ -12823,32 +12823,56 @@ export class ArchibaldBot {
     await this.openCustomerTab('Indirizzo alt');
     await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-read' });
 
-    // Wait until the grid is fully rendered: either data rows or the empty-data row are present.
-    // Without this, a slow DevExpress callback can leave the grid container in the DOM but
-    // with no rows yet, causing readAltAddresses to return [] and wipe existing addresses.
+    // Resolve the grid container ID via the ASPxClientControl API (same approach as
+    // writeAltAddresses). This works regardless of the DevExpress CSS theme (_Aqua vs
+    // _XafTheme) and targets the correct grid (LOGISTICS/Address) rather than any other
+    // grid that may be present on the page (e.g. SALESTABLES on the default tab).
+    const gridContainerId = await this.page.evaluate(() => {
+      const w = window as any;
+      if (!w.ASPxClientControl?.GetControlCollection) return '';
+      let found = '';
+      w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
+        const cName: string = c?.name || c?.GetName?.() || '';
+        if (
+          (cName.includes('LOGISTICS') || cName.toUpperCase().includes('ADDRESS')) &&
+          typeof c?.GetMainElement === 'function'
+        ) {
+          found = c.GetMainElement?.()?.id || '';
+        }
+      });
+      return found;
+    });
+
+    // Wait until the resolved grid (or any visible alt-address grid) has rows or shows
+    // the empty-data indicator. Theme-agnostic: matches _Aqua, _XafTheme, etc.
     await this.page.waitForFunction(
-      () => {
-        const grid = document.querySelector('.dxgvControl_Aqua');
-        if (!grid) return false;
+      (containerId: string) => {
+        const root: Element | null = containerId
+          ? document.getElementById(containerId)
+          : document.querySelector('[class*="dxgvControl"]');
+        if (!root) return false;
         return (
-          grid.querySelector('tr.dxgvDataRow_Aqua') !== null ||
-          grid.querySelector('tr[class*="EmptyData"]') !== null ||
-          grid.querySelector('tr[class*="emptyData"]') !== null
+          root.querySelector('[class*="dxgvDataRow_"]') !== null ||
+          root.querySelector('[class*="EmptyData"]') !== null ||
+          root.querySelector('[class*="emptyData"]') !== null
         );
       },
       { timeout: 10000, polling: 300 },
+      gridContainerId,
     ).catch(() => {
       logger.warn('readAltAddresses: grid-ready timeout — proceeding with whatever is in DOM');
     });
 
-    const addresses = await this.page.evaluate(() => {
-      const grid = document.querySelector('.dxgvControl_Aqua') as HTMLElement | null;
-      if (!grid) return [];
+    const addresses = await this.page.evaluate((containerId: string) => {
+      const root: Element | null = containerId
+        ? document.getElementById(containerId)
+        : document.querySelector('[class*="dxgvControl"]');
+      if (!root) return [];
 
-      const rows = Array.from(grid.querySelectorAll('tr.dxgvDataRow_Aqua'));
+      const rows = Array.from(root.querySelectorAll('[class*="dxgvDataRow_"]'));
       return rows.map((row) => {
         const cells = Array.from(row.querySelectorAll('td'));
-        const cellText = (i: number) => cells[i]?.textContent?.trim() || null;
+        const cellText = (i: number) => (cells[i]?.textContent?.trim() || null);
         return {
           tipo: cellText(0) ?? '',
           nome: cellText(1),
@@ -12861,7 +12885,7 @@ export class ArchibaldBot {
           contra: cellText(8),
         };
       });
-    }) as AltAddress[];
+    }, gridContainerId) as AltAddress[];
 
     return addresses;
   }
