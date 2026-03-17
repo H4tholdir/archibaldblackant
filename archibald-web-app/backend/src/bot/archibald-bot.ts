@@ -3022,7 +3022,11 @@ export class ArchibaldBot {
       return;
     }
 
-    await fieldInput.evaluate(el => (el as HTMLElement).scrollIntoView({ block: 'center' }));
+    // Scroll the field into view via evaluate — no stale-handle risk since it runs in browser.
+    await this.page.evaluate(() => {
+      const el = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLElement | null;
+      el?.scrollIntoView({ block: 'center' });
+    });
 
     // Open dropdown via DevExpress JS API — avoids bbox=null "not clickable" errors
     // that occur in headless Chrome when the element has no viewport bounding box.
@@ -3035,15 +3039,21 @@ export class ArchibaldBot {
     });
     await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
 
-    // Type the search term into the popup search box (the "Enter text to search" field),
-    // not the main combo input — this triggers the correct server-side AJAX filter.
-    const searchBox = await this.page.$('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]');
-    if (searchBox) {
-      await searchBox.click();
-    }
-    // Use only the street name (before the comma) to avoid filtering issues with house numbers
-    const searchTerm = via.includes(',') ? via.split(',')[0].trim() : via;
-    await this.page.keyboard.type(searchTerm);
+    // Wait for the popup search box to be present in the DOM before pasting —
+    // ShowDropDown renders the popup asynchronously and execCommand silently
+    // no-ops if the element is not yet initialized by DevExpress.
+    await this.page.waitForSelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]', { timeout: 5000 });
+
+    // Paste the full address (including house number) into the popup search box via
+    // execCommand('insertText') — faster than keyboard.type() and triggers DevExpress
+    // input events correctly without character-by-character delays.
+    await this.page.evaluate((term: string) => {
+      const el = document.querySelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]') as HTMLInputElement | null;
+      if (!el) return;
+      el.focus();
+      el.select();
+      document.execCommand('insertText', false, term);
+    }, via);
     await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
 
     // Use ID-based selector: XAF theme applies dxgvDataRow_XafTheme class (not dxgvDataRow)
@@ -3052,8 +3062,8 @@ export class ArchibaldBot {
     );
 
     if (rowCount === 0) {
-      // DevExpress may have auto-selected the only matching row and closed the dropdown.
-      // Verify by checking if the input field value changed from default "N/A".
+      // DevExpress may have auto-selected the only matching row and closed the popup.
+      // Verify by checking if the input field value changed from the default "N/A".
       const inputValue = await this.page.evaluate(
         () => (document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null)?.value ?? '',
       );
@@ -3069,10 +3079,20 @@ export class ArchibaldBot {
       return;
     }
 
-    // Use elementHandle.click() for a real mouse event that DevExpress processes correctly.
-    const firstRow = await this.page.$('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow"]');
-    if (firstRow) {
-      await firstRow.click();
+    // Click on the first matching row's td cell. page.click() dispatches real
+    // mouse events through CDP which triggers DevExpress row selection.
+    // DevExpress may re-render the grid after the filter AJAX (stale handle race);
+    // retry once after a short wait if the node is detached.
+    const rowCellSelector = '[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow0"] td';
+    try {
+      await this.page.click(rowCellSelector);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('detached')) {
+        await new Promise(r => setTimeout(r, 400));
+        await this.page.click(rowCellSelector);
+      } else {
+        throw err;
+      }
     }
 
     await this.waitForDevExpressIdle({ label: 'delivery-address-select' });

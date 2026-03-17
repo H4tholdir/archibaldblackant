@@ -36,11 +36,6 @@ const addressLioni: CustomerAddress = {
   contra: null,
 };
 
-// Helpers for the three sequential page.$ calls in the happy path:
-// 1. fieldInput, 2. searchBox (popup search field), 3. firstRow
-const makeInputEl = () => ({ evaluate: vi.fn().mockResolvedValue(undefined), click: vi.fn().mockResolvedValue(undefined) });
-const makeClickEl = () => ({ click: vi.fn().mockResolvedValue(undefined) });
-
 describe('selectDeliveryAddress', () => {
   let page: ReturnType<typeof makePageMock>;
   let bot: ArchibaldBot;
@@ -74,58 +69,60 @@ describe('selectDeliveryAddress', () => {
     );
   });
 
-  it('looks up input by DELIVERYPOSTALADDRESS_Edit_I, focuses popup search box, and types search term', async () => {
-    const inputEl = makeInputEl();
-    const searchBoxEl = makeClickEl(); // popup "Enter text to search" field
-    const rowEl = makeClickEl();
-    page.$.mockResolvedValueOnce(inputEl);    // fieldInput
-    page.$.mockResolvedValueOnce(searchBoxEl); // searchBox
-    page.$.mockResolvedValueOnce(rowEl);       // firstRow
+  it('pastes full via into popup search box and clicks first matching row td', async () => {
+    page.$.mockResolvedValueOnce({}); // fieldInput exists
+    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
     page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
+    // waitForSelector for DXSE_I is called between ShowDropDown and paste
+    page.evaluate.mockResolvedValueOnce(undefined); // execCommand paste into search box
     page.evaluate.mockResolvedValueOnce(1);         // rowCount = 1
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
     expect(page.$).toHaveBeenCalledWith('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
-    expect(page.$).toHaveBeenCalledWith(expect.stringContaining('DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I'));
-    expect(inputEl.evaluate).toHaveBeenCalled(); // scrollIntoView
-    expect(searchBoxEl.click).toHaveBeenCalled();
-    expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca');
-    expect(rowEl.click).toHaveBeenCalled();
+    expect(page.waitForSelector).toHaveBeenCalledWith(
+      expect.stringContaining('DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I'),
+      expect.any(Object),
+    );
+    expect(page.keyboard.type).not.toHaveBeenCalled();
+    expect(page.keyboard.press).not.toHaveBeenCalled();
+    expect(page.click).toHaveBeenCalledWith(
+      expect.stringContaining('DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow0'),
+    );
   });
 
   it('returns early with warn when no rows and input is still N/A', async () => {
-    const inputEl = makeInputEl();
-    page.$.mockResolvedValueOnce(inputEl); // fieldInput
-    // searchBox returns null (default mock) — ok, type still proceeds
+    page.$.mockResolvedValueOnce({});
+    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
     page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
+    page.evaluate.mockResolvedValueOnce(undefined); // paste into search box
     page.evaluate.mockResolvedValueOnce(0);         // rowCount = 0
-    page.evaluate.mockResolvedValueOnce('N/A');     // inputValue = N/A
+    page.evaluate.mockResolvedValueOnce('N/A');     // inputValue
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
     expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(3);
+    expect(page.click).not.toHaveBeenCalled();
   });
 
   it('returns early without warn when DevExpress auto-selected (0 rows, input changed)', async () => {
-    const inputEl = makeInputEl();
-    page.$.mockResolvedValueOnce(inputEl);
-    page.evaluate.mockResolvedValueOnce(undefined);                        // ShowDropDown
-    page.evaluate.mockResolvedValueOnce(0);                                // rowCount = 0
-    page.evaluate.mockResolvedValueOnce('Via Francesco Petrarca');         // inputValue = auto-selected
+    page.$.mockResolvedValueOnce({});
+    page.evaluate.mockResolvedValueOnce(undefined);
+    page.evaluate.mockResolvedValueOnce(undefined);
+    page.evaluate.mockResolvedValueOnce(undefined);
+    page.evaluate.mockResolvedValueOnce(0);
+    page.evaluate.mockResolvedValueOnce('Via Francesco Petrarca');
 
     await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
     expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(3);
+    expect(page.click).not.toHaveBeenCalled();
   });
 
   it('calls waitForDevExpressIdle four times and uses delivery-address-select label on success', async () => {
-    const inputEl = makeInputEl();
-    const searchBoxEl = makeClickEl();
-    const rowEl = makeClickEl();
-    page.$.mockResolvedValueOnce(inputEl);
-    page.$.mockResolvedValueOnce(searchBoxEl);
-    page.$.mockResolvedValueOnce(rowEl);
+    page.$.mockResolvedValueOnce({});
+    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
     page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
+    page.evaluate.mockResolvedValueOnce(undefined); // paste into search box
     page.evaluate.mockResolvedValueOnce(1);         // rowCount = 1
 
     await (bot as any).selectDeliveryAddress(addressLioni);
