@@ -3755,9 +3755,9 @@ export class ArchibaldBot {
 
       await this.emitProgress("form.customer");
 
-      if (orderData.deliveryAddress) {
-        await this.selectDeliveryAddress(orderData.deliveryAddress);
-      }
+      // NOTE: selectDeliveryAddress is called AFTER all articles are added (see STEP 9.7),
+      // because XAF AJAX callbacks during article addition reset the server ObjectSpace and
+      // overwrite any delivery address set before articles are entered.
 
       // Helper: open "Prezzi e sconti" tab
       const openPrezziEScontiTab = async (): Promise<boolean> => {
@@ -6237,6 +6237,30 @@ export class ArchibaldBot {
           "form.discount",
         );
         await this.emitProgress("form.discount");
+      }
+
+      // STEP 9.7: Select delivery address RIGHT BEFORE save.
+      // Must be done after all articles (and any periodic saves) because XAF AJAX callbacks
+      // during article addition reset the server-side ObjectSpace, reverting any delivery
+      // address change made earlier to the customer's default address.
+      if (orderData.deliveryAddress) {
+        // Ensure we are on the Overview tab so DELIVERYPOSTALADDRESS is in the DOM.
+        const navigatedToOverview = await this.page!.evaluate(() => {
+          const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
+          const overviewLink = allLinks.find(el => {
+            const t = el.textContent?.trim().toLowerCase() ?? '';
+            return t === 'overview' || t === 'panoramica' || t === 'panoramique';
+          });
+          if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
+            (overviewLink as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+        if (navigatedToOverview) {
+          await this.waitForDevExpressIdle({ label: 'overview-tab-for-delivery-address', timeout: 6000 });
+        }
+        await this.selectDeliveryAddress(orderData.deliveryAddress);
       }
 
       // STEP 10: Save and close order
