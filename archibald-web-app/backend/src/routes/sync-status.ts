@@ -86,7 +86,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const SYNC_HISTORY_TYPES: OperationType[] = [
     'sync-customers', 'sync-orders', 'sync-ddt',
     'sync-invoices', 'sync-products', 'sync-prices',
-    'sync-order-articles', 'sync-tracking',
+    'sync-order-articles', 'sync-tracking', 'sync-customer-addresses',
   ];
 
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
