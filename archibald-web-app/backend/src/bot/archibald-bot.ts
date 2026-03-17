@@ -11636,192 +11636,183 @@ export class ArchibaldBot {
     await this.openCustomerTab('Indirizzo alt');
     await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-write' });
 
-    // ── 1. Discover grid name ──────────────────────────────────────────────────
+    // ── 1. Discover grid name (the ADDRESSes XAF list editor) ─────────────────
+    // The grid control name contains "ADDRESSes" (XAF property name). Searching
+    // for this is more reliable than "Address" or "LOGISTICS" which don't appear.
     const altGridName = await this.page.evaluate(() => {
       const w = window as any;
       if (!w.ASPxClientControl?.GetControlCollection) return '';
       let found = '';
       w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
-        if (typeof c?.GetGridView === 'function') {
-          const gv = c.GetGridView?.();
-          const name = gv?.GetName?.() || c.GetName?.() || '';
-          if (name.includes('LOGISTICS') || name.includes('Address') || name.includes('address')) {
-            found = c.GetName?.() || '';
-          }
-        }
         const cName = c?.name || c?.GetName?.() || '';
-        if (
-          (cName.includes('LOGISTICS') || cName.includes('Address') || cName.includes('address')) &&
-          typeof c?.AddNewRow === 'function'
-        ) {
+        if (cName.includes('ADDRESSes') && typeof c?.AddNewRow === 'function') {
           found = cName;
         }
       });
       return found;
     });
 
-    // ── 2. Delete all existing rows ────────────────────────────────────────────
-    const rowCount = await this.page.evaluate(() => {
-      return document.querySelectorAll('.dxgvDataRow').length;
-    });
+    if (!altGridName) {
+      logger.warn('writeAltAddresses: ADDRESSes grid control not found — skipping alt-address write');
+      return;
+    }
 
-    if (rowCount > 0) {
-      const selectAllEl = await this.page.$('[id*="SelectAll"], .dxgvSelectAllCheckBox');
-      if (selectAllEl) {
-        await selectAllEl.click();
-        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-select-all' });
+    // ── 2. Delete all existing rows ────────────────────────────────────────────
+    // XAF grid delete flow:
+    //   1. Click the DXSelBtn checkbox in the first data row to select it
+    //      (server callback enables the toolbar Delete button)
+    //   2. Click the toolbar Delete button
+    //   3. Accept the window.confirm() dialog DevExpress raises
+    // Observed behavior: after dialog accept the server callback may lag, so we
+    // poll until rowCount actually decreases (up to ~6 s).  If a Delete click
+    // doesn't immediately reduce the count the loop retries — the toolbar stays
+    // enabled and a second click (without dialog) completes the deletion.
+    {
+      let rowCount = await this.page.evaluate(() => {
+        const grid = document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]');
+        return grid ? grid.querySelectorAll('[class*="dxgvDataRow_"]').length : 0;
+      });
+
+      // Native Playwright click selector: auto-retries and handles visibility.
+      const selBtnSelector =
+        '[id*="ADDRESSes"][class*="dxgvControl"] [class*="dxgvDataRow_"]:first-of-type [id*="DXSelBtn"]';
+
+      for (let attempt = 0; attempt < rowCount + 5 && rowCount > 0; attempt++) {
+        // DXSelBtn is a toggle — skip if toolbar is already enabled to avoid deselecting.
+        const alreadyEnabled = await this.page.evaluate(() => {
+          const btn = document.querySelector('[id*="ADDRESSes"][id*="ToolBar_Menu_DXI0_T"]');
+          return btn ? !btn.classList.contains('dxm-disabled') : false;
+        });
+
+        if (!alreadyEnabled) {
+          // Use Playwright page.click() as primary (handles visibility/retry automatically).
+          // Fall back to evaluate-based click if the native selector times out.
+          try {
+            const selBtnEl = await this.page.waitForSelector(selBtnSelector, { timeout: 4000 });
+            await selBtnEl?.click();
+          } catch {
+            const clicked = await this.page.evaluate(() => {
+              const grid = document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]');
+              if (!grid) return false;
+              const firstRow = grid.querySelector('[class*="dxgvDataRow_"]');
+              if (!firstRow) return false;
+              const selBtn = (firstRow.querySelector('[id*="DXSelBtn"]') as HTMLElement | null)
+                ?? (firstRow.querySelector('td:first-child [id*="Sel"]') as HTMLElement | null);
+              if (selBtn) { selBtn.click(); return true; }
+              return false;
+            });
+            if (!clicked) {
+              logger.warn('writeAltAddresses: DXSelBtn not found, stopping delete loop', { attempt });
+              break;
+            }
+          }
+          await this.waitForDevExpressIdle({ timeout: 4000, label: 'alt-select-row' });
+        }
+
+        const toolbarEnabled = await this.page.evaluate(() => {
+          const btn = document.querySelector('[id*="ADDRESSes"][id*="ToolBar_Menu_DXI0_T"]');
+          return btn ? !btn.classList.contains('dxm-disabled') : false;
+        });
+
+        if (!toolbarEnabled) {
+          logger.warn('writeAltAddresses: toolbar Delete not enabled after selection', { attempt });
+          break;
+        }
+
+        // Register dialog handler BEFORE clicking Delete (DevExpress uses window.confirm).
+        this.page.once('dialog', (dialog) => { void dialog.accept(); });
+
+        await this.page.evaluate(() => {
+          const btn = document.querySelector('[id*="ADDRESSes"][id*="ToolBar_Menu_DXI0_T"]') as HTMLElement | null;
+          if (btn) btn.click();
+        });
+        await this.waitForDevExpressIdle({ timeout: 5000, label: 'alt-delete-confirm' });
+
+        // Poll until the row actually disappears from the DOM (server callback may lag).
+        const prevCount = rowCount;
+        for (let w = 0; w < 15; w++) {
+          rowCount = await this.page.evaluate(() => {
+            const grid = document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]');
+            return grid ? grid.querySelectorAll('[class*="dxgvDataRow_"]').length : 0;
+          });
+          if (rowCount < prevCount) break;
+          await new Promise((r) => setTimeout(r, 400));
+        }
       }
 
-      try {
-        await this.page.click('[id*="btnDelete"], [title="Delete"]');
-        await this.page.waitForSelector('.dxpc-content', { timeout: 3000 }).catch(() => null);
-        const okBtn = await this.page.$('button[id*="Btn_Yes"], button[id*="btnOK"], .dxpc-button:first-child');
-        if (okBtn) {
-          await okBtn.click();
-        }
-        await this.waitForDevExpressIdle({ timeout: 5000, label: 'alt-delete-confirm' });
-      } catch (deleteErr) {
-        logger.warn('writeAltAddresses: delete step failed, continuing with inserts', {
-          error: String(deleteErr),
-        });
+      if (rowCount > 0) {
+        logger.warn('writeAltAddresses: delete step incomplete', { remaining: rowCount });
       }
     }
 
     // ── 3. Insert each address ─────────────────────────────────────────────────
+    // TYPE values for DevExpress SetValue() API.
+    // 'Delivery' is omitted: the ERP server-side converts it to 'AlternateDelivery'
+    // for alt addresses, so we map all delivery-type names to 'AlternateDelivery' directly.
+    const TIPO_DX: Record<string, string> = {
+      'consegna':           'AlternateDelivery',
+      'indir. cons. alt.':  'AlternateDelivery',
+      'delivery':           'AlternateDelivery',
+      'alternate delivery': 'AlternateDelivery',
+      'business':           'Business',
+      'fattura':            'Facture',
+      'facture':            'Facture',
+    };
+
     for (const address of addresses) {
-      const via = address.via ?? null;
-      const cap = address.cap ?? null;
+      const via   = address.via   ?? null;
+      const cap   = address.cap   ?? null;
       const citta = address.citta ?? null;
 
       if (!via && !cap && !citta) continue;
 
-      // 3a. Add new row
-      if (altGridName) {
-        await this.page.evaluate((name: string) => {
-          const w = window as any;
-          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
-          if (grid) grid.AddNewRow();
-        }, altGridName);
-      } else {
-        const addNewResult = await this.page.evaluate(() => {
-          const candidates = Array.from(
-            document.querySelectorAll('a[data-args*="AddNew"]'),
-          ).filter((node) => {
-            const el = node as HTMLElement;
-            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
-          }) as HTMLElement[];
-          if (candidates.length > 0) { candidates[0].click(); return true; }
-          return false;
-        });
-        if (!addNewResult) {
-          logger.warn('writeAltAddresses: AddNew button not found, skipping row');
-          continue;
-        }
-      }
-
+      // 3a. Add new row via grid API
+      await this.page.evaluate((name: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        if (grid) grid.AddNewRow();
+      }, altGridName);
       await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-addnew' });
 
-      // 3b. Set TIPO
-      const tipoValue = address.tipo || 'Consegna';
-      const tipoSet = await this.page.evaluate((tipo: string) => {
-        const inputs = Array.from(document.querySelectorAll('input[type="text"]')).filter(
-          (i) => (i as HTMLElement).offsetParent !== null,
-        ) as HTMLInputElement[];
-        const tipoInput = inputs.find((i) => {
-          const id = i.id.toLowerCase();
-          return id.includes('type') || id.includes('tipo') || id.includes('addresstype');
-        });
-        if (tipoInput) {
-          tipoInput.focus();
-          tipoInput.click();
-          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          if (setter) setter.call(tipoInput, tipo);
-          else tipoInput.value = tipo;
-          tipoInput.dispatchEvent(new Event('input', { bubbles: true }));
-          tipoInput.dispatchEvent(new Event('change', { bubbles: true }));
-          return { found: true, id: tipoInput.id };
-        }
-        for (const inp of inputs) {
-          const row = inp.closest('tr');
-          if (row && row.classList.toString().includes('dxgvEditingRow')) {
-            inp.focus();
-            inp.click();
-            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            if (setter) setter.call(inp, tipo);
-            else inp.value = tipo;
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-            return { found: true, id: inp.id };
-          }
-        }
-        return { found: false, id: '' };
-      }, tipoValue);
+      // 3b. Compute TYPE value (set after CAP lookup to avoid server-callback reset)
+      const tipoRaw  = address.tipo || 'Consegna';
+      const tipoDX   = TIPO_DX[tipoRaw.toLowerCase()] ?? 'AlternateDelivery';
 
-      if (!tipoSet.found) {
-        logger.warn('writeAltAddresses: TIPO input not found, typing directly');
-        await this.page.keyboard.press('Tab');
-      }
-      await this.page.keyboard.press('Tab');
-      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-tipo-set' });
-
-      // 3c. NOME column
-      const nomeValue = address.nome ?? '';
-      if (nomeValue) {
+      // 3c. NAME — set directly by field ID (no Tab navigation needed)
+      if (address.nome) {
         await this.page.evaluate((nome: string) => {
-          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
-          if (!editingRow) return;
-          const active = document.activeElement as HTMLInputElement;
-          if (active && active.tagName === 'INPUT' && editingRow.contains(active)) {
-            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            if (setter) setter.call(active, nome);
-            else active.value = nome;
-            active.dispatchEvent(new Event('input', { bubbles: true }));
-            active.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }, nomeValue);
+          const input = document.querySelector('[id*="ADDRESSes"][id*="NAME_Edit_I"]') as HTMLInputElement | null;
+          if (!input) return;
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, nome); else input.value = nome;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, address.nome);
       }
-      await this.page.keyboard.press('Tab');
-      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-nome-set' });
 
-      // 3d. VIA column
+      // 3d. STREET — set directly by field ID
       if (via) {
-        const viaSet = await this.page.evaluate((street: string) => {
-          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
-          if (!editingRow) return false;
-          const active = document.activeElement as HTMLInputElement;
-          if (active && active.tagName === 'INPUT' && editingRow.contains(active)) {
-            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            if (setter) setter.call(active, street);
-            else active.value = street;
-            active.dispatchEvent(new Event('input', { bubbles: true }));
-            active.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          }
-          return false;
+        await this.page.evaluate((street: string) => {
+          const input = document.querySelector('[id*="ADDRESSes"][id*="STREET_Edit_I"]') as HTMLInputElement | null;
+          if (!input) return;
+          input.focus();
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, street); else input.value = street;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
         }, via);
-        if (!viaSet) {
-          logger.warn('writeAltAddresses: VIA active element not in editing row, typing directly');
-          await this.page.keyboard.type(via, { delay: 30 });
-        }
       }
-      await this.page.keyboard.press('Tab');
-      await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-via-set' });
 
-      // 3e. CAP column — lookup field
+      // 3e. CAP — lookup with city as disambiguation hint.
+      // The lookup auto-populates COUNTY, STATE, COUNTRYREGIONID; CITY must be
+      // set explicitly afterward (not auto-populated in the grid editing row).
       if (cap) {
         const findBtnId = await this.page.evaluate(() => {
-          const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
-          if (editingRow) {
-            const btns = Array.from(editingRow.querySelectorAll('td, img, button, a, div')).filter(
-              (el) => /LOGISTICSADDRESSZIPCODE.*_B0$|_find_Edit_B0$/.test(el.id),
-            );
-            if (btns.length > 0) return btns[0].id;
-          }
           const allBtns = Array.from(document.querySelectorAll('td, img, button, a, div')).filter((el) => {
             const h = el as HTMLElement;
             return h.offsetParent !== null && /LOGISTICSADDRESSZIPCODE.*_B0$/.test(el.id);
           });
-          return allBtns.length > 0 ? allBtns[allBtns.length - 1].id : null;
+          return allBtns.length > 0 ? (allBtns[allBtns.length - 1] as HTMLElement).id : null;
         });
 
         if (findBtnId) {
@@ -11831,39 +11822,59 @@ export class ArchibaldBot {
             citta ?? undefined,
           );
         } else {
-          logger.warn('writeAltAddresses: CAP find button not found, typing directly');
+          logger.warn('writeAltAddresses: CAP find button not found, typing directly', { cap });
           await this.page.keyboard.type(cap, { delay: 20 });
-          await this.page.keyboard.press('Tab');
-          await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-cap-direct' });
         }
+        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-cap-done' });
       }
 
-      // 3f. Confirm row with UpdateEdit
-      if (altGridName) {
-        await this.page.evaluate((name: string) => {
-          const w = window as any;
-          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
-          if (grid) grid.UpdateEdit();
-        }, altGridName);
-      } else {
-        const updateResult = await this.page.evaluate(() => {
-          const candidates = Array.from(
-            document.querySelectorAll('a[data-args*="UpdateEdit"]'),
-          ).filter((node) => {
-            const el = node as HTMLElement;
-            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
-          }) as HTMLElement[];
-          if (candidates.length > 0) { candidates[0].click(); return true; }
-          return false;
+      // 3f. CITY — set directly by field ID after CAP lookup
+      if (citta) {
+        await this.page.evaluate((city: string) => {
+          const input = document.querySelector('[id*="ADDRESSes"][id*="CITY_Edit_I"]') as HTMLInputElement | null;
+          if (!input) return;
+          input.focus();
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, city); else input.value = city;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, citta);
+        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-city-done' });
+        // The CITY change event may open a DevExpress autocomplete popup that captures
+        // subsequent keyboard events. Click STREET to dismiss it, then wait for it to close.
+        await this.page.evaluate(() => {
+          const street = document.querySelector('[id*="ADDRESSes"][id*="STREET_Edit_I"]') as HTMLElement | null;
+          if (street) street.focus();
         });
-        if (!updateResult) {
-          logger.warn('writeAltAddresses: UpdateEdit not found, pressing Enter');
-          await this.page.keyboard.press('Enter');
+        await new Promise((r) => setTimeout(r, 400));
+      }
+
+      // 3g. Set TYPE via DevExpress SetValue() API — must be AFTER CAP/CITY server
+      // callbacks because they reset the combobox to index 0 (Business).
+      if (tipoDX !== 'Business') {
+        const typeSet = await this.page.evaluate((tv: string) => {
+          const w = window as any;
+          let cb: any = null;
+          w.ASPxClientControl?.GetControlCollection?.()?.ForEachControl?.((c: any) => {
+            if ((c.name || '').includes('TYPE_Edit') && typeof c.SetValue === 'function') cb = c;
+          });
+          if (!cb) return false;
+          cb.SetValue(tv);
+          return true;
+        }, tipoDX);
+        if (!typeSet) {
+          logger.warn('writeAltAddresses: TYPE combobox not found for SetValue', { tipoDX });
         }
       }
 
+      // 3h. Confirm row with UpdateEdit via grid API
+      await this.page.evaluate((name: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        if (grid) grid.UpdateEdit();
+      }, altGridName);
       await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-update-edit' });
-      logger.debug('writeAltAddresses: row confirmed', { tipo: tipoValue, via, cap });
+      logger.debug('writeAltAddresses: row confirmed', { tipo: tipoDX, via, cap, citta });
     }
 
     logger.info('writeAltAddresses: complete', { addressCount: addresses.length });
