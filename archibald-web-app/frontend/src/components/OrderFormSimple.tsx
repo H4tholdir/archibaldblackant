@@ -710,17 +710,18 @@ export default function OrderFormSimple() {
   };
 
   const fetchAndSetCustomerCompleteness = (customerProfile: string) => {
-    fetch(`/api/customers?search=${encodeURIComponent(customerProfile)}&limit=1`)
-      .then((res) => res.json())
-      .then((data) => {
-        const richCustomers: RichCustomer[] = data.data?.customers ?? [];
-        const rich = richCustomers.find((c) => c.customerProfile === customerProfile) ?? richCustomers[0] ?? null;
+    const jwt = localStorage.getItem('archibald_jwt') ?? '';
+    fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((body: { data: RichCustomer }) => {
+        const rich = body.data ?? null;
         setSelectedCustomerFull(rich);
-        if (rich) {
-          setCustomerCompleteness(checkCustomerCompleteness(rich));
-        } else {
-          setCustomerCompleteness(null);
-        }
+        setCustomerCompleteness(rich ? checkCustomerCompleteness(rich) : null);
       })
       .catch(() => {
         setSelectedCustomerFull(null);
