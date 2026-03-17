@@ -78,6 +78,7 @@ export class PriceService {
   }
 
   async fuzzyMatchArticleCode(code: string): Promise<string | null> {
+    if (!code || code.trim().length === 0) return null;
     try {
       const res = await fetchWithRetry(
         `/api/products/search?q=${encodeURIComponent(code)}&limit=5`,
