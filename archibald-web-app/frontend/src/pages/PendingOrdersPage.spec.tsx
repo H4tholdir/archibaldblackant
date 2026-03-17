@@ -484,9 +484,7 @@ describe("PendingOrdersPage", () => {
 
     render(<PendingOrdersPage />);
 
-    expect(screen.getByText(/Via Francesco Petrarca 10/)).toBeInTheDocument();
-    expect(screen.getByText(/Napoli/)).toBeInTheDocument();
-    expect(screen.getByText(/ALT/)).toBeInTheDocument();
+    expect(screen.getByText(/📍\s+Via Francesco Petrarca 10\s*—\s*Napoli\s*\(ALT\)/)).toBeInTheDocument();
   });
 
   test("does not render address line when deliveryAddressResolved is null", () => {
@@ -499,6 +497,6 @@ describe("PendingOrdersPage", () => {
 
     render(<PendingOrdersPage />);
 
-    expect(screen.queryByText("📍")).not.toBeInTheDocument();
+    expect(screen.queryByText(/📍/)).not.toBeInTheDocument();
   });
 });
