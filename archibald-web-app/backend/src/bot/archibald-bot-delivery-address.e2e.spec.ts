@@ -2,28 +2,22 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ArchibaldBot } from './archibald-bot';
 
 const ARCHIBALD_URL = process.env.ARCHIBALD_URL;
-const ARCHIBALD_USERNAME = process.env.ARCHIBALD_USERNAME;
-const ARCHIBALD_PASSWORD = process.env.ARCHIBALD_PASSWORD;
 const VIA_TO_SEARCH = 'Via Francesco Petrarca';
 
-describe.skipIf(!ARCHIBALD_URL)('selectDeliveryAddress — E2E diagnostic', () => {
+// Opt-in only: set ARCHIBALD_E2E=true to run these tests against the real ERP.
+// Never runs in CI (ARCHIBALD_E2E is not set there).
+describe.skipIf(!process.env.ARCHIBALD_E2E)('selectDeliveryAddress — E2E diagnostic', () => {
   let bot: ArchibaldBot;
 
   beforeAll(async () => {
     if (!ARCHIBALD_URL) return;
-    bot = new ArchibaldBot({
-      archibald: {
-        url: ARCHIBALD_URL,
-        username: ARCHIBALD_USERNAME!,
-        password: ARCHIBALD_PASSWORD!,
-      },
-    } as any);
-    await (bot as any).launchBrowser();
+    bot = new ArchibaldBot();
+    await (bot as any).initialize();
     await (bot as any).login();
   }, 60_000);
 
   afterAll(async () => {
-    await (bot as any).closeBrowser?.();
+    await (bot as any).browser?.close().catch(() => {});
   });
 
   it('finds SELEZIONARE_L_INDIRIZZO field after selecting Indelli Enrico (55.227)', async () => {
