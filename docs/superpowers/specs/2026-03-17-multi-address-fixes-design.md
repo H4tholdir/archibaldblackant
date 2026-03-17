@@ -5,6 +5,17 @@
 
 ---
 
+## Prerequisites
+
+All prior multi-address implementation plans (Plan A–D from 2026-03-16) have been implemented and merged to master. The following already exist in the codebase on branch `feature/multi-address` (PR merged):
+
+- `frontend/src/utils/customer-completeness.ts` — `checkCustomerCompleteness` function
+- `archibald-bot.ts` — `selectDeliveryAddress` private method (line 3007)
+- `agents.pending_orders.delivery_address_id` column (migration 028)
+- `frontend/src/types/pending-order.ts` — `deliveryAddressId` field
+
+---
+
 ## Overview
 
 Five follow-up issues discovered during E2E testing of the multi-address feature in production (formicanera.com, 2026-03-17).
@@ -19,9 +30,10 @@ Test data was manually inserted into `agents.customer_addresses` for Indelli Enr
 
 ### Fix
 
-No code change required. DB reset only:
+No code change required. **Operator-executed DB reset only** (run manually on production VPS, not part of any automated deployment):
 
 ```sql
+-- Run on production VPS only. UUID is agent user_id for Francesco (Formicola Biagio's account).
 UPDATE agents.customers
 SET addresses_synced_at = NULL
 WHERE customer_profile = '55.227'
@@ -48,6 +60,7 @@ deliveryAddressResolved?: {
   cap: string | null;
   citta: string | null;
   tipo: string;
+  nome: string | null;  // included in case address has a named facility
 } | null;
 ```
 
@@ -72,7 +85,7 @@ Frontend renders below the customer name when set:
 
 ### Root Cause
 
-The current implementation searches for `.dxeListBoxItem` elements (a simple listbox), but "SELEZIONARE L'INDIRIZZO" is a **DevExpress grid lookup popup** — the same pattern as customer selection. It has:
+The existing `selectDeliveryAddress` method (implemented in `archibald-bot.ts:3007` as part of Plan D) uses the wrong DOM pattern. It searches for `.dxeListBoxItem` elements, but "SELEZIONARE L'INDIRIZZO" is a **DevExpress grid lookup popup** — the same pattern as customer selection. It has:
 - A text field that opens a popup grid when clicked
 - A search box in the popup header ("Enter text to search...")
 - A grid with columns: NOME, VIA, CAP, CITTÀ
@@ -109,7 +122,7 @@ Integration test using the real bot's Puppeteer page:
 7. Click the row, verify field value updates
 8. Verify `waitForDevExpressIdle` completes without timeout
 
-This test is marked `@slow` / `skip` in CI (requires ERP access) but can be run manually with `vitest --reporter=verbose`.
+This test is skipped in CI via `describe.skipIf(!process.env.ARCHIBALD_URL)(...)`. It requires `ARCHIBALD_URL`, `ARCHIBALD_USERNAME`, `ARCHIBALD_PASSWORD` env vars and can be run manually with `vitest --reporter=verbose`.
 
 **Files to change**:
 - `backend/src/bot/archibald-bot.ts` — rewrite `selectDeliveryAddress` private method
@@ -127,16 +140,20 @@ This test is marked `@slow` / `skip` in CI (requires ERP access) but can be run 
 
 Add `sync-customer-addresses` to both components following the existing pattern for other sync job types:
 
-**SyncControlPanel**: Add a "Sync Indirizzi" trigger button that enqueues `sync-customer-addresses` for all customers with `addresses_synced_at IS NULL` (or a force-all variant).
+**SyncControlPanel**: `SyncControlPanel.tsx` uses a closed `SyncType` union type and `syncSections` array. Adding `sync-customer-addresses` requires changes in 6+ places within the file:
+1. Extend the `SyncType` union to include `'addresses'`
+2. Add entry to `syncSections` array (label: "Indirizzi Clienti", operationType: `'sync-customer-addresses'`)
+3. Add `addresses: false` to `syncing` initial state
+4. Add `addresses: false` to `deletingDb` initial state
+5. Handle `addresses` in the switch/cases for button click and status display
+6. Add a backend endpoint `POST /api/admin/sync/addresses` that enqueues `sync-customer-addresses` for all customers with `addresses_synced_at IS NULL` (same pattern as existing sync endpoints)
 
-**SyncMonitoringDashboard**: Add a row showing last run time, status, and count for `sync-customer-addresses` jobs.
-
-Pattern to follow: identical to how `sync-customers` and `sync-order-articles` are shown.
+**SyncMonitoringDashboard**: Add a row for `sync-customer-addresses` jobs showing last run time, status, and job count. Pattern identical to existing rows.
 
 **Files to change**:
-- `frontend/src/components/SyncControlPanel.tsx` (or equivalent admin component)
-- `frontend/src/components/SyncMonitoringDashboard.tsx` (or equivalent admin component)
-- Potentially `backend/src/routes/admin.ts` if a new API endpoint is needed for stats
+- `frontend/src/components/SyncControlPanel.tsx`
+- `frontend/src/components/SyncMonitoringDashboard.tsx`
+- `backend/src/routes/admin.ts` — new `POST /api/admin/sync/addresses` endpoint
 
 ---
 
