@@ -12842,7 +12842,10 @@ export class ArchibaldBot {
 
       const rows = Array.from(grid.querySelectorAll('[class*="dxgvDataRow_"]'));
       return rows.map((row) => {
-        const cells = Array.from(row.querySelectorAll('td'));
+        // DevExpress data cells carry the class "dxgv"; command/button cells use
+        // "dxgvCommandColumnCell_*" and do NOT carry plain "dxgv". Filtering by .dxgv
+        // skips the leading button columns present in the XafTheme variant of the grid.
+        const cells = Array.from(row.querySelectorAll('td.dxgv'));
         const cellText = (i: number) => cells[i]?.textContent?.trim() || null;
         return {
           tipo: cellText(0) ?? '',
