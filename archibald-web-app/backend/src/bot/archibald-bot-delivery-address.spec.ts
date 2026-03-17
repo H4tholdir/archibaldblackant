@@ -48,14 +48,14 @@ describe('selectDeliveryAddress', () => {
   it('returns early when via is null — no click, no idle wait', async () => {
     await (bot as any).selectDeliveryAddress({ ...addressLioni, via: null });
 
-    expect(page.$.mock.calls.length).toBe(0);
+    expect(page.$).not.toHaveBeenCalled();
     expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalled();
   });
 
   it('returns early when via is empty string — no click, no idle wait', async () => {
     await (bot as any).selectDeliveryAddress({ ...addressLioni, via: '' });
 
-    expect(page.$.mock.calls.length).toBe(0);
+    expect(page.$).not.toHaveBeenCalled();
     expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalled();
   });
 
@@ -63,6 +63,7 @@ describe('selectDeliveryAddress', () => {
     page.$.mockResolvedValueOnce(null);
 
     await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
+    expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalled();
   });
 
   it('types via into keyboard after clicking field container', async () => {
@@ -73,6 +74,7 @@ describe('selectDeliveryAddress', () => {
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
+    expect(page.$).toHaveBeenCalledWith('[id*="SELEZIONARE_L_INDIRIZZO"]');
     expect(fieldEl.click).toHaveBeenCalled();
     expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca, 26');
   });
