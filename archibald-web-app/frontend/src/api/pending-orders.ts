@@ -67,6 +67,7 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     subClientName: raw.subClientName as string | undefined,
     subClientData,
     deliveryAddressId: (raw.deliveryAddressId as number | null | undefined) ?? null,
+    deliveryAddressResolved: raw.deliveryAddressResolved as PendingOrder['deliveryAddressResolved'] ?? null,
   };
 }
 

@@ -76,7 +76,7 @@ describe('selectDeliveryAddress', () => {
 
     expect(page.$).toHaveBeenCalledWith('[id*="SELEZIONARE_L_INDIRIZZO"]');
     expect(fieldEl.click).toHaveBeenCalled();
-    expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca, 26');
+    expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca');
   });
 
   it('calls waitForDevExpressIdle exactly twice when no rows found', async () => {

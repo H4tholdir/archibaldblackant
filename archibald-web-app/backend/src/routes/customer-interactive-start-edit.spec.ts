@@ -17,6 +17,7 @@ function makeDeps(overrides: Partial<CustomerInteractiveRouterDeps> = {}): Custo
       setBot: vi.fn(),
       getBot: vi.fn(),
       getSession: vi.fn(),
+      setCustomerProfile: vi.fn(),
     } as any,
     createBot: vi.fn().mockReturnValue({
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -97,6 +98,7 @@ describe('POST /api/customers/interactive/start-edit', () => {
         setBot: vi.fn(),
         getBot: vi.fn(),
         getSession: vi.fn(),
+        setCustomerProfile: vi.fn(),
       } as any,
     });
     const app = makeApp(deps);

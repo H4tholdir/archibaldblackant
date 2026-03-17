@@ -3021,7 +3021,9 @@ export class ArchibaldBot {
     await fieldContainer.click();
     await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
 
-    await this.page.keyboard.type(via);
+    // Use only the street name (before the comma) to avoid filtering issues with house numbers
+    const searchTerm = via.includes(',') ? via.split(',')[0].trim() : via;
+    await this.page.keyboard.type(searchTerm);
     await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
 
     const rowCount = await this.page.evaluate(

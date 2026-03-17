@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ArchibaldBot } from './archibald-bot';
 
-const ARCHIBALD_URL = process.env.ARCHIBALD_URL;
+const ARCHIBALD_URL = process.env.ARCHIBALD_URL ?? '';
 const VIA_TO_SEARCH = 'Via Francesco Petrarca';
 
 // Opt-in only: set ARCHIBALD_E2E=true to run these tests against the real ERP.
@@ -10,7 +10,6 @@ describe.skipIf(!process.env.ARCHIBALD_E2E)('selectDeliveryAddress — E2E diagn
   let bot: ArchibaldBot;
 
   beforeAll(async () => {
-    if (!ARCHIBALD_URL) return;
     bot = new ArchibaldBot();
     await (bot as any).initialize();
     await (bot as any).login();
@@ -24,7 +23,29 @@ describe.skipIf(!process.env.ARCHIBALD_E2E)('selectDeliveryAddress — E2E diagn
     const page = (bot as any).page;
     await page.goto(`${ARCHIBALD_URL}/Archibald/SALESTABLE_EditForm_Agent/`);
     await (bot as any).waitForDevExpressReady?.();
-    await (bot as any).selectCustomer('55.227');
+
+    // Select customer by typing in the profile ID field
+    const customerInputId = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
+      const match = inputs.find((el) => {
+        const id = el.id.toLowerCase();
+        return (
+          id.includes('custtable') ||
+          id.includes('custaccount') ||
+          id.includes('profilo') ||
+          id.includes('cliente')
+        ) && !el.disabled && el.getBoundingClientRect().height > 0;
+      });
+      return match?.id ?? null;
+    });
+
+    if (customerInputId) {
+      await page.click(`#${customerInputId}`, { clickCount: 3 });
+      await page.keyboard.type('55.227');
+      await (bot as any).waitForDevExpressIdle({ label: 'customer-typed' });
+      await page.keyboard.press('Enter');
+    }
+
     await (bot as any).waitForDevExpressIdle({ label: 'after-customer-select' });
 
     const fieldInfo = await page.evaluate(() => {
