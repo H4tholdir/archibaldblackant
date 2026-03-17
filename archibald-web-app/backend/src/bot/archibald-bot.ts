@@ -3012,25 +3012,43 @@ export class ArchibaldBot {
       return;
     }
 
+    // Wait for any pending DevExpress AJAX (e.g. customer selection postback) before
+    // acquiring element handles — avoids "Node is detached from document" errors.
+    await this.waitForDevExpressIdle({ label: 'delivery-address-pre' });
+
     const fieldInput = await this.page.$('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
     if (!fieldInput) {
       logger.warn('selectDeliveryAddress: field container not found');
       return;
     }
 
-    // Scroll input into view before clicking to prevent Puppeteer "not clickable" errors
-    // when the field is below the viewport fold in headless Chrome.
     await fieldInput.evaluate(el => (el as HTMLElement).scrollIntoView({ block: 'center' }));
-    await fieldInput.click();
+
+    // Open dropdown via DevExpress JS API — avoids bbox=null "not clickable" errors
+    // that occur in headless Chrome when the element has no viewport bounding box.
+    await this.page.evaluate(() => {
+      const inputEl = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
+      const editorId = inputEl?.id?.replace(/_I$/, '') ?? '';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctrl = (window as any).ASPxClientControl?.GetControlCollection().GetByName(editorId);
+      ctrl?.ShowDropDown?.();
+    });
     await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
 
+    // Type the search term into the popup search box (the "Enter text to search" field),
+    // not the main combo input — this triggers the correct server-side AJAX filter.
+    const searchBox = await this.page.$('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]');
+    if (searchBox) {
+      await searchBox.click();
+    }
     // Use only the street name (before the comma) to avoid filtering issues with house numbers
     const searchTerm = via.includes(',') ? via.split(',')[0].trim() : via;
     await this.page.keyboard.type(searchTerm);
     await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
 
+    // Use ID-based selector: XAF theme applies dxgvDataRow_XafTheme class (not dxgvDataRow)
     const rowCount = await this.page.evaluate(
-      () => document.querySelectorAll('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv"] .dxgvDataRow').length,
+      () => document.querySelectorAll('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow"]').length,
     );
 
     if (rowCount === 0) {
@@ -3051,10 +3069,11 @@ export class ArchibaldBot {
       return;
     }
 
-    await this.page.evaluate(() => {
-      const row = document.querySelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv"] .dxgvDataRow') as HTMLElement | null;
-      row?.click();
-    });
+    // Use elementHandle.click() for a real mouse event that DevExpress processes correctly.
+    const firstRow = await this.page.$('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow"]');
+    if (firstRow) {
+      await firstRow.click();
+    }
 
     await this.waitForDevExpressIdle({ label: 'delivery-address-select' });
   }
