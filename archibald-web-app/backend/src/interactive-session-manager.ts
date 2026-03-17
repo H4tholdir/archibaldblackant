@@ -14,6 +14,7 @@ type InteractiveSession = {
   vatResult: VatLookupResult | null;
   error: string | null;
   syncsPaused: boolean;
+  customerProfile: string | null;
 };
 
 const SESSION_TTL_MS = 10 * 60 * 1000;
@@ -34,6 +35,7 @@ function createInteractiveSessionManager() {
       vatResult: null,
       error: null,
       syncsPaused: false,
+      customerProfile: null,
     });
     return sessionId;
   }
@@ -58,6 +60,13 @@ function createInteractiveSessionManager() {
     if (session) {
       session.state = state;
       session.updatedAt = Date.now();
+    }
+  }
+
+  function setCustomerProfile(sessionId: string, customerProfile: string): void {
+    const session = sessions.get(sessionId);
+    if (session) {
+      session.customerProfile = customerProfile;
     }
   }
 
@@ -166,6 +175,7 @@ function createInteractiveSessionManager() {
     getSession,
     getActiveSessionForUser,
     updateState,
+    setCustomerProfile,
     setVatResult,
     setError,
     setBot,

@@ -203,6 +203,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       }
 
       const sessionId = sessionManager.createSession(userId);
+      sessionManager.setCustomerProfile(sessionId, customer.customerProfile);
 
       res.json({
         success: true,
@@ -297,6 +298,16 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           const vatResult = await bot.submitVatAndReadAutofill(parsed.data.vatNumber);
           sessionManager.setVatResult(sessionId, vatResult);
+
+          const editSession = sessionManager.getSession(sessionId, userId);
+          if (editSession?.customerProfile && vatResult.vatValidated) {
+            const v = vatResult.vatValidated.toUpperCase();
+            if (v.includes('SI') || v.includes('YES') || v === 'TRUE' || v === '1') {
+              await updateVatValidatedAt(userId, editSession.customerProfile).catch((err) => {
+                logger.warn('Failed to mark vat_validated_at after VAT check', { err });
+              });
+            }
+          }
 
           broadcast(userId, {
             type: 'CUSTOMER_VAT_RESULT',

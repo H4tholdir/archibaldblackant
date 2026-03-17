@@ -243,6 +243,42 @@ describe('createCustomerInteractiveRouter', () => {
         expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('vat_complete');
       });
     });
+
+    test('calls updateVatValidatedAt when session has customerProfile and vatValidated is "Si"', async () => {
+      const mockBot = createMockBot();
+      (mockBot.submitVatAndReadAutofill as ReturnType<typeof vi.fn>).mockResolvedValue({
+        lastVatCheck: '2026-03-17',
+        vatValidated: 'Si',
+        vatAddress: '',
+        parsed: { companyName: '', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+        pec: '',
+        sdi: '0000000',
+      });
+      const editSessionId = sessionManager.createSession('user-1');
+      sessionManager.updateState(editSessionId, 'ready');
+      sessionManager.setBot(editSessionId, mockBot);
+      sessionManager.setCustomerProfile(editSessionId, 'CUST-001');
+
+      await request(app)
+        .post(`/api/customers/interactive/${editSessionId}/vat`)
+        .send({ vatNumber: 'IT02492430653' });
+
+      await vi.waitFor(() => {
+        expect(deps.updateVatValidatedAt).toHaveBeenCalledWith('user-1', 'CUST-001');
+      });
+    });
+
+    test('does not call updateVatValidatedAt when session has no customerProfile', async () => {
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/vat`)
+        .send({ vatNumber: 'IT12345678901' });
+
+      await vi.waitFor(() => {
+        expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('vat_complete');
+      });
+
+      expect(deps.updateVatValidatedAt).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /api/customers/interactive/:sessionId/heartbeat', () => {
