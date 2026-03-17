@@ -3102,8 +3102,12 @@ export class ArchibaldBot {
       fieldInfo.baseId,
     ).catch(() => { /* no rows — auto-select check below */ });
 
-    // Phase 6: Click first matching row inside evaluate (synthetic click, same as customer).
-    const selectionResult = await this.page.evaluate((baseId: string) => {
+    // Phase 6: Get row center coordinates, then click via CDP mouse events.
+    // CDP click (page.mouse.click) triggers the full browser event pipeline including
+    // the DevExpress RowClick → server postback that persists the address selection.
+    // Synthetic target.click() inside evaluate only updates the DOM client-side and does
+    // NOT trigger the server postback needed for DELIVERYPOSTALADDRESS to be saved.
+    const rowCoords = await this.page.evaluate((baseId: string) => {
       const visible = (n: Element) => (n as HTMLElement).offsetParent !== null;
       const candidates = Array.from(document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpcMainDiv'))
         .filter(n => visible(n) && (n as HTMLElement).getBoundingClientRect().width > 0);
@@ -3111,16 +3115,16 @@ export class ArchibaldBot {
         candidates.find(c => (c as HTMLElement).id.includes(baseId) && c.querySelector('tr[class*="dxgvDataRow"]')) ||
         candidates.find(c => c.querySelector('tr[class*="dxgvDataRow"]')) ||
         null;
-      if (!container) return { clicked: false, reason: 'no-container', rowsCount: 0 };
+      if (!container) return null;
       const rows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]')).filter(visible);
-      if (rows.length === 0) return { clicked: false, reason: 'no-rows', rowsCount: 0 };
+      if (rows.length === 0) return null;
       const target = (rows[0].querySelector('td') ?? rows[0]) as HTMLElement;
       target.scrollIntoView({ block: 'center' });
-      target.click();
-      return { clicked: true, reason: 'first-row', rowsCount: rows.length };
+      const rect = target.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, rowsCount: rows.length };
     }, fieldInfo.baseId);
 
-    if (!selectionResult.clicked) {
+    if (!rowCoords) {
       const inputValue = await this.page.evaluate(
         () => (document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null)?.value ?? '',
       );
@@ -3132,16 +3136,30 @@ export class ArchibaldBot {
       return;
     }
 
-    // Phase 7: Wait for dropdown popup to close (same as customer: _DDD_PW hidden).
-    try {
-      await this.page.waitForFunction(
+    await this.page.mouse.click(rowCoords.x, rowCoords.y);
+
+    // Phase 7: Wait for popup close AND DLVADDRESS to update with the new address.
+    // The DLVADDRESS update is the semantic confirmation that the server postback completed.
+    const viaPrefix = via.substring(0, 15);
+    await Promise.all([
+      this.page.waitForFunction(
         () => Array.from(document.querySelectorAll('[id*="_DDD_PW"]'))
           .every(p => (p as HTMLElement).offsetParent === null || (p as HTMLElement).style.display === 'none'),
-        { timeout: 2000, polling: 100 },
-      );
-    } catch { /* proceed anyway */ }
+        { timeout: 5000, polling: 100 },
+      ).catch(() => { /* proceed if popup close times out */ }),
+      this.page.waitForFunction(
+        (prefix: string) => {
+          const el = document.querySelector('[id$="DLVADDRESS_Edit_I"]') as HTMLInputElement | null;
+          return el !== null && el.value.includes(prefix);
+        },
+        { timeout: 15000, polling: 200 },
+        viaPrefix,
+      ).catch(() => {
+        logger.warn('selectDeliveryAddress: DLVADDRESS did not update — postback may not have completed', { via });
+      }),
+    ]);
 
-    await this.waitForDevExpressIdle({ label: 'delivery-address-select' });
+    await this.waitForDevExpressIdle({ label: 'delivery-address-select', timeout: 10000 });
   }
 
   /**
