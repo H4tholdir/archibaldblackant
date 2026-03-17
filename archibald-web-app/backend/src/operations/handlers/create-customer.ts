@@ -16,6 +16,7 @@ type CreateCustomerData = {
   deliveryMode?: string;
   paymentTerms?: string;
   lineDiscount?: string;
+  addresses?: { tipo: string; nome?: string; via?: string; cap?: string; citta?: string; contea?: string; stato?: string; idRegione?: string; contra?: string }[];
 };
 
 type CreateCustomerBot = {

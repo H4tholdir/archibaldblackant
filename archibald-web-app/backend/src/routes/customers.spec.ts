@@ -58,6 +58,7 @@ function createMockDeps(): CustomersRouterDeps {
     setCustomerPhoto: vi.fn().mockResolvedValue(undefined),
     deleteCustomerPhoto: vi.fn().mockResolvedValue(undefined),
     upsertSingleCustomer: vi.fn().mockResolvedValue(mockCustomers[0]),
+    getCustomerAddresses: vi.fn().mockResolvedValue([]),
     updateCustomerBotStatus: vi.fn().mockResolvedValue(undefined),
     updateArchibaldName: vi.fn().mockResolvedValue(undefined),
     smartCustomerSync: vi.fn().mockResolvedValue(undefined),

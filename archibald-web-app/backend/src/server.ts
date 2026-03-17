@@ -32,6 +32,7 @@ import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/
 import { createCustomerAddressesRouter } from './routes/customer-addresses';
 import {
   upsertAddressesForCustomer as upsertAddressesForCustomerRepo,
+  getAddressesByCustomer as getAddressesByCustomerRepo,
 } from './db/repositories/customer-addresses';
 import { createSubclientsRouter } from './routes/subclients';
 import { createOrderStacksRouter } from './routes/order-stacks';
@@ -336,6 +337,7 @@ function createApp(deps: AppDeps): Express {
     setCustomerPhoto: (userId, profile, photo) => customersRepo.setCustomerPhoto(pool, userId, profile, photo),
     deleteCustomerPhoto: (userId, profile) => customersRepo.deleteCustomerPhoto(pool, userId, profile),
     upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
+    getCustomerAddresses: (userId, profile) => getAddressesByCustomerRepo(pool, userId, profile),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
     smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),

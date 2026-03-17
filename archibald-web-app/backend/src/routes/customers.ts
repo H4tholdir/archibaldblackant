@@ -3,6 +3,7 @@ import { z } from 'zod';
 import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import type { Customer, CustomerFormInput } from '../db/repositories/customers';
+import type { CustomerAddress } from '../db/repositories/customer-addresses';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
@@ -41,6 +42,7 @@ type CustomersRouterDeps = {
   setCustomerPhoto: (userId: string, customerProfile: string, photo: string) => Promise<void>;
   deleteCustomerPhoto: (userId: string, customerProfile: string) => Promise<void>;
   upsertSingleCustomer: (userId: string, formData: CustomerFormInput, customerProfile: string, botStatus: string) => Promise<Customer>;
+  getCustomerAddresses: (userId: string, customerProfile: string) => Promise<CustomerAddress[]>;
   updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
   updateArchibaldName: (userId: string, customerProfile: string, name: string) => Promise<void>;
   smartCustomerSync: (userId: string) => Promise<void>;
@@ -78,7 +80,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     queue, getCustomers, getHiddenCustomers, setCustomerHidden,
     getCustomerByProfile, getCustomerCount, getLastSyncTime,
     getCustomerPhoto, setCustomerPhoto, deleteCustomerPhoto,
-    upsertSingleCustomer, updateCustomerBotStatus, updateArchibaldName,
+    upsertSingleCustomer, getCustomerAddresses, updateCustomerBotStatus, updateArchibaldName,
     smartCustomerSync, resumeOtherSyncs,
   } = deps;
   const router = Router();
@@ -303,6 +305,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
 
       const isCreate = customerProfile.startsWith('TEMP-');
       const operationType = isCreate ? 'create-customer' : 'update-customer';
+      const addresses = await getCustomerAddresses(userId, customerProfile);
       const data: Record<string, unknown> = {
         customerProfile,
         name: customer.name,
@@ -314,6 +317,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
         phone: customer.phone ?? undefined,
         email: customer.email ?? undefined,
         deliveryMode: customer.deliveryTerms ?? undefined,
+        addresses,
       };
 
       if (!isCreate) {
