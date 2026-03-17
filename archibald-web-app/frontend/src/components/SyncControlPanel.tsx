@@ -11,7 +11,8 @@ type SyncType =
   | "ddt"
   | "invoices"
   | "order-articles"
-  | "tracking";
+  | "tracking"
+  | "customer-addresses";
 
 type QueueStats = {
   waiting: number;
@@ -48,9 +49,10 @@ const syncSections: SyncSection[] = [
   { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
   { type: "order-articles", label: "Articoli Ordini", icon: "📋", priority: 1 },
   { type: "tracking", label: "Tracking FedEx", icon: "📍", priority: 4 },
+  { type: "customer-addresses", label: "Indirizzi Clienti", icon: "🏠", priority: 1 },
 ];
 
-const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices", "order-articles", "tracking"];
+const ALL_SYNC_TYPES: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices", "order-articles", "tracking", "customer-addresses"];
 
 function formatLastSync(iso: string | null, isLoading: boolean): string {
   if (isLoading) return "...";
@@ -88,6 +90,7 @@ export default function SyncControlPanel() {
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
     "order-articles": false, tracking: false,
+    "customer-addresses": false,
   });
   const [syncingAll, setSyncingAll] = useState(false);
   const [enqueuedTypes, setEnqueuedTypes] = useState<Set<SyncType>>(new Set());
@@ -95,6 +98,7 @@ export default function SyncControlPanel() {
     customers: false, products: false, prices: false,
     orders: false, ddt: false, invoices: false,
     "order-articles": false, tracking: false,
+    "customer-addresses": false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
   const [togglingAutoSync, setTogglingAutoSync] = useState(false);
