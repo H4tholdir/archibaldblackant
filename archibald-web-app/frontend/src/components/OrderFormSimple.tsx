@@ -33,6 +33,7 @@ import type { Customer as RichCustomer } from '../types/customer';
 import { CustomerCreateModal } from './CustomerCreateModal';
 import type { CustomerAddress } from '../types/customer-address';
 import { getCustomerAddresses } from '../services/customer-addresses';
+import { useVatValidation } from '../hooks/useVatValidation';
 
 interface OrderItem {
   id: string;
@@ -100,6 +101,9 @@ export default function OrderFormSimple() {
   const [selectedCustomerFull, setSelectedCustomerFull] = useState<RichCustomer | null>(null);
   const [customerCompleteness, setCustomerCompleteness] = useState<CompletenessResult | null>(null);
   const [editCustomerForCompleteness, setEditCustomerForCompleteness] = useState<RichCustomer | null>(null);
+
+  // Silent VAT validation (for customers where only vat_validated_at is missing)
+  const { validate: validateVat, status: vatValidationStatus, errorMessage: vatValidationError, reset: resetVatValidation } = useVatValidation();
 
   // Step 1b: Sub-client selection (Fresis only)
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
@@ -976,6 +980,20 @@ export default function OrderFormSimple() {
         break;
     }
   };
+
+  // After silent VAT validation: refresh customer completeness and show toast
+  useEffect(() => {
+    if (vatValidationStatus === 'done' && selectedCustomerFull) {
+      fetchAndSetCustomerCompleteness(selectedCustomerFull.customerProfile);
+      toastService.success('P.IVA validata');
+      resetVatValidation();
+    }
+    if (vatValidationStatus === 'error' && vatValidationError) {
+      toastService.error(vatValidationError);
+      resetVatValidation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vatValidationStatus]);
 
   // Scroll highlighted item into view in product dropdown
   useEffect(() => {
@@ -3193,36 +3211,68 @@ export default function OrderFormSimple() {
           </div>
         )}
 
-        {customerCompleteness && !customerCompleteness.ok && (
-          <div
-            style={{
-              background: '#fff3cd',
-              border: '1px solid #ffc107',
-              color: '#856404',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              marginTop: '8px',
-              fontSize: '0.875rem',
-            }}
-          >
-            ⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}
-            <button
-              onClick={() => setEditCustomerForCompleteness(selectedCustomerFull)}
+        {customerCompleteness && !customerCompleteness.ok && (() => {
+          const onlyVatMissing =
+            customerCompleteness.missing.length === 1 &&
+            customerCompleteness.missing[0] === 'P.IVA non validata' &&
+            !!selectedCustomerFull?.vatNumber;
+          const isValidating = vatValidationStatus === 'validating';
+
+          return (
+            <div
               style={{
-                marginLeft: '12px',
-                background: 'none',
-                border: '1px solid #856404',
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
                 color: '#856404',
+                padding: '8px 12px',
                 borderRadius: '4px',
-                padding: '2px 8px',
-                cursor: 'pointer',
+                marginTop: '8px',
                 fontSize: '0.875rem',
               }}
             >
-              Aggiorna scheda →
-            </button>
-          </div>
-        )}
+              ⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}
+              {onlyVatMissing ? (
+                <button
+                  onClick={() => {
+                    if (!isValidating && selectedCustomerFull?.vatNumber) {
+                      validateVat(selectedCustomerFull.customerProfile, selectedCustomerFull.vatNumber);
+                    }
+                  }}
+                  disabled={isValidating}
+                  style={{
+                    marginLeft: '12px',
+                    background: 'none',
+                    border: '1px solid #856404',
+                    color: '#856404',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    cursor: isValidating ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    opacity: isValidating ? 0.6 : 1,
+                  }}
+                >
+                  {isValidating ? 'Validazione in corso…' : 'Valida ora →'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setEditCustomerForCompleteness(selectedCustomerFull)}
+                  style={{
+                    marginLeft: '12px',
+                    background: 'none',
+                    border: '1px solid #856404',
+                    color: '#856404',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Aggiorna scheda →
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Delivery address picker (shown when customer has ≥2 delivery addresses) */}
         {selectedCustomer && deliveryAddresses.length >= 2 && (

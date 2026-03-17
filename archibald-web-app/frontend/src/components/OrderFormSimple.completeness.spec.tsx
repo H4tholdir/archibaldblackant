@@ -52,6 +52,9 @@ vi.mock('../api/fresis-discounts', () => ({
 vi.mock('../utils/customer-completeness', () => ({
   checkCustomerCompleteness: vi.fn().mockReturnValue({ ok: false, missing: ['P.IVA non validata', 'PEC o SDI mancante'] }),
 }));
+vi.mock('../contexts/WebSocketContext', () => ({
+  useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}) }),
+}));
 
 const INCOMPLETE_RICH_CUSTOMER = {
   customerProfile: 'CUST-001',

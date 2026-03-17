@@ -51,6 +51,9 @@ vi.mock('../api/fresis-discounts', () => ({
 vi.mock('../utils/customer-completeness', () => ({
   checkCustomerCompleteness: vi.fn().mockReturnValue({ ok: true, missing: [] }),
 }));
+vi.mock('../contexts/WebSocketContext', () => ({
+  useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}) }),
+}));
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn(),
 }));
