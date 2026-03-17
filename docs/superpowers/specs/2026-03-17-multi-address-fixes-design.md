@@ -96,15 +96,19 @@ Matching by `via` text against listbox items never finds anything, so the field 
 ### New Algorithm
 
 ```
+0. If address.via is null or empty: log warning and return early (no selection possible)
 1. Find the SELEZIONARE_L_INDIRIZZO field container
 2. Click it to open the popup grid
 3. Type address.via in the popup search field
 4. Wait for the grid to filter (waitForDevExpressIdle)
-5. Click the first visible result row
-6. waitForDevExpressIdle({ label: 'delivery-address-select' })
+5. If no rows visible: log warning with via+cap+citta and return (graceful degradation)
+6. Click the first visible result row
+7. waitForDevExpressIdle({ label: 'delivery-address-select' })
 ```
 
 Reuses the same Puppeteer evaluate + click pattern already used in `selectFromDevExpressLookup` and `selectCustomer`.
+
+**Edge case — `via` is null/empty**: return early with a `logger.warn('selectDeliveryAddress: via is empty, skipping')`. The order will be created with Archibald's default delivery address.
 
 **Selector strategy**: `[id*="SELEZIONARE_L_INDIRIZZO"]` for the outer container, then find the inner input for typing, then `.dxgvDataRow` for clickable rows.
 
@@ -140,20 +144,27 @@ This test is skipped in CI via `describe.skipIf(!process.env.ARCHIBALD_URL)(...)
 
 Add `sync-customer-addresses` to both components following the existing pattern for other sync job types:
 
-**SyncControlPanel**: `SyncControlPanel.tsx` uses a closed `SyncType` union type and `syncSections` array. Adding `sync-customer-addresses` requires changes in 6+ places within the file:
-1. Extend the `SyncType` union to include `'addresses'`
-2. Add entry to `syncSections` array (label: "Indirizzi Clienti", operationType: `'sync-customer-addresses'`)
-3. Add `addresses: false` to `syncing` initial state
-4. Add `addresses: false` to `deletingDb` initial state
-5. Handle `addresses` in the switch/cases for button click and status display
-6. Add a backend endpoint `POST /api/admin/sync/addresses` that enqueues `sync-customer-addresses` for all customers with `addresses_synced_at IS NULL` (same pattern as existing sync endpoints)
+**SyncControlPanel**: `SyncControlPanel.tsx` uses a closed `SyncType` union type and `syncSections` array. The `handleSyncIndividual` function dispatches via `` `sync-${type}` `` string interpolation. Therefore the new `SyncType` value **must be `'customer-addresses'`** (yielding `'sync-customer-addresses'`), not `'addresses'`.
+
+Changes required (8 places):
+1. Extend `SyncType` union: add `'customer-addresses'`
+2. Add to `syncSections` array: `{ label: 'Indirizzi Clienti', type: 'customer-addresses' }`
+3. Add `'customer-addresses': false` to `syncing` initial state
+4. Add `'customer-addresses': false` to `deletingDb` initial state
+5. Add `'customer-addresses'` to `ALL_SYNC_TYPES` array (required for "Sync All" button)
+6. Handle `'customer-addresses'` in the WebSocket message handler reset path (same `setSyncing` reset pattern as other types)
+7. Add `'sync-customer-addresses'` to `OperationType` union in `backend/src/operations/operation-types.ts`
+8. Add `'sync-customer-addresses'` to the frontend `OperationType` in `frontend/src/api/operations.ts`
+
+No new admin route needed — the existing `enqueueOperation('sync-customer-addresses', {})` path already handles dispatch via `POST /api/operations/enqueue`.
 
 **SyncMonitoringDashboard**: Add a row for `sync-customer-addresses` jobs showing last run time, status, and job count. Pattern identical to existing rows.
 
 **Files to change**:
-- `frontend/src/components/SyncControlPanel.tsx`
+- `frontend/src/components/SyncControlPanel.tsx` (8 changes above)
 - `frontend/src/components/SyncMonitoringDashboard.tsx`
-- `backend/src/routes/admin.ts` — new `POST /api/admin/sync/addresses` endpoint
+- `backend/src/operations/operation-types.ts` — add `'sync-customer-addresses'` to `OperationType`
+- `frontend/src/api/operations.ts` — add `'sync-customer-addresses'` to frontend `OperationType`
 
 ---
 
