@@ -3012,106 +3012,136 @@ export class ArchibaldBot {
       return;
     }
 
-    // Wait for any pending DevExpress AJAX (e.g. customer selection postback) before
-    // acquiring element handles — avoids "Node is detached from document" errors.
+    // Phase 1: Wait for pending AJAX, then find field + dropdown button.
+    // Mirrors the customer-selection flow (PROFILO CLIENTE) exactly.
     await this.waitForDevExpressIdle({ label: 'delivery-address-pre' });
 
-    const fieldInput = await this.page.$('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
-    if (!fieldInput) {
-      logger.warn('selectDeliveryAddress: field container not found');
+    const fieldInfo = await this.page.evaluate(() => {
+      const input = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null;
+      if (!input) return null;
+      const baseId = input.id.replace(/_I$/, '');
+      for (const btnId of [`${baseId}_B-1`, `${baseId}_B-1Img`, `${baseId}_B`]) {
+        const btn = document.getElementById(btnId);
+        if (btn && btn.offsetParent !== null) return { baseId, btnSelector: `#${btnId}` };
+      }
+      return { baseId, btnSelector: null };
+    });
+
+    if (!fieldInfo) {
+      logger.warn('selectDeliveryAddress: field not found');
+      return;
+    }
+    if (!fieldInfo.btnSelector) {
+      logger.warn('selectDeliveryAddress: dropdown button not found', { baseId: fieldInfo.baseId });
       return;
     }
 
-    // Scroll the field into view via evaluate — no stale-handle risk since it runs in browser.
-    await this.page.evaluate(() => {
-      const el = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLElement | null;
-      el?.scrollIntoView({ block: 'center' });
-    });
+    // Phase 2: Click the dropdown button (same as customer: page.click on the button).
+    await this.page.click(fieldInfo.btnSelector);
 
-    // Open dropdown via DevExpress JS API — avoids bbox=null "not clickable" errors
-    // that occur in headless Chrome when the element has no viewport bounding box.
-    await this.page.evaluate(() => {
-      const inputEl = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
-      const editorId = inputEl?.id?.replace(/_I$/, '') ?? '';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ctrl = (window as any).ASPxClientControl?.GetControlCollection().GetByName(editorId);
-      ctrl?.ShowDropDown?.();
-    });
-    await this.waitForDevExpressIdle({ label: 'delivery-address-open' });
+    // Phase 3: Wait for popup search input to be visible.
+    const searchSelector = `[id*="${fieldInfo.baseId}_DDD_gv_DXSE_I"]`;
+    try {
+      await this.page.waitForFunction(
+        (sel: string) => {
+          const input = document.querySelector(sel) as HTMLInputElement | null;
+          return input !== null && input.offsetParent !== null && !input.disabled;
+        },
+        { timeout: 5000, polling: 50 },
+        searchSelector,
+      );
+    } catch {
+      logger.warn('selectDeliveryAddress: search input not found in popup');
+      return;
+    }
 
-    // Wait for the popup search box to be present in the DOM before pasting —
-    // ShowDropDown renders the popup asynchronously and execCommand silently
-    // no-ops if the element is not yet initialized by DevExpress.
-    await this.page.waitForSelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]', { timeout: 5000 });
+    // Phase 4: Set value via property setter + dispatch events — identical to
+    // the customer-selection paste technique (triggers DevExpress input handlers).
+    await this.page.evaluate((sel: string, value: string) => {
+      const input = document.querySelector(sel) as HTMLInputElement | null;
+      if (!input) return;
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(input, value); else input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keyup',  { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    }, searchSelector, via);
 
-    // Paste the full address (including house number) into the popup search box via
-    // execCommand('insertText') — faster than keyboard.type() and triggers DevExpress
-    // input events correctly without character-by-character delays.
-    await this.page.evaluate((term: string) => {
-      const el = document.querySelector('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I"]') as HTMLInputElement | null;
-      if (!el) return;
-      el.focus();
-      el.select();
-      document.execCommand('insertText', false, term);
-    }, via);
-    await this.waitForDevExpressIdle({ label: 'delivery-address-search' });
+    // Phase 5: Wait for filtered rows (same InCallback-aware check as customer).
+    await this.page.waitForFunction(
+      (baseId: string) => {
+        const w = window as any;
+        const collection = w.ASPxClientControl?.GetControlCollection?.() ?? null;
+        if (collection) {
+          let inCallback = false;
+          try {
+            if (typeof collection.ForEachControl === 'function') {
+              collection.ForEachControl((c: any) => {
+                if (c?.name?.includes(baseId) && typeof c.InCallback === 'function' && c.InCallback()) inCallback = true;
+                if (typeof c?.GetGridView === 'function') {
+                  const gv = c.GetGridView();
+                  if (gv && typeof gv.InCallback === 'function' && gv.InCallback()) inCallback = true;
+                }
+              });
+            }
+          } catch { /* ignore */ }
+          if (inCallback) return false;
+        }
+        const container =
+          Array.from(document.querySelectorAll('[id*="_DDD"], .dxpcLite'))
+            .filter(n => { const e = n as HTMLElement; return e.offsetParent !== null && e.getBoundingClientRect().width > 0; })
+            .find(c => (c as HTMLElement).id.includes(baseId) && c.querySelector('tr[class*="dxgvDataRow"]')) ??
+          Array.from(document.querySelectorAll('[id*="_DDD"], .dxpcLite'))
+            .find(c => c.querySelector('tr[class*="dxgvDataRow"]'));
+        if (!container) return false;
+        return Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]')).some(r => (r as HTMLElement).offsetParent !== null);
+      },
+      { timeout: 8000, polling: 100 },
+      fieldInfo.baseId,
+    ).catch(() => { /* no rows — auto-select check below */ });
 
-    // Use ID-based selector: XAF theme applies dxgvDataRow_XafTheme class (not dxgvDataRow)
-    const rowCount = await this.page.evaluate(
-      () => document.querySelectorAll('[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow"]').length,
-    );
+    // Phase 6: Click first matching row inside evaluate (synthetic click, same as customer).
+    const selectionResult = await this.page.evaluate((baseId: string) => {
+      const visible = (n: Element) => (n as HTMLElement).offsetParent !== null;
+      const candidates = Array.from(document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpcMainDiv'))
+        .filter(n => visible(n) && (n as HTMLElement).getBoundingClientRect().width > 0);
+      const container =
+        candidates.find(c => (c as HTMLElement).id.includes(baseId) && c.querySelector('tr[class*="dxgvDataRow"]')) ||
+        candidates.find(c => c.querySelector('tr[class*="dxgvDataRow"]')) ||
+        null;
+      if (!container) return { clicked: false, reason: 'no-container', rowsCount: 0 };
+      const rows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]')).filter(visible);
+      if (rows.length === 0) return { clicked: false, reason: 'no-rows', rowsCount: 0 };
+      const target = (rows[0].querySelector('td') ?? rows[0]) as HTMLElement;
+      target.scrollIntoView({ block: 'center' });
+      target.click();
+      return { clicked: true, reason: 'first-row', rowsCount: rows.length };
+    }, fieldInfo.baseId);
 
-    if (rowCount === 0) {
-      // DevExpress may have auto-selected the only matching row and closed the popup.
-      // Verify by checking if the input field value changed from the default "N/A".
+    if (!selectionResult.clicked) {
       const inputValue = await this.page.evaluate(
         () => (document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null)?.value ?? '',
       );
       if (inputValue && inputValue !== 'N/A') {
         logger.info('selectDeliveryAddress: auto-selected by DevExpress', { inputValue });
-        return;
+      } else {
+        logger.warn('selectDeliveryAddress: no rows found after search', { via, cap: address.cap, citta: address.citta });
       }
-      logger.warn('selectDeliveryAddress: no rows found after search', {
-        via,
-        cap: address.cap,
-        citta: address.citta,
-      });
       return;
     }
 
-    // Click on the first matching row's td cell. page.click() dispatches real
-    // mouse events through CDP which triggers DevExpress row selection.
-    // DevExpress may re-render the grid after the filter AJAX (stale handle race);
-    // retry once after a short wait if the node is detached.
-    const rowCellSelector = '[id*="DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow0"] td';
-    try {
-      await this.page.click(rowCellSelector);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.message.includes('detached')) {
-        await new Promise(r => setTimeout(r, 400));
-        await this.page.click(rowCellSelector);
-      } else {
-        throw err;
-      }
-    }
-
-    // page.click() triggers a real DevExpress server postback to persist the selected
-    // address on the order. waitForDevExpressIdle alone is unreliable here because
-    // InCallback() may return false before the postback actually completes.
-    // Wait explicitly for the field value to change from 'N/A', which confirms the
-    // server roundtrip finished and the form is stable before article insertion starts.
+    // Phase 7: Wait for dropdown popup to close (same as customer: _DDD_PW hidden).
     try {
       await this.page.waitForFunction(
-        () => {
-          const inp = document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null;
-          return Boolean(inp && inp.value && inp.value !== 'N/A');
-        },
-        { timeout: 15000, polling: 300 },
+        () => Array.from(document.querySelectorAll('[id*="_DDD_PW"]'))
+          .every(p => (p as HTMLElement).offsetParent === null || (p as HTMLElement).style.display === 'none'),
+        { timeout: 2000, polling: 100 },
       );
-    } catch {
-      logger.warn('selectDeliveryAddress: field value did not update after row click (postback may still be pending)');
-    }
-    await this.waitForDevExpressIdle({ label: 'delivery-address-select', timeout: 15000 });
+    } catch { /* proceed anyway */ }
+
+    await this.waitForDevExpressIdle({ label: 'delivery-address-select' });
   }
 
   /**

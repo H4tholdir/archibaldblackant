@@ -7,11 +7,11 @@ const makePageMock = () => ({
   $: vi.fn().mockResolvedValue(null),
   click: vi.fn().mockResolvedValue(undefined),
   waitForSelector: vi.fn().mockResolvedValue(null),
+  waitForFunction: vi.fn().mockResolvedValue(undefined),
   keyboard: {
     type: vi.fn().mockResolvedValue(undefined),
     press: vi.fn().mockResolvedValue(undefined),
   },
-  waitForFunction: vi.fn().mockResolvedValue(undefined),
 });
 
 function makeBot(pageMock: ReturnType<typeof makePageMock>): ArchibaldBot {
@@ -48,19 +48,19 @@ describe('selectDeliveryAddress', () => {
   it('returns early when via is null — no idle wait, no field lookup', async () => {
     await (bot as any).selectDeliveryAddress({ ...addressLioni, via: null });
 
-    expect(page.$).not.toHaveBeenCalled();
+    expect(page.evaluate).not.toHaveBeenCalled();
     expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalled();
   });
 
   it('returns early when via is empty string — no idle wait, no field lookup', async () => {
     await (bot as any).selectDeliveryAddress({ ...addressLioni, via: '' });
 
-    expect(page.$).not.toHaveBeenCalled();
+    expect(page.evaluate).not.toHaveBeenCalled();
     expect((bot as any).waitForDevExpressIdle).not.toHaveBeenCalled();
   });
 
-  it('returns gracefully when field input not found — pre-idle called once', async () => {
-    page.$.mockResolvedValueOnce(null); // fieldInput = null
+  it('returns gracefully when field not found — pre-idle called once', async () => {
+    page.evaluate.mockResolvedValueOnce(null); // fieldInfo = null
 
     await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
     expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(1);
@@ -69,67 +69,57 @@ describe('selectDeliveryAddress', () => {
     );
   });
 
-  it('pastes full via into popup search box and clicks first matching row td', async () => {
-    page.$.mockResolvedValueOnce({}); // fieldInput exists
-    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
-    page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
-    // waitForSelector for DXSE_I is called between ShowDropDown and paste
-    page.evaluate.mockResolvedValueOnce(undefined); // execCommand paste into search box
-    page.evaluate.mockResolvedValueOnce(1);         // rowCount = 1
+  it('returns gracefully when dropdown button not found', async () => {
+    page.evaluate.mockResolvedValueOnce({ baseId: 'DELIVERYPOSTALADDRESS_Edit', btnSelector: null });
+
+    await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
+    expect(page.click).not.toHaveBeenCalled();
+  });
+
+  it('clicks dropdown button, pastes via evaluate, clicks first row inside evaluate', async () => {
+    // Phase 1: fieldInfo with button
+    page.evaluate.mockResolvedValueOnce({ baseId: 'DELIVERYPOSTALADDRESS_Edit', btnSelector: '#DELIVERYPOSTALADDRESS_Edit_B-1' });
+    // Phase 4: paste evaluate
+    page.evaluate.mockResolvedValueOnce(undefined);
+    // Phase 6: selectionResult — clicked first row
+    page.evaluate.mockResolvedValueOnce({ clicked: true, reason: 'first-row', rowsCount: 1 });
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
-    expect(page.$).toHaveBeenCalledWith('[id$="DELIVERYPOSTALADDRESS_Edit_I"]');
-    expect(page.waitForSelector).toHaveBeenCalledWith(
-      expect.stringContaining('DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE_I'),
-      expect.any(Object),
-    );
-    expect(page.keyboard.type).not.toHaveBeenCalled();
-    expect(page.keyboard.press).not.toHaveBeenCalled();
-    expect(page.click).toHaveBeenCalledWith(
-      expect.stringContaining('DELIVERYPOSTALADDRESS_Edit_DDD_gv_DXDataRow0'),
+    // page.click used only for the dropdown button, never for a row td
+    expect(page.click).toHaveBeenCalledTimes(1);
+    expect(page.click).toHaveBeenCalledWith('#DELIVERYPOSTALADDRESS_Edit_B-1');
+
+    // waitForFunction called for: search input visible, filtered rows, popup close
+    expect(page.waitForFunction).toHaveBeenCalledTimes(3);
+
+    // Final idle wait with delivery-address-select label
+    expect((bot as any).waitForDevExpressIdle).toHaveBeenLastCalledWith(
+      expect.objectContaining({ label: 'delivery-address-select' }),
     );
   });
 
   it('returns early with warn when no rows and input is still N/A', async () => {
-    page.$.mockResolvedValueOnce({});
-    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
-    page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
-    page.evaluate.mockResolvedValueOnce(undefined); // paste into search box
-    page.evaluate.mockResolvedValueOnce(0);         // rowCount = 0
-    page.evaluate.mockResolvedValueOnce('N/A');     // inputValue
+    page.evaluate.mockResolvedValueOnce({ baseId: 'DELIVERYPOSTALADDRESS_Edit', btnSelector: '#DELIVERYPOSTALADDRESS_Edit_B-1' });
+    page.evaluate.mockResolvedValueOnce(undefined);  // paste
+    page.evaluate.mockResolvedValueOnce({ clicked: false, reason: 'no-rows', rowsCount: 0 });
+    page.evaluate.mockResolvedValueOnce('N/A');       // inputValue check
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
-    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(3);
-    expect(page.click).not.toHaveBeenCalled();
+    expect(page.click).toHaveBeenCalledTimes(1); // only button click
+    // no final idle with delivery-address-select
+    const idleCalls = ((bot as any).waitForDevExpressIdle as ReturnType<typeof vi.fn>).mock.calls;
+    expect(idleCalls.every((c: any[]) => c[0]?.label !== 'delivery-address-select')).toBe(true);
   });
 
-  it('returns early without warn when DevExpress auto-selected (0 rows, input changed)', async () => {
-    page.$.mockResolvedValueOnce({});
+  it('returns early without warn when DevExpress auto-selected (no rows, input changed)', async () => {
+    page.evaluate.mockResolvedValueOnce({ baseId: 'DELIVERYPOSTALADDRESS_Edit', btnSelector: '#DELIVERYPOSTALADDRESS_Edit_B-1' });
     page.evaluate.mockResolvedValueOnce(undefined);
-    page.evaluate.mockResolvedValueOnce(undefined);
-    page.evaluate.mockResolvedValueOnce(undefined);
-    page.evaluate.mockResolvedValueOnce(0);
+    page.evaluate.mockResolvedValueOnce({ clicked: false, reason: 'no-rows', rowsCount: 0 });
     page.evaluate.mockResolvedValueOnce('Via Francesco Petrarca');
 
     await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
-    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(3);
-    expect(page.click).not.toHaveBeenCalled();
-  });
-
-  it('calls waitForDevExpressIdle four times and uses delivery-address-select label on success', async () => {
-    page.$.mockResolvedValueOnce({});
-    page.evaluate.mockResolvedValueOnce(undefined); // scrollIntoView
-    page.evaluate.mockResolvedValueOnce(undefined); // ShowDropDown
-    page.evaluate.mockResolvedValueOnce(undefined); // paste into search box
-    page.evaluate.mockResolvedValueOnce(1);         // rowCount = 1
-
-    await (bot as any).selectDeliveryAddress(addressLioni);
-
-    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(4);
-    expect((bot as any).waitForDevExpressIdle).toHaveBeenLastCalledWith(
-      expect.objectContaining({ label: 'delivery-address-select' }),
-    );
+    expect(page.click).toHaveBeenCalledTimes(1);
   });
 });
