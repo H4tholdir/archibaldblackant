@@ -79,13 +79,24 @@ describe('selectDeliveryAddress', () => {
     expect(page.keyboard.type).toHaveBeenCalledWith('Via Francesco Petrarca');
   });
 
-  it('calls waitForDevExpressIdle exactly twice when no rows found', async () => {
+  it('returns early with warn when no rows and input is still N/A', async () => {
     const fieldEl = { click: vi.fn().mockResolvedValue(undefined) };
     page.$.mockResolvedValueOnce(fieldEl);
-    page.evaluate.mockResolvedValueOnce(0);  // rowCount = 0
+    page.evaluate.mockResolvedValueOnce(0);   // rowCount = 0
+    page.evaluate.mockResolvedValueOnce('N/A'); // inputValue = N/A (not auto-selected)
 
     await (bot as any).selectDeliveryAddress(addressLioni);
 
+    expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns early without warn when DevExpress auto-selected (0 rows, input changed)', async () => {
+    const fieldEl = { click: vi.fn().mockResolvedValue(undefined) };
+    page.$.mockResolvedValueOnce(fieldEl);
+    page.evaluate.mockResolvedValueOnce(0);                    // rowCount = 0
+    page.evaluate.mockResolvedValueOnce('Via Francesco Petrarca'); // inputValue = auto-selected
+
+    await expect((bot as any).selectDeliveryAddress(addressLioni)).resolves.toBeUndefined();
     expect((bot as any).waitForDevExpressIdle).toHaveBeenCalledTimes(2);
   });
 

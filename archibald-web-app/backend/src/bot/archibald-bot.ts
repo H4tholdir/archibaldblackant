@@ -3031,6 +3031,15 @@ export class ArchibaldBot {
     );
 
     if (rowCount === 0) {
+      // DevExpress may have auto-selected the only matching row and closed the dropdown.
+      // Verify by checking if the input field value changed from default "N/A".
+      const inputValue = await this.page.evaluate(
+        () => (document.querySelector('[id$="DELIVERYPOSTALADDRESS_Edit_I"]') as HTMLInputElement | null)?.value ?? '',
+      );
+      if (inputValue && inputValue !== 'N/A') {
+        logger.info('selectDeliveryAddress: auto-selected by DevExpress', { inputValue });
+        return;
+      }
       logger.warn('selectDeliveryAddress: no rows found after search', {
         via,
         cap: address.cap,
