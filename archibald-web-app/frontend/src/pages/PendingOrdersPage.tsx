@@ -1173,6 +1173,15 @@ export function PendingOrdersPage() {
                         {order.subClientName || order.subClientCodice}
                       </div>
                     )}
+                    {order.deliveryAddressResolved && (
+                      <div style={{ fontSize: '0.78rem', color: '#666', marginTop: 2 }}>
+                        {'📍 '}
+                        {[order.deliveryAddressResolved.via, order.deliveryAddressResolved.citta]
+                          .filter(Boolean)
+                          .join(' — ')}
+                        {order.deliveryAddressResolved.tipo && ` (${order.deliveryAddressResolved.tipo})`}
+                      </div>
+                    )}
                     <div
                       style={{
                         fontSize: isMobile ? "0.8125rem" : "0.875rem",

@@ -64,4 +64,11 @@ export interface PendingOrder {
   subClientData?: SubClient;
   verificationNotification?: VerificationNotification;
   deliveryAddressId?: number | null;
+  deliveryAddressResolved?: {
+    via: string | null;
+    cap: string | null;
+    citta: string | null;
+    tipo: string;
+    nome: string | null;
+  } | null;
 }
