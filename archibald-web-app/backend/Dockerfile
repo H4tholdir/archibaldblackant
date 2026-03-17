@@ -17,7 +17,10 @@ RUN npm ci && \
     npm cache clean --force
 
 # Stage 3: Production runtime with Chromium
-FROM node:20-alpine
+# Pin Alpine 3.20 — Alpine 3.21 pushed chromium 146 which crashes with SIGILL
+# on the production VPS (Hetzner KVM, AMD EPYC-Genoa). Alpine 3.20 ships
+# chromium 126.x which is stable and compatible.
+FROM node:20-alpine3.20
 
 # Install Chromium, Python3, and dependencies for Puppeteer + PDF parsing
 RUN apk add --no-cache \
