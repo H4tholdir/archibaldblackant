@@ -1469,10 +1469,10 @@ export function CustomerCreateModal({
                     Valore attuale
                   </th>
                   <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Archibald
+                    Registro Fiscale
                   </th>
                   <th style={{ textAlign: "center", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Usa Archibald
+                    Usa
                   </th>
                 </tr>
               </thead>
