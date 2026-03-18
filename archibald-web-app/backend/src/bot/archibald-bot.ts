@@ -6095,7 +6095,9 @@ export class ArchibaldBot {
               if (isAlreadyNA) {
                 const hasNonZeroDiscount = await checkArticlesHave20Percent();
                 if (!hasNonZeroDiscount) {
-                  logger.info('LINEDISC already N/A and articles have 0% discount — skipping workaround');
+                  logger.info('LINEDISC already N/A and articles have 0% discount — saving articles before skipping workaround');
+                  await this.clickSaveOnly();
+                  await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-before-skip-workaround' });
                   return;
                 }
                 logger.warn('LINEDISC is N/A but articles still have 20% — proceeding with workaround');
