@@ -387,6 +387,7 @@ export function CustomerCreateModal({
     waitForJobViaWebSocket(taskId, {
       subscribe,
       maxWaitMs: 180_000,
+      skipSafetyPoll: true,
       onProgress: (progress, label) => {
         if (!resolved && !cancelled) {
           setProgress(progress);

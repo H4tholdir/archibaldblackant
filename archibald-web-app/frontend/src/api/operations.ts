@@ -200,13 +200,14 @@ type SubscribeFn = (eventType: string, callback: (payload: unknown) => void) => 
 type WaitForJobOptions = PollOptions & {
   subscribe?: SubscribeFn;
   wsFallbackMs?: number;
+  skipSafetyPoll?: boolean;
 };
 
 async function waitForJobViaWebSocket(
   jobId: string,
   options: WaitForJobOptions = {},
 ): Promise<Record<string, unknown>> {
-  const { subscribe, wsFallbackMs = 5000, intervalMs, maxWaitMs, onProgress } = options;
+  const { subscribe, wsFallbackMs = 5000, intervalMs, maxWaitMs, onProgress, skipSafetyPoll } = options;
 
   if (!subscribe) {
     return pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress });
@@ -283,23 +284,25 @@ async function waitForJobViaWebSocket(
     unsubscribers.push(subscribe('JOB_COMPLETED', handleEvent('JOB_COMPLETED')));
     unsubscribers.push(subscribe('JOB_FAILED', handleEvent('JOB_FAILED')));
 
-    safetyPollTimer = setInterval(async () => {
-      if (resolved) return;
-      try {
-        const { job } = await getJobStatus(jobId);
+    if (!skipSafetyPoll) {
+      safetyPollTimer = setInterval(async () => {
         if (resolved) return;
-        if (job.state === 'completed') {
-          cleanup();
-          onProgress?.(100, 'Completato');
-          resolve(job.result ?? {});
-        } else if (job.state === 'failed') {
-          cleanup();
-          reject(new Error(job.failedReason ?? 'Operazione fallita'));
+        try {
+          const { job } = await getJobStatus(jobId);
+          if (resolved) return;
+          if (job.state === 'completed') {
+            cleanup();
+            onProgress?.(100, 'Completato');
+            resolve(job.result ?? {});
+          } else if (job.state === 'failed') {
+            cleanup();
+            reject(new Error(job.failedReason ?? 'Operazione fallita'));
+          }
+        } catch {
+          // Poll failed, will retry next interval
         }
-      } catch {
-        // Poll failed, will retry next interval
-      }
-    }, 15_000);
+      }, 15_000);
+    }
 
     resetFallback();
   });

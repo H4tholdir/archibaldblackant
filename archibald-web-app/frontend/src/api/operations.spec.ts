@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { enqueueOperation, getJobStatus, getOperationsDashboard, pollJobUntilDone } from './operations';
+import { enqueueOperation, getJobStatus, getOperationsDashboard, pollJobUntilDone, waitForJobViaWebSocket } from './operations';
 
 const mockFetch = vi.fn();
 
@@ -189,5 +189,41 @@ describe('pollJobUntilDone', () => {
     await expect(
       pollJobUntilDone(jobId, { intervalMs: 10, maxWaitMs: 50 }),
     ).rejects.toThrow('Timeout: operazione non completata entro il tempo massimo');
+  });
+});
+
+describe('waitForJobViaWebSocket', () => {
+  test('does not call getJobStatus when skipSafetyPoll is true', async () => {
+    vi.useFakeTimers();
+
+    const jobId = 'fake-uuid';
+    const callbacks: Record<string, (payload: unknown) => void> = {};
+    const subscribe = vi.fn().mockImplementation((eventType: string, cb: (payload: unknown) => void) => {
+      callbacks[eventType] = cb;
+      return () => {};
+    });
+
+    const promise = waitForJobViaWebSocket(jobId, {
+      subscribe,
+      skipSafetyPoll: true,
+      maxWaitMs: 60_000,
+    });
+
+    // Fire JOB_STARTED to mark WebSocket active and cancel the 5s fallback timer
+    callbacks['JOB_STARTED']?.({ jobId });
+
+    // Advance past where safety poll would fire (15s interval)
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(mockFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/status'),
+      expect.anything(),
+    );
+
+    // Resolve the promise to clean up
+    callbacks['JOB_COMPLETED']?.({ jobId, result: {} });
+    await promise;
+
+    vi.useRealTimers();
   });
 });
