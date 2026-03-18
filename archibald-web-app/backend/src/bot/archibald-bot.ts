@@ -1703,31 +1703,45 @@ export class ArchibaldBot {
   private async cleanupStaleDropdowns(): Promise<void> {
     if (!this.page) return;
     try {
-      const removed = await this.page.evaluate(() => {
-        let count = 0;
-        document.querySelectorAll(".dxpcLite, .dxpc-content").forEach((el) => {
-          const htmlEl = el as HTMLElement;
-          if (
-            htmlEl.style.display !== "none" &&
-            !el.closest('tr[id*="editnew"]')
-          ) {
-            htmlEl.style.display = "none";
-            count++;
-          }
-        });
-        document.querySelectorAll('[id*="_DDD"]').forEach((el) => {
-          const htmlEl = el as HTMLElement;
-          const rect = htmlEl.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            htmlEl.style.display = "none";
-            count++;
-          }
-        });
-        return count;
+      const stats = await this.page.evaluate(() => {
+        let physicallyRemoved = 0;
+        let hidden = 0;
+        const selectors = ['.dxpcLite', '.dxpc-content', '[id*="_DDD"]'];
+        for (const sel of selectors) {
+          document.querySelectorAll(sel).forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const insideEditRow =
+              el.closest('tr[id*="editnew"]') || el.closest('tr[id*="newrow"]');
+            if (insideEditRow) return;
+            // offsetParent === null means invisible in layout — safe to remove entirely
+            if (htmlEl.offsetParent === null) {
+              el.remove();
+              physicallyRemoved++;
+            } else {
+              htmlEl.style.display = 'none';
+              hidden++;
+            }
+          });
+        }
+        return {
+          physicallyRemoved,
+          hidden,
+          totalNodes: document.querySelectorAll('*').length,
+        };
       });
-      if (removed > 0) {
-        logger.debug(`Cleaned up ${removed} stale dropdown/popup elements`);
+      if (stats.physicallyRemoved > 0 || stats.hidden > 0) {
+        logger.debug(
+          `DOM cleanup: removed=${stats.physicallyRemoved} hidden=${stats.hidden} totalNodes=${stats.totalNodes}`,
+        );
       }
+    } catch {
+      // Non-critical
+    }
+    // Force V8 GC to reclaim memory from removed nodes
+    try {
+      const session = await this.page.createCDPSession();
+      await session.send('HeapProfiler.collectGarbage');
+      await session.detach();
     } catch {
       // Non-critical
     }
@@ -5676,6 +5690,21 @@ export class ArchibaldBot {
 
             // Cleanup stale dropdowns between articles to prevent DOM bloat
             await this.cleanupStaleDropdowns();
+
+            // Log DOM node count every 5 articles to monitor bloat growth
+            if ((i + 1) % 5 === 0) {
+              try {
+                const session = await this.page!.createCDPSession();
+                const counters = await session.send('Memory.getDOMCounters') as { nodes: number; jsEventListeners: number };
+                await session.detach();
+                logger.info(`DOM health after article ${i + 1}/${itemsToOrder.length}`, {
+                  domNodes: counters.nodes,
+                  jsListeners: counters.jsEventListeners,
+                });
+              } catch {
+                // Non-critical
+              }
+            }
 
             // 5.7b: Periodic form save every 10 articles to flush DevExpress DOM bloat.
             // After 10+ articles, accumulated dropdowns/popups/editors cause
