@@ -1703,45 +1703,31 @@ export class ArchibaldBot {
   private async cleanupStaleDropdowns(): Promise<void> {
     if (!this.page) return;
     try {
-      const stats = await this.page.evaluate(() => {
-        let physicallyRemoved = 0;
-        let hidden = 0;
-        const selectors = ['.dxpcLite', '.dxpc-content', '[id*="_DDD"]'];
-        for (const sel of selectors) {
-          document.querySelectorAll(sel).forEach((el) => {
-            const htmlEl = el as HTMLElement;
-            const insideEditRow =
-              el.closest('tr[id*="editnew"]') || el.closest('tr[id*="newrow"]');
-            if (insideEditRow) return;
-            // offsetParent === null means invisible in layout — safe to remove entirely
-            if (htmlEl.offsetParent === null) {
-              el.remove();
-              physicallyRemoved++;
-            } else {
-              htmlEl.style.display = 'none';
-              hidden++;
-            }
-          });
-        }
-        return {
-          physicallyRemoved,
-          hidden,
-          totalNodes: document.querySelectorAll('*').length,
-        };
+      const removed = await this.page.evaluate(() => {
+        let count = 0;
+        document.querySelectorAll(".dxpcLite, .dxpc-content").forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          if (
+            htmlEl.style.display !== "none" &&
+            !el.closest('tr[id*="editnew"]')
+          ) {
+            htmlEl.style.display = "none";
+            count++;
+          }
+        });
+        document.querySelectorAll('[id*="_DDD"]').forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          const rect = htmlEl.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            htmlEl.style.display = "none";
+            count++;
+          }
+        });
+        return count;
       });
-      if (stats.physicallyRemoved > 0 || stats.hidden > 0) {
-        logger.debug(
-          `DOM cleanup: removed=${stats.physicallyRemoved} hidden=${stats.hidden} totalNodes=${stats.totalNodes}`,
-        );
+      if (removed > 0) {
+        logger.debug(`Cleaned up ${removed} stale dropdown/popup elements`);
       }
-    } catch {
-      // Non-critical
-    }
-    // Force V8 GC to reclaim memory from removed nodes
-    try {
-      const session = await this.page.createCDPSession();
-      await session.send('HeapProfiler.collectGarbage');
-      await session.detach();
     } catch {
       // Non-critical
     }
@@ -5691,26 +5677,11 @@ export class ArchibaldBot {
             // Cleanup stale dropdowns between articles to prevent DOM bloat
             await this.cleanupStaleDropdowns();
 
-            // Log DOM node count every 5 articles to monitor bloat growth
-            if ((i + 1) % 5 === 0) {
-              try {
-                const session = await this.page!.createCDPSession();
-                const counters = await session.send('Memory.getDOMCounters') as { nodes: number; jsEventListeners: number };
-                await session.detach();
-                logger.info(`DOM health after article ${i + 1}/${itemsToOrder.length}`, {
-                  domNodes: counters.nodes,
-                  jsListeners: counters.jsEventListeners,
-                });
-              } catch {
-                // Non-critical
-              }
-            }
-
             // 5.7b: Periodic form save every 10 articles to flush DevExpress DOM bloat.
             // After 10+ articles, accumulated dropdowns/popups/editors cause
             // Runtime.callFunctionOn timeouts (>5min protocolTimeout).
             // "Salvare" triggers a form-level callback that re-renders the grid cleanly.
-            const PERIODIC_SAVE_EVERY = 50;
+            const PERIODIC_SAVE_EVERY = 10;
             const articleNum = i + 1; // 1-based
             if (
               articleNum % PERIODIC_SAVE_EVERY === 0 &&
@@ -5740,11 +5711,6 @@ export class ArchibaldBot {
                   logger.info(
                     `After periodic save: ${savedCount} articles in grid (expected ${articleNum})`,
                   );
-                  if (savedCount < articleNum) {
-                    throw new Error(
-                      `Periodic save data loss: ${savedCount} articles in grid, expected ${articleNum}`,
-                    );
-                  }
 
                   // Navigate to last page and create new row for next article
                   await this.gridGotoLastPage();
@@ -6279,39 +6245,20 @@ export class ArchibaldBot {
       // address change made earlier to the customer's default address.
       if (orderData.deliveryAddress) {
         // Ensure we are on the Overview tab so DELIVERYPOSTALADDRESS is in the DOM.
-        // IMPORTANT: Only click the tab if we are NOT already on it — a tab switch AFTER
-        // article insertion is an AJAX postback that could reset the XAF ObjectSpace.
-        // After article insertion we should already be on Panoramica, so this is usually a no-op.
-        const needsTabSwitch = await this.page!.evaluate(() => {
+        const navigatedToOverview = await this.page!.evaluate(() => {
           const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
-          // Check if Overview/Panoramica tab is already active
-          for (const el of allLinks) {
+          const overviewLink = allLinks.find(el => {
             const t = el.textContent?.trim().toLowerCase() ?? '';
-            if (t === 'overview' || t === 'panoramica' || t === 'panoramique') {
-              const li = el.closest('li');
-              const isActive = li?.classList.contains('dxtc-activeTab') ||
-                li?.getAttribute('aria-selected') === 'true' ||
-                el.getAttribute('aria-selected') === 'true';
-              return !isActive; // needs switch only if NOT already active
-            }
-          }
-          return false; // tab not found — assume already on correct tab
-        });
-        if (needsTabSwitch) {
-          logger.info('Navigating to Panoramica tab for delivery address (was on different tab)');
-          await this.page!.evaluate(() => {
-            const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
-            const overviewLink = allLinks.find(el => {
-              const t = el.textContent?.trim().toLowerCase() ?? '';
-              return t === 'overview' || t === 'panoramica' || t === 'panoramique';
-            });
-            if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
-              (overviewLink as HTMLElement).click();
-            }
+            return t === 'overview' || t === 'panoramica' || t === 'panoramique';
           });
+          if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
+            (overviewLink as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+        if (navigatedToOverview) {
           await this.waitForDevExpressIdle({ label: 'overview-tab-for-delivery-address', timeout: 6000 });
-        } else {
-          logger.debug('Already on Panoramica tab — skipping tab switch for delivery address');
         }
         await this.selectDeliveryAddress(orderData.deliveryAddress);
       }
