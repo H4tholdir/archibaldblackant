@@ -3854,186 +3854,6 @@ export class ArchibaldBot {
 
       // prezziTabOpened removed — tab is opened explicitly when needed
 
-      // STEP 3.4: Fill order notes BEFORE article insertion.
-      // Any AJAX callback (tab switch, Salvare) after article insertion resets XAF ObjectSpace.
-      // Notes must be persisted before articles are added.
-      const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
-      if (notesText) {
-        await this.emitProgress('form.notes');
-        await this.fillOrderNotes(notesText);
-        // Save to persist notes before subsequent tab switches
-        await this.clickSaveOnly();
-        await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
-      }
-
-      // STEP 3.5: N/A line discount workaround — BEFORE article insertion.
-      // Any "Prezzi e sconti" tab switch after article insertion resets the XAF ObjectSpace,
-      // losing all inserted articles. Moved here to run before any articles exist.
-      {
-        try {
-          await this.runOp(
-            "order.na_discount_workaround",
-            async () => {
-              await openPrezziEScontiTab();
-              await this.waitForDevExpressIdle({ timeout: 10000, label: "na-open-tab-initial" });
-
-              const lineDiscValue = await this.page!.evaluate(() => {
-                const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
-                return input?.value?.trim() || '';
-              });
-              logger.info('LINEDISC current value', { lineDiscValue });
-
-              const isAlreadyNA = lineDiscValue.toUpperCase() === 'N/A' || lineDiscValue === '';
-              if (isAlreadyNA) {
-                logger.info('LINEDISC already N/A — skipping workaround');
-                return;
-              }
-
-              const clearLineDisc = async (): Promise<boolean> => {
-                const clearResult = await this.page!.evaluate(() => {
-                  const clearBtn = document.querySelector('td[id*="LINEDISC"][id$="_B1"]') as HTMLElement | null;
-                  if (clearBtn) {
-                    clearBtn.scrollIntoView({ block: 'center' });
-                    clearBtn.click();
-                    return { strategy: 'clear-button', id: clearBtn.id };
-                  }
-                  const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
-                  if (input) {
-                    const controlName = input.id.replace(/_I$/, '');
-                    (window as any).ASPx?.BEClick(controlName, 1);
-                    return { strategy: 'aspx-beclick', controlName };
-                  }
-                  return null;
-                });
-                if (clearResult) {
-                  logger.info('LINEDISC Clear button clicked', clearResult);
-                } else {
-                  logger.warn('LINEDISC Clear button not found — tab may not be active');
-                }
-                await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
-                return clearResult !== null;
-              };
-
-              const saveWithRetry = async (label: string) => {
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                  try {
-                    await this.clickSaveOnly();
-                    return;
-                  } catch (saveError) {
-                    logger.warn(`${label} save attempt ${attempt}/3 failed`, {
-                      error: saveError instanceof Error ? saveError.message : String(saveError),
-                    });
-                    if (attempt === 3) throw saveError;
-                    await this.wait(2000);
-                    await this.waitForDevExpressIdle({ timeout: 10000, label: `${label}-retry-idle-${attempt}` });
-                  }
-                }
-              };
-
-              const MAX_ROUNDS = 3;
-              for (let round = 1; round <= MAX_ROUNDS; round++) {
-                logger.debug(`LINEDISC workaround round ${round}/${MAX_ROUNDS}...`);
-                await openPrezziEScontiTab();
-                await this.waitForDevExpressIdle({ timeout: 10000, label: `na-reopen-tab-round-${round}` });
-
-                const cleared = await clearLineDisc();
-                if (!cleared) {
-                  logger.warn(`LINEDISC Clear button not found in round ${round} — retrying after tab reopen`);
-                  await this.wait(1000);
-                  await openPrezziEScontiTab();
-                  await this.waitForDevExpressIdle({ timeout: 10000, label: `na-reopen-tab-round-${round}-retry` });
-                  await clearLineDisc();
-                }
-
-                await saveWithRetry(`linedisc-round-${round}`);
-                await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
-
-                await openPrezziEScontiTab();
-                await this.waitForDevExpressIdle({ timeout: 5000, label: `na-verify-round-${round}` });
-                const currentValue = await this.page!.evaluate(() => {
-                  const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
-                  return input?.value?.trim() || '';
-                });
-                if (currentValue.toUpperCase() === 'N/A' || currentValue === '') {
-                  logger.info(`LINEDISC workaround complete after round ${round}`);
-                  break;
-                }
-              }
-            },
-            "form.discount",
-          );
-        } catch (naError) {
-          logger.warn("N/A discount workaround failed (non-fatal, continuing)", {
-            errorMessage: naError instanceof Error ? naError.message : String(naError),
-          });
-        }
-      }
-
-      // STEP 3.6: Apply global discount (if specified) — BEFORE article insertion.
-      // Must be after N/A workaround (would be overwritten by its double-save otherwise).
-      if (orderData.discountPercent && orderData.discountPercent > 0) {
-        await this.runOp(
-          "order.apply_global_discount",
-          async () => {
-            logger.debug(`Applying global discount: ${orderData.discountPercent}%`);
-            await openPrezziEScontiTab();
-            await this.waitForDevExpressIdle({ timeout: 5000, label: "pre-global-discount" });
-
-            const discountField = await this.page!.evaluate(() => {
-              const patterns = ['MANUALDISCOUNT', 'ENDDISCPERCENT', 'ENDDISCP'];
-              const all = Array.from(document.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
-              for (const pattern of patterns) {
-                const match = all.find(inp =>
-                  inp.id.toUpperCase().includes(pattern) && inp.offsetParent !== null && inp.getBoundingClientRect().width > 0,
-                );
-                if (match) {
-                  match.scrollIntoView({ block: 'center' });
-                  match.focus();
-                  match.click();
-                  return { id: match.id, value: match.value };
-                }
-              }
-              return null;
-            });
-
-            if (!discountField) {
-              logger.warn('Global discount field not found');
-              return;
-            }
-
-            const discountFormatted = orderData.discountPercent!.toString().replace('.', ',');
-            await this.page!.evaluate((inputId, val) => {
-              const input = document.getElementById(inputId) as HTMLInputElement;
-              if (input) {
-                input.value = val;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }, discountField.id, discountFormatted);
-
-            await this.page!.keyboard.press('Tab');
-            await this.waitForDevExpressIdle({ timeout: 5000, label: 'global-discount-set' });
-            logger.info(`✅ Global discount applied: ${orderData.discountPercent}%`);
-          },
-          "form.discount",
-        );
-        await this.emitProgress("form.discount");
-      }
-
-      // Navigate back to Panoramica tab before article insertion.
-      // After "Prezzi e sconti" steps, the active tab may have changed.
-      await this.page!.evaluate(() => {
-        const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
-        const overviewLink = allLinks.find(el => {
-          const t = el.textContent?.trim().toLowerCase() ?? '';
-          return t === 'overview' || t === 'panoramica' || t === 'panoramique';
-        });
-        if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
-          (overviewLink as HTMLElement).click();
-        }
-      });
-      await this.waitForDevExpressIdle({ label: 'panoramica-tab-pre-articles', timeout: 6000 });
-
       // STEP 4: Add first new row in Linee di vendita
       await this.runOp(
         "order.lineditems.click_new",
@@ -6242,8 +6062,216 @@ export class ArchibaldBot {
         "form.submit",
       );
 
-      // Steps 9.4 (notes), 9.5 (LINEDISC), 9.6 (global discount) were moved to
-      // STEP 3.4–3.6 above, before article insertion, to avoid XAF ObjectSpace reset.
+      // STEP 9.4: Fill order notes (no shipping + notes)
+      // Fill notes BEFORE the N/A workaround — after the workaround's double save,
+      // DevExpress regenerates the Panoramica tab DOM on click, destroying note fields.
+      // We're still on Panoramica after STEP 9, so the form is stable.
+      const notesText = buildOrderNotesText(orderData.noShipping, orderData.notes);
+      if (notesText) {
+        await this.emitProgress('form.notes');
+        await this.fillOrderNotes(notesText);
+
+        // STEP 9.45: Save to persist notes before the N/A workaround's double save
+        await this.clickSaveOnly();
+        await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
+      }
+
+      // STEP 9.5: N/A line discount workaround
+      // Go to "Prezzi e sconti" tab, check LINEDISC value and article SCONTO %.
+      // If "Discount to get street price" with 20% on articles → clear LINEDISC, save — repeat until clean.
+      // If already N/A/null with 0% on articles → skip.
+      // IMPORTANT: After each save, DevExpress may switch back to Panoramica tab,
+      // so we must re-open "Prezzi e sconti" before every round.
+      {
+        try {
+          await this.runOp(
+            "order.na_discount_workaround",
+            async () => {
+              const checkArticlesHave20Percent = async (): Promise<boolean> => {
+                return this.page!.evaluate(() => {
+                  const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                  for (const row of rows) {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    for (const cell of cells) {
+                      const text = (cell.textContent || '').trim();
+                      if (text.match(/^20[.,]00\s*%$/)) return true;
+                    }
+                  }
+                  return false;
+                });
+              };
+
+              const openTabAndWait = async (label: string) => {
+                const opened = await openPrezziEScontiTab();
+                if (!opened) {
+                  logger.warn(`"Prezzi e sconti" tab not found at ${label}`);
+                }
+                await this.waitForDevExpressIdle({ timeout: 10000, label });
+                return opened;
+              };
+
+              await openTabAndWait("na-open-tab-initial");
+
+              // Read LINEDISC value
+              const lineDiscValue = await this.page!.evaluate(() => {
+                const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                return input?.value?.trim() || '';
+              });
+              logger.info('LINEDISC current value', { lineDiscValue });
+
+              const isAlreadyNA = lineDiscValue.toUpperCase() === 'N/A' || lineDiscValue === '';
+
+              if (isAlreadyNA) {
+                const hasNonZeroDiscount = await checkArticlesHave20Percent();
+                if (!hasNonZeroDiscount) {
+                  logger.info('LINEDISC already N/A and articles have 0% discount — skipping workaround');
+                  return;
+                }
+                logger.warn('LINEDISC is N/A but articles still have 20% — proceeding with workaround');
+              }
+
+              // Clear LINEDISC using the DevExpress "Clear" button (B1).
+              // The LINEDISC is a xafLookupEditor — synthetic .click() on the dropdown
+              // button doesn't open the popup (DevExpress needs real mouse events).
+              // The Clear button has an inline onclick calling ASPx.BEClick() which
+              // properly resets the hidden _VI value and triggers server-side recalculation.
+              const clearLineDisc = async (): Promise<boolean> => {
+                const clearResult = await this.page!.evaluate(() => {
+                  // Find the Clear button (B1, not B-1 which is the dropdown button)
+                  const clearBtn = document.querySelector('td[id*="LINEDISC"][id$="_B1"]') as HTMLElement | null;
+                  if (clearBtn) {
+                    clearBtn.scrollIntoView({ block: 'center' });
+                    clearBtn.click();
+                    return { strategy: 'clear-button', id: clearBtn.id };
+                  }
+                  // Fallback: call ASPx.BEClick directly by finding the control name
+                  const input = document.querySelector('input[id*="LINEDISC"][id$="_I"]') as HTMLInputElement | null;
+                  if (input) {
+                    // Extract the DevExpress control name from the input id (remove _I suffix)
+                    const controlName = input.id.replace(/_I$/, '');
+                    (window as any).ASPx?.BEClick(controlName, 1);
+                    return { strategy: 'aspx-beclick', controlName };
+                  }
+                  return null;
+                });
+                if (clearResult) {
+                  logger.info('LINEDISC Clear button clicked', clearResult);
+                } else {
+                  logger.warn('LINEDISC Clear button not found — tab may not be active');
+                }
+                await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
+                return clearResult !== null;
+              };
+
+              const saveWithRetry = async (label: string) => {
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  try {
+                    await this.clickSaveOnly();
+                    return;
+                  } catch (saveError) {
+                    logger.warn(`${label} save attempt ${attempt}/3 failed`, {
+                      error: saveError instanceof Error ? saveError.message : String(saveError),
+                    });
+                    if (attempt === 3) throw saveError;
+                    await this.wait(2000);
+                    await this.waitForDevExpressIdle({ timeout: 10000, label: `${label}-retry-idle-${attempt}` });
+                  }
+                }
+              };
+
+              // Round 1: clear first row discount + save.
+              // Round 2: clear remaining rows discount + save.
+              // Re-open tab before each round because save switches back to Panoramica.
+              const MAX_ROUNDS = 3;
+              for (let round = 1; round <= MAX_ROUNDS; round++) {
+                logger.debug(`LINEDISC workaround round ${round}/${MAX_ROUNDS}...`);
+
+                await openTabAndWait(`na-reopen-tab-round-${round}`);
+
+                const cleared = await clearLineDisc();
+                if (!cleared) {
+                  logger.warn(`LINEDISC Clear button not found in round ${round} — retrying after tab reopen`);
+                  await this.wait(1000);
+                  await openTabAndWait(`na-reopen-tab-round-${round}-retry`);
+                  await clearLineDisc();
+                }
+
+                await saveWithRetry(`linedisc-round-${round}`);
+                await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
+              }
+
+              // Verification: re-open tab and check articles no longer have 20%
+              await openTabAndWait("na-verify-tab");
+              const stillHas20 = await checkArticlesHave20Percent();
+              if (stillHas20) {
+                logger.error('LINEDISC workaround FAILED — articles still show 20% discount after all rounds');
+              } else {
+                logger.info('LINEDISC workaround verified — no 20% discount found on articles');
+              }
+            },
+            "form.discount",
+          );
+        } catch (naError) {
+          logger.warn("N/A discount workaround failed (non-fatal, continuing)", {
+            errorMessage: naError instanceof Error ? naError.message : String(naError),
+          });
+        }
+      }
+
+      // STEP 9.6: Apply global discount (if specified)
+      // Must be AFTER N/A workaround to avoid being overwritten by the double-save.
+      if (orderData.discountPercent && orderData.discountPercent > 0) {
+        await this.runOp(
+          "order.apply_global_discount",
+          async () => {
+            logger.debug(`Applying global discount: ${orderData.discountPercent}%`);
+
+            // Ensure we're on Prezzi e sconti tab
+            await openPrezziEScontiTab();
+            await this.waitForDevExpressIdle({ timeout: 5000, label: "pre-global-discount" });
+
+            // Find MANUALDISCOUNT / ENDDISCPERCENT field
+            const discountField = await this.page!.evaluate(() => {
+              const patterns = ['MANUALDISCOUNT', 'ENDDISCPERCENT', 'ENDDISCP'];
+              const all = Array.from(document.querySelectorAll('input[type="text"]')) as HTMLInputElement[];
+              for (const pattern of patterns) {
+                const match = all.find(inp =>
+                  inp.id.toUpperCase().includes(pattern) && inp.offsetParent !== null && inp.getBoundingClientRect().width > 0,
+                );
+                if (match) {
+                  match.scrollIntoView({ block: 'center' });
+                  match.focus();
+                  match.click();
+                  return { id: match.id, value: match.value };
+                }
+              }
+              return null;
+            });
+
+            if (!discountField) {
+              logger.warn('Global discount field not found');
+              return;
+            }
+
+            const discountFormatted = orderData.discountPercent!.toString().replace('.', ',');
+            await this.page!.evaluate((inputId, val) => {
+              const input = document.getElementById(inputId) as HTMLInputElement;
+              if (input) {
+                input.value = val;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }, discountField.id, discountFormatted);
+
+            await this.page!.keyboard.press('Tab');
+            await this.waitForDevExpressIdle({ timeout: 5000, label: 'global-discount-set' });
+
+            logger.info(`✅ Global discount applied: ${orderData.discountPercent}%`);
+          },
+          "form.discount",
+        );
+        await this.emitProgress("form.discount");
+      }
 
       // STEP 9.7: Select delivery address RIGHT BEFORE save.
       // Must be done after all articles (and any periodic saves) because XAF AJAX callbacks
