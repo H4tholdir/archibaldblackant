@@ -374,7 +374,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         sessionManager.updateState(sessionId, 'saving');
       }
 
-      const tempProfile = `TEMP-${Date.now()}`;
+      const tempProfile = session?.customerProfile ?? `TEMP-${Date.now()}`;
       const taskId = randomUUID();
       const formInput: CustomerFormInput = {
         name: customerData.name,

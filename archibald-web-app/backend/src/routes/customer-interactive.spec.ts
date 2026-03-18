@@ -536,6 +536,22 @@ describe('createCustomerInteractiveRouter', () => {
 
       expect(upsertAddresses).not.toHaveBeenCalled();
     });
+
+    test('uses existing customerProfile from session when editing (not TEMP)', async () => {
+      const existingProfile = '55.192';
+      sessionManager.setCustomerProfile(sessionId, existingProfile);
+
+      await request(app)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      expect(deps.upsertSingleCustomer).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ name: 'Test Customer' }),
+        existingProfile,
+        'pending',
+      );
+    });
   });
 
   describe('DELETE /api/customers/interactive/:sessionId', () => {
