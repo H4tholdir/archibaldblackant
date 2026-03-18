@@ -102,4 +102,68 @@ describe('syncCustomers', () => {
     const lastCall = onProgress.mock.calls[onProgress.mock.calls.length - 1];
     expect(lastCall[0]).toBe(100);
   });
+
+  test('migrates pending_orders from TEMP profile to real profile before deletion when VAT matches', async () => {
+    const tempProfile = 'TEMP-1234567890';
+    const realProfile = 'REAL-001';
+    const vatNumber = 'IT99999999999';
+
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string, params?: unknown[]) => {
+      // SELECT for toDelete: returns TEMP profile as stale
+      if (sql.includes('customer_profile NOT IN')) {
+        return Promise.resolve({ rows: [{ customer_profile: tempProfile }], rowCount: 1 });
+      }
+      // SELECT vat_number for the TEMP profile
+      if (sql.includes('SELECT vat_number') && Array.isArray(params) && params[0] === tempProfile) {
+        return Promise.resolve({ rows: [{ vat_number: vatNumber }], rowCount: 1 });
+      }
+      // SELECT real profile by VAT number
+      if (sql.includes('SELECT customer_profile') && Array.isArray(params) && params[1] === vatNumber) {
+        return Promise.resolve({ rows: [{ customer_profile: realProfile }], rowCount: 1 });
+      }
+      // UPDATE pending_orders
+      if (sql.includes('UPDATE agents.pending_orders')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      // DELETE agents.customers
+      if (sql.includes('DELETE FROM agents.customers')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const deps = createMockDeps(pool);
+    await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.pending_orders'));
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][1]).toEqual([realProfile, tempProfile, 'user-1']);
+  });
+
+  test('skips pending_orders migration when TEMP profile has no VAT number', async () => {
+    const tempProfile = 'TEMP-9999999999';
+
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('customer_profile NOT IN')) {
+        return Promise.resolve({ rows: [{ customer_profile: tempProfile }], rowCount: 1 });
+      }
+      if (sql.includes('SELECT vat_number') && Array.isArray(params) && params[0] === tempProfile) {
+        return Promise.resolve({ rows: [{ vat_number: null }], rowCount: 1 });
+      }
+      if (sql.includes('DELETE FROM agents.customers')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const deps = createMockDeps(pool);
+    await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.pending_orders'));
+    expect(updateCalls).toHaveLength(0);
+  });
 });

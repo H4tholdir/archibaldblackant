@@ -294,12 +294,15 @@ describe('handleSubmitOrder', () => {
 function createMockPoolWithCustomer(
   customerRow: Record<string, string | null> | null,
   catalogPrices: Record<string, number> = {},
+  fallbackCustomerRow: Record<string, string | null> | null = null,
 ): DbPool {
   const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
     if (typeof sql === 'string' && sql.includes('vat_validated_at') && sql.includes('agents.customers')) {
+      const isFallbackQuery = sql.includes('NOT LIKE');
+      const row = isFallbackQuery ? fallbackCustomerRow : customerRow;
       return Promise.resolve({
-        rows: customerRow ? [customerRow] : [],
-        rowCount: customerRow ? 1 : 0,
+        rows: row ? [row] : [],
+        rowCount: row ? 1 : 0,
       });
     }
     if (typeof sql === 'string' && sql.includes('RETURNING id')) {
@@ -386,14 +389,14 @@ describe('handleSubmitOrder — completeness guard', () => {
     postal_code: '80100',
   };
 
-  test('returns success:false when customer not found in DB', async () => {
+  test('throws when customer not found in DB', async () => {
     const pool = createMockPoolWithCustomer(null);
     const bot = createMockBot();
     const onProgress = vi.fn();
 
-    const result = await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress) as unknown as Record<string, unknown>;
-
-    expect(result).toEqual({ success: false, error: 'Cliente non trovato' });
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).rejects.toThrow('Cliente non trovato');
     expect(bot.createOrder).not.toHaveBeenCalled();
   });
 
@@ -464,5 +467,45 @@ describe('handleSubmitOrder — customer name resolution', () => {
     expect(bot.createOrder).toHaveBeenCalledWith(
       expect.objectContaining({ customerName: 'Current Display Name' }),
     );
+  });
+});
+
+describe('handleSubmitOrder — TEMP profile fallback', () => {
+  const completeCustomerRow = {
+    vat_validated_at: '2026-01-01T00:00:00Z',
+    pec: 'test@pec.it',
+    sdi: null,
+    street: 'Via Test 1',
+    postal_code: '80100',
+    archibald_name: null,
+    name: 'Lab. Odont. Acerra GiovanniAcerra Giovanni',
+  };
+
+  const tempIdData: SubmitOrderData = {
+    ...sampleData,
+    customerId: 'TEMP-1773786617319',
+    customerName: 'Acerra Giovanni',
+  };
+
+  test('falls back to name ILIKE match when TEMP customerId is not found by exact profile', async () => {
+    const pool = createMockPoolWithCustomer(null, {}, completeCustomerRow);
+    const bot = createMockBot('ORD-TEMP-FALLBACK');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, tempIdData, 'user-1', onProgress);
+
+    expect(result.orderId).toBe('ORD-TEMP-FALLBACK');
+    expect(bot.createOrder).toHaveBeenCalled();
+  });
+
+  test('throws when TEMP profile and no name match found', async () => {
+    const pool = createMockPoolWithCustomer(null, {}, null);
+    const bot = createMockBot();
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, tempIdData, 'user-1', onProgress),
+    ).rejects.toThrow('Cliente non trovato');
+    expect(bot.createOrder).not.toHaveBeenCalled();
   });
 });

@@ -137,7 +137,7 @@ async function handleSubmitOrder(
   // Completeness guard: verify customer has all required fields before any bot work.
   // Also fetch name/archibald_name to ensure the bot searches by the current ERP name,
   // not the potentially stale name stored in the pending order at creation time.
-  const { rows: [completenessRow] } = await pool.query<{
+  type CompletenessRow = {
     vat_validated_at: string | null;
     pec: string | null;
     sdi: string | null;
@@ -145,15 +145,32 @@ async function handleSubmitOrder(
     postal_code: string | null;
     name: string | null;
     archibald_name: string | null;
-  }>(
+  };
+
+  let { rows: [completenessRow] } = await pool.query<CompletenessRow>(
     `SELECT vat_validated_at, pec, sdi, street, postal_code, name, archibald_name
      FROM agents.customers
      WHERE customer_profile = $1 AND user_id = $2`,
     [data.customerId, userId],
   );
 
+  // Fallback: if the customerId was a TEMP profile (created during interactive session),
+  // the customer may have been re-profiled by a subsequent sync. Try to find by name.
+  if (!completenessRow && data.customerId.startsWith('TEMP-')) {
+    const { rows: [fallbackRow] } = await pool.query<CompletenessRow>(
+      `SELECT vat_validated_at, pec, sdi, street, postal_code, name, archibald_name
+       FROM agents.customers
+       WHERE user_id = $1
+         AND customer_profile NOT LIKE 'TEMP-%'
+         AND (name ILIKE '%' || $2 || '%' OR archibald_name ILIKE '%' || $2 || '%')
+       LIMIT 1`,
+      [userId, data.customerName],
+    );
+    completenessRow = fallbackRow;
+  }
+
   if (!completenessRow) {
-    return { success: false, error: 'Cliente non trovato' } as unknown as { orderId: string; verificationStatus?: string };
+    throw new Error('Cliente non trovato');
   }
 
   if (!isCustomerComplete(completenessRow)) {

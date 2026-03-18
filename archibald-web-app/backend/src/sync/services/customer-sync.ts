@@ -163,6 +163,29 @@ async function syncCustomers(
         [userId, ...parsedIds],
       );
       if (toDelete.length > 0) {
+        // Before deleting TEMP profiles, migrate any pending orders that reference them
+        // to the corresponding real profile (matched by VAT number).
+        const tempProfiles = toDelete.filter(r => r.customer_profile.startsWith('TEMP-'));
+        for (const { customer_profile: tempProfile } of tempProfiles) {
+          const { rows: [tempRow] } = await pool.query<{ vat_number: string | null }>(
+            `SELECT vat_number FROM agents.customers WHERE customer_profile = $1 AND user_id = $2`,
+            [tempProfile, userId],
+          );
+          if (tempRow?.vat_number) {
+            const { rows: [realRow] } = await pool.query<{ customer_profile: string }>(
+              `SELECT customer_profile FROM agents.customers
+               WHERE user_id = $1 AND vat_number = $2 AND customer_profile NOT LIKE 'TEMP-%' LIMIT 1`,
+              [userId, tempRow.vat_number],
+            );
+            if (realRow) {
+              await pool.query(
+                `UPDATE agents.pending_orders SET customer_id = $1 WHERE customer_id = $2 AND user_id = $3`,
+                [realRow.customer_profile, tempProfile, userId],
+              );
+            }
+          }
+        }
+
         const deleteIds = toDelete.map((r) => r.customer_profile);
         const delPlaceholders = deleteIds.map((_, i) => `$${i + 2}`).join(', ');
         const { rowCount } = await pool.query(
