@@ -6041,11 +6041,13 @@ export class ArchibaldBot {
       if (notesText) {
         await this.emitProgress('form.notes');
         await this.fillOrderNotes(notesText);
-
-        // STEP 9.45: Save to persist notes before the N/A workaround's double save
-        await this.clickSaveOnly();
-        await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
       }
+
+      // STEP 9.45: Save articles (and notes if any) before opening "Prezzi e sconti" tab.
+      // The tab switch triggers an XAF postback that resets the ObjectSpace — articles
+      // must be DB-persisted first or they'll be lost regardless of subsequent saves.
+      await this.clickSaveOnly();
+      await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-before-prezzi-sconti-tab' });
 
       // STEP 9.5: N/A line discount workaround
       // Go to "Prezzi e sconti" tab, check LINEDISC value and article SCONTO %.
@@ -6095,9 +6097,7 @@ export class ArchibaldBot {
               if (isAlreadyNA) {
                 const hasNonZeroDiscount = await checkArticlesHave20Percent();
                 if (!hasNonZeroDiscount) {
-                  logger.info('LINEDISC already N/A and articles have 0% discount — saving articles before skipping workaround');
-                  await this.clickSaveOnly();
-                  await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-before-skip-workaround' });
+                  logger.info('LINEDISC already N/A and articles have 0% discount — skipping workaround (articles already saved at step 9.45)');
                   return;
                 }
                 logger.warn('LINEDISC is N/A but articles still have 20% — proceeding with workaround');
