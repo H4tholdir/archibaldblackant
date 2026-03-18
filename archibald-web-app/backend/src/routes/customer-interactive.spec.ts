@@ -505,8 +505,37 @@ describe('createCustomerInteractiveRouter', () => {
       await vi.waitFor(() => {
         expect(upsertAddresses).toHaveBeenCalledWith(
           'user-1',
-          'PROFILE-123',
+          expect.stringMatching(/^TEMP-/),
           [{ tipo: 'Consegna', nome: null, via: 'Via Dante 5', cap: '37100', citta: 'Verona', contea: null, stato: null, idRegione: null, contra: null }],
+        );
+      });
+    });
+
+    test('uses session customerProfile (not completeCustomerCreation result) for upsertAddressesForCustomer', async () => {
+      const editProfile = '55.192';
+      sessionManager.setCustomerProfile(sessionId, editProfile);
+      const mockBot = createMockBot();
+      mockBot.completeCustomerCreation.mockResolvedValue('PROFILE-DIFFERENT');
+      sessionManager.setBot(sessionId, mockBot);
+      const upsertAddresses = vi.fn().mockResolvedValue(undefined);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        upsertAddressesForCustomer: upsertAddresses,
+      };
+      const customApp = createApp(customDeps);
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send({
+          name: 'Test',
+          addresses: [{ tipo: 'Consegna', via: 'Via Roma 1', cap: '00100', citta: 'Roma' }],
+        });
+
+      await vi.waitFor(() => {
+        expect(upsertAddresses).toHaveBeenCalledWith(
+          'user-1',
+          editProfile,
+          expect.any(Array),
         );
       });
     });

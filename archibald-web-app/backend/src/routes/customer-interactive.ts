@@ -446,8 +446,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
               idRegione: a.idRegione ?? null,
               contra: a.contra ?? null,
             }));
-            await upsertAddressesForCustomer(userId, customerProfileId, altAddresses);
-            await setAddressesSyncedAt(userId, customerProfileId);
+            await upsertAddressesForCustomer(userId, tempProfile, altAddresses);
+            await setAddressesSyncedAt(userId, tempProfile);
             await sessionManager.removeBot(sessionId);
             sessionManager.updateState(sessionId, 'completed');
           } else {
