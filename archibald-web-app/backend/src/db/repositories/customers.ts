@@ -235,29 +235,26 @@ async function getCustomers(
   searchQuery?: string,
 ): Promise<Customer[]> {
   if (searchQuery) {
-    const pattern = `%${searchQuery}%`;
+    const words = searchQuery.trim().split(/\s+/).filter(w => w.length > 0);
+    const patterns = words.map(w => `%${w}%`);
+    const searchFields = [
+      'name', 'customer_profile', 'vat_number', 'city', 'fiscal_code',
+      'street', 'postal_code', 'phone', 'mobile', 'email', 'pec', 'sdi',
+    ];
+    const wordConditions = words
+      .map((_, i) => `(${searchFields.map(f => `${f} ILIKE $${i + 2}`).join(' OR ')})`)
+      .join(' AND ');
     const { rows } = await pool.query<CustomerRow>(
       `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
        WHERE user_id = $1
          AND hidden = FALSE
-         AND (name ILIKE $2
-           OR customer_profile ILIKE $2
-           OR vat_number ILIKE $2
-           OR city ILIKE $2
-           OR fiscal_code ILIKE $2
-           OR street ILIKE $2
-           OR postal_code ILIKE $2
-           OR phone ILIKE $2
-           OR mobile ILIKE $2
-           OR email ILIKE $2
-           OR pec ILIKE $2
-           OR sdi ILIKE $2)
+         AND ${wordConditions}
        ORDER BY
          CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
          CASE WHEN TO_DATE(NULLIF(last_order_date, ''), 'DD/MM/YYYY') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END,
          name ASC
        LIMIT 100`,
-      [userId, pattern],
+      [userId, ...patterns],
     );
     return rows.map(mapRowToCustomer);
   }

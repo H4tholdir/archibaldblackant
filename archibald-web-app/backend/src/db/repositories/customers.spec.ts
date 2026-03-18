@@ -256,6 +256,18 @@ describe('getCustomers', () => {
     expect(call.params).toContain('%acme%');
   });
 
+  test('splits multi-word query into AND conditions per word', async () => {
+    const pool = createMockPool();
+
+    const { getCustomers } = await import('./customers');
+    await getCustomers(pool, TEST_USER_ID, 'esposito gerardo');
+
+    const call = pool.queryCalls[0];
+    expect(call.params).toEqual([TEST_USER_ID, '%esposito%', '%gerardo%']);
+    const andCount = (call.text.match(/\) AND \(/g) ?? []).length;
+    expect(andCount).toBe(1);
+  });
+
   test('excludes photo column in search queries', async () => {
     const pool = createMockPool();
 
