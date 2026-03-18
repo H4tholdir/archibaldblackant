@@ -4022,36 +4022,17 @@ export class ArchibaldBot {
 
       // Navigate back to Panoramica tab before article insertion.
       // After "Prezzi e sconti" steps, the active tab may have changed.
-      // CRITICAL: If the bot inserts articles while on a hidden tab, XAF does not
-      // register them in the ObjectSpace and "Salva e chiudi" produces 0 saleslines.
-      {
-        const tabNavResult = await this.page!.evaluate((): 'clicked' | 'already-active' | 'not-found' => {
-          const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
-          for (const el of allLinks) {
-            const t = el.textContent?.trim().toLowerCase() ?? '';
-            if (t === 'overview' || t === 'panoramica' || t === 'panoramique') {
-              const li = el.closest('li');
-              const isActive = li?.classList.contains('dxtc-activeTab') ||
-                li?.getAttribute('aria-selected') === 'true' ||
-                (el as HTMLElement).getAttribute('aria-selected') === 'true';
-              if (isActive) return 'already-active';
-              if ((el as HTMLElement).offsetParent !== null) {
-                (el as HTMLElement).click();
-                return 'clicked';
-              }
-            }
-          }
-          return 'not-found';
+      await this.page!.evaluate(() => {
+        const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
+        const overviewLink = allLinks.find(el => {
+          const t = el.textContent?.trim().toLowerCase() ?? '';
+          return t === 'overview' || t === 'panoramica' || t === 'panoramique';
         });
-        logger.info('Pre-article Panoramica tab navigation', { result: tabNavResult });
-        if (tabNavResult === 'clicked') {
-          await this.waitForDevExpressIdle({ label: 'panoramica-tab-pre-articles', timeout: 10000 });
-          // Re-discover grid after tab switch — grid JS object may have been re-created
-          await this.discoverSalesLinesGrid();
-        } else if (tabNavResult === 'not-found') {
-          logger.warn('Panoramica tab link not found — proceeding with article insertion from current tab');
+        if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
+          (overviewLink as HTMLElement).click();
         }
-      }
+      });
+      await this.waitForDevExpressIdle({ label: 'panoramica-tab-pre-articles', timeout: 6000 });
 
       // STEP 4: Add first new row in Linee di vendita
       await this.runOp(
