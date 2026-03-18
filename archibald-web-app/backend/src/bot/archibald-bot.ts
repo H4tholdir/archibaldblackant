@@ -5681,7 +5681,7 @@ export class ArchibaldBot {
             // After 10+ articles, accumulated dropdowns/popups/editors cause
             // Runtime.callFunctionOn timeouts (>5min protocolTimeout).
             // "Salvare" triggers a form-level callback that re-renders the grid cleanly.
-            const PERIODIC_SAVE_EVERY = 10;
+            const PERIODIC_SAVE_EVERY = 50;
             const articleNum = i + 1; // 1-based
             if (
               articleNum % PERIODIC_SAVE_EVERY === 0 &&
