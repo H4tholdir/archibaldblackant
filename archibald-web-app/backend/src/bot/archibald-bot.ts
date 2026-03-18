@@ -5711,6 +5711,11 @@ export class ArchibaldBot {
                   logger.info(
                     `After periodic save: ${savedCount} articles in grid (expected ${articleNum})`,
                   );
+                  if (savedCount < articleNum) {
+                    throw new Error(
+                      `Periodic save data loss: ${savedCount} articles in grid, expected ${articleNum}`,
+                    );
+                  }
 
                   // Navigate to last page and create new row for next article
                   await this.gridGotoLastPage();
