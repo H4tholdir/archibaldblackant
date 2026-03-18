@@ -419,3 +419,50 @@ describe('handleSubmitOrder — completeness guard', () => {
     expect(bot.createOrder).toHaveBeenCalled();
   });
 });
+
+describe('handleSubmitOrder — customer name resolution', () => {
+  const staleNameData: SubmitOrderData = {
+    ...sampleData,
+    customerName: 'Old Stale Name',
+  };
+
+  test('uses archibald_name from DB when present instead of data.customerName', async () => {
+    const pool = createMockPoolWithCustomer({
+      vat_validated_at: '2026-01-01T00:00:00Z',
+      pec: 'test@pec.it',
+      sdi: null,
+      street: 'Via Test 1',
+      postal_code: '80100',
+      archibald_name: 'Current Archibald Name',
+      name: 'Current Display Name',
+    });
+    const bot = createMockBot('ORD-NAME');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, staleNameData, 'user-1', onProgress);
+
+    expect(bot.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ customerName: 'Current Archibald Name' }),
+    );
+  });
+
+  test('falls back to name from DB when archibald_name is null', async () => {
+    const pool = createMockPoolWithCustomer({
+      vat_validated_at: '2026-01-01T00:00:00Z',
+      pec: 'test@pec.it',
+      sdi: null,
+      street: 'Via Test 1',
+      postal_code: '80100',
+      archibald_name: null,
+      name: 'Current Display Name',
+    });
+    const bot = createMockBot('ORD-NAME-2');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, staleNameData, 'user-1', onProgress);
+
+    expect(bot.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ customerName: 'Current Display Name' }),
+    );
+  });
+});

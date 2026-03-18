@@ -134,15 +134,19 @@ async function handleSubmitOrder(
   inlineSyncDeps?: InlineSyncDeps,
   broadcastVerification?: BroadcastVerificationFn,
 ): Promise<{ orderId: string; verificationStatus?: string }> {
-  // Completeness guard: verify customer has all required fields before any bot work
+  // Completeness guard: verify customer has all required fields before any bot work.
+  // Also fetch name/archibald_name to ensure the bot searches by the current ERP name,
+  // not the potentially stale name stored in the pending order at creation time.
   const { rows: [completenessRow] } = await pool.query<{
     vat_validated_at: string | null;
     pec: string | null;
     sdi: string | null;
     street: string | null;
     postal_code: string | null;
+    name: string | null;
+    archibald_name: string | null;
   }>(
-    `SELECT vat_validated_at, pec, sdi, street, postal_code
+    `SELECT vat_validated_at, pec, sdi, street, postal_code, name, archibald_name
      FROM agents.customers
      WHERE customer_profile = $1 AND user_id = $2`,
     [data.customerId, userId],
@@ -155,6 +159,9 @@ async function handleSubmitOrder(
   if (!isCustomerComplete(completenessRow)) {
     throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
   }
+
+  const effectiveCustomerName =
+    completenessRow.archibald_name ?? completenessRow.name ?? data.customerName;
 
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'form.articles.progress' && metadata) {
@@ -235,7 +242,7 @@ async function handleSubmitOrder(
     data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
   }
 
-  const orderId = await bot.createOrder(data);
+  const orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName });
 
   onProgress(60, 'Salvataggio nel database');
 
@@ -264,7 +271,7 @@ async function handleSubmitOrder(
         userId,
         isWarehouseOnly ? orderId : `PENDING-${orderId}`,
         data.customerId,
-        data.customerName,
+        effectiveCustomerName,
         null, // deliveryName
         null, // deliveryAddress
         now,  // creationDate
