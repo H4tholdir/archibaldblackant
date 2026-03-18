@@ -163,6 +163,7 @@ export function CustomerCreateModal({
     citta: '',
     nome: '',
   });
+  const [addressCapDisambig, setAddressCapDisambig] = useState<CapEntry[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [paymentTermsSearch, setPaymentTermsSearch] = useState("");
@@ -269,6 +270,7 @@ export function CustomerCreateModal({
       setLocalAddresses([]);
       setShowAddressForm(false);
       setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
+      setAddressCapDisambig(null);
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setCapDisambiguationEntries([]);
@@ -552,6 +554,18 @@ export function CustomerCreateModal({
     }
     setCapDisambiguationEntries(entries);
     setCurrentStep({ kind: "cap-disambiguation", targetField });
+  };
+
+  const resolveAddressCap = (capValue: string) => {
+    if (!capValue) return;
+    const entries = CAP_BY_CODE.get(capValue);
+    if (!entries || entries.length === 0) return;
+    if (entries.length === 1) {
+      setAddressForm((f) => ({ ...f, citta: entries[0].citta, contea: entries[0].contea, stato: entries[0].stato }));
+      setAddressCapDisambig(null);
+    } else {
+      setAddressCapDisambig(entries);
+    }
   };
 
   const goForward = () => {
@@ -1992,28 +2006,85 @@ export function CustomerCreateModal({
                     <option value="Indir. cons. alt.">Indir. cons. alt.</option>
                   </select>
                 </div>
-                {(["via", "cap", "citta", "nome"] as const).map((field) => (
-                  <div key={field} style={{ marginBottom: "8px" }}>
+                <div style={{ marginBottom: "8px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                    Via e civico
+                  </label>
+                  <input
+                    type="text"
+                    value={addressForm.via ?? ""}
+                    onChange={(e) => setAddressForm((f) => ({ ...f, via: e.target.value }))}
+                    style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ marginBottom: "8px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                    CAP
+                  </label>
+                  <input
+                    type="text"
+                    value={addressForm.cap ?? ""}
+                    onChange={(e) => {
+                      setAddressForm((f) => ({ ...f, cap: e.target.value, citta: "", contea: "", stato: "" }));
+                      setAddressCapDisambig(null);
+                    }}
+                    onBlur={(e) => resolveAddressCap(e.target.value)}
+                    style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                  />
+                </div>
+                {addressCapDisambig && (
+                  <div style={{ marginBottom: "8px" }}>
                     <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
-                      {field === "via" ? "Via e civico" : field === "cap" ? "CAP" : field === "citta" ? "Città" : "Nome (opzionale)"}
+                      Città *
+                    </label>
+                    <div style={{ border: "1px solid #ccc", borderRadius: "6px", overflow: "hidden" }}>
+                      {addressCapDisambig.map((entry, i) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            setAddressForm((f) => ({ ...f, citta: entry.citta, contea: entry.contea, stato: entry.stato }));
+                            setAddressCapDisambig(null);
+                          }}
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: "14px",
+                            cursor: "pointer",
+                            borderBottom: i < addressCapDisambig.length - 1 ? "1px solid #eee" : "none",
+                            backgroundColor: "#fff",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
+                        >
+                          {entry.citta} ({entry.contea})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!addressCapDisambig && (
+                  <div style={{ marginBottom: "8px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                      Città
                     </label>
                     <input
                       type="text"
-                      value={(addressForm as Record<string, string | undefined>)[field] ?? ""}
-                      onChange={(e) =>
-                        setAddressForm((f) => ({ ...f, [field]: e.target.value }))
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "8px",
-                        fontSize: "14px",
-                        borderRadius: "6px",
-                        border: "1px solid #ccc",
-                        boxSizing: "border-box",
-                      }}
+                      value={addressForm.citta ?? ""}
+                      onChange={(e) => setAddressForm((f) => ({ ...f, citta: e.target.value }))}
+                      style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
                     />
                   </div>
-                ))}
+                )}
+                <div style={{ marginBottom: "8px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                    Nome (opzionale)
+                  </label>
+                  <input
+                    type="text"
+                    value={addressForm.nome ?? ""}
+                    onChange={(e) => setAddressForm((f) => ({ ...f, nome: e.target.value }))}
+                    style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                  />
+                </div>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     onClick={() => {
@@ -2021,6 +2092,7 @@ export function CustomerCreateModal({
                       setLocalAddresses((prev) => [...prev, { ...addressForm }]);
                       setShowAddressForm(false);
                       setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
+                      setAddressCapDisambig(null);
                     }}
                     style={{
                       padding: "8px 16px",
@@ -2039,6 +2111,7 @@ export function CustomerCreateModal({
                     onClick={() => {
                       setShowAddressForm(false);
                       setAddressForm({ tipo: 'Consegna', via: '', cap: '', citta: '', nome: '' });
+                      setAddressCapDisambig(null);
                     }}
                     style={{
                       padding: "8px 16px",
