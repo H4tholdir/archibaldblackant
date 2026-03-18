@@ -6251,20 +6251,39 @@ export class ArchibaldBot {
       // address change made earlier to the customer's default address.
       if (orderData.deliveryAddress) {
         // Ensure we are on the Overview tab so DELIVERYPOSTALADDRESS is in the DOM.
-        const navigatedToOverview = await this.page!.evaluate(() => {
+        // IMPORTANT: Only click the tab if we are NOT already on it — a tab switch AFTER
+        // article insertion is an AJAX postback that could reset the XAF ObjectSpace.
+        // After article insertion we should already be on Panoramica, so this is usually a no-op.
+        const needsTabSwitch = await this.page!.evaluate(() => {
           const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
-          const overviewLink = allLinks.find(el => {
+          // Check if Overview/Panoramica tab is already active
+          for (const el of allLinks) {
             const t = el.textContent?.trim().toLowerCase() ?? '';
-            return t === 'overview' || t === 'panoramica' || t === 'panoramique';
-          });
-          if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
-            (overviewLink as HTMLElement).click();
-            return true;
+            if (t === 'overview' || t === 'panoramica' || t === 'panoramique') {
+              const li = el.closest('li');
+              const isActive = li?.classList.contains('dxtc-activeTab') ||
+                li?.getAttribute('aria-selected') === 'true' ||
+                el.getAttribute('aria-selected') === 'true';
+              return !isActive; // needs switch only if NOT already active
+            }
           }
-          return false;
+          return false; // tab not found — assume already on correct tab
         });
-        if (navigatedToOverview) {
+        if (needsTabSwitch) {
+          logger.info('Navigating to Panoramica tab for delivery address (was on different tab)');
+          await this.page!.evaluate(() => {
+            const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, li[id*="_pg_T"] a, li[id*="_pg_AT"] a'));
+            const overviewLink = allLinks.find(el => {
+              const t = el.textContent?.trim().toLowerCase() ?? '';
+              return t === 'overview' || t === 'panoramica' || t === 'panoramique';
+            });
+            if (overviewLink && (overviewLink as HTMLElement).offsetParent !== null) {
+              (overviewLink as HTMLElement).click();
+            }
+          });
           await this.waitForDevExpressIdle({ label: 'overview-tab-for-delivery-address', timeout: 6000 });
+        } else {
+          logger.debug('Already on Panoramica tab — skipping tab switch for delivery address');
         }
         await this.selectDeliveryAddress(orderData.deliveryAddress);
       }
