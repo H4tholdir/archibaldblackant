@@ -1141,6 +1141,21 @@ export default function OrderFormSimple() {
     calculatePackaging();
   }, [selectedProduct, quantity]);
 
+  // === SYNC LIST PRICE WITH PACKAGING VARIANT (Fresis+subclient) ===
+  // When packaging selects a different variant (e.g. qty=1 → K3 instead of K2),
+  // update listPrice to the correct variant's price to avoid price mismatch.
+  useEffect(() => {
+    if (!packagingPreview?.success || !packagingPreview.breakdown?.length) return;
+    if (!isFresis(selectedCustomer) || !selectedSubClient) return;
+
+    const primaryVariant = packagingPreview.breakdown[0].variant;
+    priceService.getPriceAndVat(primaryVariant.variantId).then((priceData) => {
+      if (priceData?.price != null) {
+        setListPrice(priceData.price.toString());
+      }
+    });
+  }, [packagingPreview, selectedCustomer, selectedSubClient]);
+
   // === RESET FORM (RICOMINCIA DA CAPO) ===
   const handleResetForm = () => {
     // Reset customer
