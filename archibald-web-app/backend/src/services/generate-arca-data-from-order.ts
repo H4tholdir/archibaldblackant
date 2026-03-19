@@ -27,6 +27,7 @@ function generateArcaDataFromOrder(
   subclient: Subclient,
   docNumber: number,
   esercizio: string,
+  tipodoc: 'FT' | 'KT' = 'KT',
 ): ArcaData {
   const datadoc = formatArcaDate(order.creationDate);
   const numerodoc = String(docNumber);
@@ -39,7 +40,7 @@ function generateArcaDataFromOrder(
     ID: 0,
     ID_TESTA: 0,
     ESERCIZIO: esercizio,
-    TIPODOC: 'KT',
+    TIPODOC: tipodoc,
     NUMERODOC: numerodoc,
     DATADOC: datadoc,
     CODICECF: codicecf,
@@ -122,7 +123,7 @@ function generateArcaDataFromOrder(
     ID: 0,
     ESERCIZIO: esercizio,
     ESANNO: esercizio,
-    TIPODOC: 'KT',
+    TIPODOC: tipodoc,
     NUMERODOC: numerodoc,
     DATADOC: datadoc,
     CODICECF: codicecf,
