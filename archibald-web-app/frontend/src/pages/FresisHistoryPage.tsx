@@ -62,6 +62,7 @@ export function FresisHistoryPage() {
 
   // Search & filter state (declared before hook to compute isBackendSearch)
   const [globalSearch, setGlobalSearch] = useState("");
+  const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'ft_only' | 'kt_only'>('all');
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
 
@@ -338,7 +339,8 @@ export function FresisHistoryPage() {
   const hasActiveFilters =
     selectedSubClient !== null ||
     activeTimePreset !== null ||
-    globalSearch !== "";
+    globalSearch !== "" ||
+    docTypeFilter !== 'all';
 
   const handleClearFilters = () => {
     handleClearSubClient();
@@ -349,6 +351,7 @@ export function FresisHistoryPage() {
     setDateTo(range.to);
     setGlobalSearch("");
     setCanLoadMore(true);
+    setDocTypeFilter('all');
   };
 
   // --- Order actions ---
@@ -717,6 +720,47 @@ export function FresisHistoryPage() {
           )}
         </div>
 
+        {/* Row 3: Tipo documento */}
+        <div style={{ display: "flex", gap: "4px", alignItems: "center", marginTop: "4px" }}>
+          <span style={{ fontSize: "9px", fontWeight: 700, color: "#555", textTransform: "uppercase" }}>
+            Tipo doc:
+          </span>
+          {(
+            [
+              { id: 'all', label: 'Tutti' },
+              { id: 'ft_only', label: 'Solo FT' },
+              { id: 'kt_only', label: 'Solo KT' },
+            ] as const
+          ).map(({ id, label }) => {
+            const isActive = docTypeFilter === id;
+            const isKt = id === 'kt_only';
+            return (
+              <button
+                key={id}
+                onClick={() => setDocTypeFilter(id)}
+                style={{
+                  padding: "3px 10px",
+                  fontSize: "11px",
+                  fontWeight: isActive ? 700 : 400,
+                  border: isActive
+                    ? `1px solid ${isKt ? '#ff9800' : '#1976d2'}`
+                    : "1px solid #ddd",
+                  borderRadius: "12px",
+                  backgroundColor: isActive
+                    ? (isKt ? '#FFF3E0' : '#E3F2FD')
+                    : "#fff",
+                  color: isActive
+                    ? (isKt ? '#e65100' : '#1976d2')
+                    : "#666",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Custom date inputs */}
         {activeTimePreset === "custom" && (
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -785,6 +829,7 @@ export function FresisHistoryPage() {
             onDoubleClick={handleDoubleClickInList}
             height={listHeight}
             onScrollNearEnd={canLoadMore ? loadMoreMonths : undefined}
+            docTypeFilter={docTypeFilter}
           />
       )}
 
