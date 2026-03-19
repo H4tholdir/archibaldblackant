@@ -8,7 +8,16 @@ BEGIN;
 ALTER TABLE agents.ft_counter
   ADD COLUMN IF NOT EXISTS tipodoc TEXT NOT NULL DEFAULT 'FT';
 
-ALTER TABLE agents.ft_counter DROP CONSTRAINT ft_counter_pkey;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'ft_counter_pkey'
+      AND conrelid = 'agents.ft_counter'::regclass
+  ) THEN
+    ALTER TABLE agents.ft_counter DROP CONSTRAINT ft_counter_pkey;
+  END IF;
+END $$;
 
 -- Seed KT allo stesso valore di FT (conservativo: nessun conflitto garantito).
 -- Il counter verrà allineato al valore reale Arca alla prima sync.
@@ -16,7 +25,12 @@ INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
 SELECT esercizio, user_id, 'KT', last_number
 FROM agents.ft_counter
 WHERE tipodoc = 'FT'
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM agents.ft_counter kt
+    WHERE kt.esercizio = agents.ft_counter.esercizio
+      AND kt.user_id   = agents.ft_counter.user_id
+      AND kt.tipodoc   = 'KT'
+  );
 
 ALTER TABLE agents.ft_counter ADD PRIMARY KEY (esercizio, user_id, tipodoc);
 
