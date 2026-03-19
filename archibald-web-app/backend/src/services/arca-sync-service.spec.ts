@@ -8,6 +8,7 @@ import {
   generateKtExportVbs,
   invoiceNumberToKey,
   splitArticlesByWarehouse,
+  arcaDataHash,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -624,9 +625,18 @@ describe("generateVbsScript", () => {
   });
 });
 
+type MockExistingRecord = {
+  id: string;
+  invoice_number?: string | null;
+  source?: string;
+  arca_hash?: string | null;
+};
+
 function createMockPool(overrides?: {
   existingIds?: string[];
   existingInvoiceNumbers?: string[];
+  existingSources?: string[];
+  existingRecords?: MockExistingRecord[];
   pwaExportRows?: Array<{ id: string; arca_data: string; invoice_number: string }>;
   ftCounterCalls?: Array<unknown[]>;
   ktEligibleOrders?: Array<{
@@ -655,6 +665,8 @@ function createMockPool(overrides?: {
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
+  const existingSources = overrides?.existingSources ?? [];
+  const existingRecords = overrides?.existingRecords;
   const pwaExportRows = overrides?.pwaExportRows ?? [];
   const ftCounterCalls = overrides?.ftCounterCalls ?? [];
   const ktEligibleOrders = overrides?.ktEligibleOrders ?? [];
@@ -670,13 +682,21 @@ function createMockPool(overrides?: {
       ) {
         return { rows: arcaImportRows, rowCount: arcaImportRows.length };
       }
-      if (text.includes("FROM agents.fresis_history WHERE user_id") && !text.includes("arca_data")) {
-        return {
-          rows: existingIds.map((id, i) => ({
-            id,
-            invoice_number: existingInvoiceNumbers[i] ?? null,
-          })),
-        };
+      if (text.includes("FROM agents.fresis_history WHERE user_id") && text.includes("arca_hash")) {
+        const rows = existingRecords
+          ? existingRecords.map(r => ({
+              id: r.id,
+              invoice_number: r.invoice_number ?? null,
+              source: r.source ?? 'arca_import',
+              arca_hash: r.arca_hash ?? null,
+            }))
+          : existingIds.map((id, i) => ({
+              id,
+              invoice_number: existingInvoiceNumbers[i] ?? null,
+              source: existingSources[i] ?? 'arca_import',
+              arca_hash: null,
+            }));
+        return { rows };
       }
       if (text.includes("INSERT INTO agents.fresis_history")) {
         // Simulate upsertRecords: count placeholders to determine record count
@@ -813,6 +833,73 @@ function createMockPool(overrides?: {
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
+    },
+    60000,
+  );
+
+  test(
+    "skips UPDATE when arca_data is unchanged since last sync (detects line-item changes too)",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf, docrigBuf, null, TEST_USER_ID, new Map(), new Map(),
+      );
+      const arcaRecord = parsed.records[0]!;
+
+      // arca_hash matches what arcaDataHash() would produce for this record
+      const pool = createMockPool({
+        existingRecords: [{
+          id: arcaRecord.id,
+          invoice_number: arcaRecord.invoice_number,
+          source: 'arca_import',
+          arca_hash: arcaDataHash(arcaRecord.arca_data),
+        }],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      expect(result.updated).toBe(0);
+      expect(result.unchanged).toBe(1);
+    },
+    60000,
+  );
+
+  test.each([
+    ["app", "pwa-app-id-does-not-match-arca"],
+    ["arca_import", "arca-import-legacy-4arg-id"],
+  ] as const)(
+    "FASE 3: updates arca_data+total for source=%s record matched by invoice_number only (ArcaPro is source of truth)",
+    async (source, existingId) => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf, docrigBuf, null, TEST_USER_ID, new Map(), new Map(),
+      );
+      const arcaRecord = parsed.records[0]!;
+
+      const pool = createMockPool({
+        existingIds: [existingId],
+        existingInvoiceNumbers: [arcaRecord.invoice_number],
+        existingSources: [source],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      expect(result.updated).toBe(1);
+
+      const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const arcaDataUpdateCalls = queryCalls.filter(
+        ([sql]: [string]) =>
+          typeof sql === 'string' &&
+          sql.includes('UPDATE agents.fresis_history') &&
+          sql.includes('arca_data') &&
+          sql.includes('target_total_with_vat'),
+      );
+      expect(arcaDataUpdateCalls).toHaveLength(1);
+      expect(arcaDataUpdateCalls[0][1][2]).toBe(existingId);
     },
     60000,
   );

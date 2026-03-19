@@ -10,6 +10,7 @@ export type ArcaSyncResponse = {
   sync: {
     imported: number;
     skipped: number;
+    unchanged?: number;
     exported: number;
     updated?: number;
     softDeleted?: number;

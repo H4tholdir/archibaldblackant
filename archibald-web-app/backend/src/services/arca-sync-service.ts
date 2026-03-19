@@ -2,6 +2,7 @@ import { DBFFile } from "dbffile";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { createHash } from "crypto";
 import type { ArcaData, ArcaRiga } from "../arca-data-types";
 import type { FresisHistoryRow } from "../arca-import-service";
 import {
@@ -27,6 +28,32 @@ import { matchSubclients } from "./subclient-matcher";
 import { generateArcaDataFromOrder } from "./generate-arca-data-from-order";
 import { getNextDocNumber } from "./ft-counter";
 import { logger } from "../logger";
+
+// PostgreSQL jsonb serializes objects with keys sorted alphabetically and no spaces.
+// This replicates that normalization so md5(JSON.stringify(sortKeysDeep(x)))
+// matches md5(arca_data::text) computed server-side.
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === "object") {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as object).sort()) {
+      sorted[key] = sortKeysDeep((value as Record<string, unknown>)[key]);
+    }
+    return sorted;
+  }
+  return value;
+}
+
+export function arcaDataHash(arcaDataJson: string | null | undefined): string | null {
+  if (!arcaDataJson) return null;
+  try {
+    return createHash("md5")
+      .update(JSON.stringify(sortKeysDeep(JSON.parse(arcaDataJson) as unknown)))
+      .digest("hex");
+  } catch {
+    return null;
+  }
+}
 
 export type VbsExportRecord = {
   invoiceNumber: string;
@@ -996,6 +1023,7 @@ export async function parseNativeArcaFiles(
 export type SyncResult = {
   imported: number;
   skipped: number;
+  unchanged: number;
   exported: number;
   updated: number;
   softDeleted: number;
@@ -1076,60 +1104,99 @@ export async function performArcaSync(
   );
   errors.push(...parsed.errors);
 
-  // 2. Load existing record IDs and invoice_numbers from DB
-  const { rows: existingRows } = await pool.query<{ id: string; invoice_number: string | null }>(
-    "SELECT id, invoice_number FROM agents.fresis_history WHERE user_id = $1",
+  // 2. Load existing records with arca_data hash for change detection.
+  //    md5(arca_data::text) produces the same hash as arcaDataHash() in Node.js because
+  //    PostgreSQL jsonb serializes keys alphabetically — same normalization as sortKeysDeep.
+  type ExistingRecord = {
+    id: string;
+    invoice_number: string | null;
+    source: string;
+    arca_hash: string | null;
+  };
+  const { rows: existingRows } = await pool.query<ExistingRecord>(
+    `SELECT id, invoice_number, source, md5(arca_data::text) as arca_hash
+     FROM agents.fresis_history WHERE user_id = $1`,
     [userId],
   );
-  const existingIds = new Set(existingRows.map((r) => r.id));
-  const existingInvoiceNumbers = new Set(
-    existingRows.filter((r) => r.invoice_number).map((r) => r.invoice_number!),
-  );
+  const existingById = new Map<string, ExistingRecord>();
+  const existingByInvoiceNumber = new Map<string, ExistingRecord>();
+  for (const row of existingRows) {
+    existingById.set(row.id, row);
+    if (row.invoice_number) {
+      existingByInvoiceNumber.set(row.invoice_number, row);
+    }
+  }
 
-  // 3. Classify records: update by ID, skip legacy invoice-number-only matches, insert new ones
+  // 3. Classify records: update by ID (only if arca_data changed), update arca_data for
+  //    invoice-only matches (ArcaPro is source of truth), insert truly new records.
   const newRecords: FresisHistoryRow[] = [];
   let updated = 0;
+  let unchanged = 0;
 
   for (const record of parsed.records) {
-    if (existingIds.has(record.id)) {
-      await pool.query(
-        `UPDATE agents.fresis_history SET
-           target_total_with_vat  = $1,
-           discount_percent       = $2,
-           items                  = $3,
-           shipping_cost          = $4,
-           shipping_tax           = $5,
-           invoice_amount         = $6,
-           invoice_date           = $7,
-           notes                  = $8,
-           archibald_order_number = $9,
-           arca_data              = $10,
-           updated_at             = NOW()
-         WHERE id = $11 AND user_id = $12`,
-        [
-          record.target_total_with_vat,
-          record.discount_percent,
-          record.items,
-          record.shipping_cost,
-          record.shipping_tax,
-          record.invoice_amount,
-          record.invoice_date,
-          record.notes,
-          record.archibald_order_number,
-          record.arca_data,
-          record.id,
-          userId,
-        ],
-      );
-      updated++;
-    } else if (existingInvoiceNumbers.has(record.invoice_number)) {
-      // Legacy record matched by invoice_number only (4-arg deterministicId) — skip
+    const incomingHash = arcaDataHash(record.arca_data);
+
+    if (existingById.has(record.id)) {
+      const existing = existingById.get(record.id)!;
+
+      if (incomingHash !== existing.arca_hash) {
+        await pool.query(
+          `UPDATE agents.fresis_history SET
+             target_total_with_vat  = $1,
+             discount_percent       = $2,
+             items                  = $3,
+             shipping_cost          = $4,
+             shipping_tax           = $5,
+             invoice_amount         = $6,
+             invoice_date           = $7,
+             notes                  = $8,
+             archibald_order_number = $9,
+             arca_data              = $10,
+             updated_at             = NOW()
+           WHERE id = $11 AND user_id = $12`,
+          [
+            record.target_total_with_vat,
+            record.discount_percent,
+            record.items,
+            record.shipping_cost,
+            record.shipping_tax,
+            record.invoice_amount,
+            record.invoice_date,
+            record.notes,
+            record.archibald_order_number,
+            record.arca_data,
+            record.id,
+            userId,
+          ],
+        );
+        updated++;
+      } else {
+        unchanged++;
+      }
+    } else if (existingByInvoiceNumber.has(record.invoice_number)) {
+      const existing = existingByInvoiceNumber.get(record.invoice_number)!;
+      // Invoice-number match (ID mismatch): ArcaPro is source of truth regardless of source.
+      // Covers both source='app' (PWA doc sent to Arca by bot) and legacy source='arca_import'
+      // records imported with old 4-arg deterministicId.
+      if (incomingHash !== existing.arca_hash) {
+        await pool.query(
+          `UPDATE agents.fresis_history SET
+             arca_data             = $1,
+             target_total_with_vat = $2,
+             updated_at            = NOW()
+           WHERE id = $3 AND user_id = $4`,
+          [record.arca_data, record.target_total_with_vat, existing.id, userId],
+        );
+        updated++;
+      } else {
+        unchanged++;
+      }
     } else {
       newRecords.push(record);
     }
   }
 
-  const skipped = parsed.records.length - newRecords.length - updated;
+  const skipped = parsed.records.length - newRecords.length - updated - unchanged;
 
   // 4. Upsert new records in batches
   let imported = 0;
@@ -1335,6 +1402,7 @@ export async function performArcaSync(
   return {
     imported,
     skipped,
+    unchanged,
     exported: exportRecords.length,
     updated,
     softDeleted,
