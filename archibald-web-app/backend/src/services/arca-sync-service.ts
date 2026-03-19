@@ -1346,7 +1346,7 @@ export async function performArcaSync(
   const { rows: pwaSourceRows } = await pool.query<{
     id: string;
     invoice_number: string | null;
-    arca_data: string | null;
+    arca_data: string | Record<string, unknown> | null;
     sub_client_codice: string | null;
   }>(
     `SELECT id, invoice_number, arca_data, sub_client_codice
@@ -1368,9 +1368,12 @@ export async function performArcaSync(
     if (arcaCodicecf && arcaCodicecf === row.sub_client_codice) continue;
 
     // Number occupied by a DIFFERENT Arca doc → renumber
+    // pg returns jsonb columns as objects, not strings — handle both
     let arcaData: ArcaData;
     try {
-      arcaData = JSON.parse(row.arca_data);
+      arcaData = typeof row.arca_data === 'string'
+        ? JSON.parse(row.arca_data)
+        : row.arca_data as unknown as ArcaData;
     } catch {
       errors.push(`Renumbering skipped for ${row.invoice_number}: malformed arca_data`);
       continue;
