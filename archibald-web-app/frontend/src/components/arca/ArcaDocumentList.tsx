@@ -36,7 +36,7 @@ type ArcaDocumentListProps = {
   docTypeFilter: 'all' | 'ft_only' | 'kt_only';
 };
 
-type ParsedOrder = {
+export type ParsedOrder = {
   order: FresisHistoryOrder;
   ftNumber: string;
   datadoc: string;
@@ -185,11 +185,26 @@ const STATE_LABELS: Record<string, string> = {
   cancellato_in_arca: "Cancellato",
 };
 
+export function getCellText(row: ParsedOrder, colIdx: number): string {
+  switch (colIdx) {
+    case 0: return row.ftNumber;
+    case 1: return formatArcaDate(row.datadoc);
+    case 2: return row.codicecf;
+    case 3: return row.cliente;
+    case 4: return row.supragsoc;
+    case 5: return formatArcaCurrency(row.totale);
+    case 6: return STATE_LABELS[row.stato] ?? row.stato;
+    case 7: return row.revenue != null ? formatArcaCurrency(row.revenue) : "-";
+    default: return "";
+  }
+}
+
 type CustomRowProps = {
   sorted: ParsedOrder[];
   selectedId: string | null;
   onSelect: (order: FresisHistoryOrder) => void;
   onDoubleClick: (order: FresisHistoryOrder) => void;
+  colWidths: number[];
 };
 
 function ArcaRow({
@@ -199,6 +214,7 @@ function ArcaRow({
   selectedId,
   onSelect,
   onDoubleClick,
+  colWidths,
 }: {
   index: number;
   style: React.CSSProperties;
@@ -225,7 +241,7 @@ function ArcaRow({
       onClick={() => onSelect(item.order)}
       onDoubleClick={() => onDoubleClick(item.order)}
     >
-      <div style={arcaGridCell(COLUMNS[0].width)}>
+      <div style={arcaGridCell(colWidths[0])}>
         {isCancelled && (
           <span style={{
             display: 'inline-block',
@@ -240,27 +256,27 @@ function ArcaRow({
         )}
         {item.ftNumber}
       </div>
-      <div style={arcaGridCell(COLUMNS[1].width)}>
+      <div style={arcaGridCell(colWidths[1])}>
         {formatArcaDate(item.datadoc)}
       </div>
-      <div style={arcaGridCell(COLUMNS[2].width)}>
+      <div style={arcaGridCell(colWidths[2])}>
         {item.codicecf}
       </div>
-      <div style={arcaGridCell(COLUMNS[3].width)}>
+      <div style={arcaGridCell(colWidths[3])}>
         {item.cliente}
       </div>
-      <div style={arcaGridCell(COLUMNS[4].width)}>
+      <div style={arcaGridCell(colWidths[4])}>
         {item.supragsoc}
       </div>
-      <div style={arcaGridCell(COLUMNS[5].width, "right")}>
+      <div style={arcaGridCell(colWidths[5], "right")}>
         {formatArcaCurrency(item.totale)}
       </div>
-      <div style={arcaGridCell(COLUMNS[6].width)}>
+      <div style={arcaGridCell(colWidths[6])}>
         {STATE_LABELS[item.stato] ?? item.stato}
       </div>
       <div
         style={{
-          ...arcaGridCell(COLUMNS[lastColIdx].width, "right"),
+          ...arcaGridCell(colWidths[lastColIdx], "right"),
           borderRight: "none",
           color:
             item.revenue != null
@@ -289,6 +305,27 @@ export function ArcaDocumentList({
   const [sortField, setSortField] = useState<SortField>("recency");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const saveWidths = useCallback((widths: number[]) => {
+    localStorage.setItem('fresis-history-col-widths', JSON.stringify(widths));
+  }, []);
+
+  const [colWidths, setColWidths] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('fresis-history-col-widths');
+      if (saved) {
+        const w = JSON.parse(saved) as number[];
+        if (Array.isArray(w) && w.length === COLUMNS.length) return w;
+      }
+    } catch { /* ignore */ }
+    return COLUMNS.map(c => c.width);
+  });
+
+  const totalWidth = useMemo(
+    () => colWidths.reduce((sum, w) => sum + w, 0),
+    [colWidths],
+  );
 
   const parsed = useMemo(() => orders.map(parseOrder), [orders]);
 
@@ -315,9 +352,55 @@ export function ArcaDocumentList({
     [sortField],
   );
 
+  const startResize = useCallback((e: React.MouseEvent, colIdx: number) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = colWidths[colIdx];
+    let latestWidths: number[] = colWidths;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const newW = Math.max(40, startWidth + ev.clientX - startX);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setColWidths(prev => {
+          const next = [...prev];
+          next[colIdx] = newW;
+          latestWidths = next;
+          return next;
+        });
+      });
+    };
+
+    const cleanup = () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', cleanup);
+      window.removeEventListener('blur', cleanup);
+      saveWidths(latestWidths);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', cleanup);
+    window.addEventListener('blur', cleanup);
+  }, [colWidths, saveWidths]);
+
+  const autoFit = useCallback((colIdx: number) => {
+    const headerLen = COLUMNS[colIdx].label.length;
+    const maxLen = filtered.reduce((max, row) => {
+      return Math.max(max, getCellText(row, colIdx).length);
+    }, headerLen);
+    const newW = Math.max(40, maxLen * 8 + 24);
+    setColWidths(prev => {
+      const next = [...prev];
+      next[colIdx] = newW;
+      saveWidths(next);
+      return next;
+    });
+  }, [filtered, saveWidths]);
+
   const rowProps: CustomRowProps = useMemo(
-    () => ({ sorted, selectedId, onSelect, onDoubleClick }),
-    [sorted, selectedId, onSelect, onDoubleClick],
+    () => ({ sorted, selectedId, onSelect, onDoubleClick, colWidths }),
+    [sorted, selectedId, onSelect, onDoubleClick, colWidths],
   );
 
   useEffect(() => {
@@ -325,7 +408,8 @@ export function ArcaDocumentList({
     const container = containerRef.current;
     if (!container) return;
 
-    const scrollEl = container.querySelector('[style*="overflow"]') as HTMLElement;
+    const allScrollEls = container.querySelectorAll('[style*="overflow"]');
+    const scrollEl = allScrollEls[allScrollEls.length - 1] as HTMLElement | undefined;
     if (!scrollEl) return;
 
     const handleScroll = () => {
@@ -345,6 +429,7 @@ export function ArcaDocumentList({
       style={{
         ...ARCA_FONT,
         border: `1px solid ${ARCA_COLORS.shapeBorder}`,
+        overflowX: 'auto',
       }}
     >
       {/* Header */}
@@ -353,6 +438,7 @@ export function ArcaDocumentList({
           display: "flex",
           height: HEADER_HEIGHT,
           alignItems: "center",
+          width: totalWidth,
         }}
       >
         {COLUMNS.map((col, colIdx) => (
@@ -361,7 +447,8 @@ export function ArcaDocumentList({
             onClick={() => handleHeaderClick(col.field)}
             style={{
               ...arcaHeaderRow,
-              width: col.width,
+              width: colWidths[colIdx],
+              position: 'relative',
               display: "flex",
               alignItems: "center",
               gap: "4px",
@@ -376,6 +463,15 @@ export function ArcaDocumentList({
                 {sortDir === "asc" ? "\u25B2" : "\u25BC"}
               </span>
             )}
+            <div
+              style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, width: 5,
+                cursor: 'col-resize',
+                background: 'rgba(255,255,255,0.15)',
+              }}
+              onMouseDown={(e) => { e.stopPropagation(); startResize(e, colIdx); }}
+              onDoubleClick={(e) => { e.stopPropagation(); autoFit(colIdx); }}
+            />
           </div>
         ))}
       </div>
@@ -386,7 +482,7 @@ export function ArcaDocumentList({
         rowComponent={ArcaRow}
         rowProps={rowProps}
         overscanCount={10}
-        style={{ height: height - HEADER_HEIGHT }}
+        style={{ height: height - HEADER_HEIGHT, width: totalWidth }}
       />
     </div>
   );
