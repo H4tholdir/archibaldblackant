@@ -3,6 +3,9 @@ import {
   findWarehouseMatches,
   type WarehouseMatch,
 } from "../services/warehouse-matching";
+import type { SelectedWarehouseMatch } from "../types/warehouse";
+
+export type { SelectedWarehouseMatch };
 
 interface WarehouseMatchAccordionProps {
   articleCode: string;
@@ -11,14 +14,6 @@ interface WarehouseMatchAccordionProps {
   onSelect?: (matches: SelectedWarehouseMatch[]) => void;
   excludeWarehouseItemIds?: number[]; // Warehouse items already used in other order rows
   onTotalQuantityChange?: (totalQty: number) => void; // Called when total selected quantity changes
-}
-
-export interface SelectedWarehouseMatch {
-  warehouseItemId: number;
-  articleCode: string;
-  boxName: string;
-  quantity: number; // How many to use from this box
-  maxAvailable: number; // Total available in this box
 }
 
 export function WarehouseMatchAccordion({

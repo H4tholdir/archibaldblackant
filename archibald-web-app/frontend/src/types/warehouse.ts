@@ -35,3 +35,11 @@ export interface BoxWithStats {
   soldItems: number;
   canDelete: boolean;
 }
+
+export type SelectedWarehouseMatch = {
+  warehouseItemId: number;
+  articleCode: string;
+  boxName: string;
+  quantity: number;
+  maxAvailable: number;
+};
