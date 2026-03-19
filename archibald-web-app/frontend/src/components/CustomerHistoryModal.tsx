@@ -560,7 +560,6 @@ export function CustomerHistoryModal({
       {pendingDialog && (
         <WarehouseHistoryDialog
           articleCode={pendingDialog.article.articleCode}
-          description={pendingDialog.article.articleDescription}
           requestedQuantity={pendingDialog.article.quantity}
           matches={pendingDialog.matches}
           onConfirm={handleDialogConfirm}

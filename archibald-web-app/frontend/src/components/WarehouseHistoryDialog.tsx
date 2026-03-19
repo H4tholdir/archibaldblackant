@@ -6,7 +6,6 @@ import { WAREHOUSE_LEVEL_COLORS, WAREHOUSE_LEVEL_LABELS, isAutoSelected } from '
 
 type Props = {
   articleCode: string;
-  description: string;
   requestedQuantity: number;
   matches: WarehouseMatch[];
   onConfirm: (selections: SelectedWarehouseMatch[]) => void;
@@ -15,7 +14,7 @@ type Props = {
 };
 
 export function WarehouseHistoryDialog({
-  articleCode, description, requestedQuantity, matches, onConfirm, onSkip, onCancel,
+  articleCode, requestedQuantity, matches, onConfirm, onSkip, onCancel,
 }: Props) {
   const [selections, setSelections] = useState<Map<number, number>>(() => {
     const m = new Map<number, number>();
@@ -58,9 +57,6 @@ export function WarehouseHistoryDialog({
     }
     onConfirm(result);
   };
-
-  // description is accepted for future use
-  void description;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

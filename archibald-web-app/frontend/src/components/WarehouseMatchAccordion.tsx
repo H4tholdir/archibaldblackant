@@ -4,7 +4,7 @@ import {
   type WarehouseMatch,
 } from "../services/warehouse-matching";
 import type { SelectedWarehouseMatch } from "../types/warehouse";
-import { WAREHOUSE_LEVEL_COLORS, bestMatchLevel } from '../utils/warehouse-theme';
+import { WAREHOUSE_LEVEL_COLORS, WAREHOUSE_LEVEL_LABELS, bestMatchLevel } from '../utils/warehouse-theme';
 import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 
 export type { SelectedWarehouseMatch };
@@ -188,21 +188,6 @@ export function WarehouseMatchAccordion({
     }
   };
 
-  const getLevelLabel = (level: string) => {
-    switch (level) {
-      case "exact":
-        return "Match Esatto";
-      case "figura-gambo":
-        return "Stessa Figura + Gambo";
-      case "figura":
-        return "Stessa Figura";
-      case "description":
-        return "Descrizione Simile";
-      default:
-        return "Match";
-    }
-  };
-
   return (
     <div
       style={{
@@ -283,17 +268,7 @@ export function WarehouseMatchAccordion({
                         {match.item.articleCode}
                       </span>
                       <span style={{ fontSize: '0.8em', fontWeight: 500, color: colors.accentColor }}>
-                        {getLevelIcon(match.level)} {getLevelLabel(match.level)}
-                      </span>
-                      <span style={{
-                        background: '#28a745',
-                        color: 'white',
-                        padding: '1px 6px',
-                        borderRadius: 10,
-                        fontSize: '0.8em',
-                        fontWeight: 600,
-                      }}>
-                        {match.score}%
+                        {getLevelIcon(match.level)} {WAREHOUSE_LEVEL_LABELS[match.level]}
                       </span>
                     </div>
                     <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
