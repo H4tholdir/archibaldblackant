@@ -84,7 +84,7 @@ async function handleSendToVerona(
   const esercizio = String(new Date().getFullYear());
 
   for (const row of fresis.rows) {
-    const ftNumber = await getNextFtNumber(pool, userId, esercizio);
+    const ftNumber = await getNextFtNumber(pool, userId, esercizio, 'FT');
 
     const input: GenerateInput = {
       subClientCodice: row.sub_client_codice,

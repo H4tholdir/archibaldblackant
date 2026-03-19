@@ -145,7 +145,7 @@ describe('handleSendToVerona', () => {
 
     const ftCounterCall = calls[5];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
-    expect(ftCounterCall[1]).toEqual([esercizio, 'user-1']);
+    expect(ftCounterCall[1]).toEqual([esercizio, 'user-1', 'FT']);
 
     const updateCall = calls[6];
     expect(updateCall[0]).toContain('UPDATE agents.fresis_history');

@@ -89,7 +89,7 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
         }
 
         const esercizio = order.creation_date?.slice(0, 4) || new Date().getFullYear().toString();
-        const docNumber = await getNextDocNumber(pool, userId, esercizio);
+        const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
 
         const arcaData = generateArcaDataFromOrder(
           {

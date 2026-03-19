@@ -1245,7 +1245,7 @@ export async function generateKtExportVbs(
     if (articles.length === 0) continue;
 
     const esercizio = order.creationDate?.slice(0, 4) || currentYear;
-    const docNumber = await getNextDocNumber(pool, userId, esercizio);
+    const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
 
     const arcaData = generateArcaDataFromOrder(
       {

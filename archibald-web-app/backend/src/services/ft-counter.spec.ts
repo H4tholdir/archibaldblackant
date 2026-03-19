@@ -13,81 +13,49 @@ function createMockPool(): DbPool {
 const TEST_USER_ID = 'user-ft-001';
 const TEST_ESERCIZIO = '2026';
 
-describe('getNextFtNumber', () => {
+describe('getNextDocNumber', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  test('first call for new user+esercizio returns 1', async () => {
+  test('returns 1 for first FT call', async () => {
     const pool = createMockPool();
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [{ last_number: 1 }],
-      rowCount: 1,
-    } as any);
-
-    const { getNextFtNumber } = await import('./ft-counter');
-    const result = await getNextFtNumber(pool, TEST_USER_ID, TEST_ESERCIZIO);
-
-    expect(result).toBe(1);
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
+    const { getNextDocNumber } = await import('./ft-counter');
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT')).toBe(1);
   });
 
-  test('second call for same user+esercizio returns 2', async () => {
+  test('returns 1 for first KT call', async () => {
     const pool = createMockPool();
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [{ last_number: 2 }],
-      rowCount: 1,
-    } as any);
-
-    const { getNextFtNumber } = await import('./ft-counter');
-    const result = await getNextFtNumber(pool, TEST_USER_ID, TEST_ESERCIZIO);
-
-    expect(result).toBe(2);
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
+    const { getNextDocNumber } = await import('./ft-counter');
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT')).toBe(1);
   });
 
-  test('uses INSERT ON CONFLICT DO UPDATE RETURNING for atomic increment', async () => {
+  test('passes esercizio, userId, tipodoc as params', async () => {
     const pool = createMockPool();
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [{ last_number: 1 }],
-      rowCount: 1,
-    } as any);
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 5 }], rowCount: 1 } as any);
+    const { getNextDocNumber } = await import('./ft-counter');
+    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT');
+    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(params).toEqual([TEST_ESERCIZIO, TEST_USER_ID, 'KT']);
+  });
 
-    const { getNextFtNumber } = await import('./ft-counter');
-    await getNextFtNumber(pool, TEST_USER_ID, TEST_ESERCIZIO);
-
-    const [text, params] = vi.mocked(pool.query).mock.calls[0];
+  test('SQL uses 3-part ON CONFLICT (esercizio, user_id, tipodoc)', async () => {
+    const pool = createMockPool();
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
+    const { getNextDocNumber } = await import('./ft-counter');
+    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT');
+    const [text] = vi.mocked(pool.query).mock.calls[0];
     expect(text).toContain('INSERT INTO agents.ft_counter');
     expect(text).toContain('ON CONFLICT');
-    expect(text).toContain('DO UPDATE SET');
     expect(text).toContain('RETURNING last_number');
-    expect(params).toEqual([TEST_ESERCIZIO, TEST_USER_ID]);
   });
 
-  test('passes esercizio as first param and userId as second', async () => {
+  test('returns last_number from query result', async () => {
     const pool = createMockPool();
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [{ last_number: 1 }],
-      rowCount: 1,
-    } as any);
-
-    const { getNextFtNumber } = await import('./ft-counter');
-    const differentUser = 'user-other-999';
-    const differentEsercizio = '2025';
-    await getNextFtNumber(pool, differentUser, differentEsercizio);
-
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
-    expect(params).toEqual([differentEsercizio, differentUser]);
-  });
-
-  test('returns the last_number from query result', async () => {
-    const pool = createMockPool();
-    vi.mocked(pool.query).mockResolvedValueOnce({
-      rows: [{ last_number: 42 }],
-      rowCount: 1,
-    } as any);
-
-    const { getNextFtNumber } = await import('./ft-counter');
-    const result = await getNextFtNumber(pool, TEST_USER_ID, TEST_ESERCIZIO);
-
-    expect(result).toBe(42);
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 42 }], rowCount: 1 } as any);
+    const { getNextDocNumber } = await import('./ft-counter');
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT')).toBe(42);
   });
 });

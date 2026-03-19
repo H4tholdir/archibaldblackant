@@ -683,7 +683,7 @@ function createApp(deps: AppDeps): Express {
         errors: parseResult.errors,
       };
     },
-    getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio),
+    getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio, 'FT'),
     updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
     reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
     broadcast: (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }),
