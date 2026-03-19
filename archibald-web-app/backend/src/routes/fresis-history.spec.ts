@@ -227,11 +227,12 @@ describe('createFresisHistoryRouter', () => {
       expect(deps.searchOrders).toHaveBeenCalledWith('user-1', 'Rossi');
     });
 
-    test('returns 400 when no query provided', async () => {
+    test('returns all orders when no query provided (empty string)', async () => {
       const res = await request(app).get('/api/fresis-history/search-orders');
 
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({ success: false, error: 'Parametro di ricerca richiesto' });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, orders: mockOrders });
+      expect(deps.searchOrders).toHaveBeenCalledWith('user-1', '');
     });
   });
 

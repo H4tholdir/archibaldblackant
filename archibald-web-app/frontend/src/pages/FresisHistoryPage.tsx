@@ -33,6 +33,7 @@ import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
 import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
 import { ARCA_FONT } from "../components/arca/arcaStyles";
+import { ArcaSyncButton } from "../components/ArcaSyncButton";
 import { SubclientsTab } from "../components/SubclientsTab";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
@@ -96,6 +97,12 @@ export function FresisHistoryPage() {
     null,
   );
   const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
+  const [deletionWarnings, setDeletionWarnings] = useState<Array<{
+    invoiceNumber: string;
+    hasTracking: boolean;
+    hasDdt: boolean;
+    hasDelivery: boolean;
+  }>>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingFromArchibald, setDeletingFromArchibald] = useState<
     string | null
@@ -513,8 +520,37 @@ export function FresisHistoryPage() {
             {motherOrderFilter && " (filtro ordine madre)"}
           </span>
         </div>
-        <div />
+        <div>
+          <ArcaSyncButton onSyncComplete={(warnings) => {
+            setDeletionWarnings(warnings ?? []);
+            wsRefetch();
+          }} />
+        </div>
       </div>
+
+      {/* Deletion warnings banner */}
+      {deletionWarnings.length > 0 && (
+        <div style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: 4,
+          padding: '10px 14px',
+          marginBottom: 12,
+        }}>
+          <strong>⚠️ {deletionWarnings.length} documenti cancellati in Arca</strong>
+          {' '}contengono dati PWA (tracking/DDT/consegna):
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            {deletionWarnings.map(w => (
+              <li key={w.invoiceNumber} style={{ fontSize: 13 }}>
+                <strong>{w.invoiceNumber}</strong>
+                {w.hasTracking && <span style={{ color: '#856404' }}> · tracking</span>}
+                {w.hasDdt && <span style={{ color: '#856404' }}> · DDT</span>}
+                {w.hasDelivery && <span style={{ color: '#856404' }}> · consegna completata</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div

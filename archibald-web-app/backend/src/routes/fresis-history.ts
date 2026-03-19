@@ -167,10 +167,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.get('/search-orders', async (req: AuthRequest, res) => {
     try {
-      const q = req.query.q as string | undefined;
-      if (!q) {
-        return res.status(400).json({ success: false, error: 'Parametro di ricerca richiesto' });
-      }
+      const q = (req.query.q as string | undefined) ?? '';
       const data = await searchOrders(req.user!.userId, q);
       res.json({ success: true, orders: data });
     } catch (error) {

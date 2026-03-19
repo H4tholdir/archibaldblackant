@@ -307,7 +307,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
       case 'matching': return 'Matching sottoclienti...';
       case 'waiting-articles': return `Sync articoli (${ktStatus?.articlesPending ?? '?'} in attesa)...`;
       case 'finalizing-kt': return 'Export KT verso Arca...';
-      default: return 'Sync Arca';
+      default: return 'Sincronizza con Arca';
     }
   })();
 
@@ -333,7 +333,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
             animation: 'spin 0.8s linear infinite',
           }} />
         )}
-        {syncing ? phaseLabel : 'Sync Arca'}
+        {syncing ? phaseLabel : 'Sincronizza con Arca'}
       </button>
 
       {(phase1Result || error) && phase !== 'phase1' && (
