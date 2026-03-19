@@ -31,8 +31,10 @@ describe("invoiceNumberToKey", () => {
     expect(invoiceNumberToKey("")).toBeNull();
   });
 
-  test("strips leading zeros from numerodoc", () => {
-    expect(invoiceNumberToKey("FT 326/2026")).toBe("2026|FT|326");
+  test("returns numerodoc as-is without stripping zeros", () => {
+    // NUMERODOC in ArcaPro DBF is numeric, padded with spaces (not zeros) — trimStr handles spaces.
+    // If a leading-zero input somehow arrives, the key preserves it as-is.
+    expect(invoiceNumberToKey("FT 0326/2026")).toBe("2026|FT|0326");
   });
 });
 
