@@ -485,14 +485,17 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
     const { arcaData, invoiceNumber } = record;
     const { testata, righe } = arcaData;
 
-    const numerodocPadded = String(testata.NUMERODOC).trim().padStart(6, " ");
-    const tipodocTrimmed = String(testata.TIPODOC || "FT").trim();
-    const esercizioTrimmed = String(testata.ESERCIZIO || "").trim();
+    const numerodocTrimmed = String(testata.NUMERODOC).trim().replace(/'/g, "''");
+    const tipodocTrimmed = String(testata.TIPODOC || "FT").trim().replace(/'/g, "''");
+    const esercizioTrimmed = String(testata.ESERCIZIO || "").trim().replace(/'/g, "''");
 
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
-    // Idempotency: skip if document already exists in Arca (prevents re-run duplicates)
-    lines.push(`Set rs = conn.Execute("SELECT COUNT(*) FROM doctes WHERE NUMERODOC = '${numerodocPadded}' AND TIPODOC = '${tipodocTrimmed}' AND ESERCIZIO = '${esercizioTrimmed}'")`);
+    // Idempotency: skip if document already exists in Arca (prevents re-run duplicates).
+    // Use ALLTRIM() to handle any leading/trailing space padding — NUMERODOC is 8-char
+    // in the DBF but padNumerodoc produces 6-char values; VFP OLE DB SET EXACT ON would
+    // make '   326' != '   326  ' without ALLTRIM.
+    lines.push(`Set rs = conn.Execute("SELECT COUNT(*) FROM doctes WHERE ALLTRIM(NUMERODOC) = '${numerodocTrimmed}' AND ALLTRIM(TIPODOC) = '${tipodocTrimmed}' AND ALLTRIM(ESERCIZIO) = '${esercizioTrimmed}'")`);
     lines.push("docAlreadyExists = (Err.Number = 0 And Not rs.EOF And rs.Fields(0).Value > 0)");
     lines.push("If Err.Number = 0 Then rs.Close");
     lines.push("Err.Clear");
