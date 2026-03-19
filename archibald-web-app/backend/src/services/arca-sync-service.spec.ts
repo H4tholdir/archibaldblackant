@@ -38,6 +38,21 @@ describe("invoiceNumberToKey", () => {
   });
 });
 
+describe("invoiceNumberToKey - soft delete usage", () => {
+  test("correctly identifies a record as absent from Arca", () => {
+    const arcaDocKeys = new Set(["2026|FT|327", "2026|KT|333"]);
+    const key = invoiceNumberToKey("FT 326/2026");
+    expect(key).not.toBeNull();
+    expect(arcaDocKeys.has(key!)).toBe(false); // 326 is not in Arca
+  });
+
+  test("correctly identifies a record as present in Arca", () => {
+    const arcaDocKeys = new Set(["2026|FT|327", "2026|KT|333"]);
+    const key = invoiceNumberToKey("FT 327/2026");
+    expect(arcaDocKeys.has(key!)).toBe(true);
+  });
+});
+
 function readCoop16File(filename: string): Buffer {
   return fs.readFileSync(path.join(COOP16_DIR, filename));
 }

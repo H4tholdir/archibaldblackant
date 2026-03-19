@@ -1223,15 +1223,57 @@ export async function performArcaSync(
     }
   }
 
+  // FASE 4 — Soft delete: records source='arca_import' absent from current Arca DBF
+  const { rows: arcaImportRows } = await pool.query<{
+    id: string;
+    invoice_number: string | null;
+    ddt_number: string | null;
+    tracking_number: string | null;
+    delivery_completed_date: string | null;
+  }>(
+    `SELECT id, invoice_number, ddt_number, tracking_number, delivery_completed_date
+     FROM agents.fresis_history
+     WHERE user_id = $1 AND source = 'arca_import'
+       AND (current_state IS NULL OR current_state != 'cancellato_in_arca')`,
+    [userId],
+  );
+
+  let softDeleted = 0;
+  const deletionWarnings: SyncResult["deletionWarnings"] = [];
+
+  for (const row of arcaImportRows) {
+    if (!row.invoice_number) continue;
+    const key = invoiceNumberToKey(row.invoice_number);
+    if (!key || parsed.arcaDocKeys.has(key)) continue;
+
+    // Record no longer present in Arca → soft delete
+    await pool.query(
+      `UPDATE agents.fresis_history
+       SET current_state = 'cancellato_in_arca', state_updated_at = NOW()
+       WHERE id = $1 AND user_id = $2`,
+      [row.id, userId],
+    );
+    softDeleted++;
+
+    if (row.ddt_number || row.tracking_number || row.delivery_completed_date) {
+      deletionWarnings.push({
+        invoiceNumber: row.invoice_number,
+        hasTracking: !!row.tracking_number,
+        hasDdt: !!row.ddt_number,
+        hasDelivery: !!row.delivery_completed_date,
+      });
+    }
+  }
+
   return {
     imported,
     skipped,
     exported: exportRecords.length,
     updated,
-    softDeleted: 0,       // populated in Task 7
+    softDeleted,
     renumbered: 0,        // populated in Task 8
     ktRecovered,          // from FASE 2b placeholder above
-    deletionWarnings: [], // populated in Task 7
+    deletionWarnings,
     ktNeedingMatch,
     ktMissingArticles,
     errors,
