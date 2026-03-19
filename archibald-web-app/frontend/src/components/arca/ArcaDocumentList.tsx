@@ -390,13 +390,11 @@ export function ArcaDocumentList({
       return Math.max(max, getCellText(row, colIdx).length);
     }, headerLen);
     const newW = Math.max(40, maxLen * 8 + 24);
-    setColWidths(prev => {
-      const next = [...prev];
-      next[colIdx] = newW;
-      saveWidths(next);
-      return next;
-    });
-  }, [filtered, saveWidths]);
+    const next = [...colWidths];
+    next[colIdx] = newW;
+    saveWidths(next);
+    setColWidths(next);
+  }, [filtered, saveWidths, colWidths]);
 
   const rowProps: CustomRowProps = useMemo(
     () => ({ sorted, selectedId, onSelect, onDoubleClick, colWidths }),

@@ -83,6 +83,16 @@ describe("getCellText", () => {
     expect(getCellText(makeParsedOrder({ revenue: undefined }), 7)).toBe("-");
   });
 
+  test("colonna 6 → label leggibile per stato noto", () => {
+    const row = makeParsedOrder({ stato: "fatturato" });
+    expect(getCellText(row, 6)).toBe("Fatturato");
+  });
+
+  test("colonna 6 → fallback a raw stato se non in STATE_LABELS", () => {
+    const row = makeParsedOrder({ stato: "__unknown__" as never });
+    expect(getCellText(row, 6)).toBe("__unknown__");
+  });
+
   test("colonna fuori range → stringa vuota", () => {
     expect(getCellText(makeParsedOrder(), 99)).toBe("");
   });
