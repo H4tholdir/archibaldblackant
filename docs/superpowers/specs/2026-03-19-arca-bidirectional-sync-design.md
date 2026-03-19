@@ -150,6 +150,28 @@ DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)
 
 Eseguito per ogni `(ESERCIZIO, TIPODOC)` distinto trovato in Arca.
 
+### FASE 2b — Recovery KT "synced ma assenti in Arca"
+
+Un ordine KT può avere `arca_kt_synced_at IS NOT NULL` pur non essendo in Arca: il flag
+viene settato in `generateKtExportVbs` prima dell'esecuzione del VBS sul PC. Se il VBS
+fallisce (es. conflitto NUMERO_P), l'ordine rimane marcato come "esportato" ma non è
+mai stato inserito in Arca.
+
+```
+Per ogni order_record con arca_kt_synced_at IS NOT NULL:
+  Leggi il NUMERODOC dall'arca_data dell'ordine (se disponibile)
+  Costruisci la chiave: "ESERCIZIO|KT|NUMERODOC"
+
+  IF la chiave NON è in arcaDocKeys:
+    → UPDATE agents.order_records SET arca_kt_synced_at = NULL
+       WHERE id = orderId AND user_id = userId
+    → l'ordine torna eligible per il prossimo finalize-kt
+    → ktRecovered++  (aggiunto a SyncResult)
+```
+
+Questo garantisce che dopo la prima sync con il fix, gli ordini KT che il VBS
+aveva fallito a inserire vengano automaticamente ri-accodati per l'export.
+
 ### FASE 3 — Import + Update da Arca
 
 ```
@@ -231,6 +253,7 @@ type SyncResult = {
   updated: number;           // record aggiornati da Arca
   softDeleted: number;       // record marcati cancellato_in_arca
   renumbered: number;        // record PWA rinumerati
+  ktRecovered: number;       // KT resettate (synced ma assenti in Arca)
   deletionWarnings: Array<{  // cancellazioni con dati PWA a rischio
     invoiceNumber: string;
     hasTracking: boolean;
@@ -401,6 +424,7 @@ Gli errori ANAGRAFE `NUMERO_P` osservati nel log del 19/03 sono probabilmente ca
 | KT con TUTTI articoli da magazzino | Nessuna KT in VBS; solo FT companion se warehouseArticles presenti |
 | KT con articoli PARZIALMENTE da magazzino | KT con qty ridotta + FT companion con qty warehouse |
 | finalize-kt eseguito due volte per stesso ordine | deterministicId su FT companion garantisce idempotenza |
+| KT marcata arca_kt_synced_at ma VBS fallito → non in Arca | FASE 2b: reset arca_kt_synced_at, ordine ri-eligible al prossimo finalize-kt |
 
 ---
 
