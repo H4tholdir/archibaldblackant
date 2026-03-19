@@ -691,6 +691,32 @@ function createMockPool(overrides?: {
     arca_data: string | null;
     sub_client_codice: string | null;
   }>;
+  subclientRows?: Array<{
+    codice: string;
+    ragione_sociale: string;
+    suppl_ragione_sociale: string | null;
+    matched_customer_profile_id: string | null;
+    match_confidence: string | null;
+    arca_synced_at: string | null;
+    [key: string]: unknown;
+  }>;
+  orderArticlesRows?: Array<{
+    id: number;
+    order_id: string;
+    user_id: string;
+    article_code: string;
+    article_description: string | null;
+    quantity: number;
+    unit_price: number | null;
+    discount_percent: number | null;
+    line_amount: number | null;
+    vat_percent: number | null;
+    vat_amount: number | null;
+    line_total_with_vat: number | null;
+    warehouse_quantity: number | null;
+    warehouse_sources_json: string | null;
+    created_at: string;
+  }>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
@@ -701,6 +727,8 @@ function createMockPool(overrides?: {
   const ktEligibleOrders = overrides?.ktEligibleOrders ?? [];
   const arcaImportRows = overrides?.arcaImportRows ?? [];
   const pwaSourceRows = overrides?.pwaSourceRows ?? [];
+  const subclientRows = overrides?.subclientRows ?? [];
+  const orderArticlesRows = overrides?.orderArticlesRows ?? [];
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
@@ -735,6 +763,7 @@ function createMockPool(overrides?: {
         const recordCount = placeholderCount > 0 ? Math.floor((params?.length ?? 0) / 38) : 0;
         return {
           rows: Array.from({ length: recordCount }, () => ({ action: "inserted" })),
+          rowCount: 1,
         };
       }
       if (text.includes("FROM agents.ft_counter") && text.includes("tipodoc IN")) {
@@ -754,6 +783,12 @@ function createMockPool(overrides?: {
       }
       if (text.includes("SELECT id, arca_data, invoice_number")) {
         return { rows: pwaExportRows };
+      }
+      if (text.includes("FROM shared.sub_clients")) {
+        return { rows: subclientRows, rowCount: subclientRows.length };
+      }
+      if (text.includes("FROM agents.order_articles") && text.includes("order_id = $1")) {
+        return { rows: orderArticlesRows, rowCount: orderArticlesRows.length };
       }
       if (text.includes("arca_kt_synced_at IS NULL")) {
         return { rows: ktEligibleOrders };
@@ -1440,6 +1475,159 @@ describe('splitArticlesByWarehouse', () => {
       const result = await generateKtExportVbs(pool, "test-user", []);
       expect(result.vbsScript).toBeNull();
       expect(result.ktExported).toBe(0);
+    },
+    60000,
+  );
+
+  // --- Shared fixture for Gap 1-4 tests ---
+  const GAP_USER = "test-user";
+  const GAP_ORDER_ID = "order-wh-gap-001";
+  const GAP_PROFILE_ID = "profile-wh-gap-001";
+  const GAP_CODICE = "C00WH";
+  const GAP_ESERCIZIO = "2026";
+
+  const gapKtOrder = {
+    id: GAP_ORDER_ID,
+    order_number: "ORD-WH-GAP-001",
+    customer_name: "Cliente WH Gap",
+    customer_profile_id: GAP_PROFILE_ID,
+    creation_date: `${GAP_ESERCIZIO}-03-01T00:00:00Z`,
+    discount_percent: null,
+    remaining_sales_financial: null,
+    articles_synced_at: `${GAP_ESERCIZIO}-03-01T01:00:00Z`,
+  };
+
+  const gapSubclientRow = {
+    codice: GAP_CODICE,
+    ragione_sociale: "Sub WH Gap",
+    suppl_ragione_sociale: null,
+    indirizzo: null, cap: null, localita: null, prov: null,
+    telefono: null, fax: null, email: null,
+    partita_iva: null, cod_fiscale: null, zona: null,
+    pers_da_contattare: null, email_amministraz: null,
+    agente: null, agente2: null, settore: null, classe: null,
+    pag: null, listino: null, banca: null, valuta: null,
+    cod_nazione: null, aliiva: null, contoscar: null, tipofatt: null,
+    telefono2: null, telefono3: null, url: null,
+    cb_nazione: null, cb_bic: null, cb_cin_ue: null, cb_cin_it: null,
+    abicab: null, contocorr: null,
+    matched_customer_profile_id: GAP_PROFILE_ID,
+    match_confidence: null,
+    arca_synced_at: null,
+  };
+
+  // All-warehouse article: quantity=5, warehouse_quantity=5 → no KT line, only FT companion
+  const gapWhArticleRow = {
+    id: 1,
+    order_id: GAP_ORDER_ID,
+    user_id: GAP_USER,
+    article_code: "WH001",
+    article_description: "Articolo magazzino",
+    quantity: 5,
+    unit_price: 10,
+    discount_percent: 0,
+    line_amount: 50,
+    vat_percent: 22,
+    vat_amount: 11,
+    line_total_with_vat: 61,
+    warehouse_quantity: 5,
+    warehouse_sources_json: null,
+    created_at: "2026-03-01",
+  };
+
+  test(
+    "Gap 1: FT companion items contengono gli articoli da magazzino con dati corretti",
+    async () => {
+      const pool = createMockPool({
+        ktEligibleOrders: [gapKtOrder],
+        subclientRows: [gapSubclientRow],
+        orderArticlesRows: [gapWhArticleRow],
+      });
+
+      await generateKtExportVbs(pool, GAP_USER, []);
+
+      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const ftCompanionInsert = calls.find(
+        ([sql]: [string]) =>
+          sql.includes("INSERT INTO agents.fresis_history") &&
+          sql.includes("ON CONFLICT (id) DO NOTHING"),
+      );
+      expect(ftCompanionInsert).toBeDefined();
+
+      // $10 = items JSON
+      const itemsJson = ftCompanionInsert![1][9] as string; // 0-indexed: param index 9 = $10
+      const items = JSON.parse(itemsJson);
+      expect(items).toHaveLength(1);
+      expect(items[0].articleCode).toBe("WH001");
+      expect(items[0].quantity).toBe(5);
+      expect(items[0].unitPrice).toBe(10);
+    },
+    60000,
+  );
+
+  test(
+    "Gap 2: warehouseOnlyExported conta ordini dove tutti gli articoli sono da magazzino",
+    async () => {
+      const pool = createMockPool({
+        ktEligibleOrders: [gapKtOrder],
+        subclientRows: [gapSubclientRow],
+        orderArticlesRows: [gapWhArticleRow],
+      });
+
+      const result = await generateKtExportVbs(pool, GAP_USER, []);
+
+      expect(result.ktExported).toBe(0);
+      expect(result.warehouseOnlyExported).toBe(1);
+    },
+    60000,
+  );
+
+  test(
+    "Gap 3: FT companion ID è deterministico basato su order.id (idempotente, non dipende da ftNum)",
+    async () => {
+      const pool = createMockPool({
+        ktEligibleOrders: [gapKtOrder],
+        subclientRows: [gapSubclientRow],
+        orderArticlesRows: [gapWhArticleRow],
+      });
+
+      await generateKtExportVbs(pool, GAP_USER, []);
+
+      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const ftCompanionInsert = calls.find(
+        ([sql]: [string]) =>
+          sql.includes("INSERT INTO agents.fresis_history") &&
+          sql.includes("ON CONFLICT (id) DO NOTHING"),
+      );
+      expect(ftCompanionInsert).toBeDefined();
+
+      // $1 = companion ID
+      const actualId = ftCompanionInsert![1][0] as string;
+      const expectedId = deterministicId(GAP_USER, GAP_ESERCIZIO, "FT_COMPANION", GAP_ORDER_ID, GAP_CODICE);
+      expect(actualId).toBe(expectedId);
+    },
+    60000,
+  );
+
+  test(
+    "Gap 4: UPDATE arca_kt_synced_at include AND arca_kt_synced_at IS NULL per prevenire race condition",
+    async () => {
+      const pool = createMockPool({
+        ktEligibleOrders: [gapKtOrder],
+        subclientRows: [gapSubclientRow],
+        orderArticlesRows: [gapWhArticleRow],
+      });
+
+      await generateKtExportVbs(pool, GAP_USER, []);
+
+      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const updateCall = calls.find(
+        ([sql]: [string]) =>
+          sql.includes("UPDATE agents.order_records") &&
+          sql.includes("arca_kt_synced_at = NOW()"),
+      );
+      expect(updateCall).toBeDefined();
+      expect(updateCall![0]).toContain("AND arca_kt_synced_at IS NULL");
     },
     60000,
   );

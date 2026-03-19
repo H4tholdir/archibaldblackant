@@ -13,7 +13,6 @@ import {
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { PDFExportService } from "../services/pdf-export.service";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
-import { ArcaImportModal } from "../components/ArcaImportModal";
 import { JobProgressBar } from "../components/JobProgressBar";
 import {
   FresisHistoryRealtimeService,
@@ -34,7 +33,6 @@ import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
 import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
 import { ARCA_FONT } from "../components/arca/arcaStyles";
-import { ArcaSyncButton } from "../components/ArcaSyncButton";
 import { SubclientsTab } from "../components/SubclientsTab";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
@@ -97,16 +95,7 @@ export function FresisHistoryPage() {
   const [selectedOrder, setSelectedOrder] = useState<FresisHistoryOrder | null>(
     null,
   );
-  const [showImportModal, setShowImportModal] = useState(false);
   const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [deletionWarnings, setDeletionWarnings] = useState<Array<{
-    invoiceNumber: string;
-    hasTracking: boolean;
-    hasDdt: boolean;
-    hasDelivery: boolean;
-  }>>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingFromArchibald, setDeletingFromArchibald] = useState<
     string | null
@@ -356,22 +345,6 @@ export function FresisHistoryPage() {
   };
 
   // --- Order actions ---
-  const handleSyncLifecycles = async () => {
-    setSyncing(true);
-    setSyncMessage(null);
-    try {
-      setAllOrders([]);
-      await wsRefetch();
-      setSyncMessage("Aggiornamento completato");
-    } catch (err) {
-      console.error("[FresisHistoryPage] Sync failed:", err);
-      setSyncMessage("Errore durante aggiornamento");
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMessage(null), 3000);
-    }
-  };
-
   const isDraftInArchibald = (order: FresisHistoryOrder): boolean => {
     if (!order.archibaldOrderId) return false;
     if (order.currentState === "piazzato") return true;
@@ -507,48 +480,6 @@ export function FresisHistoryPage() {
       .catch(() => {});
   }, [auth.token]);
 
-  const [exporting, setExporting] = useState(false);
-  const [showExportPanel, setShowExportPanel] = useState(false);
-  const [exportFrom, setExportFrom] = useState("");
-  const [exportTo, setExportTo] = useState("");
-
-  const handleExportArca = useCallback(async () => {
-    if (!auth.token) return;
-    setExporting(true);
-    try {
-      const params = new URLSearchParams();
-      if (exportFrom) params.set("from", exportFrom);
-      if (exportTo) params.set("to", exportTo);
-      const qs = params.toString();
-      const url = `/api/fresis-history/export-arca${qs ? `?${qs}` : ""}`;
-
-      const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      });
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => null);
-        alert(body?.error || "Errore durante l'esportazione");
-        return;
-      }
-
-      const blob = await resp.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      const dateSuffix = exportFrom || exportTo ? `_${exportFrom || ""}_${exportTo || ""}` : "";
-      a.download = `export-arca${dateSuffix}.zip`;
-      a.click();
-      URL.revokeObjectURL(blobUrl);
-      setShowExportPanel(false);
-    } catch (err) {
-      console.error("[FresisHistoryPage] Export failed:", err);
-      alert("Errore durante l'esportazione");
-    } finally {
-      setExporting(false);
-    }
-  }, [auth.token, exportFrom, exportTo]);
-
   return (
     <div
       style={{
@@ -582,43 +513,7 @@ export function FresisHistoryPage() {
             {motherOrderFilter && " (filtro ordine madre)"}
           </span>
         </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          <button onClick={() => setShowImportModal(true)} style={headerBtnStyle}>
-            Importa da Arca
-          </button>
-          <button
-            onClick={handleSyncLifecycles}
-            disabled={syncing}
-            style={{
-              ...headerBtnStyle,
-              backgroundColor: syncing ? "#93c5fd" : "#1976d2",
-              color: "#fff",
-              border: "none",
-            }}
-          >
-            {syncing ? "Aggiornamento..." : "Aggiorna Stati"}
-          </button>
-          <button
-            onClick={() => setShowExportPanel((v) => !v)}
-            style={{
-              ...headerBtnStyle,
-              backgroundColor: "#2e7d32",
-              color: "#fff",
-              border: "none",
-            }}
-          >
-            Esporta verso Arca
-          </button>
-          <ArcaSyncButton onSyncComplete={(warnings) => {
-            setDeletionWarnings(warnings ?? []);
-            wsRefetch();
-          }} />
-          {syncMessage && (
-            <span style={{ fontSize: "11px", color: "#666", alignSelf: "center" }}>
-              {syncMessage}
-            </span>
-          )}
-        </div>
+        <div />
       </div>
 
       {/* Tab bar */}
@@ -655,85 +550,6 @@ export function FresisHistoryPage() {
       {activeTab === "sottoclienti" && <SubclientsTab />}
 
       {activeTab === "documenti" && <>
-      {/* Deletion warnings banner */}
-      {deletionWarnings.length > 0 && (
-        <div style={{
-          background: '#fff3cd',
-          border: '1px solid #ffc107',
-          borderRadius: 4,
-          padding: '10px 14px',
-          marginBottom: 12,
-        }}>
-          <strong>⚠️ {deletionWarnings.length} documenti cancellati in Arca</strong>
-          {' '}contengono dati PWA (tracking/DDT/consegna):
-          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
-            {deletionWarnings.map(w => (
-              <li key={w.invoiceNumber} style={{ fontSize: 13 }}>
-                <strong>{w.invoiceNumber}</strong>
-                {w.hasTracking && <span style={{ color: '#856404' }}> · tracking</span>}
-                {w.hasDdt && <span style={{ color: '#856404' }}> · DDT</span>}
-                {w.hasDelivery && <span style={{ color: '#856404' }}> · consegna completata</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Export panel */}
-      {showExportPanel && (
-        <div
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: "8px",
-            padding: "12px",
-            marginBottom: "12px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-            border: "1px solid #2e7d32",
-            display: "flex",
-            gap: "12px",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <label style={filterLabelStyle}>Da (opzionale)</label>
-            <input
-              type="date"
-              value={exportFrom}
-              onChange={(e) => setExportFrom(e.target.value)}
-              style={filterInputStyle}
-            />
-          </div>
-          <div>
-            <label style={filterLabelStyle}>A (opzionale)</label>
-            <input
-              type="date"
-              value={exportTo}
-              onChange={(e) => setExportTo(e.target.value)}
-              style={filterInputStyle}
-            />
-          </div>
-          <button
-            onClick={handleExportArca}
-            disabled={exporting}
-            style={{
-              ...headerBtnStyle,
-              backgroundColor: exporting ? "#81c784" : "#2e7d32",
-              color: "#fff",
-              border: "none",
-            }}
-          >
-            {exporting ? "Esportazione..." : "Scarica ZIP (DBF)"}
-          </button>
-          <button
-            onClick={() => setShowExportPanel(false)}
-            style={headerBtnStyle}
-          >
-            Chiudi
-          </button>
-        </div>
-      )}
-
       {/* Filter bar */}
       <div
         style={{
@@ -1008,15 +824,6 @@ export function FresisHistoryPage() {
       )}
 
       {/* Modals */}
-      {showImportModal && (
-        <ArcaImportModal
-          onClose={() => setShowImportModal(false)}
-          onImportComplete={() => {
-            wsRefetch();
-          }}
-        />
-      )}
-
       {linkingOrderId &&
         (() => {
           const linkingOrder = filteredOrders.find(

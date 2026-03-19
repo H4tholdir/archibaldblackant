@@ -1546,6 +1546,7 @@ export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtS
 
 export type KtExportResult = {
   ktExported: number;
+  warehouseOnlyExported: number;
   vbsScript: VbsResult | null;
 };
 
@@ -1582,6 +1583,7 @@ export async function generateKtExportVbs(
   const exportRecords: VbsExportRecord[] = [...ftExportRecords];
   const currentYear = new Date().getFullYear().toString();
   let ktExported = 0;
+  let warehouseOnlyExported = 0;
 
   // Align FT and KT counters to global max(FT, KT) before assigning numbers.
   // generateKtExportVbs can run between syncs; without this, the KT counter may lag
@@ -1656,6 +1658,9 @@ export async function generateKtExportVbs(
       );
       exportRecords.push({ invoiceNumber: `KT ${docNumber}/${esercizio}`, arcaData });
       ktExported++;
+    } else if (warehouseArticles.length > 0) {
+      // All articles are warehouse-sourced: no KT generated, only FT companion
+      warehouseOnlyExported++;
     }
 
     // Generate FT companion for warehouse articles (if any)
@@ -1671,8 +1676,8 @@ export async function generateKtExportVbs(
       );
       exportRecords.push({ invoiceNumber: `FT ${ftNum}/${esercizio}`, arcaData: arcaDataFt });
 
-      // Persist FT companion in fresis_history for idempotency
-      const ftCompanionId = deterministicId(userId, esercizio, 'FT', String(ftNum), subclient.codice);
+      // Gap 3: ID based on order.id (not ftNum) so it's stable across re-runs
+      const ftCompanionId = deterministicId(userId, esercizio, 'FT_COMPANION', order.id, subclient.codice);
       await pool.query(
         `INSERT INTO agents.fresis_history
            (id, user_id, source, invoice_number, sub_client_codice, sub_client_name,
@@ -1690,7 +1695,7 @@ export async function generateKtExportVbs(
           order.customerName,
           arcaDataFt.testata.TOTDOC ?? 0,
           order.discountPercent ?? 0,
-          JSON.stringify([]),
+          JSON.stringify(warehouseArticles.map(toArticleForKt)), // Gap 1: items populate con articoli magazzino
           JSON.stringify(arcaDataFt),
         ],
       );
@@ -1707,8 +1712,9 @@ export async function generateKtExportVbs(
     // Mark order as exported: set arca_kt_synced_at for any order that had articles processed
     // (including fully-warehouse orders that generated only an FT companion — without this,
     // fully-warehouse orders would loop on every sync since arca_kt_synced_at stays NULL)
+    // Gap 4: AND arca_kt_synced_at IS NULL guards against concurrent sync runs
     await pool.query(
-      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
+      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2 AND arca_kt_synced_at IS NULL`,
       [order.id, userId],
     );
   }
@@ -1787,5 +1793,5 @@ export async function generateKtExportVbs(
     logger.info(`Arca sync finalize-kt: ${exportRecords.length} docs + ${anagrafeExportRecords.length} anagrafe exported for user ${userId}`);
   }
 
-  return { ktExported, vbsScript };
+  return { ktExported, warehouseOnlyExported, vbsScript };
 }
