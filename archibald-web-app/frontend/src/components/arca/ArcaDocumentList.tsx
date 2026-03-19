@@ -33,6 +33,7 @@ type ArcaDocumentListProps = {
   onDoubleClick: (order: FresisHistoryOrder) => void;
   height?: number;
   onScrollNearEnd?: () => void;
+  docTypeFilter: 'all' | 'ft_only' | 'kt_only';
 };
 
 type ParsedOrder = {
@@ -97,6 +98,17 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
 export function extractDocNum(ftNumber: string): number {
   const match = ftNumber.match(/(\d+)\//);
   return match ? parseInt(match[1], 10) : 0;
+}
+
+export function filterByDocType<T extends { ftNumber: string }>(
+  items: T[],
+  filter: 'all' | 'ft_only' | 'kt_only',
+): T[] {
+  if (filter === 'all') return items;
+  return items.filter(item => {
+    const isKt = item.ftNumber.startsWith('KT ');
+    return filter === 'kt_only' ? isKt : !isKt;
+  });
 }
 
 function compareParsed(
@@ -272,6 +284,7 @@ export function ArcaDocumentList({
   onDoubleClick,
   height = 500,
   onScrollNearEnd,
+  docTypeFilter,
 }: ArcaDocumentListProps) {
   const [sortField, setSortField] = useState<SortField>("recency");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -279,11 +292,16 @@ export function ArcaDocumentList({
 
   const parsed = useMemo(() => orders.map(parseOrder), [orders]);
 
+  const filtered = useMemo(
+    () => filterByDocType(parsed, docTypeFilter),
+    [parsed, docTypeFilter],
+  );
+
   const sorted = useMemo(() => {
-    const copy = [...parsed];
+    const copy = [...filtered];
     copy.sort((a, b) => compareParsed(a, b, sortField, sortDir));
     return copy;
-  }, [parsed, sortField, sortDir]);
+  }, [filtered, sortField, sortDir]);
 
   const handleHeaderClick = useCallback(
     (field: SortField) => {

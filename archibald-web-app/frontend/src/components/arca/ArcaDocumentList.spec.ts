@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { extractDocNum } from "./ArcaDocumentList";
+import { extractDocNum, filterByDocType } from "./ArcaDocumentList";
 
 describe("extractDocNum", () => {
   test("estrae il numero da formato KT xxx/yyyy", () => {
@@ -20,5 +20,23 @@ describe("extractDocNum", () => {
 
   test("ritorna 0 per stringa vuota", () => {
     expect(extractDocNum("")).toBe(0);
+  });
+});
+
+describe("filterByDocType", () => {
+  const ktItem = { ftNumber: "KT 348/2026" } as { ftNumber: string };
+  const ftItem = { ftNumber: "FT 336/2026" } as { ftNumber: string };
+  const items = [ktItem, ftItem];
+
+  test("'all' non filtra nulla", () => {
+    expect(filterByDocType(items, "all")).toEqual(items);
+  });
+
+  test("'kt_only' restituisce solo KT", () => {
+    expect(filterByDocType(items, "kt_only")).toEqual([ktItem]);
+  });
+
+  test("'ft_only' restituisce solo FT", () => {
+    expect(filterByDocType(items, "ft_only")).toEqual([ftItem]);
   });
 });
