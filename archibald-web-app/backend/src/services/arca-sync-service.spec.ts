@@ -629,6 +629,7 @@ type MockExistingRecord = {
   id: string;
   invoice_number?: string | null;
   source?: string;
+  sub_client_codice?: string | null;
   arca_hash?: string | null;
 };
 
@@ -688,12 +689,14 @@ function createMockPool(overrides?: {
               id: r.id,
               invoice_number: r.invoice_number ?? null,
               source: r.source ?? 'arca_import',
+              sub_client_codice: r.sub_client_codice ?? null,
               arca_hash: r.arca_hash ?? null,
             }))
           : existingIds.map((id, i) => ({
               id,
               invoice_number: existingInvoiceNumbers[i] ?? null,
               source: existingSources[i] ?? 'arca_import',
+              sub_client_codice: null,
               arca_hash: null,
             }));
         return { rows };
@@ -880,10 +883,15 @@ function createMockPool(overrides?: {
       );
       const arcaRecord = parsed.records[0]!;
 
+      // sub_client_codice must match the Arca record so FASE 3 treats it as the same document
       const pool = createMockPool({
-        existingIds: [existingId],
-        existingInvoiceNumbers: [arcaRecord.invoice_number],
-        existingSources: [source],
+        existingRecords: [{
+          id: existingId,
+          invoice_number: arcaRecord.invoice_number,
+          source,
+          sub_client_codice: arcaRecord.sub_client_codice,
+          arca_hash: null,  // null → hash mismatch → triggers UPDATE
+        }],
       });
 
       const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
@@ -900,6 +908,48 @@ function createMockPool(overrides?: {
       );
       expect(arcaDataUpdateCalls).toHaveLength(1);
       expect(arcaDataUpdateCalls[0][1][2]).toBe(existingId);
+    },
+    60000,
+  );
+
+  test(
+    "FASE 3: skips arca_data update when invoice_number matches but sub_client_codice differs (different document)",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf, docrigBuf, null, TEST_USER_ID, new Map(), new Map(),
+      );
+      const arcaRecord = parsed.records[0]!;
+
+      // Same invoice_number but different client → genuinely different documents
+      const differentClientId = "different-client-existing-id";
+      const pool = createMockPool({
+        existingRecords: [{
+          id: differentClientId,
+          invoice_number: arcaRecord.invoice_number,
+          source: 'app',
+          sub_client_codice: 'C99999_DIFFERENT',  // different from arcaRecord.sub_client_codice
+          arca_hash: null,
+        }],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      // FASE 3 must NOT update this record; FASE 5 will handle renumbering
+      expect(result.updated).toBe(0);
+      expect(result.unchanged).toBe(0);
+
+      const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const arcaDataUpdateCalls = queryCalls.filter(
+        ([sql]: [string]) =>
+          typeof sql === 'string' &&
+          sql.includes('UPDATE agents.fresis_history') &&
+          sql.includes('arca_data') &&
+          sql.includes('target_total_with_vat'),
+      );
+      expect(arcaDataUpdateCalls).toHaveLength(0);
     },
     60000,
   );

@@ -1111,10 +1111,11 @@ export async function performArcaSync(
     id: string;
     invoice_number: string | null;
     source: string;
+    sub_client_codice: string | null;
     arca_hash: string | null;
   };
   const { rows: existingRows } = await pool.query<ExistingRecord>(
-    `SELECT id, invoice_number, source, md5(arca_data::text) as arca_hash
+    `SELECT id, invoice_number, source, sub_client_codice, md5(arca_data::text) as arca_hash
      FROM agents.fresis_history WHERE user_id = $1`,
     [userId],
   );
@@ -1175,22 +1176,26 @@ export async function performArcaSync(
       }
     } else if (existingByInvoiceNumber.has(record.invoice_number)) {
       const existing = existingByInvoiceNumber.get(record.invoice_number)!;
-      // Invoice-number match (ID mismatch): ArcaPro is source of truth regardless of source.
-      // Covers both source='app' (PWA doc sent to Arca by bot) and legacy source='arca_import'
-      // records imported with old 4-arg deterministicId.
-      if (incomingHash !== existing.arca_hash) {
-        await pool.query(
-          `UPDATE agents.fresis_history SET
-             arca_data             = $1,
-             target_total_with_vat = $2,
-             updated_at            = NOW()
-           WHERE id = $3 AND user_id = $4`,
-          [record.arca_data, record.target_total_with_vat, existing.id, userId],
-        );
-        updated++;
-      } else {
-        unchanged++;
+      // Invoice-number match (ID mismatch): ArcaPro is source of truth.
+      // Guard: only update if the client code also matches — same invoice number with a
+      // different client means two genuinely distinct documents. FASE 5 will renumber
+      // the conflict instead.
+      if (existing.sub_client_codice === record.sub_client_codice) {
+        if (incomingHash !== existing.arca_hash) {
+          await pool.query(
+            `UPDATE agents.fresis_history SET
+               arca_data             = $1,
+               target_total_with_vat = $2,
+               updated_at            = NOW()
+             WHERE id = $3 AND user_id = $4`,
+            [record.arca_data, record.target_total_with_vat, existing.id, userId],
+          );
+          updated++;
+        } else {
+          unchanged++;
+        }
       }
+      // else: different client → different document; skip, FASE 5 handles renumbering
     } else {
       newRecords.push(record);
     }
