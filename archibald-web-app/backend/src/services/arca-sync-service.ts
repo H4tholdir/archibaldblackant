@@ -1510,13 +1510,13 @@ export async function generateKtExportVbs(
       );
     }
 
-    // Update arca_kt_synced_at ONLY if KT was generated (not for fully-warehouse orders)
-    if (nonWarehouseArticles.length > 0) {
-      await pool.query(
-        `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
-        [order.id, userId],
-      );
-    }
+    // Mark order as exported: set arca_kt_synced_at for any order that had articles processed
+    // (including fully-warehouse orders that generated only an FT companion — without this,
+    // fully-warehouse orders would loop on every sync since arca_kt_synced_at stays NULL)
+    await pool.query(
+      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
+      [order.id, userId],
+    );
   }
 
   // ANAGRAFE export (spostato da performArcaSync)
