@@ -12630,10 +12630,12 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
-    // Always reset LINEDISC to N/A (or the requested value) to prevent
-    // "Discount to get street price" from remaining and causing issues with orders.
-    {
-      const targetLineDisc = customerData.lineDiscount || "N/A";
+    // Reset LINEDISC only when explicitly requested.
+    // Opening "Prezzi e sconti" and calling SetSelectedIndex triggers an XAF
+    // server callback that can inadvertently clear GRUPPO DI PREZZO, causing
+    // orders to have no saleslines. Skip this block for VAT-validation and
+    // general customer-info updates that don't need to touch LINEDISC.
+    if (customerData.lineDiscount !== undefined) {
       await this.openCustomerTab("Prezzi e sconti");
 
       try {
@@ -12653,7 +12655,7 @@ export class ArchibaldBot {
 
       await this.setDevExpressComboBox(
         /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-        targetLineDisc,
+        customerData.lineDiscount || "N/A",
       );
     }
 
