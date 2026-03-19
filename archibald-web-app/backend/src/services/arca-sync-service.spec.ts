@@ -1239,6 +1239,43 @@ function createMockPool(overrides?: {
     },
     60000,
   );
+
+  test(
+    "FASE 8: renumbers FT export record whose NUMERODOC conflicts with an existing KT (cross-type NUMERO_P conflict)",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      // KT 326/2026 is confirmed to exist in the real Mac Arca snapshot.
+      // PWA wants to export FT 326/2026 — same NUMERODOC, different TIPODOC → NUMERO_P conflict.
+      const conflictNumerodoc = "326";
+      const esercizio = "2026";
+      const pwaArcaData = makeArcaData({
+        testata: { ESERCIZIO: esercizio, TIPODOC: "FT", NUMERODOC: conflictNumerodoc },
+        righe: [{ NUMERODOC: conflictNumerodoc }],
+      });
+
+      const pool = createMockPool({
+        pwaExportRows: [
+          {
+            id: "pwa-ft-326-conflict",
+            invoice_number: `FT ${conflictNumerodoc}/${esercizio}`,
+            arca_data: JSON.stringify(pwaArcaData),
+          },
+        ],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
+
+      // FT 326 must be renumbered: KT 326 already occupies the same NUMERO_P slot
+      expect(result.renumbered).toBe(1);
+      expect(result.ftExportRecords).toHaveLength(1);
+      expect(result.ftExportRecords[0].invoiceNumber).not.toBe(`FT ${conflictNumerodoc}/${esercizio}`);
+      expect(result.ftExportRecords[0].invoiceNumber).toMatch(/^FT \d+\/2026$/);
+    },
+    60000,
+  );
 });
 
 describe('splitArticlesByWarehouse', () => {

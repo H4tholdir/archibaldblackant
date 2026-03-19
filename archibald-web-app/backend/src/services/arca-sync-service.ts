@@ -1263,6 +1263,25 @@ export async function performArcaSync(
     );
   }
 
+  // Also ensure FT counter >= global max(FT, KT): both share CODCNT="001" in the
+  // NUMERO_P candidate index, so a KT with number N means FT N would violate uniqueness.
+  const globalMaxFtByEsercizio = new Map<string, number>();
+  for (const [key, maxNum] of parsed.maxNumerodocByKey) {
+    const [esercizio, tipodoc] = key.split("|");
+    if (tipodoc !== "FT" && tipodoc !== "KT") continue;
+    const cur = globalMaxFtByEsercizio.get(esercizio) ?? 0;
+    if (maxNum > cur) globalMaxFtByEsercizio.set(esercizio, maxNum);
+  }
+  for (const [esercizio, globalMax] of globalMaxFtByEsercizio) {
+    await pool.query(
+      `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
+       VALUES ($1, $2, 'FT', $3)
+       ON CONFLICT (esercizio, user_id, tipodoc)
+       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
+      [esercizio, userId, globalMax],
+    );
+  }
+
   // FASE 2b — Recovery KT "synced but absent from Arca" — DEFERRED
   // Requires migration 030 adding kt_arca_numerodoc TEXT to agents.order_records.
   const ktRecovered = 0;
@@ -1279,18 +1298,57 @@ export async function performArcaSync(
     [userId],
   );
 
-  // 8. Filter PWA records not yet in Arca -> generate VBS
+  // Build a set of all NUMERODOC values already used in Arca (any TIPODOC) per esercizio.
+  // FT and KT share CODCNT="001" in the NUMERO_P candidate index, so a KT with number N
+  // makes FT N a uniqueness violation — detect and renumber before the VBS is generated.
+  const takenNumerodocByEsanno = new Map<string, Set<number>>();
+  for (const docKey of parsed.arcaDocKeys) {
+    const parts = docKey.split("|");
+    const esercizio = parts[0];
+    const numInt = parseInt(parts[2], 10);
+    if (!isNaN(numInt)) {
+      let s = takenNumerodocByEsanno.get(esercizio);
+      if (!s) { s = new Set(); takenNumerodocByEsanno.set(esercizio, s); }
+      s.add(numInt);
+    }
+  }
+
+  // 8. Filter PWA records not yet in Arca -> generate VBS, renumbering cross-type conflicts inline
+  let renumbered = 0;
   const exportRecords: VbsExportRecord[] = [];
   for (const pwaRow of pwaRows) {
     const arcaData: ArcaData = typeof pwaRow.arca_data === "string"
       ? JSON.parse(pwaRow.arca_data)
       : pwaRow.arca_data as ArcaData;
-    const key = `${arcaData.testata.ESERCIZIO}|${arcaData.testata.TIPODOC}|${arcaData.testata.NUMERODOC.trim()}`;
-    if (!parsed.arcaDocKeys.has(key)) {
-      exportRecords.push({
-        invoiceNumber: pwaRow.invoice_number,
-        arcaData,
-      });
+    const esercizio = String(arcaData.testata.ESERCIZIO || "").trim();
+    const tipodoc = String(arcaData.testata.TIPODOC || "FT").trim();
+    const numerodocTrimmed = String(arcaData.testata.NUMERODOC || "").trim();
+    const key = `${esercizio}|${tipodoc}|${numerodocTrimmed}`;
+    if (parsed.arcaDocKeys.has(key)) continue; // Already in Arca under same type
+
+    const numInt = parseInt(numerodocTrimmed, 10);
+    const takenSet = takenNumerodocByEsanno.get(esercizio);
+    if (!isNaN(numInt) && takenSet?.has(numInt)) {
+      // NUMERO_P conflict: this NUMERODOC is occupied by a different doc type (e.g. FT 326 vs KT 326)
+      const tipodocForCounter = (tipodoc === "KT" ? "KT" : "FT") as "FT" | "KT";
+      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodocForCounter);
+      arcaData.testata.NUMERODOC = String(newNum);
+      for (const riga of arcaData.righe) riga.NUMERODOC = String(newNum);
+      const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
+      await pool.query(
+        `UPDATE agents.fresis_history SET
+           invoice_number         = $1,
+           archibald_order_number = $1,
+           arca_data              = $2,
+           updated_at             = NOW()
+         WHERE id = $3 AND user_id = $4`,
+        [newInvoiceNumber, JSON.stringify(arcaData), pwaRow.id, userId],
+      );
+      takenSet.add(newNum);
+      renumbered++;
+      exportRecords.push({ invoiceNumber: newInvoiceNumber, arcaData });
+    } else {
+      exportRecords.push({ invoiceNumber: pwaRow.invoice_number, arcaData });
     }
   }
 
@@ -1360,7 +1418,7 @@ export async function performArcaSync(
     }
   }
 
-  // FASE 5 — Renumber source='app' records conflicting with Arca numbering
+  // FASE 5 — Renumber source='app' records conflicting with Arca numbering (same TIPODOC, different client)
   const { rows: pwaSourceRows } = await pool.query<{
     id: string;
     invoice_number: string | null;
@@ -1372,8 +1430,6 @@ export async function performArcaSync(
      WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
     [userId],
   );
-
-  let renumbered = 0;
 
   for (const row of pwaSourceRows) {
     if (!row.invoice_number || !row.arca_data) continue;
