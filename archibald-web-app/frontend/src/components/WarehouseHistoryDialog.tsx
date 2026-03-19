@@ -132,3 +132,101 @@ export function WarehouseHistoryDialog({
     </div>
   );
 }
+
+// ─── WarehouseOrderCopyDialog ───────────────────────────────────────────────
+
+type CopyOrderMatch = {
+  articleCode: string;
+  description: string;
+  requestedQuantity: number;
+  matches: WarehouseMatch[];
+};
+
+type CopyDialogProps = {
+  articles: CopyOrderMatch[];
+  onConfirm: (selectionsPerArticle: Map<string, SelectedWarehouseMatch[]>) => void;
+  onCancel: () => void;
+};
+
+export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: CopyDialogProps) {
+  // State: Map<articleCode, Map<warehouseItemId, quantity>>
+  const [allSelections, setAllSelections] = useState<Map<string, Map<number, number>>>(() => {
+    const outer = new Map<string, Map<number, number>>();
+    for (const art of articles) {
+      const inner = new Map<number, number>();
+      let remaining = art.requestedQuantity;
+      for (const match of art.matches) {
+        if (isAutoSelected(match.level) && remaining > 0) {
+          const use = Math.min(match.availableQty, remaining);
+          inner.set(match.item.id, use);
+          remaining -= use;
+        }
+      }
+      outer.set(art.articleCode, inner);
+    }
+    return outer;
+  });
+
+  const handleConfirm = () => {
+    const result = new Map<string, SelectedWarehouseMatch[]>();
+    for (const art of articles) {
+      const innerMap = allSelections.get(art.articleCode) ?? new Map();
+      const sels: SelectedWarehouseMatch[] = [];
+      for (const [itemId, qty] of innerMap.entries()) {
+        const match = art.matches.find(m => m.item.id === itemId);
+        if (match && qty > 0) sels.push({ warehouseItemId: itemId, articleCode: match.item.articleCode, boxName: match.item.boxName, quantity: qty, maxAvailable: match.availableQty });
+      }
+      result.set(art.articleCode, sels);
+    }
+    onConfirm(result);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'white', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
+        <div style={{ background: '#1e293b', color: 'white', padding: '14px 18px', flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Articoli trovati in magazzino — ordine copiato</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Seleziona quali articoli usare dal magazzino</div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {articles.map((art) => {
+            const topMatch = art.matches[0];
+            const colors = WAREHOUSE_LEVEL_COLORS[topMatch.level];
+            const innerMap = allSelections.get(art.articleCode) ?? new Map();
+            const isSelected = innerMap.size > 0;
+
+            return (
+              <div key={art.articleCode} style={{ border: `1px solid ${colors.borderColor}`, borderLeft: `4px solid ${colors.accentColor}`, borderRadius: 8, padding: 10, background: isSelected ? colors.backgroundLight : 'white' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <input type="checkbox" checked={isSelected}
+                    onChange={e => {
+                      const next = new Map(allSelections);
+                      if (e.target.checked) {
+                        const inner = new Map<number, number>();
+                        inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+                        next.set(art.articleCode, inner);
+                      } else {
+                        next.set(art.articleCode, new Map());
+                      }
+                      setAllSelections(next);
+                    }}
+                    style={{ accentColor: colors.accentColor }} />
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>{art.articleCode}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 6px', borderRadius: 10, background: colors.backgroundMid, color: colors.accentColor, fontWeight: 700 }}>{WAREHOUSE_LEVEL_LABELS[topMatch.level]}</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  → {topMatch.item.articleCode} · 📦 {topMatch.item.boxName} · {topMatch.availableQty} pz
+                  {topMatch.level !== 'exact' && <span style={{ color: colors.accentColor }}> · {topMatch.reason}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8, justifyContent: 'flex-end', flexShrink: 0 }}>
+          <button onClick={onCancel} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', fontSize: 12, cursor: 'pointer' }}>Chiudi</button>
+          <button onClick={handleConfirm} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#059669', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Conferma selezione</button>
+        </div>
+      </div>
+    </div>
+  );
+}

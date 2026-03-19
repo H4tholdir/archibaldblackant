@@ -7,7 +7,7 @@ import { priceService } from '../services/prices.service';
 import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
 import type { WarehouseMatch } from '../services/warehouse-matching';
 import { bestMatchLevel, WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
-import { WarehouseHistoryDialog } from './WarehouseHistoryDialog';
+import { WarehouseHistoryDialog, WarehouseOrderCopyDialog } from './WarehouseHistoryDialog';
 import type { SelectedWarehouseMatch } from '../types/warehouse';
 
 type Props = {
@@ -27,6 +27,13 @@ type PendingDialogItem = {
   orderDiscountPercent: number;
   orderSource: 'orders' | 'fresis';
   matches: WarehouseMatch[];
+};
+
+type PendingCopyDialog = {
+  order: CustomerFullHistoryOrder;
+  builtItems: PendingOrderItem[];
+  originalCodes: string[];
+  matchedArticles: Array<{ articleCode: string; description: string; requestedQuantity: number; matches: WarehouseMatch[] }>;
 };
 
 function formatEur(n: number): string {
@@ -62,6 +69,8 @@ export function CustomerHistoryModal({
   const [warehouseMatchMap, setWarehouseMatchMap] = useState<Map<string, WarehouseMatch[]>>(new Map());
   // Pending dialog for single-article warehouse confirmation
   const [pendingDialog, setPendingDialog] = useState<PendingDialogItem | null>(null);
+  // Pending dialog for full-order copy warehouse confirmation
+  const [pendingCopyDialog, setPendingCopyDialog] = useState<PendingCopyDialog | null>(null);
 
   // Serializzato per evitare re-render infiniti con array come dipendenze
   const profileIdsKey = customerProfileIds.join(',');
@@ -309,9 +318,25 @@ export function CustomerHistoryModal({
       }
 
       const validItems = validPairs.map((p) => p.item);
-      onAddOrder(validItems, false);
-      if (skipped.length > 0) setSkippedDialog(skipped);
 
+      const matchedArticles = validItems
+        .map(item => ({
+          articleCode: item.articleCode,
+          description: item.description ?? '',
+          requestedQuantity: item.quantity,
+          matches: warehouseMatchMap.get(item.articleCode) ?? [],
+        }))
+        .filter(x => x.matches.length > 0);
+
+      if (skipped.length > 0) setSkippedDialog(skipped);
+      setCopyingOrderId(null);
+
+      if (matchedArticles.length > 0) {
+        setPendingCopyDialog({ order, builtItems: validItems, originalCodes: validPairs.map(p => p.originalCode), matchedArticles });
+        return;
+      }
+
+      onAddOrder(validItems, false);
       setAddedCount((c) => c + validItems.length);
       for (const { originalCode } of validPairs) {
         setArticleBadges((prev) => {
@@ -322,11 +347,41 @@ export function CustomerHistoryModal({
       }
       setCopiedOrderIds((prev) => new Set([...prev, order.orderId]));
       setTimeout(() => {
-        setCopyingOrderId(null);
         setCopiedOrderIds((prev) => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
     },
-    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder],
+    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder, warehouseMatchMap],
+  );
+
+  const handleCopyDialogConfirm = useCallback(
+    (selectionsPerArticle: Map<string, SelectedWarehouseMatch[]>) => {
+      if (!pendingCopyDialog) return;
+      const { order, builtItems, originalCodes } = pendingCopyDialog;
+      const enrichedItems = builtItems.map(item => {
+        const sels = selectionsPerArticle.get(item.articleCode) ?? [];
+        if (sels.length === 0) return item;
+        return {
+          ...item,
+          warehouseSources: sels.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity })),
+          warehouseQuantity: sels.reduce((s, sel) => s + sel.quantity, 0),
+        };
+      });
+      onAddOrder(enrichedItems, false);
+      setAddedCount(c => c + enrichedItems.length);
+      for (const originalCode of originalCodes) {
+        setArticleBadges(prev => {
+          const m = new Map(prev);
+          m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
+          return m;
+        });
+      }
+      setCopiedOrderIds(prev => new Set([...prev, order.orderId]));
+      setTimeout(() => {
+        setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
+      }, 1300);
+      setPendingCopyDialog(null);
+    },
+    [pendingCopyDialog, onAddOrder],
   );
 
   if (!isOpen) return null;
@@ -525,6 +580,29 @@ export function CustomerHistoryModal({
             setPendingDialog(null);
           }}
           onCancel={() => setPendingDialog(null)}
+        />
+      )}
+      {pendingCopyDialog && (
+        <WarehouseOrderCopyDialog
+          articles={pendingCopyDialog.matchedArticles}
+          onConfirm={handleCopyDialogConfirm}
+          onCancel={() => {
+            const { order, builtItems, originalCodes } = pendingCopyDialog;
+            onAddOrder(builtItems, false);
+            setAddedCount(c => c + builtItems.length);
+            for (const originalCode of originalCodes) {
+              setArticleBadges(prev => {
+                const m = new Map(prev);
+                m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
+                return m;
+              });
+            }
+            setCopiedOrderIds(prev => new Set([...prev, order.orderId]));
+            setTimeout(() => {
+              setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
+            }, 1300);
+            setPendingCopyDialog(null);
+          }}
         />
       )}
     </>
