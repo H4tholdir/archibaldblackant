@@ -33,6 +33,12 @@ export type VbsExportRecord = {
   arcaData: ArcaData;
 };
 
+export function invoiceNumberToKey(invoiceNumber: string): string | null {
+  const m = invoiceNumber.match(/^(\w+)\s+(\d+)\/(\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}|${m[1]}|${m[2]}`;
+}
+
 export type VbsResult = {
   vbs: string;
   bat: string;
@@ -649,6 +655,8 @@ export type NativeParseResult = {
     skippedOtherTypes: number;
   };
   maxNumerodocByKey: Map<string, number>;
+  arcaDocMap: Map<string, FresisHistoryRow>;
+  arcaDocKeys: Set<string>;
 };
 
 function createTempDir(): string {
@@ -774,6 +782,8 @@ export async function parseNativeArcaFiles(
     const records: FresisHistoryRow[] = [];
     let skippedOtherTypes = 0;
     const maxNumerodocByKey = new Map<string, number>();
+    const arcaDocMap = new Map<string, FresisHistoryRow>();
+    const arcaDocKeys = new Set<string>();
     const now = new Date().toISOString();
 
     for (const dtRow of dtRows) {
@@ -953,6 +963,10 @@ export async function parseNativeArcaFiles(
         arca_data: JSON.stringify(arcaData),
         source: "arca_import",
       });
+
+      const docMapKey = `${esercizio}|${tipodoc}|${numerodoc}|${codicecf}`;
+      arcaDocMap.set(docMapKey, records[records.length - 1]!);
+      arcaDocKeys.add(`${esercizio}|${tipodoc}|${numerodoc}`);
     }
 
     return {
@@ -966,6 +980,8 @@ export async function parseNativeArcaFiles(
         skippedOtherTypes,
       },
       maxNumerodocByKey,
+      arcaDocMap,
+      arcaDocKeys,
     };
   } finally {
     cleanupTempDir(tmpDir);
@@ -1115,14 +1131,6 @@ export async function performArcaSync(
     [userId],
   );
 
-  // 7. Build Arca document key set from parsed records
-  const arcaDocKeys = new Set<string>();
-  for (const record of parsed.records) {
-    const arcaData: ArcaData = JSON.parse(record.arca_data!);
-    const key = `${arcaData.testata.ESERCIZIO}|${arcaData.testata.TIPODOC}|${arcaData.testata.NUMERODOC.trim()}`;
-    arcaDocKeys.add(key);
-  }
-
   // 8. Filter PWA records not yet in Arca -> generate VBS
   const exportRecords: VbsExportRecord[] = [];
   for (const pwaRow of pwaRows) {
@@ -1130,7 +1138,7 @@ export async function performArcaSync(
       ? JSON.parse(pwaRow.arca_data)
       : pwaRow.arca_data as ArcaData;
     const key = `${arcaData.testata.ESERCIZIO}|${arcaData.testata.TIPODOC}|${arcaData.testata.NUMERODOC.trim()}`;
-    if (!arcaDocKeys.has(key)) {
+    if (!parsed.arcaDocKeys.has(key)) {
       exportRecords.push({
         invoiceNumber: pwaRow.invoice_number,
         arcaData,

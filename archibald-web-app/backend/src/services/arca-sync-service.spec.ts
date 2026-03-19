@@ -6,6 +6,7 @@ import {
   generateVbsScript,
   performArcaSync,
   generateKtExportVbs,
+  invoiceNumberToKey,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -15,6 +16,25 @@ import type { DbPool } from "../db/pool";
 const COOP16_DIR = "/Users/hatholdir/Downloads/ArcaPro/Ditte/COOP16";
 const COOP16_EXISTS = fs.existsSync(path.join(COOP16_DIR, "doctes.dbf"));
 const TEST_USER_ID = "test-user-native";
+
+describe("invoiceNumberToKey", () => {
+  test('parses "FT 326/2026" correctly', () => {
+    expect(invoiceNumberToKey("FT 326/2026")).toBe("2026|FT|326");
+  });
+
+  test('parses "KT 330/2026" correctly', () => {
+    expect(invoiceNumberToKey("KT 330/2026")).toBe("2026|KT|330");
+  });
+
+  test("returns null for malformed strings", () => {
+    expect(invoiceNumberToKey("invalid")).toBeNull();
+    expect(invoiceNumberToKey("")).toBeNull();
+  });
+
+  test("strips leading zeros from numerodoc", () => {
+    expect(invoiceNumberToKey("FT 326/2026")).toBe("2026|FT|326");
+  });
+});
 
 function readCoop16File(filename: string): Buffer {
   return fs.readFileSync(path.join(COOP16_DIR, filename));
