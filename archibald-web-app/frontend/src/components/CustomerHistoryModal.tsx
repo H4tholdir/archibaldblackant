@@ -6,6 +6,7 @@ import type { PendingOrderItem } from '../types/pending-order';
 import { priceService } from '../services/prices.service';
 import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
 import type { WarehouseMatch } from '../services/warehouse-matching';
+import { bestMatchLevel, WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
 
 type Props = {
   isOpen: boolean;
@@ -602,7 +603,9 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
   warehouseMatches: WarehouseMatch[];
   onAdd: () => void;
 }) {
-  void warehouseMatches; // will be used in Task 4 for row tinting
+  const bestLevel = bestMatchLevel(warehouseMatches);
+  const colors = WAREHOUSE_LEVEL_COLORS[bestLevel];
+  const topMatch = warehouseMatches[0] ?? null;
   const [hovered, setHovered] = useState(false);
   const listinoUnit = listinoInfo ? listinoInfo.price : null;
   const listinoTot = listinoInfo !== null && listinoUnit !== null
@@ -612,7 +615,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
     ? Math.round((listinoUnit / article.unitPrice - 1) * 10000) / 100
     : null;
 
-  const rowBg = isFlashing ? undefined : (hovered ? '#eff6ff' : 'white');
+  const rowBg = isFlashing ? undefined : (hovered ? '#eff6ff' : (bestLevel !== 'none' ? colors.backgroundLight : 'white'));
 
   return (
     <tr
@@ -634,11 +637,24 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         {isUnmatched && (
           <span style={{ display: 'block', fontSize: 9, color: '#dc2626' }}>non nel catalogo</span>
         )}
+        {bestLevel !== 'none' && topMatch && (
+          <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: colors.accentColor, marginTop: 1 }}>
+            {bestLevel === 'exact'
+              ? `🏪 ${topMatch.availableQty} pz · ${topMatch.item.boxName}`
+              : `→ ${topMatch.item.articleCode}`
+            }
+          </span>
+        )}
       </td>
       <td style={{ padding: '8px 8px', overflow: 'hidden' }}>
         <span style={{ fontSize: 12, color: '#1e293b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {article.articleDescription}
         </span>
+        {bestLevel !== 'none' && topMatch && bestLevel !== 'exact' && (
+          <span style={{ display: 'block', fontSize: 9, color: colors.accentColor, marginTop: 1 }}>
+            {topMatch.reason}
+          </span>
+        )}
       </td>
       <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 600 }}>{article.quantity}</td>
 
