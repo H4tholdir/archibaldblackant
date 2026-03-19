@@ -360,15 +360,16 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
   lines.push('prgFile.WriteLine "USE ANAGRAFE IN 0 SHARED AGAIN ALIAS _ins"');
   lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
   lines.push('prgFile.WriteLine "SELECT _ins"');
-  const codNaz = escapeVfpString(sc.codNazione || 'IT');
-  lines.push(`prgFile.WriteLine "COD_NAZIONE = [${codNaz}]"`);
   lines.push(`prgFile.WriteLine "LOCATE FOR ALLTRIM(CODICE) == [${codiceEscaped}]"`);
   lines.push('prgFile.WriteLine "IF !FOUND()"');
   lines.push('prgFile.WriteLine "  APPEND BLANK"');
+  // Only REPLACE CODICE for new records — updating it on existing records triggers
+  // VFP CANDIDATE index uniqueness violation (NUMERO_P) during TABLEUPDATE.
+  lines.push(`prgFile.WriteLine "  REPLACE CODICE WITH [${codiceEscaped}]"`);
   lines.push('prgFile.WriteLine "ENDIF"');
 
   const fields: Array<[string, string | null]> = [
-    ['CODICE', truncatedCodice],
+    // CODICE is handled above in the IF !FOUND() block
     ['DESCRIZION', sc.ragioneSociale],
     ['SUPRAGSOC', sc.supplRagioneSociale],
     ['INDIRIZZO', sc.indirizzo],
@@ -428,7 +429,7 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push("On Error Resume Next");
   lines.push("");
   lines.push("Dim fso, logFile, conn, rs, prgFile, errCount, okCount");
-  lines.push("Dim doctesNextId, docrigNextId, scadNextId");
+  lines.push("Dim doctesNextId, docrigNextId, scadNextId, docAlreadyExists");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
   lines.push(
@@ -484,50 +485,64 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
     const { arcaData, invoiceNumber } = record;
     const { testata, righe } = arcaData;
 
+    const numerodocPadded = String(testata.NUMERODOC).trim().padStart(6, " ");
+    const tipodocTrimmed = String(testata.TIPODOC || "FT").trim();
+    const esercizioTrimmed = String(testata.ESERCIZIO || "").trim();
+
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
-    lines.push("doctesNextId = doctesNextId + 1");
-    for (const l of buildExecScriptDoctes(testata)) {
-      lines.push(l);
-    }
-    lines.push("");
-    lines.push("If Err.Number <> 0 Then");
-    lines.push(
-      `  logFile.WriteLine "ERROR doctes ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
-    );
-    lines.push("  errCount = errCount + 1");
-    lines.push("  Err.Clear");
+    // Idempotency: skip if document already exists in Arca (prevents re-run duplicates)
+    lines.push(`Set rs = conn.Execute("SELECT COUNT(*) FROM doctes WHERE NUMERODOC = '${numerodocPadded}' AND TIPODOC = '${tipodocTrimmed}' AND ESERCIZIO = '${esercizioTrimmed}'")`);
+    lines.push("docAlreadyExists = (Err.Number = 0 And Not rs.EOF And rs.Fields(0).Value > 0)");
+    lines.push("If Err.Number = 0 Then rs.Close");
+    lines.push("Err.Clear");
+    lines.push("If docAlreadyExists Then");
+    lines.push(`  logFile.WriteLine "SKIP ${sanitizeVbsComment(invoiceNumber)}: already exists in Arca"`);
+    lines.push("  okCount = okCount + 1");
     lines.push("Else");
-
-    for (const riga of righe) {
-      lines.push("  docrigNextId = docrigNextId + 1");
-      for (const l of buildExecScriptDocrig(riga)) {
-        lines.push("  " + l);
-      }
-      lines.push("  If Err.Number <> 0 Then");
-      lines.push(
-        `    logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
-      );
-      lines.push("    errCount = errCount + 1");
-      lines.push("    Err.Clear");
-      lines.push("  End If");
-      lines.push("");
-    }
-
-    lines.push("  ' Insert scadenza (payment schedule)");
-    lines.push("  scadNextId = scadNextId + 1");
-    for (const l of buildExecScriptScadenza(testata)) {
+    lines.push("  doctesNextId = doctesNextId + 1");
+    for (const l of buildExecScriptDoctes(testata)) {
       lines.push("  " + l);
     }
+    lines.push("  ");
     lines.push("  If Err.Number <> 0 Then");
     lines.push(
-      `    logFile.WriteLine "ERROR scadenza ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
+      `    logFile.WriteLine "ERROR doctes ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
     );
     lines.push("    errCount = errCount + 1");
     lines.push("    Err.Clear");
+    lines.push("  Else");
+
+    for (const riga of righe) {
+      lines.push("    docrigNextId = docrigNextId + 1");
+      for (const l of buildExecScriptDocrig(riga)) {
+        lines.push("    " + l);
+      }
+      lines.push("    If Err.Number <> 0 Then");
+      lines.push(
+        `      logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
+      );
+      lines.push("      errCount = errCount + 1");
+      lines.push("      Err.Clear");
+      lines.push("    End If");
+      lines.push("    ");
+    }
+
+    lines.push("    ' Insert scadenza (payment schedule)");
+    lines.push("    scadNextId = scadNextId + 1");
+    for (const l of buildExecScriptScadenza(testata)) {
+      lines.push("    " + l);
+    }
+    lines.push("    If Err.Number <> 0 Then");
+    lines.push(
+      `      logFile.WriteLine "ERROR scadenza ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
+    );
+    lines.push("      errCount = errCount + 1");
+    lines.push("      Err.Clear");
+    lines.push("    End If");
+    lines.push("    ");
+    lines.push("    okCount = okCount + 1");
     lines.push("  End If");
-    lines.push("");
-    lines.push("  okCount = okCount + 1");
     lines.push("End If");
     lines.push("");
   }
