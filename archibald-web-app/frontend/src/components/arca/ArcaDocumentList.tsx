@@ -87,8 +87,9 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
     totale: testata?.TOTDOC ?? order.targetTotalWithVAT ?? 0,
     revenue: order.revenue,
     stato:
-      order.currentState ??
-      (order.source === "arca_import" ? "importato_arca" : ""),
+      order.source === "app"
+        ? "generato_pwa"
+        : (order.currentState ?? (order.source === "arca_import" ? "importato_arca" : "")),
   };
 }
 
@@ -156,6 +157,7 @@ const STATE_LABELS: Record<string, string> = {
   pagato: "Pagato",
   importato_arca: "Import Arca",
   creato_pwa: "Creato in PWA",
+  generato_pwa: "Generato da PWA",
 };
 
 type CustomRowProps = {
