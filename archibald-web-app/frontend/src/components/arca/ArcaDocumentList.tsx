@@ -158,6 +158,7 @@ const STATE_LABELS: Record<string, string> = {
   importato_arca: "Import Arca",
   creato_pwa: "Creato in PWA",
   generato_pwa: "Generato da PWA",
+  cancellato_in_arca: "Cancellato",
 };
 
 type CustomRowProps = {
@@ -182,6 +183,7 @@ function ArcaRow({
   const item = sorted[index];
   const isSelected = item.order.id === selectedId;
   const rowBaseStyle = arcaRowStyle(index, isSelected);
+  const isCancelled = item.order.currentState === 'cancellato_in_arca';
 
   const lastColIdx = COLUMNS.length - 1;
 
@@ -192,11 +194,26 @@ function ArcaRow({
         ...rowBaseStyle,
         display: "flex",
         alignItems: "center",
+        textDecoration: isCancelled ? 'line-through' : 'none',
+        opacity: isCancelled ? 0.5 : 1,
+        pointerEvents: isCancelled ? 'none' : 'auto',
       }}
       onClick={() => onSelect(item.order)}
       onDoubleClick={() => onDoubleClick(item.order)}
     >
       <div style={arcaGridCell(COLUMNS[0].width)}>
+        {isCancelled && (
+          <span style={{
+            display: 'inline-block',
+            fontSize: 9,
+            color: '#cc0000',
+            fontWeight: 600,
+            textDecoration: 'none',
+            marginRight: 4,
+          }}>
+            ANNULLATO
+          </span>
+        )}
         {item.ftNumber}
       </div>
       <div style={arcaGridCell(COLUMNS[1].width)}>

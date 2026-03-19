@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SyncProgress, KtSyncStatus } from '../services/arca-sync-browser';
+import type { SyncProgress, KtSyncStatus, ArcaSyncResponse } from '../services/arca-sync-browser';
 import {
   performBrowserArcaSync,
   isFileSystemAccessSupported,
@@ -11,8 +11,10 @@ import {
 import { setSubclientMatch, getSubclients } from '../services/subclients.service';
 import type { Subclient } from '../services/subclients.service';
 
+type DeletionWarning = ArcaSyncResponse['sync']['deletionWarnings'] extends Array<infer T> | undefined ? T : never;
+
 interface ArcaSyncButtonProps {
-  onSyncComplete?: () => void;
+  onSyncComplete?: (deletionWarnings?: DeletionWarning[]) => void;
 }
 
 type SyncPhase =
@@ -193,6 +195,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
   const [showMatcher, setShowMatcher] = useState(false);
   const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
   const ftExportRecordsRef = useRef<Array<{ invoiceNumber: string; arcaData: unknown }>>([]);
+  const deletionWarningsRef = useRef<DeletionWarning[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Cleanup polling on unmount
@@ -213,6 +216,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
 
       // Salva ftExportRecords per usarli nel finalize
       ftExportRecordsRef.current = syncResult.ftExportRecords ?? [];
+      deletionWarningsRef.current = syncResult.sync.deletionWarnings ?? [];
 
       setPhase1Result({
         imported: syncResult.sync.imported,
@@ -285,7 +289,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
       }
 
       setPhase('done');
-      onSyncComplete?.();
+      onSyncComplete?.(deletionWarningsRef.current);
     } catch (e: any) {
       setError(e.message || 'Errore nel finalizzare KT');
       setPhase('done');

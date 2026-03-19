@@ -11,6 +11,16 @@ export type ArcaSyncResponse = {
     imported: number;
     skipped: number;
     exported: number;
+    updated?: number;
+    softDeleted?: number;
+    renumbered?: number;
+    ktRecovered?: number;
+    deletionWarnings?: Array<{
+      invoiceNumber: string;
+      hasTracking: boolean;
+      hasDdt: boolean;
+      hasDelivery: boolean;
+    }>;
     ktNeedingMatch?: Array<{ orderId: string; customerName: string }>;
     ktMissingArticles?: string[];
     errors: string[];
