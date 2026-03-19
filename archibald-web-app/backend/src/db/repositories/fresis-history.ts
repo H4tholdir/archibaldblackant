@@ -285,7 +285,8 @@ async function getBySubClient(pool: DbPool, userId: string, subClientCodice: str
   const { rows } = await pool.query<FresisHistoryRow>(
     `SELECT * FROM agents.fresis_history
      WHERE user_id = $1
-       AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') = $2`,
+       AND REGEXP_REPLACE(sub_client_codice, '^[Cc]0*', '') = $2
+       AND current_state != 'cancellato_in_arca'`,
     [userId, normalized],
   );
   return rows.map(mapRowToFresisHistory);
