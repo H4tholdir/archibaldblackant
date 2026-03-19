@@ -628,15 +628,30 @@ function createMockPool(overrides?: {
     remaining_sales_financial: string | null;
     articles_synced_at: string | null;
   }>;
+  arcaImportRows?: Array<{
+    id: string;
+    invoice_number: string | null;
+    ddt_number: string | null;
+    tracking_number: string | null;
+    delivery_completed_date: string | null;
+  }>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
   const pwaExportRows = overrides?.pwaExportRows ?? [];
   const ftCounterCalls = overrides?.ftCounterCalls ?? [];
   const ktEligibleOrders = overrides?.ktEligibleOrders ?? [];
+  const arcaImportRows = overrides?.arcaImportRows ?? [];
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
+      if (
+        text.includes("FROM agents.fresis_history") &&
+        text.includes("source = 'arca_import'") &&
+        text.includes("cancellato_in_arca")
+      ) {
+        return { rows: arcaImportRows, rowCount: arcaImportRows.length };
+      }
       if (text.includes("FROM agents.fresis_history WHERE user_id") && !text.includes("arca_data")) {
         return {
           rows: existingIds.map((id, i) => ({
@@ -910,6 +925,68 @@ function createMockPool(overrides?: {
       expect((result as any).vbsScript).toBeUndefined();
       expect(result.ftExportRecords).toHaveLength(1);
       expect(result.ftExportRecords[0].invoiceNumber).toBe("FT 99999/2026");
+    },
+    60000,
+  );
+
+  test(
+    "FASE 4: soft-deletes a source=arca_import record absent from Arca DBF",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      // "FT 99998/2026" is an invoice number that does not exist in the real COOP16 DBF
+      const absentInvoiceNumber = "FT 99998/2026";
+      const pool = createMockPool({
+        arcaImportRows: [
+          {
+            id: "arca-import-absent-1",
+            invoice_number: absentInvoiceNumber,
+            ddt_number: null,
+            tracking_number: null,
+            delivery_completed_date: null,
+          },
+        ],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      expect(result.softDeleted).toBe(1);
+      expect(result.deletionWarnings).toHaveLength(0);
+    },
+    60000,
+  );
+
+  test(
+    "FASE 4: emits deletionWarning when soft-deleted record has ddt_number set",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+
+      const absentInvoiceNumber = "FT 99997/2026";
+      const pool = createMockPool({
+        arcaImportRows: [
+          {
+            id: "arca-import-absent-2",
+            invoice_number: absentInvoiceNumber,
+            ddt_number: "DDT-001",
+            tracking_number: null,
+            delivery_completed_date: null,
+          },
+        ],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, null);
+
+      expect(result.softDeleted).toBe(1);
+      expect(result.deletionWarnings).toEqual([
+        {
+          invoiceNumber: absentInvoiceNumber,
+          hasTracking: false,
+          hasDdt: true,
+          hasDelivery: false,
+        },
+      ]);
     },
     60000,
   );
