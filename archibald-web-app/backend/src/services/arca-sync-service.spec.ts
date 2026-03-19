@@ -38,6 +38,16 @@ describe("invoiceNumberToKey", () => {
   });
 });
 
+describe("invoiceNumberToKey - renumber detection", () => {
+  test("detects conflict when PWA number is in arcaDocKeys", () => {
+    const arcaDocKeys = new Set(["2026|FT|326"]);
+    const pwaInvoiceNumber = "FT 326/2026";
+    const key = invoiceNumberToKey(pwaInvoiceNumber);
+    expect(key).not.toBeNull();
+    expect(arcaDocKeys.has(key!)).toBe(true); // conflict!
+  });
+});
+
 describe("invoiceNumberToKey - soft delete usage", () => {
   test("correctly identifies a record as absent from Arca", () => {
     const arcaDocKeys = new Set(["2026|FT|327", "2026|KT|333"]);

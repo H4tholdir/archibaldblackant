@@ -1265,13 +1265,60 @@ export async function performArcaSync(
     }
   }
 
+  // FASE 5 — Renumber source='app' records conflicting with Arca numbering
+  const { rows: pwaSourceRows } = await pool.query<{
+    id: string;
+    invoice_number: string | null;
+    arca_data: string | null;
+  }>(
+    `SELECT id, invoice_number, arca_data
+     FROM agents.fresis_history
+     WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
+    [userId],
+  );
+
+  let renumbered = 0;
+
+  for (const row of pwaSourceRows) {
+    if (!row.invoice_number || !row.arca_data) continue;
+    const key = invoiceNumberToKey(row.invoice_number);
+    if (!key || !parsed.arcaDocKeys.has(key)) continue;
+
+    // Number occupied by an Arca doc → renumber
+    try {
+      const arcaData: ArcaData = JSON.parse(row.arca_data);
+      const esercizio = arcaData.testata.ESERCIZIO;
+      const tipodoc = arcaData.testata.TIPODOC as 'FT' | 'KT';
+      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc);
+
+      const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
+      arcaData.testata.NUMERODOC = String(newNum);
+      for (const riga of arcaData.righe) {
+        riga.NUMERODOC = String(newNum);
+      }
+
+      await pool.query(
+        `UPDATE agents.fresis_history SET
+           invoice_number         = $1,
+           archibald_order_number = $1,
+           arca_data              = $2,
+           updated_at             = NOW()
+         WHERE id = $3 AND user_id = $4`,
+        [newInvoiceNumber, JSON.stringify(arcaData), row.id, userId],
+      );
+      renumbered++;
+    } catch {
+      errors.push(`Renumbering failed for ${row.invoice_number}: malformed arca_data`);
+    }
+  }
+
   return {
     imported,
     skipped,
     exported: exportRecords.length,
     updated,
     softDeleted,
-    renumbered: 0,        // populated in Task 8
+    renumbered,
     ktRecovered,          // from FASE 2b placeholder above
     deletionWarnings,
     ktNeedingMatch,
