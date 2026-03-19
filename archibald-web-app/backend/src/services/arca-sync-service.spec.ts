@@ -737,6 +737,10 @@ function createMockPool(overrides?: {
           rows: Array.from({ length: recordCount }, () => ({ action: "inserted" })),
         };
       }
+      if (text.includes("FROM agents.ft_counter") && text.includes("tipodoc IN")) {
+        // Counter alignment SELECT: return 0 so no-op in unit tests
+        return { rows: [{ max_last: 0 }], rowCount: 1 };
+      }
       if (text.includes("INSERT INTO agents.ft_counter") && text.includes("RETURNING")) {
         ftCounterCalls.push(params ?? []);
         return { rows: [{ last_number: 100 }], rowCount: 1 };
@@ -794,6 +798,39 @@ function createMockPool(overrides?: {
       expect(ftCounterCalls.length).toBeGreaterThan(0);
     },
     60000,
+  );
+
+  test(
+    "aggiorna il contatore KT al global max(FT,KT) per prevenire conflitti NUMERO_P cross-type",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      const pool = createMockPool();
+      await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
+
+      // From real Mac DBF: FT 2026 max = 329, KT 2026 max = 326 → global max = 329.
+      // The KT counter must be updated to 329 (not just to 326) so that future KT numbers
+      // start from 330 and don't collide with existing FT numbers.
+      const allInserts = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([sql]: [string]) =>
+          typeof sql === "string" &&
+          sql.includes("INSERT INTO agents.ft_counter") &&
+          !sql.includes("RETURNING"),
+        )
+        .map(([, params]: [string, unknown[]]) => params);
+
+      const ktGlobalMaxInserts = allInserts.filter(
+        (p) => p[1] === TEST_USER_ID && p[2] === "KT" && p[0] === "2026",
+      );
+      expect(ktGlobalMaxInserts.length).toBeGreaterThan(0);
+
+      // At least one KT insert must carry the global max (329 = FT max, > KT max 326)
+      const maxValueForKt = Math.max(...ktGlobalMaxInserts.map((p) => p[3] as number));
+      expect(maxValueForKt).toBeGreaterThanOrEqual(329);
+    },
+    120000,
   );
 
   test(

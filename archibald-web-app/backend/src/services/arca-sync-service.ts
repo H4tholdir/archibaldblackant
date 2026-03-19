@@ -1267,23 +1267,25 @@ export async function performArcaSync(
     );
   }
 
-  // Also ensure FT counter >= global max(FT, KT): both share CODCNT="001" in the
-  // NUMERO_P candidate index, so a KT with number N means FT N would violate uniqueness.
-  const globalMaxFtByEsercizio = new Map<string, number>();
+  // Ensure BOTH FT and KT counters >= global max(FT, KT): both share CODCNT="001" in the
+  // NUMERO_P candidate index, so any number used by one type blocks the other.
+  const globalMaxByEsercizio = new Map<string, number>();
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
     if (tipodoc !== "FT" && tipodoc !== "KT") continue;
-    const cur = globalMaxFtByEsercizio.get(esercizio) ?? 0;
-    if (maxNum > cur) globalMaxFtByEsercizio.set(esercizio, maxNum);
+    const cur = globalMaxByEsercizio.get(esercizio) ?? 0;
+    if (maxNum > cur) globalMaxByEsercizio.set(esercizio, maxNum);
   }
-  for (const [esercizio, globalMax] of globalMaxFtByEsercizio) {
-    await pool.query(
-      `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
-       VALUES ($1, $2, 'FT', $3)
-       ON CONFLICT (esercizio, user_id, tipodoc)
-       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
-      [esercizio, userId, globalMax],
-    );
+  for (const [esercizio, globalMax] of globalMaxByEsercizio) {
+    for (const tipodoc of ["FT", "KT"] as const) {
+      await pool.query(
+        `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (esercizio, user_id, tipodoc)
+         DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
+        [esercizio, userId, tipodoc, globalMax],
+      );
+    }
   }
 
   // FASE 2b — Recovery KT "synced but absent from Arca" — DEFERRED
@@ -1580,6 +1582,33 @@ export async function generateKtExportVbs(
   const exportRecords: VbsExportRecord[] = [...ftExportRecords];
   const currentYear = new Date().getFullYear().toString();
   let ktExported = 0;
+
+  // Align FT and KT counters to global max(FT, KT) before assigning numbers.
+  // generateKtExportVbs can run between syncs; without this, the KT counter may lag
+  // behind the FT counter and produce numbers that already exist as FT (NUMERO_P conflict).
+  const uniqueEsercizi = new Set(
+    ktOrders.map((o) => o.creationDate?.slice(0, 4) || currentYear),
+  );
+  for (const esercizio of uniqueEsercizi) {
+    const { rows: counterRows } = await pool.query<{ max_last: number }>(
+      `SELECT COALESCE(MAX(last_number), 0) AS max_last
+       FROM agents.ft_counter
+       WHERE user_id = $1 AND esercizio = $2 AND tipodoc IN ('FT', 'KT')`,
+      [userId, esercizio],
+    );
+    const globalMax = counterRows[0]?.max_last ?? 0;
+    if (globalMax > 0) {
+      for (const tipodoc of ["FT", "KT"] as const) {
+        await pool.query(
+          `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (esercizio, user_id, tipodoc)
+           DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
+          [esercizio, userId, tipodoc, globalMax],
+        );
+      }
+    }
+  }
 
   for (const order of ktOrders) {
     if (!order.articlesSyncedAt) continue;
