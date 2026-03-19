@@ -4,6 +4,8 @@ import {
   type WarehouseMatch,
 } from "../services/warehouse-matching";
 import type { SelectedWarehouseMatch } from "../types/warehouse";
+import { WAREHOUSE_LEVEL_COLORS, bestMatchLevel } from '../utils/warehouse-theme';
+import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 
 export type { SelectedWarehouseMatch };
 
@@ -14,6 +16,7 @@ interface WarehouseMatchAccordionProps {
   onSelect?: (matches: SelectedWarehouseMatch[]) => void;
   excludeWarehouseItemIds?: number[]; // Warehouse items already used in other order rows
   onTotalQuantityChange?: (totalQty: number) => void; // Called when total selected quantity changes
+  onMatchLevelChange?: (level: WarehouseThemeLevel) => void;
 }
 
 export function WarehouseMatchAccordion({
@@ -23,6 +26,7 @@ export function WarehouseMatchAccordion({
   onSelect,
   excludeWarehouseItemIds = [],
   onTotalQuantityChange,
+  onMatchLevelChange,
 }: WarehouseMatchAccordionProps) {
   const [matches, setMatches] = useState<WarehouseMatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,6 +34,9 @@ export function WarehouseMatchAccordion({
   const [selectedMatches, setSelectedMatches] = useState<Map<number, number>>(
     new Map(),
   ); // warehouseItemId → quantity to use
+
+  const currentLevel = bestMatchLevel(matches);
+  const currentColors = WAREHOUSE_LEVEL_COLORS[currentLevel];
 
   // Search for matches when article code changes
   useEffect(() => {
@@ -107,6 +114,11 @@ export function WarehouseMatchAccordion({
     }
   }, [selectedMatches, matches, onSelect, onTotalQuantityChange]);
 
+  // Emit level change to parent
+  useEffect(() => {
+    onMatchLevelChange?.(bestMatchLevel(matches));
+  }, [matches, onMatchLevelChange]);
+
   const handleToggleMatch = (match: WarehouseMatch, checked: boolean) => {
     const newSelected = new Map(selectedMatches);
 
@@ -147,7 +159,7 @@ export function WarehouseMatchAccordion({
 
   if (loading) {
     return (
-      <div className="warehouse-match-loading">
+      <div style={{ padding: '6px 10px', color: '#666', fontSize: '0.85em' }}>
         <span>🔍 Ricerca in magazzino...</span>
       </div>
     );
@@ -155,7 +167,7 @@ export function WarehouseMatchAccordion({
 
   if (matches.length === 0) {
     return (
-      <div className="warehouse-match-empty">
+      <div style={{ padding: '6px 10px', color: '#666', fontSize: '0.85em' }}>
         <span>🏪 Nessun match in magazzino</span>
       </div>
     );
@@ -192,132 +204,172 @@ export function WarehouseMatchAccordion({
   };
 
   return (
-    <div className="warehouse-match-accordion">
+    <div
+      style={{
+        marginTop: 4,
+        border: `1px solid ${currentColors.borderColor}`,
+        borderRadius: 6,
+        background: currentColors.backgroundLight,
+      }}
+    >
       <button
         type="button"
-        className="warehouse-match-header"
         onClick={() => setExpanded(!expanded)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '8px 12px',
+          background: currentColors.backgroundMid,
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '0.875em',
+          fontWeight: 700,
+          color: currentColors.accentColor,
+          borderRadius: expanded ? '6px 6px 0 0' : '6px',
+          transition: 'background 0.3s',
+        }}
       >
-        <span className="match-count">
-          🏪 {matches.length}{" "}
-          {matches.length === 1 ? "articolo trovato" : "articoli trovati"} in
-          magazzino
-        </span>
-        <span className="expand-icon">{expanded ? "▼" : "▶"}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🏪</span>
+          <span>{matches.length} {matches.length === 1 ? 'articolo trovato' : 'articoli trovati'} in magazzino</span>
+          <span style={{ background: currentColors.accentColor, color: 'white', fontSize: '0.75em', padding: '1px 7px', borderRadius: 10 }}>{matches.length}</span>
+        </div>
+        <span style={{ fontSize: '0.75em' }}>{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
-        <div className="warehouse-match-body">
+        <div style={{ padding: '0 8px 8px 8px', borderTop: `1px solid ${currentColors.borderColor}` }}>
           {matches.map((match) => {
             const isSelected = selectedMatches.has(match.item.id);
             const selectedQty = selectedMatches.get(match.item.id) || 0;
-            // 🔧 FIX #2: Disable if reserved or sold
             const isUnavailable =
               !!match.item.reservedForOrder || !!match.item.soldInOrder;
 
-            const isPerfectMatch =
-              match.score === 100 &&
-              match.availableQty >= requestedQuantity &&
-              requestedQuantity > 0;
+            const colors = WAREHOUSE_LEVEL_COLORS[match.level];
 
             return (
               <div
                 key={match.item.id}
-                className={`match-item ${isSelected ? "selected" : ""} ${isPerfectMatch ? "perfect-match" : ""}`}
-                style={
-                  isUnavailable
-                    ? { opacity: 0.6, pointerEvents: "none" }
-                    : undefined
-                }
+                style={{
+                  background: isSelected ? colors.backgroundLight : 'white',
+                  border: `1px solid ${colors.borderColor}`,
+                  borderLeft: `3px solid ${colors.accentColor}`,
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  transition: 'background 0.2s',
+                  opacity: isUnavailable ? 0.5 : 1,
+                  pointerEvents: isUnavailable ? 'none' : undefined,
+                  marginTop: 6,
+                  flexDirection: 'column',
+                }}
               >
-                <div className="match-header-row">
-                  <label className="match-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={isUnavailable}
-                      onChange={(e) =>
-                        handleToggleMatch(match, e.target.checked)
-                      }
-                    />
-                    <span className="match-level-badge">
-                      {getLevelIcon(match.level)} {getLevelLabel(match.level)}
-                    </span>
-                  </label>
-                  <span className="match-score">{match.score}%</span>
-                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={isUnavailable}
+                    onChange={(e) => handleToggleMatch(match, e.target.checked)}
+                    style={{ accentColor: colors.accentColor, width: 14, height: 14, flexShrink: 0 }}
+                  />
 
-                <div className="match-details">
-                  <div className="match-info-row">
-                    <strong>{match.item.articleCode}</strong>
-                    {match.item.description && (
-                      <span className="match-description">
-                        {match.item.description}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
+                        {match.item.articleCode}
                       </span>
-                    )}
-                    <span className="match-location-inline">
-                      📦 {match.item.boxName} · {match.availableQty} pz
-                    </span>
-                    {match.item.reservedForOrder && (
-                      <span className="match-status-badge reserved">
-                        🔒 Riservato
+                      <span style={{ fontSize: '0.8em', fontWeight: 500, color: colors.accentColor }}>
+                        {getLevelIcon(match.level)} {getLevelLabel(match.level)}
                       </span>
-                    )}
-                    {match.item.soldInOrder && (
-                      <span className="match-status-badge sold">
-                        ❌ Venduto
+                      <span style={{
+                        background: '#28a745',
+                        color: 'white',
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        fontSize: '0.8em',
+                        fontWeight: 600,
+                      }}>
+                        {match.score}%
                       </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {match.item.description && (
+                        <span style={{ color: '#666', fontSize: '0.9em' }}>{match.item.description}</span>
+                      )}
+                      <span>📦 {match.item.boxName} · {match.availableQty} pz</span>
+                      {match.item.reservedForOrder && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 5px', fontSize: '0.75em', borderRadius: 3, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          🔒 Riservato
+                        </span>
+                      )}
+                      {match.item.soldInOrder && (
+                        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '1px 5px', fontSize: '0.75em', borderRadius: 3, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          ❌ Venduto
+                        </span>
+                      )}
+                    </div>
+                    {match.reason && (
+                      <div style={{ color: '#888', fontSize: '0.8em', fontStyle: 'italic', marginTop: 2 }}>
+                        {match.reason}
+                      </div>
                     )}
                   </div>
-                  <div className="match-reason">{match.reason}</div>
                 </div>
 
                 {isSelected && (
-                  <div className="match-quantity-selector">
-                    <label>
-                      Quantità da usare:
-                      <div className="quantity-input-group">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleChangeQuantity(match, selectedQty - 1)
-                          }
-                          disabled={selectedQty <= 0}
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          max={match.availableQty}
-                          value={selectedQty}
-                          onChange={(e) =>
-                            handleChangeQuantity(
-                              match,
-                              Number.parseInt(e.target.value) || 0,
-                            )
-                          }
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleChangeQuantity(match, selectedQty + 1)
-                          }
-                          disabled={selectedQty >= match.availableQty}
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-use-all"
-                          onClick={() =>
-                            handleChangeQuantity(match, match.availableQty)
-                          }
-                        >
-                          Usa tutti
-                        </button>
-                      </div>
-                    </label>
+                  <div style={{ marginTop: 2, paddingTop: 6, borderTop: `1px solid ${colors.borderColor}`, width: '100%' }}>
+                    <div style={{ fontSize: '0.85em', fontWeight: 500, marginBottom: 4 }}>Quantità da usare:</div>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeQuantity(match, selectedQty - 1)}
+                        disabled={selectedQty <= 0}
+                        style={{ width: 22, height: 22, border: `1px solid ${colors.borderColor}`, borderRadius: 4, background: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={match.availableQty}
+                        value={selectedQty}
+                        onChange={(e) =>
+                          handleChangeQuantity(
+                            match,
+                            Number.parseInt(e.target.value) || 0,
+                          )
+                        }
+                        style={{ width: 40, textAlign: 'center', border: `1px solid ${colors.borderColor}`, borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleChangeQuantity(match, selectedQty + 1)}
+                        disabled={selectedQty >= match.availableQty}
+                        style={{ width: 22, height: 22, border: `1px solid ${colors.borderColor}`, borderRadius: 4, background: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeQuantity(match, match.availableQty)}
+                        style={{
+                          padding: '3px 8px',
+                          border: `1px solid ${colors.accentColor}`,
+                          background: colors.accentColor,
+                          color: 'white',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '0.8em',
+                        }}
+                      >
+                        Usa tutti
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -326,285 +378,14 @@ export function WarehouseMatchAccordion({
 
           {/* Summary */}
           {totalSelectedQty > 0 && (
-            <div className="warehouse-summary">
-              <div className="summary-row">
-                <span>✅ Selezionati da magazzino:</span>
-                <strong>{totalSelectedQty} pz</strong>
-              </div>
-              {remainingToOrder > 0 && (
-                <div className="summary-row warning">
-                  <span>📦 Da ordinare:</span>
-                  <strong>{remainingToOrder} pz</strong>
-                </div>
-              )}
-              {remainingToOrder === 0 && (
-                <div className="summary-row success">
-                  <span>🎉 Quantità coperta completamente da magazzino!</span>
-                </div>
-              )}
+            <div style={{ background: currentColors.backgroundMid, border: `1px solid ${currentColors.borderColor}`, borderRadius: 6, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: currentColors.accentColor }}>
+                {totalSelectedQty} pz da magazzino{remainingToOrder > 0 ? ` · ${remainingToOrder} pz da ordinare` : ' · Quantità coperta ✓'}
+              </span>
             </div>
           )}
         </div>
       )}
-
-      <style>{`
-        .warehouse-match-accordion {
-          margin-top: 4px;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          background: #f9f9f9;
-        }
-
-        .warehouse-match-header {
-          width: 100%;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 6px 10px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 0.875em;
-          font-weight: 500;
-          transition: background 0.2s;
-        }
-
-        .warehouse-match-header:hover {
-          background: #f0f0f0;
-        }
-
-        .match-count {
-          color: #333;
-        }
-
-        .expand-icon {
-          color: #666;
-          font-size: 0.8em;
-        }
-
-        .warehouse-match-loading,
-        .warehouse-match-empty {
-          padding: 6px 10px;
-          color: #666;
-          font-size: 0.85em;
-        }
-
-        .warehouse-match-body {
-          padding: 0 8px 8px 8px;
-          border-top: 1px solid #ddd;
-        }
-
-        .match-item {
-          background: white;
-          border: 1px solid #e0e0e0;
-          border-radius: 5px;
-          padding: 8px;
-          margin-top: 6px;
-          transition: border-color 0.2s;
-        }
-
-        .match-item.selected {
-          border-color: #007bff;
-          background: #f0f8ff;
-        }
-
-        .match-item.perfect-match {
-          border-color: #10b981;
-          animation: warehouse-pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes warehouse-pulse {
-          0%, 100% { background: white; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-          50% { background: #d1fae5; box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.3); }
-        }
-
-        .match-header-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 4px;
-        }
-
-        .match-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          cursor: pointer;
-        }
-
-        .match-checkbox input {
-          cursor: pointer;
-        }
-
-        .match-level-badge {
-          font-size: 0.8em;
-          font-weight: 500;
-        }
-
-        .match-score {
-          background: #28a745;
-          color: white;
-          padding: 1px 6px;
-          border-radius: 10px;
-          font-size: 0.8em;
-          font-weight: 600;
-        }
-
-        .match-details {
-          margin: 2px 0;
-          font-size: 0.825em;
-        }
-
-        .match-info-row {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: baseline;
-          gap: 4px 8px;
-        }
-
-        .match-description {
-          color: #666;
-          font-size: 0.9em;
-        }
-
-        .match-location-inline {
-          color: #555;
-          white-space: nowrap;
-        }
-
-        .match-status-badge {
-          padding: 1px 5px;
-          font-size: 0.75em;
-          border-radius: 3px;
-          font-weight: 600;
-          white-space: nowrap;
-        }
-
-        .match-status-badge.reserved {
-          background: #fef3c7;
-          color: #92400e;
-        }
-
-        .match-status-badge.sold {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
-        .match-reason {
-          color: #888;
-          font-size: 0.8em;
-          font-style: italic;
-        }
-
-        .match-quantity-selector {
-          margin-top: 6px;
-          padding-top: 6px;
-          border-top: 1px solid #ddd;
-        }
-
-        .match-quantity-selector label {
-          font-size: 0.85em;
-          font-weight: 500;
-          display: block;
-          margin-bottom: 4px;
-        }
-
-        .quantity-input-group {
-          display: flex;
-          gap: 4px;
-          align-items: center;
-        }
-
-        .quantity-input-group button {
-          padding: 4px 10px;
-          border: 1px solid #ddd;
-          background: white;
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: 600;
-          font-size: 0.85em;
-        }
-
-        .quantity-input-group button:hover:not(:disabled) {
-          background: #f0f0f0;
-        }
-
-        .quantity-input-group button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .quantity-input-group input {
-          width: 60px;
-          padding: 4px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          text-align: center;
-          font-size: 0.85em;
-        }
-
-        .btn-use-all {
-          background: #007bff !important;
-          color: white !important;
-          border-color: #007bff !important;
-          font-size: 0.8em !important;
-        }
-
-        .btn-use-all:hover:not(:disabled) {
-          background: #0056b3 !important;
-        }
-
-        .warehouse-summary {
-          margin-top: 8px;
-          padding: 6px 8px;
-          background: #e7f3ff;
-          border-radius: 5px;
-          border-left: 3px solid #007bff;
-        }
-
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 2px 0;
-          font-size: 0.85em;
-        }
-
-        .summary-row.warning {
-          color: #856404;
-          background: #fff3cd;
-          padding: 4px 6px;
-          border-radius: 4px;
-          margin-top: 3px;
-        }
-
-        .summary-row.success {
-          color: #155724;
-          background: #d4edda;
-          padding: 4px 6px;
-          border-radius: 4px;
-          margin-top: 3px;
-          justify-content: center;
-        }
-
-        @media (max-width: 768px) {
-          .warehouse-match-body {
-            padding: 0 6px 6px 6px;
-          }
-
-          .match-item {
-            padding: 6px;
-          }
-
-          .quantity-input-group {
-            flex-wrap: wrap;
-          }
-
-          .quantity-input-group input {
-            width: 50px;
-          }
-        }
-      `}</style>
     </div>
   );
 }
