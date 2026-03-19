@@ -650,6 +650,7 @@ function createMockPool(overrides?: {
     id: string;
     invoice_number: string | null;
     arca_data: string | null;
+    sub_client_codice: string | null;
   }>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
@@ -1016,13 +1017,12 @@ function createMockPool(overrides?: {
   );
 
   test(
-    "FASE 5: renumbers a source=app record whose invoice_number conflicts with an Arca doc",
+    "FASE 5: renumbers a source=app record whose invoice_number conflicts with an Arca doc (different client)",
     async () => {
       const doctesBuf = readCoop16File("doctes.dbf");
       const docrigBuf = readCoop16File("docrig.dbf");
       const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
 
-      // Parse the real DBF to find a real invoice number that exists in Arca
       const parsed = await parseNativeArcaFiles(
         doctesBuf,
         docrigBuf,
@@ -1032,7 +1032,6 @@ function createMockPool(overrides?: {
         new Map(),
       );
       const [conflictKey] = [...parsed.arcaDocKeys];
-      // conflictKey is "ESERCIZIO|TIPODOC|NUMERODOC" e.g. "2026|FT|326"
       const [esercizio, tipodoc, numerodoc] = conflictKey.split("|");
       const conflictingInvoiceNumber = `${tipodoc} ${numerodoc}/${esercizio}`;
 
@@ -1047,6 +1046,7 @@ function createMockPool(overrides?: {
             id: "pwa-source-conflict-1",
             invoice_number: conflictingInvoiceNumber,
             arca_data: JSON.stringify(pwaArcaData),
+            sub_client_codice: "DIFFERENT_CLIENT",  // different from Arca → genuine conflict
           },
         ],
       });
@@ -1054,6 +1054,51 @@ function createMockPool(overrides?: {
       const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
 
       expect(result.renumbered).toBe(1);
+    },
+    60000,
+  );
+
+  test(
+    "FASE 5: skips renumbering when source=app record has the same client as the Arca doc (same document submitted by bot)",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        anagrafeBuf,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+      const [conflictKey] = [...parsed.arcaDocKeys];
+      const [esercizio, tipodoc, numerodoc] = conflictKey.split("|");
+      const conflictingInvoiceNumber = `${tipodoc} ${numerodoc}/${esercizio}`;
+
+      // Use the same codicecf as the Arca document to simulate a legitimate match
+      const arcaClientCode = parsed.arcaClientMap.get(conflictKey) ?? "SAME_CLIENT";
+
+      const pwaArcaData = makeArcaData({
+        testata: { ESERCIZIO: esercizio, TIPODOC: tipodoc as "FT" | "KT", NUMERODOC: numerodoc },
+        righe: [{ NUMERODOC: numerodoc }],
+      });
+
+      const pool = createMockPool({
+        pwaSourceRows: [
+          {
+            id: "pwa-source-same-client-1",
+            invoice_number: conflictingInvoiceNumber,
+            arca_data: JSON.stringify(pwaArcaData),
+            sub_client_codice: arcaClientCode,  // same client → same document, skip
+          },
+        ],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
+
+      expect(result.renumbered).toBe(0);
     },
     60000,
   );

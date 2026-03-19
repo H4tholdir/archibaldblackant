@@ -657,6 +657,7 @@ export type NativeParseResult = {
   maxNumerodocByKey: Map<string, number>;
   arcaDocMap: Map<string, FresisHistoryRow>;
   arcaDocKeys: Set<string>;
+  arcaClientMap: Map<string, string>;  // 3-part key → codicecf
 };
 
 function createTempDir(): string {
@@ -784,6 +785,7 @@ export async function parseNativeArcaFiles(
     const maxNumerodocByKey = new Map<string, number>();
     const arcaDocMap = new Map<string, FresisHistoryRow>();
     const arcaDocKeys = new Set<string>();
+    const arcaClientMap = new Map<string, string>();  // 3-part key → codicecf
     const now = new Date().toISOString();
 
     for (const dtRow of dtRows) {
@@ -966,7 +968,9 @@ export async function parseNativeArcaFiles(
 
       const docMapKey = `${esercizio}|${tipodoc}|${numerodoc}|${codicecf}`;
       arcaDocMap.set(docMapKey, records[records.length - 1]!);
-      arcaDocKeys.add(`${esercizio}|${tipodoc}|${numerodoc}`);
+      const threePartKey = `${esercizio}|${tipodoc}|${numerodoc}`;
+      arcaDocKeys.add(threePartKey);
+      arcaClientMap.set(threePartKey, codicecf);
     }
 
     return {
@@ -982,6 +986,7 @@ export async function parseNativeArcaFiles(
       maxNumerodocByKey,
       arcaDocMap,
       arcaDocKeys,
+      arcaClientMap,
     };
   } finally {
     cleanupTempDir(tmpDir);
@@ -1270,8 +1275,9 @@ export async function performArcaSync(
     id: string;
     invoice_number: string | null;
     arca_data: string | null;
+    sub_client_codice: string | null;
   }>(
-    `SELECT id, invoice_number, arca_data
+    `SELECT id, invoice_number, arca_data, sub_client_codice
      FROM agents.fresis_history
      WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
     [userId],
@@ -1284,7 +1290,12 @@ export async function performArcaSync(
     const key = invoiceNumberToKey(row.invoice_number);
     if (!key || !parsed.arcaDocKeys.has(key)) continue;
 
-    // Number occupied by an Arca doc → renumber
+    // If the Arca document has the same client code, this is the same document
+    // (PWA submitted it to Arca via the bot) — skip renumbering
+    const arcaCodicecf = parsed.arcaClientMap.get(key);
+    if (arcaCodicecf && arcaCodicecf === row.sub_client_codice) continue;
+
+    // Number occupied by a DIFFERENT Arca doc → renumber
     let arcaData: ArcaData;
     try {
       arcaData = JSON.parse(row.arca_data);
