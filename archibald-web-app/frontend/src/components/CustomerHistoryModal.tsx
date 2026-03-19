@@ -4,6 +4,11 @@ import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import type { PendingOrderItem } from '../types/pending-order';
 import { priceService } from '../services/prices.service';
+import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
+import type { WarehouseMatch } from '../services/warehouse-matching';
+import { bestMatchLevel, WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
+import { WarehouseHistoryDialog, WarehouseOrderCopyDialog } from './WarehouseHistoryDialog';
+import type { SelectedWarehouseMatch } from '../types/warehouse';
 
 type Props = {
   isOpen: boolean;
@@ -15,6 +20,20 @@ type Props = {
   onAddArticle: (item: PendingOrderItem, replace: boolean) => void;
   onAddOrder: (items: PendingOrderItem[], replace: boolean) => void;
   onEditMatching?: () => void;
+};
+
+type PendingDialogItem = {
+  article: CustomerFullHistoryOrder['articles'][number];
+  orderDiscountPercent: number;
+  orderSource: 'orders' | 'fresis';
+  matches: WarehouseMatch[];
+};
+
+type PendingCopyDialog = {
+  order: CustomerFullHistoryOrder;
+  builtItems: PendingOrderItem[];
+  originalCodes: string[];
+  matchedArticles: Array<{ articleCode: string; description: string; requestedQuantity: number; matches: WarehouseMatch[] }>;
 };
 
 function formatEur(n: number): string {
@@ -46,6 +65,12 @@ export function CustomerHistoryModal({
   // Copy order overlay
   const [copyingOrderId, setCopyingOrderId] = useState<string | null>(null);
   const [copiedOrderIds, setCopiedOrderIds] = useState<Set<string>>(new Set());
+  // Warehouse matches pre-fetch: Map<articleCode, WarehouseMatch[]>
+  const [warehouseMatchMap, setWarehouseMatchMap] = useState<Map<string, WarehouseMatch[]>>(new Map());
+  // Pending dialog for single-article warehouse confirmation
+  const [pendingDialog, setPendingDialog] = useState<PendingDialogItem | null>(null);
+  // Pending dialog for full-order copy warehouse confirmation
+  const [pendingCopyDialog, setPendingCopyDialog] = useState<PendingCopyDialog | null>(null);
 
   // Serializzato per evitare re-render infiniti con array come dipendenze
   const profileIdsKey = customerProfileIds.join(',');
@@ -78,6 +103,20 @@ export function CustomerHistoryModal({
     const codes = Array.from(new Set(orders.flatMap((o) => o.articles.map((a) => a.articleCode))));
     priceService.getPriceAndVatBatch(codes)
       .then((map) => setListinoPrices(map))
+      .catch(() => {});
+  }, [isOpen, orders]);
+
+  useEffect(() => {
+    if (!isOpen || orders.length === 0) return;
+    const inputs = Array.from(
+      new Map(
+        orders.flatMap((o) =>
+          o.articles.map((a) => [a.articleCode, { code: a.articleCode, description: a.articleDescription }])
+        )
+      ).values()
+    );
+    findWarehouseMatchesBatch(inputs)
+      .then((map) => setWarehouseMatchMap(map))
       .catch(() => {});
   }, [isOpen, orders]);
 
@@ -208,6 +247,11 @@ export function CustomerHistoryModal({
       orderDiscountPercent: number,
       orderSource: 'orders' | 'fresis',
     ) => {
+      const matches = warehouseMatchMap.get(article.articleCode) ?? [];
+      if (matches.length > 0) {
+        setPendingDialog({ article, orderDiscountPercent, orderSource, matches });
+        return;
+      }
       const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
       const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
       onAddArticle(item, false);
@@ -222,7 +266,34 @@ export function CustomerHistoryModal({
         setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; });
       }, 1200);
     },
-    [buildPendingItem, onAddArticle, codeSubstitutions],
+    [buildPendingItem, onAddArticle, codeSubstitutions, warehouseMatchMap],
+  );
+
+  const handleDialogConfirm = useCallback(
+    async (selections: SelectedWarehouseMatch[]) => {
+      if (!pendingDialog) return;
+      const { article, orderDiscountPercent, orderSource } = pendingDialog;
+      const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+      const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+      const enriched: PendingOrderItem = {
+        ...item,
+        warehouseSources: selections.length > 0
+          ? selections.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity }))
+          : undefined,
+        warehouseQuantity: selections.reduce((s, sel) => s + sel.quantity, 0) || undefined,
+      };
+      onAddArticle(enriched, false);
+      setAddedCount((c) => c + 1);
+      setArticleBadges((prev) => {
+        const m = new Map(prev);
+        m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+        return m;
+      });
+      setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+      setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
+      setPendingDialog(null);
+    },
+    [pendingDialog, buildPendingItem, onAddArticle, codeSubstitutions],
   );
 
   const handleCopyOrder = useCallback(
@@ -247,9 +318,25 @@ export function CustomerHistoryModal({
       }
 
       const validItems = validPairs.map((p) => p.item);
-      onAddOrder(validItems, false);
-      if (skipped.length > 0) setSkippedDialog(skipped);
 
+      const matchedArticles = validPairs
+        .map(({ originalCode, item }) => ({
+          articleCode: item.articleCode,
+          description: item.description ?? '',
+          requestedQuantity: item.quantity,
+          matches: warehouseMatchMap.get(originalCode) ?? [],
+        }))
+        .filter(x => x.matches.length > 0);
+
+      if (skipped.length > 0) setSkippedDialog(skipped);
+      setCopyingOrderId(null);
+
+      if (matchedArticles.length > 0) {
+        setPendingCopyDialog({ order, builtItems: validItems, originalCodes: validPairs.map(p => p.originalCode), matchedArticles });
+        return;
+      }
+
+      onAddOrder(validItems, false);
       setAddedCount((c) => c + validItems.length);
       for (const { originalCode } of validPairs) {
         setArticleBadges((prev) => {
@@ -260,11 +347,41 @@ export function CustomerHistoryModal({
       }
       setCopiedOrderIds((prev) => new Set([...prev, order.orderId]));
       setTimeout(() => {
-        setCopyingOrderId(null);
         setCopiedOrderIds((prev) => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
     },
-    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder],
+    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder, warehouseMatchMap],
+  );
+
+  const handleCopyDialogConfirm = useCallback(
+    (selectionsPerArticle: Map<string, SelectedWarehouseMatch[]>) => {
+      if (!pendingCopyDialog) return;
+      const { order, builtItems, originalCodes } = pendingCopyDialog;
+      const enrichedItems = builtItems.map(item => {
+        const sels = selectionsPerArticle.get(item.articleCode) ?? [];
+        if (sels.length === 0) return item;
+        return {
+          ...item,
+          warehouseSources: sels.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity })),
+          warehouseQuantity: sels.reduce((s, sel) => s + sel.quantity, 0),
+        };
+      });
+      onAddOrder(enrichedItems, false);
+      setAddedCount(c => c + enrichedItems.length);
+      for (const originalCode of originalCodes) {
+        setArticleBadges(prev => {
+          const m = new Map(prev);
+          m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
+          return m;
+        });
+      }
+      setCopiedOrderIds(prev => new Set([...prev, order.orderId]));
+      setTimeout(() => {
+        setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
+      }, 1300);
+      setPendingCopyDialog(null);
+    },
+    [pendingCopyDialog, onAddOrder],
   );
 
   if (!isOpen) return null;
@@ -409,6 +526,7 @@ export function CustomerHistoryModal({
                 articleBadges={articleBadges}
                 flashingArticles={flashingArticles}
                 codeSubstitutions={codeSubstitutions}
+                warehouseMatchMap={warehouseMatchMap}
                 isCopying={copyingOrderId === order.orderId}
                 isCopied={copiedOrderIds.has(order.orderId)}
                 onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent, order.source)}
@@ -439,6 +557,53 @@ export function CustomerHistoryModal({
           <SkippedDialog skipped={skippedDialog} onClose={() => setSkippedDialog([])} />
         )}
       </div>
+      {pendingDialog && (
+        <WarehouseHistoryDialog
+          articleCode={pendingDialog.article.articleCode}
+          requestedQuantity={pendingDialog.article.quantity}
+          matches={pendingDialog.matches}
+          onConfirm={handleDialogConfirm}
+          onSkip={async () => {
+            const { article, orderDiscountPercent, orderSource } = pendingDialog;
+            const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+            const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+            onAddArticle(item, false);
+            setAddedCount((c) => c + 1);
+            setArticleBadges((prev) => {
+              const m = new Map(prev);
+              m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+              return m;
+            });
+            setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+            setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
+            setPendingDialog(null);
+          }}
+          onCancel={() => setPendingDialog(null)}
+        />
+      )}
+      {pendingCopyDialog && (
+        <WarehouseOrderCopyDialog
+          articles={pendingCopyDialog.matchedArticles}
+          onConfirm={handleCopyDialogConfirm}
+          onCancel={() => {
+            const { order, builtItems, originalCodes } = pendingCopyDialog;
+            onAddOrder(builtItems, false);
+            setAddedCount(c => c + builtItems.length);
+            for (const originalCode of originalCodes) {
+              setArticleBadges(prev => {
+                const m = new Map(prev);
+                m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
+                return m;
+              });
+            }
+            setCopiedOrderIds(prev => new Set([...prev, order.orderId]));
+            setTimeout(() => {
+              setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
+            }, 1300);
+            setPendingCopyDialog(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -451,13 +616,14 @@ type OrderCardProps = {
   articleBadges: Map<string, number>;
   flashingArticles: Set<string>;
   codeSubstitutions: Map<string, string>;
+  warehouseMatchMap: Map<string, WarehouseMatch[]>;
   isCopying: boolean;
   isCopied: boolean;
   onAddArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onCopyOrder: () => void;
 };
 
-function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
+function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
   const accent = isFresis ? '#8b5cf6' : '#3b82f6';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
@@ -548,6 +714,7 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
               isFlashing={flashingArticles.has(article.articleCode)}
               substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
               isUnmatched={isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode)}
+              warehouseMatches={warehouseMatchMap.get(article.articleCode) ?? []}
               onAdd={() => onAddArticle(article)}
             />
           ))}
@@ -571,15 +738,19 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
   );
 }
 
-function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, onAdd }: {
+function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, warehouseMatches, onAdd }: {
   article: CustomerFullHistoryOrder['articles'][number];
   listinoInfo: { price: number; vat: number } | null;
   badgeCount: number;
   isFlashing: boolean;
   substituteCode?: string;
   isUnmatched?: boolean;
+  warehouseMatches: WarehouseMatch[];
   onAdd: () => void;
 }) {
+  const bestLevel = bestMatchLevel(warehouseMatches);
+  const colors = WAREHOUSE_LEVEL_COLORS[bestLevel];
+  const topMatch = warehouseMatches[0] ?? null;
   const [hovered, setHovered] = useState(false);
   const listinoUnit = listinoInfo ? listinoInfo.price : null;
   const listinoTot = listinoInfo !== null && listinoUnit !== null
@@ -589,7 +760,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
     ? Math.round((listinoUnit / article.unitPrice - 1) * 10000) / 100
     : null;
 
-  const rowBg = isFlashing ? undefined : (hovered ? '#eff6ff' : 'white');
+  const rowBg = isFlashing ? undefined : (hovered ? '#eff6ff' : (bestLevel !== 'none' ? colors.backgroundLight : 'white'));
 
   return (
     <tr
@@ -611,11 +782,24 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         {isUnmatched && (
           <span style={{ display: 'block', fontSize: 9, color: '#dc2626' }}>non nel catalogo</span>
         )}
+        {bestLevel !== 'none' && topMatch && (
+          <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: colors.accentColor, marginTop: 1 }}>
+            {bestLevel === 'exact'
+              ? `🏪 ${topMatch.availableQty} pz · ${topMatch.item.boxName}`
+              : `→ ${topMatch.item.articleCode}`
+            }
+          </span>
+        )}
       </td>
       <td style={{ padding: '8px 8px', overflow: 'hidden' }}>
         <span style={{ fontSize: 12, color: '#1e293b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {article.articleDescription}
         </span>
+        {bestLevel !== 'none' && topMatch && bestLevel !== 'exact' && (
+          <span style={{ display: 'block', fontSize: 9, color: colors.accentColor, marginTop: 1 }}>
+            {topMatch.reason}
+          </span>
+        )}
       </td>
       <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 600 }}>{article.quantity}</td>
 

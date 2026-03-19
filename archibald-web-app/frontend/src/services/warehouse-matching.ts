@@ -126,6 +126,86 @@ export function calculateSimilarity(str1: string, str2: string): number {
   return 1 - distance / maxLength;
 }
 
+function matchItemAgainstCode(
+  item: WarehouseItem,
+  inputParts: ArticleCodeParts,
+  description: string | undefined,
+  minScore: number,
+): WarehouseMatch | null {
+  const itemParts = parseArticleCode(item.articleCode);
+  const availableQty = item.quantity; // TODO: subtract reserved quantity
+  let match: WarehouseMatch | null = null;
+
+  // Level 1: Exact match (100%)
+  if (inputParts.raw === itemParts.raw) {
+    match = {
+      item,
+      level: "exact",
+      score: 100,
+      availableQty,
+      reason: "Match esatto - stesso codice articolo",
+    };
+  }
+  // Level 2: Figura + Gambo (80%)
+  else if (
+    inputParts.figura === itemParts.figura &&
+    inputParts.gambo !== null &&
+    inputParts.gambo === itemParts.gambo &&
+    inputParts.misura !== itemParts.misura
+  ) {
+    match = {
+      item,
+      level: "figura-gambo",
+      score: 80,
+      availableQty,
+      reason: `Stessa figura + gambo, misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
+    };
+  }
+  // Level 3: Solo Figura (60%)
+  else if (
+    inputParts.figura === itemParts.figura &&
+    (inputParts.gambo !== itemParts.gambo ||
+      inputParts.misura !== itemParts.misura)
+  ) {
+    const differences: string[] = [];
+    if (inputParts.gambo !== itemParts.gambo) {
+      differences.push(
+        `gambo diverso (${itemParts.gambo} vs ${inputParts.gambo})`,
+      );
+    }
+    if (inputParts.misura !== itemParts.misura) {
+      differences.push(
+        `misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
+      );
+    }
+    match = {
+      item,
+      level: "figura",
+      score: 60,
+      availableQty,
+      reason: `Stessa figura, ${differences.join(", ")}`,
+    };
+  }
+  // Level 4: Fuzzy description (50% if similarity > 0.7)
+  else if (description && item.description) {
+    const similarity = calculateSimilarity(description, item.description);
+    if (similarity >= 0.7) {
+      match = {
+        item,
+        level: "description",
+        score: Math.round(similarity * 50), // 0.7-1.0 → 35-50 points
+        availableQty,
+        reason: `Descrizione simile (${Math.round(similarity * 100)}%)`,
+      };
+    }
+  }
+
+  if (match && match.score >= minScore) {
+    return match;
+  }
+  return null;
+}
+
 /**
  * Find matches in warehouse for given article code and description
  *
@@ -140,7 +220,7 @@ export async function findWarehouseMatches(
   minScore = 50,
 ): Promise<WarehouseMatch[]> {
   // Get all warehouse items (not sold and not reserved)
-  // 🔧 FIX #2: Filter out reserved items as well as sold items
+  // FIX #2: Filter out reserved items as well as sold items
   const allWarehouseItems = await getWarehouseItems();
   const allItems = allWarehouseItems.filter(
     (item) => !item.soldInOrder && !item.reservedForOrder,
@@ -150,82 +230,12 @@ export async function findWarehouseMatches(
     return [];
   }
 
-  // Parse input article code
   const inputParts = parseArticleCode(articleCode);
   const matches: WarehouseMatch[] = [];
 
   for (const item of allItems) {
-    const itemParts = parseArticleCode(item.articleCode);
-    const availableQty = item.quantity; // TODO: subtract reserved quantity
-    let match: WarehouseMatch | null = null;
-
-    // Level 1: Exact match (100%)
-    if (inputParts.raw === itemParts.raw) {
-      match = {
-        item,
-        level: "exact",
-        score: 100,
-        availableQty,
-        reason: "Match esatto - stesso codice articolo",
-      };
-    }
-    // Level 2: Figura + Gambo (80%)
-    else if (
-      inputParts.figura === itemParts.figura &&
-      inputParts.gambo !== null &&
-      inputParts.gambo === itemParts.gambo &&
-      inputParts.misura !== itemParts.misura
-    ) {
-      match = {
-        item,
-        level: "figura-gambo",
-        score: 80,
-        availableQty,
-        reason: `Stessa figura + gambo, misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
-      };
-    }
-    // Level 3: Solo Figura (60%)
-    else if (
-      inputParts.figura === itemParts.figura &&
-      (inputParts.gambo !== itemParts.gambo ||
-        inputParts.misura !== itemParts.misura)
-    ) {
-      const differences: string[] = [];
-      if (inputParts.gambo !== itemParts.gambo) {
-        differences.push(
-          `gambo diverso (${itemParts.gambo} vs ${inputParts.gambo})`,
-        );
-      }
-      if (inputParts.misura !== itemParts.misura) {
-        differences.push(
-          `misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
-        );
-      }
-      match = {
-        item,
-        level: "figura",
-        score: 60,
-        availableQty,
-        reason: `Stessa figura, ${differences.join(", ")}`,
-      };
-    }
-    // Level 4: Fuzzy description (50% if similarity > 0.7)
-    else if (description && item.description) {
-      const similarity = calculateSimilarity(description, item.description);
-      if (similarity >= 0.7) {
-        match = {
-          item,
-          level: "description",
-          score: Math.round(similarity * 50), // 0.7-1.0 → 35-50 points
-          availableQty,
-          reason: `Descrizione simile (${Math.round(similarity * 100)}%)`,
-        };
-      }
-    }
-
-    if (match && match.score >= minScore) {
-      matches.push(match);
-    }
+    const match = matchItemAgainstCode(item, inputParts, description, minScore);
+    if (match) matches.push(match);
   }
 
   // Sort by score (descending), then by availableQty (descending)
@@ -235,6 +245,35 @@ export async function findWarehouseMatches(
     }
     return b.availableQty - a.availableQty;
   });
+}
+
+/**
+ * Batch version: fetches warehouse items once, then matches all provided codes.
+ * Use this when matching many articles at once (e.g. CustomerHistoryModal pre-fetch).
+ *
+ * @returns Map<articleCode, WarehouseMatch[]> — empty array means no matches
+ */
+export async function findWarehouseMatchesBatch(
+  inputs: Array<{ code: string; description?: string }>,
+  minScore = 50,
+): Promise<Map<string, WarehouseMatch[]>> {
+  const allWarehouseItems = await getWarehouseItems();
+  const availableItems = allWarehouseItems.filter(
+    (item) => !item.soldInOrder && !item.reservedForOrder,
+  );
+
+  const result = new Map<string, WarehouseMatch[]>();
+  for (const { code, description } of inputs) {
+    const inputParts = parseArticleCode(code);
+    const matches: WarehouseMatch[] = [];
+    for (const item of availableItems) {
+      const match = matchItemAgainstCode(item, inputParts, description, minScore);
+      if (match) matches.push(match);
+    }
+    matches.sort((a, b) => b.score !== a.score ? b.score - a.score : b.availableQty - a.availableQty);
+    result.set(code, matches);
+  }
+  return result;
 }
 
 /**
