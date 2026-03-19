@@ -344,7 +344,11 @@ function buildExecScriptScadenza(
 
 function escapeVfpString(value: string | null): string {
   if (!value) return '';
-  return value.replace(/[\r\n]/g, ' ').replace(/]/g, '').replace(/"/g, '""');
+  return value
+    .replace(/[\r\n]/g, ' ')
+    .replace(/]/g, '')
+    .replace(/"/g, '""')
+    .replace(/&/g, '] + CHR(38) + ['); // & inside VFP [...] triggers macro substitution
 }
 
 const ANAGRAFE_CODICE_MAX_LEN = 6;

@@ -10,7 +10,7 @@ import {
   splitArticlesByWarehouse,
   arcaDataHash,
 } from "./arca-sync-service";
-import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
+import type { VbsExportRecord, SyncResult, AnagrafeExportRecord } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
 import type { ArcaData } from "../arca-data-types";
 import type { DbPool } from "../db/pool";
@@ -610,6 +610,34 @@ describe("generateVbsScript", () => {
     const result = generateVbsScript(records);
 
     expect(result.vbs).toContain("[     1]");
+  });
+
+  test("escapes & in ANAGRAFE text fields via CHR(38) to prevent VFP macro substitution", () => {
+    // In VFP, & inside [...] is the macro substitution operator:
+    // [A&B DENTAL] tries to expand variable B → "Feature is not available"
+    // Fix: replace & with ] + CHR(38) + [ so VFP concatenates instead of expanding.
+    const subclient: AnagrafeExportRecord["subclient"] = {
+      codice: "C00573",
+      ragioneSociale: "A&B DENTAL    ENZO",
+      supplRagioneSociale: "MARANDINO &C. sas",
+      indirizzo: null, cap: null, localita: null, prov: null,
+      telefono: null, fax: null, email: null,
+      partitaIva: null, codFiscale: null, zona: null, persDaContattare: null,
+      emailAmministraz: null, agente: null, agente2: null, settore: null,
+      classe: null, pag: null, listino: null, banca: null, valuta: null,
+      codNazione: null, aliiva: null, contoscar: null, tipofatt: null,
+      telefono2: null, telefono3: null, url: null, cbNazione: null,
+      cbBic: null, cbCinUe: null, cbCinIt: null, abicab: null, contocorr: null,
+      matchedCustomerProfileId: null, matchConfidence: null, arcaSyncedAt: null,
+      customerMatchCount: 0, subClientMatchCount: 0,
+    };
+
+    const result = generateVbsScript([], [{ subclient }]);
+
+    expect(result.vbs).not.toContain("WITH [A&B");
+    expect(result.vbs).not.toContain("WITH [MARANDINO &C");
+    expect(result.vbs).toContain("[A] + CHR(38) + [B DENTAL");
+    expect(result.vbs).toContain("[MARANDINO ] + CHR(38) + [C. sas]");
   });
 
   test("TIPOMOD in scadenza usa TIPODOC del documento, non FT fisso", () => {
