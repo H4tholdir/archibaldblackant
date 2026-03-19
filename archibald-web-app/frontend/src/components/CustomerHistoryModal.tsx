@@ -4,6 +4,8 @@ import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import type { PendingOrderItem } from '../types/pending-order';
 import { priceService } from '../services/prices.service';
+import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
+import type { WarehouseMatch } from '../services/warehouse-matching';
 
 type Props = {
   isOpen: boolean;
@@ -46,6 +48,8 @@ export function CustomerHistoryModal({
   // Copy order overlay
   const [copyingOrderId, setCopyingOrderId] = useState<string | null>(null);
   const [copiedOrderIds, setCopiedOrderIds] = useState<Set<string>>(new Set());
+  // Warehouse matches pre-fetch: Map<articleCode, WarehouseMatch[]>
+  const [warehouseMatchMap, setWarehouseMatchMap] = useState<Map<string, WarehouseMatch[]>>(new Map());
 
   // Serializzato per evitare re-render infiniti con array come dipendenze
   const profileIdsKey = customerProfileIds.join(',');
@@ -78,6 +82,20 @@ export function CustomerHistoryModal({
     const codes = Array.from(new Set(orders.flatMap((o) => o.articles.map((a) => a.articleCode))));
     priceService.getPriceAndVatBatch(codes)
       .then((map) => setListinoPrices(map))
+      .catch(() => {});
+  }, [isOpen, orders]);
+
+  useEffect(() => {
+    if (!isOpen || orders.length === 0) return;
+    const inputs = Array.from(
+      new Map(
+        orders.flatMap((o) =>
+          o.articles.map((a) => [a.articleCode, { code: a.articleCode, description: a.articleDescription }])
+        )
+      ).values()
+    );
+    findWarehouseMatchesBatch(inputs)
+      .then((map) => setWarehouseMatchMap(map))
       .catch(() => {});
   }, [isOpen, orders]);
 
@@ -409,6 +427,7 @@ export function CustomerHistoryModal({
                 articleBadges={articleBadges}
                 flashingArticles={flashingArticles}
                 codeSubstitutions={codeSubstitutions}
+                warehouseMatchMap={warehouseMatchMap}
                 isCopying={copyingOrderId === order.orderId}
                 isCopied={copiedOrderIds.has(order.orderId)}
                 onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent, order.source)}
@@ -451,13 +470,14 @@ type OrderCardProps = {
   articleBadges: Map<string, number>;
   flashingArticles: Set<string>;
   codeSubstitutions: Map<string, string>;
+  warehouseMatchMap: Map<string, WarehouseMatch[]>;
   isCopying: boolean;
   isCopied: boolean;
   onAddArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onCopyOrder: () => void;
 };
 
-function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
+function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
   const accent = isFresis ? '#8b5cf6' : '#3b82f6';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
@@ -548,6 +568,7 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
               isFlashing={flashingArticles.has(article.articleCode)}
               substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
               isUnmatched={isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode)}
+              warehouseMatches={warehouseMatchMap.get(article.articleCode) ?? []}
               onAdd={() => onAddArticle(article)}
             />
           ))}
@@ -571,15 +592,17 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
   );
 }
 
-function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, onAdd }: {
+function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, warehouseMatches, onAdd }: {
   article: CustomerFullHistoryOrder['articles'][number];
   listinoInfo: { price: number; vat: number } | null;
   badgeCount: number;
   isFlashing: boolean;
   substituteCode?: string;
   isUnmatched?: boolean;
+  warehouseMatches: WarehouseMatch[];
   onAdd: () => void;
 }) {
+  void warehouseMatches; // will be used in Task 4 for row tinting
   const [hovered, setHovered] = useState(false);
   const listinoUnit = listinoInfo ? listinoInfo.price : null;
   const listinoTot = listinoInfo !== null && listinoUnit !== null
