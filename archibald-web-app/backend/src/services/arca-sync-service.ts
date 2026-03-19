@@ -1285,31 +1285,40 @@ export async function performArcaSync(
     if (!key || !parsed.arcaDocKeys.has(key)) continue;
 
     // Number occupied by an Arca doc → renumber
+    let arcaData: ArcaData;
     try {
-      const arcaData: ArcaData = JSON.parse(row.arca_data);
-      const esercizio = arcaData.testata.ESERCIZIO;
-      const tipodoc = arcaData.testata.TIPODOC as 'FT' | 'KT';
-      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc);
-
-      const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
-      arcaData.testata.NUMERODOC = String(newNum);
-      for (const riga of arcaData.righe) {
-        riga.NUMERODOC = String(newNum);
-      }
-
-      await pool.query(
-        `UPDATE agents.fresis_history SET
-           invoice_number         = $1,
-           archibald_order_number = $1,
-           arca_data              = $2,
-           updated_at             = NOW()
-         WHERE id = $3 AND user_id = $4`,
-        [newInvoiceNumber, JSON.stringify(arcaData), row.id, userId],
-      );
-      renumbered++;
+      arcaData = JSON.parse(row.arca_data);
     } catch {
-      errors.push(`Renumbering failed for ${row.invoice_number}: malformed arca_data`);
+      errors.push(`Renumbering skipped for ${row.invoice_number}: malformed arca_data`);
+      continue;
     }
+
+    const esercizio = arcaData.testata.ESERCIZIO;
+    const tipodoc = arcaData.testata.TIPODOC as 'FT' | 'KT';
+
+    if (tipodoc !== 'FT' && tipodoc !== 'KT') {
+      errors.push(`Renumbering skipped for ${row.invoice_number}: unexpected TIPODOC '${arcaData.testata.TIPODOC}'`);
+      continue;
+    }
+
+    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc);
+
+    const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
+    arcaData.testata.NUMERODOC = String(newNum);
+    for (const riga of arcaData.righe) {
+      riga.NUMERODOC = String(newNum);
+    }
+
+    await pool.query(
+      `UPDATE agents.fresis_history SET
+         invoice_number         = $1,
+         archibald_order_number = $1,
+         arca_data              = $2,
+         updated_at             = NOW()
+       WHERE id = $3 AND user_id = $4`,
+      [newInvoiceNumber, JSON.stringify(arcaData), row.id, userId],
+    );
+    renumbered++;
   }
 
   return {

@@ -645,6 +645,11 @@ function createMockPool(overrides?: {
     tracking_number: string | null;
     delivery_completed_date: string | null;
   }>;
+  pwaSourceRows?: Array<{
+    id: string;
+    invoice_number: string | null;
+    arca_data: string | null;
+  }>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
@@ -652,6 +657,7 @@ function createMockPool(overrides?: {
   const ftCounterCalls = overrides?.ftCounterCalls ?? [];
   const ktEligibleOrders = overrides?.ktEligibleOrders ?? [];
   const arcaImportRows = overrides?.arcaImportRows ?? [];
+  const pwaSourceRows = overrides?.pwaSourceRows ?? [];
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
@@ -678,9 +684,16 @@ function createMockPool(overrides?: {
           rows: Array.from({ length: recordCount }, () => ({ action: "inserted" })),
         };
       }
+      if (text.includes("INSERT INTO agents.ft_counter") && text.includes("RETURNING")) {
+        ftCounterCalls.push(params ?? []);
+        return { rows: [{ last_number: 100 }], rowCount: 1 };
+      }
       if (text.includes("INSERT INTO agents.ft_counter")) {
         ftCounterCalls.push(params ?? []);
         return { rows: [], rowCount: 1 };
+      }
+      if (text.includes("SELECT id, invoice_number, arca_data") && text.includes("source = 'app'")) {
+        return { rows: pwaSourceRows, rowCount: pwaSourceRows.length };
       }
       if (text.includes("SELECT id, arca_data, invoice_number")) {
         return { rows: pwaExportRows };
@@ -997,6 +1010,49 @@ function createMockPool(overrides?: {
           hasDelivery: false,
         },
       ]);
+    },
+    60000,
+  );
+
+  test(
+    "FASE 5: renumbers a source=app record whose invoice_number conflicts with an Arca doc",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+
+      // Parse the real DBF to find a real invoice number that exists in Arca
+      const parsed = await parseNativeArcaFiles(
+        doctesBuf,
+        docrigBuf,
+        anagrafeBuf,
+        TEST_USER_ID,
+        new Map(),
+        new Map(),
+      );
+      const [conflictKey] = [...parsed.arcaDocKeys];
+      // conflictKey is "ESERCIZIO|TIPODOC|NUMERODOC" e.g. "2026|FT|326"
+      const [esercizio, tipodoc, numerodoc] = conflictKey.split("|");
+      const conflictingInvoiceNumber = `${tipodoc} ${numerodoc}/${esercizio}`;
+
+      const pwaArcaData = makeArcaData({
+        testata: { ESERCIZIO: esercizio, TIPODOC: tipodoc as "FT" | "KT", NUMERODOC: numerodoc },
+        righe: [{ NUMERODOC: numerodoc }],
+      });
+
+      const pool = createMockPool({
+        pwaSourceRows: [
+          {
+            id: "pwa-source-conflict-1",
+            invoice_number: conflictingInvoiceNumber,
+            arca_data: JSON.stringify(pwaArcaData),
+          },
+        ],
+      });
+
+      const result = await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
+
+      expect(result.renumbered).toBe(1);
     },
     60000,
   );
