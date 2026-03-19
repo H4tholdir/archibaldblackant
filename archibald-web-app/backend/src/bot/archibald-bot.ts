@@ -9229,6 +9229,7 @@ export class ArchibaldBot {
 
     const page = await context.newPage();
     const startTime = Date.now();
+    let cancelDownload: () => void = () => {};
 
     try {
       logger.info(`[ArchibaldBot] Starting ${filePrefix} PDF download`);
@@ -9329,7 +9330,14 @@ export class ArchibaldBot {
             reject(pollErr);
           }
         }, 500);
+
+        cancelDownload = () => {
+          clearTimeout(timeout);
+          clearInterval(checkFile);
+        };
       });
+      // Suppress unhandled rejection if we throw before reaching await downloadComplete
+      downloadComplete.catch(() => {});
 
       logger.info("[ArchibaldBot] Clicking PDF export button...");
 
@@ -9481,6 +9489,7 @@ export class ArchibaldBot {
       );
       throw new Error(`PDF download failed: ${error.message}`);
     } finally {
+      cancelDownload();
       if (!page.isClosed()) {
         await page.close().catch(() => {});
       }
@@ -9778,6 +9787,7 @@ export class ArchibaldBot {
   ): Promise<string> {
     const page = await context.newPage();
     const startTime = Date.now();
+    let cancelDownload: () => void = () => {};
 
     try {
       logger.info("[ArchibaldBot] Starting Order Articles PDF download", {
@@ -9856,7 +9866,14 @@ export class ArchibaldBot {
             reject(pollErr);
           }
         }, 500);
+
+        cancelDownload = () => {
+          clearTimeout(timeout);
+          clearInterval(checkFile);
+        };
       });
+      // Suppress unhandled rejection if we throw before reaching await downloadComplete
+      downloadComplete.catch(() => {});
 
       logger.info("[ArchibaldBot] Clicking PDF export button...");
       await page.evaluate((sel: string) => {
@@ -9892,6 +9909,7 @@ export class ArchibaldBot {
       });
       throw new Error(`PDF download failed: ${error.message}`);
     } finally {
+      cancelDownload();
       if (!page.isClosed()) {
         await page.close().catch(() => {});
       }
