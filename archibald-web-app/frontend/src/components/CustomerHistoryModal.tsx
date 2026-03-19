@@ -515,6 +515,13 @@ export function CustomerHistoryModal({
             const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
             onAddArticle(item, false);
             setAddedCount((c) => c + 1);
+            setArticleBadges((prev) => {
+              const m = new Map(prev);
+              m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+              return m;
+            });
+            setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+            setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
             setPendingDialog(null);
           }}
           onCancel={() => setPendingDialog(null)}

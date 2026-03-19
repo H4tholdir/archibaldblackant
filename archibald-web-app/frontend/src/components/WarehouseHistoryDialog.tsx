@@ -19,9 +19,12 @@ export function WarehouseHistoryDialog({
 }: Props) {
   const [selections, setSelections] = useState<Map<number, number>>(() => {
     const m = new Map<number, number>();
+    let remaining = requestedQuantity;
     for (const match of matches) {
-      if (isAutoSelected(match.level)) {
-        m.set(match.item.id, Math.min(match.availableQty, requestedQuantity));
+      if (isAutoSelected(match.level) && remaining > 0) {
+        const use = Math.min(match.availableQty, remaining);
+        m.set(match.item.id, use);
+        remaining -= use;
       }
     }
     return m;
