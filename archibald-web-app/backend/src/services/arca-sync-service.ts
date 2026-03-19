@@ -1409,38 +1409,102 @@ export async function generateKtExportVbs(
     if (articles.length === 0) continue;
 
     const esercizio = order.creationDate?.slice(0, 4) || currentYear;
-    const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
 
-    const arcaData = generateArcaDataFromOrder(
-      {
-        id: order.id,
-        creationDate: order.creationDate,
-        customerName: order.customerName,
-        discountPercent: order.discountPercent,
-        notes: order.notes,
-      },
-      articles.map((a) => ({
-        articleCode: a.articleCode,
-        articleDescription: a.articleDescription ?? '',
-        quantity: a.quantity,
-        unitPrice: a.unitPrice ?? 0,
-        discountPercent: a.discountPercent ?? 0,
-        vatPercent: a.vatPercent ?? 22,
-        lineAmount: a.lineAmount ?? 0,
-        unit: 'PZ',
-      })),
-      subclient,
-      docNumber,
-      esercizio,
-    );
+    const orderParam = {
+      id: order.id,
+      creationDate: order.creationDate,
+      customerName: order.customerName,
+      discountPercent: order.discountPercent,
+      notes: order.notes,
+    };
 
-    exportRecords.push({ invoiceNumber: `KT ${docNumber}/${esercizio}`, arcaData });
-    ktExported++;
+    const toArticleForKt = (a: typeof articles[number]) => ({
+      articleCode: a.articleCode,
+      articleDescription: a.articleDescription ?? '',
+      quantity: a.quantity,
+      unitPrice: a.unitPrice ?? 0,
+      discountPercent: a.discountPercent ?? 0,
+      vatPercent: a.vatPercent ?? 22,
+      lineAmount: a.lineAmount ?? 0,
+      unit: 'PZ',
+    });
 
-    await pool.query(
-      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
-      [order.id, userId],
-    );
+    // Split articles: non-warehouse -> KT, warehouse portion -> FT companion
+    const nonWarehouseArticles = articles
+      .filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
+      .map(a => ({ ...a, quantity: a.quantity - (a.warehouseQuantity ?? 0) }));
+
+    const warehouseArticles = articles
+      .filter(a => (a.warehouseQuantity ?? 0) > 0)
+      .map(a => ({ ...a, quantity: a.warehouseQuantity! }));
+
+    // Generate KT only if there are non-warehouse articles
+    if (nonWarehouseArticles.length > 0) {
+      const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
+      const arcaData = generateArcaDataFromOrder(
+        orderParam,
+        nonWarehouseArticles.map(toArticleForKt),
+        subclient,
+        docNumber,
+        esercizio,
+        'KT',
+      );
+      exportRecords.push({ invoiceNumber: `KT ${docNumber}/${esercizio}`, arcaData });
+      ktExported++;
+    }
+
+    // Generate FT companion for warehouse articles (if any)
+    if (warehouseArticles.length > 0) {
+      const ftNum = await getNextDocNumber(pool, userId, esercizio, 'FT');
+      const arcaDataFt = generateArcaDataFromOrder(
+        orderParam,
+        warehouseArticles.map(toArticleForKt),
+        subclient,
+        ftNum,
+        esercizio,
+        'FT',
+      );
+      exportRecords.push({ invoiceNumber: `FT ${ftNum}/${esercizio}`, arcaData: arcaDataFt });
+
+      // Persist FT companion in fresis_history for idempotency
+      const ftCompanionId = deterministicId(userId, esercizio, 'FT', String(ftNum), subclient.codice);
+      await pool.query(
+        `INSERT INTO agents.fresis_history
+           (id, user_id, source, invoice_number, sub_client_codice, sub_client_name,
+            customer_id, target_total_with_vat, discount_percent, items, arca_data,
+            created_at, updated_at)
+         VALUES ($1, $2, 'app', $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          ftCompanionId,
+          userId,
+          `FT ${ftNum}/${esercizio}`,
+          subclient.codice,
+          subclient.ragioneSociale,
+          order.customerProfileId ?? '',
+          arcaDataFt.testata.TOTDOC ?? 0,
+          order.discountPercent ?? 0,
+          JSON.stringify([]),
+          JSON.stringify(arcaDataFt),
+        ],
+      );
+
+      // Save link on order_records
+      await pool.query(
+        `UPDATE agents.order_records
+         SET warehouse_companion_ft_id = $1
+         WHERE id = $2 AND user_id = $3`,
+        [ftCompanionId, order.id, userId],
+      );
+    }
+
+    // Update arca_kt_synced_at ONLY if KT was generated (not for fully-warehouse orders)
+    if (nonWarehouseArticles.length > 0) {
+      await pool.query(
+        `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2`,
+        [order.id, userId],
+      );
+    }
   }
 
   // ANAGRAFE export (spostato da performArcaSync)

@@ -1058,6 +1058,33 @@ function createMockPool(overrides?: {
   );
 });
 
+describe('generateKtExportVbs - warehouse articles detection', () => {
+  test('splits articles into KT (non-warehouse) and FT companion (warehouse)', () => {
+    const articles = [
+      { articleCode: 'ART1', quantity: 10, warehouseQuantity: 0,  unitPrice: 5, discountPercent: 0, vatPercent: 22, lineAmount: 50,  articleDescription: 'A', unit: 'PZ' },
+      { articleCode: 'ART2', quantity:  5, warehouseQuantity: 5,  unitPrice: 3, discountPercent: 0, vatPercent: 22, lineAmount: 15,  articleDescription: 'B', unit: 'PZ' },
+      { articleCode: 'ART3', quantity: 10, warehouseQuantity: 3,  unitPrice: 2, discountPercent: 0, vatPercent: 22, lineAmount: 14,  articleDescription: 'C', unit: 'PZ' },
+    ];
+
+    const nonWarehouse = articles
+      .filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
+      .map(a => ({ ...a, quantity: a.quantity - (a.warehouseQuantity ?? 0) }));
+
+    const warehouse = articles
+      .filter(a => (a.warehouseQuantity ?? 0) > 0)
+      .map(a => ({ ...a, quantity: a.warehouseQuantity! }));
+
+    // ART1: non-warehouse (qty=10, wh=0)  -> KT qty=10
+    // ART2: fully warehouse (qty=5, wh=5) -> FT qty=5 solo
+    // ART3: partial (qty=10, wh=3)        -> KT qty=7 + FT qty=3
+    expect(nonWarehouse).toHaveLength(2);  // ART1 and ART3
+    expect(nonWarehouse.find(a => a.articleCode === 'ART3')!.quantity).toBe(7);
+    expect(warehouse).toHaveLength(2);     // ART2 and ART3
+    expect(warehouse.find(a => a.articleCode === 'ART2')!.quantity).toBe(5);
+    expect(warehouse.find(a => a.articleCode === 'ART3')!.quantity).toBe(3);
+  });
+});
+
 (COOP16_EXISTS ? describe : describe.skip)("generateKtExportVbs", () => {
   test(
     "combina ftExportRecords e KT in un VBS unico",
