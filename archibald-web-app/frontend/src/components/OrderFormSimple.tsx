@@ -34,6 +34,8 @@ import { CustomerCreateModal } from './CustomerCreateModal';
 import type { CustomerAddress } from '../types/customer-address';
 import { getCustomerAddresses } from '../services/customer-addresses';
 import { useVatValidation } from '../hooks/useVatValidation';
+import { WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
+import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 
 interface OrderItem {
   id: string;
@@ -142,6 +144,7 @@ export default function OrderFormSimple() {
   const [warehouseSelection, setWarehouseSelection] = useState<
     SelectedWarehouseMatch[]
   >([]);
+  const [activeMatchLevel, setActiveMatchLevel] = useState<WarehouseThemeLevel>('none');
 
   // Product details preview state
   interface ProductVariantInfo {
@@ -322,6 +325,11 @@ export default function OrderFormSimple() {
 
   // Animazione nuove righe
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
+
+  // Reset activeMatchLevel when no product is selected
+  useEffect(() => {
+    if (!selectedProduct) setActiveMatchLevel('none');
+  }, [selectedProduct]);
 
   // Reset noShipping when subtotal goes above shipping threshold
   useEffect(() => {
@@ -3347,7 +3355,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: "#7c3aed",
+              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#7c3aed",
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3355,6 +3363,7 @@ export default function OrderFormSimple() {
               fontWeight: "600",
               cursor: "pointer",
               minHeight: isMobile ? "44px" : "auto",
+              transition: 'background 0.4s',
             }}
           >
             I più venduti
@@ -3364,7 +3373,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: "#2563eb",
+              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#2563eb",
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3372,6 +3381,7 @@ export default function OrderFormSimple() {
               fontWeight: "600",
               cursor: "pointer",
               minHeight: isMobile ? "44px" : "auto",
+              transition: 'background 0.4s',
             }}
           >
             Cerca nello Storico
@@ -3760,8 +3770,9 @@ export default function OrderFormSimple() {
                       style={{
                         marginTop: "0.75rem",
                         padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
-                        background: "#d1fae5",
-                        border: "1px solid #10b981",
+                        background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].backgroundMid : '#f8fafc',
+                        border: `1px solid ${activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].borderColor : '#e2e8f0'}`,
+                        transition: 'background 0.4s, border-color 0.4s',
                         borderRadius: "6px",
                       }}
                     >
@@ -3772,6 +3783,7 @@ export default function OrderFormSimple() {
                         onSelect={setWarehouseSelection}
                         excludeWarehouseItemIds={excludedWarehouseItemIds}
                         onTotalQuantityChange={handleTotalQuantityChange}
+                        onMatchLevelChange={setActiveMatchLevel}
                       />
                     </div>
                   )}
@@ -4048,11 +4060,12 @@ export default function OrderFormSimple() {
                   }
                   style={{
                     padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
-                    background:
-                      packagingPreview?.success ||
-                      warehouseSelectedQty >= parseInt(quantity, 10)
-                        ? "#22c55e"
-                        : "#d1d5db",
+                    background: activeMatchLevel !== 'none'
+                      ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].buttonBackground
+                      : packagingPreview?.success ||
+                        warehouseSelectedQty >= parseInt(quantity, 10)
+                          ? "#22c55e"
+                          : "#d1d5db",
                     color: "white",
                     border: "none",
                     borderRadius: "6px",
@@ -4065,6 +4078,7 @@ export default function OrderFormSimple() {
                         : "not-allowed",
                     width: "100%",
                     minHeight: isMobile ? "48px" : "auto",
+                    transition: 'background 0.4s',
                   }}
                 >
                   {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
