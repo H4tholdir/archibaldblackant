@@ -3,19 +3,19 @@ import type { MatchLevel } from '../services/warehouse-matching';
 export type WarehouseThemeLevel = MatchLevel | 'none';
 
 export type LevelColors = {
-  bg: string;        // sfondo leggero (row tint, card bg)
-  bgMid: string;     // sfondo medio (header, banner)
-  border: string;    // bordo principale
-  accent: string;    // colore testo/icone
-  btnBg: string;     // sfondo bottone CTA
+  backgroundLight: string;
+  backgroundMid: string;
+  borderColor: string;
+  accentColor: string;
+  buttonBackground: string;
 };
 
 export const WAREHOUSE_LEVEL_COLORS: Record<WarehouseThemeLevel, LevelColors> = {
-  none:         { bg: '#f8fafc', bgMid: '#f1f5f9', border: '#e2e8f0', accent: '#64748b', btnBg: '#64748b' },
-  exact:        { bg: '#f0fdf4', bgMid: '#d1fae5', border: '#34d399', accent: '#059669', btnBg: '#059669' },
-  'figura-gambo': { bg: '#eff6ff', bgMid: '#dbeafe', border: '#60a5fa', accent: '#2563eb', btnBg: '#2563eb' },
-  figura:       { bg: '#fffbeb', bgMid: '#fef3c7', border: '#fbbf24', accent: '#d97706', btnBg: '#d97706' },
-  description:  { bg: '#fff7ed', bgMid: '#ffedd5', border: '#fb923c', accent: '#ea580c', btnBg: '#ea580c' },
+  none:         { backgroundLight: '#f8fafc', backgroundMid: '#f1f5f9', borderColor: '#e2e8f0', accentColor: '#64748b', buttonBackground: '#64748b' },
+  exact:        { backgroundLight: '#f0fdf4', backgroundMid: '#d1fae5', borderColor: '#34d399', accentColor: '#059669', buttonBackground: '#059669' },
+  'figura-gambo': { backgroundLight: '#eff6ff', backgroundMid: '#dbeafe', borderColor: '#60a5fa', accentColor: '#2563eb', buttonBackground: '#2563eb' },
+  figura:       { backgroundLight: '#fffbeb', backgroundMid: '#fef3c7', borderColor: '#fbbf24', accentColor: '#d97706', buttonBackground: '#d97706' },
+  description:  { backgroundLight: '#fff7ed', backgroundMid: '#ffedd5', borderColor: '#fb923c', accentColor: '#ea580c', buttonBackground: '#ea580c' },
 };
 
 export const WAREHOUSE_LEVEL_LABELS: Record<WarehouseThemeLevel, string> = {
@@ -26,7 +26,6 @@ export const WAREHOUSE_LEVEL_LABELS: Record<WarehouseThemeLevel, string> = {
   description: 'Descrizione simile',
 };
 
-/** Restituisce il level più alto trovato in un array di match */
 export function bestMatchLevel(matches: { level: MatchLevel }[]): WarehouseThemeLevel {
   if (matches.some(m => m.level === 'exact')) return 'exact';
   if (matches.some(m => m.level === 'figura-gambo')) return 'figura-gambo';
@@ -35,7 +34,6 @@ export function bestMatchLevel(matches: { level: MatchLevel }[]): WarehouseTheme
   return 'none';
 }
 
-/** True se il livello è pre-selezionato di default (exact e figura-gambo) */
 export function isAutoSelected(level: MatchLevel): boolean {
   return level === 'exact' || level === 'figura-gambo';
 }

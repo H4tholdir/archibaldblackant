@@ -20,6 +20,9 @@ describe('bestMatchLevel', () => {
   test('returns description when only match', () => {
     expect(bestMatchLevel([m('description')])).toBe('description');
   });
+  test('returns figura-gambo when competing with description only', () => {
+    expect(bestMatchLevel([m('description'), m('figura-gambo')])).toBe('figura-gambo');
+  });
 });
 
 describe('isAutoSelected', () => {
