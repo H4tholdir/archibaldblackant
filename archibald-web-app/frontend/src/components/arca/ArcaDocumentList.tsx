@@ -22,7 +22,8 @@ type SortField =
   | "supragsoc"
   | "totale"
   | "stato"
-  | "revenue";
+  | "revenue"
+  | "recency";
 type SortDir = "asc" | "desc";
 
 type ArcaDocumentListProps = {
@@ -93,6 +94,11 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
   };
 }
 
+export function extractDocNum(ftNumber: string): number {
+  const match = ftNumber.match(/(\d+)\//);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 function compareParsed(
   a: ParsedOrder,
   b: ParsedOrder,
@@ -125,6 +131,12 @@ function compareParsed(
     case "revenue":
       cmp = (a.revenue ?? 0) - (b.revenue ?? 0);
       break;
+    case "recency": {
+      const dateCmp = (a.datadoc || "").localeCompare(b.datadoc || "");
+      if (dateCmp !== 0) { cmp = dateCmp; break; }
+      cmp = extractDocNum(a.ftNumber) - extractDocNum(b.ftNumber);
+      break;
+    }
   }
   return dir === "asc" ? cmp : -cmp;
 }
@@ -261,7 +273,7 @@ export function ArcaDocumentList({
   height = 500,
   onScrollNearEnd,
 }: ArcaDocumentListProps) {
-  const [sortField, setSortField] = useState<SortField>("datadoc");
+  const [sortField, setSortField] = useState<SortField>("recency");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const containerRef = useRef<HTMLDivElement>(null);
 
