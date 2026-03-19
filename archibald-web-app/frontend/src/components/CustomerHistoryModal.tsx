@@ -319,12 +319,12 @@ export function CustomerHistoryModal({
 
       const validItems = validPairs.map((p) => p.item);
 
-      const matchedArticles = validItems
-        .map(item => ({
+      const matchedArticles = validPairs
+        .map(({ originalCode, item }) => ({
           articleCode: item.articleCode,
           description: item.description ?? '',
           requestedQuantity: item.quantity,
-          matches: warehouseMatchMap.get(item.articleCode) ?? [],
+          matches: warehouseMatchMap.get(originalCode) ?? [],
         }))
         .filter(x => x.matches.length > 0);
 

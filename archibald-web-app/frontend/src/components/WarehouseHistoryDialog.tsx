@@ -203,7 +203,17 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
                       const next = new Map(allSelections);
                       if (e.target.checked) {
                         const inner = new Map<number, number>();
-                        inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+                        let remaining = art.requestedQuantity;
+                        for (const match of art.matches) {
+                          if (isAutoSelected(match.level) && remaining > 0) {
+                            const use = Math.min(match.availableQty, remaining);
+                            inner.set(match.item.id, use);
+                            remaining -= use;
+                          }
+                        }
+                        if (inner.size === 0) {
+                          inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+                        }
                         next.set(art.articleCode, inner);
                       } else {
                         next.set(art.articleCode, new Map());
