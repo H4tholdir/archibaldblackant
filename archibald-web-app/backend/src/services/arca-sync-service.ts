@@ -1090,16 +1090,16 @@ export async function performArcaSync(
     }
   }
 
-  // 6. Update ft_counter with max NUMERODOC per ESERCIZIO (FT + KT share counter)
+  // 6. Update ft_counter with max NUMERODOC per ESERCIZIO+TIPODOC (FT and KT have separate counters)
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
     if (tipodoc !== "FT" && tipodoc !== "KT") continue;
     await pool.query(
-      `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (esercizio, user_id)
-       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
-      [esercizio, userId, maxNum],
+      `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (esercizio, user_id, tipodoc)
+       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
+      [esercizio, userId, tipodoc, maxNum],
     );
   }
 

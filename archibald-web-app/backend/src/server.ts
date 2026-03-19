@@ -667,13 +667,14 @@ function createApp(deps: AppDeps): Express {
         await fresisHistoryRepo.upsertRecords(pool, userId, records);
       }
 
+      // parseArcaExport filters to TIPODOC='FT' only, so this map is FT-exclusive
       for (const [esercizio, maxNum] of parseResult.maxNumerodocByEsercizio) {
         await pool.query(
-          `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (esercizio, user_id)
-           DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $3)`,
-          [esercizio, userId, maxNum],
+          `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (esercizio, user_id, tipodoc)
+           DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
+          [esercizio, userId, 'FT', maxNum],
         );
       }
 
