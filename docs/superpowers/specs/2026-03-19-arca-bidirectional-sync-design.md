@@ -14,7 +14,7 @@ Il sistema attuale gestisce la sync Arca ↔ PWA in modo parzialmente unidirezio
 Questo crea tre classi di problemi quando operatori usano Arca direttamente mentre la PWA è attiva:
 
 1. **Conflitti numerazione**: la PWA assegna FT/KT con numeri già usati da operatori in Arca → VBS fallisce con `Uniqueness of index NUMERO_P is violated`
-2. **Mancato aggiornamento**: se un operatore modifica un documento in Arca (es. cambia uno sconto), la PWA mantiene la versione vecchia
+2. **Mancato aggiornamento**: se un operatore modifica un documento in Arca, la PWA mantiene la versione vecchia
 3. **Mancato soft delete**: se un operatore cancella un documento in Arca, la PWA lo mantiene attivo
 
 Caso aggiuntivo: ordini KT con articoli parzialmente o totalmente da magazzino non generano la FT contabile corrispondente per gli articoli warehouse.
@@ -42,26 +42,59 @@ PWA → Arca (VBS):
 
 ---
 
+## Nota su `deterministicId` — Due Popolazioni di Record
+
+Il codebase ha due percorsi di import con firme diverse:
+
+```typescript
+// Percorso LEGACY (arca-import-service.ts:681) — 4 argomenti
+deterministicId(userId, esercizio, numerodoc, codicecf)
+
+// Percorso NUOVO (arca-sync-service.ts:912, parseNativeArcaFiles) — 5 argomenti
+deterministicId(userId, esercizio, tipodoc, numerodoc, codicecf)
+```
+
+Le due firme producono ID diversi per lo stesso documento. I record in produzione importati via percorso legacy hanno ID a 4 argomenti. Questi record:
+- **Non** vengono aggiornati dalla FASE 3 (UPDATE) — il loro ID non coinciderà mai con quello calcolato da `parseNativeArcaFiles`
+- **Vengono** protetti dalla re-importazione dal check su `existingInvoiceNumbers` (già presente)
+- Costituiscono una **popolazione separata** che non interferisce con la nuova logica
+
+Non è necessaria una migration per riconciliare gli ID legacy: la protezione via `invoice_number` è sufficiente. Nel tempo, i documenti legacy verranno gradualmente sostituiti da record aggiornati tramite il nuovo percorso.
+
+---
+
 ## Modifiche al Data Model
 
-### Migration 029
+### Migration 029 (deploy prerequisito al codice)
+
+> ⚠️ **Dipendenza di deploy**: questa migration deve essere applicata in produzione **prima** del deploy del nuovo codice. Il codice utilizza la PK a 3 colonne `(esercizio, user_id, tipodoc)` — se la migration non è applicata, gli INSERT su `ft_counter` falliscono.
 
 ```sql
+BEGIN;
+
 -- 1. Separazione counter FT / KT
-ALTER TABLE agents.ft_counter ADD COLUMN IF NOT EXISTS tipodoc TEXT NOT NULL DEFAULT 'FT';
+--    Il default 'FT' trasforma le righe esistenti in righe FT.
+ALTER TABLE agents.ft_counter
+  ADD COLUMN IF NOT EXISTS tipodoc TEXT NOT NULL DEFAULT 'FT';
+
 ALTER TABLE agents.ft_counter DROP CONSTRAINT ft_counter_pkey;
 
+-- Seed KT al valore corrente di FT (conservativo: nessun conflitto garantito).
+-- Questa scelta spreca intenzionalmente alcuni numeri KT bassi per sicurezza.
+-- Il counter verrà aggiornato al valore reale Arca alla prima sync.
 INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
 SELECT esercizio, user_id, 'KT', last_number
-FROM agents.ft_counter WHERE tipodoc = 'FT'
+FROM agents.ft_counter
+WHERE tipodoc = 'FT'
 ON CONFLICT DO NOTHING;
 
 ALTER TABLE agents.ft_counter ADD PRIMARY KEY (esercizio, user_id, tipodoc);
 
--- 2. Link KT → FT companion warehouse
-ALTER TABLE agents.fresis_history
-  ADD COLUMN IF NOT EXISTS warehouse_companion_ft_id TEXT
-  REFERENCES agents.fresis_history(id);
+-- 2. Link KT order → FT companion warehouse (su order_records, non fresis_history)
+ALTER TABLE agents.order_records
+  ADD COLUMN IF NOT EXISTS warehouse_companion_ft_id TEXT;
+
+COMMIT;
 ```
 
 ### Campi invariati
@@ -70,20 +103,43 @@ ALTER TABLE agents.fresis_history
 
 ---
 
+## `getNextDocNumber` — Firma Aggiornata
+
+```typescript
+async function getNextDocNumber(
+  pool: DbPool,
+  userId: string,
+  esercizio: string,
+  tipodoc: 'FT' | 'KT',   // nuovo parametro obbligatorio
+): Promise<number>
+```
+
+**Call site da aggiornare (entrambi obbligatori):**
+
+1. `arca-sync-service.ts` → `generateKtExportVbs` — generazione numeri KT:
+   ```typescript
+   const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT')
+   ```
+
+2. `arca-sync-service.ts` → `generateKtExportVbs` — generazione numero FT companion:
+   ```typescript
+   const ftNum = await getNextDocNumber(pool, userId, esercizio, 'FT')
+   ```
+
+---
+
 ## Algoritmo `performArcaSync` — Flusso Aggiornato
 
 ### FASE 1 — Costruzione mappa Arca
 
 ```typescript
-// Tre strutture da buildare durante il parse:
-arcaDocMap:      Map<"ESERCIZIO|TIPODOC|NUMERODOC|CODICECF", ArcaRecord>
-arcaDocKeys:     Set<"ESERCIZIO|TIPODOC|NUMERODOC">   // conflict detection
-arcaMaxByTipodoc: Map<"ESERCIZIO|TIPODOC", number>    // max per tipo
+// Tre strutture da buildare durante il parse in parseNativeArcaFiles:
+arcaDocMap:       Map<"ESERCIZIO|TIPODOC|NUMERODOC|CODICECF", ArcaRecord>
+arcaDocKeys:      Set<"ESERCIZIO|TIPODOC|NUMERODOC">   // 3-part key per conflict detection
+arcaMaxByTipodoc: Map<"ESERCIZIO|TIPODOC", number>     // max numerodoc per tipo
 ```
 
-### FASE 2 — Aggiornamento counter separati
-
-Per ogni combinazione `(ESERCIZIO, TIPODOC)` trovata in Arca:
+### FASE 2 — Aggiornamento counter separati (usa nuova PK a 3 colonne)
 
 ```sql
 INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
@@ -92,33 +148,47 @@ ON CONFLICT (esercizio, user_id, tipodoc)
 DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)
 ```
 
+Eseguito per ogni `(ESERCIZIO, TIPODOC)` distinto trovato in Arca.
+
 ### FASE 3 — Import + Update da Arca
 
-Per ogni record in `arcaDocMap`:
-
 ```
-id = deterministicId(userId, esercizio, tipodoc, numerodoc, codicecf)
+Per ogni record in arcaDocMap:
+  id = deterministicId(userId, esercizio, tipodoc, numerodoc, codicecf)  // 5 argomenti
 
-IF id NON esiste in PWA DB:
-  → INSERT (comportamento attuale)
+  IF id NON esiste in PWA DB:
+    → INSERT (comportamento attuale)
 
-IF id esiste in PWA DB:
-  → UPDATE solo campi Arca-owned:
-    target_total_with_vat, discount_percent, items, shipping_cost,
-    shipping_tax, invoice_amount, invoice_date, notes,
-    archibald_order_number, arca_data, updated_at
+  IF id esiste in PWA DB:
+    → UPDATE solo campi Arca-owned:
+        target_total_with_vat, discount_percent, items, shipping_cost,
+        shipping_tax, invoice_amount, invoice_date, notes,
+        archibald_order_number, arca_data, updated_at
 
-  Campi PWA-owned NON toccati:
-    current_state, state_updated_at, ddt_number, ddt_delivery_date,
-    tracking_number, tracking_url, tracking_courier,
-    delivery_completed_date, revenue, merged_into_order_id, merged_at,
-    invoice_closed, invoice_remaining_amount, invoice_due_date
+    Campi PWA-owned NON toccati:
+        current_state, state_updated_at, ddt_number, ddt_delivery_date,
+        tracking_number, tracking_url, tracking_courier,
+        delivery_completed_date, revenue, merged_into_order_id, merged_at,
+        invoice_closed, invoice_remaining_amount, invoice_due_date
 ```
 
 ### FASE 4 — Soft Delete
 
+Confronto tra `invoice_number` dei record PWA e le chiavi a 3 parti di `arcaDocKeys`.
+
+La chiave viene ricostruita dall'`invoice_number` con parsing:
+```typescript
+// invoice_number = "FT 326/2026" → key = "2026|FT|326"
+function invoiceNumberToKey(invoiceNumber: string): string | null {
+  const m = invoiceNumber.match(/^(\w+)\s+(\d+)\/(\d{4})$/)
+  if (!m) return null
+  return `${m[3]}|${m[1]}|${m[2]}`
+}
 ```
-PWA records con source='arca_import' il cui invoice_number NON è in arcaDocMap:
+
+```
+PWA records con source='arca_import' il cui invoiceNumberToKey(invoice_number)
+NON è in arcaDocKeys:
   → UPDATE current_state = 'cancellato_in_arca', state_updated_at = NOW()
 
   SE il record ha ddt_number IS NOT NULL
@@ -131,25 +201,25 @@ PWA records con source='arca_import' il cui invoice_number NON è in arcaDocMap:
 
 ```
 Per ogni record source='app' con arca_data IS NOT NULL:
-  key = "ESERCIZIO|TIPODOC|NUMERODOC"
+  key = invoiceNumberToKey(invoice_number)  // "ESERCIZIO|TIPODOC|NUMERODOC"
 
   IF key IN arcaDocKeys:
-    // Numero occupato da un documento Arca diverso → rinumera
+    // Numero occupato da un doc Arca con CODICECF diverso → rinumera
     tipodoc = arca_data.testata.TIPODOC  // 'FT' o 'KT'
     newNum = getNextDocNumber(pool, userId, esercizio, tipodoc)
 
     UPDATE agents.fresis_history SET:
-      invoice_number        = "{tipodoc} {newNum}/{esercizio}"
+      invoice_number         = "{tipodoc} {newNum}/{esercizio}"
       archibald_order_number = "{tipodoc} {newNum}/{esercizio}"
-      arca_data             = JSON patch: testata.NUMERODOC = newNum
-      updated_at            = NOW()
+      arca_data              = JSON patch: testata.NUMERODOC = String(newNum)
+      updated_at             = NOW()
 
     renumbered++
 ```
 
 ### FASE 6 — Build exportRecords per VBS
 
-Invariata rispetto al flusso attuale, ma usa i numeri già normalizzati dalla FASE 5.
+Invariata rispetto al flusso attuale, usa i numeri già normalizzati dalla FASE 5.
 
 ---
 
@@ -157,40 +227,18 @@ Invariata rispetto al flusso attuale, ma usa i numeri già normalizzati dalla FA
 
 ```typescript
 type SyncResult = {
-  imported: number;
-  skipped: number;
-  exported: number;
-  updated: number;          // NUOVO: record aggiornati da Arca
-  softDeleted: number;      // NUOVO: record marcati cancellato_in_arca
-  renumbered: number;       // NUOVO: record PWA rinumerati
-  deletionWarnings: Array<{ // NUOVO: cancellazioni con dati PWA
+  // ...esistenti...
+  updated: number;           // record aggiornati da Arca
+  softDeleted: number;       // record marcati cancellato_in_arca
+  renumbered: number;        // record PWA rinumerati
+  deletionWarnings: Array<{  // cancellazioni con dati PWA a rischio
     invoiceNumber: string;
     hasTracking: boolean;
     hasDdt: boolean;
     hasDelivery: boolean;
   }>;
-  ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
-  ktMissingArticles: string[];
-  errors: string[];
-  ftExportRecords: VbsExportRecord[];
-  parseStats: NativeParseResult['stats'];
 }
 ```
-
----
-
-## `getNextDocNumber` — Firma Aggiornata
-
-```typescript
-async function getNextDocNumber(
-  pool: DbPool,
-  userId: string,
-  esercizio: string,
-  tipodoc: 'FT' | 'KT',  // NUOVO parametro
-): Promise<number>
-```
-
-Tutti i chiamanti aggiornati di conseguenza.
 
 ---
 
@@ -198,39 +246,53 @@ Tutti i chiamanti aggiornati di conseguenza.
 
 ### Rilevamento articoli warehouse
 
-Per ogni KT order eligible, dopo aver caricato gli `order_articles`:
+```typescript
+// warehouseQuantity è mappato da warehouse_quantity nel repository orders.ts (verificato)
+const warehouseArticles = articles
+  .filter(a => (a.warehouseQuantity ?? 0) > 0)
+  .map(a => ({ ...a, quantity: a.warehouseQuantity! }))
 
+// Casistiche:
+// qty=10, warehouse_qty=10 → escluso dalla KT, FT qty=10   (fully warehouse)
+// qty=10, warehouse_qty=3  → KT qty=7,  FT qty=3           (partial)
+// qty=10, warehouse_qty=0  → KT qty=10, non va in FT        (no warehouse)
 ```
-warehouseArticles = articles.filter(a => a.warehouseQuantity > 0)
-  .map(a => ({ ...a, quantity: a.warehouseQuantity }))
 
-Casistiche:
-  qty=10, warehouse_qty=10 → escluso dalla KT, FT qty=10   (fully warehouse)
-  qty=10, warehouse_qty=3  → KT qty=7,  FT qty=3           (partial)
-  qty=10, warehouse_qty=0  → KT qty=10, non va in FT        (no warehouse)
+### Guard: KT con tutti articoli da magazzino
+
+```typescript
+const nonWarehouseArticles = articles.filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
+
+if (nonWarehouseArticles.length === 0) {
+  // Ordine completamente da magazzino: non generare la KT in Arca.
+  // Genera solo la FT companion se ci sono warehouse articles.
+  // Non pushare nulla in exportRecords per la KT.
+} else {
+  // Genera KT normalmente con nonWarehouseArticles (quantità ridotta per i partial)
+  exportRecords.push({ invoiceNumber: `KT ${docNumber}/${esercizio}`, arcaData: ktArcaData })
+}
 ```
 
-### Generazione FT companion (se warehouseArticles non vuoto)
+### Generazione FT companion (se `warehouseArticles.length > 0`)
 
 ```typescript
 const ftNum = await getNextDocNumber(pool, userId, esercizio, 'FT')
 
 const arcaDataFt = generateArcaDataFromOrder(
   { ...orderData },
-  warehouseArticles,
+  warehouseArticles,   // solo articoli con qty = warehouseQuantity
   subclient,
   ftNum,
   esercizio,
-  'FT',   // tipodoc override
+  'FT',                // tipodoc override
 )
 
-// Aggiunta al VBS
 exportRecords.push({
   invoiceNumber: `FT ${ftNum}/${esercizio}`,
   arcaData: arcaDataFt,
 })
 
-// Salvataggio in DB
+// Salvataggio in DB (idempotente via deterministicId)
 const ftCompanionId = deterministicId(userId, esercizio, 'FT', String(ftNum), subclient.codice)
 await insertFresisHistoryRecord(pool, {
   id: ftCompanionId,
@@ -241,7 +303,7 @@ await insertFresisHistoryRecord(pool, {
   // eredita sub_client, customer, date, discount dal KT parent
 })
 
-// Link KT → FT companion
+// Link su order_records (non fresis_history)
 await pool.query(
   `UPDATE agents.order_records
    SET warehouse_companion_ft_id = $1
@@ -254,10 +316,10 @@ await pool.query(
 
 ```
 ' --- KT 333/2026 ---
-  TIPODOC = KT, NUMERODOC = 333, ...righe KT (senza warehouse articles)
+  TIPODOC = KT, NUMERODOC = 333, righe senza warehouse articles (o quantità ridotta)
 
 ' --- FT 127/2026 --- (warehouse companion)
-  TIPODOC = FT, NUMERODOC = 127, ...righe warehouse only
+  TIPODOC = FT, NUMERODOC = 127, righe con soli articoli da magazzino
 ```
 
 Entrambi generano la rispettiva riga in `SCADENZE.DBF`.
@@ -280,13 +342,12 @@ const isCancelled = record.currentState === 'cancellato_in_arca'
       CANCELLATO IN ARCA
     </span>
   )}
-  {/* contenuto card */}
 </div>
 ```
 
 ### Esclusione dalla ricerca storico
 
-Filtro applicato **lato backend** nelle query di ricerca storico usate durante la creazione ordine:
+Filtro applicato **lato backend** in tutte le query di ricerca storico usate durante la creazione ordine:
 
 ```sql
 WHERE current_state != 'cancellato_in_arca'
@@ -325,7 +386,7 @@ WHERE current_state != 'cancellato_in_arca'
 
 ## Comportamento ANAGRAFE
 
-Gli errori ANAGRAFE `NUMERO_P` osservati nel log del 19/03 sono probabilmente causati dal fallimento dei doctes precedenti che può corrompere lo stato del cursore VFP per le operazioni successive. La correzione dei conflitti FT/KT (FASE 5) dovrebbe ridurre drasticamente questi errori eliminando la causa principale. Monitorare il log della sync successiva.
+Gli errori ANAGRAFE `NUMERO_P` osservati nel log del 19/03 sono probabilmente causati dal fallimento dei doctes precedenti che può corrompere lo stato del cursore VFP. La correzione dei conflitti FT/KT (FASE 5) dovrebbe ridurre drasticamente questi errori eliminando la causa principale. Monitorare il log della sync successiva.
 
 ---
 
@@ -333,11 +394,13 @@ Gli errori ANAGRAFE `NUMERO_P` osservati nel log del 19/03 sono probabilmente ca
 
 | Caso | Comportamento |
 |---|---|
-| PWA crea FT 326, operatore crea FT 326 in Arca con stesso CODICECF | FASE 3: update PWA da Arca (stesso documento) |
-| PWA crea FT 326, operatore crea FT 326 in Arca con CODICECF diverso | FASE 5: rinumera FT PWA a 327+ |
+| PWA crea FT 326, operatore crea FT 326 con stesso CODICECF | FASE 3: update PWA da Arca (stesso documento, 5-arg ID coincide) |
+| PWA crea FT 326, operatore crea FT 326 con CODICECF diverso | FASE 5: rinumera FT PWA a 327+ |
+| Record importato via percorso legacy (4-arg ID) modificato in Arca | Non viene aggiornato via FASE 3; protetto da re-import via invoice_number |
 | Operatore cancella FT già consegnata con tracking PWA | Soft delete + warning in SyncResult |
-| KT con tutti articoli da magazzino (`warehouse-XXX`) | Non eligible per KT export; se ha warehouse articles, genera solo FT companion |
-| KT companion FT già generata, viene ri-eseguito finalize-kt | `deterministicId` garantisce idempotenza: no duplicati |
+| KT con TUTTI articoli da magazzino | Nessuna KT in VBS; solo FT companion se warehouseArticles presenti |
+| KT con articoli PARZIALMENTE da magazzino | KT con qty ridotta + FT companion con qty warehouse |
+| finalize-kt eseguito due volte per stesso ordine | deterministicId su FT companion garantisce idempotenza |
 
 ---
 
@@ -345,14 +408,14 @@ Gli errori ANAGRAFE `NUMERO_P` osservati nel log del 19/03 sono probabilmente ca
 
 ### Backend
 - `src/db/migrations/029-arca-bidirectional-sync.sql` ← NUOVO
-- `src/services/ft-counter.ts` — aggiunge parametro `tipodoc`
-- `src/services/arca-sync-service.ts` — fasi 2-5 + FT companion
-- `src/services/generate-arca-data-from-order.ts` — supporto `tipodoc` override
+- `src/services/ft-counter.ts` — aggiunge parametro `tipodoc` obbligatorio
+- `src/services/arca-sync-service.ts` — fasi 2-5 + FT companion + call sites `getNextDocNumber`
+- `src/services/generate-arca-data-from-order.ts` — supporto `tipodoc` override ('FT' vs 'KT')
 
 ### Frontend
-- `src/pages/FresisHistoryPage.tsx` (o equivalente) — stile barrato + warning
-- Qualsiasi query che alimenta la ricerca storico durante creazione ordine
+- Componenti lista storico Fresis — stile barrato + badge + warning
+- Query/service storico durante creazione ordine — aggiunge filtro `current_state != 'cancellato_in_arca'`
 
 ### Test
-- `src/services/arca-sync-service.spec.ts` — test per update, soft delete, renumber
+- `src/services/arca-sync-service.spec.ts` — test per update, soft delete, renumber, FT companion
 - `src/services/ft-counter.spec.ts` — test per counter separato FT/KT
