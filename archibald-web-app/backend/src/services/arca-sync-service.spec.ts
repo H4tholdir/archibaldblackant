@@ -7,6 +7,7 @@ import {
   performArcaSync,
   generateKtExportVbs,
   invoiceNumberToKey,
+  splitArticlesByWarehouse,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -1058,30 +1059,38 @@ function createMockPool(overrides?: {
   );
 });
 
-describe('generateKtExportVbs - warehouse articles detection', () => {
-  test('splits articles into KT (non-warehouse) and FT companion (warehouse)', () => {
-    const articles = [
-      { articleCode: 'ART1', quantity: 10, warehouseQuantity: 0,  unitPrice: 5, discountPercent: 0, vatPercent: 22, lineAmount: 50,  articleDescription: 'A', unit: 'PZ' },
-      { articleCode: 'ART2', quantity:  5, warehouseQuantity: 5,  unitPrice: 3, discountPercent: 0, vatPercent: 22, lineAmount: 15,  articleDescription: 'B', unit: 'PZ' },
-      { articleCode: 'ART3', quantity: 10, warehouseQuantity: 3,  unitPrice: 2, discountPercent: 0, vatPercent: 22, lineAmount: 14,  articleDescription: 'C', unit: 'PZ' },
-    ];
+describe('splitArticlesByWarehouse', () => {
+  // ART1: fully non-warehouse (qty=10, wh=0)  -> KT qty=10, no FT
+  // ART2: fully warehouse   (qty=5,  wh=5)   -> no KT, FT qty=5
+  // ART3: partial           (qty=10, wh=3)   -> KT qty=7, FT qty=3
+  const articles = [
+    { articleCode: 'ART1', quantity: 10, warehouseQuantity: 0,  unitPrice: 5, discountPercent: 0, vatPercent: 22, lineAmount: 50,  articleDescription: 'A', unit: 'PZ' },
+    { articleCode: 'ART2', quantity:  5, warehouseQuantity: 5,  unitPrice: 3, discountPercent: 0, vatPercent: 22, lineAmount: 15,  articleDescription: 'B', unit: 'PZ' },
+    { articleCode: 'ART3', quantity: 10, warehouseQuantity: 3,  unitPrice: 2, discountPercent: 0, vatPercent: 22, lineAmount: 14,  articleDescription: 'C', unit: 'PZ' },
+  ];
 
-    const nonWarehouse = articles
-      .filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
-      .map(a => ({ ...a, quantity: a.quantity - (a.warehouseQuantity ?? 0) }));
+  test('non-warehouse contains ART1 (full qty) and ART3 (reduced qty)', () => {
+    const { nonWarehouse } = splitArticlesByWarehouse(articles);
+    expect(nonWarehouse).toEqual([
+      expect.objectContaining({ articleCode: 'ART1', quantity: 10 }),
+      expect.objectContaining({ articleCode: 'ART3', quantity: 7 }),
+    ]);
+  });
 
-    const warehouse = articles
-      .filter(a => (a.warehouseQuantity ?? 0) > 0)
-      .map(a => ({ ...a, quantity: a.warehouseQuantity! }));
+  test('warehouse contains ART2 (full qty) and ART3 (warehouse qty)', () => {
+    const { warehouse } = splitArticlesByWarehouse(articles);
+    expect(warehouse).toEqual([
+      expect.objectContaining({ articleCode: 'ART2', quantity: 5 }),
+      expect.objectContaining({ articleCode: 'ART3', quantity: 3 }),
+    ]);
+  });
 
-    // ART1: non-warehouse (qty=10, wh=0)  -> KT qty=10
-    // ART2: fully warehouse (qty=5, wh=5) -> FT qty=5 solo
-    // ART3: partial (qty=10, wh=3)        -> KT qty=7 + FT qty=3
-    expect(nonWarehouse).toHaveLength(2);  // ART1 and ART3
-    expect(nonWarehouse.find(a => a.articleCode === 'ART3')!.quantity).toBe(7);
-    expect(warehouse).toHaveLength(2);     // ART2 and ART3
-    expect(warehouse.find(a => a.articleCode === 'ART2')!.quantity).toBe(5);
-    expect(warehouse.find(a => a.articleCode === 'ART3')!.quantity).toBe(3);
+  test('null warehouseQuantity treated as 0', () => {
+    const { nonWarehouse, warehouse } = splitArticlesByWarehouse([
+      { articleCode: 'X', quantity: 4, warehouseQuantity: null },
+    ]);
+    expect(nonWarehouse).toEqual([expect.objectContaining({ articleCode: 'X', quantity: 4 })]);
+    expect(warehouse).toHaveLength(0);
   });
 });
 

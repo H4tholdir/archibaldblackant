@@ -1382,6 +1382,22 @@ export type KtExportResult = {
   vbsScript: VbsResult | null;
 };
 
+type SplittableArticle = { quantity: number; warehouseQuantity: number | null };
+
+export function splitArticlesByWarehouse<T extends SplittableArticle>(
+  articles: T[],
+): { nonWarehouse: T[]; warehouse: T[] } {
+  const nonWarehouse = articles
+    .filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
+    .map(a => ({ ...a, quantity: a.quantity - (a.warehouseQuantity ?? 0) })) as T[];
+
+  const warehouse = articles
+    .filter(a => (a.warehouseQuantity ?? 0) > 0)
+    .map(a => ({ ...a, quantity: a.warehouseQuantity! })) as T[];
+
+  return { nonWarehouse, warehouse };
+}
+
 export async function generateKtExportVbs(
   pool: DbPool,
   userId: string,
@@ -1430,13 +1446,8 @@ export async function generateKtExportVbs(
     });
 
     // Split articles: non-warehouse -> KT, warehouse portion -> FT companion
-    const nonWarehouseArticles = articles
-      .filter(a => (a.warehouseQuantity ?? 0) < a.quantity)
-      .map(a => ({ ...a, quantity: a.quantity - (a.warehouseQuantity ?? 0) }));
-
-    const warehouseArticles = articles
-      .filter(a => (a.warehouseQuantity ?? 0) > 0)
-      .map(a => ({ ...a, quantity: a.warehouseQuantity! }));
+    const { nonWarehouse: nonWarehouseArticles, warehouse: warehouseArticles } =
+      splitArticlesByWarehouse(articles);
 
     // Generate KT only if there are non-warehouse articles
     if (nonWarehouseArticles.length > 0) {
@@ -1471,9 +1482,9 @@ export async function generateKtExportVbs(
       await pool.query(
         `INSERT INTO agents.fresis_history
            (id, user_id, source, invoice_number, sub_client_codice, sub_client_name,
-            customer_id, target_total_with_vat, discount_percent, items, arca_data,
+            customer_id, customer_name, target_total_with_vat, discount_percent, items, arca_data,
             created_at, updated_at)
-         VALUES ($1, $2, 'app', $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+         VALUES ($1, $2, 'app', $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
          ON CONFLICT (id) DO NOTHING`,
         [
           ftCompanionId,
@@ -1482,6 +1493,7 @@ export async function generateKtExportVbs(
           subclient.codice,
           subclient.ragioneSociale,
           order.customerProfileId ?? '',
+          order.customerName,
           arcaDataFt.testata.TOTDOC ?? 0,
           order.discountPercent ?? 0,
           JSON.stringify([]),
