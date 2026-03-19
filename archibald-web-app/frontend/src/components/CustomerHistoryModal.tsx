@@ -7,6 +7,8 @@ import { priceService } from '../services/prices.service';
 import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
 import type { WarehouseMatch } from '../services/warehouse-matching';
 import { bestMatchLevel, WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
+import { WarehouseHistoryDialog } from './WarehouseHistoryDialog';
+import type { SelectedWarehouseMatch } from '../types/warehouse';
 
 type Props = {
   isOpen: boolean;
@@ -18,6 +20,13 @@ type Props = {
   onAddArticle: (item: PendingOrderItem, replace: boolean) => void;
   onAddOrder: (items: PendingOrderItem[], replace: boolean) => void;
   onEditMatching?: () => void;
+};
+
+type PendingDialogItem = {
+  article: CustomerFullHistoryOrder['articles'][number];
+  orderDiscountPercent: number;
+  orderSource: 'orders' | 'fresis';
+  matches: WarehouseMatch[];
 };
 
 function formatEur(n: number): string {
@@ -51,6 +60,8 @@ export function CustomerHistoryModal({
   const [copiedOrderIds, setCopiedOrderIds] = useState<Set<string>>(new Set());
   // Warehouse matches pre-fetch: Map<articleCode, WarehouseMatch[]>
   const [warehouseMatchMap, setWarehouseMatchMap] = useState<Map<string, WarehouseMatch[]>>(new Map());
+  // Pending dialog for single-article warehouse confirmation
+  const [pendingDialog, setPendingDialog] = useState<PendingDialogItem | null>(null);
 
   // Serializzato per evitare re-render infiniti con array come dipendenze
   const profileIdsKey = customerProfileIds.join(',');
@@ -227,6 +238,11 @@ export function CustomerHistoryModal({
       orderDiscountPercent: number,
       orderSource: 'orders' | 'fresis',
     ) => {
+      const matches = warehouseMatchMap.get(article.articleCode) ?? [];
+      if (matches.length > 0) {
+        setPendingDialog({ article, orderDiscountPercent, orderSource, matches });
+        return;
+      }
       const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
       const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
       onAddArticle(item, false);
@@ -241,7 +257,34 @@ export function CustomerHistoryModal({
         setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; });
       }, 1200);
     },
-    [buildPendingItem, onAddArticle, codeSubstitutions],
+    [buildPendingItem, onAddArticle, codeSubstitutions, warehouseMatchMap],
+  );
+
+  const handleDialogConfirm = useCallback(
+    async (selections: SelectedWarehouseMatch[]) => {
+      if (!pendingDialog) return;
+      const { article, orderDiscountPercent, orderSource } = pendingDialog;
+      const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+      const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+      const enriched: PendingOrderItem = {
+        ...item,
+        warehouseSources: selections.length > 0
+          ? selections.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity }))
+          : undefined,
+        warehouseQuantity: selections.reduce((s, sel) => s + sel.quantity, 0) || undefined,
+      };
+      onAddArticle(enriched, false);
+      setAddedCount((c) => c + 1);
+      setArticleBadges((prev) => {
+        const m = new Map(prev);
+        m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+        return m;
+      });
+      setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+      setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
+      setPendingDialog(null);
+    },
+    [pendingDialog, buildPendingItem, onAddArticle, codeSubstitutions],
   );
 
   const handleCopyOrder = useCallback(
@@ -459,6 +502,24 @@ export function CustomerHistoryModal({
           <SkippedDialog skipped={skippedDialog} onClose={() => setSkippedDialog([])} />
         )}
       </div>
+      {pendingDialog && (
+        <WarehouseHistoryDialog
+          articleCode={pendingDialog.article.articleCode}
+          description={pendingDialog.article.articleDescription}
+          requestedQuantity={pendingDialog.article.quantity}
+          matches={pendingDialog.matches}
+          onConfirm={handleDialogConfirm}
+          onSkip={async () => {
+            const { article, orderDiscountPercent, orderSource } = pendingDialog;
+            const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+            const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+            onAddArticle(item, false);
+            setAddedCount((c) => c + 1);
+            setPendingDialog(null);
+          }}
+          onCancel={() => setPendingDialog(null)}
+        />
+      )}
     </>
   );
 }
