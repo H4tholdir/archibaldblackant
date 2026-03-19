@@ -725,7 +725,7 @@ function createMockPool(overrides?: {
   );
 
   test(
-    "skips already-existing records on second sync",
+    "updates already-existing records on second sync with Arca-owned fields",
     async () => {
       const doctesBuf = readCoop16File("doctes.dbf");
       const docrigBuf = readCoop16File("docrig.dbf");
@@ -754,7 +754,8 @@ function createMockPool(overrides?: {
       );
 
       expect(result.imported).toBe(0);
-      expect(result.skipped).toBe(14996);
+      expect(result.updated).toBe(14996);
+      expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
     },

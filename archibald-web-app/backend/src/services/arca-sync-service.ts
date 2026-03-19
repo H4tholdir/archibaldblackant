@@ -1081,11 +1081,50 @@ export async function performArcaSync(
     existingRows.filter((r) => r.invoice_number).map((r) => r.invoice_number!),
   );
 
-  // 3. Filter new records vs existing (check both ID and invoice_number to avoid duplicates)
-  const newRecords = parsed.records.filter(
-    (r) => !existingIds.has(r.id) && !existingInvoiceNumbers.has(r.invoice_number),
-  );
-  const skipped = parsed.records.length - newRecords.length;
+  // 3. Classify records: update by ID, skip legacy invoice-number-only matches, insert new ones
+  const newRecords: FresisHistoryRow[] = [];
+  let updated = 0;
+
+  for (const record of parsed.records) {
+    if (existingIds.has(record.id)) {
+      await pool.query(
+        `UPDATE agents.fresis_history SET
+           target_total_with_vat  = $1,
+           discount_percent       = $2,
+           items                  = $3,
+           shipping_cost          = $4,
+           shipping_tax           = $5,
+           invoice_amount         = $6,
+           invoice_date           = $7,
+           notes                  = $8,
+           archibald_order_number = $9,
+           arca_data              = $10,
+           updated_at             = NOW()
+         WHERE id = $11 AND user_id = $12`,
+        [
+          record.target_total_with_vat,
+          record.discount_percent,
+          record.items,
+          record.shipping_cost,
+          record.shipping_tax,
+          record.invoice_amount,
+          record.invoice_date,
+          record.notes,
+          record.archibald_order_number,
+          record.arca_data,
+          record.id,
+          userId,
+        ],
+      );
+      updated++;
+    } else if (existingInvoiceNumbers.has(record.invoice_number)) {
+      // Legacy record matched by invoice_number only (4-arg deterministicId) — skip
+    } else {
+      newRecords.push(record);
+    }
+  }
+
+  const skipped = parsed.records.length - newRecords.length - updated;
 
   // 4. Upsert new records in batches
   let imported = 0;
@@ -1188,7 +1227,7 @@ export async function performArcaSync(
     imported,
     skipped,
     exported: exportRecords.length,
-    updated: 0,           // populated in Task 6
+    updated,
     softDeleted: 0,       // populated in Task 7
     renumbered: 0,        // populated in Task 8
     ktRecovered,          // from FASE 2b placeholder above
