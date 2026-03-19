@@ -992,6 +992,16 @@ export type SyncResult = {
   imported: number;
   skipped: number;
   exported: number;
+  updated: number;
+  softDeleted: number;
+  renumbered: number;
+  ktRecovered: number;
+  deletionWarnings: Array<{
+    invoiceNumber: string;
+    hasTracking: boolean;
+    hasDdt: boolean;
+    hasDelivery: boolean;
+  }>;
   ktNeedingMatch: Array<{ orderId: string; customerName: string }>;
   ktMissingArticles: string[];
   errors: string[];
@@ -1119,6 +1129,10 @@ export async function performArcaSync(
     );
   }
 
+  // FASE 2b — Recovery KT "synced but absent from Arca" — DEFERRED
+  // Requires migration 030 adding kt_arca_numerodoc TEXT to agents.order_records.
+  const ktRecovered = 0;
+
   // 6. Find PWA export candidates (source='app', arca_data IS NOT NULL)
   const { rows: pwaRows } = await pool.query<{
     id: string;
@@ -1174,6 +1188,11 @@ export async function performArcaSync(
     imported,
     skipped,
     exported: exportRecords.length,
+    updated: 0,           // populated in Task 6
+    softDeleted: 0,       // populated in Task 7
+    renumbered: 0,        // populated in Task 8
+    ktRecovered,          // from FASE 2b placeholder above
+    deletionWarnings: [], // populated in Task 7
     ktNeedingMatch,
     ktMissingArticles,
     errors,
