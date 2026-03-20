@@ -262,8 +262,9 @@ export function WarehouseMatchAccordion({
                     <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
                       {match.item.articleCode}
                     </span>
+                    <span style={{ color: '#cbd5e1', fontSize: 11, flexShrink: 0 }}>·</span>
                     <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      📦 {match.item.boxName}
+                      {match.item.boxName}
                     </span>
                   </div>
                   {/* Diff badge */}
