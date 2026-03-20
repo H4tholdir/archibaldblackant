@@ -292,19 +292,6 @@ export default function OrderFormSimple() {
   const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
   const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<number | null>(null);
 
-  // Fresis history: article purchase history for selected sub-client
-  const [articleHistory, setArticleHistory] = useState<{
-    found: boolean;
-    lastPurchase?: {
-      date: string;
-      quantity: number;
-      price: number;
-      discount?: number;
-      globalDiscount?: number;
-      vat: number;
-    };
-  } | null>(null);
-
   // Fresis history: top sold items modal
   const [showTopSoldModal, setShowTopSoldModal] = useState(false);
   const [topSoldItems, setTopSoldItems] = useState<
@@ -387,73 +374,6 @@ export default function OrderFormSimple() {
     }
     return [];
   }, [selectedCustomer, selectedSubClient]);
-
-  // History: find last purchase of selected article by client
-  useEffect(() => {
-    const needsSubClient = isFresis(selectedCustomer) && !selectedSubClient;
-    if (!selectedProduct || !selectedCustomer || needsSubClient) {
-      setArticleHistory(null);
-      return;
-    }
-
-    const searchArticleHistory = async () => {
-      const clientOrders = await loadOrderHistory();
-
-      const productCode = (
-        selectedProduct.article || selectedProduct.name
-      ).toLowerCase();
-      const variantCodes = new Set(
-        productVariants.map((v) => v.variantId.toLowerCase()),
-      );
-
-      let lastDate = "";
-      let lastItem: {
-        date: string;
-        quantity: number;
-        price: number;
-        discount?: number;
-        globalDiscount?: number;
-        vat: number;
-      } | null = null;
-
-      for (const order of clientOrders) {
-        for (const item of order.items) {
-          const code = (item.articleCode || "").toLowerCase();
-          const name = (item.productName || "").toLowerCase();
-          const desc = (item.description || "").toLowerCase();
-
-          const matches =
-            code.includes(productCode) ||
-            productCode.includes(code) ||
-            name.includes(productCode) ||
-            productCode.includes(name) ||
-            desc.includes(productCode) ||
-            variantCodes.has(code);
-
-          if (matches) {
-            const orderDate = order.createdAt || (order as { updatedAt?: string }).updatedAt || "";
-            if (orderDate > lastDate) {
-              lastDate = orderDate;
-              lastItem = {
-                date: orderDate,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-                globalDiscount: order.discountPercent,
-                vat: item.vat,
-              };
-            }
-          }
-        }
-      }
-
-      setArticleHistory(
-        lastItem ? { found: true, lastPurchase: lastItem } : { found: false },
-      );
-    };
-
-    searchArticleHistory();
-  }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants, loadOrderHistory]);
 
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
@@ -1343,34 +1263,6 @@ export default function OrderFormSimple() {
     toastService.success(
       `Prezzo applicato: ${formatCurrency(sale.unitPrice)}${roundedDiscount > 0 ? ` (sconto ${roundedDiscount}%)` : ""}`,
     );
-  };
-
-  const handleApplyLastPurchase = () => {
-    if (!articleHistory?.lastPurchase) return;
-    const p = articleHistory.lastPurchase;
-    const rowDisc = p.discount || 0;
-    const globalDisc = p.globalDiscount || 0;
-
-    const compound =
-      (1 - (1 - rowDisc / 100) * (1 - globalDisc / 100)) * 100;
-    const roundedDiscount = Math.round(compound * 100) / 100;
-
-    if (canEditPrice) {
-      setListPrice(p.price.toString());
-      if (roundedDiscount > 0) setItemDiscount(roundedDiscount.toString());
-      toastService.success(
-        `Ultimo acquisto applicato: ${formatCurrency(p.price)}${roundedDiscount > 0 ? `, sconto ${roundedDiscount}%` : ""}`,
-      );
-    } else {
-      if (roundedDiscount > 0) {
-        setItemDiscount(roundedDiscount.toString());
-        toastService.success(
-          `Sconto ultimo acquisto applicato: ${roundedDiscount}%`,
-        );
-      } else {
-        toastService.info("Nessuno sconto da applicare dall'ultimo acquisto");
-      }
-    }
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
@@ -3688,99 +3580,6 @@ export default function OrderFormSimple() {
                       Caricamento varianti...
                     </div>
                   )}
-
-                  {/* Storico acquisti cliente (amber section) */}
-                  {selectedCustomer &&
-                    articleHistory && (
-                      <div
-                        style={{
-                          marginTop: "0.75rem",
-                          padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
-                          background: "#fef3c7",
-                          border: "1px solid #f59e0b",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        {articleHistory.found && articleHistory.lastPurchase ? (
-                          <div
-                            onClick={handleApplyLastPurchase}
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "0.75rem",
-                              alignItems: "center",
-                              fontSize: isMobile ? "0.85rem" : "0.9rem",
-                              fontWeight: "600",
-                              color: "#92400e",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span style={{ fontWeight: "700" }}>
-                              Ultimo acquisto:{" "}
-                              <span style={{ fontWeight: "400", fontSize: "0.75rem", opacity: 0.7 }}>
-                                (clicca per applicare)
-                              </span>
-                            </span>
-                            <span>
-                              {new Date(
-                                articleHistory.lastPurchase.date,
-                              ).toLocaleDateString("it-IT")}
-                            </span>
-                            <span>
-                              Qt: {articleHistory.lastPurchase.quantity}
-                            </span>
-                            <span>
-                              Prezzo:{" "}
-                              {formatCurrency(
-                                articleHistory.lastPurchase.price,
-                              )}
-                            </span>
-                            {(() => {
-                              const p = articleHistory.lastPurchase;
-                              const row = p.discount || 0;
-                              const global = p.globalDiscount || 0;
-                              if (row && global) {
-                                const compound = Math.round((1 - (1 - row / 100) * (1 - global / 100)) * 10000) / 100;
-                                return <span>Sconto: {row}%+{global}% = {compound}%</span>;
-                              }
-                              if (global) return <span>Sconto: {global}% (globale)</span>;
-                              if (row) return <span>Sconto: {row}%</span>;
-                              return null;
-                            })()}
-                            <span>IVA: {articleHistory.lastPurchase.vat}%</span>
-                            <span style={{ color: "#1e40af" }}>
-                              Netto:{" "}
-                              {(() => {
-                                const p = articleHistory.lastPurchase;
-                                const netto =
-                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
-                                return formatCurrency(netto);
-                              })()}
-                            </span>
-                            <span style={{ color: "#065f46" }}>
-                              Totale:{" "}
-                              {(() => {
-                                const p = articleHistory.lastPurchase;
-                                const netto =
-                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
-                                const total = netto * (1 + p.vat / 100);
-                                return formatCurrency(total);
-                              })()}
-                            </span>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: isMobile ? "0.85rem" : "0.9rem",
-                              color: "#92400e",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Articolo mai acquistato da questo cliente
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                   {/* Disponibilità magazzino (green section) */}
                   {selectedProduct && (
