@@ -1139,6 +1139,8 @@ export default function OrderFormSimple() {
     setProductVariants([]);
     setListPrice("");
 
+    setActiveMatchLevel('none');
+
     // Reset items
     setItems([]);
     setGlobalDiscountPercent("");
@@ -3152,6 +3154,12 @@ export default function OrderFormSimple() {
                 setListPrice("");
                 setDeliveryAddresses([]);
                 setSelectedDeliveryAddressId(null);
+                setSelectedProduct(null);
+                setProductSearch("");
+                setProductResults([]);
+                setProductVariants([]);
+                setWarehouseSelection([]);
+                setActiveMatchLevel('none');
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
