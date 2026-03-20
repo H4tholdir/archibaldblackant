@@ -17,8 +17,10 @@ import {
 } from "./WarehouseMatchAccordion";
 import { batchRelease } from "../api/warehouse";
 import { getFresisHistory } from "../api/fresis-history";
-import { getOrderHistory } from "../api/orders-history";
 import { getDiscountForArticle } from "../api/fresis-discounts";
+import { getCustomerFullHistory } from '../api/customer-full-history';
+import { aggregateTopSold } from '../utils/aggregate-top-sold';
+import type { TopSoldItem } from '../utils/aggregate-top-sold';
 import { calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../types/sub-client";
@@ -294,14 +296,7 @@ export default function OrderFormSimple() {
 
   // Fresis history: top sold items modal
   const [showTopSoldModal, setShowTopSoldModal] = useState(false);
-  const [topSoldItems, setTopSoldItems] = useState<
-    Array<{
-      articleCode: string;
-      productName: string;
-      description?: string;
-      totalQuantity: number;
-    }>
-  >([]);
+  const [topSoldItems, setTopSoldItems] = useState<TopSoldItem[]>([]);
 
   // Customer history modals
   const [showCustomerHistoryModal, setShowCustomerHistoryModal] = useState(false);
@@ -309,6 +304,7 @@ export default function OrderFormSimple() {
   const [matchingForceShow, setMatchingForceShow] = useState(false);
   const [historyCustomerProfileIds, setHistoryCustomerProfileIds] = useState<string[]>([]);
   const [historySubClientCodices, setHistorySubClientCodices] = useState<string[]>([]);
+  const [pendingMatchingAction, setPendingMatchingAction] = useState<'history' | 'topSold' | null>(null);
 
   // Animazione nuove righe
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
@@ -381,15 +377,6 @@ export default function OrderFormSimple() {
     calculateRevenue();
   }, [items, selectedCustomer, selectedSubClient]);
 
-  // Load order history from the right source (Fresis or general)
-  const loadOrderHistory = useCallback(async (): Promise<Array<{ id: string; createdAt: string; updatedAt?: string; discountPercent?: number; items: Array<{ articleCode: string; productName?: string; description?: string; quantity: number; price: number; discount?: number; vat: number }> }>> => {
-    if (isFresis(selectedCustomer) && selectedSubClient) {
-      return await getFresisHistory(selectedSubClient.codice);
-    } else if (selectedCustomer) {
-      return await getOrderHistory(selectedCustomer.name);
-    }
-    return [];
-  }, [selectedCustomer, selectedSubClient]);
 
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
@@ -837,43 +824,11 @@ export default function OrderFormSimple() {
     }, 0);
   };
 
-  const loadTopSoldItems = async () => {
+  const loadTopSoldItems = () => {
     if (!selectedCustomer) return;
-
-    const allOrders = await loadOrderHistory();
-
-    const aggregated = new Map<
-      string,
-      {
-        articleCode: string;
-        productName: string;
-        description?: string;
-        totalQuantity: number;
-      }
-    >();
-
-    for (const order of allOrders) {
-      for (const item of order.items) {
-        const key = item.productName || item.articleCode;
-        const existing = aggregated.get(key);
-        if (existing) {
-          existing.totalQuantity += item.quantity;
-        } else {
-          aggregated.set(key, {
-            articleCode: item.articleCode,
-            productName: item.productName || item.articleCode,
-            description: item.description,
-            totalQuantity: item.quantity,
-          });
-        }
-      }
-    }
-
-    const sorted = Array.from(aggregated.values()).sort(
-      (a, b) => b.totalQuantity - a.totalQuantity,
-    );
-    setTopSoldItems(sorted);
-    setShowTopSoldModal(true);
+    if (isFresis(selectedCustomer) && !selectedSubClient) return;
+    setPendingMatchingAction('topSold');
+    setShowMatchingManagerModal(true);
   };
 
   const selectArticleFromHistory = async (articleCode: string) => {
@@ -890,12 +845,49 @@ export default function OrderFormSimple() {
   const handleHistorySearchClick = useCallback(() => {
     if (!selectedCustomer) return;
     if (isFresis(selectedCustomer) && !selectedSubClient) {
-      // Fresis senza sottocliente selezionato: apri direttamente storico
       setShowCustomerHistoryModal(true);
       return;
     }
+    setPendingMatchingAction('history');
     setShowMatchingManagerModal(true);
   }, [selectedCustomer, selectedSubClient]);
+
+  const aggregateAndShowTopSold = useCallback(async (profileIds: string[], subClientCodices: string[]) => {
+    const orders = await getCustomerFullHistory({ customerProfileIds: profileIds, subClientCodices });
+    const sorted = aggregateTopSold(orders);
+    setTopSoldItems(sorted);
+    setShowTopSoldModal(true);
+  }, []);
+
+  const dispatchMatchingResult = useCallback((ids: { customerProfileIds: string[]; subClientCodices: string[] } | undefined) => {
+    if (!selectedCustomer) return;
+    let profileIds = historyCustomerProfileIds;
+    let subClientCodices = historySubClientCodices;
+    if (ids) {
+      profileIds = ids.customerProfileIds;
+      subClientCodices = isFresis(selectedCustomer) && selectedSubClient
+        ? [selectedSubClient.codice, ...ids.subClientCodices]
+        : ids.subClientCodices;
+      setHistoryCustomerProfileIds(profileIds);
+      setHistorySubClientCodices(subClientCodices);
+    } else if (isFresis(selectedCustomer) && selectedSubClient) {
+      // ids===undefined means skip without matches: for Fresis subclient, ensure
+      // at least the current sub-client codice is present even if arrays are empty
+      // (case: first open with skip=true and no saved matching)
+      if (!subClientCodices.includes(selectedSubClient.codice)) {
+        subClientCodices = [selectedSubClient.codice, ...subClientCodices];
+        setHistorySubClientCodices(subClientCodices);
+      }
+    }
+    setMatchingForceShow(false);
+    setShowMatchingManagerModal(false);
+    if (pendingMatchingAction === 'history') {
+      setShowCustomerHistoryModal(true);
+    } else if (pendingMatchingAction === 'topSold') {
+      void aggregateAndShowTopSold(profileIds, subClientCodices);
+    }
+    setPendingMatchingAction(null);
+  }, [historyCustomerProfileIds, historySubClientCodices, pendingMatchingAction, selectedCustomer, selectedSubClient, aggregateAndShowTopSold]);
 
   const addItemsWithAnimation = useCallback((newItems: OrderItem[]) => {
     const ids = new Set(newItems.map((i) => i.id));
@@ -5184,7 +5176,7 @@ export default function OrderFormSimple() {
                           {item.articleCode}
                         </td>
                         <td style={{ padding: "0.5rem", color: "#374151" }}>
-                          {item.description || "—"}
+                          {item.productName || "—"}
                         </td>
                         <td
                           style={{
@@ -5282,24 +5274,8 @@ export default function OrderFormSimple() {
                 subClientCodice={selectedSubClient.codice}
                 entityName={selectedSubClient.ragioneSociale ?? selectedSubClient.codice}
                 forceShow={matchingForceShow}
-                onConfirm={(ids) => {
-                  setHistoryCustomerProfileIds(ids.customerProfileIds);
-                  setHistorySubClientCodices([selectedSubClient.codice, ...ids.subClientCodices]);
-                  setMatchingForceShow(false);
-                  setShowMatchingManagerModal(false);
-                  setShowCustomerHistoryModal(true);
-                }}
-                onSkip={(matches) => {
-                  if (matches) {
-                    setHistoryCustomerProfileIds(matches.customerProfileIds);
-                    setHistorySubClientCodices([selectedSubClient.codice, ...matches.subClientCodices]);
-                  } else {
-                    setHistorySubClientCodices([selectedSubClient.codice]);
-                  }
-                  setMatchingForceShow(false);
-                  setShowMatchingManagerModal(false);
-                  setShowCustomerHistoryModal(true);
-                }}
+                onConfirm={(ids) => dispatchMatchingResult(ids)}
+                onSkip={(matches) => dispatchMatchingResult(matches ?? undefined)}
                 onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
               />
             );
@@ -5311,22 +5287,8 @@ export default function OrderFormSimple() {
                 customerProfileId={selectedCustomer.id}
                 entityName={selectedCustomer.name}
                 forceShow={matchingForceShow}
-                onConfirm={(ids) => {
-                  setHistoryCustomerProfileIds(ids.customerProfileIds);
-                  setHistorySubClientCodices(ids.subClientCodices);
-                  setMatchingForceShow(false);
-                  setShowMatchingManagerModal(false);
-                  setShowCustomerHistoryModal(true);
-                }}
-                onSkip={(matches) => {
-                  if (matches) {
-                    setHistoryCustomerProfileIds(matches.customerProfileIds);
-                    setHistorySubClientCodices(matches.subClientCodices);
-                  }
-                  setMatchingForceShow(false);
-                  setShowMatchingManagerModal(false);
-                  setShowCustomerHistoryModal(true);
-                }}
+                onConfirm={(ids) => dispatchMatchingResult(ids)}
+                onSkip={(matches) => dispatchMatchingResult(matches ?? undefined)}
                 onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
               />
             );
