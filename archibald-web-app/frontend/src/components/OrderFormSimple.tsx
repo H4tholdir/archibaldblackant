@@ -5075,11 +5075,34 @@ export default function OrderFormSimple() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                gap: "0.5rem",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
+              <h3 style={{ margin: 0, fontSize: "1.125rem", flex: 1 }}>
                 I più venduti — {selectedSubClient?.ragioneSociale}
               </h3>
+              <button
+                onClick={() => {
+                  setShowTopSoldModal(false);
+                  setMatchingForceShow(true);
+                  setPendingMatchingAction('topSold');
+                  setShowMatchingManagerModal(true);
+                }}
+                style={{
+                  background: "rgba(0,0,0,0.06)",
+                  border: "none",
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  color: "#374151",
+                }}
+              >
+                ✎ Modifica collegamenti
+              </button>
               <button
                 onClick={() => setShowTopSoldModal(false)}
                 style={{
@@ -5090,6 +5113,7 @@ export default function OrderFormSimple() {
                   padding: "0.25rem",
                   lineHeight: 1,
                   color: "#6b7280",
+                  flexShrink: 0,
                 }}
               >
                 ✕
@@ -5276,7 +5300,7 @@ export default function OrderFormSimple() {
                 forceShow={matchingForceShow}
                 onConfirm={(ids) => dispatchMatchingResult(ids)}
                 onSkip={(matches) => dispatchMatchingResult(matches ?? undefined)}
-                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
+                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); setPendingMatchingAction(null); }}
               />
             );
           }
@@ -5289,7 +5313,7 @@ export default function OrderFormSimple() {
                 forceShow={matchingForceShow}
                 onConfirm={(ids) => dispatchMatchingResult(ids)}
                 onSkip={(matches) => dispatchMatchingResult(matches ?? undefined)}
-                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); }}
+                onClose={() => { setMatchingForceShow(false); setShowMatchingManagerModal(false); setPendingMatchingAction(null); }}
               />
             );
           }
