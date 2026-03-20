@@ -224,6 +224,7 @@ function ArcaRow({
   const isSelected = item.order.id === selectedId;
   const rowBaseStyle = arcaRowStyle(index, isSelected);
   const isCancelled = item.order.currentState === 'cancellato_in_arca';
+  const rowTotalWidth = colWidths.reduce((sum, w) => sum + w, 0);
 
   const lastColIdx = COLUMNS.length - 1;
 
@@ -232,6 +233,7 @@ function ArcaRow({
       style={{
         ...rowStyle,
         ...rowBaseStyle,
+        width: rowTotalWidth,
         display: "flex",
         alignItems: "center",
         textDecoration: isCancelled ? 'line-through' : 'none',
