@@ -257,20 +257,35 @@ export function WarehouseMatchAccordion({
                     onChange={(e) => handleToggleMatch(match, e.target.checked)}
                     style={{ accentColor: colors.accentColor, width: 14, height: 14, flexShrink: 0 }}
                   />
-                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
-                    {match.item.articleCode}
-                  </span>
-                  <span style={{ color: '#cbd5e1', fontSize: 11 }}>·</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: colors.accentColor, whiteSpace: 'nowrap' }}>
-                    📦 {match.item.boxName} · {match.availableQty} pz
-                  </span>
+                  {/* Code + box name */}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                      {match.item.articleCode}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      📦 {match.item.boxName}
+                    </span>
+                  </div>
+                  {/* Diff badge */}
                   {shortDiff && (
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                      ({shortDiff})
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: colors.accentColor,
+                      background: colors.backgroundMid, border: `1px solid ${colors.borderColor}`,
+                      borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>
+                      {shortDiff}
                     </span>
                   )}
-                  {isUnavailable && (
-                    <span style={{ fontSize: 10, fontWeight: 600, color: '#991b1b', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                  {/* Quantity — large, prominent */}
+                  {!isUnavailable ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, minWidth: 36 }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 800, color: colors.accentColor, lineHeight: 1 }}>
+                        {match.availableQty}
+                      </span>
+                      <span style={{ fontSize: 9, fontWeight: 600, color: colors.accentColor, letterSpacing: '0.05em' }}>pz</span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: '#991b1b', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {match.item.reservedForOrder ? '🔒 Riservato' : '❌ Venduto'}
                     </span>
                   )}
