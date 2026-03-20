@@ -25,12 +25,19 @@ export function SubClientPickerModal({ customerProfileId, customerName, onMatche
 
   const normalizedQuery = normalizeSubClientCode(query);
   const isCodeLike = /^C\d{5}$/.test(normalizedQuery);
-  const filtered = subclients.filter(
-    (s) =>
-      s.ragioneSociale.toLowerCase().includes(query.toLowerCase()) ||
-      s.codice.toLowerCase().includes(query.toLowerCase()) ||
-      (isCodeLike && normalizeSubClientCode(s.codice) === normalizedQuery),
-  );
+  const filtered = subclients
+    .filter(
+      (s) =>
+        s.ragioneSociale.toLowerCase().includes(query.toLowerCase()) ||
+        s.codice.toLowerCase().includes(query.toLowerCase()) ||
+        (isCodeLike && normalizeSubClientCode(s.codice) === normalizedQuery),
+    )
+    .sort((a, b) => {
+      if (!isCodeLike) return 0;
+      const aExact = normalizeSubClientCode(a.codice) === normalizedQuery ? 0 : 1;
+      const bExact = normalizeSubClientCode(b.codice) === normalizedQuery ? 0 : 1;
+      return aExact - bExact;
+    });
 
   const handleSelect = useCallback(
     async (sub: Subclient) => {

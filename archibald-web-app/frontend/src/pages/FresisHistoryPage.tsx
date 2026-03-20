@@ -237,12 +237,18 @@ export function FresisHistoryPage() {
     const lower = subClientQuery.toLowerCase();
     const normalizedQuery = normalizeSubClientCode(subClientQuery);
     const isCodeLike = /^C\d{5}$/.test(normalizedQuery);
-    return uniqueSubClients.filter(
+    const matches = uniqueSubClients.filter(
       (sc) =>
         sc.name.toLowerCase().includes(lower) ||
         sc.codice.toLowerCase().includes(lower) ||
         (isCodeLike && normalizeSubClientCode(sc.codice) === normalizedQuery),
     );
+    if (!isCodeLike) return matches;
+    return matches.sort((a, b) => {
+      const aExact = normalizeSubClientCode(a.codice) === normalizedQuery ? 0 : 1;
+      const bExact = normalizeSubClientCode(b.codice) === normalizedQuery ? 0 : 1;
+      return aExact - bExact;
+    });
   }, [subClientQuery, uniqueSubClients]);
 
   // Filtering pipeline (date filtering done by backend, no need to re-filter here)

@@ -217,7 +217,10 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
         OR sc.pag ILIKE $1
         OR sc.listino ILIKE $1
         ${normalizedCode ? 'OR sc.codice ILIKE $2' : ''})`;
-  const sql = `${selectCols} WHERE sc.hidden = FALSE AND ${baseWhere} ORDER BY sc.ragione_sociale ASC`;
+  const orderBy = normalizedCode
+    ? `ORDER BY CASE WHEN sc.codice ILIKE $2 THEN 0 ELSE 1 END, sc.ragione_sociale ASC`
+    : `ORDER BY sc.ragione_sociale ASC`;
+  const sql = `${selectCols} WHERE sc.hidden = FALSE AND ${baseWhere} ${orderBy}`;
   const params: string[] = normalizedCode ? [pattern, normalizedCode] : [pattern];
   const { rows } = await pool.query<SubclientRow>(sql, params);
   return rows.map(mapRowToSubclient);
