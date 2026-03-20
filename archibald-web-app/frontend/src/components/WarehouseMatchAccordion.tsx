@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import {
   findWarehouseMatches,
+  parseArticleCode,
   type WarehouseMatch,
 } from "../services/warehouse-matching";
 import type { SelectedWarehouseMatch } from "../types/warehouse";
-import { WAREHOUSE_LEVEL_COLORS, WAREHOUSE_LEVEL_LABELS, bestMatchLevel } from '../utils/warehouse-theme';
+import { WAREHOUSE_LEVEL_COLORS, bestMatchLevel } from '../utils/warehouse-theme';
 import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 
 export type { SelectedWarehouseMatch };
@@ -173,19 +174,14 @@ export function WarehouseMatchAccordion({
     );
   }
 
-  const getLevelIcon = (level: string) => {
-    switch (level) {
-      case "exact":
-        return "✅";
-      case "figura-gambo":
-        return "🟢";
-      case "figura":
-        return "🟡";
-      case "description":
-        return "🟠";
-      default:
-        return "⚪";
-    }
+  const getShortDiff = (match: WarehouseMatch): string | null => {
+    if (match.level === 'exact') return null;
+    const input = parseArticleCode(articleCode);
+    const item = parseArticleCode(match.item.articleCode);
+    if (match.level === 'figura-gambo') return `misura ${item.misura} ≠ ${input.misura}`;
+    if (match.level === 'figura') return `gambo ${item.gambo} ≠ ${input.gambo}`;
+    if (match.level === 'description') return `figura ${item.figura} ≠ ${input.figura}`;
+    return null;
   };
 
   return (
@@ -231,21 +227,21 @@ export function WarehouseMatchAccordion({
             const selectedQty = selectedMatches.get(match.item.id) || 0;
             const isUnavailable =
               !!match.item.reservedForOrder || !!match.item.soldInOrder;
-
             const colors = WAREHOUSE_LEVEL_COLORS[match.level];
+            const shortDiff = getShortDiff(match);
 
             return (
               <div
                 key={match.item.id}
                 style={{
-                  background: isSelected ? colors.backgroundLight : 'white',
+                  background: isSelected ? colors.backgroundMid : 'white',
                   border: `1px solid ${colors.borderColor}`,
                   borderLeft: `3px solid ${colors.accentColor}`,
                   borderRadius: 6,
-                  padding: '8px 10px',
+                  padding: '6px 10px',
                   display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 10,
+                  alignItems: 'center',
+                  gap: 8,
                   transition: 'background 0.2s',
                   opacity: isUnavailable ? 0.5 : 1,
                   pointerEvents: isUnavailable ? 'none' : undefined,
@@ -253,7 +249,7 @@ export function WarehouseMatchAccordion({
                   flexDirection: 'column',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                   <input
                     type="checkbox"
                     checked={isSelected}
@@ -261,38 +257,23 @@ export function WarehouseMatchAccordion({
                     onChange={(e) => handleToggleMatch(match, e.target.checked)}
                     style={{ accentColor: colors.accentColor, width: 14, height: 14, flexShrink: 0 }}
                   />
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
-                        {match.item.articleCode}
-                      </span>
-                      <span style={{ fontSize: '0.8em', fontWeight: 500, color: colors.accentColor }}>
-                        {getLevelIcon(match.level)} {WAREHOUSE_LEVEL_LABELS[match.level]}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {match.item.description && (
-                        <span style={{ color: '#666', fontSize: '0.9em' }}>{match.item.description}</span>
-                      )}
-                      <span>📦 {match.item.boxName} · {match.availableQty} pz</span>
-                      {match.item.reservedForOrder && (
-                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 5px', fontSize: '0.75em', borderRadius: 3, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          🔒 Riservato
-                        </span>
-                      )}
-                      {match.item.soldInOrder && (
-                        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '1px 5px', fontSize: '0.75em', borderRadius: 3, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          ❌ Venduto
-                        </span>
-                      )}
-                    </div>
-                    {match.reason && (
-                      <div style={{ color: '#888', fontSize: '0.8em', fontStyle: 'italic', marginTop: 2 }}>
-                        {match.reason}
-                      </div>
-                    )}
-                  </div>
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                    {match.item.articleCode}
+                  </span>
+                  <span style={{ color: '#cbd5e1', fontSize: 11 }}>·</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: colors.accentColor, whiteSpace: 'nowrap' }}>
+                    📦 {match.item.boxName} · {match.availableQty} pz
+                  </span>
+                  {shortDiff && (
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                      ({shortDiff})
+                    </span>
+                  )}
+                  {isUnavailable && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: '#991b1b', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                      {match.item.reservedForOrder ? '🔒 Riservato' : '❌ Venduto'}
+                    </span>
+                  )}
                 </div>
 
                 {isSelected && (

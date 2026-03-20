@@ -3439,10 +3439,11 @@ export default function OrderFormSimple() {
                     <div
                       style={{
                         padding: isMobile ? "0.5rem" : "0.75rem",
-                        background: "#eff6ff",
+                        background: isThemed ? theme.backgroundLight : "#eff6ff",
                         borderRadius: "6px",
                         overflowX: "auto",
                         position: "relative",
+                        transition: 'background 0.4s',
                       }}
                     >
                       {isMobile && (
@@ -3474,16 +3475,18 @@ export default function OrderFormSimple() {
                           <thead>
                             <tr
                               style={{
-                                borderBottom: "2px solid #3b82f6",
+                                borderBottom: `2px solid ${isThemed ? theme.borderColor : '#3b82f6'}`,
+                                transition: 'border-color 0.4s',
                               }}
                             >
                               <th
                                 style={{
                                   textAlign: "left",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#1e40af",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
+                                  transition: 'color 0.4s',
                                 }}
                               >
                                 Codice Variante
@@ -3492,9 +3495,10 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "center",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#1e40af",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
+                                  transition: 'color 0.4s',
                                 }}
                               >
                                 Confezionamento
@@ -3503,9 +3507,10 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "right",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#1e40af",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
+                                  transition: 'color 0.4s',
                                 }}
                               >
                                 Prezzo
@@ -3514,9 +3519,10 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "right",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#1e40af",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
+                                  transition: 'color 0.4s',
                                 }}
                               >
                                 IVA
@@ -3530,7 +3536,7 @@ export default function OrderFormSimple() {
                                 style={{
                                   borderBottom:
                                     index < productVariants.length - 1
-                                      ? "1px solid #bfdbfe"
+                                      ? `1px solid ${isThemed ? theme.borderColor : '#bfdbfe'}`
                                       : "none",
                                 }}
                               >
