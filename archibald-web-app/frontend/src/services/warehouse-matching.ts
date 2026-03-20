@@ -17,8 +17,8 @@ export interface ArticleCodeParts {
 export type MatchLevel =
   | "exact" // 100% - Same article code
   | "figura-gambo" // 80% - Same figura + gambo, different misura
-  | "figura" // 60% - Same figura, different gambo/misura
-  | "description"; // 50% - Fuzzy description match
+  | "figura" // 60% - Same figura + misura, different gambo
+  | "description"; // 50% - Same gambo + misura, different figura, similar description ≥70%
 
 /**
  * Warehouse match result
@@ -150,6 +150,7 @@ function matchItemAgainstCode(
   else if (
     inputParts.figura === itemParts.figura &&
     inputParts.gambo !== null &&
+    itemParts.gambo !== null &&
     inputParts.gambo === itemParts.gambo &&
     inputParts.misura !== itemParts.misura
   ) {
@@ -161,41 +162,44 @@ function matchItemAgainstCode(
       reason: `Stessa figura + gambo, misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
     };
   }
-  // Level 3: Solo Figura (60%)
+  // Level 3: Stessa figura + stessa misura, gambo diverso (60%)
   else if (
     inputParts.figura === itemParts.figura &&
-    (inputParts.gambo !== itemParts.gambo ||
-      inputParts.misura !== itemParts.misura)
+    inputParts.misura !== null &&
+    itemParts.misura !== null &&
+    inputParts.misura === itemParts.misura &&
+    inputParts.gambo !== null &&
+    itemParts.gambo !== null &&
+    inputParts.gambo !== itemParts.gambo
   ) {
-    const differences: string[] = [];
-    if (inputParts.gambo !== itemParts.gambo) {
-      differences.push(
-        `gambo diverso (${itemParts.gambo} vs ${inputParts.gambo})`,
-      );
-    }
-    if (inputParts.misura !== itemParts.misura) {
-      differences.push(
-        `misura diversa (${itemParts.misura} vs ${inputParts.misura})`,
-      );
-    }
     match = {
       item,
       level: "figura",
       score: 60,
       availableQty,
-      reason: `Stessa figura, ${differences.join(", ")}`,
+      reason: `Stessa figura (${inputParts.figura}) e misura (${itemParts.misura}), gambo diverso: ${itemParts.gambo} vs ${inputParts.gambo}`,
     };
   }
-  // Level 4: Fuzzy description (50% if similarity > 0.7)
-  else if (description && item.description) {
+  // Level 4: Stesso gambo + stessa misura, figura diversa, descrizione simile ≥70% (50%)
+  else if (
+    description &&
+    item.description &&
+    inputParts.gambo !== null &&
+    itemParts.gambo !== null &&
+    inputParts.misura !== null &&
+    itemParts.misura !== null &&
+    inputParts.gambo === itemParts.gambo &&
+    inputParts.misura === itemParts.misura &&
+    inputParts.figura !== itemParts.figura
+  ) {
     const similarity = calculateSimilarity(description, item.description);
     if (similarity >= 0.7) {
       match = {
         item,
         level: "description",
-        score: Math.round(similarity * 50), // 0.7-1.0 → 35-50 points
+        score: Math.round(similarity * 50),
         availableQty,
-        reason: `Descrizione simile (${Math.round(similarity * 100)}%)`,
+        reason: `Stesso gambo (${itemParts.gambo}) e misura (${itemParts.misura}), figura diversa (${itemParts.figura}). Descrizione simile (${Math.round(similarity * 100)}%)`,
       };
     }
   }
