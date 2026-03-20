@@ -158,9 +158,9 @@ async function selectDirectCustomer() {
 
   const searchInput = screen.getByPlaceholderText(/cerca cliente/i);
   await userEvent.type(searchInput, 'Indelli');
-  await waitFor(() => expect(screen.getByText('Indelli Enrico')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Indelli Enrico')).toBeInTheDocument());
   await userEvent.click(screen.getByText('Indelli Enrico'));
-  await waitFor(() => expect(screen.getByText(/Cliente selezionato/i)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/Cliente selezionato/i)).toBeInTheDocument());
 }
 
 describe('OrderFormSimple — I più venduti con multimatching', () => {
@@ -178,7 +178,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await userEvent.click(btn);
 
     await waitFor(() => {
-      expect(screen.getByText(/conferma e apri storico/i)).toBeTruthy();
+      expect(screen.getByText(/conferma e apri storico/i)).toBeInTheDocument();
     });
   });
 
@@ -188,17 +188,17 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await selectDirectCustomer();
 
     await userEvent.click(screen.getByRole('button', { name: /più venduti/i }));
-    await waitFor(() => expect(screen.getByText(/conferma e apri storico/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/conferma e apri storico/i)).toBeInTheDocument());
 
     const confirmBtn = screen.getByRole('button', { name: /conferma e apri storico/i });
     await userEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(getCustomerFullHistory).toHaveBeenCalledWith(
-        expect.objectContaining({ customerProfileIds: expect.any(Array) })
+        expect.objectContaining({ customerProfileIds: ['CUST-001'] })
       );
-      expect(screen.getByText('A001')).toBeTruthy();
-      expect(screen.getByText('B002')).toBeTruthy();
+      expect(screen.getByText('A001')).toBeInTheDocument();
+      expect(screen.getByText('B002')).toBeInTheDocument();
     });
   });
 
@@ -211,7 +211,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
 
     await waitFor(() => {
       expect(getCustomerFullHistory).toHaveBeenCalled();
-      expect(screen.getByText('A001')).toBeTruthy();
+      expect(screen.getByText('A001')).toBeInTheDocument();
     });
   });
 
@@ -221,9 +221,9 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await selectDirectCustomer();
 
     await userEvent.click(screen.getByRole('button', { name: /più venduti/i }));
-    await waitFor(() => expect(screen.getByText('A001')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('A001')).toBeInTheDocument());
 
-    expect(screen.getByRole('button', { name: /modifica collegamenti/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /modifica collegamenti/i })).toBeInTheDocument();
   });
 
   test('click "Modifica collegamenti" riapre MatchingManagerModal forzatamente', async () => {
@@ -232,12 +232,12 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await selectDirectCustomer();
 
     await userEvent.click(screen.getByRole('button', { name: /più venduti/i }));
-    await waitFor(() => expect(screen.getByText('A001')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('A001')).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: /modifica collegamenti/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/conferma e apri storico/i)).toBeTruthy();
+      expect(screen.getByText(/conferma e apri storico/i)).toBeInTheDocument();
       expect(screen.queryByText('A001')).toBeNull();
     });
   });
