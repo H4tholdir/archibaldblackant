@@ -11042,6 +11042,59 @@ export class ArchibaldBot {
     return result.dismissed;
   }
 
+  private async checkIgnoreWarningsCheckbox(): Promise<string | null> {
+    if (!this.page) return null;
+
+    // Method 1: ASPxClientControl collection → ForEachControl → SetChecked
+    const collectionResult = await this.page.evaluate(() => {
+      const w = window as any;
+      const collection = w.ASPxClientControl?.GetControlCollection?.();
+      if (!collection) return null;
+      let found: string | null = null;
+      collection.ForEachControl((c: any) => {
+        const name: string = c?.name || c?.GetName?.() || '';
+        if (name.includes('ErrorInfo_Ch') && typeof c.SetChecked === 'function') {
+          c.SetChecked(true);
+          found = name;
+        }
+      });
+      return found;
+    });
+    if (collectionResult) {
+      logger.info('checkIgnoreWarningsCheckbox: collection SetChecked', { name: collectionResult });
+      return 'collection';
+    }
+
+    // Method 2: window[inputId].SetChecked
+    const windowApiResult = await this.page.evaluate(() => {
+      const input = document.querySelector('input[id$="_ErrorInfo_Ch_S"]') as HTMLInputElement | null;
+      if (!input) return null;
+      const ctrl = (window as any)[input.id] as { SetChecked?: (v: boolean) => void } | undefined;
+      if (ctrl?.SetChecked) {
+        ctrl.SetChecked(true);
+        return input.id;
+      }
+      return null;
+    });
+    if (windowApiResult) {
+      logger.info('checkIgnoreWarningsCheckbox: window SetChecked', { id: windowApiResult });
+      return 'window-api';
+    }
+
+    // Method 3: native Puppeteer click on the INPUT itself (not the _D wrapper)
+    const inputId = await this.page.evaluate(() => {
+      const input = document.querySelector('input[id$="_ErrorInfo_Ch_S"]') as HTMLElement | null;
+      return input?.id ?? null;
+    });
+    if (inputId) {
+      await this.page.click(`#${inputId}`);
+      logger.info('checkIgnoreWarningsCheckbox: input click', { inputId });
+      return 'input-click';
+    }
+
+    return null;
+  }
+
   private async ensureNameFieldBeforeSave(expectedName: string): Promise<void> {
     if (!this.page) return;
 
@@ -11245,32 +11298,14 @@ export class ArchibaldBot {
 
     let warningFound: string | null = null;
     if (warningSelector) {
-      if (warningSelector.selector) {
-        // Try DevExpress global control API first (most reliable for ASPxCheckBox)
-        const apiResult = await this.page.evaluate(() => {
-          const input = document.querySelector(
-            'input[id$="_ErrorInfo_Ch_S"]',
-          ) as HTMLInputElement | null;
-          if (!input) return null;
-          // DevExpress registers ASPxCheckBox as window[clientId]
-          const ctrl = (window as unknown as Record<string, unknown>)[input.id] as {
-            SetChecked?: (v: boolean) => void;
-          } | undefined;
-          if (ctrl?.SetChecked) {
-            ctrl.SetChecked(true);
-            return { method: "SetChecked-global", inputId: input.id };
-          }
-          return null;
-        });
-        if (apiResult) {
-          logger.info("Acknowledged warning checkbox via DevExpress API", apiResult);
-        } else {
-          // Fallback: Puppeteer native click
-          await this.page.click(warningSelector.selector);
-          logger.info("Clicked warning element with native click", warningSelector);
-        }
+      if (warningSelector.type === 'errorinfo-checkbox') {
+        const method = await this.checkIgnoreWarningsCheckbox();
+        logger.info('Acknowledged warning checkbox', { method, warningSelector });
+      } else if (warningSelector.selector) {
+        await this.page.click(warningSelector.selector);
+        logger.info('Clicked warning element with native click', warningSelector);
       } else {
-        logger.info("Clicked warning element with JS click", warningSelector);
+        logger.info('Clicked warning element with JS click', warningSelector);
       }
       warningFound = warningSelector.type;
     }
@@ -11512,25 +11547,12 @@ export class ArchibaldBot {
 
       let lateWarning: string | null = null;
       if (lateSelector) {
-        if (lateSelector.selector) {
-          const lateApiResult = await this.page.evaluate(() => {
-            const input = document.querySelector(
-              'input[id$="_ErrorInfo_Ch_S"]',
-            ) as HTMLInputElement | null;
-            if (!input) return null;
-            const ctrl = (window as unknown as Record<string, unknown>)[input.id] as {
-              SetChecked?: (v: boolean) => void;
-            } | undefined;
-            if (ctrl?.SetChecked) {
-              ctrl.SetChecked(true);
-              return { method: "SetChecked-global", inputId: input.id };
-            }
-            return null;
-          });
-          if (!lateApiResult) {
-            await this.page.click(lateSelector.selector);
-          }
-          logger.info("Late warning acknowledged", { lateApiResult, lateSelector });
+        if (lateSelector.type === 'checkbox') {
+          const method = await this.checkIgnoreWarningsCheckbox();
+          logger.info('Late warning acknowledged', { method, lateSelector });
+        } else if (lateSelector.selector) {
+          await this.page.click(lateSelector.selector);
+          logger.info('Late warning acknowledged with native click', { lateSelector });
         }
         lateWarning = lateSelector.type;
       }
