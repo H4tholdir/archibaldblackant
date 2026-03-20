@@ -8,9 +8,11 @@ type OrderNotesProps = {
 };
 
 export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProps) {
-  const { notes, loading, fetchNotes, addNote, toggleNote, removeNote } = useOrderNotes(orderId);
+  const { notes, loading, fetchNotes, addNote, toggleNote, editNote, removeNote } = useOrderNotes(orderId);
   const [newNoteText, setNewNoteText] = useState('');
   const [isOpen, setIsOpen] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   useEffect(() => {
     if (expanded) fetchNotes();
@@ -41,6 +43,21 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
   async function handleRemove(noteId: number) {
     await removeNote(noteId);
     onNotesChanged?.();
+  }
+
+  function startEdit(noteId: number, text: string) {
+    setEditingId(noteId);
+    setEditingText(text);
+  }
+
+  async function commitEdit(noteId: number) {
+    const trimmed = editingText.trim();
+    if (trimmed) await editNote(noteId, trimmed);
+    setEditingId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
   }
 
   return (
@@ -100,13 +117,41 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
                 onClick={(e) => e.stopPropagation()}
                 style={{ cursor: 'pointer', accentColor: '#1976d2' }}
               />
-              <span style={{
-                flex: 1,
-                textDecoration: note.checked ? 'line-through' : 'none',
-                color: note.checked ? '#999' : '#333',
-              }}>
-                {note.text}
-              </span>
+              {editingId === note.id ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitEdit(note.id); }
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                  onBlur={() => commitEdit(note.id)}
+                  style={{
+                    flex: 1,
+                    padding: '2px 6px',
+                    fontSize: '13px',
+                    border: '1px solid #1976d2',
+                    borderRadius: '4px',
+                    outline: 'none',
+                  }}
+                />
+              ) : (
+                <span
+                  onClick={(e) => { e.stopPropagation(); if (!note.checked) startEdit(note.id, note.text); }}
+                  style={{
+                    flex: 1,
+                    textDecoration: note.checked ? 'line-through' : 'none',
+                    color: note.checked ? '#999' : '#333',
+                    cursor: note.checked ? 'default' : 'text',
+                  }}
+                  title={note.checked ? '' : 'Clicca per modificare'}
+                >
+                  {note.text}
+                </span>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); handleRemove(note.id); }}
                 style={{

@@ -26,12 +26,17 @@ function useOrderNotes(orderId: string) {
     setNotes((prev) => prev.map((n) => (n.id === noteId ? updated : n)));
   }, [orderId]);
 
+  const editNote = useCallback(async (noteId: number, text: string) => {
+    const updated = await updateOrderNote(orderId, noteId, { text });
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? updated : n)));
+  }, [orderId]);
+
   const removeNote = useCallback(async (noteId: number) => {
     await deleteOrderNote(orderId, noteId);
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
   }, [orderId]);
 
-  return { notes, loading, fetchNotes, addNote, toggleNote, removeNote };
+  return { notes, loading, fetchNotes, addNote, toggleNote, editNote, removeNote };
 }
 
 export { useOrderNotes };
