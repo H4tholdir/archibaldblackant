@@ -760,6 +760,20 @@ export default function OrderFormSimple() {
   // === PRODUCT SEARCH (GROUPED BY NAME) ===
   const handleProductSearch = async (query: string) => {
     setProductSearch(query);
+    if (query.length === 0 && selectedProduct !== null) {
+      setSelectedProduct(null);
+      setProductResults([]);
+      setHighlightedProductIndex(-1);
+      setQuantity("");
+      setItemDiscount("");
+      setListPrice("");
+      setPackagingPreview(null);
+      setCalculatingPackaging(false);
+      setWarehouseSelection([]);
+      setProductVariants([]);
+      setActiveMatchLevel('none');
+      return;
+    }
     if (query.length < 2) {
       setProductResults([]);
       setHighlightedProductIndex(-1);
