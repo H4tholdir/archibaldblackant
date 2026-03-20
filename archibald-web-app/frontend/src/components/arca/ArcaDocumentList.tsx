@@ -439,14 +439,13 @@ export function ArcaDocumentList({
         overflowX: 'auto',
       }}
     >
-      {/* Header */}
+      {/* Header — extended by SCROLLBAR_SIZE to align with List gutter */}
       <div
         style={{
           display: "flex",
           height: HEADER_HEIGHT,
           alignItems: "center",
-          width: totalWidth,
-          paddingRight: SCROLLBAR_SIZE,
+          width: totalWidth + SCROLLBAR_SIZE,
           backgroundColor: ARCA_COLORS.headerBg,
         }}
       >
@@ -492,7 +491,7 @@ export function ArcaDocumentList({
         rowComponent={ArcaRow}
         rowProps={rowProps}
         overscanCount={10}
-        style={{ height: height - HEADER_HEIGHT, width: totalWidth, overflowX: 'hidden', scrollbarGutter: 'stable' }}
+        style={{ height: height - HEADER_HEIGHT, width: totalWidth + SCROLLBAR_SIZE, overflowX: 'hidden', scrollbarGutter: 'stable' }}
       />
     </div>
   );
