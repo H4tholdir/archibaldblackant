@@ -273,7 +273,8 @@ export function CustomerHistoryModal({
     async (selections: SelectedWarehouseMatch[]) => {
       if (!pendingDialog) return;
       const { article, orderDiscountPercent, orderSource } = pendingDialog;
-      const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+      const warehouseCode = selections.length > 0 ? selections[0].articleCode : undefined;
+      const substituteCode = warehouseCode ?? (orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined);
       const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
       const enriched: PendingOrderItem = {
         ...item,

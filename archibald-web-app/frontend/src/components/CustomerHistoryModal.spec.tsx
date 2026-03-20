@@ -13,9 +13,13 @@ vi.mock('../services/prices.service', () => ({
     fuzzyMatchArticleCode: vi.fn().mockResolvedValue(null),
   },
 }));
+vi.mock('../services/warehouse-matching', () => ({
+  findWarehouseMatchesBatch: vi.fn().mockResolvedValue(new Map()),
+}));
 
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import { priceService } from '../services/prices.service';
+import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
 
 const mockOrder = (overrides: Partial<CustomerFullHistoryOrder> = {}): CustomerFullHistoryOrder => ({
   source: 'orders',
@@ -359,6 +363,45 @@ describe('CustomerHistoryModal', () => {
 
     expect(screen.getByText('OF-A')).toBeDefined();
     expect(screen.queryByText('OF-B')).toBeNull();
+  });
+
+  it('uses warehouse article code when dialog confirms selection with different code', async () => {
+    const requestedCode = '8801.314.012';
+    const warehouseCode = '8801.314.023';
+    vi.mocked(findWarehouseMatchesBatch).mockResolvedValue(
+      new Map([[requestedCode, [{
+        item: { id: 1, articleCode: warehouseCode, description: 'DIA gr F', quantity: 10, boxName: 'SCATOLO 1', uploadedAt: '2024-01-01' },
+        level: 'figura-gambo' as const,
+        score: 80,
+        availableQty: 10,
+        reason: 'Stessa figura + gamba',
+      }]]]),
+    );
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({
+        source: 'fresis',
+        articles: [{ articleCode: requestedCode, articleDescription: 'DIA gr F', quantity: 5, unitPrice: 8.62, discountPercent: 50, lineTotalWithVat: 26.29, vatPercent: 22 }],
+      }),
+    ]);
+
+    const onAddArticle = vi.fn();
+    render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} onAddArticle={onAddArticle} />);
+
+    await screen.findByText(requestedCode);
+    await waitFor(() => expect(findWarehouseMatchesBatch).toHaveBeenCalled());
+
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Aggiungi' })[0]);
+
+    await screen.findByText('Articoli trovati in magazzino');
+    const confirmBtn = await screen.findByRole('button', { name: /Aggiungi \(5 da mag\.\)/ });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() =>
+      expect(onAddArticle).toHaveBeenCalledWith(
+        expect.objectContaining({ articleCode: warehouseCode }),
+        false,
+      ),
+    );
   });
 
   it('shows each city only once in the city dropdown when multiple orders share the same city', async () => {
