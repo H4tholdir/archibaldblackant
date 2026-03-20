@@ -1472,9 +1472,9 @@ export default function OrderFormSimple() {
         id: crypto.randomUUID(),
         productId: variantCode,
         article: variantCode,
-        productName: searchedArticleCode,
+        productName: finalArticleCode,
         description: shouldUseWarehouseCode
-          ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
+          ? `${selectedProduct.description || ""} (al posto di ${searchedArticleCode})`
           : selectedProduct.description || "",
         quantity: finalQty,
         unitPrice: effectivePrice,
@@ -1537,9 +1537,9 @@ export default function OrderFormSimple() {
           id: crypto.randomUUID(),
           productId: variantCode,
           article: variantCode,
-          productName: searchedArticleCode,
+          productName: finalArticleCode,
           description: shouldUseWarehouseCode
-            ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
+            ? `${selectedProduct.description || ""} (al posto di ${searchedArticleCode})`
             : selectedProduct.description || "",
           quantity: warehouseQty,
           unitPrice: whEffectivePrice,
