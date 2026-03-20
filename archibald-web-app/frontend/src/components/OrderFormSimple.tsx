@@ -326,7 +326,7 @@ export default function OrderFormSimple() {
     const colors = WAREHOUSE_LEVEL_COLORS[activeMatchLevel];
     appEl.style.transition = 'background 0.6s';
     appEl.style.background = isThemed
-      ? `linear-gradient(135deg, ${colors.backgroundLight} 0%, white 55%, ${colors.backgroundLight} 100%)`
+      ? `linear-gradient(135deg, ${colors.backgroundPage} 0%, white 55%, ${colors.backgroundPage} 100%)`
       : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     return () => {
       appEl.style.background = '';
