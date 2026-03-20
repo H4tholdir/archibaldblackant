@@ -5358,6 +5358,8 @@ export default function OrderFormSimple() {
               vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
               total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
               originalListPrice: newItem.price,
+              warehouseSources: newItem.warehouseSources,
+              warehouseQuantity: newItem.warehouseQuantity,
             };
             setItems((prev) => {
               const filtered = replace ? prev.filter((e) => e.article !== newItem.articleCode) : prev;
@@ -5380,6 +5382,8 @@ export default function OrderFormSimple() {
               vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
               total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
               originalListPrice: newItem.price,
+              warehouseSources: newItem.warehouseSources,
+              warehouseQuantity: newItem.warehouseQuantity,
             }));
             if (replace) {
               setItems(mapped);
