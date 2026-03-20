@@ -11,6 +11,7 @@ interface CustomerCardProps {
   onToggle: () => void;
   onEdit: (customerId: string) => void;
   onRetry: (customerProfile: string) => void;
+  isRetrying?: boolean;
   photoUrl?: string | null;
   onPhotoUpload?: (customerProfile: string, file: File) => void;
   onPhotoDelete?: (customerProfile: string) => void;
@@ -22,6 +23,7 @@ export function CustomerCard({
   onToggle,
   onEdit,
   onRetry,
+  isRetrying = false,
   photoUrl,
   onPhotoUpload,
   onPhotoDelete,
@@ -171,9 +173,11 @@ export function CustomerCard({
         >
           <button
             onClick={() => {
+              if (isRetrying) return;
               setSwipeX(0);
               onRetry(customer.customerProfile);
             }}
+            disabled={isRetrying}
             style={{
               padding: "10px 16px",
               fontSize: "14px",
@@ -182,10 +186,11 @@ export function CustomerCard({
               color: "#fff",
               border: "2px solid #fff",
               borderRadius: "8px",
-              cursor: "pointer",
+              cursor: isRetrying ? "not-allowed" : "pointer",
+              opacity: isRetrying ? 0.6 : 1,
             }}
           >
-            Riprova
+            {isRetrying ? "..." : "Riprova"}
           </button>
         </div>
       )}
@@ -892,26 +897,28 @@ export function CustomerCard({
               </button>
               {hasSwipeAction && (
                 <button
-                  onClick={() => onRetry(customer.customerProfile)}
+                  onClick={() => !isRetrying && onRetry(customer.customerProfile)}
+                  disabled={isRetrying}
                   style={{
                     padding: "10px 20px",
                     fontSize: "14px",
                     fontWeight: 600,
-                    backgroundColor: "#ff9800",
+                    backgroundColor: isRetrying ? "#bdbdbd" : "#ff9800",
                     color: "#fff",
                     border: "none",
                     borderRadius: "8px",
-                    cursor: "pointer",
+                    cursor: isRetrying ? "not-allowed" : "pointer",
                     transition: "background-color 0.2s",
+                    opacity: isRetrying ? 0.8 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f57c00";
+                    if (!isRetrying) e.currentTarget.style.backgroundColor = "#f57c00";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#ff9800";
+                    if (!isRetrying) e.currentTarget.style.backgroundColor = "#ff9800";
                   }}
                 >
-                  Riprova sync
+                  {isRetrying ? "Sincronizzando..." : "Riprova sync"}
                 </button>
               )}
             </div>

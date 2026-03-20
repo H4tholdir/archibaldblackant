@@ -23,6 +23,7 @@ export function CustomerList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
+  const [retryingProfiles, setRetryingProfiles] = useState<Set<string>>(new Set());
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(
@@ -181,12 +182,19 @@ export function CustomerList() {
   };
 
   const handleRetry = async (customerProfile: string) => {
+    setRetryingProfiles((prev) => new Set(prev).add(customerProfile));
     try {
       await customerService.retryBotPlacement(customerProfile);
       await fetchCustomers();
     } catch (err) {
       console.error("Retry failed:", err);
       setError("Errore durante il retry");
+    } finally {
+      setRetryingProfiles((prev) => {
+        const next = new Set(prev);
+        next.delete(customerProfile);
+        return next;
+      });
     }
   };
 
@@ -500,6 +508,7 @@ export function CustomerList() {
                   onToggle={() => handleToggle(customer.customerProfile)}
                   onEdit={handleEdit}
                   onRetry={handleRetry}
+                  isRetrying={retryingProfiles.has(customer.customerProfile)}
                   photoUrl={customerPhotos[customer.customerProfile]}
                   onPhotoUpload={handlePhotoUpload}
                   onPhotoDelete={handlePhotoDelete}
