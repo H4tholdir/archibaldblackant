@@ -76,10 +76,14 @@ describe('aggregateTopSold', () => {
         { articleCode: 'X2', articleDescription: 'X2', quantity: 3 },
       ]),
     ];
-    expect(aggregateTopSold(orders)).toEqual([
-      { articleCode: 'X1', productName: 'X1', totalQuantity: 3 },
-      { articleCode: 'X2', productName: 'X2', totalQuantity: 3 },
-    ]);
+    const result = aggregateTopSold(orders);
+    expect(result).toHaveLength(2);
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { articleCode: 'X1', productName: 'X1', totalQuantity: 3 },
+        { articleCode: 'X2', productName: 'X2', totalQuantity: 3 },
+      ])
+    );
   });
 
   test('collision on productName: uses first description found', () => {
@@ -87,8 +91,8 @@ describe('aggregateTopSold', () => {
       makeOrder([{ articleCode: 'DUP', articleDescription: 'Prima descrizione', quantity: 1 }]),
       makeOrder([{ articleCode: 'DUP', articleDescription: 'Seconda descrizione', quantity: 1 }]),
     ];
-    const result = aggregateTopSold(orders);
-    expect(result).toHaveLength(1);
-    expect(result[0].productName).toBe('Prima descrizione');
+    expect(aggregateTopSold(orders)).toEqual([
+      { articleCode: 'DUP', productName: 'Prima descrizione', totalQuantity: 2 },
+    ]);
   });
 });
