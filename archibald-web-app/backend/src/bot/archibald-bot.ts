@@ -11275,6 +11275,33 @@ export class ArchibaldBot {
       warningFound = warningSelector.type;
     }
 
+    // Check for concurrent edit conflict popup ("changed by another user" → click "Fondersi")
+    if (!warningFound) {
+      const mergeButton = await this.page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll("a, span, button, td"));
+        for (const el of all) {
+          const text = (el as HTMLElement).textContent?.trim();
+          if (text === "Fondersi" || text === "Merge") {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.offsetParent !== null) {
+              if (htmlEl.id) return { selector: `#${htmlEl.id}`, type: "concurrent-edit" };
+              htmlEl.click();
+              return { selector: null, type: "concurrent-edit-js" };
+            }
+          }
+        }
+        return null;
+      });
+      if (mergeButton) {
+        logger.info("Concurrent edit conflict detected, clicking Fondersi (Merge)", mergeButton);
+        if (mergeButton.selector) {
+          await this.page.click(mergeButton.selector);
+        }
+        await this.waitForDevExpressIdle({ timeout: 3000, label: "concurrent-edit-merge" });
+        warningFound = mergeButton.type;
+      }
+    }
+
     // Check for inline "Data Validation Error" with any checkbox on the page
     const hasValidationError = await this.page.evaluate(() => {
       const body = document.body.innerText || "";
@@ -11506,6 +11533,33 @@ export class ArchibaldBot {
           logger.info("Late warning acknowledged", { lateApiResult, lateSelector });
         }
         lateWarning = lateSelector.type;
+      }
+
+      // Late check: concurrent edit conflict popup
+      if (!lateWarning) {
+        const lateMergeButton = await this.page.evaluate(() => {
+          const all = Array.from(document.querySelectorAll("a, span, button, td"));
+          for (const el of all) {
+            const text = (el as HTMLElement).textContent?.trim();
+            if (text === "Fondersi" || text === "Merge") {
+              const htmlEl = el as HTMLElement;
+              if (htmlEl.offsetParent !== null) {
+                if (htmlEl.id) return { selector: `#${htmlEl.id}`, type: "concurrent-edit-late" };
+                htmlEl.click();
+                return { selector: null, type: "concurrent-edit-late-js" };
+              }
+            }
+          }
+          return null;
+        });
+        if (lateMergeButton) {
+          logger.info("Late concurrent edit conflict, clicking Fondersi", lateMergeButton);
+          if (lateMergeButton.selector) {
+            await this.page.click(lateMergeButton.selector);
+          }
+          await this.waitForDevExpressIdle({ timeout: 3000, label: "concurrent-edit-merge-late" });
+          lateWarning = lateMergeButton.type;
+        }
       }
 
       if (lateWarning) {
