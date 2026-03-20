@@ -824,12 +824,12 @@ export default function OrderFormSimple() {
     }, 0);
   };
 
-  const loadTopSoldItems = () => {
+  const loadTopSoldItems = useCallback(() => {
     if (!selectedCustomer) return;
     if (isFresis(selectedCustomer) && !selectedSubClient) return;
     setPendingMatchingAction('topSold');
     setShowMatchingManagerModal(true);
-  };
+  }, [selectedCustomer, selectedSubClient]);
 
   const selectArticleFromHistory = async (articleCode: string) => {
     const products = await productService.searchProducts(articleCode);
@@ -5172,9 +5172,9 @@ export default function OrderFormSimple() {
                     </tr>
                   </thead>
                   <tbody>
-                    {topSoldItems.map((item, index) => (
+                    {topSoldItems.map((item) => (
                       <tr
-                        key={item.articleCode + index}
+                        key={item.articleCode}
                         onClick={() =>
                           selectArticleFromHistory(item.articleCode)
                         }

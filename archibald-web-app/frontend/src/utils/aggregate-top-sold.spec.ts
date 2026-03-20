@@ -77,13 +77,11 @@ describe('aggregateTopSold', () => {
       ]),
     ];
     const result = aggregateTopSold(orders);
-    expect(result).toHaveLength(2);
-    expect(result).toEqual(
-      expect.arrayContaining([
-        { articleCode: 'X1', productName: 'X1', totalQuantity: 3 },
-        { articleCode: 'X2', productName: 'X2', totalQuantity: 3 },
-      ])
-    );
+    const byCode = [...result].sort((a, b) => a.articleCode.localeCompare(b.articleCode));
+    expect(byCode).toEqual([
+      { articleCode: 'X1', productName: 'X1', totalQuantity: 3 },
+      { articleCode: 'X2', productName: 'X2', totalQuantity: 3 },
+    ]);
   });
 
   test('collision on productName: uses first description found', () => {
