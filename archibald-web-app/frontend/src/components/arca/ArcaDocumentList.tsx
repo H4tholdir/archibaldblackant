@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { List } from "react-window";
+import { List, getScrollbarSize } from "react-window";
 import type { FresisHistoryOrder } from "../../types/fresis";
 import type { SubClient } from "../../types/sub-client";
 import type { ArcaData } from "../../types/arca-data";
@@ -13,6 +13,8 @@ import {
   formatArcaCurrency,
   formatArcaDate,
 } from "./arcaStyles";
+
+const SCROLLBAR_SIZE = getScrollbarSize();
 
 type SortField =
   | "numerodoc"
@@ -444,6 +446,8 @@ export function ArcaDocumentList({
           height: HEADER_HEIGHT,
           alignItems: "center",
           width: totalWidth,
+          paddingRight: SCROLLBAR_SIZE,
+          backgroundColor: ARCA_COLORS.headerBg,
         }}
       >
         {COLUMNS.map((col, colIdx) => (
@@ -488,7 +492,7 @@ export function ArcaDocumentList({
         rowComponent={ArcaRow}
         rowProps={rowProps}
         overscanCount={10}
-        style={{ height: height - HEADER_HEIGHT, width: totalWidth, overflowX: 'hidden' }}
+        style={{ height: height - HEADER_HEIGHT, width: totalWidth, overflowX: 'hidden', scrollbarGutter: 'stable' }}
       />
     </div>
   );
