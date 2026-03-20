@@ -3,6 +3,7 @@ import { CustomerCard } from "../components/CustomerCard";
 import { CustomerCreateModal } from "../components/CustomerCreateModal";
 import { customerService } from "../services/customers.service";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
+import { toastService } from "../services/toast.service";
 import type { Customer } from "../types/customer";
 
 interface CustomerFilters {
@@ -186,9 +187,10 @@ export function CustomerList() {
     try {
       await customerService.retryBotPlacement(customerProfile);
       await fetchCustomers();
+      toastService.success("Sincronizzazione avviata — il bot aggiornerà il cliente a breve");
     } catch (err) {
       console.error("Retry failed:", err);
-      setError("Errore durante il retry");
+      toastService.error("Errore durante il retry — riprova tra qualche minuto");
     } finally {
       setRetryingProfiles((prev) => {
         const next = new Set(prev);
