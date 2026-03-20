@@ -3,6 +3,13 @@ import { searchSubClients, setSubClientHidden, getHiddenSubClients } from "../..
 import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 import type { SubClient } from "../../types/sub-client";
 
+type SubClientThemeColors = {
+  background: string;
+  border: string;
+  labelColor: string;
+  textColor: string;
+};
+
 interface SubClientSelectorProps {
   onSelect: (subClient: SubClient) => void;
   onClear: () => void;
@@ -10,8 +17,15 @@ interface SubClientSelectorProps {
   disabled?: boolean;
   externalInputRef?: React.RefObject<HTMLInputElement | null>;
   onAfterSelect?: () => void;
-  neutral?: boolean;
+  themeColors?: SubClientThemeColors;
 }
+
+const NEUTRAL_THEME: SubClientThemeColors = {
+  background: '#f9fafb',
+  border: '#e5e7eb',
+  labelColor: '#374151',
+  textColor: '#6b7280',
+};
 
 export function SubClientSelector({
   onSelect,
@@ -20,8 +34,9 @@ export function SubClientSelector({
   disabled = false,
   externalInputRef,
   onAfterSelect,
-  neutral = false,
+  themeColors,
 }: SubClientSelectorProps) {
+  const colors = themeColors ?? NEUTRAL_THEME;
   const { scrollFieldIntoView } = useKeyboardScroll();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<SubClient[]>([]);
@@ -176,22 +191,22 @@ export function SubClientSelector({
     return (
       <div
         style={{
-          background: neutral ? "#f9fafb" : "#fef3c7",
+          background: colors.background,
           padding: "1rem",
           borderRadius: "4px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          border: neutral ? "1px solid #e5e7eb" : "1px solid #f59e0b",
+          border: `1px solid ${colors.border}`,
           transition: "background 0.4s, border-color 0.4s",
         }}
       >
         <div>
-          <strong style={{ color: neutral ? "#374151" : "#92400e" }}>Sotto-cliente:</strong>
+          <strong style={{ color: colors.labelColor }}>Sotto-cliente:</strong>
           <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
             {selectedSubClient.ragioneSociale}
           </p>
-          <p style={{ margin: "0.125rem 0 0 0", fontSize: "0.75rem", color: neutral ? "#6b7280" : "#78350f" }}>
+          <p style={{ margin: "0.125rem 0 0 0", fontSize: "0.75rem", color: colors.textColor }}>
             Cod: {selectedSubClient.codice}
             {selectedSubClient.supplRagioneSociale && ` - ${selectedSubClient.supplRagioneSociale}`}
           </p>
@@ -202,10 +217,10 @@ export function SubClientSelector({
           style={{
             padding: "0.5rem 1rem",
             background: "white",
-            border: neutral ? "1px solid #6b7280" : "1px solid #92400e",
+            border: `1px solid ${colors.labelColor}`,
             borderRadius: "6px",
             cursor: disabled ? "not-allowed" : "pointer",
-            color: neutral ? "#374151" : "#92400e",
+            color: colors.labelColor,
             fontWeight: "500",
             transition: "border-color 0.4s, color 0.4s",
           }}

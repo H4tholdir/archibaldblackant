@@ -1468,12 +1468,11 @@ export default function OrderFormSimple() {
         Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
       const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
-      // 🔧 FIX #2: Use warehouse article code if substituting
       newItems.push({
         id: crypto.randomUUID(),
         productId: variantCode,
         article: variantCode,
-        productName: finalArticleCode, // Use warehouse code if different
+        productName: searchedArticleCode,
         description: shouldUseWarehouseCode
           ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
           : selectedProduct.description || "",
@@ -1538,7 +1537,7 @@ export default function OrderFormSimple() {
           id: crypto.randomUUID(),
           productId: variantCode,
           article: variantCode,
-          productName: finalArticleCode,
+          productName: searchedArticleCode,
           description: shouldUseWarehouseCode
             ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
             : selectedProduct.description || "",
@@ -3279,7 +3278,12 @@ export default function OrderFormSimple() {
               selectedSubClient={selectedSubClient}
               externalInputRef={subClientInputRef}
               onAfterSelect={() => productSearchInputRef.current?.focus()}
-              neutral={!isThemed}
+              themeColors={isThemed ? {
+                background: theme.backgroundMid,
+                border: theme.borderColor,
+                labelColor: theme.accentColor,
+                textColor: theme.accentColor,
+              } : undefined}
             />
           </div>
         )}
