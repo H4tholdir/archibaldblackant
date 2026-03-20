@@ -15,15 +15,15 @@ export const WAREHOUSE_LEVEL_COLORS: Record<WarehouseThemeLevel, LevelColors> = 
   exact:        { backgroundLight: '#f0fdf4', backgroundMid: '#d1fae5', borderColor: '#34d399', accentColor: '#059669', buttonBackground: '#059669' },
   'figura-gambo': { backgroundLight: '#eff6ff', backgroundMid: '#dbeafe', borderColor: '#60a5fa', accentColor: '#2563eb', buttonBackground: '#2563eb' },
   figura:       { backgroundLight: '#fffbeb', backgroundMid: '#fef3c7', borderColor: '#fbbf24', accentColor: '#d97706', buttonBackground: '#d97706' },
-  description:  { backgroundLight: '#fff7ed', backgroundMid: '#ffedd5', borderColor: '#fb923c', accentColor: '#ea580c', buttonBackground: '#ea580c' },
+  description:  { backgroundLight: '#fff7ed', backgroundMid: '#fed7aa', borderColor: '#c2410c', accentColor: '#7c2d12', buttonBackground: '#7c2d12' },
 };
 
 export const WAREHOUSE_LEVEL_LABELS: Record<WarehouseThemeLevel, string> = {
   none: 'Nessun match',
   exact: 'Match esatto',
   'figura-gambo': 'Stessa figura + gambo',
-  figura: 'Stessa figura',
-  description: 'Descrizione simile',
+  figura: 'Stessa figura + misura',
+  description: 'Stesso gambo + misura',
 };
 
 export function bestMatchLevel(matches: { level: MatchLevel }[]): WarehouseThemeLevel {

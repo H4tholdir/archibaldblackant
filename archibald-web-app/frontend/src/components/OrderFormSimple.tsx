@@ -292,19 +292,6 @@ export default function OrderFormSimple() {
   const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
   const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<number | null>(null);
 
-  // Fresis history: article purchase history for selected sub-client
-  const [articleHistory, setArticleHistory] = useState<{
-    found: boolean;
-    lastPurchase?: {
-      date: string;
-      quantity: number;
-      price: number;
-      discount?: number;
-      globalDiscount?: number;
-      vat: number;
-    };
-  } | null>(null);
-
   // Fresis history: top sold items modal
   const [showTopSoldModal, setShowTopSoldModal] = useState(false);
   const [topSoldItems, setTopSoldItems] = useState<
@@ -387,73 +374,6 @@ export default function OrderFormSimple() {
     }
     return [];
   }, [selectedCustomer, selectedSubClient]);
-
-  // History: find last purchase of selected article by client
-  useEffect(() => {
-    const needsSubClient = isFresis(selectedCustomer) && !selectedSubClient;
-    if (!selectedProduct || !selectedCustomer || needsSubClient) {
-      setArticleHistory(null);
-      return;
-    }
-
-    const searchArticleHistory = async () => {
-      const clientOrders = await loadOrderHistory();
-
-      const productCode = (
-        selectedProduct.article || selectedProduct.name
-      ).toLowerCase();
-      const variantCodes = new Set(
-        productVariants.map((v) => v.variantId.toLowerCase()),
-      );
-
-      let lastDate = "";
-      let lastItem: {
-        date: string;
-        quantity: number;
-        price: number;
-        discount?: number;
-        globalDiscount?: number;
-        vat: number;
-      } | null = null;
-
-      for (const order of clientOrders) {
-        for (const item of order.items) {
-          const code = (item.articleCode || "").toLowerCase();
-          const name = (item.productName || "").toLowerCase();
-          const desc = (item.description || "").toLowerCase();
-
-          const matches =
-            code.includes(productCode) ||
-            productCode.includes(code) ||
-            name.includes(productCode) ||
-            productCode.includes(name) ||
-            desc.includes(productCode) ||
-            variantCodes.has(code);
-
-          if (matches) {
-            const orderDate = order.createdAt || (order as { updatedAt?: string }).updatedAt || "";
-            if (orderDate > lastDate) {
-              lastDate = orderDate;
-              lastItem = {
-                date: orderDate,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-                globalDiscount: order.discountPercent,
-                vat: item.vat,
-              };
-            }
-          }
-        }
-      }
-
-      setArticleHistory(
-        lastItem ? { found: true, lastPurchase: lastItem } : { found: false },
-      );
-    };
-
-    searchArticleHistory();
-  }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants, loadOrderHistory]);
 
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
@@ -1343,34 +1263,6 @@ export default function OrderFormSimple() {
     toastService.success(
       `Prezzo applicato: ${formatCurrency(sale.unitPrice)}${roundedDiscount > 0 ? ` (sconto ${roundedDiscount}%)` : ""}`,
     );
-  };
-
-  const handleApplyLastPurchase = () => {
-    if (!articleHistory?.lastPurchase) return;
-    const p = articleHistory.lastPurchase;
-    const rowDisc = p.discount || 0;
-    const globalDisc = p.globalDiscount || 0;
-
-    const compound =
-      (1 - (1 - rowDisc / 100) * (1 - globalDisc / 100)) * 100;
-    const roundedDiscount = Math.round(compound * 100) / 100;
-
-    if (canEditPrice) {
-      setListPrice(p.price.toString());
-      if (roundedDiscount > 0) setItemDiscount(roundedDiscount.toString());
-      toastService.success(
-        `Ultimo acquisto applicato: ${formatCurrency(p.price)}${roundedDiscount > 0 ? `, sconto ${roundedDiscount}%` : ""}`,
-      );
-    } else {
-      if (roundedDiscount > 0) {
-        setItemDiscount(roundedDiscount.toString());
-        toastService.success(
-          `Sconto ultimo acquisto applicato: ${roundedDiscount}%`,
-        );
-      } else {
-        toastService.info("Nessuno sconto da applicare dall'ultimo acquisto");
-      }
-    }
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
@@ -2855,6 +2747,9 @@ export default function OrderFormSimple() {
     fetchAndSetCustomerCompleteness(selectedCustomer.id);
   };
 
+  const theme = WAREHOUSE_LEVEL_COLORS[activeMatchLevel];
+  const isThemed = activeMatchLevel !== 'none';
+
   return (
     <div
       style={{
@@ -2863,6 +2758,10 @@ export default function OrderFormSimple() {
         padding: isMobile ? "1rem" : "2rem",
         ...keyboardPaddingStyle,
         fontFamily: "system-ui",
+        background: isThemed
+          ? `linear-gradient(135deg, ${theme.backgroundLight} 0%, white 50%, ${theme.backgroundLight} 100%)`
+          : 'white',
+        transition: 'background 0.4s',
       }}
     >
       <div
@@ -2949,14 +2848,18 @@ export default function OrderFormSimple() {
         style={{
           marginBottom: isMobile ? "1rem" : "2rem",
           padding: isMobile ? "1rem" : "1.5rem",
-          background: "#f9fafb",
+          background: isThemed ? theme.backgroundLight : "#f9fafb",
           borderRadius: "8px",
+          border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+          transition: 'background 0.4s, border-color 0.4s',
         }}
       >
         <h2
           style={{
             fontSize: isMobile ? "1.125rem" : "1.25rem",
             marginBottom: "1rem",
+            color: isThemed ? theme.accentColor : 'inherit',
+            transition: 'color 0.4s',
           }}
         >
           1. Seleziona Cliente
@@ -3189,16 +3092,18 @@ export default function OrderFormSimple() {
         ) : (
           <div
             style={{
-              background: "#d1fae5",
+              background: isThemed ? theme.backgroundMid : "#d1fae5",
               padding: "1rem",
               borderRadius: "4px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              border: isThemed ? `1px solid ${theme.borderColor}` : 'none',
+              transition: 'background 0.4s',
             }}
           >
             <div>
-              <strong style={{ color: "#065f46" }}>
+              <strong style={{ color: isThemed ? theme.accentColor : "#065f46" }}>
                 ✓ Cliente selezionato:
               </strong>
               <p style={{ margin: "0.25rem 0 0 0", fontSize: "1.125rem" }}>
@@ -3221,12 +3126,13 @@ export default function OrderFormSimple() {
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
                 background: "white",
-                border: "1px solid #065f46",
+                border: `1px solid ${isThemed ? theme.accentColor : '#065f46'}`,
                 borderRadius: "6px",
                 cursor: "pointer",
-                color: "#065f46",
+                color: isThemed ? theme.accentColor : '#065f46',
                 fontWeight: "500",
                 minHeight: isMobile ? "44px" : "auto",
+                transition: 'border-color 0.4s, color 0.4s',
               }}
             >
               Cambia
@@ -3355,7 +3261,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#7c3aed",
+              background: theme.buttonBackground,
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3373,7 +3279,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#2563eb",
+              background: theme.buttonBackground,
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3396,14 +3302,18 @@ export default function OrderFormSimple() {
             style={{
               marginBottom: isMobile ? "1rem" : "2rem",
               padding: isMobile ? "1rem" : "1.5rem",
-              background: "#f9fafb",
+              background: isThemed ? theme.backgroundLight : "#f9fafb",
               borderRadius: "8px",
+              border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+              transition: 'background 0.4s, border-color 0.4s',
             }}
           >
             <h2
               style={{
                 fontSize: isMobile ? "1.125rem" : "1.25rem",
                 marginBottom: "1rem",
+                color: isThemed ? theme.accentColor : 'inherit',
+                transition: 'color 0.4s',
               }}
             >
               2. Aggiungi Articoli
@@ -3671,107 +3581,14 @@ export default function OrderFormSimple() {
                     </div>
                   )}
 
-                  {/* Storico acquisti cliente (amber section) */}
-                  {selectedCustomer &&
-                    articleHistory && (
-                      <div
-                        style={{
-                          marginTop: "0.75rem",
-                          padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
-                          background: "#fef3c7",
-                          border: "1px solid #f59e0b",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        {articleHistory.found && articleHistory.lastPurchase ? (
-                          <div
-                            onClick={handleApplyLastPurchase}
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "0.75rem",
-                              alignItems: "center",
-                              fontSize: isMobile ? "0.85rem" : "0.9rem",
-                              fontWeight: "600",
-                              color: "#92400e",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span style={{ fontWeight: "700" }}>
-                              Ultimo acquisto:{" "}
-                              <span style={{ fontWeight: "400", fontSize: "0.75rem", opacity: 0.7 }}>
-                                (clicca per applicare)
-                              </span>
-                            </span>
-                            <span>
-                              {new Date(
-                                articleHistory.lastPurchase.date,
-                              ).toLocaleDateString("it-IT")}
-                            </span>
-                            <span>
-                              Qt: {articleHistory.lastPurchase.quantity}
-                            </span>
-                            <span>
-                              Prezzo:{" "}
-                              {formatCurrency(
-                                articleHistory.lastPurchase.price,
-                              )}
-                            </span>
-                            {(() => {
-                              const p = articleHistory.lastPurchase;
-                              const row = p.discount || 0;
-                              const global = p.globalDiscount || 0;
-                              if (row && global) {
-                                const compound = Math.round((1 - (1 - row / 100) * (1 - global / 100)) * 10000) / 100;
-                                return <span>Sconto: {row}%+{global}% = {compound}%</span>;
-                              }
-                              if (global) return <span>Sconto: {global}% (globale)</span>;
-                              if (row) return <span>Sconto: {row}%</span>;
-                              return null;
-                            })()}
-                            <span>IVA: {articleHistory.lastPurchase.vat}%</span>
-                            <span style={{ color: "#1e40af" }}>
-                              Netto:{" "}
-                              {(() => {
-                                const p = articleHistory.lastPurchase;
-                                const netto =
-                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
-                                return formatCurrency(netto);
-                              })()}
-                            </span>
-                            <span style={{ color: "#065f46" }}>
-                              Totale:{" "}
-                              {(() => {
-                                const p = articleHistory.lastPurchase;
-                                const netto =
-                                  p.price * (1 - (p.discount || 0) / 100) * (1 - (p.globalDiscount || 0) / 100);
-                                const total = netto * (1 + p.vat / 100);
-                                return formatCurrency(total);
-                              })()}
-                            </span>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: isMobile ? "0.85rem" : "0.9rem",
-                              color: "#92400e",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Articolo mai acquistato da questo cliente
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                   {/* Disponibilità magazzino (green section) */}
                   {selectedProduct && (
                     <div
                       style={{
                         marginTop: "0.75rem",
                         padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
-                        background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].backgroundMid : '#f8fafc',
-                        border: `1px solid ${activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].borderColor : '#e2e8f0'}`,
+                        background: isThemed ? theme.backgroundMid : '#f8fafc',
+                        border: `1px solid ${isThemed ? theme.borderColor : '#e2e8f0'}`,
                         transition: 'background 0.4s, border-color 0.4s',
                         borderRadius: "6px",
                       }}
@@ -4060,8 +3877,8 @@ export default function OrderFormSimple() {
                   }
                   style={{
                     padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
-                    background: activeMatchLevel !== 'none'
-                      ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].buttonBackground
+                    background: isThemed
+                      ? theme.buttonBackground
                       : packagingPreview?.success ||
                         warehouseSelectedQty >= parseInt(quantity, 10)
                           ? "#22c55e"
@@ -4094,14 +3911,18 @@ export default function OrderFormSimple() {
           style={{
             marginBottom: isMobile ? "1rem" : "2rem",
             padding: isMobile ? "1rem" : "1.5rem",
-            background: "#f9fafb",
+            background: isThemed ? theme.backgroundLight : "#f9fafb",
             borderRadius: "8px",
+            border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+            transition: 'background 0.4s, border-color 0.4s',
           }}
         >
           <h2
             style={{
               fontSize: isMobile ? "1.125rem" : "1.25rem",
               marginBottom: "1rem",
+              color: isThemed ? theme.accentColor : 'inherit',
+              transition: 'color 0.4s',
             }}
           >
             3. Riepilogo Articoli ({items.length})
@@ -4133,8 +3954,9 @@ export default function OrderFormSimple() {
               <thead>
                 <tr
                   style={{
-                    background: "#f3f4f6",
-                    borderBottom: "2px solid #e5e7eb",
+                    background: isThemed ? theme.backgroundMid : "#f3f4f6",
+                    borderBottom: `2px solid ${isThemed ? theme.borderColor : '#e5e7eb'}`,
+                    transition: 'background 0.4s, border-color 0.4s',
                   }}
                 >
                   <th
@@ -5358,6 +5180,8 @@ export default function OrderFormSimple() {
               vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
               total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
               originalListPrice: newItem.price,
+              warehouseSources: newItem.warehouseSources,
+              warehouseQuantity: newItem.warehouseQuantity,
             };
             setItems((prev) => {
               const filtered = replace ? prev.filter((e) => e.article !== newItem.articleCode) : prev;
@@ -5380,6 +5204,8 @@ export default function OrderFormSimple() {
               vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
               total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
               originalListPrice: newItem.price,
+              warehouseSources: newItem.warehouseSources,
+              warehouseQuantity: newItem.warehouseQuantity,
             }));
             if (replace) {
               setItems(mapped);
