@@ -773,7 +773,18 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
       }}
     >
       <td style={{ padding: '8px 8px', overflow: 'hidden' }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#6366f1', fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: '#6366f1',
+          fontWeight: 700,
+          display: 'block',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          textDecoration: (substituteCode || isUnmatched) ? 'line-through' : 'none',
+          opacity: (substituteCode || isUnmatched) ? 0.7 : 1,
+        }}>
           {article.articleCode}
         </span>
         {substituteCode && (
