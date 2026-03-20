@@ -28,6 +28,7 @@ import {
   getDateRangeForPreset,
   filterBySubClient,
   matchesFresisGlobalSearch,
+  normalizeSubClientCode,
 } from "../utils/fresisHistoryFilters";
 import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
@@ -234,10 +235,13 @@ export function FresisHistoryPage() {
   const subClientResults = useMemo(() => {
     if (subClientQuery.length < 2) return [];
     const lower = subClientQuery.toLowerCase();
+    const normalizedQuery = normalizeSubClientCode(subClientQuery);
+    const isCodeLike = /^C\d{5}$/.test(normalizedQuery);
     return uniqueSubClients.filter(
       (sc) =>
         sc.name.toLowerCase().includes(lower) ||
-        sc.codice.toLowerCase().includes(lower),
+        sc.codice.toLowerCase().includes(lower) ||
+        (isCodeLike && normalizeSubClientCode(sc.codice) === normalizedQuery),
     );
   }, [subClientQuery, uniqueSubClients]);
 

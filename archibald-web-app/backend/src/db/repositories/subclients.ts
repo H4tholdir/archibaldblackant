@@ -175,10 +175,17 @@ async function getAllSubclients(pool: DbPool): Promise<Subclient[]> {
   return rows.map(mapRowToSubclient);
 }
 
+function tryNormalizeAsSubclientCode(query: string): string | null {
+  const upper = query.trim().toUpperCase();
+  const digits = upper.startsWith('C') ? upper.slice(1) : upper;
+  if (/^\d+$/.test(digits)) return `C${digits.padStart(5, '0')}`;
+  return null;
+}
+
 async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[]> {
   const pattern = `%${query}%`;
-  const { rows } = await pool.query<SubclientRow>(
-    `SELECT sc.codice, sc.ragione_sociale, sc.suppl_ragione_sociale,
+  const normalizedCode = tryNormalizeAsSubclientCode(query);
+  const selectCols = `SELECT sc.codice, sc.ragione_sociale, sc.suppl_ragione_sociale,
        sc.indirizzo, sc.cap, sc.localita, sc.prov,
        sc.telefono, sc.fax, sc.email,
        sc.partita_iva, sc.cod_fiscale, sc.zona,
@@ -194,9 +201,8 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
        (SELECT COUNT(*)::int FROM shared.sub_client_sub_client_matches
         WHERE sub_client_codice_a = sc.codice OR sub_client_codice_b = sc.codice
        ) AS sub_client_match_count
-     FROM shared.sub_clients sc
-     WHERE sc.hidden = FALSE
-       AND (sc.ragione_sociale ILIKE $1
+     FROM shared.sub_clients sc`;
+  const baseWhere = `(sc.ragione_sociale ILIKE $1
         OR sc.suppl_ragione_sociale ILIKE $1
         OR sc.codice ILIKE $1
         OR sc.partita_iva ILIKE $1
@@ -209,10 +215,11 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
         OR sc.zona ILIKE $1
         OR sc.agente ILIKE $1
         OR sc.pag ILIKE $1
-        OR sc.listino ILIKE $1)
-     ORDER BY sc.ragione_sociale ASC`,
-    [pattern],
-  );
+        OR sc.listino ILIKE $1
+        ${normalizedCode ? 'OR sc.codice ILIKE $2' : ''})`;
+  const sql = `${selectCols} WHERE sc.hidden = FALSE AND ${baseWhere} ORDER BY sc.ragione_sociale ASC`;
+  const params: string[] = normalizedCode ? [pattern, normalizedCode] : [pattern];
+  const { rows } = await pool.query<SubclientRow>(sql, params);
   return rows.map(mapRowToSubclient);
 }
 

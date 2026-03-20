@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSubclients, setSubclientMatch, type Subclient } from '../services/subclients.service';
+import { normalizeSubClientCode } from '../utils/fresisHistoryFilters';
 
 type Props = {
   customerProfileId: string;
@@ -22,10 +23,13 @@ export function SubClientPickerModal({ customerProfileId, customerName, onMatche
       .finally(() => setLoading(false));
   }, []);
 
+  const normalizedQuery = normalizeSubClientCode(query);
+  const isCodeLike = /^C\d{5}$/.test(normalizedQuery);
   const filtered = subclients.filter(
     (s) =>
       s.ragioneSociale.toLowerCase().includes(query.toLowerCase()) ||
-      s.codice.toLowerCase().includes(query.toLowerCase()),
+      s.codice.toLowerCase().includes(query.toLowerCase()) ||
+      (isCodeLike && normalizeSubClientCode(s.codice) === normalizedQuery),
   );
 
   const handleSelect = useCallback(
