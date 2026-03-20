@@ -62,7 +62,7 @@ export function FresisHistoryPage() {
 
   // Search & filter state (declared before hook to compute isBackendSearch)
   const [globalSearch, setGlobalSearch] = useState("");
-  const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'ft_only' | 'kt_only'>('all');
+  const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'ft_only' | 'kt_only'>('ft_only');
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<'documenti' | 'sottoclienti'>('documenti');
 
@@ -340,7 +340,7 @@ export function FresisHistoryPage() {
     selectedSubClient !== null ||
     activeTimePreset !== null ||
     globalSearch !== "" ||
-    docTypeFilter !== 'all';
+    docTypeFilter !== 'ft_only';
 
   const handleClearFilters = () => {
     handleClearSubClient();
@@ -351,7 +351,7 @@ export function FresisHistoryPage() {
     setDateTo(range.to);
     setGlobalSearch("");
     setCanLoadMore(true);
-    setDocTypeFilter('all');
+    setDocTypeFilter('ft_only');
   };
 
   // --- Order actions ---

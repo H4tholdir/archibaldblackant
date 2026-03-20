@@ -417,6 +417,11 @@ export function ArcaDocumentList({
       }
     };
 
+    // Proactive check: se il contenuto non riempie il viewport, carica subito altro
+    if (scrollEl.scrollHeight - scrollEl.clientHeight < 200) {
+      onScrollNearEnd();
+    }
+
     scrollEl.addEventListener("scroll", handleScroll, { passive: true });
     return () => scrollEl.removeEventListener("scroll", handleScroll);
   }, [onScrollNearEnd, sorted.length]);
@@ -468,6 +473,7 @@ export function ArcaDocumentList({
                 background: 'rgba(255,255,255,0.15)',
               }}
               onMouseDown={(e) => { e.stopPropagation(); startResize(e, colIdx); }}
+              onClick={(e) => e.stopPropagation()}
               onDoubleClick={(e) => { e.stopPropagation(); autoFit(colIdx); }}
             />
           </div>
@@ -480,7 +486,7 @@ export function ArcaDocumentList({
         rowComponent={ArcaRow}
         rowProps={rowProps}
         overscanCount={10}
-        style={{ height: height - HEADER_HEIGHT, width: totalWidth }}
+        style={{ height: height - HEADER_HEIGHT, width: totalWidth, overflowX: 'hidden' }}
       />
     </div>
   );
