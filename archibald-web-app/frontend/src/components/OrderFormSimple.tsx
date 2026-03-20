@@ -2855,6 +2855,9 @@ export default function OrderFormSimple() {
     fetchAndSetCustomerCompleteness(selectedCustomer.id);
   };
 
+  const theme = WAREHOUSE_LEVEL_COLORS[activeMatchLevel];
+  const isThemed = activeMatchLevel !== 'none';
+
   return (
     <div
       style={{
@@ -2863,6 +2866,10 @@ export default function OrderFormSimple() {
         padding: isMobile ? "1rem" : "2rem",
         ...keyboardPaddingStyle,
         fontFamily: "system-ui",
+        background: isThemed
+          ? `linear-gradient(135deg, ${theme.backgroundLight} 0%, white 50%, ${theme.backgroundLight} 100%)`
+          : 'white',
+        transition: 'background 0.4s',
       }}
     >
       <div
@@ -2949,14 +2956,18 @@ export default function OrderFormSimple() {
         style={{
           marginBottom: isMobile ? "1rem" : "2rem",
           padding: isMobile ? "1rem" : "1.5rem",
-          background: "#f9fafb",
+          background: isThemed ? theme.backgroundLight : "#f9fafb",
           borderRadius: "8px",
+          border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+          transition: 'background 0.4s, border-color 0.4s',
         }}
       >
         <h2
           style={{
             fontSize: isMobile ? "1.125rem" : "1.25rem",
             marginBottom: "1rem",
+            color: isThemed ? theme.accentColor : 'inherit',
+            transition: 'color 0.4s',
           }}
         >
           1. Seleziona Cliente
@@ -3189,16 +3200,18 @@ export default function OrderFormSimple() {
         ) : (
           <div
             style={{
-              background: "#d1fae5",
+              background: isThemed ? theme.backgroundMid : "#d1fae5",
               padding: "1rem",
               borderRadius: "4px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              border: isThemed ? `1px solid ${theme.borderColor}` : 'none',
+              transition: 'background 0.4s',
             }}
           >
             <div>
-              <strong style={{ color: "#065f46" }}>
+              <strong style={{ color: isThemed ? theme.accentColor : "#065f46" }}>
                 ✓ Cliente selezionato:
               </strong>
               <p style={{ margin: "0.25rem 0 0 0", fontSize: "1.125rem" }}>
@@ -3221,12 +3234,13 @@ export default function OrderFormSimple() {
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
                 background: "white",
-                border: "1px solid #065f46",
+                border: `1px solid ${isThemed ? theme.accentColor : '#065f46'}`,
                 borderRadius: "6px",
                 cursor: "pointer",
-                color: "#065f46",
+                color: isThemed ? theme.accentColor : '#065f46',
                 fontWeight: "500",
                 minHeight: isMobile ? "44px" : "auto",
+                transition: 'border-color 0.4s, color 0.4s',
               }}
             >
               Cambia
@@ -3355,7 +3369,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#7c3aed",
+              background: theme.buttonBackground,
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3373,7 +3387,7 @@ export default function OrderFormSimple() {
             style={{
               flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-              background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].accentColor : "#2563eb",
+              background: theme.buttonBackground,
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -3396,14 +3410,18 @@ export default function OrderFormSimple() {
             style={{
               marginBottom: isMobile ? "1rem" : "2rem",
               padding: isMobile ? "1rem" : "1.5rem",
-              background: "#f9fafb",
+              background: isThemed ? theme.backgroundLight : "#f9fafb",
               borderRadius: "8px",
+              border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+              transition: 'background 0.4s, border-color 0.4s',
             }}
           >
             <h2
               style={{
                 fontSize: isMobile ? "1.125rem" : "1.25rem",
                 marginBottom: "1rem",
+                color: isThemed ? theme.accentColor : 'inherit',
+                transition: 'color 0.4s',
               }}
             >
               2. Aggiungi Articoli
@@ -3770,8 +3788,8 @@ export default function OrderFormSimple() {
                       style={{
                         marginTop: "0.75rem",
                         padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
-                        background: activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].backgroundMid : '#f8fafc',
-                        border: `1px solid ${activeMatchLevel !== 'none' ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].borderColor : '#e2e8f0'}`,
+                        background: isThemed ? theme.backgroundMid : '#f8fafc',
+                        border: `1px solid ${isThemed ? theme.borderColor : '#e2e8f0'}`,
                         transition: 'background 0.4s, border-color 0.4s',
                         borderRadius: "6px",
                       }}
@@ -4060,8 +4078,8 @@ export default function OrderFormSimple() {
                   }
                   style={{
                     padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
-                    background: activeMatchLevel !== 'none'
-                      ? WAREHOUSE_LEVEL_COLORS[activeMatchLevel].buttonBackground
+                    background: isThemed
+                      ? theme.buttonBackground
                       : packagingPreview?.success ||
                         warehouseSelectedQty >= parseInt(quantity, 10)
                           ? "#22c55e"
@@ -4094,14 +4112,18 @@ export default function OrderFormSimple() {
           style={{
             marginBottom: isMobile ? "1rem" : "2rem",
             padding: isMobile ? "1rem" : "1.5rem",
-            background: "#f9fafb",
+            background: isThemed ? theme.backgroundLight : "#f9fafb",
             borderRadius: "8px",
+            border: isThemed ? `2px solid ${theme.borderColor}` : '2px solid transparent',
+            transition: 'background 0.4s, border-color 0.4s',
           }}
         >
           <h2
             style={{
               fontSize: isMobile ? "1.125rem" : "1.25rem",
               marginBottom: "1rem",
+              color: isThemed ? theme.accentColor : 'inherit',
+              transition: 'color 0.4s',
             }}
           >
             3. Riepilogo Articoli ({items.length})
@@ -4133,8 +4155,9 @@ export default function OrderFormSimple() {
               <thead>
                 <tr
                   style={{
-                    background: "#f3f4f6",
-                    borderBottom: "2px solid #e5e7eb",
+                    background: isThemed ? theme.backgroundMid : "#f3f4f6",
+                    borderBottom: `2px solid ${isThemed ? theme.borderColor : '#e5e7eb'}`,
+                    transition: 'background 0.4s, border-color 0.4s',
                   }}
                 >
                   <th
