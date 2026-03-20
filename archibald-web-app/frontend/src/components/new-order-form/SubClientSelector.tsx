@@ -10,6 +10,7 @@ interface SubClientSelectorProps {
   disabled?: boolean;
   externalInputRef?: React.RefObject<HTMLInputElement | null>;
   onAfterSelect?: () => void;
+  neutral?: boolean;
 }
 
 export function SubClientSelector({
@@ -19,6 +20,7 @@ export function SubClientSelector({
   disabled = false,
   externalInputRef,
   onAfterSelect,
+  neutral = false,
 }: SubClientSelectorProps) {
   const { scrollFieldIntoView } = useKeyboardScroll();
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,21 +176,22 @@ export function SubClientSelector({
     return (
       <div
         style={{
-          background: "#fef3c7",
+          background: neutral ? "#f9fafb" : "#fef3c7",
           padding: "1rem",
           borderRadius: "4px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          border: "1px solid #f59e0b",
+          border: neutral ? "1px solid #e5e7eb" : "1px solid #f59e0b",
+          transition: "background 0.4s, border-color 0.4s",
         }}
       >
         <div>
-          <strong style={{ color: "#92400e" }}>Sotto-cliente:</strong>
+          <strong style={{ color: neutral ? "#374151" : "#92400e" }}>Sotto-cliente:</strong>
           <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
             {selectedSubClient.ragioneSociale}
           </p>
-          <p style={{ margin: "0.125rem 0 0 0", fontSize: "0.75rem", color: "#78350f" }}>
+          <p style={{ margin: "0.125rem 0 0 0", fontSize: "0.75rem", color: neutral ? "#6b7280" : "#78350f" }}>
             Cod: {selectedSubClient.codice}
             {selectedSubClient.supplRagioneSociale && ` - ${selectedSubClient.supplRagioneSociale}`}
           </p>
@@ -199,11 +202,12 @@ export function SubClientSelector({
           style={{
             padding: "0.5rem 1rem",
             background: "white",
-            border: "1px solid #92400e",
+            border: neutral ? "1px solid #6b7280" : "1px solid #92400e",
             borderRadius: "6px",
             cursor: disabled ? "not-allowed" : "pointer",
-            color: "#92400e",
+            color: neutral ? "#374151" : "#92400e",
             fontWeight: "500",
+            transition: "border-color 0.4s, color 0.4s",
           }}
         >
           Cambia

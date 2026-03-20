@@ -3124,18 +3124,18 @@ export default function OrderFormSimple() {
         ) : (
           <div
             style={{
-              background: isThemed ? theme.backgroundMid : "#d1fae5",
+              background: isThemed ? theme.backgroundMid : "#f9fafb",
               padding: "1rem",
               borderRadius: "4px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              border: isThemed ? `1px solid ${theme.borderColor}` : 'none',
-              transition: 'background 0.4s',
+              border: `1px solid ${isThemed ? theme.borderColor : '#e5e7eb'}`,
+              transition: 'background 0.4s, border-color 0.4s',
             }}
           >
             <div>
-              <strong style={{ color: isThemed ? theme.accentColor : "#065f46" }}>
+              <strong style={{ color: isThemed ? theme.accentColor : "#374151" }}>
                 ✓ Cliente selezionato:
               </strong>
               <p style={{ margin: "0.25rem 0 0 0", fontSize: "1.125rem" }}>
@@ -3164,10 +3164,10 @@ export default function OrderFormSimple() {
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
                 background: "white",
-                border: `1px solid ${isThemed ? theme.accentColor : '#065f46'}`,
+                border: `1px solid ${isThemed ? theme.accentColor : '#6b7280'}`,
                 borderRadius: "6px",
                 cursor: "pointer",
-                color: isThemed ? theme.accentColor : '#065f46',
+                color: isThemed ? theme.accentColor : '#374151',
                 fontWeight: "500",
                 minHeight: isMobile ? "44px" : "auto",
                 transition: 'border-color 0.4s, color 0.4s',
@@ -3279,6 +3279,7 @@ export default function OrderFormSimple() {
               selectedSubClient={selectedSubClient}
               externalInputRef={subClientInputRef}
               onAfterSelect={() => productSearchInputRef.current?.focus()}
+              neutral={!isThemed}
             />
           </div>
         )}
@@ -3452,10 +3453,11 @@ export default function OrderFormSimple() {
                 <div
                   style={{
                     padding: isMobile ? "0.75rem" : "1rem",
-                    background: "#dbeafe",
-                    border: "2px solid #3b82f6",
+                    background: isThemed ? theme.backgroundMid : "#f9fafb",
+                    border: `2px solid ${isThemed ? theme.borderColor : '#e5e7eb'}`,
                     borderRadius: "8px",
                     marginBottom: "1rem",
+                    transition: 'background 0.4s, border-color 0.4s',
                   }}
                 >
                   {/* Variants Information Table */}
@@ -3463,7 +3465,7 @@ export default function OrderFormSimple() {
                     <div
                       style={{
                         padding: isMobile ? "0.5rem" : "0.75rem",
-                        background: isThemed ? theme.backgroundLight : "#eff6ff",
+                        background: isThemed ? theme.backgroundLight : "#f9fafb",
                         borderRadius: "6px",
                         overflowX: "auto",
                         position: "relative",
@@ -3499,7 +3501,7 @@ export default function OrderFormSimple() {
                           <thead>
                             <tr
                               style={{
-                                borderBottom: `2px solid ${isThemed ? theme.borderColor : '#3b82f6'}`,
+                                borderBottom: `2px solid ${isThemed ? theme.borderColor : '#e5e7eb'}`,
                                 transition: 'border-color 0.4s',
                               }}
                             >
@@ -3507,7 +3509,7 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "left",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: isThemed ? theme.accentColor : "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#6b7280",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
                                   transition: 'color 0.4s',
@@ -3519,7 +3521,7 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "center",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: isThemed ? theme.accentColor : "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#6b7280",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
                                   transition: 'color 0.4s',
@@ -3531,7 +3533,7 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "right",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: isThemed ? theme.accentColor : "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#6b7280",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
                                   transition: 'color 0.4s',
@@ -3543,7 +3545,7 @@ export default function OrderFormSimple() {
                                 style={{
                                   textAlign: "right",
                                   padding: isMobile ? "0.375rem" : "0.5rem",
-                                  color: isThemed ? theme.accentColor : "#1e40af",
+                                  color: isThemed ? theme.accentColor : "#6b7280",
                                   fontWeight: "600",
                                   whiteSpace: "nowrap",
                                   transition: 'color 0.4s',
@@ -3720,7 +3722,7 @@ export default function OrderFormSimple() {
                             padding: "0.15rem 0.5rem",
                             background: searchingLastSale
                               ? "#d1d5db"
-                              : "#8b5cf6",
+                              : isThemed ? theme.accentColor : "#64748b",
                             color: "white",
                             border: "none",
                             borderRadius: "4px",
