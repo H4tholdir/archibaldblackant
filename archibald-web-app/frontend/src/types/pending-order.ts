@@ -29,6 +29,8 @@ export interface PendingOrderItem {
     boxName: string;
     quantity: number;
   }>;
+  isGhostArticle?: boolean;
+  ghostArticleSource?: 'history' | 'manual';
 }
 
 export interface PendingOrder {
