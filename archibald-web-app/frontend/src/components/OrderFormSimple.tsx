@@ -38,6 +38,7 @@ import { getCustomerAddresses } from '../services/customer-addresses';
 import { useVatValidation } from '../hooks/useVatValidation';
 import { WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
 import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
+import { GhostArticleModal } from './GhostArticleModal';
 
 interface OrderItem {
   id: string;
@@ -62,6 +63,8 @@ interface OrderItem {
   }>;
   // 🔧 FIX #3: Group key to track variants of same product (for warehouse data preservation)
   productGroupKey?: string; // Used to group variants, preserve warehouse data when deleting rows
+  isGhostArticle?: boolean;
+  ghostArticleSource?: 'history' | 'manual';
 }
 
 export default function OrderFormSimple() {
@@ -113,6 +116,8 @@ export default function OrderFormSimple() {
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
     null,
   );
+
+  const [showGhostModal, setShowGhostModal] = useState(false);
 
   // Step 2: Product entry with intelligent variant selection
   const [productSearch, setProductSearch] = useState("");
@@ -2700,6 +2705,8 @@ export default function OrderFormSimple() {
         // Phase 4: Warehouse integration
         warehouseQuantity: item.warehouseQuantity,
         warehouseSources: item.warehouseSources,
+        isGhostArticle: item.isGhostArticle,
+        ghostArticleSource: item.ghostArticleSource,
       }));
 
       const isWarehouseOnly = orderItems.every((item) => {
@@ -3440,6 +3447,27 @@ export default function OrderFormSimple() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {productResults.length === 0 && !searchingProduct && productSearch.length > 0 && isFresis(selectedCustomer) && !!selectedSubClient && (
+                <div
+                  onClick={() => setShowGhostModal(true)}
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px dashed #d1d5db',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#6b7280',
+                    fontSize: '0.875rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <span>+</span>
+                  <span>Inserisci come articolo non catalogato</span>
                 </div>
               )}
             </div>
@@ -5283,6 +5311,38 @@ export default function OrderFormSimple() {
             setMatchingForceShow(true);
             setShowMatchingManagerModal(true);
           } : undefined}
+        />
+      )}
+
+      {showGhostModal && (
+        <GhostArticleModal
+          onClose={() => setShowGhostModal(false)}
+          onConfirm={(item) => {
+            const newId = crypto.randomUUID();
+            const mapped: OrderItem = {
+              id: newId,
+              productId: item.articleCode,
+              article: item.articleCode,
+              productName: item.productName ?? item.articleCode,
+              description: item.description ?? '',
+              quantity: item.quantity,
+              unitPrice: item.price,
+              vatRate: item.vat,
+              discount: item.discount ?? 0,
+              subtotal: item.quantity * item.price * (1 - (item.discount ?? 0) / 100),
+              vat: item.quantity * item.price * (1 - (item.discount ?? 0) / 100) * (item.vat / 100),
+              total: item.quantity * item.price * (1 - (item.discount ?? 0) / 100) * (1 + item.vat / 100),
+              originalListPrice: item.price,
+              warehouseSources: item.warehouseSources,
+              warehouseQuantity: item.warehouseQuantity,
+              isGhostArticle: true,
+              ghostArticleSource: item.ghostArticleSource,
+            };
+            setItems((prev) => [...prev, mapped]);
+            addItemsWithAnimation([mapped]);
+            setShowGhostModal(false);
+            setProductSearch('');
+          }}
         />
       )}
 
