@@ -178,11 +178,6 @@ export class PDFExportService {
       if (city) doc.text(city.toUpperCase(), spettX, addrY);
     }
 
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(100, 100, 100);
-    doc.text("Luogo di Consegna", spettX, 56);
-
     // ══════════════════════════════════════════════════════════════════════
     // SEZIONE 2: GRIGLIA INFO DOCUMENTO
     // ══════════════════════════════════════════════════════════════════════
