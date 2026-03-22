@@ -920,3 +920,13 @@ describe('getWarehousePickupsByDate', () => {
     ]);
   });
 });
+
+describe('getOrdersNeedingArticleSync', () => {
+  test('excludes orders with order_type Warehouse', async () => {
+    const pool = createMockPool(async () => ({ rows: [] }) as any);
+    const { getOrdersNeedingArticleSync } = await import('./orders');
+    await getOrdersNeedingArticleSync(pool, 'user1', 10);
+    const sql: string = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(sql).toContain("order_type != 'Warehouse'");
+  });
+});

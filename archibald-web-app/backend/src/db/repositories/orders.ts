@@ -1176,6 +1176,7 @@ async function getOrdersNeedingArticleSync(
     `SELECT id FROM agents.order_records
      WHERE user_id = $1
        AND order_number NOT LIKE 'NC/%'
+       AND order_type != 'Warehouse'
        AND (
          articles_synced_at IS NULL
          OR (
