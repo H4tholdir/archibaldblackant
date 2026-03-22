@@ -94,6 +94,10 @@ async function handleSendToVerona(
     const exportItems = (row.items as GenerateItemWithGhost[])
       .filter((i) => !i.isGhostArticle) as GenerateInput['items'];
 
+    if (exportItems.length === 0) {
+      continue;
+    }
+
     const input: GenerateInput = {
       subClientCodice: row.sub_client_codice,
       subClientName: row.sub_client_name,

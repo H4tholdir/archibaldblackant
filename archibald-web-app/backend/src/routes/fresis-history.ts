@@ -313,10 +313,13 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       if (generateFtNow) {
         const esercizio = String(new Date().getFullYear());
         for (const record of records) {
-          const ftNumber = await getNextFtNumber(req.user!.userId, esercizio);
           type GenerateItemWithGhost = GenerateInput['items'][number] & { isGhostArticle?: boolean };
           const exportItems = (record.items as GenerateItemWithGhost[])
             .filter((i) => !i.isGhostArticle) as GenerateInput['items'];
+          if (exportItems.length === 0) {
+            continue;
+          }
+          const ftNumber = await getNextFtNumber(req.user!.userId, esercizio);
           const input: GenerateInput = {
             subClientCodice: record.subClientCodice,
             subClientName: record.subClientName,
