@@ -4117,12 +4117,11 @@ export default function OrderFormSimple() {
                             color: "#6b7280",
                           }}
                         >
-                          {item.description}
+                          {item.description.startsWith(item.productName)
+                            ? item.description.slice(item.productName.length).trimStart()
+                            : item.description}
                         </p>
                       )}
-                      <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                        {item.article}
-                      </span>
                       {item.warehouseQuantity && item.warehouseQuantity > 0 && (
                         <div
                           style={{
@@ -4350,12 +4349,11 @@ export default function OrderFormSimple() {
                           color: "#6b7280",
                         }}
                       >
-                        {item.description}
+                        {item.description.startsWith(item.productName)
+                          ? item.description.slice(item.productName.length).trimStart()
+                          : item.description}
                       </p>
                     )}
-                    <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                      {item.article}
-                    </span>
                   </div>
 
                   {/* Warehouse badge */}
