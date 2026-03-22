@@ -5274,6 +5274,8 @@ export default function OrderFormSimple() {
               originalListPrice: newItem.price,
               warehouseSources: newItem.warehouseSources,
               warehouseQuantity: newItem.warehouseQuantity,
+              isGhostArticle: newItem.isGhostArticle,
+              ghostArticleSource: newItem.ghostArticleSource,
             };
             setItems((prev) => {
               const filtered = replace ? prev.filter((e) => e.article !== newItem.articleCode) : prev;
@@ -5298,6 +5300,8 @@ export default function OrderFormSimple() {
               originalListPrice: newItem.price,
               warehouseSources: newItem.warehouseSources,
               warehouseQuantity: newItem.warehouseQuantity,
+              isGhostArticle: newItem.isGhostArticle,
+              ghostArticleSource: newItem.ghostArticleSource,
             }));
             if (replace) {
               setItems(mapped);
