@@ -211,13 +211,15 @@ export function CustomerHistoryModal({
         : a.discountPercent;
 
       if (isFresisClient) {
+        const fresisListinoInfo = listinoPrices.get(effectiveCode);
+        const fresisPrice = fresisListinoInfo?.price ?? a.unitPrice;
         return {
           articleCode: effectiveCode,
           productName: effectiveCode,
           description: a.articleDescription,
           quantity: a.quantity,
-          price: a.unitPrice,
-          vat: a.vatPercent,
+          price: fresisPrice,
+          vat: fresisListinoInfo?.vat ?? a.vatPercent,
           discount: combinedDiscount,
         };
       }
@@ -243,7 +245,7 @@ export function CustomerHistoryModal({
         _priceWarning: !isValid,
       } as PendingOrderItem & { _priceWarning?: boolean };
     },
-    [isFresisClient],
+    [isFresisClient, listinoPrices],
   );
 
   const isFresisWithSubClient = isFresisClient && subClientCodices.length > 0;
