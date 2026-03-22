@@ -556,9 +556,14 @@ export function PendingOrdersPage() {
     navigate(`/order?editOrderId=${orderId}`);
   };
 
+  const enrichForPDF = (order: PendingOrder) => ({
+    ...order,
+    customerData: customersMap.get(order.customerId),
+  });
+
   const handleDownloadPDF = (order: PendingOrder) => {
     try {
-      pdfExportService.downloadOrderPDF(order);
+      pdfExportService.downloadOrderPDF(enrichForPDF(order));
       toastService.success("PDF scaricato con successo");
     } catch (error) {
       console.error("[PendingOrdersPage] Failed to generate PDF:", error);
@@ -572,7 +577,7 @@ export function PendingOrdersPage() {
 
   const handlePrintOrder = (order: PendingOrder) => {
     try {
-      pdfExportService.printOrderPDF(order);
+      pdfExportService.printOrderPDF(enrichForPDF(order));
       toastService.info("Apertura finestra di stampa...");
     } catch (error) {
       console.error("[PendingOrdersPage] Failed to print order:", error);
@@ -613,7 +618,7 @@ export function PendingOrdersPage() {
   const handleWhatsApp = async (order: PendingOrder) => {
     try {
       setSharingOrderId(order.id!);
-      const blob = pdfExportService.getOrderPDFBlob(order);
+      const blob = pdfExportService.getOrderPDFBlob(enrichForPDF(order));
       const fileName = pdfExportService.getOrderPDFFileName(order);
       const recipientName = getOrderRecipientName(order);
       const message = `Buongiorno, ecco il preventivo per ${recipientName}:`;
@@ -636,7 +641,7 @@ export function PendingOrdersPage() {
     if (!emailDialogOrder) return;
     try {
       setEmailDialogLoading(true);
-      const blob = pdfExportService.getOrderPDFBlob(emailDialogOrder);
+      const blob = pdfExportService.getOrderPDFBlob(enrichForPDF(emailDialogOrder));
       const fileName = pdfExportService.getOrderPDFFileName(emailDialogOrder);
       await shareService.sendEmail(blob, fileName, to, subject, body);
       toastService.success("Email inviata con successo");
@@ -654,7 +659,7 @@ export function PendingOrdersPage() {
   const handleDropbox = async (order: PendingOrder) => {
     try {
       setSharingOrderId(order.id!);
-      const blob = pdfExportService.getOrderPDFBlob(order);
+      const blob = pdfExportService.getOrderPDFBlob(enrichForPDF(order));
       const fileName = pdfExportService.getOrderPDFFileName(order);
       const result = await shareService.uploadToDropbox(blob, fileName);
       toastService.success(`PDF caricato su Dropbox: ${result.path}`);

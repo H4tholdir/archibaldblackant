@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { PendingOrderItem } from "../types/pending-order";
 import type { SubClient } from "../types/sub-client";
-import { formatCurrency } from "../utils/format-currency";
+import type { Customer } from "../types/customer";
 
 export type PDFOrderData = {
   id: string;
@@ -13,6 +13,8 @@ export type PDFOrderData = {
   createdAt: string;
   subClientCodice?: string;
   subClientData?: SubClient;
+  customerData?: Customer;
+  noShipping?: boolean;
 };
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { FRESIS_LOGO_BASE64 } from "../assets/fresis-logo-base64";
@@ -37,481 +39,468 @@ export class PDFExportService {
    * Generate PDF for a pending order
    */
   generateOrderPDF(order: PDFOrderData): jsPDF {
-    console.log("[PDFExportService] Generating PDF for order:", {
-      customerId: order.customerId,
-      customerName: order.customerName,
-      itemsCount: order.items?.length || 0,
-      discountPercent: order.discountPercent,
-    });
-
-    // Validate order data
     if (!order.items || order.items.length === 0) {
       throw new Error("Order has no items");
     }
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - margin * 2;
-    const primaryColor: [number, number, number] = [30, 64, 175];
-    const lightFill: [number, number, number] = [242, 245, 250];
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const PAGE_W = 210;
+    const ML = 10;
+    const CW = 190; // content width
 
-    // === HEADER SECTION ===
     const isFresis = !!order.subClientCodice;
 
-    const lineSubtotal = (item: PendingOrderItem) =>
-      item.price * item.quantity * (1 - (item.discount || 0) / 100);
-    const logoX = margin;
-    const logoY = 12;
-    const logoWidth = 30;
-    const logoHeight = 12;
+    const fmtN = (n: number, dec = 2): string =>
+      n.toLocaleString("it-IT", {
+        minimumFractionDigits: dec,
+        maximumFractionDigits: dec,
+      });
 
+    const lineSubtotal = (item: PendingOrderItem): number =>
+      item.price * item.quantity * (1 - (item.discount || 0) / 100);
+
+    // Helper: cella bordata con etichetta piccola (top) e valore (bottom)
+    const cell = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      label?: string,
+      value?: string,
+      opts?: { vSize?: number; vBold?: boolean; vAlign?: "left" | "right" | "center" },
+    ) => {
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15);
+      doc.rect(x, y, w, h);
+      if (label) {
+        doc.setFontSize(5.5);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(60, 60, 60);
+        doc.text(label, x + 1, y + 3);
+      }
+      if (value !== undefined && value !== "") {
+        doc.setFontSize(opts?.vSize ?? 8);
+        doc.setFont("helvetica", opts?.vBold ? "bold" : "normal");
+        doc.setTextColor(0, 0, 0);
+        const vx =
+          opts?.vAlign === "right"
+            ? x + w - 1
+            : opts?.vAlign === "center"
+              ? x + w / 2
+              : x + 1;
+        doc.text(value, vx, y + h - 2, {
+          align: opts?.vAlign ?? "left",
+          maxWidth: w - 2,
+        });
+      }
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 1: HEADER — logo + blocco azienda (sx) + SPETT.LE (dx)
+    // ══════════════════════════════════════════════════════════════════════
     try {
       if (isFresis) {
-        doc.addImage(
-          FRESIS_LOGO_BASE64,
-          "JPEG",
-          logoX,
-          logoY,
-          logoWidth,
-          logoHeight,
-        );
+        doc.addImage(FRESIS_LOGO_BASE64, "JPEG", ML, 10, 42, 17);
       } else {
-        doc.addImage(
-          KOMET_LOGO_BASE64,
-          "PNG",
-          logoX,
-          logoY,
-          logoWidth,
-          logoHeight,
-        );
+        doc.addImage(KOMET_LOGO_BASE64, "PNG", ML, 10, 42, 17);
       }
-    } catch (error) {
-      console.warn("[PDFExportService] Could not add logo:", error);
+    } catch {
+      /* ignore */
     }
 
-    if (!isFresis) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(60, 60, 60);
-      doc.text("Agente Formicola Biagio", logoX, logoY + logoHeight + 5);
-    }
-
-    const headerRightX = pageWidth - margin;
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryColor);
-    doc.text("PREVENTIVO", headerRightX, 18, { align: "right" });
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(90, 90, 90);
-    doc.text("Archibald Mobile - Inserimento Ordini", headerRightX, 24, {
-      align: "right",
-    });
-
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.3);
-    doc.line(margin, 32, pageWidth - margin, 32);
-
-    // === CLIENT & ORDER INFO SECTION ===
-    const infoY = 38;
-    const blockGap = 8;
-    const blockWidth = (contentWidth - blockGap) / 2;
-    const blockHeight = 26;
-    const headerHeight = 6;
-    const leftX = margin;
-    const rightX = margin + blockWidth + blockGap;
-
-    // Fresis sub-client: taller block to fit extra data
-    const clientBlockHeight =
-      isFresis && order.subClientData ? 42 : blockHeight;
-
-    doc.setDrawColor(230, 230, 230);
-    doc.setLineWidth(0.2);
-    doc.setFillColor(...lightFill);
-    doc.rect(leftX, infoY, blockWidth, headerHeight, "F");
-    doc.rect(leftX, infoY, blockWidth, clientBlockHeight);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...primaryColor);
-    doc.text(isFresis ? "SOTTO-CLIENTE" : "CLIENTE", leftX + 2, infoY + 4.2);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    // Blocco azienda (sotto il logo)
     doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    if (isFresis) {
+      doc.text("FRESIS SOCIETA' COOPERATIVA", ML, 30);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text("Via S. Vito, 43", ML, 34.5);
+      doc.text("80056 ERCOLANO (NA) - Italia", ML, 39);
+      doc.text("Banca FIDEURAM S.p.a. - Filiale 01 Milano", ML, 43.5);
+      doc.text("IBAN: IT89U0329601601000064395512", ML, 48);
+      doc.text("P.Iva 08246131216", ML, 52.5);
+    } else {
+      doc.text("Komet Italia S.r.l.", ML, 30);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.text("Agente Formicola Biagio", ML, 34.5);
+      doc.setFont("helvetica", "normal");
+      doc.text("Via Gianbattista Morgagni, 36", ML, 39);
+      doc.text("37135 Verona (VR) Italy", ML, 43.5);
+    }
+
+    // SPETT.LE (lato destro dell'header)
+    const spettX = ML + 93;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(80, 80, 80);
+    doc.text("SPETT.LE", spettX, 13);
+
+    const recipientName = isFresis && order.subClientData
+      ? order.subClientData.ragioneSociale
+      : order.customerName;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(0, 0, 0);
+    const nameMaxW = PAGE_W - ML - spettX - 2;
+    const nameLines = doc.splitTextToSize(recipientName.toUpperCase(), nameMaxW);
+    doc.text(nameLines as string[], spettX, 20);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    let addrY = 20 + (nameLines as string[]).length * 5.5;
 
     if (isFresis && order.subClientData) {
       const sc = order.subClientData;
-      let lineY = infoY + headerHeight + 5;
-      const lineH = 4;
-
-      doc.setFont("helvetica", "bold");
-      doc.text(sc.ragioneSociale, leftX + 2, lineY);
-      lineY += lineH;
-      doc.setFont("helvetica", "normal");
-
       if (sc.supplRagioneSociale) {
-        doc.text(sc.supplRagioneSociale, leftX + 2, lineY);
-        lineY += lineH;
+        doc.text(sc.supplRagioneSociale.toUpperCase(), spettX, addrY);
+        addrY += 5;
       }
-      doc.text(`Cod: ${sc.codice}`, leftX + 2, lineY);
-      lineY += lineH;
       if (sc.indirizzo) {
-        const addr = [sc.indirizzo, sc.cap, sc.localita, sc.prov]
-          .filter(Boolean)
-          .join(" ");
-        doc.text(addr, leftX + 2, lineY);
-        lineY += lineH;
+        doc.text(sc.indirizzo.toUpperCase(), spettX, addrY);
+        addrY += 5;
       }
-      const fiscal = [
-        sc.partitaIva ? `P.IVA: ${sc.partitaIva}` : null,
-        sc.codFiscale ? `CF: ${sc.codFiscale}` : null,
-      ]
+      const city = [sc.cap, sc.localita, sc.prov ? `(${sc.prov})` : ""]
         .filter(Boolean)
-        .join("  ");
-      if (fiscal) {
-        doc.text(fiscal, leftX + 2, lineY);
-        lineY += lineH;
+        .join(" ");
+      if (city) doc.text(city.toUpperCase(), spettX, addrY);
+    } else if (order.customerData) {
+      const cd = order.customerData;
+      if (cd.street) {
+        doc.text(cd.street.toUpperCase(), spettX, addrY);
+        addrY += 5;
       }
-      if (sc.telefono?.trim()) {
-        doc.text(`Tel: ${sc.telefono.trim()}`, leftX + 2, lineY);
-        lineY += lineH;
-      }
-      if (sc.email?.trim()) {
-        doc.text(`Email: ${sc.email.trim()}`, leftX + 2, lineY);
-      }
-    } else {
-      doc.text(`${order.customerName}`, leftX + 2, infoY + headerHeight + 6);
-      doc.text(
-        `Codice: ${order.customerId}`,
-        leftX + 2,
-        infoY + headerHeight + 12,
-      );
+      const city = [cd.postalCode, cd.city].filter(Boolean).join(" ");
+      if (city) doc.text(city.toUpperCase(), spettX, addrY);
     }
 
-    doc.setFillColor(...lightFill);
-    doc.rect(rightX, infoY, blockWidth, headerHeight, "F");
-    doc.rect(rightX, infoY, blockWidth, clientBlockHeight);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...primaryColor);
-    doc.text("DETTAGLI DOCUMENTO", rightX + 2, infoY + 4.2);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-
-    const createdDate = new Date(order.createdAt);
-    const expiryDate = new Date(createdDate);
-    expiryDate.setDate(expiryDate.getDate() + 30); // Valid for 30 days
-
-    doc.text(
-      `N. preventivo: ${order.id ?? "-"}`,
-      rightX + 2,
-      infoY + headerHeight + 6,
-    );
-    doc.text(
-      `Data emissione: ${createdDate.toLocaleDateString("it-IT")}`,
-      rightX + 2,
-      infoY + headerHeight + 12,
-    );
-    doc.text(
-      `Scadenza: ${expiryDate.toLocaleDateString("it-IT")}`,
-      rightX + 2,
-      infoY + headerHeight + 18,
-    );
-
-    // Calculate totals
-    const orderSubtotal = order.items.reduce(
-      (sum, item) => sum + lineSubtotal(item),
-      0,
-    );
-
-    // Apply global discount if present
-    const globalDiscountAmount = order.discountPercent
-      ? (orderSubtotal * order.discountPercent) / 100
-      : 0;
-    const subtotalAfterGlobalDiscount = orderSubtotal - globalDiscountAmount;
-
-    // Calculate shipping costs (automatic if imponibile < 200€)
-    const shippingCosts = calculateShippingCosts(subtotalAfterGlobalDiscount);
-    const shippingCost = shippingCosts.cost;
-    const shippingTax = shippingCosts.tax;
-
-    // Calculate VAT (including shipping)
-    const orderVAT =
-      order.items.reduce((sum, item) => {
-        const itemSub = lineSubtotal(item);
-        const itemAfterGlobalDiscount = order.discountPercent
-          ? itemSub * (1 - order.discountPercent / 100)
-          : itemSub;
-        return sum + itemAfterGlobalDiscount * ((item.vat || 0) / 100);
-      }, 0) + shippingTax;
-
-    // Total includes items, shipping, and VAT
-    const orderTotal = subtotalAfterGlobalDiscount + shippingCost + orderVAT;
-
-    // Items table
-    const tableData = order.items.map((item, index) => {
-      try {
-        // Validate item data
-        if (typeof item.price !== "number" || isNaN(item.price)) {
-          console.error(
-            `[PDFExportService] Invalid price for item ${index}:`,
-            item,
-          );
-          throw new Error(
-            `Invalid price for item "${item.articleCode}": ${item.price}`,
-          );
-        }
-
-        if (typeof item.quantity !== "number" || isNaN(item.quantity)) {
-          console.error(
-            `[PDFExportService] Invalid quantity for item ${index}:`,
-            item,
-          );
-          throw new Error(
-            `Invalid quantity for item "${item.articleCode}": ${item.quantity}`,
-          );
-        }
-
-        const subtotal = lineSubtotal(item);
-        const subtotalAfterGlobal = order.discountPercent
-          ? subtotal * (1 - order.discountPercent / 100)
-          : subtotal;
-        const vatAmount = subtotalAfterGlobal * ((item.vat || 0) / 100);
-        const total = subtotalAfterGlobal + vatAmount;
-
-        return [
-          `${item.productName || item.articleCode}\nCod: ${item.articleCode}${item.description ? `\n${item.description}` : ""}`,
-          item.quantity.toString(),
-          formatCurrency(item.price),
-          item.discount && item.discount > 0 ? `${item.discount}%` : "-",
-          formatCurrency(subtotal),
-          `${item.vat || 0}%\n${formatCurrency(vatAmount)}`,
-          formatCurrency(total),
-        ];
-      } catch (error) {
-        console.error(
-          `[PDFExportService] Error processing item ${index}:`,
-          item,
-          error,
-        );
-        throw error;
-      }
-    });
-
-    // Add spacing before table
-    const tableStartY = infoY + blockHeight + 10;
-
-    autoTable(doc, {
-      startY: tableStartY,
-      head: [
-        [
-          "Articolo",
-          "Qnt.",
-          "Prezzo Unit.",
-          "Sconto",
-          "Subtotale",
-          "IVA",
-          "Totale",
-        ],
-      ],
-      body: tableData,
-      theme: "striped",
-      headStyles: {
-        fillColor: primaryColor,
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 9,
-        cellPadding: 3.5,
-      },
-      columnStyles: {
-        0: { cellWidth: 72, fontSize: 8 }, // Articolo - wider for description
-        1: { halign: "center", cellWidth: 12, fontSize: 9 }, // Quantity
-        2: { halign: "right", cellWidth: 20, fontSize: 9 }, // Unit Price
-        3: { halign: "right", cellWidth: 16, fontSize: 9 }, // Discount
-        4: { halign: "right", cellWidth: 20, fontSize: 9 }, // Subtotal
-        5: { halign: "right", cellWidth: 16, fontSize: 8 }, // VAT
-        6: { halign: "right", cellWidth: 24, fontSize: 9 }, // Total
-      },
-      styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        lineColor: [220, 220, 220],
-        lineWidth: 0.1,
-      },
-      alternateRowStyles: {
-        fillColor: [250, 250, 250],
-      },
-      didParseCell: (data: any) => {
-        // Make total column bold
-        if (data.column.index === 6 && data.section === "body") {
-          data.cell.styles.fontStyle = "bold";
-          data.cell.styles.textColor = primaryColor;
-        }
-      },
-    });
-
-    // Get final Y position after table
-    const finalY = (doc as any).lastAutoTable?.finalY || 150;
-
-    // === TOTALS SUMMARY SECTION ===
-    const summaryStartY = finalY + 12;
-    const summaryWidth = 80;
-    const summaryHeight = 48;
-    const summaryX = pageWidth - margin - summaryWidth; // Right-aligned summary box
-
-    // Draw summary box
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.4);
-    doc.setFillColor(...lightFill);
-    doc.rect(summaryX, summaryStartY, summaryWidth, summaryHeight, "FD");
-
-    // Summary header
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryColor);
-    doc.text("Riepilogo", summaryX + 3, summaryStartY + 6);
-    doc.setTextColor(0, 0, 0); // Reset to black
-
-    // Line separator
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(
-      summaryX + 2,
-      summaryStartY + 8,
-      summaryX + summaryWidth - 2,
-      summaryStartY + 8,
-    );
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    let currentY = summaryStartY + 14;
-
-    // Subtotal
-    doc.text("Subtotale (senza IVA):", summaryX + 3, currentY);
-    doc.text(
-      formatCurrency(orderSubtotal),
-      summaryX + summaryWidth - 3,
-      currentY,
-      {
-        align: "right",
-      },
-    );
-
-    // Show global discount if present
-    if (order.discountPercent && order.discountPercent > 0) {
-      currentY += 6;
-      doc.setTextColor(220, 38, 38); // Red color for discount
-      doc.text(
-        `Sconto globale (${order.discountPercent.toFixed(2)}%):`,
-        summaryX + 3,
-        currentY,
-      );
-      doc.text(
-        `-${formatCurrency(globalDiscountAmount)}`,
-        summaryX + summaryWidth - 3,
-        currentY,
-        { align: "right" },
-      );
-      doc.setTextColor(0, 0, 0); // Reset to black
-
-      currentY += 6;
-      doc.text("Subtotale scontato:", summaryX + 3, currentY);
-      doc.text(
-        formatCurrency(subtotalAfterGlobalDiscount),
-        summaryX + summaryWidth - 3,
-        currentY,
-        { align: "right" },
-      );
-    }
-
-    // Shipping costs if applicable
-    if (shippingCost > 0) {
-      currentY += 6;
-      doc.text("Spese di trasporto K3:", summaryX + 3, currentY);
-      doc.text(
-        formatCurrency(shippingCosts.total),
-        summaryX + summaryWidth - 3,
-        currentY,
-        { align: "right" },
-      );
-    }
-
-    // VAT
-    currentY += 6;
-    doc.text("IVA Totale:", summaryX + 3, currentY);
-    doc.text(formatCurrency(orderVAT), summaryX + summaryWidth - 3, currentY, {
-      align: "right",
-    });
-
-    // Line before total
-    currentY += 2;
-    doc.setDrawColor(...primaryColor);
-    doc.setLineWidth(0.6);
-    doc.line(summaryX + 2, currentY, summaryX + summaryWidth - 2, currentY);
-
-    // Total
-    currentY += 6;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...primaryColor);
-    doc.text("TOTALE (con IVA):", summaryX + 3, currentY);
-    doc.text(
-      formatCurrency(orderTotal),
-      summaryX + summaryWidth - 3,
-      currentY,
-      {
-        align: "right",
-      },
-    );
-    doc.setTextColor(0, 0, 0); // Reset to black
-
-    // === NOTES SECTION ===
-    const notesY = summaryStartY + summaryHeight + 8;
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(100, 100, 100);
-    doc.text("Note e condizioni:", margin, notesY);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      "Il presente preventivo è valido per 30 giorni dalla data di emissione.",
-      margin,
-      notesY + 5,
-    );
-    doc.text("Condizioni di pagamento: come da accordi.", margin, notesY + 10);
-    doc.text(
-      "I prezzi sono espressi in Euro e sono da intendersi IVA inclusa.",
-      margin,
-      notesY + 15,
-    );
+    doc.text("Luogo di Consegna", spettX, 56);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 2: GRIGLIA INFO DOCUMENTO
+    // ══════════════════════════════════════════════════════════════════════
+    let gy = 60;
+
+    // Riga A: TIPO DOCUMENTO | CONTRIBUTO CONAI
+    const tdW = 45;
+    cell(ML, gy, tdW, 4.5, "TIPO DOCUMENTO");
+    cell(ML + tdW, gy, CW - tdW, 4.5);
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-
-    // === FOOTER ===
-    const footerLineY = pageHeight - 22;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(margin, footerLineY, pageWidth - margin, footerLineY);
-
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
     doc.text(
-      `Documento generato il ${new Date().toLocaleString("it-IT")}`,
-      pageWidth / 2,
-      footerLineY + 7,
+      "CONTRIBUTO AMBIENTALE CONAI ASSOLTO OVE DOVUTO",
+      ML + tdW + (CW - tdW) / 2,
+      gy + 3.2,
       { align: "center" },
+    );
+    gy += 4.5;
+
+    // Riga B: valore PREVENTIVO
+    cell(ML, gy, tdW, 7.5, undefined, "PREVENTIVO", { vBold: true, vSize: 9.5 });
+    cell(ML + tdW, gy, CW - tdW, 7.5);
+    gy += 7.5;
+
+    // Riga C/D: etichette e valori 8 campi cliente
+    const f8: Array<{ l: string; w: number }> = [
+      { l: "C. CLIENTE",     w: 18 },
+      { l: "PARTITA IVA",    w: 28 },
+      { l: "TELEFONO",       w: 25 },
+      { l: "FAX",            w: 18 },
+      { l: "CODICE FISCALE", w: 31 },
+      { l: "N° DOCUM.",      w: 23 },
+      { l: "DATA DOCUM.",    w: 27 },
+      { l: "PAGINA",         w: 20 },
+    ]; // 18+28+25+18+31+23+27+20 = 190 ✓
+
+    const cCliente = isFresis
+      ? (order.subClientData?.codice ?? order.subClientCodice ?? "")
+      : order.customerId;
+    const partitaIva = isFresis
+      ? (order.subClientData?.partitaIva ?? "")
+      : (order.customerData?.vatNumber ?? "");
+    const telefono = isFresis
+      ? (order.subClientData?.telefono ?? "")
+      : (order.customerData?.phone ?? "");
+    const faxVal = isFresis ? (order.subClientData?.fax ?? "") : "";
+    const codiceFiscale = isFresis
+      ? (order.subClientData?.codFiscale ?? "")
+      : (order.customerData?.fiscalCode ?? "");
+
+    const v8 = [
+      cCliente,
+      partitaIva,
+      telefono,
+      faxVal,
+      codiceFiscale,
+      order.id,
+      new Date(order.createdAt).toLocaleDateString("it-IT"),
+      "1",
+    ];
+
+    let fx = ML;
+    for (const f of f8) { cell(fx, gy, f.w, 4, f.l); fx += f.w; }
+    gy += 4;
+
+    fx = ML;
+    for (let i = 0; i < f8.length; i++) {
+      const fitted = (doc.splitTextToSize(v8[i] ?? "", f8[i].w - 2)[0] as string) ?? "";
+      cell(fx, gy, f8[i].w, 7, undefined, fitted);
+      fx += f8[i].w;
+    }
+    gy += 7;
+
+    // Riga E/F: CONDIZIONI DI PAGAMENTO | BANCA D'APPOGGIO
+    cell(ML, gy, 95, 4, "CONDIZIONI DI PAGAMENTO");
+    cell(ML + 95, gy, 95, 4, "BANCA D'APPOGGIO");
+    gy += 4;
+
+    cell(ML, gy, 95, 7, undefined, "0001 - COME CONVENUTO");
+    cell(
+      ML + 95, gy, 95, 7, undefined,
+      isFresis ? "Banca FIDEURAM S.p.a. - Filiale 01 Milano" : "",
+    );
+    gy += 7;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 3: TABELLA ARTICOLI
+    // ══════════════════════════════════════════════════════════════════════
+    const tableBody = order.items.map((item) => [
+      item.articleCode,
+      item.productName ?? item.articleCode,
+      "PZ",
+      String(item.quantity),
+      item.discount && item.discount > 0 ? fmtN(item.discount) : "",
+      fmtN(item.price, 3),
+      fmtN(lineSubtotal(item)),
+      String(item.vat ?? 0),
+    ]);
+
+    autoTable(doc, {
+      startY: gy,
+      head: [["Codice", "Descrizione", "U. M.", "Q.tà", "Sconti", "Prezzo Unitario", "Prezzo Totale", "Iva"]],
+      body: tableBody,
+      margin: { left: ML, right: ML },
+      tableWidth: CW,
+      theme: "grid",
+      headStyles: {
+        fillColor: [255, 255, 255] as [number, number, number],
+        textColor: [0, 0, 0] as [number, number, number],
+        fontStyle: "italic",
+        halign: "center",
+        fontSize: 7.5,
+        cellPadding: { top: 1.5, right: 1, bottom: 1.5, left: 1 },
+        lineColor: [0, 0, 0] as [number, number, number],
+        lineWidth: 0.15,
+      },
+      columnStyles: {
+        0: { cellWidth: 25, halign: "left",   fontSize: 8 },
+        1: { cellWidth: 65, halign: "left",   fontSize: 8 },
+        2: { cellWidth: 12, halign: "center", fontSize: 8 },
+        3: { cellWidth: 13, halign: "center", fontSize: 8 },
+        4: { cellWidth: 15, halign: "right",  fontSize: 8 },
+        5: { cellWidth: 22, halign: "right",  fontSize: 8 },
+        6: { cellWidth: 22, halign: "right",  fontSize: 8 },
+        7: { cellWidth: 16, halign: "center", fontSize: 8 },
+      }, // 25+65+12+13+15+22+22+16 = 190 ✓
+      styles: {
+        cellPadding: { top: 2, right: 1, bottom: 2, left: 1 },
+        lineColor: [0, 0, 0] as [number, number, number],
+        lineWidth: 0.15,
+        textColor: [0, 0, 0] as [number, number, number],
+        fillColor: [255, 255, 255] as [number, number, number],
+      },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const afterTable: number = (doc as any).lastAutoTable?.finalY ?? gy + 20;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 4: TRASPORTO
+    // ══════════════════════════════════════════════════════════════════════
+    let ty = afterTable;
+
+    // T1: TRASPORTO/CAUSALE/ASPETTO (label + valore nella stessa cella)
+    const tW = [70, 65, 55] as const; // 70+65+55 = 190 ✓
+    cell(ML,                    ty, tW[0], 9, "TRASPORTO A CURA DEL",      "Mittente");
+    cell(ML + tW[0],            ty, tW[1], 9, "CAUSALE DEL TRASPORTO",     "Vendita");
+    cell(ML + tW[0] + tW[1],    ty, tW[2], 9, "ASPETTO ESTERIORE DEI BENI","BUSTE");
+    ty += 9;
+
+    // T2: PORTO/PESO/VOLUME/COLLI  (38×5 = 190 ✓)
+    const portLabels = ["PORTO", "PESO LORDO", "PESO NETTO", "VOLUME", "COLLI"] as const;
+    const portVals   = ["Franco", "", "", "", "1"] as const;
+    for (let i = 0; i < 5; i++) {
+      cell(ML + i * 38, ty, 38, 9, portLabels[i], portVals[i]);
+    }
+    ty += 9;
+
+    // T3: VETTORE  (80+55+55 = 190 ✓)
+    const vetW = [80, 55, 55] as const;
+    cell(ML,                    ty, vetW[0], 9, "DESCRIZIONE VETTORE");
+    cell(ML + vetW[0],          ty, vetW[1], 9, "DATA E ORA DEL RITIRO");
+    cell(ML + vetW[0] + vetW[1],ty, vetW[2], 9, "FIRMA VETTORE");
+    ty += 9;
+
+    // T4: ANNOTAZIONI / DATE E FIRME  (50+50+50+40 = 190 ✓)
+    const annW = [50, 50, 50, 40] as const;
+    const annL = ["Annotazioni","DATA E ORA DEL TRASPORTO","FIRMA DEL CONDUCENTE","FIRMA DEL DESTINATARIO"] as const;
+    let ax = ML;
+    for (let i = 0; i < 4; i++) { cell(ax, ty, annW[i], 9, annL[i]); ax += annW[i]; }
+    ty += 9;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 5: TOTALI
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Calcoli
+    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
+    const globalDiscAmt =
+      order.discountPercent && order.discountPercent > 0
+        ? (totalMerce * order.discountPercent) / 100
+        : 0;
+    const totalNetto = totalMerce - globalDiscAmt;
+
+    const shipping = order.noShipping
+      ? { cost: 0, tax: 0, total: 0 }
+      : calculateShippingCosts(totalNetto);
+
+    // Breakdown IVA per aliquota
+    const vatMap = new Map<number, { imp: number; tax: number }>();
+    for (const item of order.items) {
+      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
+      const rate = item.vat ?? 0;
+      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
+      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
+    }
+    if (shipping.cost > 0) {
+      const r = 22;
+      const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
+      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
+    }
+
+    const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
+    const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
+    const totFattura = totImp + totIva;
+
+    // S1: TOTALE MERCE … SPESE VARIE  (29+22+27+28+30+27+27 = 190 ✓)
+    const s1Cols: Array<{ l: string; w: number }> = [
+      { l: "TOTALE MERCE",    w: 29 },
+      { l: "SC.% MERCE",      w: 22 },
+      { l: "IMPORTO SCONTO",  w: 27 },
+      { l: "TOTALE NETTO",    w: 28 },
+      { l: "SPESE TRASPORTO", w: 30 },
+      { l: "SPESE IMBALLO",   w: 27 },
+      { l: "SPESE VARIE",     w: 27 },
+    ];
+    const s1Vals = [
+      fmtN(totalMerce),
+      order.discountPercent && order.discountPercent > 0 ? fmtN(order.discountPercent) : "",
+      globalDiscAmt > 0 ? fmtN(globalDiscAmt) : "",
+      fmtN(totalNetto),
+      shipping.total > 0 ? fmtN(shipping.total) : "",
+      "",
+      "",
+    ];
+    let sx = ML;
+    for (let i = 0; i < s1Cols.length; i++) {
+      cell(sx, ty, s1Cols[i].w, 9, s1Cols[i].l, s1Vals[i], { vAlign: "right" });
+      sx += s1Cols[i].w;
+    }
+    ty += 9;
+
+    // S2: IVA etichette  (15+38+32+35 = 120) + SPESE ART.15/ACCONTO (35+35 = 70)
+    const ivaLW = [15, 38, 32, 35] as const;
+    const ivaLL = ["IVA", "IMPONIBILE", "IMPOSTA", "AGENDA CODICI"] as const;
+    const ivaRW = [35, 35] as const;
+    const ivaRL = ["SPESE ART. 15", "ACCONTO"] as const;
+
+    sx = ML;
+    for (let i = 0; i < 4; i++) { cell(sx, ty, ivaLW[i], 4, ivaLL[i]); sx += ivaLW[i]; }
+    for (let i = 0; i < 2; i++) { cell(sx, ty, ivaRW[i], 4, ivaRL[i]); sx += ivaRW[i]; }
+    ty += 4;
+
+    // S3: righe valori IVA per aliquota
+    const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
+    for (const [rate, { imp, tax }] of vatRates) {
+      const vals = [String(rate), fmtN(imp), fmtN(tax), "", "", ""];
+      const allW = [...ivaLW, ...ivaRW];
+      sx = ML;
+      for (let i = 0; i < 6; i++) {
+        cell(sx, ty, allW[i], 7, undefined, vals[i],
+          { vAlign: i === 1 || i === 2 ? "right" : "left" });
+        sx += allW[i];
+      }
+      ty += 7;
+    }
+
+    // S4: ABBUONO / OMAGGIO
+    const ivaLeftTot = ivaLW.reduce((s, w) => s + w, 0); // 120
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.15);
+    doc.rect(ML, ty, ivaLeftTot, 5);
+    cell(ML + ivaLeftTot,             ty, ivaRW[0], 5, "ABBUONO");
+    cell(ML + ivaLeftTot + ivaRW[0],  ty, ivaRW[1], 5, "OMAGGIO");
+    ty += 5;
+
+    // S5: TOTALE IMPONIBILE … NETTO A PAGARE (140mm) + SCADENZE header (50mm)
+    const sumCols: Array<{ l: string; w: number }> = [
+      { l: "TOTALE IMPONIBILE", w: 40 },
+      { l: "TOTALE IVA",        w: 33 },
+      { l: "TOTALE ESENTE",     w: 33 },
+      { l: "NETTO A PAGARE",    w: 34 },
+    ]; // 40+33+33+34 = 140
+    const rightW = CW - 140; // 50
+
+    sx = ML;
+    for (const c of sumCols) { cell(sx, ty, c.w, 4, c.l); sx += c.w; }
+    cell(ML + 140, ty, rightW, 4, "SCADENZE");
+    ty += 4;
+
+    const sumVals = [fmtN(totImp), fmtN(totIva), "", fmtN(totFattura)];
+    sx = ML;
+    for (let i = 0; i < sumCols.length; i++) {
+      cell(sx, ty, sumCols[i].w, 7, undefined, sumVals[i], { vAlign: "right" });
+      sx += sumCols[i].w;
+    }
+    cell(ML + 140, ty, rightW, 7, "TOTALE FATTURA");
+    ty += 7;
+
+    // S6: SCADENZE vuote (140mm) + valore TOTALE FATTURA grande (50mm)
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.15);
+    doc.rect(ML, ty, 140, 12);
+    cell(ML + 140, ty, rightW, 12, undefined, fmtN(totFattura), {
+      vBold: true, vSize: 13, vAlign: "right",
+    });
+    ty += 12;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 6: FOOTER — note legali
+    // ══════════════════════════════════════════════════════════════════════
+    const footerY = ty + 4;
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text(
+      "Informativa sul trattamento dei dati personali (ai sensi dell'art.13 GDPR (Regolamento Europeo UE 2016/679))",
+      PAGE_W / 2, footerY, { align: "center" },
+    );
+    doc.text(
+      "PreghiamoVi controllare esatta Vs ragione sociale. Decliniamo ogni e qualsiasi responsabilità come previsto dall'art.41 DPR 633 del 26/10/72",
+      PAGE_W / 2, footerY + 4, { align: "center" },
     );
     doc.setTextColor(0, 0, 0);
 
     return doc;
   }
+
 
   /**
    * Download PDF for an order
