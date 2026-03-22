@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import type { FresisHistoryOrder } from "../types/fresis";
+import type { ArcaTestata } from "../types/arca-data";
 import {
   parseLinkedIds,
   serializeLinkedIds,
@@ -433,8 +434,19 @@ export function FresisHistoryPage() {
   };
 
   const handleDownloadPDF = useCallback((order: FresisHistoryOrder) => {
+    let documentNumber = order.invoiceNumber ?? order.id;
+    if (order.arcaData) {
+      try {
+        const arcaData = (typeof order.arcaData === "object"
+          ? order.arcaData
+          : JSON.parse(order.arcaData as unknown as string)) as { testata?: ArcaTestata };
+        if (arcaData?.testata) {
+          documentNumber = `${arcaData.testata.TIPODOC} ${arcaData.testata.NUMERODOC}/${arcaData.testata.ESERCIZIO}`;
+        }
+      } catch { /* ignore */ }
+    }
     const pdfService = PDFExportService.getInstance();
-    const doc = pdfService.generateOrderPDF(order);
+    const doc = pdfService.generateOrderPDF({ ...order, documentNumber });
     doc.save(
       `ordine-fresis-${order.subClientName || order.subClientCodice}-${order.createdAt.slice(0, 10)}.pdf`,
     );

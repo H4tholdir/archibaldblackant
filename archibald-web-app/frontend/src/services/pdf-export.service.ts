@@ -6,6 +6,7 @@ import type { Customer } from "../types/customer";
 
 export type PDFOrderData = {
   id: string;
+  documentNumber?: string;
   customerId: string;
   customerName: string;
   items: PendingOrderItem[];
@@ -122,13 +123,13 @@ export class PDFExportService {
       doc.text("IBAN: IT89U0329601601000064395512", ML, 48);
       doc.text("P.Iva 08246131216", ML, 52.5);
     } else {
-      doc.text("Komet Italia S.r.l.", ML, 30);
+      doc.text("Komet Italia S.r.l.", ML, 32);
       doc.setFont("helvetica", "italic");
       doc.setFontSize(8);
-      doc.text("Agente Formicola Biagio", ML, 34.5);
+      doc.text("Agente Formicola Biagio", ML, 36.5);
       doc.setFont("helvetica", "normal");
-      doc.text("Via Gianbattista Morgagni, 36", ML, 39);
-      doc.text("37135 Verona (VR) Italy", ML, 43.5);
+      doc.text("Via Gianbattista Morgagni, 36", ML, 41);
+      doc.text("37135 Verona (VR) Italy", ML, 45.5);
     }
 
     // SPETT.LE (lato destro dell'header)
@@ -239,7 +240,7 @@ export class PDFExportService {
       telefono,
       faxVal,
       codiceFiscale,
-      order.id,
+      order.documentNumber ?? order.id,
       new Date(order.createdAt).toLocaleDateString("it-IT"),
       "1",
     ];
@@ -273,7 +274,7 @@ export class PDFExportService {
     // ══════════════════════════════════════════════════════════════════════
     const tableBody = order.items.map((item) => [
       item.articleCode,
-      item.description ?? (item.productName && item.productName !== item.articleCode ? item.productName : ""),
+      (() => { const s = item.description ?? item.productName ?? ""; return s.startsWith(item.articleCode) ? s.slice(item.articleCode.length).trim() : (s !== item.articleCode ? s : ""); })(),
       "PZ",
       String(item.quantity),
       item.discount && item.discount > 0 ? fmtN(item.discount) : "",
