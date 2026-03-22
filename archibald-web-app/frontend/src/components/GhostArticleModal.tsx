@@ -5,9 +5,10 @@ import { getGhostArticles, type GhostArticleSuggestion } from '../api/fresis-his
 type GhostArticleModalProps = {
   onConfirm: (item: PendingOrderItem) => void;
   onClose: () => void;
+  initialSearch?: string;
 };
 
-export function GhostArticleModal({ onConfirm, onClose }: GhostArticleModalProps) {
+export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: GhostArticleModalProps) {
   const [activeTab, setActiveTab] = useState<'history' | 'manual'>('history');
   const [suggestions, setSuggestions] = useState<GhostArticleSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,7 +90,10 @@ export function GhostArticleModal({ onConfirm, onClose }: GhostArticleModalProps
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
           <button style={tabStyle('history')} onClick={() => setActiveTab('history')}>Dallo storico FT</button>
-          <button style={tabStyle('manual')} onClick={() => setActiveTab('manual')}>Inserimento manuale</button>
+          <button style={tabStyle('manual')} onClick={() => {
+            if (!articleCode && initialSearch) setArticleCode(initialSearch);
+            setActiveTab('manual');
+          }}>Inserimento manuale</button>
         </div>
 
         {/* Tab 1 — Storico */}
@@ -99,7 +103,15 @@ export function GhostArticleModal({ onConfirm, onClose }: GhostArticleModalProps
             {!loading && suggestions.length === 0 && (
               <p style={{ padding: '0.75rem', color: '#6b7280' }}>Nessun articolo non catalogato trovato nello storico.</p>
             )}
-            {suggestions.map((s) => (
+            {[...suggestions].sort((a, b) => {
+              const term = initialSearch.toUpperCase();
+              if (!term) return 0;
+              const aMatch = a.articleCode.toUpperCase().includes(term) || a.description.toUpperCase().includes(term);
+              const bMatch = b.articleCode.toUpperCase().includes(term) || b.description.toUpperCase().includes(term);
+              if (aMatch && !bMatch) return -1;
+              if (!aMatch && bMatch) return 1;
+              return 0;
+            }).map((s) => (
               <div
                 key={s.articleCode}
                 onClick={() => selectSuggestion(s)}

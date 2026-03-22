@@ -5316,6 +5316,7 @@ export default function OrderFormSimple() {
 
       {showGhostModal && (
         <GhostArticleModal
+          initialSearch={productSearch}
           onClose={() => setShowGhostModal(false)}
           onConfirm={(item) => {
             const newId = crypto.randomUUID();
