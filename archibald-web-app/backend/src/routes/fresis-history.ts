@@ -314,11 +314,14 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
         const esercizio = String(new Date().getFullYear());
         for (const record of records) {
           const ftNumber = await getNextFtNumber(req.user!.userId, esercizio);
+          type GenerateItemWithGhost = GenerateInput['items'][number] & { isGhostArticle?: boolean };
+          const exportItems = (record.items as GenerateItemWithGhost[])
+            .filter((i) => !i.isGhostArticle) as GenerateInput['items'];
           const input: GenerateInput = {
             subClientCodice: record.subClientCodice,
             subClientName: record.subClientName,
             subClientData: record.subClientData as GenerateInput['subClientData'],
-            items: (record.items as GenerateInput['items']),
+            items: exportItems,
             discountPercent: record.discountPercent ?? undefined,
             notes: record.notes ?? undefined,
           };
