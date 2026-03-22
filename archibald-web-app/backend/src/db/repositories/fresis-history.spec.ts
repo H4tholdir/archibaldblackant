@@ -713,3 +713,43 @@ describe('reassignMerged', () => {
     expect(call.params).toContain('new-merged');
   });
 });
+
+describe('getGhostArticleSuggestions', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns ghost article suggestions from FT history excluding shared.products codes', async () => {
+    const ghostCode = 'GHOST001';
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      rows: [
+        {
+          article_code: ghostCode,
+          description: 'Articolo fantasma',
+          price: 10.5,
+          discount: 0,
+          vat: 22,
+          occurrences: 3,
+        },
+      ],
+    });
+
+    const { getGhostArticleSuggestions } = await import('./fresis-history');
+    const result = await getGhostArticleSuggestions(pool, TEST_USER_ID);
+
+    expect(result).toEqual([
+      {
+        articleCode: ghostCode,
+        description: 'Articolo fantasma',
+        price: 10.5,
+        discount: 0,
+        vat: 22,
+        occurrences: 3,
+      },
+    ]);
+    const [sql] = vi.mocked(pool.query).mock.calls[0];
+    expect(sql).toContain('shared.products');
+    expect(sql).toContain('jsonb_array_elements');
+  });
+});

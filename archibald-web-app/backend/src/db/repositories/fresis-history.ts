@@ -576,6 +576,73 @@ async function reassignMerged(
   return rowCount ?? 0;
 }
 
+export type GhostArticleSuggestion = {
+  articleCode: string;
+  description: string;
+  price: number;
+  discount: number;
+  vat: number;
+  occurrences: number;
+};
+
+async function getGhostArticleSuggestions(
+  pool: DbPool,
+  userId: string,
+): Promise<GhostArticleSuggestion[]> {
+  const result = await pool.query<{
+    article_code: string;
+    description: string;
+    price: number;
+    discount: number;
+    vat: number;
+    occurrences: number;
+  }>(
+    `
+    WITH ranked_items AS (
+      SELECT
+        item->>'articleCode' AS article_code,
+        item->>'description' AS description,
+        (item->>'price')::float AS price,
+        COALESCE((item->>'discount')::float, 0) AS discount,
+        COALESCE((item->>'vat')::int, 0) AS vat,
+        fh.created_at,
+        COUNT(*) OVER (PARTITION BY item->>'articleCode') AS occurrences,
+        ROW_NUMBER() OVER (
+          PARTITION BY item->>'articleCode'
+          ORDER BY fh.created_at DESC
+        ) AS rn
+      FROM agents.fresis_history fh,
+           jsonb_array_elements(fh.items) AS item
+      WHERE fh.user_id = $1
+        AND (item->>'articleCode') IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM shared.products p
+          WHERE p.id = item->>'articleCode'
+        )
+    )
+    SELECT
+      article_code,
+      description,
+      price,
+      discount,
+      vat,
+      occurrences::int
+    FROM ranked_items
+    WHERE rn = 1
+    ORDER BY occurrences DESC, article_code
+    `,
+    [userId],
+  );
+  return result.rows.map((row) => ({
+    articleCode: row.article_code,
+    description: row.description ?? '',
+    price: row.price ?? 0,
+    discount: row.discount ?? 0,
+    vat: row.vat ?? 0,
+    occurrences: row.occurrences,
+  }));
+}
+
 async function deleteArcaImports(pool: DbPool, userId: string): Promise<number> {
   const { rowCount } = await pool.query(
     "DELETE FROM agents.fresis_history WHERE user_id = $1 AND source = 'arca_import'",
@@ -680,6 +747,7 @@ export {
   getDiscounts,
   upsertDiscount,
   deleteDiscount,
+  getGhostArticleSuggestions,
   mapRowToFresisHistory,
   mapRowToFresisDiscount,
   type FresisHistoryRow,
