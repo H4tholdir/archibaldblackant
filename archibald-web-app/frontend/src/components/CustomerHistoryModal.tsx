@@ -84,8 +84,7 @@ export function CustomerHistoryModal({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const fetchOrders = useCallback(() => {
     setLoading(true);
     setError(null);
     getCustomerFullHistory({
@@ -96,8 +95,13 @@ export function CustomerHistoryModal({
       .then(setOrders)
       .catch(() => setError('Errore nel caricamento dello storico'))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, profileIdsKey, customerName, subClientCodicesKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileIdsKey, customerName, subClientCodicesKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchOrders();
+  }, [isOpen, fetchOrders]);
 
   useEffect(() => {
     if (!isOpen || orders.length === 0) return;
@@ -480,6 +484,10 @@ export function CustomerHistoryModal({
                   {addedCount} articol{addedCount === 1 ? 'o' : 'i'} nell'ordine
                 </div>
               )}
+              <button onClick={fetchOrders} disabled={loading} style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none', color: loading ? '#475569' : '#94a3b8',
+                padding: '4px 10px', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+              }}>⟳ Aggiorna</button>
               {onEditMatching && (
                 <button onClick={onEditMatching} style={{
                   background: 'rgba(255,255,255,0.1)', border: 'none', color: '#94a3b8',

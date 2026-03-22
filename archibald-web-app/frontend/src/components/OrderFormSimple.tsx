@@ -4150,7 +4150,7 @@ export default function OrderFormSimple() {
                             : item.description}
                         </p>
                       )}
-                      {item.warehouseQuantity && item.warehouseQuantity > 0 && (
+                      {item.warehouseQuantity && item.warehouseQuantity > 0 && !item.isGhostArticle && (
                         <div
                           style={{
                             marginTop: "0.5rem",
@@ -4385,7 +4385,7 @@ export default function OrderFormSimple() {
                   </div>
 
                   {/* Warehouse badge */}
-                  {item.warehouseQuantity && item.warehouseQuantity > 0 && (
+                  {item.warehouseQuantity && item.warehouseQuantity > 0 && !item.isGhostArticle && (
                     <div
                       style={{
                         marginBottom: "0.75rem",
