@@ -1208,9 +1208,11 @@ export async function performArcaSync(
             `UPDATE agents.fresis_history SET
                arca_data             = $1,
                target_total_with_vat = $2,
+               discount_percent      = $3,
+               items                 = $4,
                updated_at            = NOW()
-             WHERE id = $3 AND user_id = $4`,
-            [record.arca_data, record.target_total_with_vat, existing.id, userId],
+             WHERE id = $5 AND user_id = $6`,
+            [record.arca_data, record.target_total_with_vat, record.discount_percent, record.items, existing.id, userId],
           );
           updated++;
         } else {

@@ -1004,10 +1004,12 @@ function createMockPool(overrides?: {
           typeof sql === 'string' &&
           sql.includes('UPDATE agents.fresis_history') &&
           sql.includes('arca_data') &&
-          sql.includes('target_total_with_vat'),
+          sql.includes('target_total_with_vat') &&
+          sql.includes('items'),
       );
       expect(arcaDataUpdateCalls).toHaveLength(1);
-      expect(arcaDataUpdateCalls[0][1][2]).toBe(existingId);
+      // params: [$1=arca_data, $2=target_total_with_vat, $3=discount_percent, $4=items, $5=id, $6=userId]
+      expect(arcaDataUpdateCalls[0][1][4]).toBe(existingId);
     },
     60000,
   );
