@@ -88,7 +88,7 @@ export function generateArcaData(
       SCONTI: discount > 0 ? String(discount) : "",
       PREZZOUN: item.price,
       PREZZOTOT: prezzoTot,
-      ALIIVA: String(item.vat),
+      ALIIVA: String(item.vat).padStart(2, "0"),
       CONTOSCARI: "01",
       OMIVA: false,
       OMMERCE: false,
