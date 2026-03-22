@@ -77,6 +77,7 @@ function createMockDeps(): FresisHistoryRouterDeps {
     getNextFtNumber: vi.fn().mockResolvedValue(42),
     updateRecord: vi.fn().mockResolvedValue({ ...mockRecord, notes: 'Updated' }),
     reassignMerged: vi.fn().mockResolvedValue(3),
+    getGhostArticleSuggestions: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -341,6 +342,30 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/fresis-history/ghost-articles', () => {
+    test('returns ghost article suggestions for authenticated user', async () => {
+      const suggestions = [
+        { articleCode: 'GHOST001', description: 'Test', price: 10, discount: 0, vat: 22, occurrences: 2 },
+      ];
+      (deps.getGhostArticleSuggestions as ReturnType<typeof vi.fn>).mockResolvedValueOnce(suggestions);
+
+      const res = await request(app).get('/api/fresis-history/ghost-articles');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, suggestions });
+      expect(deps.getGhostArticleSuggestions).toHaveBeenCalledWith('user-1');
+    });
+
+    test('returns 500 on error', async () => {
+      (deps.getGhostArticleSuggestions as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+
+      const res = await request(app).get('/api/fresis-history/ghost-articles');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nel recupero articoli non catalogati' });
     });
   });
 

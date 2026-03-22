@@ -3,7 +3,7 @@ import { z } from 'zod';
 import multer from 'multer';
 import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
-import type { FresisHistoryRecord, FresisHistoryInput, FresisDiscount, StateData } from '../db/repositories/fresis-history';
+import type { FresisHistoryRecord, FresisHistoryInput, FresisDiscount, StateData, GhostArticleSuggestion } from '../db/repositories/fresis-history';
 import type { ExportStats } from '../arca-export-service';
 import { logger } from '../logger';
 import { generateArcaData } from '../services/generate-arca-data';
@@ -30,6 +30,7 @@ type FresisHistoryRouterDeps = {
   getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
   updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
   reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
+  getGhostArticleSuggestions: (userId: string) => Promise<GhostArticleSuggestion[]>;
   broadcast?: (userId: string, event: { type: string; payload: unknown }) => void;
 };
 
@@ -110,7 +111,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     getAll, searchAll, getAllWithDateFilter, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
-    updateRecord, reassignMerged, broadcast,
+    updateRecord, reassignMerged, getGhostArticleSuggestions, broadcast,
   } = deps;
   const router = Router();
 
@@ -341,6 +342,16 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     } catch (error) {
       logger.error('Error archiving orders', { error });
       res.status(500).json({ success: false, error: 'Errore archiviazione ordini' });
+    }
+  });
+
+  router.get('/ghost-articles', async (req: AuthRequest, res) => {
+    try {
+      const suggestions = await getGhostArticleSuggestions(req.user!.userId);
+      res.json({ success: true, suggestions });
+    } catch (error) {
+      logger.error('Error fetching ghost article suggestions', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero articoli non catalogati' });
     }
   });
 
