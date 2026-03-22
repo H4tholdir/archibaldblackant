@@ -177,6 +177,7 @@ export function isInTransit(order: Order): boolean {
 }
 
 export function isNotSentToVerona(order: Order): boolean {
+  if (order.id?.startsWith('ghost-')) return false;
   return order.transferStatus?.toLowerCase() === "modifica";
 }
 
