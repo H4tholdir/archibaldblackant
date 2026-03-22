@@ -335,5 +335,5 @@ export async function getGhostArticles(): Promise<GhostArticleSuggestion[]> {
     throw new Error(`Error fetching ghost articles: ${response.status}`);
   }
   const data = await response.json();
-  return data.suggestions as GhostArticleSuggestion[];
+  return data.suggestions;
 }
