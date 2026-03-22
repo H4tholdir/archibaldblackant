@@ -435,6 +435,9 @@ export function FresisHistoryPage() {
 
   const handleDownloadPDF = useCallback((order: FresisHistoryOrder) => {
     let documentNumber = order.invoiceNumber ?? order.id;
+    let shippingCost: number | undefined = order.shippingCost ?? 0;
+    let shippingTax: number | undefined = order.shippingTax ?? 0;
+
     if (order.arcaData) {
       try {
         const arcaData = (typeof order.arcaData === "object"
@@ -442,11 +445,15 @@ export function FresisHistoryPage() {
           : JSON.parse(order.arcaData as unknown as string)) as { testata?: ArcaTestata };
         if (arcaData?.testata) {
           documentNumber = `${arcaData.testata.TIPODOC} ${arcaData.testata.NUMERODOC}/${arcaData.testata.ESERCIZIO}`;
+          shippingCost = (arcaData.testata.SPESETR ?? 0) + (arcaData.testata.SPESEIM ?? 0) + (arcaData.testata.SPESEVA ?? 0);
+          shippingTax = 0;
         }
       } catch { /* ignore */ }
     }
+
+    const isKtOrder = documentNumber.startsWith("KT ");
     const pdfService = PDFExportService.getInstance();
-    const doc = pdfService.generateOrderPDF({ ...order, documentNumber });
+    const doc = pdfService.generateOrderPDF({ ...order, documentNumber, isKtOrder, shippingCost, shippingTax });
     doc.save(
       `ordine-fresis-${order.subClientName || order.subClientCodice}-${order.createdAt.slice(0, 10)}.pdf`,
     );

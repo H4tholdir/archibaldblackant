@@ -16,6 +16,9 @@ export type PDFOrderData = {
   subClientData?: SubClient;
   customerData?: Customer;
   noShipping?: boolean;
+  isKtOrder?: boolean;
+  shippingCost?: number;
+  shippingTax?: number;
 };
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { FRESIS_LOGO_BASE64 } from "../assets/fresis-logo-base64";
@@ -50,6 +53,7 @@ export class PDFExportService {
     const CW = 190; // content width
 
     const isFresis = !!order.subClientCodice;
+    const isFresisBranding = isFresis && !order.isKtOrder;
 
     const fmtN = (n: number, dec = 2): string =>
       n.toLocaleString("it-IT", {
@@ -100,7 +104,7 @@ export class PDFExportService {
     // SEZIONE 1: HEADER — logo + blocco azienda (sx) + SPETT.LE (dx)
     // ══════════════════════════════════════════════════════════════════════
     try {
-      if (isFresis) {
+      if (isFresisBranding) {
         doc.addImage(FRESIS_LOGO_BASE64, "JPEG", ML, 10, 42, 17);
       } else {
         doc.addImage(KOMET_LOGO_BASE64, "JPEG", ML, 10, 20, 20);
@@ -113,7 +117,7 @@ export class PDFExportService {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    if (isFresis) {
+    if (isFresisBranding) {
       doc.text("FRESIS SOCIETA' COOPERATIVA", ML, 30);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
@@ -123,13 +127,13 @@ export class PDFExportService {
       doc.text("IBAN: IT89U0329601601000064395512", ML, 48);
       doc.text("P.Iva 08246131216", ML, 52.5);
     } else {
-      doc.text("Komet Italia S.r.l.", ML, 32);
+      doc.text("Komet Italia S.r.l.", ML, 34);
       doc.setFont("helvetica", "italic");
       doc.setFontSize(8);
-      doc.text("Agente Formicola Biagio", ML, 36.5);
+      doc.text("Agente Formicola Biagio", ML, 38.5);
       doc.setFont("helvetica", "normal");
-      doc.text("Via Gianbattista Morgagni, 36", ML, 41);
-      doc.text("37135 Verona (VR) Italy", ML, 45.5);
+      doc.text("Via Gianbattista Morgagni, 36", ML, 43);
+      doc.text("37135 Verona (VR) Italy", ML, 47.5);
     }
 
     // SPETT.LE (lato destro dell'header)
@@ -260,7 +264,7 @@ export class PDFExportService {
     cell(ML, gy, 95, 7, undefined, "0001 - COME CONVENUTO");
     cell(
       ML + 95, gy, 95, 7, undefined,
-      isFresis ? "Banca FIDEURAM S.p.a. - Filiale 01 Milano" : "",
+      isFresisBranding ? "Banca FIDEURAM S.p.a. - Filiale 01 Milano" : "",
     );
     gy += 7;
 
@@ -365,7 +369,9 @@ export class PDFExportService {
 
     const shipping = order.noShipping
       ? { cost: 0, tax: 0, total: 0 }
-      : calculateShippingCosts(totalNetto);
+      : order.shippingCost !== undefined
+        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: (order.shippingCost) + (order.shippingTax ?? 0) }
+        : calculateShippingCosts(totalNetto);
 
     // Breakdown IVA per aliquota
     const vatMap = new Map<number, { imp: number; tax: number }>();
