@@ -470,6 +470,210 @@ describe('handleSubmitOrder — customer name resolution', () => {
   });
 });
 
+describe('handleSubmitOrder — ghost-only orders', () => {
+  const ghostItems = [
+    {
+      articleCode: 'GHOST001',
+      description: 'Articolo fantasma 1',
+      quantity: 3,
+      price: 10,
+      discount: 0,
+      vat: 22,
+      isGhostArticle: true,
+      warehouseQuantity: 3,
+      warehouseSources: [],
+    },
+    {
+      articleCode: 'GHOST002',
+      description: 'Articolo fantasma 2',
+      quantity: 1,
+      price: 25.50,
+      discount: 10,
+      vat: 22,
+      isGhostArticle: true,
+      warehouseQuantity: 1,
+      warehouseSources: [],
+    },
+  ];
+
+  const ghostData: SubmitOrderData = {
+    pendingOrderId: 'pending-ghost',
+    customerId: 'CUST-001',
+    customerName: 'Acme Corp',
+    items: ghostItems,
+  };
+
+  test('does not call bot.createOrder when all items are ghost', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    expect(bot.createOrder).not.toHaveBeenCalled();
+    expect(result.orderId).toMatch(/^ghost-\d+$/);
+  });
+
+  test('does not call bot.setProgressCallback for ghost-only orders', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    expect(bot.setProgressCallback).not.toHaveBeenCalled();
+  });
+
+  test('skips isCustomerComplete check for ghost-only orders', async () => {
+    const incompleteCustomer = {
+      vat_validated_at: null,
+      pec: null,
+      sdi: null,
+      street: null,
+      postal_code: null,
+      name: 'Incomplete Customer',
+      archibald_name: null,
+    };
+    const pool = createMockPoolWithCustomer(incompleteCustomer);
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    expect(result.orderId).toMatch(/^ghost-\d+$/);
+    expect(bot.createOrder).not.toHaveBeenCalled();
+  });
+
+  test('still fetches customer for effectiveCustomerName in fresis_history update', async () => {
+    const pool = createMockPoolWithCustomer({
+      vat_validated_at: '2026-01-01',
+      pec: 'x@pec.it',
+      sdi: null,
+      street: 'Via X',
+      postal_code: '80100',
+      name: 'DB Customer Name',
+      archibald_name: 'Archibald Name',
+    });
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const customerQuery = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .find((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('vat_validated_at'));
+    expect(customerQuery).toBeDefined();
+  });
+
+  test('inserts order_records with WAREHOUSE_FULFILLED status and ghost- prefix', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_records'));
+    expect(insertCalls).toHaveLength(1);
+
+    const params = insertCalls[0][1] as unknown[];
+    expect(params[0]).toMatch(/^ghost-\d+$/);
+    expect(params).toContain('WAREHOUSE_FULFILLED');
+    expect(params).toContain('Warehouse');
+  });
+
+  test('inserts order_articles with is_ghost column', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const articleCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_articles'));
+    expect(articleCalls).toHaveLength(1);
+
+    const sql = articleCalls[0][0] as string;
+    expect(sql).toContain('is_ghost');
+
+    const params = articleCalls[0][1] as unknown[];
+    // 15 params per item, 2 items = 30 params
+    // is_ghost is the 15th param for each item (index 14 and 29)
+    expect(params[14]).toBe(true);
+    expect(params[29]).toBe(true);
+  });
+
+  test('sets articles_synced_at in order_records for ghost-only orders', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_records'));
+    expect(insertCalls).toHaveLength(1);
+
+    const sql = insertCalls[0][0] as string;
+    expect(sql).toContain('articles_synced_at');
+
+    // articles_synced_at is the 25th param (index 24, 0-based) — must be a non-null ISO timestamp
+    const insertParams = insertCalls[0][1] as unknown[];
+    expect(typeof insertParams[24]).toBe('string');
+    expect(insertParams[24]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test('deletes pending order on success', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const deleteCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('DELETE FROM agents.pending_orders'));
+    expect(deleteCalls).toHaveLength(1);
+
+    const params = deleteCalls[0][1] as unknown[];
+    expect(params).toContain('pending-ghost');
+  });
+
+  test('updates fresis_history for ghost-only orders', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, ghostData, 'user-1', onProgress);
+
+    const fresisCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('UPDATE agents.fresis_history'));
+    expect(fresisCalls).toHaveLength(1);
+
+    const params = fresisCalls[0][1] as unknown[];
+    expect(params[0]).toMatch(/^ghost-\d+$/);
+    expect(params).toContain('pending-ghost');
+  });
+
+  test('does not skip bot when mixed ghost and non-ghost items', async () => {
+    const mixedData: SubmitOrderData = {
+      pendingOrderId: 'pending-mixed',
+      customerId: 'CUST-001',
+      customerName: 'Acme Corp',
+      items: [
+        { articleCode: 'GHOST001', description: 'Ghost', quantity: 1, price: 10, isGhostArticle: true },
+        { articleCode: 'REAL001', description: 'Real', quantity: 1, price: 10 },
+      ],
+    };
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-MIXED');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, mixedData, 'user-1', onProgress);
+
+    expect(bot.createOrder).toHaveBeenCalled();
+    expect(result.orderId).toBe('ORD-MIXED');
+  });
+});
+
 describe('handleSubmitOrder — TEMP profile fallback', () => {
   const completeCustomerRow = {
     vat_validated_at: '2026-01-01T00:00:00Z',
