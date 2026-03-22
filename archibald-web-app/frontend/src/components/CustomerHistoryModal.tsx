@@ -360,7 +360,28 @@ export function CustomerHistoryModal({
         // skipOnMissing: Fresis source (always) OR direct orders for non-Fresis customer
         const skipOnMissing = order.source === 'fresis' || !isFresisClient;
         if (skipOnMissing && !inCatalog && substituteCode === undefined) {
-          skipped.push(`${a.articleCode} — ${a.articleDescription}`);
+          if (isFresisWithSubClient) {
+            const combinedDiscount = order.orderDiscountPercent > 0
+              ? Math.round((1 - (1 - a.discountPercent / 100) * (1 - order.orderDiscountPercent / 100)) * 10000) / 100
+              : a.discountPercent;
+            validPairs.push({
+              originalCode: a.articleCode,
+              item: {
+                articleCode: a.articleCode,
+                productName: a.articleCode,
+                description: a.articleDescription,
+                quantity: a.quantity,
+                price: a.unitPrice,
+                vat: a.vatPercent,
+                discount: combinedDiscount,
+                isGhostArticle: true,
+                warehouseQuantity: a.quantity,
+                warehouseSources: [],
+              },
+            });
+          } else {
+            skipped.push(`${a.articleCode} — ${a.articleDescription}`);
+          }
           continue;
         }
         validPairs.push({
@@ -372,6 +393,7 @@ export function CustomerHistoryModal({
       const validItems = validPairs.map((p) => p.item);
 
       const matchedArticles = validPairs
+        .filter(({ item }) => !item.isGhostArticle)
         .map(({ originalCode, item }) => ({
           articleCode: item.articleCode,
           description: item.description ?? '',
@@ -402,7 +424,7 @@ export function CustomerHistoryModal({
         setCopiedOrderIds((prev) => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
     },
-    [buildPendingItem, isFresisClient, listinoPrices, codeSubstitutions, onAddOrder, warehouseMatchMap],
+    [buildPendingItem, isFresisClient, isFresisWithSubClient, listinoPrices, codeSubstitutions, onAddOrder, warehouseMatchMap],
   );
 
   const handleCopyDialogConfirm = useCallback(
