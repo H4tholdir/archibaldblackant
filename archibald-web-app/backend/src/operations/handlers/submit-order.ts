@@ -27,6 +27,7 @@ type SubmitOrderItem = {
   packageContent?: number;
   warehouseQuantity?: number;
   warehouseSources?: Array<{ warehouseItemId: number; boxName: string; quantity: number }>;
+  isGhostArticle?: boolean;
 };
 
 type SubmitOrderData = {
@@ -173,99 +174,106 @@ async function handleSubmitOrder(
     throw new Error('Cliente non trovato');
   }
 
-  if (!isCustomerComplete(completenessRow)) {
-    throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
-  }
+  const isGhostOnly = data.items.length > 0 && data.items.every((i) => i.isGhostArticle);
 
   const effectiveCustomerName =
     completenessRow.archibald_name ?? completenessRow.name ?? data.customerName;
 
-  bot.setProgressCallback(async (category, metadata) => {
-    if (category === 'form.articles.progress' && metadata) {
-      const current = metadata.currentArticle as number;
-      const total = metadata.totalArticles as number;
-      if (current && total) {
-        const progress = calculateArticleProgress(current, total);
-        const label = formatLabel('Inserimento articolo {currentArticle} di {totalArticles}', metadata);
-        onProgress(progress, label);
-        return;
-      }
+  let orderId: string;
+  if (isGhostOnly) {
+    orderId = `ghost-${Date.now()}`;
+  } else {
+    if (!isCustomerComplete(completenessRow)) {
+      throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
     }
-    const mapped = BOT_PROGRESS_MAP[category];
-    if (mapped) {
-      onProgress(mapped.progress, mapped.label);
-    }
-  });
 
-  // Pre-retry cleanup: check if a previous attempt left a partial order
-  const { rows: [previousOrder] } = await pool.query<{ id: string }>(
-    `SELECT id FROM agents.order_records
-     WHERE user_id = $1 AND id IN (
-       SELECT archibald_order_id FROM agents.pending_orders
-       WHERE id = $2 AND archibald_order_id IS NOT NULL
-     )`,
-    [userId, data.pendingOrderId],
-  );
-
-  if (!previousOrder) {
-    // Also check order_records created from a previous attempt with this pendingOrderId
-    const { rows: [prevByPending] } = await pool.query<{ id: string }>(
-      `SELECT o.id FROM agents.order_records o
-       WHERE o.user_id = $1
-         AND o.order_number LIKE 'PENDING-%'
-         AND EXISTS (
-           SELECT 1 FROM agents.order_articles oa
-           WHERE oa.order_id = o.id AND oa.user_id = $1
-         )
-         AND o.created_at > NOW() - INTERVAL '1 hour'
-         AND o.customer_name = $2
-       ORDER BY o.created_at DESC LIMIT 1`,
-      [userId, data.customerName],
-    );
-    if (prevByPending) {
-      onProgress(2, 'Pulizia ordine parziale precedente...');
-      try {
-        const deleteResult = await bot.deleteOrderFromArchibald(prevByPending.id);
-        if (deleteResult.success) {
-          logger.info('[SubmitOrder] Deleted partial order from previous attempt', {
-            deletedOrderId: prevByPending.id, pendingOrderId: data.pendingOrderId,
-          });
-          await pool.query('DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2', [prevByPending.id, userId]);
-          await pool.query('DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2', [prevByPending.id, userId]);
+    bot.setProgressCallback(async (category, metadata) => {
+      if (category === 'form.articles.progress' && metadata) {
+        const current = metadata.currentArticle as number;
+        const total = metadata.totalArticles as number;
+        if (current && total) {
+          const progress = calculateArticleProgress(current, total);
+          const label = formatLabel('Inserimento articolo {currentArticle} di {totalArticles}', metadata);
+          onProgress(progress, label);
+          return;
         }
-      } catch (cleanupError) {
-        logger.warn('[SubmitOrder] Failed to cleanup partial order, proceeding anyway', {
-          orderId: prevByPending.id,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-        });
+      }
+      const mapped = BOT_PROGRESS_MAP[category];
+      if (mapped) {
+        onProgress(mapped.progress, mapped.label);
+      }
+    });
+
+    // Pre-retry cleanup: check if a previous attempt left a partial order
+    const { rows: [previousOrder] } = await pool.query<{ id: string }>(
+      `SELECT id FROM agents.order_records
+       WHERE user_id = $1 AND id IN (
+         SELECT archibald_order_id FROM agents.pending_orders
+         WHERE id = $2 AND archibald_order_id IS NOT NULL
+       )`,
+      [userId, data.pendingOrderId],
+    );
+
+    if (!previousOrder) {
+      // Also check order_records created from a previous attempt with this pendingOrderId
+      const { rows: [prevByPending] } = await pool.query<{ id: string }>(
+        `SELECT o.id FROM agents.order_records o
+         WHERE o.user_id = $1
+           AND o.order_number LIKE 'PENDING-%'
+           AND EXISTS (
+             SELECT 1 FROM agents.order_articles oa
+             WHERE oa.order_id = o.id AND oa.user_id = $1
+           )
+           AND o.created_at > NOW() - INTERVAL '1 hour'
+           AND o.customer_name = $2
+         ORDER BY o.created_at DESC LIMIT 1`,
+        [userId, data.customerName],
+      );
+      if (prevByPending) {
+        onProgress(2, 'Pulizia ordine parziale precedente...');
+        try {
+          const deleteResult = await bot.deleteOrderFromArchibald(prevByPending.id);
+          if (deleteResult.success) {
+            logger.info('[SubmitOrder] Deleted partial order from previous attempt', {
+              deletedOrderId: prevByPending.id, pendingOrderId: data.pendingOrderId,
+            });
+            await pool.query('DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2', [prevByPending.id, userId]);
+            await pool.query('DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2', [prevByPending.id, userId]);
+          }
+        } catch (cleanupError) {
+          logger.warn('[SubmitOrder] Failed to cleanup partial order, proceeding anyway', {
+            orderId: prevByPending.id,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          });
+        }
       }
     }
-  }
 
-  onProgress(4, 'Creazione ordine su Archibald');
+    onProgress(4, 'Creazione ordine su Archibald');
 
-  // Enrich data with internal_id (PROFILO CLIENTE in Archibald) for customer disambiguation
-  if (!data.customerInternalId) {
-    const { rows: [customerRow] } = await pool.query<{ internal_id: string | null }>(
-      'SELECT internal_id FROM agents.customers WHERE customer_profile = $1 AND user_id = $2',
-      [data.customerId, userId],
-    );
-    if (customerRow?.internal_id) {
-      data = { ...data, customerInternalId: customerRow.internal_id };
+    // Enrich data with internal_id (PROFILO CLIENTE in Archibald) for customer disambiguation
+    if (!data.customerInternalId) {
+      const { rows: [customerRow] } = await pool.query<{ internal_id: string | null }>(
+        'SELECT internal_id FROM agents.customers WHERE customer_profile = $1 AND user_id = $2',
+        [data.customerId, userId],
+      );
+      if (customerRow?.internal_id) {
+        data = { ...data, customerInternalId: customerRow.internal_id };
+      }
     }
-  }
 
-  if (data.deliveryAddressId) {
-    data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
-  }
+    if (data.deliveryAddressId) {
+      data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
+    }
 
-  const orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName });
+    orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName });
+  }
 
   onProgress(60, 'Salvataggio nel database');
 
   const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
 
-  const isWarehouseOnly = orderId.startsWith('warehouse-');
+  const isWarehouseOnly = orderId.startsWith('warehouse-') || orderId.startsWith('ghost-');
   const now = new Date().toISOString();
 
   await pool.withTransaction(async (tx) => {
@@ -276,8 +284,8 @@ async function handleSubmitOrder(
         remaining_sales_financial, customer_reference, sales_status,
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
-        total_amount, hash, last_sync, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        total_amount, hash, last_sync, created_at, articles_synced_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       ON CONFLICT (id, user_id) DO UPDATE SET
         order_number = EXCLUDED.order_number,
         gross_amount = EXCLUDED.gross_amount,
@@ -308,6 +316,7 @@ async function handleSubmitOrder(
         '', // hash
         Math.floor(Date.now() / 1000),
         now,
+        isWarehouseOnly ? now : null,
       ],
     );
 
@@ -317,9 +326,9 @@ async function handleSubmitOrder(
     const articlePlaceholders: string[] = [];
 
     for (let i = 0; i < data.items.length; i++) {
-      const base = i * 14;
+      const base = i * 15;
       articlePlaceholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14})`,
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14}, $${base + 15})`,
       );
       const item = data.items[i];
       const lineAmount = archibaldLineAmount(item.quantity, item.price, item.discount || 0);
@@ -341,6 +350,7 @@ async function handleSubmitOrder(
         vatPercent,
         vatAmount,
         lineTotalWithVat,
+        !!item.isGhostArticle,
       );
     }
 
@@ -349,7 +359,7 @@ async function handleSubmitOrder(
         `INSERT INTO agents.order_articles (
           order_id, user_id, article_code, article_description, quantity,
           unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
-          vat_percent, vat_amount, line_total_with_vat
+          vat_percent, vat_amount, line_total_with_vat, is_ghost
         ) VALUES ${articlePlaceholders.join(', ')}`,
         articleValues,
       );

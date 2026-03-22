@@ -27,6 +27,7 @@ type PendingDialogItem = {
   orderDiscountPercent: number;
   orderSource: 'orders' | 'fresis';
   matches: WarehouseMatch[];
+  isGhostFallback?: boolean;
 };
 
 type PendingCopyDialog = {
@@ -239,6 +240,52 @@ export function CustomerHistoryModal({
       } as PendingOrderItem & { _priceWarning?: boolean };
     },
     [isFresisClient],
+  );
+
+  const isFresisWithSubClient = isFresisClient && subClientCodices.length > 0;
+
+  const handleAddGhostSingle = useCallback(
+    (article: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number) => {
+      const combinedDiscount = orderDiscountPercent > 0
+        ? Math.round((1 - (1 - article.discountPercent / 100) * (1 - orderDiscountPercent / 100)) * 10000) / 100
+        : article.discountPercent;
+      const item: PendingOrderItem = {
+        articleCode: article.articleCode,
+        productName: article.articleCode,
+        description: article.articleDescription,
+        quantity: article.quantity,
+        price: article.unitPrice,
+        vat: article.vatPercent,
+        discount: combinedDiscount,
+        isGhostArticle: true,
+        warehouseQuantity: article.quantity,
+        warehouseSources: [],
+      };
+      onAddArticle(item, false);
+      setAddedCount((c) => c + 1);
+      setArticleBadges((prev) => {
+        const m = new Map(prev);
+        m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+        return m;
+      });
+      setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+      setTimeout(() => {
+        setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; });
+      }, 1200);
+    },
+    [onAddArticle],
+  );
+
+  const handleAddGhostOrWarehouse = useCallback(
+    (article: CustomerFullHistoryOrder['articles'][number], orderDiscountPercent: number) => {
+      const matches = warehouseMatchMap.get(article.articleCode) ?? [];
+      if (matches.length > 0) {
+        setPendingDialog({ article, orderDiscountPercent, orderSource: 'fresis', matches, isGhostFallback: true });
+      } else {
+        handleAddGhostSingle(article, orderDiscountPercent);
+      }
+    },
+    [warehouseMatchMap, handleAddGhostSingle],
   );
 
   const handleAddSingle = useCallback(
@@ -530,7 +577,9 @@ export function CustomerHistoryModal({
                 warehouseMatchMap={warehouseMatchMap}
                 isCopying={copyingOrderId === order.orderId}
                 isCopied={copiedOrderIds.has(order.orderId)}
+                isFresisWithSubClient={isFresisWithSubClient}
                 onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent, order.source)}
+                onAddGhostArticle={(article) => handleAddGhostOrWarehouse(article, order.orderDiscountPercent)}
                 onCopyOrder={() => handleCopyOrder(order)}
               />
             ))}
@@ -565,18 +614,22 @@ export function CustomerHistoryModal({
           matches={pendingDialog.matches}
           onConfirm={handleDialogConfirm}
           onSkip={async () => {
-            const { article, orderDiscountPercent, orderSource } = pendingDialog;
-            const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
-            const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
-            onAddArticle(item, false);
-            setAddedCount((c) => c + 1);
-            setArticleBadges((prev) => {
-              const m = new Map(prev);
-              m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
-              return m;
-            });
-            setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
-            setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
+            const { article, orderDiscountPercent, orderSource, isGhostFallback } = pendingDialog;
+            if (isGhostFallback) {
+              handleAddGhostSingle(article, orderDiscountPercent);
+            } else {
+              const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
+              const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+              onAddArticle(item, false);
+              setAddedCount((c) => c + 1);
+              setArticleBadges((prev) => {
+                const m = new Map(prev);
+                m.set(article.articleCode, (m.get(article.articleCode) ?? 0) + 1);
+                return m;
+              });
+              setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
+              setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
+            }
             setPendingDialog(null);
           }}
           onCancel={() => setPendingDialog(null)}
@@ -620,11 +673,13 @@ type OrderCardProps = {
   warehouseMatchMap: Map<string, WarehouseMatch[]>;
   isCopying: boolean;
   isCopied: boolean;
+  isFresisWithSubClient: boolean;
   onAddArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
+  onAddGhostArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onCopyOrder: () => void;
 };
 
-function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, onAddArticle, onCopyOrder }: OrderCardProps) {
+function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, isFresisWithSubClient, onAddArticle, onAddGhostArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
   const accent = isFresis ? '#8b5cf6' : '#3b82f6';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
@@ -706,19 +761,24 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
           </tr>
         </thead>
         <tbody>
-          {order.articles.map((article, idx) => (
-            <ArticleRow
-              key={idx}
-              article={article}
-              listinoInfo={listinoPrices.get(article.articleCode) ?? null}
-              badgeCount={articleBadges.get(article.articleCode) ?? 0}
-              isFlashing={flashingArticles.has(article.articleCode)}
-              substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
-              isUnmatched={isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode)}
-              warehouseMatches={warehouseMatchMap.get(article.articleCode) ?? []}
-              onAdd={() => onAddArticle(article)}
-            />
-          ))}
+          {order.articles.map((article, idx) => {
+            const isUnmatched = isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode);
+            return (
+              <ArticleRow
+                key={idx}
+                article={article}
+                listinoInfo={listinoPrices.get(article.articleCode) ?? null}
+                badgeCount={articleBadges.get(article.articleCode) ?? 0}
+                isFlashing={flashingArticles.has(article.articleCode)}
+                substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
+                isUnmatched={isUnmatched}
+                canAddAsGhost={isUnmatched && isFresisWithSubClient}
+                warehouseMatches={warehouseMatchMap.get(article.articleCode) ?? []}
+                onAdd={() => onAddArticle(article)}
+                onAddGhost={() => onAddGhostArticle(article)}
+              />
+            );
+          })}
         </tbody>
       </table>
 
@@ -739,15 +799,17 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
   );
 }
 
-function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, warehouseMatches, onAdd }: {
+function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, canAddAsGhost, warehouseMatches, onAdd, onAddGhost }: {
   article: CustomerFullHistoryOrder['articles'][number];
   listinoInfo: { price: number; vat: number } | null;
   badgeCount: number;
   isFlashing: boolean;
   substituteCode?: string;
   isUnmatched?: boolean;
+  canAddAsGhost?: boolean;
   warehouseMatches: WarehouseMatch[];
   onAdd: () => void;
+  onAddGhost: () => void;
 }) {
   const bestLevel = bestMatchLevel(warehouseMatches);
   const colors = WAREHOUSE_LEVEL_COLORS[bestLevel];
@@ -851,13 +913,17 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
       </td>
 
       <td style={{ padding: '8px 8px', position: 'relative' }}>
-        <button onClick={onAdd} disabled={isUnmatched} style={{
-          background: isUnmatched ? '#94a3b8' : isFlashing ? '#16a34a' : '#6366f1',
-          color: 'white', border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
-          fontWeight: 600, cursor: isUnmatched ? 'not-allowed' : 'pointer',
-          width: '100%', whiteSpace: 'nowrap', transition: 'background 0.15s',
-        }}>
-          {isUnmatched ? '⚠ Non trovato' : isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
+        <button
+          onClick={canAddAsGhost ? onAddGhost : onAdd}
+          disabled={isUnmatched && !canAddAsGhost}
+          style={{
+            background: (isUnmatched && !canAddAsGhost) ? '#94a3b8' : isFlashing ? '#16a34a' : canAddAsGhost ? '#d97706' : '#6366f1',
+            color: 'white', border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
+            fontWeight: 600, cursor: (isUnmatched && !canAddAsGhost) ? 'not-allowed' : 'pointer',
+            width: '100%', whiteSpace: 'nowrap', transition: 'background 0.15s',
+          }}
+        >
+          {(isUnmatched && !canAddAsGhost) ? '⚠ Non trovato' : isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
         </button>
         {badgeCount > 0 && (
           <span style={{
