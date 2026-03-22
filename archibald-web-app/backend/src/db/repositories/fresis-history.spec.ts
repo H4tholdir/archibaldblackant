@@ -751,5 +751,7 @@ describe('getGhostArticleSuggestions', () => {
     const [sql] = vi.mocked(pool.query).mock.calls[0];
     expect(sql).toContain('shared.products');
     expect(sql).toContain('jsonb_array_elements');
+    expect(sql).toContain('ROW_NUMBER()');
+    expect(sql).toContain('::int');
   });
 });
