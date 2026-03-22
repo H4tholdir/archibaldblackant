@@ -533,8 +533,9 @@ export function PendingOrdersPage() {
       }
 
       // Archive to fresisHistory if it's a Fresis sub-client order
+      // generateFtNow=true so arca_data and invoice_number are set immediately
       if (isFresis({ id: order.customerId }) && order.subClientCodice) {
-        await archiveOrders([order]);
+        await archiveOrders([order], undefined, true);
       }
 
       await deletePendingOrder(order.id!);

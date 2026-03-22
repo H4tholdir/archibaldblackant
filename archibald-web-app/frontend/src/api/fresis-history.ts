@@ -262,13 +262,14 @@ export async function archiveOrders(
     createdAt: string;
   }>,
   mergedOrderId?: string,
+  generateFtNow?: boolean,
 ): Promise<FresisHistoryOrder[]> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/fresis-history/archive`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orders, mergedOrderId }),
+      body: JSON.stringify({ orders, mergedOrderId, generateFtNow }),
     },
   );
 

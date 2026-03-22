@@ -6,6 +6,8 @@ import type { AuthRequest } from '../middleware/auth';
 import type { FresisHistoryRecord, FresisHistoryInput, FresisDiscount, StateData } from '../db/repositories/fresis-history';
 import type { ExportStats } from '../arca-export-service';
 import { logger } from '../logger';
+import { generateArcaData } from '../services/generate-arca-data';
+import type { GenerateInput } from '../services/generate-arca-data';
 
 type FresisHistoryRouterDeps = {
   pool: DbPool;
@@ -104,6 +106,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   const {
+    pool,
     getAll, searchAll, getAllWithDateFilter, getBySubClient, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
     propagateState, getDiscounts, upsertDiscount, deleteDiscount,
     searchOrders, exportArca, importArca, getNextFtNumber,
@@ -259,7 +262,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.post('/archive', async (req: AuthRequest, res) => {
     try {
-      const { orders, mergedOrderId } = req.body;
+      const { orders, mergedOrderId, generateFtNow } = req.body;
       if (!orders || !Array.isArray(orders) || orders.length === 0) {
         return res.status(400).json({ success: false, error: 'orders array richiesto' });
       }
@@ -305,6 +308,30 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
       }));
 
       await upsertRecords(req.user!.userId, records);
+
+      if (generateFtNow) {
+        const esercizio = String(new Date().getFullYear());
+        for (const record of records) {
+          const ftNumber = await getNextFtNumber(req.user!.userId, esercizio);
+          const input: GenerateInput = {
+            subClientCodice: record.subClientCodice,
+            subClientName: record.subClientName,
+            subClientData: record.subClientData as GenerateInput['subClientData'],
+            items: (record.items as GenerateInput['items']),
+            discountPercent: record.discountPercent ?? undefined,
+            notes: record.notes ?? undefined,
+          };
+          const arcaData = generateArcaData(input, ftNumber, esercizio);
+          const invoiceNumber = `FT ${ftNumber}/${esercizio}`;
+          await pool.query(
+            `UPDATE agents.fresis_history
+             SET arca_data = $1, invoice_number = $2, current_state = 'creato_pwa',
+                 state_updated_at = NOW(), updated_at = NOW()
+             WHERE id = $3 AND user_id = $4`,
+            [JSON.stringify(arcaData), invoiceNumber, record.id, req.user!.userId],
+          );
+        }
+      }
 
       const createdRecords = await Promise.all(
         records.map(r => getById(req.user!.userId, r.id))
