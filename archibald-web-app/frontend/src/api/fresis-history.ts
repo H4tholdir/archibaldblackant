@@ -319,3 +319,21 @@ export async function updateFresisHistoryOrder(
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 }
+
+export type GhostArticleSuggestion = {
+  articleCode: string;
+  description: string;
+  price: number;
+  discount: number;
+  vat: number;
+  occurrences: number;
+};
+
+export async function getGhostArticles(): Promise<GhostArticleSuggestion[]> {
+  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history/ghost-articles`);
+  if (!response.ok) {
+    throw new Error(`Error fetching ghost articles: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.suggestions as GhostArticleSuggestion[];
+}
