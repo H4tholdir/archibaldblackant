@@ -33,6 +33,10 @@ async function handleSendToVerona(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ success: boolean; message: string; sentToMilanoAt: string }> {
+  if (data.orderId.startsWith('ghost-')) {
+    return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToMilanoAt: '' };
+  }
+
   bot.setProgressCallback(async (category) => {
     const mapped = SEND_TO_VERONA_PROGRESS[category];
     if (mapped) {
@@ -86,11 +90,15 @@ async function handleSendToVerona(
   for (const row of fresis.rows) {
     const ftNumber = await getNextFtNumber(pool, userId, esercizio, 'FT');
 
+    type GenerateItemWithGhost = GenerateInput['items'][number] & { isGhostArticle?: boolean };
+    const exportItems = (row.items as GenerateItemWithGhost[])
+      .filter((i) => !i.isGhostArticle) as GenerateInput['items'];
+
     const input: GenerateInput = {
       subClientCodice: row.sub_client_codice,
       subClientName: row.sub_client_name,
       subClientData: row.sub_client_data,
-      items: row.items,
+      items: exportItems,
       discountPercent: row.discount_percent ?? undefined,
       notes: row.notes ?? undefined,
     };

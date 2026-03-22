@@ -187,4 +187,35 @@ describe('handleSendToVerona', () => {
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('returns early for ghost- orders without calling bot', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
+
+    const result = await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
+
+    expect(result.success).toBe(false);
+    expect(bot.sendOrderToVerona).not.toHaveBeenCalled();
+  });
+
+  test('does not call bot.setProgressCallback for ghost- orders', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
+
+    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
+
+    expect(bot.setProgressCallback).not.toHaveBeenCalled();
+  });
+
+  test('does not touch the DB for ghost- orders', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
+
+    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
+
+    expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+  });
 });
