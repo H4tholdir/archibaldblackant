@@ -9567,9 +9567,9 @@ export class ArchibaldBot {
 
       logger.info("[ArchibaldBot] Filter visibility check:", filterVisibility);
 
-      if (!filterVisibility.found) {
+      if (!filterVisibility.found || !filterVisibility.isVisible) {
         if (filterVisibility.hasShowHiddenButton) {
-          logger.info("[ArchibaldBot] Filter not found, clicking 'Show hidden items'...");
+          logger.info("[ArchibaldBot] Filter hidden, clicking 'Show hidden items'...");
           await page.evaluate(() => {
             const btn = document.querySelector("#Vertical_mainMenu_Menu_DXI9_T") as HTMLElement;
             if (btn) btn.click();
@@ -9577,17 +9577,43 @@ export class ArchibaldBot {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
-        const appeared = await page
-          .waitForSelector(FILTER_INPUT_SELECTOR, { timeout: 3000 })
-          .catch(() => null);
+        if (!filterVisibility.found) {
+          const appeared = await page
+            .waitForSelector(FILTER_INPUT_SELECTOR, { timeout: 3000 })
+            .catch(() => null);
 
-        if (!appeared) {
-          if (attempt === MAX_ATTEMPTS) {
-            throw new Error(
-              "[ArchibaldBot] Orders filter input never appeared — cannot guarantee all orders are included in PDF",
-            );
+          if (!appeared) {
+            if (attempt === MAX_ATTEMPTS) {
+              throw new Error(
+                "[ArchibaldBot] Orders filter input never appeared — cannot guarantee all orders are included in PDF",
+              );
+            }
+            continue;
           }
-          continue;
+        } else {
+          // Found but hidden — wait for it to become visible after clicking Show hidden items
+          const becameVisible = await page
+            .waitForFunction(
+              (sel: string, exactSel: string) => {
+                const input = (
+                  document.querySelector(exactSel) || document.querySelector(sel)
+                ) as HTMLInputElement | null;
+                return input !== null && input.offsetParent !== null;
+              },
+              { timeout: 3000 },
+              FILTER_INPUT_SELECTOR,
+              FILTER_INPUT_EXACT,
+            )
+            .catch(() => null);
+
+          if (!becameVisible) {
+            if (attempt === MAX_ATTEMPTS) {
+              throw new Error(
+                "[ArchibaldBot] Orders filter found but never became visible — cannot guarantee all orders are included in PDF",
+              );
+            }
+            continue;
+          }
         }
       }
 
