@@ -160,7 +160,7 @@ function formatVfpLiteral(
     if (value === null || value === undefined || !value || String(value) === "null") {
       return "{}";
     }
-    const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (parts) {
       return `{^${parts[1]}-${parts[2]}-${parts[3]}}`;
     }
@@ -1350,7 +1350,7 @@ export async function performArcaSync(
            arca_data              = $2,
            updated_at             = NOW()
          WHERE id = $3 AND user_id = $4`,
-        [newInvoiceNumber, JSON.stringify(arcaData), pwaRow.id, userId],
+        [newInvoiceNumber, arcaData, pwaRow.id, userId],
       );
       takenSet.add(newNum);
       renumbered++;

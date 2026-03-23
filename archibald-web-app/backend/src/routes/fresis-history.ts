@@ -335,7 +335,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
              SET arca_data = $1, invoice_number = $2, current_state = 'creato_pwa',
                  state_updated_at = NOW(), updated_at = NOW()
              WHERE id = $3 AND user_id = $4`,
-            [JSON.stringify(arcaData), invoiceNumber, record.id, req.user!.userId],
+            [arcaData, invoiceNumber, record.id, req.user!.userId],
           );
         }
       }
