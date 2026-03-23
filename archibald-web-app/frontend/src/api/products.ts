@@ -138,6 +138,7 @@ export async function getProducts(
   grouped: boolean = false,
   vatFilter?: "missing",
   priceFilter?: "zero",
+  discountFilter?: "missing",
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (searchQuery) params.append("search", searchQuery);
@@ -153,6 +154,10 @@ export async function getProducts(
 
   if (priceFilter) {
     params.append("priceFilter", priceFilter);
+  }
+
+  if (discountFilter) {
+    params.append("discountFilter", discountFilter);
   }
 
   const response = await fetchWithRetry(`${API_BASE_URL}/api/products?${params}`, {
@@ -189,6 +194,23 @@ export async function getProductsWithZeroPriceCount(
   token: string,
 ): Promise<{ count: number }> {
   const response = await fetchWithRetry(`${API_BASE_URL}/api/products/zero-price-count`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.data;
+}
+
+export async function getMissingFresisDiscountCount(
+  token: string,
+): Promise<{ count: number }> {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/products/missing-fresis-discount-count`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
