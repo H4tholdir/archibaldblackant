@@ -9622,143 +9622,65 @@ export class ArchibaldBot {
         return;
       }
 
-      logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', opening dropdown...");
+      logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', applying via DevExpress API...");
 
-      const dropdownClicked = await page.evaluate((sel: string, exactSel: string) => {
+      // Use the DevExpress ASPxClientComboBox JS API to set the filter value directly.
+      // This bypasses all UI visibility / dropdown rendering issues (the filter is hidden
+      // in the toolbar overflow menu and its dropdown does not populate correctly via clicks).
+      const apiResult = await page.evaluate((sel: string, exactSel: string) => {
+        const ALL_ORDERS_VALUE = "xaf_xaf_a0ListViewSalesTableOrdersAll";
+
+        // Derive the DevExpress client control ID from the input's name:
+        //   "Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb" -> "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb"
         const input = (
-          document.querySelector(exactSel) ||
-          document.querySelector(sel)
-        ) as HTMLInputElement;
-        if (!input) return false;
+          document.querySelector(exactSel) || document.querySelector(sel)
+        ) as HTMLInputElement | null;
+        const comboId = input?.name.replace(/\$/g, "_") ?? null;
 
-        // Strategy 1: Derive button ID from input name (Vertical$mainMenu$...Cb -> Vertical_mainMenu_..._Cb_B-1)
-        if (input.name) {
-          const buttonId = input.name.replace(/\$/g, "_") + "_B-1";
-          const button = document.getElementById(buttonId) as HTMLElement;
-          if (button) {
-            button.click();
-            return true;
+        const trySetValue = (id: string): string | null => {
+          const ctrl = (window as any)[id];
+          if (ctrl && typeof ctrl.SetValue === "function") {
+            ctrl.SetValue(ALL_ORDERS_VALUE);
+            return id;
           }
+          return null;
+        };
+
+        // Attempt 1: derived ID from input name
+        if (comboId) {
+          const hit = trySetValue(comboId);
+          if (hit) return { method: "derived-id", comboId: hit };
         }
 
-        // Strategy 2: Find button in nearest parent containing both input and button
-        const parent = input.closest("td, div");
-        if (parent) {
-          const button = parent.querySelector("[id$='_B-1']") as HTMLElement;
-          if (button) {
-            button.click();
-            return true;
-          }
-        }
-
-        // Strategy 3: Broad search for mainMenu combo button
-        const fallback = document.querySelector("[id*='mainMenu'][id*='Cb_B-1']") as HTMLElement;
-        if (fallback) {
-          fallback.click();
-          return true;
-        }
-
-        return false;
-      }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
-
-      if (!dropdownClicked) {
-        if (attempt === MAX_ATTEMPTS) {
-          throw new Error(
-            "[ArchibaldBot] Could not open orders filter dropdown — cannot guarantee all orders are included in PDF",
-          );
-        }
-        continue;
-      }
-
-      logger.info("[ArchibaldBot] Dropdown opened, waiting for list...");
-
-      const listAppeared = await page
-        .waitForSelector("[id*='Cb_DDD_L_LBI'], [class*='dxeListBoxItem']", { timeout: 3000 })
-        .catch(() => null);
-
-      if (!listAppeared) {
-        if (attempt === MAX_ATTEMPTS) {
-          throw new Error(
-            "[ArchibaldBot] Orders filter dropdown list never appeared — cannot guarantee all orders are included in PDF",
-          );
-        }
-        continue;
-      }
-
-      // Diagnostic: log all items actually in the dropdown list to understand what's available
-      const dropdownDiag = await page.evaluate(() => {
-        const items: Array<{ sel: string; id: string; text: string; visible: boolean }> = [];
-        const lbiTds = Array.from(document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td"));
-        for (const el of lbiTds) {
-          items.push({ sel: 'LBI-td', id: (el.parentElement as HTMLElement)?.id ?? '', text: (el as HTMLElement).textContent?.trim() ?? '', visible: (el as HTMLElement).offsetParent !== null });
-        }
-        const classItems = Array.from(document.querySelectorAll("[class*='dxeListBoxItem']"));
-        for (const el of classItems) {
-          items.push({ sel: 'dxeListBoxItem', id: (el as HTMLElement).id ?? '', text: (el as HTMLElement).textContent?.trim() ?? '', visible: (el as HTMLElement).offsetParent !== null });
-        }
-        const ddLists = Array.from(document.querySelectorAll("[id*='DDD_L']"));
-        for (const list of ddLists) {
-          for (const td of Array.from(list.querySelectorAll("td"))) {
-            items.push({ sel: 'DDD_L-td', id: (list as HTMLElement).id ?? '', text: (td as HTMLElement).textContent?.trim() ?? '', visible: (list as HTMLElement).offsetParent !== null });
-          }
-        }
-        return items;
-      });
-      logger.info("[ArchibaldBot] Dropdown diagnostic:", { items: dropdownDiag });
-
-      const optionClicked = await page.evaluate(() => {
-        // Strategy 1: exact ID (most specific, fastest)
-        const exactOption = document.querySelector(
-          "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
-        ) as HTMLElement;
-        if (exactOption) {
-          exactOption.click();
-          return true;
-        }
-
-        // Strategy 2: text search in DevExpress LBI id-based selectors
-        const lbiItems = Array.from(document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td"));
-        for (const item of lbiItems) {
-          if ((item as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
-            (item as HTMLElement).click();
-            return true;
-          }
-        }
-
-        // Strategy 3: text search in dxeListBoxItem class items
-        const classItems = Array.from(document.querySelectorAll("[class*='dxeListBoxItem']"));
-        for (const item of classItems) {
-          if ((item as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
-            (item as HTMLElement).click();
-            return true;
-          }
-        }
-
-        // Strategy 4: scan all DevExpress DDD_L dropdown containers (visible or not)
-        const ddLists = Array.from(document.querySelectorAll("[id*='DDD_L']"));
-        for (const list of ddLists) {
-          const tds = Array.from(list.querySelectorAll("td"));
-          for (const td of tds) {
-            if ((td as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
-              (td as HTMLElement).click();
-              return true;
+        // Attempt 2: scan all window properties that look like XAF filter combos
+        for (const key of Object.keys(window as any)) {
+          if (key.includes("mainMenu") && key.includes("Cb") && !key.endsWith("_B-1")) {
+            const ctrl = (window as any)[key];
+            if (ctrl && typeof ctrl.SetValue === "function" && typeof ctrl.GetValue === "function") {
+              const val: string = ctrl.GetValue() ?? "";
+              if (val.includes("ListViewSalesTable") || val.includes("OrdersAll") || val.includes("OrdersThisWeek")) {
+                ctrl.SetValue(ALL_ORDERS_VALUE);
+                return { method: "scan", comboId: key };
+              }
             }
           }
         }
 
-        return false;
-      });
+        return null;
+      }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
-      if (!optionClicked) {
+      logger.info("[ArchibaldBot] DevExpress API result:", { apiResult });
+
+      if (!apiResult) {
         if (attempt === MAX_ATTEMPTS) {
           throw new Error(
-            "[ArchibaldBot] Could not find 'Tutti gli ordini' option in dropdown — cannot guarantee all orders are included in PDF",
+            "[ArchibaldBot] DevExpress filter combo not found via JS API — cannot guarantee all orders are included in PDF",
           );
         }
         continue;
       }
 
-      logger.info("[ArchibaldBot] 'Tutti gli ordini' option clicked, waiting for page update...");
+      logger.info("[ArchibaldBot] DevExpress API SetValue called, waiting for page update...");
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const newFilterValue = await page.evaluate((sel: string, exactSel: string) => {
