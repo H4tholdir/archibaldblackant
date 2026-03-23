@@ -94,7 +94,7 @@ describe("generateArcaData", () => {
 
     expect(result.righe).toHaveLength(2);
     expect(result.righe[0].CODICEARTI).toBe("ART001");
-    expect(result.righe[0].DESCRIZION).toBe("Widget A");
+    expect(result.righe[0].DESCRIZION).toBe("ART001 Widget A");
     expect(result.righe[0].QUANTITA).toBe(10);
     expect(result.righe[0].PREZZOUN).toBe(25.5);
     expect(result.righe[0].ALIIVA).toBe("22");
@@ -301,7 +301,7 @@ describe("generateArcaData", () => {
     });
     const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
 
-    expect(result.righe[0].DESCRIZION).toBe("Fallback Name");
+    expect(result.righe[0].DESCRIZION).toBe("X1 Fallback Name");
   });
 
   test("defaults unit to PZ when not specified", () => {
@@ -409,6 +409,27 @@ describe("generateArcaData", () => {
 
     expect(result.testata.ZONA).toBe("0");
     expect(result.righe[0].ZONA).toBe("0");
+  });
+
+  test("DESCRIZION prepends articleCode and truncates to 40 chars", () => {
+    const longCode = "BCR1.000.000";
+    const longDesc = "KOMET BIOREPAIR SPRITZE EXTRA LONG NAME";
+    const input = makeInput({
+      items: [
+        {
+          articleCode: longCode,
+          description: longDesc,
+          quantity: 1,
+          price: 10,
+          vat: 22,
+        },
+      ],
+    });
+    const result = generateArcaData(input, FT_NUMBER, ESERCIZIO, FIXED_DATE);
+    const expected = `${longCode} ${longDesc}`.slice(0, 40);
+
+    expect(result.righe[0].DESCRIZION).toBe(expected);
+    expect(result.righe[0].DESCRIZION.length).toBeLessThanOrEqual(40);
   });
 
   test("CODICEDES uses 001 (3 chars) in destinazione_diversa", () => {

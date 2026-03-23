@@ -107,7 +107,7 @@ describe('generateArcaDataFromOrder', () => {
     expect(result.righe).toHaveLength(2);
     expect(result.righe[0]).toEqual(expect.objectContaining({
       CODICEARTI: 'ART001',
-      DESCRIZION: 'Articolo Test 1',
+      DESCRIZION: 'ART001 Articolo Test 1',
       QUANTITA: 10,
       PREZZOUN: 5.00,
       PREZZOTOT: 50.00,

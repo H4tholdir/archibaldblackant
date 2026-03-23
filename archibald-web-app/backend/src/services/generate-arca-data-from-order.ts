@@ -66,7 +66,7 @@ function generateArcaDataFromOrder(
     PROVV: '',
     PROVV2: '',
     DATACONSEG: datadoc,
-    DESCRIZION: art.articleDescription,
+    DESCRIZION: `${art.articleCode} ${art.articleDescription}`.slice(0, 40),
     TIPORIGAD: '',
     RESTOSCORP: 0,
     RESTOSCUNI: 0,

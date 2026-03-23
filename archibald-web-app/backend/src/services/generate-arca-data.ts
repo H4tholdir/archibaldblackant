@@ -95,7 +95,7 @@ export function generateArcaData(
       PROVV: "",
       PROVV2: "",
       DATACONSEG: datadoc,
-      DESCRIZION: item.description ?? item.productName ?? "",
+      DESCRIZION: `${item.articleCode} ${item.description ?? item.productName ?? ""}`.slice(0, 40),
       TIPORIGAD: "",
       RESTOSCORP: 0,
       RESTOSCUNI: 0,
