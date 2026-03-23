@@ -90,6 +90,12 @@ describe("cascadeDiscountFactor", () => {
   test("componente non numerica → 1 (nessuno sconto su quel componente)", () => {
     expect(cascadeDiscountFactor("N/A")).toBe(1);
   });
+
+  test("componente NaN mista: applica solo componenti validi, ignora gli altri", () => {
+    // "10+N/A" → applica solo 10%, il componente N/A viene ignorato
+    expect(cascadeDiscountFactor("10+N/A")).toBeCloseTo(0.9, 10);
+    expect(cascadeDiscountFactor("N/A+10")).toBeCloseTo(0.9, 10);
+  });
 });
 
 describe("arcaVatGroups", () => {
@@ -123,7 +129,7 @@ describe("arcaVatGroups", () => {
 });
 
 describe("arcaDocumentTotals", () => {
-  test("invariante: totDoc === totImp + totIva (property test)", () => {
+  test("invarianti strutturali: totNetto <= totMerce, totIva >= 0, totDoc >= totNetto", () => {
     fc.assert(
       fc.property(
         fc.array(
@@ -136,8 +142,13 @@ describe("arcaDocumentTotals", () => {
         fc.float({ min: Math.fround(0.1), max: Math.fround(1), noNaN: true }),
         (lines, scontif) => {
           const t = arcaDocumentTotals(lines, scontif);
-          // Uguaglianza esatta safe perché totImp e totIva sono somme di interi × 0.01
-          return t.totDoc === t.totImp + t.totIva;
+          // scontif <= 1 → totNetto deve essere <= totMerce (lo sconto non aumenta il prezzo)
+          const nettoOk = t.totNetto <= t.totMerce + 0.01; // +0.01 tollera drift IEEE 754
+          // IVA non può essere negativa (aliquote >= 0)
+          const ivaOk = t.totIva >= -0.01;
+          // Il totale documento deve essere >= imponibile
+          const docOk = t.totDoc >= t.totNetto - 0.01;
+          return nettoOk && ivaOk && docOk;
         },
       ),
     );

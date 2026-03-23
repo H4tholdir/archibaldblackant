@@ -1,5 +1,5 @@
 // =============================================================================
-// ⚠️  ATTENZIONE — FILE DUPLICATO (regola O-1: frontend e backend separati)
+// ATTENZIONE — FILE DUPLICATO (regola O-1: frontend e backend separati)
 //
 // Questo file esiste in due copie identiche:
 //   • archibald-web-app/frontend/src/utils/arca-math.ts
@@ -30,6 +30,8 @@ export function cascadeDiscountFactor(discountStr: string | undefined): number {
   return parts.reduce((factor, d) => (isNaN(d) ? factor : factor * (1 - d / 100)), 1);
 }
 
+// Output order: same as first appearance of each vatRate in the input array (Map insertion order).
+// Callers needing sorted output should sort the result themselves.
 export function arcaVatGroups(
   lines: ReadonlyArray<{ prezzotot: number; vatRate: number }>,
   scontif: number,
@@ -57,7 +59,7 @@ export function arcaDocumentTotals(
   totIva: number;
   totDoc: number;
 } {
-  const totMerce = lines.reduce((sum, l) => sum + l.prezzotot, 0);
+  const totMerce = round2(lines.reduce((sum, l) => sum + l.prezzotot, 0));
   const totNetto = round2(totMerce * scontif);
   const totSconto = totMerce - totNetto;
 
