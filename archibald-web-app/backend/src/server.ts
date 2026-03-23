@@ -448,6 +448,7 @@ function createApp(deps: AppDeps): Express {
     getProductCount: () => productsRepo.getProductCount(pool),
     getZeroPriceCount: () => productsRepo.getZeroPriceCount(pool),
     getNoVatCount: () => productsRepo.getNoVatCount(pool),
+    getMissingFresisDiscountCount: (userId) => productsRepo.getMissingFresisDiscountCount(pool, userId),
     getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
     updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
     getLastSyncTime: () => productsRepo.getLastSyncTime(pool),
