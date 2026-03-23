@@ -13,7 +13,19 @@ Aggiungere un banner + pulsante filtro nella pagina ArticoliList, visibile solo 
 
 ## Architettura
 
-### Backend — `products.ts`
+### Backend — `backend/src/db/repositories/products.ts`
+
+**0. Aggiornamento tipo `ProductFilters`** — aggiungere i nuovi campi:
+```typescript
+type ProductFilters = {
+  searchQuery?: string;
+  vatFilter?: 'missing';
+  priceFilter?: 'zero';
+  discountFilter?: 'missing';  // nuovo
+  userId?: string;             // necessario per discountFilter
+  limit?: number;
+};
+```
 
 **1. Nuova funzione repository** `getMissingFresisDiscountCount(pool, userId)`:
 ```sql
@@ -22,55 +34,136 @@ FROM shared.products p
 WHERE p.deleted_at IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM agents.fresis_discounts fd
-    WHERE fd.article_code = p.code
+    WHERE fd.article_code = p.id
       AND fd.user_id = $1
   )
 ```
+- `shared.products.id` è la colonna PK del prodotto (non `code`)
+- `agents.fresis_discounts.article_code` è la FK verso `shared.products.id`
 
-**2. Nuovo endpoint** `GET /api/products/missing-fresis-discount-count`:
+### Backend — `backend/src/routes/products.ts`
+
+**2. Aggiornamento tipo `ProductsRouterDeps`**:
+```typescript
+type ProductsRouterDeps = {
+  // ... campi esistenti ...
+  getMissingFresisDiscountCount: (userId: string) => Promise<number>;
+  getProducts: (filters?: {
+    searchQuery?: string;
+    vatFilter?: 'missing';
+    priceFilter?: 'zero';
+    discountFilter?: 'missing';  // nuovo
+    userId?: string;             // necessario per discountFilter
+    limit?: number;
+  }) => Promise<ProductRow[]>;
+};
+```
+
+**3. Nuovo endpoint** `GET /api/products/missing-fresis-discount-count`:
 - Autenticazione richiesta (middleware esistente)
-- Chiama `getMissingFresisDiscountCount(pool, req.user.userId)`
+- Chiama `getMissingFresisDiscountCount(req.user.userId)`
 - Risposta: `{ success: true, data: { count: number } }`
+- Nota: endpoint non ha guard server-side per `ikiA0930`; un altro utente otterrebbe count basato sui propri (probabilmente zero) sconti — isolamento garantito da `req.user.userId` nella SQL
 
-**3. Estensione endpoint** `GET /api/products`:
+**4. Estensione endpoint** `GET /api/products`:
 - Nuovo query param opzionale: `discountFilter=missing`
-- Quando presente, aggiunge alla query esistente:
+- Quando presente, aggiunge alla query:
   ```sql
   AND NOT EXISTS (
     SELECT 1 FROM agents.fresis_discounts fd
-    WHERE fd.article_code = p.code
-      AND fd.user_id = $1
+    WHERE fd.article_code = p.id
+      AND fd.user_id = $2
   )
   ```
-- Il `user_id` viene preso da `req.user.userId`
+- `$2` = `userId` da `req.user.userId`, passato come parametro aggiuntivo a `getProducts`
+- **Incompatibilità con `grouped=true`**: quando `discountFilter` è presente, il router deve seguire il percorso `getProducts` (non `getDistinctProductNames`). Il frontend garantisce questo perché `isFilterMode` sarà `true` quando il filtro è attivo, e `grouped = !isFilterMode = false`. Esplicitare nella route: se `discountFilter` è presente e `grouped` è anche `true`, ignorare `grouped`.
 
-### Frontend — `ArticoliList.tsx`
+### Frontend — `frontend/src/pages/ArticoliList.tsx`
 
-**Nuovo stato** (solo se l'utente è `ikiA0930`):
+**5. Ottenere `userId`** — usare `useAuth` (pattern da `FresisHistoryPage.tsx`):
+```typescript
+import { useAuth } from "../hooks/useAuth";
+// ...
+const auth = useAuth();
+const isFresis = auth.user?.username === 'ikiA0930';
+```
+Nota: `auth.user.id` è la PK del DB (UUID), mentre `auth.user.username` è il login handle (`ikiA0930`). Usare `username`.
+
+**6. Nuovo stato** (aggiunto senza condizioni, ma usato solo se `isFresis`):
 ```typescript
 const [missingDiscountCount, setMissingDiscountCount] = useState(0);
 const [discountFilterActive, setDiscountFilterActive] = useState(false);
 ```
 
-**useEffect al mount** — carica il count solo per `ikiA0930`:
+**7. `useEffect` al mount** — carica il count solo per Fresis:
 ```typescript
-if (userId === 'ikiA0930') {
+useEffect(() => {
+  if (!isFresis) return;
+  const token = localStorage.getItem("archibald_jwt");
+  if (!token) return;
   getMissingFresisDiscountCount(token)
     .then(r => setMissingDiscountCount(r.count))
     .catch(() => {});
+}, [isFresis]);
+```
+
+**8. `isFilterMode`** — aggiornato per includere il nuovo filtro:
+```typescript
+const isFilterMode = vatFilterActive || priceFilterActive || discountFilterActive;
+```
+Questo garantisce che quando `discountFilterActive` è `true`, `grouped = !isFilterMode = false`, evitando il percorso `getDistinctProductNames` nel backend.
+
+**8b. Early-return guard in `fetchProducts`** — la guard a riga 60 deve includere il nuovo filtro, altrimenti attivare solo il filtro sconto azzera la lista:
+```typescript
+if (!debouncedSearch && !vatFilterActive && !priceFilterActive && !discountFilterActive) {
+  // reset e return early
 }
 ```
 
-**Banner** — inserito sotto il banner "Prezzo = 0", stile identico (sfondo rosa, bordo rosso), visibile solo se `userId === 'ikiA0930' && missingDiscountCount > 0`:
-- Testo: `"{N} articolo/i senza sconto Fresis personale. Clicca per visualizzarli."`
-- Click: attiva `discountFilterActive = true`, disattiva `priceFilterActive` e `vatFilterActive`
+**8c. Dep array di `useCallback`** — aggiungere `discountFilterActive`:
+```typescript
+}, [debouncedSearch, vatFilterActive, priceFilterActive, discountFilterActive]);
+```
 
-**Pulsante filtro** — inserito dopo i pulsanti esistenti, stile identico, visibile solo a `ikiA0930`:
-- Etichetta: `"Sconto Fresis ({N})"`
-- Colori: rosso scuro attivo, bordo rosso inattivo (stesso schema degli altri filtri)
-- Toggle: attivazione disattiva gli altri filtri attivi
+**9. `handleClearFilters`** — aggiornato:
+```typescript
+const handleClearFilters = () => {
+  setFilters({ search: "" });
+  setVatFilterActive(false);
+  setPriceFilterActive(false);
+  setDiscountFilterActive(false);  // nuovo
+  setHasSearched(false);
+};
+```
 
-**Integrazione `getProducts`** — quando `discountFilterActive` è true:
+**10. `hasActiveFilters`** — aggiornato:
+```typescript
+const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive || discountFilterActive;
+```
+
+**11. Banner** — inserito sotto il banner "Prezzo = 0", stile identico (sfondo rosa, bordo rosso), visibile solo se `isFresis && missingDiscountCount > 0 && !discountFilterActive`:
+```tsx
+{isFresis && missingDiscountCount > 0 && !discountFilterActive && (
+  <div style={{ /* stesso stile banner prezzo=0 */ }} onClick={handleToggleDiscountFilter}>
+    💸 {missingDiscountCount} articol{missingDiscountCount !== 1 ? 'i' : 'o'} senza sconto Fresis personale. Clicca per visualizzarli.
+  </div>
+)}
+```
+
+**12. Pulsante filtro** — visibile solo a `isFresis`, etichetta `"Sconto Fresis ({missingDiscountCount})"`, stile identico agli altri pulsanti filtro. Toggle disattiva gli altri filtri:
+```typescript
+const handleToggleDiscountFilter = () => {
+  const next = !discountFilterActive;
+  setDiscountFilterActive(next);
+  if (next) {
+    setFilters({ search: "" });
+    setVatFilterActive(false);
+    setPriceFilterActive(false);
+  }
+};
+```
+
+**13. `getProducts` call** — aggiunto parametro:
 ```typescript
 const response = await getProducts(
   token,
@@ -79,24 +172,44 @@ const response = await getProducts(
   !isFilterMode,
   vatFilterActive ? "missing" : undefined,
   priceFilterActive ? "zero" : undefined,
-  discountFilterActive ? "missing" : undefined,  // nuovo parametro
+  discountFilterActive ? "missing" : undefined,  // nuovo
 );
 ```
 
-### Frontend — `products.ts` (API layer)
+### Frontend — `frontend/src/api/products.ts`
 
-- Aggiunge funzione `getMissingFresisDiscountCount(token): Promise<{ count: number }>`
-- Aggiunge parametro opzionale `discountFilter?: "missing"` a `getProducts`, passato come query param `discountFilter`
+**14. Nuova funzione** `getMissingFresisDiscountCount(token)`:
+```typescript
+export async function getMissingFresisDiscountCount(token: string): Promise<{ count: number }> {
+  // GET /api/products/missing-fresis-discount-count
+  // Risposta: { success: true, data: { count: number } }
+}
+```
+
+**15. `getProducts`** — nuovo parametro opzionale `discountFilter?: "missing"`, passato come query param `discountFilter=missing`.
 
 ## Testing
 
-- **Unit test backend**: `getMissingFresisDiscountCount` con prodotti che hanno/non hanno sconti associati
-- **Integration test**: endpoint `GET /api/products/missing-fresis-discount-count` restituisce count corretto
-- **Integration test**: `GET /api/products?discountFilter=missing` filtra correttamente
-- **Frontend**: il banner appare solo per `ikiA0930` e solo quando `count > 0`
+**Unit test backend** (`products.spec.ts`):
+- `getMissingFresisDiscountCount` con 0 sconti → restituisce count totale prodotti attivi
+- `getMissingFresisDiscountCount` con tutti gli sconti presenti → restituisce 0
+- `getMissingFresisDiscountCount` con sconti parziali → restituisce count corretto
+
+**Integration test backend**:
+- `GET /api/products/missing-fresis-discount-count` → `{ count: N }` per utente autenticato
+- `GET /api/products?discountFilter=missing` filtra correttamente
+- `GET /api/products?discountFilter=missing&grouped=true` ignora `grouped`
+
+**Frontend** (test manuale / E2E):
+- Banner non appare per utenti diversi da `ikiA0930`
+- Banner appare se `missingDiscountCount > 0` e il filtro non è attivo
+- Banner scompare quando il filtro è attivo
+- Pulsante "Cancella filtri" azzera anche `discountFilterActive`
+- `hasActiveFilters` è `true` quando solo il filtro sconto è attivo
 
 ## Vincoli
 
-- Il banner è esclusivamente per `ikiA0930` — nessun altro utente lo vede
+- Il banner è esclusivamente per `ikiA0930` — nessun altro utente lo vede (guard frontend su `user.id`)
 - Non modifica dati — solo lettura
-- La logica di confronto usa `article_code` come chiave di join tra `shared.products.code` e `agents.fresis_discounts.article_code`
+- La logica di confronto usa `p.id` (PK di `shared.products`) == `fd.article_code` (FK in `agents.fresis_discounts`)
+- Backend non ha guard hardcoded su `ikiA0930`: l'isolamento è garantito da `req.user.userId` nella SQL
