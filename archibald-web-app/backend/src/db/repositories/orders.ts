@@ -609,12 +609,12 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
   }
 
   if (options?.customerProfileId) {
-    conditions.push(`customer_profile_id = $${paramIndex}`);
+    conditions.push(`customer_profile_id = (SELECT internal_id FROM agents.customers WHERE customer_profile = $${paramIndex} AND user_id = $1)`);
     params.push(options.customerProfileId);
     paramIndex++;
   } else if (options?.customer) {
-    conditions.push(`customer_name ILIKE $${paramIndex}`);
-    params.push(options.customer);
+    conditions.push(`translate(customer_name, E'\\n\\r\\t', '   ') ILIKE $${paramIndex}`);
+    params.push(options.customer.replace(/[\n\r\t]+/g, ' ').trim());
     paramIndex++;
   }
 
