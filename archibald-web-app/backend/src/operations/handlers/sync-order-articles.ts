@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { logger } from '../../logger';
 
 type ParsedArticle = {
   articleCode: string;
@@ -51,7 +52,8 @@ async function handleSyncOrderArticles(
   );
 
   if (!order) {
-    throw new Error('Ordine non trovato');
+    logger.warn('[sync-order-articles] Order not found, skipping', { orderId: data.orderId, userId });
+    return { articlesCount: 0, totalVatAmount: 0, totalWithVat: 0 };
   }
 
   const archibaldOrderId = order.archibald_order_id ?? order.id;

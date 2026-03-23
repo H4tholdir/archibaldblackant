@@ -404,7 +404,7 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
-    test('stop() cancels pending address sync timeouts', async () => {
+    test('stop() does not cancel pending address sync timeouts (survives session stops)', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { customer_profile: 'CUST-001', name: 'Rossi' },
@@ -418,7 +418,12 @@ describe('createSyncScheduler', () => {
       enqueue.mockClear();
       await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
+      expect(enqueue).toHaveBeenCalledWith(
+        'sync-customer-addresses',
+        'user-1',
+        expect.objectContaining({ customers: expect.any(Array) }),
+        expect.any(String),
+      );
     });
   });
 

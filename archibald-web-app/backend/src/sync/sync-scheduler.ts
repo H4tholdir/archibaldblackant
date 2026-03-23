@@ -34,6 +34,7 @@ function createSyncScheduler(
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
+  const addressSyncTimeouts: NodeJS.Timeout[] = [];
   let running = false;
   let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
   let sessionCount = 0;
@@ -66,7 +67,9 @@ function createSyncScheduler(
 
           if (getCustomersNeedingAddressSync) {
             const agentUserId = userId;
-            pendingTimeouts.push(setTimeout(() => {
+            const tid = setTimeout(() => {
+              const idx = addressSyncTimeouts.indexOf(tid);
+              if (idx >= 0) addressSyncTimeouts.splice(idx, 1);
               getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
                 .then((customers) => {
                   if (customers.length === 0) return;
@@ -80,7 +83,8 @@ function createSyncScheduler(
                 .catch((error) => {
                   logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
                 });
-            }, ADDRESS_SYNC_DELAY_MS));
+            }, ADDRESS_SYNC_DELAY_MS);
+            addressSyncTimeouts.push(tid);
           }
         }
       }, currentIntervals.agentSyncMs),
