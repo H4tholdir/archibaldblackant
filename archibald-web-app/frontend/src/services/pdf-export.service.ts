@@ -9,6 +9,7 @@ export type PDFOrderData = {
   documentNumber?: string;
   customerId: string;
   customerName: string;
+  subClientName?: string;
   items: PendingOrderItem[];
   discountPercent?: number;
   createdAt: string;
@@ -143,8 +144,8 @@ export class PDFExportService {
     doc.setTextColor(80, 80, 80);
     doc.text("SPETT.LE", spettX, 13);
 
-    const recipientName = isFresis && order.subClientData
-      ? order.subClientData.ragioneSociale
+    const recipientName = isFresis
+      ? (order.subClientData?.ragioneSociale ?? order.subClientName ?? order.customerName)
       : order.customerName;
 
     doc.setFont("helvetica", "bold");
@@ -322,9 +323,51 @@ export class PDFExportService {
     const afterTable: number = (doc as any).lastAutoTable?.finalY ?? gy + 20;
 
     // ══════════════════════════════════════════════════════════════════════
+    // CALCOLI TOTALI (anticipati per stimare altezza sezioni finali)
+    // ══════════════════════════════════════════════════════════════════════
+    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
+    const globalDiscAmt =
+      order.discountPercent && order.discountPercent > 0
+        ? (totalMerce * order.discountPercent) / 100
+        : 0;
+    const totalNetto = totalMerce - globalDiscAmt;
+
+    const shipping = order.noShipping
+      ? { cost: 0, tax: 0, total: 0 }
+      : order.shippingCost !== undefined
+        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: (order.shippingCost) + (order.shippingTax ?? 0) }
+        : calculateShippingCosts(totalNetto);
+
+    const vatMap = new Map<number, { imp: number; tax: number }>();
+    for (const item of order.items) {
+      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
+      const rate = item.vat ?? 0;
+      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
+      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
+    }
+    if (shipping.cost > 0) {
+      const r = 22;
+      const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
+      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
+    }
+    const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
+
+    const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
+    const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
+    const totFattura = totImp + totIva;
+
+    // ══════════════════════════════════════════════════════════════════════
     // SEZIONE 4: TRASPORTO
     // ══════════════════════════════════════════════════════════════════════
+    // Se trasporto + totali + footer non entrano nella pagina corrente, nuova pagina
+    const TRANSPORT_H = 36;
+    const TOTALS_FIXED_H = 9 + 4 + 7 * vatRates.length + 5 + 11 + 12;
+    const FOOTER_H = 12;
     let ty = afterTable;
+    if (ty + TRANSPORT_H + TOTALS_FIXED_H + FOOTER_H > 287) {
+      doc.addPage();
+      ty = 10;
+    }
 
     // T1: TRASPORTO/CAUSALE/ASPETTO (label + valore nella stessa cella)
     const tW = [70, 65, 55] as const; // 70+65+55 = 190 ✓
@@ -358,38 +401,6 @@ export class PDFExportService {
     // ══════════════════════════════════════════════════════════════════════
     // SEZIONE 5: TOTALI
     // ══════════════════════════════════════════════════════════════════════
-
-    // Calcoli
-    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
-    const globalDiscAmt =
-      order.discountPercent && order.discountPercent > 0
-        ? (totalMerce * order.discountPercent) / 100
-        : 0;
-    const totalNetto = totalMerce - globalDiscAmt;
-
-    const shipping = order.noShipping
-      ? { cost: 0, tax: 0, total: 0 }
-      : order.shippingCost !== undefined
-        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: (order.shippingCost) + (order.shippingTax ?? 0) }
-        : calculateShippingCosts(totalNetto);
-
-    // Breakdown IVA per aliquota
-    const vatMap = new Map<number, { imp: number; tax: number }>();
-    for (const item of order.items) {
-      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
-      const rate = item.vat ?? 0;
-      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
-      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
-    }
-    if (shipping.cost > 0) {
-      const r = 22;
-      const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
-      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
-    }
-
-    const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
-    const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
-    const totFattura = totImp + totIva;
 
     // S1: TOTALE MERCE … SPESE VARIE  (29+22+27+28+30+27+27 = 190 ✓)
     const s1Cols: Array<{ l: string; w: number }> = [
@@ -429,7 +440,6 @@ export class PDFExportService {
     ty += 4;
 
     // S3: righe valori IVA per aliquota
-    const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
     for (const [rate, { imp, tax }] of vatRates) {
       const vals = [String(rate), fmtN(imp), fmtN(tax), "", "", ""];
       const allW = [...ivaLW, ...ivaRW];
