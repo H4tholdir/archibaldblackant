@@ -6,6 +6,7 @@ import {
   arcaSectionLabel,
   formatArcaCurrency,
 } from "./arcaStyles";
+import { arcaVatGroups, round2 } from "../../utils/arca-math";
 
 type ParentOrderArticle = {
   articleCode: string;
@@ -41,38 +42,41 @@ function groupByIva(
     spesevaiva: string;
   },
 ): IvaGroup[] {
-  const map = new Map<string, { imponibile: number; iva: number }>();
+  // Group righe by VAT rate using arcaVatGroups for proper per-group rounding
+  const groups = arcaVatGroups(
+    righe
+      .filter((r) => parseFloat(r.ALIIVA || "0") > 0)
+      .map((r) => ({ prezzotot: r.PREZZOTOT, vatRate: parseFloat(r.ALIIVA || "0") })),
+    scontif,
+  );
 
-  for (const riga of righe) {
-    const ali = riga.ALIIVA || "0";
-    const prev = map.get(ali) ?? { imponibile: 0, iva: 0 };
-    const nettoRiga = riga.PREZZOTOT * scontif;
-    const ivaRate = parseFloat(ali) / 100;
-    prev.imponibile += nettoRiga;
-    prev.iva += nettoRiga * ivaRate;
-    map.set(ali, prev);
+  // Convert to Map for easy fee addition
+  const groupMap = new Map<number, { imponibile: number; iva: number }>();
+  for (const g of groups) {
+    groupMap.set(g.vatRate, { imponibile: g.imponibile, iva: g.iva });
   }
 
+  // Add spese (fees) with proper per-group rounding
   const addSpesa = (importo: number, aliStr: string) => {
     if (importo <= 0) return;
-    const ali = aliStr || "0";
-    const prev = map.get(ali) ?? { imponibile: 0, iva: 0 };
-    const ivaRate = parseFloat(ali) / 100;
-    prev.imponibile += importo;
-    prev.iva += importo * ivaRate;
-    map.set(ali, prev);
+    const vatRate = parseFloat(aliStr || "0");
+    const prev = groupMap.get(vatRate) ?? { imponibile: 0, iva: 0 };
+    // Round the new imponibile and IVA individually
+    prev.imponibile = round2(prev.imponibile + importo);
+    prev.iva = round2(prev.iva + round2(importo * vatRate / 100));
+    groupMap.set(vatRate, prev);
   };
 
   addSpesa(spese.spesetr, spese.spesetriva);
   addSpesa(spese.speseim, spese.speseimiva);
   addSpesa(spese.speseva, spese.spesevaiva);
 
-  return Array.from(map.entries())
-    .map(([aliquota, { imponibile, iva }]) => ({
-      aliquota: `${aliquota}%`,
-      imponibile: Math.round(imponibile * 100) / 100,
-      iva: Math.round(iva * 100) / 100,
-      totale: Math.round((imponibile + iva) * 100) / 100,
+  return Array.from(groupMap.entries())
+    .map(([vatRate, { imponibile, iva }]) => ({
+      aliquota: `${vatRate}%`,
+      imponibile,
+      iva,
+      totale: round2(imponibile + iva),
     }))
     .sort((a, b) => parseFloat(b.aliquota) - parseFloat(a.aliquota));
 }
