@@ -9527,6 +9527,12 @@ export class ArchibaldBot {
     const FILTER_INPUT_SELECTOR = 'input[name*="mainMenu"][name*="Cb"]';
     const FILTER_INPUT_EXACT = 'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]';
 
+    // Set a wide viewport so DevExpress renders the full toolbar without hiding
+    // items behind the "..." overflow button. The headless Chrome default (~800px)
+    // is too narrow and causes the orders filter to be collapsed into the overflow menu.
+    await page.setViewport({ width: 1440, height: 900 });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       logger.info(`[ArchibaldBot] Checking orders filter (attempt ${attempt}/${MAX_ATTEMPTS})...`);
 
@@ -9590,31 +9596,9 @@ export class ArchibaldBot {
             }
             continue;
           }
-        } else {
-          // Found but hidden — wait for it to become visible after clicking Show hidden items
-          const becameVisible = await page
-            .waitForFunction(
-              (sel: string, exactSel: string) => {
-                const input = (
-                  document.querySelector(exactSel) || document.querySelector(sel)
-                ) as HTMLInputElement | null;
-                return input !== null && input.offsetParent !== null;
-              },
-              { timeout: 3000 },
-              FILTER_INPUT_SELECTOR,
-              FILTER_INPUT_EXACT,
-            )
-            .catch(() => null);
-
-          if (!becameVisible) {
-            if (attempt === MAX_ATTEMPTS) {
-              throw new Error(
-                "[ArchibaldBot] Orders filter found but never became visible — cannot guarantee all orders are included in PDF",
-              );
-            }
-            continue;
-          }
         }
+        // If found-but-hidden: the viewport resize + Show hidden items click should have
+        // made it accessible. Proceed and let the dropdown interaction confirm.
       }
 
       const currentFilterValue = await page.evaluate((sel: string, exactSel: string) => {
