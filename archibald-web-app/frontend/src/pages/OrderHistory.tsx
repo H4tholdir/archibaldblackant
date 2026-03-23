@@ -1310,7 +1310,7 @@ export function OrderHistory() {
                     if (customerResults.length > 0)
                       setShowCustomerDropdown(true);
                   }}
-                  autoComplete="new-password"
+                  autoComplete="off"
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -1469,7 +1469,7 @@ export function OrderHistory() {
             >
               {"\ud83d\udd0d"} Ricerca globale
             </label>
-            <input autoComplete="new-password"
+            <input autoComplete="off"
               id="global-search"
               type="search"
               placeholder="Cerca in tutti i campi: tracking, DDT, fatture, articoli..."

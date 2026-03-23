@@ -202,7 +202,7 @@ export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersLis
         {orders.length > 0 && (
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
             <label className="form-label">🔍 Cerca</label>
-            <input autoComplete="new-password"
+            <input autoComplete="off"
               type="search"
               className="form-input"
               placeholder="Cerca per cliente, job ID, ordine ID o stato..."

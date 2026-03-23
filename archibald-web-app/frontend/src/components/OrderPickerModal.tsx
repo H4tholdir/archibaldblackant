@@ -189,7 +189,7 @@ export function OrderPickerModal({
           ordini.
         </p>
 
-        <input autoComplete="new-password"
+        <input autoComplete="off"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

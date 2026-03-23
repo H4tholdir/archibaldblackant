@@ -158,14 +158,14 @@ export function ProductSelector({
           ref={inputRef}
           id="product-search"
           name="product-search-field"
-          type="text"
+          type="search"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder={placeholder}
           disabled={disabled}
-          autoComplete="new-password"
+          autoComplete="off"
           data-form-type="other"
           aria-label="Cerca prodotto"
           aria-autocomplete="list"

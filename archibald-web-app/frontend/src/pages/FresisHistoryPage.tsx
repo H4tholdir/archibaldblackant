@@ -717,7 +717,7 @@ export function FresisHistoryPage() {
                   onFocus={() => {
                     if (subClientResults.length > 0) setShowSubClientDropdown(true);
                   }}
-                  autoComplete="new-password"
+                  autoComplete="off"
                   style={filterInputStyle}
                 />
                 {showSubClientDropdown && subClientResults.length > 0 && (
@@ -758,7 +758,7 @@ export function FresisHistoryPage() {
           {/* Global search */}
           <div style={{ flex: "1 1 45%", minWidth: "200px" }}>
             <label style={filterLabelStyle}>Ricerca globale</label>
-            <input autoComplete="new-password"
+            <input autoComplete="off"
               type="search"
               placeholder="Cerca articoli, codici, DDT, fatture..."
               value={globalSearch}

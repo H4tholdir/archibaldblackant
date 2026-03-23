@@ -1693,7 +1693,7 @@ function TabArticoli({
                         ref={isSearching ? dropdownRef : undefined}
                         style={{ position: "relative" }}
                       >
-                        <input autoComplete="new-password"
+                        <input autoComplete="off"
                           type="search"
                           value={isSearching ? articleSearch : (item.productName || item.articleCode)}
                           onChange={(e) =>

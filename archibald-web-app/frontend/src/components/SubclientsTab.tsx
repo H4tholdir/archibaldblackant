@@ -458,7 +458,7 @@ function SubclientsTab() {
   return (
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-        <input autoComplete="new-password"
+        <input autoComplete="off"
           type="search"
           placeholder="Cerca sottoclienti..."
           value={search}

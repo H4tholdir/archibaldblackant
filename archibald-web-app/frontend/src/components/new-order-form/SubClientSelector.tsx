@@ -250,7 +250,7 @@ export function SubClientSelector({
           onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder="Cerca sotto-cliente per codice o nome..."
           disabled={disabled}
-          autoComplete="new-password"
+          autoComplete="off"
           style={{
             width: "100%",
             padding: "0.5rem",

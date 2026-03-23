@@ -2909,7 +2909,7 @@ export default function OrderFormSimple() {
               onKeyDown={handleCustomerKeyDown}
               onFocus={(e) => scrollFieldIntoView(e.target)}
               placeholder="Cerca cliente per nome, indirizzo, città, CAP, P.IVA..."
-              autoComplete="new-password"
+              autoComplete="off"
               data-form-type="other"
               style={{
                 width: "100%",
@@ -3385,7 +3385,7 @@ export default function OrderFormSimple() {
                 onKeyDown={handleProductKeyDown}
                 onFocus={(e) => scrollFieldIntoView(e.target)}
                 placeholder="Cerca articolo..."
-                autoComplete="new-password"
+                autoComplete="off"
                 data-form-type="other"
                 style={{
                   width: "100%",
@@ -5798,7 +5798,7 @@ export default function OrderFormSimple() {
             >
               Attuale: <strong>{articleChangeModal.currentProductName}</strong>
             </div>
-            <input autoComplete="new-password"
+            <input autoComplete="off"
               autoFocus
               type="search"
               placeholder="Cerca nuovo articolo..."

@@ -478,7 +478,7 @@ export function AdminPage(_props: AdminPageProps) {
           >
             <h2 style={{ margin: 0 }}>📋 Jobs Queue</h2>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-              <input autoComplete="new-password"
+              <input autoComplete="off"
                 type="search"
                 placeholder="Cerca job, utente, cliente, ordine..."
                 value={searchQuery}
