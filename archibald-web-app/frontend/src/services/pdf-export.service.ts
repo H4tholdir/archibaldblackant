@@ -306,7 +306,7 @@ export class PDFExportService {
 
     // totNetto per soglia spedizione (senza spedizione)
     const { totNetto: totalNetto } = arcaDocumentTotals(lines, scontif);
-    const totalMerce = lines.reduce((s, l) => s + l.prezzotot, 0);
+    const totalMerce = round2(lines.reduce((s, l) => s + l.prezzotot, 0));
     const globalDiscAmt = totalMerce - totalNetto;
 
     const shipping = order.noShipping
@@ -327,7 +327,7 @@ export class PDFExportService {
     if (shipping.cost > 0) {
       const r = 22;
       const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
-      // Usa round2(cost * 22/100) anziché shipping.tax per garantire coerenza con arcaDocumentTotals
+      // Usa round2(cost * r/100) anziché shipping.tax per garantire coerenza con arcaDocumentTotals
       const shippingIva = round2(shipping.cost * r / 100);
       vatMap.set(r, { imp: prev.imp + shipping.cost, tax: round2(prev.tax + shippingIva) });
     }
@@ -336,7 +336,7 @@ export class PDFExportService {
 
     const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
     const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
-    const totFattura = totImp + totIva;
+    const totFattura = round2(totImp + totIva);
 
     // Layout fisso: sezioni 4+5+6 ancorate al fondo di ogni pagina
     // Ogni pagina ha identica struttura; i valori compaiono solo sull'ultima.

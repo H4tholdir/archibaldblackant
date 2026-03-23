@@ -1,27 +1,20 @@
 import { describe, expect, test } from "vitest";
-import { arcaLineAmount, arcaDocumentTotals } from "../utils/arca-math";
+import { arcaDocumentTotals } from "../utils/arca-math";
 
 // Verifica che la logica totali usata in pdf-export produca risultati coerenti
 // con il golden dataset (stessa formula, no per-riga divergenza)
 describe("pdf-export totals snapshot", () => {
-  test("ordine FT: due righe stessa IVA → per-gruppo non per-riga", () => {
-    const items = [
-      { quantity: 2, price: 50.00, discount: 0, vat: 22 },
-      { quantity: 1, price: 33.34, discount: 0, vat: 22 },
+  test("ordine FT: due righe stessa IVA → per-gruppo (14.67) non per-riga (14.66)", () => {
+    // Per-riga: round(33.33 * 0.22) + round(33.34 * 0.22) = 7.33 + 7.33 = 14.66
+    // Per-gruppo: round((33.33 + 33.34) * 0.22) = round(66.67 * 0.22) = round(14.6674) = 14.67
+    const lines = [
+      { prezzotot: 33.33, vatRate: 22 },
+      { prezzotot: 33.34, vatRate: 22 },
     ];
-    const lines = items.map((item) => ({
-      prezzotot: arcaLineAmount(item.quantity, item.price, item.discount),
-      vatRate: item.vat,
-    }));
-    const scontif = 1; // nessuno sconto globale
-    const { totImp, totIva, totDoc } = arcaDocumentTotals(lines, scontif);
-    // totMerce = 100 + 33.34 = 133.34
-    // totImp = 133.34 (scontif=1)
-    // totIva = round2(133.34 * 0.22) = round2(29.3348) = 29.33
-    // totDoc = 133.34 + 29.33 = 162.67
-    expect(totImp).toBe(133.34);
-    expect(totIva).toBe(29.33);
-    expect(totDoc).toBe(162.67);
+    const { totImp, totIva, totDoc } = arcaDocumentTotals(lines, 1);
+    expect(totImp).toBe(66.67);
+    expect(totIva).toBe(14.67); // per-gruppo: corretto (non 14.66 per-riga)
+    expect(totDoc).toBe(81.34);
   });
 
   test("ordine KT golden: totDoc = totNetto × 1.22 arrotondato per-gruppo", () => {
