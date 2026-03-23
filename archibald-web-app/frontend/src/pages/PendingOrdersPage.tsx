@@ -9,6 +9,7 @@ import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../types/pending-order";
 import { calculateShippingCosts, archibaldLineAmount, SHIPPING_THRESHOLD } from "../utils/order-calculations";
+import { arcaDocumentTotals } from "../utils/arca-math";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { VerificationAlert } from "../components/VerificationAlert";
@@ -1880,40 +1881,33 @@ export function PendingOrdersPage() {
                     >
                       {/* Calculate totals */}
                       {(() => {
-                        const orderSubtotal = order.items.reduce(
-                          (sum, item) => sum + itemSubtotal(order, item),
-                          0,
-                        );
+                        const scontif = 1 - (order.discountPercent ?? 0) / 100;
+                        const lines = order.items.map((item) => ({
+                          prezzotot: itemSubtotal(order, item),
+                          vatRate: item.vat ?? 0,
+                        }));
 
-                        // Apply global discount if present
-                        const globalDiscountAmount = order.discountPercent
-                          ? (orderSubtotal * order.discountPercent) / 100
-                          : 0;
-                        const subtotalAfterGlobalDiscount =
-                          orderSubtotal - globalDiscountAmount;
+                        // subtotalAfterGlobalDiscount via round2 canonico (TOTNETTO = round2(TOTMERCE × scontif))
+                        const {
+                          totMerce: orderSubtotal,
+                          totSconto: globalDiscountAmount,
+                          totNetto: subtotalAfterGlobalDiscount,
+                        } = arcaDocumentTotals(lines, scontif);
 
-                        // Calculate shipping costs based on subtotal after discount
+                        // Spedizione: usa il subtotale netto come soglia (identico alla logica esistente)
                         const shippingCosts = order.noShipping
                           ? { cost: 0, tax: 0, total: 0 }
                           : calculateShippingCosts(subtotalAfterGlobalDiscount);
                         const shippingCost = shippingCosts.cost;
                         const shippingTax = shippingCosts.tax;
 
-                        // Calculate VAT including shipping tax
-                        const itemsVAT = order.items.reduce((sum, item) => {
-                          const lineAmount = itemSubtotal(order, item);
-                          const lineAfterGlobalDiscount = order.discountPercent
-                            ? Math.round(lineAmount * (1 - order.discountPercent / 100) * 100) / 100
-                            : lineAmount;
-                          return (
-                            sum + Math.round(lineAfterGlobalDiscount * (item.vat / 100) * 100) / 100
-                          );
-                        }, 0);
-                        const orderVAT = itemsVAT + shippingTax;
-
-                        // Total includes items + shipping cost + total VAT
-                        const orderTotal =
-                          subtotalAfterGlobalDiscount + shippingCost + orderVAT;
+                        // Totali documento con IVA per-gruppo (non per-riga) + spedizione
+                        const { totIva: orderVAT, totDoc: orderTotal } = arcaDocumentTotals(
+                          lines,
+                          scontif,
+                          shippingCost > 0 ? shippingCost : undefined,
+                          shippingCost > 0 ? 22 : undefined,
+                        );
 
                         return (
                           <>
