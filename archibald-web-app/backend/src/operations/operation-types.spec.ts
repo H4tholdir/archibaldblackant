@@ -66,6 +66,7 @@ describe('isScheduledSync', () => {
     'sync-order-articles',
     'sync-tracking',
     'sync-customer-addresses',
+    'sync-order-states',
   ];
 
   const nonScheduledSyncs: OperationType[] = [
@@ -77,7 +78,6 @@ describe('isScheduledSync', () => {
     'delete-order',
     'download-ddt-pdf',
     'download-invoice-pdf',
-    'sync-order-states',
   ];
 
   test.each(scheduledSyncs)('%s is a scheduled sync', (op) => {
@@ -90,12 +90,13 @@ describe('isScheduledSync', () => {
 });
 
 describe('getNextSyncInChain', () => {
-  test('agent chain: sync-customers → sync-orders → sync-ddt → sync-invoices', () => {
+  test('agent chain: sync-customers → sync-orders → sync-ddt → sync-invoices → sync-tracking → sync-order-states', () => {
     expect(getNextSyncInChain('sync-customers')).toBe('sync-orders');
     expect(getNextSyncInChain('sync-orders')).toBe('sync-ddt');
     expect(getNextSyncInChain('sync-ddt')).toBe('sync-invoices');
     expect(getNextSyncInChain('sync-invoices')).toBe('sync-tracking');
-    expect(getNextSyncInChain('sync-tracking')).toBeNull();
+    expect(getNextSyncInChain('sync-tracking')).toBe('sync-order-states');
+    expect(getNextSyncInChain('sync-order-states')).toBeNull();
   });
 
   test('shared chain: sync-products → sync-prices', () => {

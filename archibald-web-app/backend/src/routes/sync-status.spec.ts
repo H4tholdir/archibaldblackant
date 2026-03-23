@@ -231,14 +231,14 @@ describe('createSyncStatusRouter', () => {
   });
 
   describe('POST /api/sync/trigger-all', () => {
-    test('triggers all 7 sync types for admin', async () => {
+    test('triggers all 9 sync types for admin', async () => {
       const app = createApp(deps, 'admin');
       const res = await request(app).post('/api/sync/trigger-all');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.jobIds).toHaveLength(7);
-      expect(deps.queue.enqueue).toHaveBeenCalledTimes(7);
+      expect(res.body.jobIds).toHaveLength(9);
+      expect(deps.queue.enqueue).toHaveBeenCalledTimes(9);
     });
 
     test('rejects non-admin users with 403', async () => {

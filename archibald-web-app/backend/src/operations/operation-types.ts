@@ -61,6 +61,7 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-order-articles',
   'sync-tracking',
   'sync-customer-addresses',
+  'sync-order-states',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {
@@ -77,6 +78,7 @@ const AGENT_SYNC_CHAIN: readonly OperationType[] = [
   'sync-ddt',
   'sync-invoices',
   'sync-tracking',
+  'sync-order-states',
 ];
 
 const SHARED_SYNC_CHAIN: readonly OperationType[] = [

@@ -246,8 +246,8 @@ describe('createSyncScheduler', () => {
       await vi.advanceTimersByTimeAsync(ARTICLE_SYNC_DELAY_MS);
 
       expect(getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', ARTICLE_SYNC_BATCH_LIMIT);
-      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
-      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-2' });
+      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' }, 'sync-order-articles-user-1-order-1');
+      expect(enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-2' }, 'sync-order-articles-user-1-order-2');
 
       scheduler.stop();
     });

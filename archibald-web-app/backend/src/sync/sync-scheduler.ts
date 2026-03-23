@@ -57,7 +57,7 @@ function createSyncScheduler(
             pendingTimeouts.push(setTimeout(() => {
               getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
                 for (const orderId of orderIds) {
-                  enqueue('sync-order-articles', agentUserId, { orderId });
+                  enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
                 }
               }).catch((error) => {
                 logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });

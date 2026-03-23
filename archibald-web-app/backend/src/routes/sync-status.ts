@@ -38,6 +38,7 @@ const VALID_SYNC_TYPES = new Set([
   'sync-customers', 'sync-orders', 'sync-ddt',
   'sync-invoices', 'sync-products', 'sync-prices',
   'sync-order-articles', 'sync-tracking',
+  'sync-customer-addresses', 'sync-order-states',
 ]);
 
 function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
@@ -87,6 +88,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     'sync-customers', 'sync-orders', 'sync-ddt',
     'sync-invoices', 'sync-products', 'sync-prices',
     'sync-order-articles', 'sync-tracking', 'sync-customer-addresses',
+    'sync-order-states',
   ];
 
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
@@ -263,7 +265,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const ALL_SYNC_TYPES: OperationType[] = [
     'sync-orders', 'sync-customers', 'sync-ddt',
     'sync-invoices', 'sync-prices', 'sync-products',
-    'sync-tracking',
+    'sync-tracking', 'sync-customer-addresses', 'sync-order-states',
   ];
 
   router.post('/trigger-all', requireAdmin, async (req: AuthRequest, res) => {
