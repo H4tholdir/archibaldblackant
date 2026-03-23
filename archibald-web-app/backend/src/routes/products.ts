@@ -77,11 +77,19 @@ type FuzzySearchResult = {
 
 type ProductsRouterDeps = {
   queue: QueueLike;
-  getProducts: (filters?: string | { searchQuery?: string; vatFilter?: 'missing'; priceFilter?: 'zero'; limit?: number }) => Promise<ProductRow[]>;
+  getProducts: (filters?: string | {
+    searchQuery?: string;
+    vatFilter?: 'missing';
+    priceFilter?: 'zero';
+    discountFilter?: 'missing';
+    userId?: string;
+    limit?: number;
+  }) => Promise<ProductRow[]>;
   getProductById: (productId: string) => Promise<ProductRow | undefined>;
   getProductCount: () => Promise<number>;
   getZeroPriceCount: () => Promise<number>;
   getNoVatCount: () => Promise<number>;
+  getMissingFresisDiscountCount: (userId: string) => Promise<number>;
   getProductVariants: (articleName: string) => Promise<ProductRow[]>;
   updateProductPrice: (productId: string, price: number, vat: number | null, priceSource: string, vatSource: string | null) => Promise<boolean>;
   getLastSyncTime: () => Promise<number | null>;
@@ -105,7 +113,7 @@ const priceSchema = z.object({ price: z.number().min(0) });
 function createProductsRouter(deps: ProductsRouterDeps) {
   const {
     queue, getProducts, getProductById, getProductCount,
-    getZeroPriceCount, getNoVatCount, getProductVariants,
+    getZeroPriceCount, getNoVatCount, getMissingFresisDiscountCount, getProductVariants,
     updateProductPrice, getLastSyncTime,
     getProductChanges, getRecentProductChanges, getProductChangeStats,
     getDistinctProductNames, getDistinctProductNamesCount,
@@ -245,6 +253,16 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     } catch (error) {
       logger.error('Error counting no-vat products', { error });
       res.status(500).json({ success: false, error: 'Errore nel conteggio prodotti senza IVA' });
+    }
+  });
+
+  router.get('/missing-fresis-discount-count', async (req: AuthRequest, res) => {
+    try {
+      const count = await getMissingFresisDiscountCount(req.user!.userId);
+      res.json({ success: true, data: { count } });
+    } catch (error) {
+      logger.error('Error fetching missing Fresis discount count', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero conteggio sconti mancanti' });
     }
   });
 

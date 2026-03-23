@@ -51,6 +51,7 @@ function createMockDeps(): ProductsRouterDeps {
     getProductCount: vi.fn().mockResolvedValue(150),
     getZeroPriceCount: vi.fn().mockResolvedValue(8),
     getNoVatCount: vi.fn().mockResolvedValue(12),
+    getMissingFresisDiscountCount: vi.fn().mockResolvedValue(7),
     getProductVariants: vi.fn().mockResolvedValue([mockProduct]),
     updateProductPrice: vi.fn().mockResolvedValue(true),
     getLastSyncTime: vi.fn().mockResolvedValue(1708300000),
@@ -244,6 +245,16 @@ describe('createProductsRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, data: { count: 12 } });
+    });
+  });
+
+  describe('GET /api/products/missing-fresis-discount-count', () => {
+    test('returns count of products without Fresis discount for current user', async () => {
+      const res = await request(app).get('/api/products/missing-fresis-discount-count');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { count: 7 } });
+      expect(deps.getMissingFresisDiscountCount).toHaveBeenCalledWith('user-1');
     });
   });
 
