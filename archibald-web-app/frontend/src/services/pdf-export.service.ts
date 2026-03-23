@@ -7,6 +7,7 @@ import type { Customer } from "../types/customer";
 export type PDFOrderData = {
   id: string;
   documentNumber?: string;
+  documentDate?: string;
   customerId: string;
   customerName: string;
   subClientName?: string;
@@ -20,6 +21,15 @@ export type PDFOrderData = {
   isKtOrder?: boolean;
   shippingCost?: number;
   shippingTax?: number;
+  paymentConditions?: string;
+  transportCause?: string;
+  aspectOfGoods?: string;
+  portType?: string;
+  packages?: string;
+  grossWeight?: number;
+  netWeight?: number;
+  volume?: number;
+  unitsOfMeasure?: Record<string, string>;
 };
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { FRESIS_LOGO_BASE64 } from "../assets/fresis-logo-base64";
@@ -64,7 +74,7 @@ export class PDFExportService {
       });
 
     const lineSubtotal = (item: PendingOrderItem): number =>
-      item.price * item.quantity * (1 - (item.discount || 0) / 100);
+      item.total ?? item.price * item.quantity * (1 - (item.discount || 0) / 100);
 
     // Helper: cella bordata con etichetta piccola (top) e valore (bottom)
     const cell = (
@@ -242,7 +252,7 @@ export class PDFExportService {
       faxVal,
       codiceFiscale,
       order.documentNumber ?? order.id,
-      new Date(order.createdAt).toLocaleDateString("it-IT"),
+      (order.documentDate ? new Date(order.documentDate) : new Date(order.createdAt)).toLocaleDateString("it-IT"),
       "1",
     ];
 
@@ -263,7 +273,7 @@ export class PDFExportService {
     cell(ML + 95, gy, 95, 4, "BANCA D'APPOGGIO");
     gy += 4;
 
-    cell(ML, gy, 95, 7, undefined, "0001 - COME CONVENUTO");
+    cell(ML, gy, 95, 7, undefined, order.paymentConditions ?? "0001 - COME CONVENUTO");
     cell(
       ML + 95, gy, 95, 7, undefined,
       isFresisBranding ? "Banca FIDEURAM S.p.a. - Filiale 01 Milano" : "",
@@ -276,7 +286,7 @@ export class PDFExportService {
     const tableBody = order.items.map((item) => [
       item.articleCode,
       (() => { const s = item.description ?? item.productName ?? ""; return s.startsWith(item.articleCode) ? s.slice(item.articleCode.length).trim() : (s !== item.articleCode ? s : ""); })(),
-      "PZ",
+      order.unitsOfMeasure?.[item.articleCode] ?? "PZ",
       String(item.quantity),
       item.discount && item.discount > 0 ? fmtN(item.discount) : "",
       fmtN(item.price, 3),
@@ -334,7 +344,23 @@ export class PDFExportService {
       startY: gy,
       head: [["Codice", "Descrizione", "U. M.", "Q.tà", "Sconti", "Prezzo Unitario", "Prezzo Totale", "Iva"]],
       body: tableBody,
-      margin: { left: ML, right: ML, bottom: PAGE_H - Y_SECTIONS },
+      margin: { left: ML, right: ML, bottom: PAGE_H - Y_SECTIONS, top: 15 },
+      willDrawPage: (data) => {
+        if (data.pageNumber > 1) {
+          const companyName = isFresisBranding ? "FRESIS SOCIETA' COOPERATIVA" : "Komet Italia S.r.l.";
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(0, 0, 0);
+          doc.text(companyName, ML, 8);
+          doc.setFont("helvetica", "normal");
+          const docRef = (order.documentNumber ?? order.id) + " — " + recipientName;
+          doc.text((doc.splitTextToSize(docRef, PAGE_W - ML * 2 - 50)[0] as string) ?? "", PAGE_W - ML, 8, { align: "right" });
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(0.2);
+          doc.line(ML, 11, PAGE_W - ML, 11);
+          doc.setTextColor(0, 0, 0);
+        }
+      },
       tableWidth: CW,
       theme: "grid",
       headStyles: {
@@ -373,7 +399,13 @@ export class PDFExportService {
     // ══════════════════════════════════════════════════════════════════════
     const tW = [70, 65, 55] as const;
     const portLabels = ["PORTO", "PESO LORDO", "PESO NETTO", "VOLUME", "COLLI"] as const;
-    const portVals   = ["Franco", "", "", "", "1"] as const;
+    const portVals = [
+      order.portType ?? "Franco",
+      order.grossWeight ? fmtN(order.grossWeight) : "",
+      order.netWeight ? fmtN(order.netWeight) : "",
+      order.volume ? fmtN(order.volume) : "",
+      order.packages ?? "1",
+    ];
     const vetW = [80, 55, 55] as const;
     const annW = [50, 50, 50, 40] as const;
     const annL = ["Annotazioni", "DATA E ORA DEL TRASPORTO", "FIRMA DEL CONDUCENTE", "FIRMA DEL DESTINATARIO"] as const;
@@ -415,10 +447,20 @@ export class PDFExportService {
       const isLast = page === totalPages;
       let ty = Y_SECTIONS;
 
+      // ── Continua (pagine intermedie) ──────────────────────────────────
+      if (!isLast) {
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(100, 100, 100);
+        doc.text("→ continua alla pagina successiva", PAGE_W - ML, Y_SECTIONS - 2, { align: "right" });
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+      }
+
       // ── Sezione 4: TRASPORTO ──────────────────────────────────────────
       cell(ML,                    ty, tW[0], 9, "TRASPORTO A CURA DEL",       isLast ? "Mittente" : "");
-      cell(ML + tW[0],            ty, tW[1], 9, "CAUSALE DEL TRASPORTO",      isLast ? "Vendita" : "");
-      cell(ML + tW[0] + tW[1],    ty, tW[2], 9, "ASPETTO ESTERIORE DEI BENI", isLast ? "BUSTE" : "");
+      cell(ML + tW[0],            ty, tW[1], 9, "CAUSALE DEL TRASPORTO",      isLast ? (order.transportCause ?? "Vendita") : "");
+      cell(ML + tW[0] + tW[1],    ty, tW[2], 9, "ASPETTO ESTERIORE DEI BENI", isLast ? (order.aspectOfGoods ?? "BUSTE") : "");
       ty += 9;
       for (let i = 0; i < 5; i++) {
         cell(ML + i * 38, ty, 38, 9, portLabels[i], isLast ? portVals[i] : "");

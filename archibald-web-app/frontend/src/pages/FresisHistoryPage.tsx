@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import type { FresisHistoryOrder } from "../types/fresis";
-import type { ArcaTestata } from "../types/arca-data";
+import type { ArcaTestata, ArcaRiga } from "../types/arca-data";
 import {
   parseLinkedIds,
   serializeLinkedIds,
@@ -438,25 +438,74 @@ export function FresisHistoryPage() {
     let shippingCost: number | undefined = order.shippingCost ?? 0;
     let shippingTax: number | undefined = order.shippingTax ?? 0;
     let discountPercent: number | undefined = order.discountPercent ?? undefined;
+    let documentDate: string | undefined;
+    let paymentConditions: string | undefined;
+    let transportCause: string | undefined;
+    let aspectOfGoods: string | undefined;
+    let portType: string | undefined;
+    let packages: string | undefined;
+    let grossWeight: number | undefined;
+    let netWeight: number | undefined;
+    let volume: number | undefined;
+    let unitsOfMeasure: Record<string, string> | undefined;
 
     if (order.arcaData) {
       try {
         const arcaData = (typeof order.arcaData === "object"
           ? order.arcaData
-          : JSON.parse(order.arcaData as unknown as string)) as { testata?: ArcaTestata };
+          : JSON.parse(order.arcaData as unknown as string)) as { testata?: ArcaTestata; righe?: ArcaRiga[] };
+
         if (arcaData?.testata) {
           documentNumber = `${arcaData.testata.TIPODOC} ${arcaData.testata.NUMERODOC}/${arcaData.testata.ESERCIZIO}`;
           shippingCost = (arcaData.testata.SPESETR ?? 0) + (arcaData.testata.SPESEIM ?? 0) + (arcaData.testata.SPESEVA ?? 0);
           shippingTax = 0;
+          // Override DB discount_percent with testata.SCONTI (DB value may be
+          // the effective overall discount while per-line discounts are also present)
           const parsed = parseFloat(arcaData.testata.SCONTI ?? "");
-          if (!isNaN(parsed) && parsed > 0) discountPercent = parsed;
+          discountPercent = !isNaN(parsed) && parsed > 0 ? parsed : 0;
+          if (arcaData.testata.DATADOC) documentDate = arcaData.testata.DATADOC;
+          if (arcaData.testata.PAG) paymentConditions = arcaData.testata.PAG;
+          if (arcaData.testata.TRCAUSALE) transportCause = arcaData.testata.TRCAUSALE;
+          if (arcaData.testata.ASPBENI) aspectOfGoods = arcaData.testata.ASPBENI;
+          if (arcaData.testata.PORTO) portType = arcaData.testata.PORTO;
+          if (arcaData.testata.COLLI) packages = arcaData.testata.COLLI;
+          if (arcaData.testata.PESOLORDO) grossWeight = arcaData.testata.PESOLORDO;
+          if (arcaData.testata.PESONETTO) netWeight = arcaData.testata.PESONETTO;
+          if (arcaData.testata.VOLUME) volume = arcaData.testata.VOLUME;
+        } else {
+          // No testata (e.g. KT orders): per-line discounts cover everything,
+          // never apply DB discount_percent on top
+          discountPercent = 0;
+        }
+
+        if (arcaData?.righe?.length) {
+          unitsOfMeasure = Object.fromEntries(
+            arcaData.righe.filter((r) => r.UNMISURA).map((r) => [r.CODICEARTI, r.UNMISURA])
+          );
         }
       } catch { /* ignore */ }
     }
 
     const isKtOrder = documentNumber.startsWith("KT ");
     const pdfService = PDFExportService.getInstance();
-    const doc = pdfService.generateOrderPDF({ ...order, documentNumber, isKtOrder, shippingCost, shippingTax, discountPercent });
+    const doc = pdfService.generateOrderPDF({
+      ...order,
+      documentNumber,
+      isKtOrder,
+      shippingCost,
+      shippingTax,
+      discountPercent,
+      documentDate,
+      paymentConditions,
+      transportCause,
+      aspectOfGoods,
+      portType,
+      packages,
+      grossWeight,
+      netWeight,
+      volume,
+      unitsOfMeasure,
+    });
     doc.save(
       `ordine-fresis-${order.subClientName || order.subClientCodice}-${order.createdAt.slice(0, 10)}.pdf`,
     );

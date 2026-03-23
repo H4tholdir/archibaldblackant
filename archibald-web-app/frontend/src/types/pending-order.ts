@@ -22,6 +22,7 @@ export interface PendingOrderItem {
   price: number;
   vat: number;
   discount?: number;
+  total?: number;
   originalListPrice?: number;
   warehouseQuantity?: number;
   warehouseSources?: Array<{
