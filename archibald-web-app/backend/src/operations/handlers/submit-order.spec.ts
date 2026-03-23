@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleSubmitOrder, type SubmitOrderBot, type SubmitOrderData } from './submit-order';
+import { handleSubmitOrder, calculateAmounts, type SubmitOrderBot, type SubmitOrderData, type SubmitOrderItem } from './submit-order';
 import type { DbPool } from '../../db/pool';
 import { arcaLineAmount, round2 } from '../../utils/arca-math';
 
@@ -715,24 +715,21 @@ describe('handleSubmitOrder — TEMP profile fallback', () => {
   });
 });
 
-// Replica il comportamento di calculateAmounts per garantire coerenza con arca-math
-describe('submit-order calculateAmounts semantics', () => {
+describe('calculateAmounts', () => {
+  const items: SubmitOrderItem[] = [
+    { articleCode: 'A1', quantity: 7,  price: 167.20, discount: 45.00 },
+    { articleCode: 'A2', quantity: 10, price: 11.29,  discount: 70.40 },
+  ];
+
   test('grossAmount = somma arcaLineAmount, total = round2(grossAmount × scontif)', () => {
-    const items = [
-      { quantity: 7,  price: 167.20, discount: 45.00 },
-      { quantity: 10, price: 11.29,  discount: 70.40 },
-    ];
-    const expectedGross = arcaLineAmount(7, 167.20, 45.00) + arcaLineAmount(10, 11.29, 70.40);
-    // = 643.72 + 33.42 = 677.14
-    expect(expectedGross).toBe(677.14);
-    const discountPercent = 10;
-    const expectedTotal = round2(677.14 * 0.9);
-    // = round2(609.426) = 609.43
-    expect(expectedTotal).toBe(609.43);
+    const { grossAmount, total } = calculateAmounts(items, 10);
+    expect(grossAmount).toBe(677.14);
+    expect(total).toBe(609.43);
   });
 
   test('sconto globale 0% → total === grossAmount', () => {
-    const gross = arcaLineAmount(1, 100, 0);
-    expect(round2(gross * 1)).toBe(100);
+    const singleItem: SubmitOrderItem[] = [{ articleCode: 'X', quantity: 1, price: 100, discount: 0 }];
+    const { grossAmount, total } = calculateAmounts(singleItem, 0);
+    expect(total).toBe(grossAmount);
   });
 });
