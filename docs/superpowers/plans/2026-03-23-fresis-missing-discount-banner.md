@@ -242,7 +242,26 @@
   ```
   Expected: FAIL — `discountFilter` non viene passato a `getProducts`.
 
-- [ ] **Step 3: Estendere il handler `GET /api/products` nel router**
+- [ ] **Step 3: Aggiornare il test esistente `passes search query` in `products.spec.ts`**
+
+  Il test a riga ~103 usa un match esatto su `getProducts`. Dopo l'aggiunta di `discountFilter` e `userId`, la chiamata includerà questi campi come `undefined`. Aggiornare il test:
+
+  ```typescript
+  test('passes search query', async () => {
+    await request(app).get('/api/products?search=articolo');
+
+    expect(deps.getProducts).toHaveBeenCalledWith({
+      searchQuery: 'articolo',
+      vatFilter: undefined,
+      priceFilter: undefined,
+      discountFilter: undefined,  // nuovo
+      userId: undefined,          // nuovo
+      limit: undefined,
+    });
+  });
+  ```
+
+- [ ] **Step 4: Estendere il handler `GET /api/products` nel router**
 
   Nel handler `router.get('/', ...)`, dopo `const priceFilter = ...` (riga ~121):
 
@@ -269,14 +288,14 @@
   });
   ```
 
-- [ ] **Step 4: Eseguire tutti i test per verificare che passino**
+- [ ] **Step 5: Eseguire tutti i test per verificare che passino**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- --reporter=verbose products.spec
   ```
   Expected: tutti PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
   ```bash
   git add archibald-web-app/backend/src/routes/products.ts archibald-web-app/backend/src/routes/products.spec.ts
@@ -421,27 +440,23 @@
   const [discountFilterActive, setDiscountFilterActive] = useState(false);
   ```
 
-- [ ] **Step 3: Aggiornare `useEffect` al mount per caricare `missingDiscountCount`**
+- [ ] **Step 3: Aggiungere un `useEffect` dedicato per caricare `missingDiscountCount`**
 
-  Nel `useEffect` esistente che carica `noVatCount` e `zeroPriceCount` (riga ~37), aggiungere la chiamata Fresis:
+  **Non** modificare il `useEffect` esistente (riga ~37) che carica `noVatCount` e `zeroPriceCount` — quello rimane con `[]` come dep array. Aggiungere un **secondo** `useEffect` separato subito dopo:
 
   ```typescript
+  // Effetto separato: carica missingDiscountCount solo per Fresis, dopo che auth è disponibile
   useEffect(() => {
+    if (!isFresis) return;
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
-    getProductsWithoutVatCount(token)
-      .then((result) => setNoVatCount(result.count))
+    getMissingFresisDiscountCount(token)
+      .then((result) => setMissingDiscountCount(result.count))
       .catch(() => {});
-    getProductsWithZeroPriceCount(token)
-      .then((result) => setZeroPriceCount(result.count))
-      .catch(() => {});
-    if (isFresis) {
-      getMissingFresisDiscountCount(token)
-        .then((result) => setMissingDiscountCount(result.count))
-        .catch(() => {});
-    }
   }, [isFresis]);
   ```
+
+  Questo evita di re-triggerare il fetch di `noVatCount`/`zeroPriceCount` ogni volta che `auth.user` cambia.
 
 - [ ] **Step 4: Aggiornare `isFilterMode`, early-return guard e dep array di `fetchProducts`**
 
