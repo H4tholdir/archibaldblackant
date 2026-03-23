@@ -17,6 +17,7 @@ import {
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { archibaldLineAmount } from "../utils/order-calculations";
+import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
@@ -2171,10 +2172,17 @@ function TabArticoli({
             const quantity = item.quantity ?? 0;
             return sum + unitPrice * quantity;
           }, 0);
-          const totalImponibile = articles.reduce(
-            (sum, item) => sum + (item.lineAmount ?? 0),
-            0,
-          );
+
+          const lines = articles.map((item) => ({
+            prezzotot: arcaLineAmount(
+              item.quantity ?? 0,
+              item.unitPrice ?? 0,
+              item.discountPercent ?? 0,
+            ),
+            vatRate: item.vatPercent ?? 0,
+          }));
+          const { totImp: totalImponibile, totIva, totDoc } = arcaDocumentTotals(lines, 1);
+
           const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
 
           const uniqueDiscounts = new Set(
@@ -2260,12 +2268,7 @@ function TabArticoli({
                 >
                   <span style={{ fontWeight: 500 }}>Totale IVA:</span>
                   <span style={{ fontWeight: 600 }}>
-                    {formatCurrency(
-                      articles.reduce(
-                        (sum, item) => sum + (item.vatAmount ?? 0),
-                        0,
-                      ),
-                    )}
+                    {formatCurrency(totIva)}
                   </span>
                 </div>
                 <div
@@ -2290,13 +2293,7 @@ function TabArticoli({
                       color: "#81c784",
                     }}
                   >
-                    {formatCurrency(
-                      articles.reduce(
-                        (sum, item) =>
-                          sum + (item.lineTotalWithVat ?? 0),
-                        0,
-                      ),
-                    )}
+                    {formatCurrency(totDoc)}
                   </span>
                 </div>
               </div>
