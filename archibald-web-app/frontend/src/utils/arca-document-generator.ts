@@ -1,6 +1,7 @@
 import type { PendingOrder, PendingOrderItem } from "../types/pending-order";
 import type { ArcaData, ArcaTestata, ArcaRiga } from "../types/arca-data";
-import { calculateArcaTotals, calculateRowTotal } from "./arca-totals";
+import { calculateArcaTotals } from "./arca-totals";
+import { arcaLineAmount } from "./arca-math";
 
 function formatDiscountForArca(discount: number | undefined): string {
   if (!discount) return "";
@@ -23,7 +24,7 @@ function itemToArcaRiga(
   },
 ): ArcaRiga {
   const sconti = formatDiscountForArca(item.discount);
-  const prezzotot = calculateRowTotal(item.price, item.quantity, sconti);
+  const prezzotot = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
 
   return {
     ID: 0,
