@@ -209,7 +209,7 @@ export async function getMissingFresisDiscountCount(token: string): Promise<{ co
 
 ## Vincoli
 
-- Il banner è esclusivamente per `ikiA0930` — nessun altro utente lo vede (guard frontend su `user.id`)
+- Il banner è esclusivamente per `ikiA0930` — nessun altro utente lo vede (guard frontend su `user.username`)
 - Non modifica dati — solo lettura
 - La logica di confronto usa `p.id` (PK di `shared.products`) == `fd.article_code` (FK in `agents.fresis_discounts`)
 - Backend non ha guard hardcoded su `ikiA0930`: l'isolamento è garantito da `req.user.userId` nella SQL
