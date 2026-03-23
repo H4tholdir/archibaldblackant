@@ -133,7 +133,7 @@ async function getProducts(pool: DbPool, searchQueryOrFilters?: string | Product
     conditions.push(
       `NOT EXISTS (
         SELECT 1 FROM agents.fresis_discounts fd
-        WHERE fd.article_code = name
+        WHERE fd.id = id
           AND fd.user_id = $${paramIndex}
       )`,
     );
@@ -441,7 +441,7 @@ async function getMissingFresisDiscountCount(pool: DbPool, userId: string): Prom
      WHERE p.deleted_at IS NULL
        AND NOT EXISTS (
          SELECT 1 FROM agents.fresis_discounts fd
-         WHERE fd.article_code = p.name
+         WHERE fd.id = p.id
            AND fd.user_id = $1
        )`,
     [userId],
