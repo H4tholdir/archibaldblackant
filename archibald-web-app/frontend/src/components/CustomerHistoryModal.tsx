@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import type { PendingOrderItem } from '../types/pending-order';
+import { arcaLineAmount } from '../utils/arca-math';
 import { priceService } from '../services/prices.service';
 import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
 import type { WarehouseMatch } from '../services/warehouse-matching';
@@ -221,6 +222,7 @@ export function CustomerHistoryModal({
           price: fresisPrice,
           vat: fresisListinoInfo?.vat ?? a.vatPercent,
           discount: combinedDiscount,
+          total: arcaLineAmount(a.quantity, fresisPrice, combinedDiscount),
         };
       }
 
@@ -242,6 +244,7 @@ export function CustomerHistoryModal({
         price: currentListPrice,
         vat: priceInfo?.vat ?? a.vatPercent,
         discount: isValid ? Math.round(calculatedDiscount * 100) / 100 : 0,
+        total: arcaLineAmount(a.quantity, currentListPrice, isValid ? Math.round(calculatedDiscount * 100) / 100 : 0),
         _priceWarning: !isValid,
       } as PendingOrderItem & { _priceWarning?: boolean };
     },
