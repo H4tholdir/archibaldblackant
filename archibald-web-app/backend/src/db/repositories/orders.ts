@@ -259,6 +259,7 @@ type OrderFilterOptions = {
   offset?: number;
   status?: string;
   customer?: string;
+  customerProfileId?: string;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -607,9 +608,13 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
     paramIndex++;
   }
 
-  if (options?.customer) {
+  if (options?.customerProfileId) {
+    conditions.push(`customer_profile_id = $${paramIndex}`);
+    params.push(options.customerProfileId);
+    paramIndex++;
+  } else if (options?.customer) {
     conditions.push(`customer_name ILIKE $${paramIndex}`);
-    params.push(`%${options.customer}%`);
+    params.push(options.customer);
     paramIndex++;
   }
 

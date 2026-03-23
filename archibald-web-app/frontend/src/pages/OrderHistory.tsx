@@ -471,7 +471,9 @@ export function OrderHistory() {
 
     try {
       const params = new URLSearchParams();
-      if (selectedCustomer?.name)
+      if (selectedCustomer?.code)
+        params.append("customerProfileId", selectedCustomer.code);
+      else if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
       if (!isSearchMode) {
         params.append("dateFrom", filters.dateFrom || `${new Date().getFullYear()}-01-01`);

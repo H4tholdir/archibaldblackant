@@ -59,6 +59,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       const userId = req.user!.userId;
       const options: OrderFilterOptions = {
         customer: req.query.customer as string | undefined,
+        customerProfileId: req.query.customerProfileId as string | undefined,
         status: req.query.status as string | undefined,
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
