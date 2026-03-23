@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import { arcaLineAmount, round2 } from '../../utils/arca-math';
 import { isCustomerComplete } from '../../utils/customer-completeness-backend';
 import { saveOrderVerificationSnapshot, getOrderVerificationSnapshot, updateVerificationStatus } from '../../db/repositories/order-verification';
 import type { VerificationStatus } from '../../db/repositories/order-verification';
@@ -52,21 +53,16 @@ type SubmitOrderBot = {
   ) => void;
 };
 
-function archibaldLineAmount(quantity: number, unitPrice: number, discountPercent: number): number {
-  return Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
-}
-
 function calculateAmounts(
   items: SubmitOrderItem[],
   discountPercent?: number,
 ): { grossAmount: number; total: number } {
   const grossAmount = items.reduce((sum, item) => {
-    return sum + archibaldLineAmount(item.quantity, item.price, item.discount || 0);
+    return sum + arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
   }, 0);
 
-  const total = discountPercent
-    ? Math.round(grossAmount * (1 - discountPercent / 100) * 100) / 100
-    : grossAmount;
+  const scontif = 1 - (discountPercent ?? 0) / 100;
+  const total = round2(grossAmount * scontif);
 
   return { grossAmount, total };
 }
@@ -331,7 +327,7 @@ async function handleSubmitOrder(
         `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14}, $${base + 15})`,
       );
       const item = data.items[i];
-      const lineAmount = archibaldLineAmount(item.quantity, item.price, item.discount || 0);
+      const lineAmount = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
       const vatPercent = item.vat ?? 0;
       const vatAmount = Math.round(lineAmount * vatPercent / 100 * 100) / 100;
       const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
@@ -397,7 +393,7 @@ async function handleSubmitOrder(
           quantity: item.quantity,
           unitPrice,
           lineDiscountPercent: item.discount ?? null,
-          expectedLineAmount: archibaldLineAmount(item.quantity, unitPrice, item.discount || 0),
+          expectedLineAmount: arcaLineAmount(item.quantity, unitPrice, item.discount ?? 0),
         };
       });
 
