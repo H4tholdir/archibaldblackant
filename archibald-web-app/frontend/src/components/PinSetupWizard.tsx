@@ -196,7 +196,7 @@ export function PinSetupWizard({
         <div className="wizard-body">
           {step === "create" && (
             <>
-              <PinInput value={pin} onChange={setPin} autoFocus length={4} />
+              <PinInput value={pin} onChange={setPin} onSubmit={() => { if (pin.length === 4) handleCreateComplete(); }} autoFocus length={4} />
               <button
                 onClick={handleCreateComplete}
                 disabled={pin.length !== 4}
@@ -212,6 +212,7 @@ export function PinSetupWizard({
               <PinInput
                 value={confirmPin}
                 onChange={setConfirmPin}
+                onSubmit={() => { if (confirmPin.length === 4 && !isSubmitting) handleConfirmComplete(); }}
                 autoFocus
                 length={4}
               />

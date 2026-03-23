@@ -5,6 +5,7 @@ interface PinInputProps {
   length?: number;
   value: string;
   onChange: (pin: string) => void;
+  onSubmit?: () => void;
   autoFocus?: boolean;
 }
 
@@ -12,6 +13,7 @@ export function PinInput({
   length = 6,
   value,
   onChange,
+  onSubmit,
   autoFocus = false,
 }: PinInputProps) {
   const { scrollFieldIntoView } = useKeyboardScroll();
@@ -38,6 +40,8 @@ export function PinInput({
     if (e.key === "Backspace" && !value[index] && index > 0) {
       // Focus previous input on backspace if current is empty
       inputRefs.current[index - 1]?.focus();
+    } else if (e.key === "Enter") {
+      onSubmit?.();
     }
   };
 

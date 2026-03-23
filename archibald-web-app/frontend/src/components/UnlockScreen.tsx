@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PinInput } from "./PinInput";
 import { getBiometricAuth } from "../services/biometric-auth";
 import { getCredentialStore } from "../services/credential-store";
@@ -25,6 +25,7 @@ export function UnlockScreen({
   const [showPinInput, setShowPinInput] = useState(false); // PIN fallback toggle
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("");
+  const biometricTriggeredRef = useRef(false);
 
   // Check biometric availability on mount
   useEffect(() => {
@@ -142,6 +143,15 @@ export function UnlockScreen({
     }
   };
 
+  // Auto-trigger biometric once available (avoids manual button click)
+  useEffect(() => {
+    if (biometricAvailable && !biometricTriggeredRef.current) {
+      biometricTriggeredRef.current = true;
+      handleBiometricUnlock();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [biometricAvailable]);
+
   // Auto-submit PIN when complete
   useEffect(() => {
     if (pin.length === 4 && !isUnlocking && showPinInput) {
@@ -193,7 +203,13 @@ export function UnlockScreen({
         {/* PIN Input (always available when showPinInput=true or no biometric) */}
         {showPinInput && (
           <div className="unlock-pin-area">
-            <PinInput value={pin} onChange={setPin} autoFocus length={4} />
+            <PinInput
+              value={pin}
+              onChange={setPin}
+              onSubmit={() => { if (!isUnlocking && pin.length === 4) handlePinUnlock(); }}
+              autoFocus
+              length={4}
+            />
           </div>
         )}
 
