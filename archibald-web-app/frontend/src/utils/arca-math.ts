@@ -73,5 +73,5 @@ export function arcaDocumentTotals(
     totIva = round2(totIva + round2(shippingCost * vatRate / 100));
   }
 
-  return { totMerce, totSconto, totNetto, totImp, totIva, totDoc: totImp + totIva };
+  return { totMerce, totSconto, totNetto, totImp, totIva, totDoc: round2(totImp + totIva) };
 }

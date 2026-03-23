@@ -32,6 +32,7 @@ export type PDFOrderData = {
   unitsOfMeasure?: Record<string, string>;
 };
 import { calculateShippingCosts } from "../utils/order-calculations";
+import { arcaLineAmount, arcaVatGroups, arcaDocumentTotals, round2 } from "../utils/arca-math";
 import { FRESIS_LOGO_BASE64 } from "../assets/fresis-logo-base64";
 
 // Komet logo as base64 (to be embedded in PDF)
@@ -74,7 +75,7 @@ export class PDFExportService {
       });
 
     const lineSubtotal = (item: PendingOrderItem): number =>
-      item.total ?? item.price * item.quantity * (1 - (item.discount || 0) / 100);
+      item.total ?? arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
 
     // Helper: cella bordata con etichetta piccola (top) e valore (bottom)
     const cell = (
@@ -297,30 +298,38 @@ export class PDFExportService {
     // ══════════════════════════════════════════════════════════════════════
     // CALCOLI TOTALI (prima dell'autoTable per determinare layout fisso)
     // ══════════════════════════════════════════════════════════════════════
-    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
-    const globalDiscAmt =
-      order.discountPercent && order.discountPercent > 0
-        ? (totalMerce * order.discountPercent) / 100
-        : 0;
-    const totalNetto = totalMerce - globalDiscAmt;
+    const scontif = 1 - (order.discountPercent ?? 0) / 100;
+    const lines = order.items.map((item) => ({
+      prezzotot: lineSubtotal(item),
+      vatRate: item.vat ?? 0,
+    }));
+
+    // totNetto per soglia spedizione (senza spedizione)
+    const { totNetto: totalNetto } = arcaDocumentTotals(lines, scontif);
+    const totalMerce = lines.reduce((s, l) => s + l.prezzotot, 0);
+    const globalDiscAmt = totalMerce - totalNetto;
 
     const shipping = order.noShipping
       ? { cost: 0, tax: 0, total: 0 }
       : order.shippingCost !== undefined
-        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: order.shippingCost + (order.shippingTax ?? 0) }
+        ? {
+            cost: order.shippingCost,
+            tax: order.shippingTax ?? 0,
+            total: order.shippingCost + (order.shippingTax ?? 0),
+          }
         : calculateShippingCosts(totalNetto);
 
-    const vatMap = new Map<number, { imp: number; tax: number }>();
-    for (const item of order.items) {
-      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
-      const rate = item.vat ?? 0;
-      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
-      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
-    }
+    // Costruisce vatMap per le righe di display nel PDF (round per gruppo)
+    const vatGroups = arcaVatGroups(lines, scontif);
+    const vatMap = new Map<number, { imp: number; tax: number }>(
+      vatGroups.map((g) => [g.vatRate, { imp: g.imponibile, tax: g.iva }]),
+    );
     if (shipping.cost > 0) {
       const r = 22;
       const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
-      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
+      // Usa round2(cost * 22/100) anziché shipping.tax per garantire coerenza con arcaDocumentTotals
+      const shippingIva = round2(shipping.cost * r / 100);
+      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: round2(prev.tax + shippingIva) });
     }
     const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
     const nVatRows = Math.max(vatRates.length, 1);
