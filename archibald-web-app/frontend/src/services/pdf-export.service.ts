@@ -50,6 +50,7 @@ export class PDFExportService {
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const PAGE_W = 210;
+    const PAGE_H = 297;
     const ML = 10;
     const CW = 190; // content width
 
@@ -283,11 +284,57 @@ export class PDFExportService {
       String(item.vat ?? 0),
     ]);
 
+    // ══════════════════════════════════════════════════════════════════════
+    // CALCOLI TOTALI (prima dell'autoTable per determinare layout fisso)
+    // ══════════════════════════════════════════════════════════════════════
+    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
+    const globalDiscAmt =
+      order.discountPercent && order.discountPercent > 0
+        ? (totalMerce * order.discountPercent) / 100
+        : 0;
+    const totalNetto = totalMerce - globalDiscAmt;
+
+    const shipping = order.noShipping
+      ? { cost: 0, tax: 0, total: 0 }
+      : order.shippingCost !== undefined
+        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: order.shippingCost + (order.shippingTax ?? 0) }
+        : calculateShippingCosts(totalNetto);
+
+    const vatMap = new Map<number, { imp: number; tax: number }>();
+    for (const item of order.items) {
+      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
+      const rate = item.vat ?? 0;
+      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
+      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
+    }
+    if (shipping.cost > 0) {
+      const r = 22;
+      const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
+      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
+    }
+    const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
+    const nVatRows = Math.max(vatRates.length, 1);
+
+    const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
+    const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
+    const totFattura = totImp + totIva;
+
+    // Layout fisso: sezioni 4+5+6 ancorate al fondo di ogni pagina
+    // Ogni pagina ha identica struttura; i valori compaiono solo sull'ultima.
+    const TRANSPORT_H = 36; // 4 righe × 9mm
+    const TOTALS_H = 9 + 4 + 7 * nVatRows + 5 + 11 + 12; // S1+S2+S3+S4+S5+S6
+    // Y_SECTIONS = punto Y dove inizia la sezione 4 su ogni pagina
+    // Footer testo: a (Y_SECTIONS + TRANSPORT_H + TOTALS_H + 4) e (+8) → deve stare ≤ 287mm
+    const Y_SECTIONS = 279 - TRANSPORT_H - TOTALS_H;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SEZIONE 3: TABELLA ARTICOLI
+    // ══════════════════════════════════════════════════════════════════════
     autoTable(doc, {
       startY: gy,
       head: [["Codice", "Descrizione", "U. M.", "Q.tà", "Sconti", "Prezzo Unitario", "Prezzo Totale", "Iva"]],
       body: tableBody,
-      margin: { left: ML, right: ML },
+      margin: { left: ML, right: ML, bottom: PAGE_H - Y_SECTIONS },
       tableWidth: CW,
       theme: "grid",
       headStyles: {
@@ -319,90 +366,17 @@ export class PDFExportService {
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const afterTable: number = (doc as any).lastAutoTable?.finalY ?? gy + 20;
+    const totalPages = doc.getNumberOfPages();
 
     // ══════════════════════════════════════════════════════════════════════
-    // CALCOLI TOTALI (anticipati per stimare altezza sezioni finali)
+    // SEZIONI 4+5+6 — ripetute su ogni pagina; valori solo sull'ultima
     // ══════════════════════════════════════════════════════════════════════
-    const totalMerce = order.items.reduce((s, it) => s + lineSubtotal(it), 0);
-    const globalDiscAmt =
-      order.discountPercent && order.discountPercent > 0
-        ? (totalMerce * order.discountPercent) / 100
-        : 0;
-    const totalNetto = totalMerce - globalDiscAmt;
-
-    const shipping = order.noShipping
-      ? { cost: 0, tax: 0, total: 0 }
-      : order.shippingCost !== undefined
-        ? { cost: order.shippingCost, tax: order.shippingTax ?? 0, total: (order.shippingCost) + (order.shippingTax ?? 0) }
-        : calculateShippingCosts(totalNetto);
-
-    const vatMap = new Map<number, { imp: number; tax: number }>();
-    for (const item of order.items) {
-      const sub = lineSubtotal(item) * (1 - (order.discountPercent ?? 0) / 100);
-      const rate = item.vat ?? 0;
-      const prev = vatMap.get(rate) ?? { imp: 0, tax: 0 };
-      vatMap.set(rate, { imp: prev.imp + sub, tax: prev.tax + sub * (rate / 100) });
-    }
-    if (shipping.cost > 0) {
-      const r = 22;
-      const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
-      vatMap.set(r, { imp: prev.imp + shipping.cost, tax: prev.tax + shipping.tax });
-    }
-    const vatRates = [...vatMap.entries()].sort((a, b) => a[0] - b[0]);
-
-    const totImp = [...vatMap.values()].reduce((s, v) => s + v.imp, 0);
-    const totIva = [...vatMap.values()].reduce((s, v) => s + v.tax, 0);
-    const totFattura = totImp + totIva;
-
-    // ══════════════════════════════════════════════════════════════════════
-    // SEZIONE 4: TRASPORTO
-    // ══════════════════════════════════════════════════════════════════════
-    // Se trasporto + totali + footer non entrano nella pagina corrente, nuova pagina
-    const TRANSPORT_H = 36;
-    const TOTALS_FIXED_H = 9 + 4 + 7 * vatRates.length + 5 + 11 + 12;
-    const FOOTER_H = 12;
-    let ty = afterTable;
-    if (ty + TRANSPORT_H + TOTALS_FIXED_H + FOOTER_H > 287) {
-      doc.addPage();
-      ty = 10;
-    }
-
-    // T1: TRASPORTO/CAUSALE/ASPETTO (label + valore nella stessa cella)
-    const tW = [70, 65, 55] as const; // 70+65+55 = 190 ✓
-    cell(ML,                    ty, tW[0], 9, "TRASPORTO A CURA DEL",      "Mittente");
-    cell(ML + tW[0],            ty, tW[1], 9, "CAUSALE DEL TRASPORTO",     "Vendita");
-    cell(ML + tW[0] + tW[1],    ty, tW[2], 9, "ASPETTO ESTERIORE DEI BENI","BUSTE");
-    ty += 9;
-
-    // T2: PORTO/PESO/VOLUME/COLLI  (38×5 = 190 ✓)
+    const tW = [70, 65, 55] as const;
     const portLabels = ["PORTO", "PESO LORDO", "PESO NETTO", "VOLUME", "COLLI"] as const;
     const portVals   = ["Franco", "", "", "", "1"] as const;
-    for (let i = 0; i < 5; i++) {
-      cell(ML + i * 38, ty, 38, 9, portLabels[i], portVals[i]);
-    }
-    ty += 9;
-
-    // T3: VETTORE  (80+55+55 = 190 ✓)
     const vetW = [80, 55, 55] as const;
-    cell(ML,                    ty, vetW[0], 9, "DESCRIZIONE VETTORE");
-    cell(ML + vetW[0],          ty, vetW[1], 9, "DATA E ORA DEL RITIRO");
-    cell(ML + vetW[0] + vetW[1],ty, vetW[2], 9, "FIRMA VETTORE");
-    ty += 9;
-
-    // T4: ANNOTAZIONI / DATE E FIRME  (50+50+50+40 = 190 ✓)
     const annW = [50, 50, 50, 40] as const;
-    const annL = ["Annotazioni","DATA E ORA DEL TRASPORTO","FIRMA DEL CONDUCENTE","FIRMA DEL DESTINATARIO"] as const;
-    let ax = ML;
-    for (let i = 0; i < 4; i++) { cell(ax, ty, annW[i], 9, annL[i]); ax += annW[i]; }
-    ty += 9;
-
-    // ══════════════════════════════════════════════════════════════════════
-    // SEZIONE 5: TOTALI
-    // ══════════════════════════════════════════════════════════════════════
-
-    // S1: TOTALE MERCE … SPESE VARIE  (29+22+27+28+30+27+27 = 190 ✓)
+    const annL = ["Annotazioni", "DATA E ORA DEL TRASPORTO", "FIRMA DEL CONDUCENTE", "FIRMA DEL DESTINATARIO"] as const;
     const s1Cols: Array<{ l: string; w: number }> = [
       { l: "TOTALE MERCE",    w: 29 },
       { l: "SC.% MERCE",      w: 22 },
@@ -421,47 +395,12 @@ export class PDFExportService {
       "",
       "",
     ];
-    let sx = ML;
-    for (let i = 0; i < s1Cols.length; i++) {
-      cell(sx, ty, s1Cols[i].w, 9, s1Cols[i].l, s1Vals[i], { vAlign: "right" });
-      sx += s1Cols[i].w;
-    }
-    ty += 9;
-
-    // S2: IVA etichette  (15+38+32+35 = 120) + SPESE ART.15/ACCONTO (35+35 = 70)
     const ivaLW = [15, 38, 32, 35] as const;
     const ivaLL = ["IVA", "IMPONIBILE", "IMPOSTA", "AGENDA CODICI"] as const;
     const ivaRW = [35, 35] as const;
     const ivaRL = ["SPESE ART. 15", "ACCONTO"] as const;
-
-    sx = ML;
-    for (let i = 0; i < 4; i++) { cell(sx, ty, ivaLW[i], 4, ivaLL[i]); sx += ivaLW[i]; }
-    for (let i = 0; i < 2; i++) { cell(sx, ty, ivaRW[i], 4, ivaRL[i]); sx += ivaRW[i]; }
-    ty += 4;
-
-    // S3: righe valori IVA per aliquota
-    for (const [rate, { imp, tax }] of vatRates) {
-      const vals = [String(rate), fmtN(imp), fmtN(tax), "", "", ""];
-      const allW = [...ivaLW, ...ivaRW];
-      sx = ML;
-      for (let i = 0; i < 6; i++) {
-        cell(sx, ty, allW[i], 7, undefined, vals[i],
-          { vAlign: i === 1 || i === 2 ? "right" : "left" });
-        sx += allW[i];
-      }
-      ty += 7;
-    }
-
-    // S4: ABBUONO / OMAGGIO
     const ivaLeftTot = ivaLW.reduce((s, w) => s + w, 0); // 120
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.15);
-    doc.rect(ML, ty, ivaLeftTot, 5);
-    cell(ML + ivaLeftTot,             ty, ivaRW[0], 5, "ABBUONO");
-    cell(ML + ivaLeftTot + ivaRW[0],  ty, ivaRW[1], 5, "OMAGGIO");
-    ty += 5;
-
-    // S5: TOTALE IMPONIBILE … NETTO A PAGARE (140mm) + SCADENZE header (50mm)
+    const allW = [...ivaLW, ...ivaRW] as number[];
     const sumCols: Array<{ l: string; w: number }> = [
       { l: "TOTALE IMPONIBILE", w: 40 },
       { l: "TOTALE IVA",        w: 33 },
@@ -469,46 +408,117 @@ export class PDFExportService {
       { l: "NETTO A PAGARE",    w: 34 },
     ]; // 40+33+33+34 = 140
     const rightW = CW - 140; // 50
-
-    sx = ML;
-    for (const c of sumCols) { cell(sx, ty, c.w, 4, c.l); sx += c.w; }
-    cell(ML + 140, ty, rightW, 4, "SCADENZE");
-    ty += 4;
-
     const sumVals = [fmtN(totImp), fmtN(totIva), "", fmtN(totFattura)];
-    sx = ML;
-    for (let i = 0; i < sumCols.length; i++) {
-      cell(sx, ty, sumCols[i].w, 7, undefined, sumVals[i], { vAlign: "right" });
-      sx += sumCols[i].w;
+
+    for (let page = 1; page <= totalPages; page++) {
+      doc.setPage(page);
+      const isLast = page === totalPages;
+      let ty = Y_SECTIONS;
+
+      // ── Sezione 4: TRASPORTO ──────────────────────────────────────────
+      cell(ML,                    ty, tW[0], 9, "TRASPORTO A CURA DEL",       isLast ? "Mittente" : "");
+      cell(ML + tW[0],            ty, tW[1], 9, "CAUSALE DEL TRASPORTO",      isLast ? "Vendita" : "");
+      cell(ML + tW[0] + tW[1],    ty, tW[2], 9, "ASPETTO ESTERIORE DEI BENI", isLast ? "BUSTE" : "");
+      ty += 9;
+      for (let i = 0; i < 5; i++) {
+        cell(ML + i * 38, ty, 38, 9, portLabels[i], isLast ? portVals[i] : "");
+      }
+      ty += 9;
+      cell(ML,                    ty, vetW[0], 9, "DESCRIZIONE VETTORE");
+      cell(ML + vetW[0],          ty, vetW[1], 9, "DATA E ORA DEL RITIRO");
+      cell(ML + vetW[0] + vetW[1],ty, vetW[2], 9, "FIRMA VETTORE");
+      ty += 9;
+      let ax = ML;
+      for (let i = 0; i < 4; i++) { cell(ax, ty, annW[i], 9, annL[i]); ax += annW[i]; }
+      ty += 9;
+
+      // ── Sezione 5: TOTALI ─────────────────────────────────────────────
+      let sx = ML;
+      for (let i = 0; i < s1Cols.length; i++) {
+        cell(sx, ty, s1Cols[i].w, 9, s1Cols[i].l, isLast ? s1Vals[i] : "", { vAlign: "right" });
+        sx += s1Cols[i].w;
+      }
+      ty += 9;
+
+      sx = ML;
+      for (let i = 0; i < 4; i++) { cell(sx, ty, ivaLW[i], 4, ivaLL[i]); sx += ivaLW[i]; }
+      for (let i = 0; i < 2; i++) { cell(sx, ty, ivaRW[i], 4, ivaRL[i]); sx += ivaRW[i]; }
+      ty += 4;
+
+      for (let r = 0; r < nVatRows; r++) {
+        const entry = isLast ? vatRates[r] : undefined;
+        const vals = entry
+          ? [String(entry[0]), fmtN(entry[1].imp), fmtN(entry[1].tax), "", "", ""]
+          : ["", "", "", "", "", ""];
+        sx = ML;
+        for (let i = 0; i < 6; i++) {
+          cell(sx, ty, allW[i], 7, undefined, vals[i],
+            { vAlign: i === 1 || i === 2 ? "right" : "left" });
+          sx += allW[i];
+        }
+        ty += 7;
+      }
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15);
+      doc.rect(ML, ty, ivaLeftTot, 5);
+      cell(ML + ivaLeftTot,             ty, ivaRW[0], 5, "ABBUONO");
+      cell(ML + ivaLeftTot + ivaRW[0],  ty, ivaRW[1], 5, "OMAGGIO");
+      ty += 5;
+
+      sx = ML;
+      for (const c of sumCols) { cell(sx, ty, c.w, 4, c.l); sx += c.w; }
+      cell(ML + 140, ty, rightW, 4, "SCADENZE");
+      ty += 4;
+
+      sx = ML;
+      for (let i = 0; i < sumCols.length; i++) {
+        cell(sx, ty, sumCols[i].w, 7, undefined, isLast ? sumVals[i] : "", { vAlign: "right" });
+        sx += sumCols[i].w;
+      }
+      cell(ML + 140, ty, rightW, 7, "TOTALE FATTURA");
+      ty += 7;
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15);
+      doc.rect(ML, ty, 140, 12);
+      cell(ML + 140, ty, rightW, 12, undefined, isLast ? fmtN(totFattura) : "", {
+        vBold: true, vSize: 13, vAlign: "right",
+      });
+      ty += 12;
+
+      // ── Sezione 6: FOOTER ─────────────────────────────────────────────
+      const footerY = ty + 4;
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      doc.text(
+        "Informativa sul trattamento dei dati personali (ai sensi dell'art.13 GDPR (Regolamento Europeo UE 2016/679))",
+        PAGE_W / 2, footerY, { align: "center" },
+      );
+      doc.text(
+        "PreghiamoVi controllare esatta Vs ragione sociale. Decliniamo ogni e qualsiasi responsabilità come previsto dall'art.41 DPR 633 del 26/10/72",
+        PAGE_W / 2, footerY + 4, { align: "center" },
+      );
+      doc.setTextColor(0, 0, 0);
     }
-    cell(ML + 140, ty, rightW, 7, "TOTALE FATTURA");
-    ty += 7;
 
-    // S6: SCADENZE vuote (140mm) + valore TOTALE FATTURA grande (50mm)
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.15);
-    doc.rect(ML, ty, 140, 12);
-    cell(ML + 140, ty, rightW, 12, undefined, fmtN(totFattura), {
-      vBold: true, vSize: 13, vAlign: "right",
-    });
-    ty += 12;
-
-    // ══════════════════════════════════════════════════════════════════════
-    // SEZIONE 6: FOOTER — note legali
-    // ══════════════════════════════════════════════════════════════════════
-    const footerY = ty + 4;
-    doc.setFontSize(6.5);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text(
-      "Informativa sul trattamento dei dati personali (ai sensi dell'art.13 GDPR (Regolamento Europeo UE 2016/679))",
-      PAGE_W / 2, footerY, { align: "center" },
-    );
-    doc.text(
-      "PreghiamoVi controllare esatta Vs ragione sociale. Decliniamo ogni e qualsiasi responsabilità come previsto dall'art.41 DPR 633 del 26/10/72",
-      PAGE_W / 2, footerY + 4, { align: "center" },
-    );
-    doc.setTextColor(0, 0, 0);
+    // Aggiorna campo PAGINA su pagina 1 con "1/N" quando ci sono più pagine
+    if (totalPages > 1) {
+      doc.setPage(1);
+      const paginaX = ML + 170; // x = 180mm (somma larghezze f8[0..6])
+      const paginaValueY = 76;  // y riga valori (gy=72 after row B, +4 labels row C)
+      doc.setFillColor(255, 255, 255);
+      doc.rect(paginaX, paginaValueY, 20, 7, "F");
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15);
+      doc.rect(paginaX, paginaValueY, 20, 7);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+      const pTxt = (doc.splitTextToSize(`1/${totalPages}`, 18)[0] as string) ?? "";
+      doc.text(pTxt, paginaX + 19, paginaValueY + 5, { align: "right" });
+    }
 
     return doc;
   }
