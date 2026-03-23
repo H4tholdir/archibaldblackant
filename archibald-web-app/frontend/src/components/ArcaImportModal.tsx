@@ -126,7 +126,7 @@ export function ArcaImportModal({
               <strong>*.DBT</strong> se presenti.
             </p>
 
-            <input
+            <input autoComplete="off"
               ref={fileInputRef}
               type="file"
               multiple

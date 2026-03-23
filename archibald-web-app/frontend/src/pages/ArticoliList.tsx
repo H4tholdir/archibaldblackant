@@ -291,7 +291,7 @@ export function ArticoliList() {
             >
               Cerca prodotto
             </label>
-            <input
+            <input autoComplete="off"
               id="product-search"
               type="text"
               placeholder="Nome, codice, descrizione..."

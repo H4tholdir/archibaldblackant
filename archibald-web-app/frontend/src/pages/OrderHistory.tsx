@@ -1469,7 +1469,7 @@ export function OrderHistory() {
             >
               {"\ud83d\udd0d"} Ricerca globale
             </label>
-            <input
+            <input autoComplete="off"
               id="global-search"
               type="text"
               placeholder="Cerca in tutti i campi: tracking, DDT, fatture, articoli..."
@@ -1589,7 +1589,7 @@ export function OrderHistory() {
               >
                 Da
               </label>
-              <input
+              <input autoComplete="off"
                 id="date-from"
                 type="date"
                 value={filters.dateFrom}
@@ -1624,7 +1624,7 @@ export function OrderHistory() {
               >
                 A
               </label>
-              <input
+              <input autoComplete="off"
                 id="date-to"
                 type="date"
                 value={filters.dateTo}
@@ -2070,7 +2070,7 @@ export function OrderHistory() {
                 transition: "opacity 0.3s",
               }}
             >
-              <input
+              <input autoComplete="off"
                 type="text"
                 placeholder="Ricerca..."
                 value={filters.search}
@@ -2564,7 +2564,7 @@ export function OrderHistory() {
             >
               Motivo (opzionale)
             </label>
-            <input
+            <input autoComplete="off"
               id="stack-reason"
               type="text"
               placeholder="Es: stesso cliente, stessa spedizione..."

@@ -463,13 +463,13 @@ export function ArcaDocumentDetail({
             {/* Documento (2 inputs) */}
             <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
               <span style={{ ...arcaLabel, width: LABEL_W, flexShrink: 0 }}>Documento</span>
-              <input
+              <input autoComplete="off"
                 type="text"
                 value={t.TIPODOC}
                 readOnly
                 style={{ ...arcaReadOnlySpecialInput, width: "36px", height: "18px", lineHeight: "16px" }}
               />
-              <input
+              <input autoComplete="off"
                 type="text"
                 value={t.NUMERODOC}
                 readOnly

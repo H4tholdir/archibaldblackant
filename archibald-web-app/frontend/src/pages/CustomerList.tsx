@@ -271,7 +271,7 @@ export function CustomerList() {
             >
               Cerca cliente
             </label>
-            <input
+            <input autoComplete="off"
               id="customer-search"
               type="text"
               placeholder="Nome, P.IVA, telefono, città, email..."

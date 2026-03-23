@@ -758,7 +758,7 @@ export function FresisHistoryPage() {
           {/* Global search */}
           <div style={{ flex: "1 1 45%", minWidth: "200px" }}>
             <label style={filterLabelStyle}>Ricerca globale</label>
-            <input
+            <input autoComplete="off"
               type="text"
               placeholder="Cerca articoli, codici, DDT, fatture..."
               value={globalSearch}
@@ -849,7 +849,7 @@ export function FresisHistoryPage() {
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 150px" }}>
               <label style={filterLabelStyle}>Da</label>
-              <input
+              <input autoComplete="off"
                 type="date"
                 value={dateFrom}
                 onChange={(e) => {
@@ -861,7 +861,7 @@ export function FresisHistoryPage() {
             </div>
             <div style={{ flex: "1 1 150px" }}>
               <label style={filterLabelStyle}>A</label>
-              <input
+              <input autoComplete="off"
                 type="date"
                 value={dateTo}
                 onChange={(e) => {

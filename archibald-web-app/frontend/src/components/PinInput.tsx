@@ -50,7 +50,7 @@ export function PinInput({
   return (
     <div className="pin-input" onPaste={handlePaste}>
       {Array.from({ length }).map((_, index) => (
-        <input
+        <input autoComplete="off"
           key={index}
           ref={(el) => {
             inputRefs.current[index] = el;

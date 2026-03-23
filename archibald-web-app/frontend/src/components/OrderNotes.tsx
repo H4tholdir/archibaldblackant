@@ -110,7 +110,7 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
               padding: '4px 0',
               fontSize: '13px',
             }}>
-              <input
+              <input autoComplete="off"
                 type="checkbox"
                 checked={note.checked}
                 onChange={() => handleToggle(note.id, !note.checked)}
@@ -118,7 +118,7 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
                 style={{ cursor: 'pointer', accentColor: '#1976d2' }}
               />
               {editingId === note.id ? (
-                <input
+                <input autoComplete="off"
                   autoFocus
                   type="text"
                   value={editingText}
@@ -170,7 +170,7 @@ export function OrderNotes({ orderId, expanded, onNotesChanged }: OrderNotesProp
             </div>
           ))}
           <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-            <input
+            <input autoComplete="off"
               type="text"
               placeholder="Aggiungi nota..."
               value={newNoteText}

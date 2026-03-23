@@ -1693,7 +1693,7 @@ function TabArticoli({
                         ref={isSearching ? dropdownRef : undefined}
                         style={{ position: "relative" }}
                       >
-                        <input
+                        <input autoComplete="off"
                           type="text"
                           value={isSearching ? articleSearch : (item.productName || item.articleCode)}
                           onChange={(e) =>
@@ -1782,7 +1782,7 @@ function TabArticoli({
 
                     {/* Quantity */}
                     <td style={tableCellStyle}>
-                      <input
+                      <input autoComplete="off"
                         data-field={`qty-${idx}`}
                         type="text"
                         inputMode="numeric"
@@ -1858,7 +1858,7 @@ function TabArticoli({
 
                     {/* Discount */}
                     <td style={tableCellStyle}>
-                      <input
+                      <input autoComplete="off"
                         data-field={`discount-${idx}`}
                         type="text"
                         inputMode="decimal"

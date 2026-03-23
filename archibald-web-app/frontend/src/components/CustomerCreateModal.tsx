@@ -1025,7 +1025,7 @@ export function CustomerCreateModal({
             >
               Partita IVA
             </label>
-            <input
+            <input autoComplete="off"
               ref={inputRef}
               type="text"
               value={earlyVatInput}
@@ -1515,7 +1515,7 @@ export function CustomerCreateModal({
                         )}
                       </td>
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                        <input
+                        <input autoComplete="off"
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
@@ -1578,7 +1578,7 @@ export function CustomerCreateModal({
             >
               {currentField.label}
             </label>
-            <input
+            <input autoComplete="off"
               ref={inputRef}
               type={
                 "type" in currentField && currentField.type
@@ -1691,7 +1691,7 @@ export function CustomerCreateModal({
             >
               {currentField.label}
             </label>
-            <input
+            <input autoComplete="off"
               ref={inputRef}
               type="text"
               value={paymentTermsSearch}
@@ -2010,7 +2010,7 @@ export function CustomerCreateModal({
                   <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
                     Via e civico
                   </label>
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     value={addressForm.via ?? ""}
                     onChange={(e) => setAddressForm((f) => ({ ...f, via: e.target.value }))}
@@ -2021,7 +2021,7 @@ export function CustomerCreateModal({
                   <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
                     CAP
                   </label>
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     value={addressForm.cap ?? ""}
                     onChange={(e) => {
@@ -2066,7 +2066,7 @@ export function CustomerCreateModal({
                     <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
                       Città
                     </label>
-                    <input
+                    <input autoComplete="off"
                       type="text"
                       value={addressForm.citta ?? ""}
                       onChange={(e) => setAddressForm((f) => ({ ...f, citta: e.target.value }))}
@@ -2078,7 +2078,7 @@ export function CustomerCreateModal({
                   <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>
                     Nome (opzionale)
                   </label>
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     value={addressForm.nome ?? ""}
                     onChange={(e) => setAddressForm((f) => ({ ...f, nome: e.target.value }))}

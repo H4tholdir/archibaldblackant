@@ -355,7 +355,7 @@ export function ProfilePage() {
           {/* Yearly Target */}
           <div>
             <label style={styles.label}>Target Annuale ({editCurrency})</label>
-            <input
+            <input autoComplete="off"
               type="number"
               value={editYearlyTarget}
               onChange={(e) => setEditYearlyTarget(e.target.value)}
@@ -392,7 +392,7 @@ export function ProfilePage() {
           {/* Commission Rate */}
           <div>
             <label style={styles.label}>Provvigioni Base (%)</label>
-            <input
+            <input autoComplete="off"
               type="number"
               value={editCommissionRate}
               onChange={(e) => setEditCommissionRate(e.target.value)}
@@ -431,7 +431,7 @@ export function ProfilePage() {
           >
             <div>
               <label style={styles.label}>Bonus Progressivo</label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={editBonusAmount}
                 onChange={(e) => setEditBonusAmount(e.target.value)}
@@ -442,7 +442,7 @@ export function ProfilePage() {
             </div>
             <div>
               <label style={styles.label}>Ogni (Intervallo)</label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={editBonusInterval}
                 onChange={(e) => setEditBonusInterval(e.target.value)}
@@ -463,7 +463,7 @@ export function ProfilePage() {
           >
             <div>
               <label style={styles.label}>Premio Extra-Budget</label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={editExtraBudgetReward}
                 onChange={(e) => setEditExtraBudgetReward(e.target.value)}
@@ -474,7 +474,7 @@ export function ProfilePage() {
             </div>
             <div>
               <label style={styles.label}>Intervallo Extra-Budget</label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={editExtraBudgetInterval}
                 onChange={(e) => setEditExtraBudgetInterval(e.target.value)}
@@ -488,7 +488,7 @@ export function ProfilePage() {
           {/* Monthly Advance */}
           <div>
             <label style={styles.label}>Anticipo Mensile</label>
-            <input
+            <input autoComplete="off"
               type="number"
               value={editMonthlyAdvance}
               onChange={(e) => setEditMonthlyAdvance(e.target.value)}
@@ -518,7 +518,7 @@ export function ProfilePage() {
                 cursor: "pointer",
               }}
             >
-              <input
+              <input autoComplete="off"
                 type="checkbox"
                 checked={editHideCommissions}
                 onChange={(e) => setEditHideCommissions(e.target.checked)}

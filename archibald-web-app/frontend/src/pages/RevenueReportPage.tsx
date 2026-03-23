@@ -221,7 +221,7 @@ export function RevenueReportPage() {
       >
         <div>
           <label style={filterLabelStyle}>Da</label>
-          <input
+          <input autoComplete="off"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
@@ -230,7 +230,7 @@ export function RevenueReportPage() {
         </div>
         <div>
           <label style={filterLabelStyle}>A</label>
-          <input
+          <input autoComplete="off"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -239,7 +239,7 @@ export function RevenueReportPage() {
         </div>
         <div style={{ flex: "1 1 200px" }}>
           <label style={filterLabelStyle}>Sotto-cliente</label>
-          <input
+          <input autoComplete="off"
             type="text"
             placeholder="Filtra per nome o codice..."
             value={subClientFilter}

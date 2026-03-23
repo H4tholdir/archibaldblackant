@@ -70,7 +70,7 @@ function SubclientPicker({
         <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px' }}>
           Cerca il sottocliente Arca corrispondente:
         </div>
-        <input
+        <input autoComplete="off"
           autoFocus
           type="text"
           placeholder="Cerca per nome, codice, P.IVA, indirizzo..."

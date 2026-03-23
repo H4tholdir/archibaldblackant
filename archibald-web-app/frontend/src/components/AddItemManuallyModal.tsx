@@ -413,7 +413,7 @@ export function AddItemManuallyModal({
                   </span>
                 )}
               </label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -442,7 +442,7 @@ export function AddItemManuallyModal({
               <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
                 Quantità *
               </label>
-              <input
+              <input autoComplete="off"
                 ref={quantityRef}
                 type="text"
                 inputMode="numeric"

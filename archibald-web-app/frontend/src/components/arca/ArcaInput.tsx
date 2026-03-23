@@ -61,7 +61,7 @@ export function ArcaInput({
 
   if (!label) {
     return (
-      <input
+      <input autoComplete="off"
         ref={inputRef}
         type={type}
         value={value}
@@ -79,7 +79,7 @@ export function ArcaInput({
         <span style={{ ...arcaLabel, fontSize: "10px", padding: "0 1px", ...labelStyleOverride }}>
           {label}
         </span>
-        <input
+        <input autoComplete="off"
           ref={inputRef}
           type={type}
           value={value}
@@ -110,7 +110,7 @@ export function ArcaInput({
       >
         {label}
       </span>
-      <input
+      <input autoComplete="off"
         ref={inputRef}
         type={type}
         value={value}

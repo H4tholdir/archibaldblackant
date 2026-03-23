@@ -280,7 +280,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Target annuale (€)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={yearlyTarget}
                 onChange={(e) => {
@@ -421,7 +421,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Percentuale (%)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={commissionRate}
                 onChange={(e) => {
@@ -566,7 +566,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Importo bonus (€)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={bonusAmount}
                 onChange={(e) => {
@@ -607,7 +607,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Ogni (€ di fatturato)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={bonusInterval}
                 onChange={(e) => {
@@ -748,7 +748,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Premio ogni (€ oltre target)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={extraBudgetInterval}
                 onChange={(e) => {
@@ -789,7 +789,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Importo premio (€)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={extraBudgetReward}
                 onChange={(e) => {
@@ -938,7 +938,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
               >
                 Anticipo mensile (€)
               </label>
-              <input
+              <input autoComplete="off"
                 type="number"
                 value={monthlyAdvance}
                 onChange={(e) => {
@@ -1147,7 +1147,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   cursor: "pointer",
                 }}
               >
-                <input
+                <input autoComplete="off"
                   type="checkbox"
                   checked={hideCommissions}
                   onChange={(e) => setHideCommissions(e.target.checked)}

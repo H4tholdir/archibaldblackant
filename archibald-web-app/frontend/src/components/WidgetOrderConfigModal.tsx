@@ -431,7 +431,7 @@ export function WidgetOrderConfigModal({
                 flexWrap: "wrap",
               }}
             >
-              <input
+              <input autoComplete="off"
                 type="text"
                 placeholder="🔍 Cerca ordine o cliente..."
                 value={searchTerm}

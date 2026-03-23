@@ -189,7 +189,7 @@ export function OrderPickerModal({
           ordini.
         </p>
 
-        <input
+        <input autoComplete="off"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -298,7 +298,7 @@ export function OrderPickerModal({
                         marginBottom: "0.25rem",
                       }}
                     >
-                      <input
+                      <input autoComplete="off"
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelection(order.id)}

@@ -20,7 +20,7 @@ export function PrivacyToggle({ className = "" }: PrivacyToggleProps) {
     <div className={`privacy-toggle-container ${className}`}>
       <label className="privacy-toggle-label">
         <span className="privacy-toggle-text">Attiva Privacy</span>
-        <input
+        <input autoComplete="off"
           type="checkbox"
           className="privacy-toggle-checkbox"
           checked={privacyEnabled}

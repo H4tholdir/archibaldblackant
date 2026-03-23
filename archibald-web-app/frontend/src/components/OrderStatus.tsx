@@ -115,7 +115,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
 
         <div className="form-group">
           <label className="form-label">Job ID</label>
-          <input
+          <input autoComplete="off"
             type="text"
             className="form-input"
             value={jobId}
@@ -151,7 +151,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
           <div>
             <div className="form-group">
               <label className="form-label">ID Ordine Archibald</label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 className="form-input"
                 value={resultOrderId}
@@ -168,7 +168,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
             {resultDuration !== undefined && (
               <div className="form-group">
                 <label className="form-label">Tempo Elaborazione</label>
-                <input
+                <input autoComplete="off"
                   type="text"
                   className="form-input"
                   value={formatDuration(resultDuration)}
@@ -183,7 +183,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
         {status?.failedReason && (
           <div className="form-group">
             <label className="form-label">Errore</label>
-            <textarea
+            <textarea autoComplete="off"
               className="form-textarea"
               value={status.failedReason}
               readOnly

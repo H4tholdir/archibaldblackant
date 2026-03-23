@@ -54,7 +54,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
                   <span>Trasporto</span>
                   {editing && (
                     <label style={{ display: "flex", alignItems: "center", gap: "2px", cursor: "pointer", fontSize: "7pt", color: "#666" }}>
-                      <input type="checkbox" checked={trasportoChecked} onChange={handleTrasportoToggle} style={{ margin: 0 }} />
+                      <input autoComplete="off" type="checkbox" checked={trasportoChecked} onChange={handleTrasportoToggle} style={{ margin: 0 }} />
                       Std. Komet
                     </label>
                   )}
@@ -62,7 +62,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
               </td>
               <td style={{ ...tdStyle, textAlign: "right" }}>
                 {editing ? (
-                  <input type="text" inputMode="decimal" value={testata.SPESETR}
+                  <input autoComplete="off" type="text" inputMode="decimal" value={testata.SPESETR}
                     onChange={(e) => onFieldChange?.("SPESETR", parseFloat(e.target.value) || 0)}
                     style={{ ...ARCA_FONT, width: "70px", textAlign: "right", height: "15px", border: "1px solid #808080" }} />
                 ) : formatArcaCurrency(testata.SPESETR)}
@@ -74,7 +74,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
               <td style={tdStyle}>Imballo</td>
               <td style={{ ...tdStyle, textAlign: "right" }}>
                 {editing ? (
-                  <input type="text" inputMode="decimal" value={testata.SPESEIM}
+                  <input autoComplete="off" type="text" inputMode="decimal" value={testata.SPESEIM}
                     onChange={(e) => onFieldChange?.("SPESEIM", parseFloat(e.target.value) || 0)}
                     style={{ ...ARCA_FONT, width: "70px", textAlign: "right", height: "15px", border: "1px solid #808080" }} />
                 ) : formatArcaCurrency(testata.SPESEIM)}
@@ -86,7 +86,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
               <td style={tdStyle}>Varie</td>
               <td style={{ ...tdStyle, textAlign: "right" }}>
                 {editing ? (
-                  <input type="text" inputMode="decimal" value={testata.SPESEVA}
+                  <input autoComplete="off" type="text" inputMode="decimal" value={testata.SPESEVA}
                     onChange={(e) => onFieldChange?.("SPESEVA", parseFloat(e.target.value) || 0)}
                     style={{ ...ARCA_FONT, width: "70px", textAlign: "right", height: "15px", border: "1px solid #808080" }} />
                 ) : formatArcaCurrency(testata.SPESEVA)}
@@ -101,7 +101,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
       {/* Note */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Note</span>
-        <textarea readOnly={!editing} value={testata.NOTE}
+        <textarea autoComplete="off" readOnly={!editing} value={testata.NOTE}
           onChange={editing ? (e) => onFieldChange?.("NOTE", e.target.value) : undefined}
           style={{ ...ARCA_FONT, width: "100%", minHeight: "120px", border: "2px inset #808080",
             backgroundColor: editing ? "#FFFFFF" : "#F0F0F0", padding: "4px 6px", boxSizing: "border-box", resize: "vertical", marginTop: "4px" }} />

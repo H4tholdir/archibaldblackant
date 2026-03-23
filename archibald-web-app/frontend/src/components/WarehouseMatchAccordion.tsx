@@ -250,7 +250,7 @@ export function WarehouseMatchAccordion({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                  <input
+                  <input autoComplete="off"
                     type="checkbox"
                     checked={isSelected}
                     disabled={isUnavailable}
@@ -304,7 +304,7 @@ export function WarehouseMatchAccordion({
                       >
                         −
                       </button>
-                      <input
+                      <input autoComplete="off"
                         type="number"
                         min={0}
                         max={match.availableQty}

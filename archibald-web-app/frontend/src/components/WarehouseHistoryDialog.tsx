@@ -77,7 +77,7 @@ export function WarehouseHistoryDialog({
               <div key={match.item.id} style={{ border: `1px solid ${colors.borderColor}`, borderLeft: `4px solid ${colors.accentColor}`, borderRadius: 8, padding: 12, background: isSelected ? colors.backgroundLight : 'white', transition: 'background 0.2s' }}>
                 {/* Level badge + code */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <input type="checkbox" checked={isSelected} onChange={e => handleToggle(match, e.target.checked)} style={{ accentColor: colors.accentColor, width: 14, height: 14 }} />
+                  <input autoComplete="off" type="checkbox" checked={isSelected} onChange={e => handleToggle(match, e.target.checked)} style={{ accentColor: colors.accentColor, width: 14, height: 14 }} />
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: colors.backgroundMid, color: colors.accentColor }}>{WAREHOUSE_LEVEL_LABELS[match.level]}</span>
                 </div>
 
@@ -97,7 +97,7 @@ export function WarehouseHistoryDialog({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 11, color: '#64748b' }}>Usa:</span>
                     <button onClick={() => handleQty(match, qty - 1)} disabled={qty <= 1} style={{ width: 24, height: 24, border: `1px solid ${colors.borderColor}`, borderRadius: 4, background: 'white', cursor: 'pointer', fontWeight: 700 }}>−</button>
-                    <input type="number" min={1} max={match.availableQty} value={qty} onChange={e => handleQty(match, Number(e.target.value))} style={{ width: 50, textAlign: 'center', border: `1px solid ${colors.borderColor}`, borderRadius: 4, padding: '2px 4px', fontSize: 12 }} />
+                    <input autoComplete="off" type="number" min={1} max={match.availableQty} value={qty} onChange={e => handleQty(match, Number(e.target.value))} style={{ width: 50, textAlign: 'center', border: `1px solid ${colors.borderColor}`, borderRadius: 4, padding: '2px 4px', fontSize: 12 }} />
                     <button onClick={() => handleQty(match, qty + 1)} disabled={qty >= match.availableQty} style={{ width: 24, height: 24, border: `1px solid ${colors.borderColor}`, borderRadius: 4, background: 'white', cursor: 'pointer', fontWeight: 700 }}>+</button>
                     <span style={{ fontSize: 10, color: '#94a3b8' }}>/ {match.availableQty}</span>
                   </div>
@@ -194,7 +194,7 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
             return (
               <div key={art.articleCode} style={{ border: `1px solid ${colors.borderColor}`, borderLeft: `4px solid ${colors.accentColor}`, borderRadius: 8, padding: 10, background: isSelected ? colors.backgroundLight : 'white' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <input type="checkbox" checked={isSelected}
+                  <input autoComplete="off" type="checkbox" checked={isSelected}
                     onChange={e => {
                       const next = new Map(allSelections);
                       if (e.target.checked) {

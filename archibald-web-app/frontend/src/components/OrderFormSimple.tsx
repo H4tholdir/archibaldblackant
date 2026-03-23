@@ -3702,7 +3702,7 @@ export default function OrderFormSimple() {
                     >
                       Quantità (pezzi)
                     </label>
-                    <input
+                    <input autoComplete="off"
                       ref={quantityInputRef}
                       type="text"
                       inputMode="numeric"
@@ -3763,7 +3763,7 @@ export default function OrderFormSimple() {
                           {searchingLastSale ? "\u23F3" : "Ultime Vendite"}
                         </button>
                       </label>
-                      <input
+                      <input autoComplete="off"
                         ref={listPriceInputRef}
                         type="text"
                         inputMode="decimal"
@@ -3799,7 +3799,7 @@ export default function OrderFormSimple() {
                     >
                       Sconto su Riga (%)
                     </label>
-                    <input
+                    <input autoComplete="off"
                       ref={discountInputRef}
                       type="text"
                       inputMode="decimal"
@@ -4206,7 +4206,7 @@ export default function OrderFormSimple() {
                     >
                       {editingCell?.itemId === item.id &&
                       editingCell.field === "unitPrice" ? (
-                        <input
+                        <input autoComplete="off"
                           autoFocus
                           type="text"
                           inputMode="decimal"
@@ -4250,7 +4250,7 @@ export default function OrderFormSimple() {
                     >
                       {editingCell?.itemId === item.id &&
                       editingCell.field === "discount" ? (
-                        <input
+                        <input autoComplete="off"
                           autoFocus
                           type="text"
                           inputMode="decimal"
@@ -4452,7 +4452,7 @@ export default function OrderFormSimple() {
                       <span style={{ color: "#6b7280" }}>Prezzo:</span>
                       {editingCell?.itemId === item.id &&
                       editingCell.field === "unitPrice" ? (
-                        <input
+                        <input autoComplete="off"
                           autoFocus
                           type="text"
                           inputMode="decimal"
@@ -4497,7 +4497,7 @@ export default function OrderFormSimple() {
                       <span style={{ color: "#6b7280" }}>Sconto:</span>
                       {editingCell?.itemId === item.id &&
                       editingCell.field === "discount" ? (
-                        <input
+                        <input autoComplete="off"
                           autoFocus
                           type="text"
                           inputMode="decimal"
@@ -4622,7 +4622,7 @@ export default function OrderFormSimple() {
               >
                 Sconto su tutte le righe (%)
               </label>
-              <input
+              <input autoComplete="off"
                 type="text"
                 inputMode="decimal"
                 value={globalDiscountPercent}
@@ -4697,7 +4697,7 @@ export default function OrderFormSimple() {
                     marginBottom: "0.5rem",
                   }}
                 >
-                  <input
+                  <input autoComplete="off"
                     type="checkbox"
                     checked={markupArticleSelection.size === items.length}
                     onChange={(e) => {
@@ -4737,7 +4737,7 @@ export default function OrderFormSimple() {
                           : "transparent",
                       }}
                     >
-                      <input
+                      <input autoComplete="off"
                         type="checkbox"
                         checked={markupArticleSelection.has(item.id)}
                         onChange={(e) => {
@@ -4818,7 +4818,7 @@ export default function OrderFormSimple() {
             <label style={{ fontWeight: "500", fontSize: isMobile ? "0.875rem" : "1rem" }}>
               Note
             </label>
-            <textarea
+            <textarea autoComplete="off"
               value={orderNotes}
               onChange={(e) => setOrderNotes(e.target.value)}
               placeholder="Note per l'ordine..."
@@ -4910,7 +4910,7 @@ export default function OrderFormSimple() {
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer" }}>
-                      <input
+                      <input autoComplete="off"
                         type="checkbox"
                         checked={noShipping}
                         onChange={(e) => setNoShipping(e.target.checked)}
@@ -5456,7 +5456,7 @@ export default function OrderFormSimple() {
               >
                 Quantità totale (pezzi)
               </label>
-              <input
+              <input autoComplete="off"
                 autoFocus
                 type="text"
                 inputMode="numeric"
@@ -5798,7 +5798,7 @@ export default function OrderFormSimple() {
             >
               Attuale: <strong>{articleChangeModal.currentProductName}</strong>
             </div>
-            <input
+            <input autoComplete="off"
               autoFocus
               type="text"
               placeholder="Cerca nuovo articolo..."
@@ -5990,7 +5990,7 @@ export default function OrderFormSimple() {
               >
                 Nuovo imponibile target
               </label>
-              <input
+              <input autoComplete="off"
                 autoFocus
                 type="text"
                 inputMode="decimal"
@@ -6017,7 +6017,7 @@ export default function OrderFormSimple() {
                   marginBottom: "0.5rem",
                 }}
               >
-                <input
+                <input autoComplete="off"
                   type="checkbox"
                   checked={imponibileSelectedItems.size === items.length}
                   onChange={(e) =>
@@ -6054,7 +6054,7 @@ export default function OrderFormSimple() {
                         : "transparent",
                     }}
                   >
-                    <input
+                    <input autoComplete="off"
                       type="checkbox"
                       checked={imponibileSelectedItems.has(item.id)}
                       onChange={(e) => {
@@ -6188,7 +6188,7 @@ export default function OrderFormSimple() {
               >
                 Nuovo totale desiderato (con IVA)
               </label>
-              <input
+              <input autoComplete="off"
                 autoFocus
                 type="text"
                 inputMode="decimal"
@@ -6215,7 +6215,7 @@ export default function OrderFormSimple() {
                   marginBottom: "0.5rem",
                 }}
               >
-                <input
+                <input autoComplete="off"
                   type="checkbox"
                   checked={totaleSelectedItems.size === items.length}
                   onChange={(e) =>
@@ -6252,7 +6252,7 @@ export default function OrderFormSimple() {
                         : "transparent",
                     }}
                   >
-                    <input
+                    <input autoComplete="off"
                       type="checkbox"
                       checked={totaleSelectedItems.has(item.id)}
                       onChange={(e) => {

@@ -129,7 +129,7 @@ export function PhotoCropModal({
           }}
         >
           <span style={{ color: "#fff", fontSize: "13px" }}>-</span>
-          <input
+          <input autoComplete="off"
             type="range"
             min={1}
             max={3}

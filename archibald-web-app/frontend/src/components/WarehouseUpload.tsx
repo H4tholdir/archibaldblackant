@@ -201,7 +201,7 @@ export function WarehouseUpload() {
           <label htmlFor="warehouse-file" className="btn btn-primary">
             {uploading ? "⏳ Caricamento..." : "📤 Carica File Excel"}
           </label>
-          <input
+          <input autoComplete="off"
             id="warehouse-file"
             type="file"
             accept=".xlsx,.xls"

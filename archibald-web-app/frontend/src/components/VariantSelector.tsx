@@ -84,7 +84,7 @@ export function VariantSelector({
               }}
             >
               {/* Radio button */}
-              <input
+              <input autoComplete="off"
                 type="radio"
                 name="variant-selector"
                 value={variant.id}

@@ -94,7 +94,7 @@ export function EmailShareDialog({
             >
               Destinatario
             </label>
-            <input
+            <input autoComplete="off"
               type="email"
               value={to}
               onChange={(e) => setTo(e.target.value)}
@@ -123,7 +123,7 @@ export function EmailShareDialog({
             >
               Oggetto
             </label>
-            <input
+            <input autoComplete="off"
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -151,7 +151,7 @@ export function EmailShareDialog({
             >
               Messaggio
             </label>
-            <textarea
+            <textarea autoComplete="off"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}

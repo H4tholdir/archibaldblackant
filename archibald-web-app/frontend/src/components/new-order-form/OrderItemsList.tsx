@@ -291,7 +291,7 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
           >
             Quantità
           </label>
-          <input
+          <input autoComplete="off"
             id="edit-quantity"
             type="number"
             value={quantity}
@@ -312,7 +312,7 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
           >
             Sconto (%)
           </label>
-          <input
+          <input autoComplete="off"
             id="edit-discount-value"
             type="number"
             value={discountValue}

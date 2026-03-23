@@ -649,7 +649,7 @@ export function WarehouseInventoryView() {
             >
               Cerca Articolo
             </label>
-            <input
+            <input autoComplete="off"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -878,7 +878,7 @@ export function WarehouseInventoryView() {
                     width: "50px",
                   }}
                 >
-                  <input
+                  <input autoComplete="off"
                     type="checkbox"
                     checked={
                       filteredItems.length > 0 &&
@@ -1010,7 +1010,7 @@ export function WarehouseInventoryView() {
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <input
+                      <input autoComplete="off"
                         type="checkbox"
                         checked={selectedItemIds.has(item.id)}
                         onChange={() => handleToggleItem(item.id)}
@@ -1051,7 +1051,7 @@ export function WarehouseInventoryView() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       {editingItemId === item.id ? (
-                        <input
+                        <input autoComplete="off"
                           type="number"
                           min="1"
                           value={editQuantity}

@@ -78,7 +78,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
 
           <div className="remember-credentials">
             <label>
-              <input
+              <input autoComplete="off"
                 type="checkbox"
                 checked={rememberCredentials}
                 onChange={(e) => setRememberCredentials(e.target.checked)}

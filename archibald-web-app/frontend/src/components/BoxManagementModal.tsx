@@ -340,7 +340,7 @@ export function BoxManagementModal({
                         >
                           <td style={{ padding: "12px 8px" }}>
                             {editingBox === box.name ? (
-                              <input
+                              <input autoComplete="off"
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
@@ -462,7 +462,7 @@ export function BoxManagementModal({
                 >
                   Nome Scatolo *
                 </label>
-                <input
+                <input autoComplete="off"
                   type="text"
                   value={newBoxName}
                   onChange={(e) => setNewBoxName(e.target.value)}

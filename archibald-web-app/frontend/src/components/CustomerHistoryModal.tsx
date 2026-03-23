@@ -533,7 +533,7 @@ export function CustomerHistoryModal({
             padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
             display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
           }}>
-            <input
+            <input autoComplete="off"
               type="text"
               placeholder="Cerca articolo, codice, numero ordine..."
               value={searchQuery}

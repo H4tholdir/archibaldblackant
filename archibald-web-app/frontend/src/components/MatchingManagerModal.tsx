@@ -259,7 +259,7 @@ export function MatchingManagerModal(props: Props) {
         {/* Footer */}
         <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b', cursor: 'pointer' }}>
-            <input
+            <input autoComplete="off"
               type="checkbox"
               checked={skipModal}
               onChange={(e) => setSkipModal(e.target.checked)}
@@ -351,7 +351,7 @@ function Section(props: {
       </div>
       {props.showSearch && (
         <div style={{ marginTop: 8, position: 'relative' }}>
-          <input
+          <input autoComplete="off"
             type="text"
             autoFocus
             placeholder={props.searchPlaceholder}

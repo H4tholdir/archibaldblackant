@@ -1018,7 +1018,7 @@ export function PendingOrdersPage() {
             cursor: "pointer",
           }}
         >
-          <input
+          <input autoComplete="off"
             type="checkbox"
             checked={
               selectableOrders.length > 0 &&
@@ -1118,7 +1118,7 @@ export function PendingOrdersPage() {
                       🏪
                     </div>
                   ) : (
-                    <input
+                    <input autoComplete="off"
                       type="checkbox"
                       checked={selectedOrderIds.has(order.id!)}
                       onChange={() => handleSelectOrder(order.id!)}

@@ -483,7 +483,7 @@ export function ProductCard({
                       marginTop: "4px",
                     }}
                   >
-                    <input
+                    <input autoComplete="off"
                       type="number"
                       min="0"
                       step="0.01"
@@ -622,7 +622,7 @@ export function ProductCard({
                       marginTop: "4px",
                     }}
                   >
-                    <input
+                    <input autoComplete="off"
                       type="number"
                       min="0"
                       max="100"

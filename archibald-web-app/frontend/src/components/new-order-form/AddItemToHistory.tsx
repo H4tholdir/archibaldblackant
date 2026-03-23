@@ -546,7 +546,7 @@ export function AddItemToHistory({
       {/* Quantity input */}
       {selectedProduct && (
         <div style={{ marginBottom: "0.5rem" }}>
-          <input
+          <input autoComplete="off"
             type="number"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}

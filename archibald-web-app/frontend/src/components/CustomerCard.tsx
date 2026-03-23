@@ -436,7 +436,7 @@ export function CustomerCard({
                   }}
                 >
                   Scatta foto
-                  <input
+                  <input autoComplete="off"
                     type="file"
                     accept="image/*"
                     capture="environment"
@@ -463,7 +463,7 @@ export function CustomerCard({
                   }}
                 >
                   Scegli dalla galleria
-                  <input
+                  <input autoComplete="off"
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     style={{ display: "none" }}

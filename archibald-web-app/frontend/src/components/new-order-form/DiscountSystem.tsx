@@ -65,7 +65,7 @@ export function DiscountSystem({
           >
             Sconto Globale (%)
           </label>
-          <input
+          <input autoComplete="off"
             id="discount-value"
             type="number"
             value={discountValue}
@@ -100,7 +100,7 @@ export function DiscountSystem({
             >
               Totale Desiderato (con IVA)
             </label>
-            <input
+            <input autoComplete="off"
               id="target-total"
               type="number"
               value={targetTotal}

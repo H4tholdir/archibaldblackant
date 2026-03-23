@@ -117,7 +117,7 @@ export function KometListinoImporter() {
           fontSize: '0.875rem', fontWeight: '600',
         }}>
           {loading ? '⏳ Importazione in corso...' : '📂 Scegli file Excel'}
-          <input
+          <input autoComplete="off"
             ref={fileInputRef}
             type="file"
             accept=".xlsx,.xls"

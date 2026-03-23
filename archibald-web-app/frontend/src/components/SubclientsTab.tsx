@@ -211,7 +211,7 @@ function SubclientFormModal({
                   <div style={{ color: '#333', paddingTop: editing ? '8px' : '0' }}>{value || '—'}</div>
                 ) : (
                   <div>
-                    <input
+                    <input autoComplete="off"
                       type="text"
                       value={value ?? ''}
                       onChange={(e) => handleFieldChange(key, e.target.value)}
@@ -458,7 +458,7 @@ function SubclientsTab() {
   return (
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-        <input
+        <input autoComplete="off"
           type="text"
           placeholder="Cerca sottoclienti..."
           value={search}

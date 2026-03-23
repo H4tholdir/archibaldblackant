@@ -397,7 +397,7 @@ export function AdminPage(_props: AdminPageProps) {
               >
                 Seleziona file Excel (.xlsx, .xls)
               </label>
-              <input
+              <input autoComplete="off"
                 id="subclient-upload"
                 type="file"
                 accept=".xlsx,.xls"
@@ -478,7 +478,7 @@ export function AdminPage(_props: AdminPageProps) {
           >
             <h2 style={{ margin: 0 }}>📋 Jobs Queue</h2>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-              <input
+              <input autoComplete="off"
                 type="text"
                 placeholder="Cerca job, utente, cliente, ordine..."
                 value={searchQuery}

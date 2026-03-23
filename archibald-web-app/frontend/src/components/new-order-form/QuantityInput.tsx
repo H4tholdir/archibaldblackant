@@ -96,7 +96,7 @@ export function QuantityInput({
         >
           Quantità
         </label>
-        <input
+        <input autoComplete="off"
           id={`quantity-${productId}`}
           type="number"
           value={inputValue}

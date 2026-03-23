@@ -134,7 +134,7 @@ export default function WarehouseReturnsView() {
           >
             Order ID Archibald (es: job-123 o warehouse-456)
           </label>
-          <input
+          <input autoComplete="off"
             type="text"
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}

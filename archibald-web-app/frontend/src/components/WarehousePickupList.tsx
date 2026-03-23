@@ -73,7 +73,7 @@ export function WarehousePickupList() {
           <label style={{ fontWeight: 600, color: "#444", fontSize: "14px" }}>
             Data:
           </label>
-          <input
+          <input autoComplete="off"
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
@@ -262,7 +262,7 @@ export function WarehousePickupList() {
                     }}
                   >
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                      <input
+                      <input autoComplete="off"
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleChecked(article.id)}

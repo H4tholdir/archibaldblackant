@@ -136,7 +136,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               Codice articolo *
-              <input
+              <input autoComplete="off"
                 value={articleCode}
                 onChange={(e) => setArticleCode(e.target.value)}
                 style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
@@ -144,7 +144,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               Quantità
-              <input
+              <input autoComplete="off"
                 type="number" min={1} value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                 style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
@@ -153,7 +153,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
           </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
             Descrizione
-            <input
+            <input autoComplete="off"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
@@ -162,7 +162,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               Prezzo
-              <input
+              <input autoComplete="off"
                 type="number" min={0} step={0.01} value={price}
                 onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
                 style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
@@ -170,7 +170,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               Sconto %
-              <input
+              <input autoComplete="off"
                 type="number" min={0} max={100} value={discount}
                 onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                 style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
@@ -178,7 +178,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               IVA % *
-              <input
+              <input autoComplete="off"
                 type="number" min={0} value={vat}
                 onChange={(e) => { setVat(parseInt(e.target.value) || ''); setVatError(''); }}
                 style={{

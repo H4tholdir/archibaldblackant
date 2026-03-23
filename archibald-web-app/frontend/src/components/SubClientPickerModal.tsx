@@ -82,7 +82,7 @@ export function SubClientPickerModal({ customerProfileId, customerName, onMatche
         </div>
 
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
-          <input
+          <input autoComplete="off"
             type="text"
             placeholder="Cerca sottocliente per nome o codice..."
             value={query}
