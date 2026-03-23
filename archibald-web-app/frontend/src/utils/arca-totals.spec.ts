@@ -174,4 +174,16 @@ describe("calculateArcaTotals", () => {
     expect(result.totiva).toBe(11);
     expect(result.totdoc).toBe(61);
   });
+
+  test("IVA calcolata per-gruppo (non per-riga): due righe stessa aliquota → round unico", () => {
+    // Senza per-gruppo: round(33.33*0.22) + round(33.34*0.22) = 7.33+7.33 = 14.66
+    // Con per-gruppo:   round((33.33+33.34)*0.22) = round(66.67*0.22) = round(14.67) = 14.67
+    const righe = [
+      { PREZZOTOT: 33.33, ALIIVA: "22" },
+      { PREZZOTOT: 33.34, ALIIVA: "22" },
+    ];
+    const spese = { spesetr: 0, speseim: 0, speseva: 0, spesetriva: "", speseimiva: "", spesevaiva: "" };
+    const result = calculateArcaTotals(righe, 1, spese, 0, 0);
+    expect(result.totiva).toBe(14.67); // per-gruppo: corretto
+  });
 });

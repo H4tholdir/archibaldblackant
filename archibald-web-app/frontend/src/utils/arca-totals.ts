@@ -1,4 +1,5 @@
 import type { ArcaRiga } from "../types/arca-data";
+import { round2, arcaVatGroups, arcaDocumentTotals, cascadeDiscountFactor } from "./arca-math";
 
 export function parseCascadeDiscount(sconti: string): number {
   const s = sconti.trim();
@@ -13,15 +14,7 @@ export function parseCascadeDiscount(sconti: string): number {
 }
 
 export function cascadeDiscountToFactor(sconti: string): number {
-  const s = sconti.trim();
-  if (!s) return 1;
-  const parts = s.split("+").map((p) => parseFloat(p.trim()));
-  if (parts.some(isNaN)) return 1;
-  let factor = 1;
-  for (const pct of parts) {
-    factor *= 1 - pct / 100;
-  }
-  return factor;
+  return cascadeDiscountFactor(sconti);
 }
 
 export type ArcaTotals = {
@@ -52,64 +45,57 @@ export function calculateArcaTotals(
   acconto: number,
   abbuono: number,
 ): ArcaTotals {
-  let totmerce = 0;
-  let totesen = 0;
+  // Separa righe esenti (ALIIVA non numerica o 0) da righe tassate
+  const nonExemptLines = righe
+    .filter((r) => parseFloat(r.ALIIVA) > 0)
+    .map((r) => ({ prezzotot: r.PREZZOTOT, vatRate: parseFloat(r.ALIIVA) }));
 
-  const ivaByAliquota = new Map<number, number>();
+  const totesen = round2(
+    righe
+      .filter((r) => !(parseFloat(r.ALIIVA) > 0))
+      .reduce((s, r) => s + r.PREZZOTOT, 0),
+  );
 
-  for (const riga of righe) {
-    totmerce += riga.PREZZOTOT;
+  // Totale merce include tutte le righe (tassate + esenti)
+  const totMerceAll = round2(righe.reduce((s, r) => s + r.PREZZOTOT, 0));
+  const totNetto = round2(totMerceAll * scontif);
+  const totSconto = totMerceAll - totNetto;
 
-    const aliquota = parseFloat(riga.ALIIVA) || 0;
-    if (aliquota === 0) {
-      totesen += riga.PREZZOTOT;
-    }
+  // Calcola VAT solo sulle righe tassate (con spedizione principale)
+  const shippingCost = spese.spesetr > 0 ? spese.spesetr : undefined;
+  const shippingVatRate =
+    spese.spesetr > 0 ? parseFloat(spese.spesetriva) || 22 : undefined;
+  const vatTotals = arcaDocumentTotals(
+    nonExemptLines,
+    scontif,
+    shippingCost,
+    shippingVatRate,
+  );
+
+  // Spese extra (speseim, speseva) — di norma 0
+  const extraImp = spese.speseim + spese.speseva;
+  let extraIva = 0;
+  if (spese.speseim > 0) {
+    extraIva += round2(spese.speseim * (parseFloat(spese.speseimiva) || 0) / 100);
+  }
+  if (spese.speseva > 0) {
+    extraIva += round2(spese.speseva * (parseFloat(spese.spesevaiva) || 0) / 100);
   }
 
-  const totsconto = totmerce * (1 - scontif);
-  const totnetto = totmerce - totsconto;
-
-  const { spesetr, speseim, speseva, spesetriva, speseimiva, spesevaiva } =
-    spese;
-  const totimp = totnetto + spesetr + speseim + speseva;
-
-  for (const riga of righe) {
-    const aliquota = parseFloat(riga.ALIIVA) || 0;
-    if (aliquota <= 0) continue;
-    const nettoRiga = riga.PREZZOTOT * scontif;
-    const existing = ivaByAliquota.get(aliquota) ?? 0;
-    ivaByAliquota.set(aliquota, existing + nettoRiga);
-  }
-
-  const addSpeseIva = (importo: number, aliStr: string) => {
-    const ali = parseFloat(aliStr) || 0;
-    if (ali > 0 && importo > 0) {
-      const existing = ivaByAliquota.get(ali) ?? 0;
-      ivaByAliquota.set(ali, existing + importo);
-    }
-  };
-
-  addSpeseIva(spesetr, spesetriva);
-  addSpeseIva(speseim, speseimiva);
-  addSpeseIva(speseva, spesevaiva);
-
-  let totiva = 0;
-  for (const [aliquota, imponibile] of ivaByAliquota) {
-    totiva += (imponibile * aliquota) / 100;
-  }
-
-  totiva = Math.round(totiva * 100) / 100;
-
-  const totdoc = totimp + totiva - acconto - abbuono;
+  // totimp = VAT imponibile (righe tassate + spedizione) + esenti + spese extra
+  const exemptNetto = round2(totesen * scontif);
+  const totimp = round2(vatTotals.totImp + exemptNetto + extraImp);
+  const totiva = round2(vatTotals.totIva + extraIva);
+  const totdoc = round2(totimp + totiva - acconto - abbuono);
 
   return {
-    totmerce: Math.round(totmerce * 100) / 100,
-    totsconto: Math.round(totsconto * 100) / 100,
-    totnetto: Math.round(totnetto * 100) / 100,
-    totimp: Math.round(totimp * 100) / 100,
+    totmerce: totMerceAll,
+    totsconto: totSconto,
+    totnetto: totNetto,
+    totimp,
     totiva,
-    totdoc: Math.round(totdoc * 100) / 100,
-    totesen: Math.round(totesen * 100) / 100,
+    totdoc,
+    totesen,
   };
 }
 
@@ -118,6 +104,6 @@ export function calculateRowTotal(
   quantita: number,
   sconti: string,
 ): number {
-  const factor = cascadeDiscountToFactor(sconti);
-  return Math.round(prezzoun * quantita * factor * 100) / 100;
+  const factor = cascadeDiscountFactor(sconti);
+  return round2(prezzoun * quantita * factor);
 }
