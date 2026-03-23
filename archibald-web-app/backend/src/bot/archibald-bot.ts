@@ -9238,6 +9238,10 @@ export class ArchibaldBot {
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       });
 
+      // Set a wide viewport before navigation so DevExpress renders the full toolbar
+      // without hiding items behind the "..." overflow button.
+      await page.setViewport({ width: 1440, height: 900 });
+
       await page.goto(pageUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60000,
@@ -9526,12 +9530,6 @@ export class ArchibaldBot {
     const MAX_ATTEMPTS = 3;
     const FILTER_INPUT_SELECTOR = 'input[name*="mainMenu"][name*="Cb"]';
     const FILTER_INPUT_EXACT = 'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]';
-
-    // Set a wide viewport so DevExpress renders the full toolbar without hiding
-    // items behind the "..." overflow button. The headless Chrome default (~800px)
-    // is too narrow and causes the orders filter to be collapsed into the overflow menu.
-    await page.setViewport({ width: 1440, height: 900 });
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       logger.info(`[ArchibaldBot] Checking orders filter (attempt ${attempt}/${MAX_ATTEMPTS})...`);
