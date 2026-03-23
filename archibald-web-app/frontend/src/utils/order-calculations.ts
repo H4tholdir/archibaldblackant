@@ -1,3 +1,5 @@
+import { arcaLineAmount as arcaLineAmountCanonical } from "./arca-math";
+
 export const VAT_RATE = 0.22; // 22% Italy standard
 export const SHIPPING_COST = 15.45; // Spese di trasporto K3 (imponibile)
 export const SHIPPING_TAX_RATE = 0.22; // IVA spese di trasporto
@@ -210,14 +212,5 @@ export function roundUp(value: number): number {
   return Math.ceil(value * 100) / 100;
 }
 
-/**
- * Exact replica of Archibald ERP line amount calculation.
- * Rounds the full expression to 2 decimals — do NOT round intermediate values.
- */
-export function archibaldLineAmount(
-  quantity: number,
-  unitPrice: number,
-  discountPercent: number,
-): number {
-  return Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
-}
+// Re-export da arca-math — stessa formula, stessa firma
+export const archibaldLineAmount = arcaLineAmountCanonical;
