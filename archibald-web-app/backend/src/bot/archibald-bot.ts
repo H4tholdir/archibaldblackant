@@ -9681,7 +9681,7 @@ export class ArchibaldBot {
       }
 
       logger.info("[ArchibaldBot] DevExpress API SetValue called, waiting for page update...");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const newFilterValue = await page.evaluate((sel: string, exactSel: string) => {
         const input = (
