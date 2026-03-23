@@ -94,6 +94,8 @@ type ProductFilters = {
   searchQuery?: string;
   vatFilter?: 'missing';
   priceFilter?: 'zero';
+  discountFilter?: 'missing';
+  userId?: string;
   limit?: number;
 };
 
@@ -125,6 +127,18 @@ async function getProducts(pool: DbPool, searchQueryOrFilters?: string | Product
 
   if (filters.priceFilter === 'zero') {
     conditions.push('price IS NULL');
+  }
+
+  if (filters.discountFilter === 'missing' && filters.userId) {
+    conditions.push(
+      `NOT EXISTS (
+        SELECT 1 FROM agents.fresis_discounts fd
+        WHERE fd.article_code = id
+          AND fd.user_id = $${paramIndex}
+      )`,
+    );
+    params.push(filters.userId);
+    paramIndex += 1;
   }
 
   const limit = filters.limit ?? (filters.searchQuery ? 100 : undefined);
@@ -416,6 +430,21 @@ async function getZeroPriceCount(pool: DbPool): Promise<number> {
 async function getNoVatCount(pool: DbPool): Promise<number> {
   const { rows } = await pool.query<{ count: number }>(
     `SELECT COUNT(*)::int AS count FROM shared.products WHERE deleted_at IS NULL AND vat IS NULL`,
+  );
+  return rows[0].count;
+}
+
+async function getMissingFresisDiscountCount(pool: DbPool, userId: string): Promise<number> {
+  const { rows } = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count
+     FROM shared.products p
+     WHERE p.deleted_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.fresis_discounts fd
+         WHERE fd.article_code = p.id
+           AND fd.user_id = $1
+       )`,
+    [userId],
   );
   return rows[0].count;
 }
@@ -785,6 +814,7 @@ export {
   getProductCount,
   getZeroPriceCount,
   getNoVatCount,
+  getMissingFresisDiscountCount,
   getProductVariants,
   getProductsWithoutVat,
   upsertProducts,
