@@ -133,7 +133,7 @@ async function getProducts(pool: DbPool, searchQueryOrFilters?: string | Product
     conditions.push(
       `NOT EXISTS (
         SELECT 1 FROM agents.fresis_discounts fd
-        WHERE fd.id = id
+        WHERE fd.id = shared.products.id
           AND fd.user_id = $${paramIndex}
       )`,
     );
