@@ -253,9 +253,161 @@ if (notes !== undefined) {
 
 Secondo la regola `feedback_e2e_before_deploy.md`:
 - Eseguire test E2E in produzione dopo le modifiche a `archibald-bot.ts`
-- Verificare: modifica ordine con note → riaprire ordine su Archibald → confermare che le
-  note siano presenti
-- Verificare: modifica ordine senza note (`notes = undefined`) → note esistenti invariate
+- Usare il flusso completo (`editOrderInArchibald`), NON metodi parziali
+- Scenario 1: modifica ordine con testo note → **riaprire il form ordine su Archibald ERP**
+  e verificare che il campo note contenga il testo atteso
+- Scenario 2: modifica ordine con note = "" → riaprire → campo note vuoto su ERP
+- Scenario 3: modifica ordine senza modificare le note (campo `notes` non inviato = `undefined`)
+  → il bot NON chiama `fillOrderNotes` (guard `if (notes !== undefined)`) → note ERP invariate
+
+---
+
+## Migrazione DB richiesta
+
+`order_records` NON ha una colonna `notes`. È richiesta la migrazione **031**:
+
+```sql
+-- 031-order-records-notes.sql
+ALTER TABLE agents.order_records ADD COLUMN IF NOT EXISTS notes TEXT;
+```
+
+**Il sync NON sovrascrive `notes`**: la query UPDATE in `order-sync.ts` (riga ~124) elenca
+esplicitamente i campi da aggiornare e non include `notes`. La colonna è sicura da scritte
+accidentali durante la sincronizzazione.
+
+**`submit-order.ts` va aggiornato**: l'INSERT in `order_records` attuale non include `notes`.
+Per fare in modo che le note siano pre-populate in edit mode per gli ordini futuri, il
+campo `notes` va aggiunto all'INSERT e all'ON CONFLICT:
+
+```sql
+-- Aggiunta nella lista colonne INSERT:
+..., notes
+-- Aggiunta nei valori:
+..., data.notes ?? null
+-- Aggiunta nell'ON CONFLICT DO UPDATE (opzionale ma consigliato):
+notes = EXCLUDED.notes
+```
+
+Gli ordini esistenti avranno `notes = NULL` (nessuna retrocompatibilità possibile).
+
+---
+
+## Vincolo: noShipping non persistito su order_records
+
+`noShipping` esiste solo su `pending_orders` e NON viene persistito su `order_records`
+dopo che un ordine viene confermato. In edit mode, `noShipping` non è recuperabile.
+
+**Comportamento atteso**: `buildOrderNotesText(undefined, notes)` è chiamato con
+`noShipping = undefined`. Se un ordine era stato creato con "NO SPESE DI SPEDIZIONE",
+quella parte del testo note su Archibald ERP verrà sovrascritta dal valore del campo
+note corrente al momento della modifica. Questo è un limite accettato del design.
+
+---
+
+## Chiarimento: EditOrderBot interface e ArchibaldBot
+
+Il parametro `notes` è il terzo argomento di `editOrderInArchibald`.
+**Sia la firma della classe `ArchibaldBot` che quella dell'interfaccia `EditOrderBot`
+in `edit-order.ts` vengono aggiornate in modo coerente.**
+
+```ts
+// In edit-order.ts — interfaccia
+type EditOrderBot = {
+  editOrderInArchibald(
+    orderId: string,
+    modifications: Array<Record<string, unknown>>,
+    notes?: string
+  ): Promise<{ success: boolean; message: string }>
+  setProgressCallback: (cb: ...) => void
+}
+
+// In archibald-bot.ts — classe concreta (terzo parametro aggiunto)
+async editOrderInArchibald(
+  archibaldOrderId: string,
+  modifications: [...discriminated union...],
+  notes?: string
+): Promise<{ success: boolean; message: string }>
+```
+
+**Posizione di `fillOrderNotes` nel corpo del metodo bot**:
+dopo tutti i loop update/add/delete (circa riga 8145), **prima** di `emitProgress("edit.save")`:
+
+```ts
+// Dopo i loop articoli, prima del "Salva e chiudi"
+if (notes !== undefined) {
+  const notesText = buildOrderNotesText(undefined, notes)
+  await this.fillOrderNotes(notesText)
+}
+await this.emitProgress("edit.save")
+// ... "Salva e chiudi" ...
+```
+
+---
+
+## Comportamento notes vuote nel bot
+
+Quando `notes = ""` (utente ha cancellato il testo), `buildOrderNotesText(undefined, "")`
+restituisce `""`. `fillOrderNotes("")` è comunque chiamato: scrive stringa vuota
+nel campo note su Archibald ERP, cancellando le note esistenti. Questo è intenzionale.
+
+---
+
+## parseOrderDiscountPercent e props aggiornate di TabArticoli
+
+**File**: `frontend/src/utils/parse-order-discount.ts`
+
+```ts
+// Parsa "17,98 %" → 17.98 oppure null/"0,00 %"/undefined → 0
+export function parseOrderDiscountPercent(raw?: string | null): number {
+  if (!raw) return 0
+  const cleaned = raw.replace("%", "").replace(",", ".").trim()
+  const val = parseFloat(cleaned)
+  return isNaN(val) ? 0 : val
+}
+// Edge cases: "17,98 %" → 17.98, "0,00 %" → 0, null → 0, undefined → 0, "" → 0
+```
+
+**Props aggiornate di `TabArticoli`** (aggiunta ai props esistenti):
+
+```ts
+{
+  orderId: string
+  archibaldOrderId?: string
+  token?: string
+  onTotalsUpdate?: (totals: {...}) => void
+  searchQuery?: string
+  editing?: boolean
+  onEditDone?: () => void
+  editProgress?: {...}
+  onEditProgress?: (p: {...} | null) => void
+  customerName?: string
+  // ↓ nuovi
+  initialNotes?: string          // string | undefined (non null)
+  initialDiscountPercent?: number // 0 se non disponibile
+}
+```
+
+I due nuovi prop seedano gli state `editNotes` e `globalEditDiscount` all'entrata in edit mode.
+
+**Sito di chiamata** in `OrderCardNew`:
+```tsx
+<TabArticoli
+  ...
+  initialNotes={order.notes ?? undefined}
+  initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
+/>
+```
+
+**`Order` type**: la proprietà `order.notes` deve essere aggiunta al tipo
+`Order` / row mapper se non già presente (da verificare in `orders.ts`/`order-records.ts`).
+
+---
+
+## Confirm modal e note
+
+I cambiamenti alle note NON appaiono nella modale di conferma (`confirmModal`), che
+mostra solo le modifiche agli articoli. Le note vengono inviate silenziosamente come
+campo aggiuntivo del payload. Comportamento accettato (nessuna modifica alla confirm modal).
 
 ---
 
@@ -263,9 +415,12 @@ Secondo la regola `feedback_e2e_before_deploy.md`:
 
 | File | Tipo modifica |
 |------|--------------|
-| `frontend/src/components/OrderCardNew.tsx` | Aggiunta feature (state, UI, logica) |
-| `frontend/src/utils/parse-order-discount.ts` | Nuovo file utility (piccola funzione) |
-| `backend/src/operations/handlers/edit-order.ts` | Aggiunta campo `notes` |
-| `backend/src/bot/archibald-bot.ts` | Aggiunta parametro `notes` a `editOrderInArchibald` |
-| `frontend/src/utils/parse-order-discount.spec.ts` | Nuovi unit test |
+| `backend/src/db/migrations/031-order-records-notes.sql` | Nuovo — ADD COLUMN notes |
+| `backend/src/operations/handlers/submit-order.ts` | Aggiunta `notes` a INSERT order_records |
+| `frontend/src/components/OrderCardNew.tsx` | Feature (state, UI, logica) + update call site + prop types |
+| `frontend/src/utils/parse-order-discount.ts` | Nuovo file utility |
+| `frontend/src/utils/parse-order-discount.spec.ts` | Unit test (edge cases: "0,00 %", null, undefined, "17,98 %") |
+| `backend/src/operations/handlers/edit-order.ts` | Campo `notes` in EditOrderData e EditOrderBot |
+| `backend/src/bot/archibald-bot.ts` | Parametro `notes` a `editOrderInArchibald` + chiamata `fillOrderNotes` |
 | `backend/src/operations/handlers/edit-order.spec.ts` | Aggiornamento test integration |
+| `frontend/src/types/order.ts` o row mapper | Aggiunta proprietà `notes?: string` all'Order type |
