@@ -6,6 +6,7 @@ import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount,
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
+import { FRESIS_AGENT_USERNAME } from "../utils/fresis-constants";
 
 interface ProductFilters {
   search: string;
@@ -14,7 +15,7 @@ interface ProductFilters {
 export function ArticoliList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const auth = useAuth();
-  const isFresis = auth.user?.username === 'ikiA0930';
+  const isFresis = auth.user?.username === FRESIS_AGENT_USERNAME;
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +159,7 @@ export function ArticoliList() {
     if (next) {
       setFilters({ search: "" });
       setPriceFilterActive(false);
+      setDiscountFilterActive(false);
     }
   };
 
@@ -167,6 +169,7 @@ export function ArticoliList() {
     if (next) {
       setFilters({ search: "" });
       setVatFilterActive(false);
+      setDiscountFilterActive(false);
     }
   };
 

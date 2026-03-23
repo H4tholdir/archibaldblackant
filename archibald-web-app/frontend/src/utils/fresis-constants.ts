@@ -12,6 +12,8 @@ export const isFresis = (
 
 export const FRESIS_SUBCLIENT_CODE = "1000";
 
+export const FRESIS_AGENT_USERNAME = "ikiA0930";
+
 export const isSubClientFresis = (
   subClient: { codice: string; ragioneSociale: string } | null,
 ): boolean =>
