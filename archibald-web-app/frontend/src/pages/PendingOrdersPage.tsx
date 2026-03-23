@@ -536,7 +536,26 @@ export function PendingOrdersPage() {
       // Archive to fresisHistory if it's a Fresis sub-client order
       // generateFtNow=true so arca_data and invoice_number are set immediately
       if (isFresis({ id: order.customerId }) && order.subClientCodice) {
-        await archiveOrders([order], undefined, true);
+        const allDiscounts = await getFresisDiscounts();
+        const discountMap = new Map<string, number>();
+        for (const d of allDiscounts) {
+          discountMap.set(d.id, d.discountPercent);
+          discountMap.set(d.articleCode, d.discountPercent);
+        }
+
+        let orderRevenue = 0;
+        for (const item of order.items) {
+          const fresisDisc =
+            discountMap.get(item.articleId ?? "") ??
+            discountMap.get(item.articleCode) ??
+            FRESIS_DEFAULT_DISCOUNT;
+          const originalPrice = item.originalListPrice ?? item.price;
+          const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+          const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
+          orderRevenue += prezzoCliente - costoFresis;
+        }
+
+        await archiveOrders([{ ...order, revenue: orderRevenue }], undefined, true);
       }
 
       await deletePendingOrder(order.id!);
