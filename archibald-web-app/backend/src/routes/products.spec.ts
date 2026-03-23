@@ -105,8 +105,22 @@ describe('createProductsRouter', () => {
         searchQuery: 'articolo',
         vatFilter: undefined,
         priceFilter: undefined,
+        discountFilter: undefined,
+        userId: undefined,
         limit: undefined,
       });
+    });
+
+    test('passes discountFilter=missing and userId to getProducts', async () => {
+      const res = await request(app).get('/api/products?discountFilter=missing');
+
+      expect(res.status).toBe(200);
+      expect(deps.getProducts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discountFilter: 'missing',
+          userId: 'user-1',
+        }),
+      );
     });
 
     test('grouped mode returns enriched products', async () => {

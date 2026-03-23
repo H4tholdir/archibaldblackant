@@ -127,9 +127,10 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       const grouped = req.query.grouped === 'true';
       const vatFilter = req.query.vatFilter === 'missing' ? 'missing' as const : undefined;
       const priceFilter = req.query.priceFilter === 'zero' ? 'zero' as const : undefined;
+      const discountFilter = req.query.discountFilter === 'missing' ? 'missing' as const : undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
-      if (grouped && !vatFilter && !priceFilter) {
+      if (grouped && !vatFilter && !priceFilter && !discountFilter) {
         const groupedLimit = limit ?? 200;
         const productNames = await getDistinctProductNames(search, groupedLimit);
         const baseProducts = await Promise.all(
@@ -174,6 +175,8 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         searchQuery: search,
         vatFilter,
         priceFilter,
+        discountFilter,
+        userId: discountFilter ? req.user!.userId : undefined,
         limit,
       });
       res.json({
