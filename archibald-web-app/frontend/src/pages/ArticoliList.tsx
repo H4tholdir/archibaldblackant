@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../hooks/useAuth";
 import { ProductCard } from "../components/ProductCard";
 import { ProductDetailModal } from "../components/ProductDetailModal";
-import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, type Product } from "../api/products";
+import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, getMissingFresisDiscountCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
@@ -12,6 +13,8 @@ interface ProductFilters {
 
 export function ArticoliList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
+  const auth = useAuth();
+  const isFresis = auth.user?.username === 'ikiA0930';
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +36,8 @@ export function ArticoliList() {
   const [vatFilterActive, setVatFilterActive] = useState(false);
   const [zeroPriceCount, setZeroPriceCount] = useState(0);
   const [priceFilterActive, setPriceFilterActive] = useState(false);
+  const [missingDiscountCount, setMissingDiscountCount] = useState(0);
+  const [discountFilterActive, setDiscountFilterActive] = useState(false);
 
   // Load no-vat count and zero-price count on mount
   useEffect(() => {
@@ -46,6 +51,16 @@ export function ArticoliList() {
       .catch(() => {});
   }, []);
 
+  // Effetto separato: carica missingDiscountCount solo per Fresis, dopo che auth è disponibile
+  useEffect(() => {
+    if (!isFresis) return;
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    getMissingFresisDiscountCount(token)
+      .then((result) => setMissingDiscountCount(result.count))
+      .catch(() => {});
+  }, [isFresis]);
+
   // Debounce search input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -57,7 +72,7 @@ export function ArticoliList() {
 
   // Fetch products when search changes (not on mount)
   const fetchProducts = useCallback(async () => {
-    if (!debouncedSearch && !vatFilterActive && !priceFilterActive) {
+    if (!debouncedSearch && !vatFilterActive && !priceFilterActive && !discountFilterActive) {
       setProducts([]);
       setTotalCount(0);
       setReturnedCount(0);
@@ -78,7 +93,7 @@ export function ArticoliList() {
         return;
       }
 
-      const isFilterMode = vatFilterActive || priceFilterActive;
+      const isFilterMode = vatFilterActive || priceFilterActive || discountFilterActive;
       const response = await getProducts(
         token,
         isFilterMode ? undefined : debouncedSearch,
@@ -86,6 +101,7 @@ export function ArticoliList() {
         !isFilterMode,
         vatFilterActive ? "missing" : undefined,
         priceFilterActive ? "zero" : undefined,
+        discountFilterActive ? "missing" : undefined,
       );
 
       if (!response.success) {
@@ -112,7 +128,7 @@ export function ArticoliList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, vatFilterActive, priceFilterActive]);
+  }, [debouncedSearch, vatFilterActive, priceFilterActive, discountFilterActive]);
 
   useEffect(() => {
     fetchProducts();
@@ -132,6 +148,7 @@ export function ArticoliList() {
     setFilters({ search: "" });
     setVatFilterActive(false);
     setPriceFilterActive(false);
+    setDiscountFilterActive(false);
     setHasSearched(false);
   };
 
@@ -153,7 +170,17 @@ export function ArticoliList() {
     }
   };
 
-  const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive;
+  const handleToggleDiscountFilter = () => {
+    const next = !discountFilterActive;
+    setDiscountFilterActive(next);
+    if (next) {
+      setFilters({ search: "" });
+      setVatFilterActive(false);
+      setPriceFilterActive(false);
+    }
+  };
+
+  const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive || discountFilterActive;
 
   return (
     <div
@@ -225,6 +252,36 @@ export function ArticoliList() {
           <span style={{ fontSize: "20px" }}>💰</span>
           <span style={{ fontSize: "14px", color: "#c62828", fontWeight: 600 }}>
             {zeroPriceCount} articol{zeroPriceCount !== 1 ? "i" : "o"} con prezzo a 0 o mancante. Clicca per visualizzarl{zeroPriceCount !== 1 ? "i" : "o"}.
+          </span>
+        </div>
+      )}
+
+      {/* Missing Fresis Discount Banner */}
+      {isFresis && missingDiscountCount > 0 && !discountFilterActive && (
+        <div
+          onClick={handleToggleDiscountFilter}
+          style={{
+            backgroundColor: "#fce4ec",
+            border: "1px solid #e57373",
+            borderRadius: "12px",
+            padding: "12px 20px",
+            marginBottom: "16px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#ffcdd2";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#fce4ec";
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>💸</span>
+          <span style={{ fontSize: "14px", color: "#c62828", fontWeight: 600 }}>
+            {missingDiscountCount} articol{missingDiscountCount !== 1 ? "i" : "o"} senza sconto Fresis personale. Clicca per visualizzarl{missingDiscountCount !== 1 ? "i" : "o"}.
           </span>
         </div>
       )}
@@ -463,6 +520,38 @@ export function ArticoliList() {
               }}
             >
               Prezzo = 0 ({zeroPriceCount})
+            </button>
+          )}
+
+          {/* Missing Fresis Discount filter button */}
+          {isFresis && missingDiscountCount > 0 && (
+            <button
+              onClick={handleToggleDiscountFilter}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: `1px solid ${discountFilterActive ? "#fff" : "#c62828"}`,
+                borderRadius: "8px",
+                backgroundColor: discountFilterActive ? "#c62828" : "#fff",
+                color: discountFilterActive ? "#fff" : "#c62828",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!discountFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#c62828";
+                  e.currentTarget.style.color = "#fff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!discountFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = "#c62828";
+                }
+              }}
+            >
+              Sconto Fresis ({missingDiscountCount})
             </button>
           )}
         </div>
