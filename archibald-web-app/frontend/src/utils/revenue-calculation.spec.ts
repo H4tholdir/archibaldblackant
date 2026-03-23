@@ -70,7 +70,10 @@ describe("calculateItemRevenue", () => {
     expect(revenue).toBe(0);
   });
 
-  test("property: revenue with no discounts equals (unitPrice - originalListPrice) * quantity", () => {
+  test("property: revenue with no discounts equals (unitPrice - originalListPrice) * quantity within rounding tolerance", () => {
+    // round2 is applied to each side independently, so maximum error is ±0.005 per
+    // rounded value → total worst-case deviation is 0.01.
+    const ROUNDING_TOLERANCE = 0.01;
     fc.assert(
       fc.property(
         fc.float({ min: 0, max: 10000, noNaN: true }),
@@ -86,7 +89,7 @@ describe("calculateItemRevenue", () => {
             0,
           );
           const expected = (unitPrice - originalListPrice) * quantity;
-          return Math.abs(revenue - expected) < 0.001;
+          return Math.abs(revenue - expected) <= ROUNDING_TOLERANCE;
         },
       ),
     );

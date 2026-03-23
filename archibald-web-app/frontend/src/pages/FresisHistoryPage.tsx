@@ -459,10 +459,12 @@ export function FresisHistoryPage() {
           documentNumber = `${arcaData.testata.TIPODOC} ${arcaData.testata.NUMERODOC}/${arcaData.testata.ESERCIZIO}`;
           shippingCost = (arcaData.testata.SPESETR ?? 0) + (arcaData.testata.SPESEIM ?? 0) + (arcaData.testata.SPESEVA ?? 0);
           shippingTax = 0;
-          // Override DB discount_percent with testata.SCONTI (DB value may be
-          // the effective overall discount while per-line discounts are also present)
-          const parsed = parseFloat(arcaData.testata.SCONTI ?? "");
-          discountPercent = !isNaN(parsed) && parsed > 0 ? parsed : 0;
+          // Override DB discount_percent with testata.SCONTIF (pre-computed factor).
+          // SCONTI is a cascade string (e.g. "10+5"); parseFloat would only read the
+          // first component. SCONTIF already encodes the full cascade as a multiplier.
+          discountPercent = arcaData.testata.SCONTIF < 1
+            ? (1 - arcaData.testata.SCONTIF) * 100
+            : 0;
           if (arcaData.testata.DATADOC) documentDate = arcaData.testata.DATADOC;
           if (arcaData.testata.PAG) paymentConditions = arcaData.testata.PAG;
           if (arcaData.testata.TRCAUSALE) transportCause = arcaData.testata.TRCAUSALE;
