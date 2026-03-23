@@ -88,11 +88,23 @@ Frontend e backend sono separati (regola O-1). Creiamo **due file distinti** con
 - `archibald-web-app/frontend/src/utils/arca-math.ts`
 - `archibald-web-app/backend/src/utils/arca-math.ts`
 
-**Prevenzione drift**: ogni file deve avere in testa il commento:
+**Prevenzione drift**: entrambi i file devono iniziare con il seguente blocco di warning, visibile prima di qualsiasi codice:
+
 ```typescript
-// KEEP IN SYNC with archibald-web-app/{backend,frontend}/src/utils/arca-math.ts
-// Unit tests in arca-math.spec.ts must be identical in both copies.
+// =============================================================================
+// ⚠️  ATTENZIONE — FILE DUPLICATO (regola O-1: frontend e backend separati)
+//
+// Questo file esiste in due copie identiche:
+//   • archibald-web-app/frontend/src/utils/arca-math.ts
+//   • archibald-web-app/backend/src/utils/arca-math.ts
+//
+// Qualsiasi modifica alla logica, alle firme delle funzioni o ai casi edge
+// DEVE essere applicata ad ENTRAMBE le copie contemporaneamente.
+//
+// Se stai modificando solo questo file, fermati e aggiorna anche l'altro.
+// =============================================================================
 ```
+
 I test golden dataset (§7.2) sono duplicati nei due `arca-math.spec.ts`. L'enforcement è a code review: qualsiasi modifica a un file `arca-math.ts` deve essere riflessa nell'altro. Non è richiesto un gate CI automatizzato per la sincronizzazione dei sorgenti (fuori scope).
 
 ### API del modulo
