@@ -64,7 +64,7 @@ export function calculateArcaTotals(
   // Calcola VAT solo sulle righe tassate (con spedizione principale)
   const shippingCost = spese.spesetr > 0 ? spese.spesetr : undefined;
   const shippingVatRate =
-    spese.spesetr > 0 ? parseFloat(spese.spesetriva) || 22 : undefined;
+    spese.spesetr > 0 ? parseFloat(spese.spesetriva) || 22 : undefined; // default 22%: aliquota IVA standard italiana
   const vatTotals = arcaDocumentTotals(
     nonExemptLines,
     scontif,

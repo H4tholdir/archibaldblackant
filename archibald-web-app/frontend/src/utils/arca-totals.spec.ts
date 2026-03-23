@@ -54,6 +54,12 @@ describe("cascadeDiscountToFactor", () => {
   test("10+5 returns 0.855", () => {
     expect(cascadeDiscountToFactor("10+5")).toBeCloseTo(0.855, 6);
   });
+
+  test("delega a cascadeDiscountFactor: componente NaN viene saltata (non abort)", () => {
+    // Comportamento: NaN component = 0% sconto su quel componente, gli altri si applicano
+    expect(cascadeDiscountToFactor("N/A")).toBe(1);         // tutto NaN → nessuno sconto
+    expect(cascadeDiscountToFactor("10+N/A")).toBeCloseTo(0.9, 10); // applica solo il 10%
+  });
 });
 
 describe("calculateRowTotal", () => {
