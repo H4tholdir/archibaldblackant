@@ -2,10 +2,17 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { AltAddress } from '../../db/repositories/customer-addresses';
 import { upsertAddressesForCustomer, setAddressesSyncedAt } from '../../db/repositories/customer-addresses';
+import { logger } from '../../logger';
 
-type SyncCustomerAddressesData = {
+type CustomerAddressEntry = {
   customerProfile: string;
   customerName: string;
+};
+
+type SyncCustomerAddressesData = {
+  customerProfile?: string;
+  customerName?: string;
+  customers?: CustomerAddressEntry[];
 };
 
 type SyncCustomerAddressesBot = {
@@ -17,6 +24,7 @@ type SyncCustomerAddressesBot = {
 
 type SyncCustomerAddressesResult = {
   addressesCount: number;
+  errorsCount: number;
 };
 
 async function handleSyncCustomerAddresses(
@@ -26,26 +34,60 @@ async function handleSyncCustomerAddresses(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<SyncCustomerAddressesResult> {
-  if (!data.customerProfile || !data.customerName) {
+  // Reset mode: manual trigger with no customer data
+  if (!data.customerProfile && !data.customerName && !data.customers) {
     onProgress(50, 'Reset sync indirizzi');
     await pool.query(
       'UPDATE agents.customers SET addresses_synced_at = NULL WHERE user_id = $1',
       [userId],
     );
     onProgress(100, 'Reset completato — scheduler rieseguirà la sync');
-    return { addressesCount: 0 };
+    return { addressesCount: 0, errorsCount: 0 };
   }
 
+  // Batch mode: process multiple customers sequentially in one bot session
+  if (data.customers && data.customers.length > 0) {
+    const { customers } = data;
+    await bot.initialize();
+    let addressesCount = 0;
+    let errorsCount = 0;
+    try {
+      for (let i = 0; i < customers.length; i++) {
+        const { customerProfile, customerName } = customers[i];
+        onProgress(Math.floor((i / customers.length) * 90) + 5, `${customerName} (${i + 1}/${customers.length})`);
+        try {
+          await bot.navigateToEditCustomerForm(customerName);
+          const addresses = await bot.readAltAddresses();
+          await upsertAddressesForCustomer(pool, userId, customerProfile, addresses);
+          await setAddressesSyncedAt(pool, userId, customerProfile);
+          addressesCount += addresses.length;
+        } catch (err) {
+          errorsCount++;
+          logger.warn('[sync-customer-addresses] Failed to sync customer, skipping', {
+            customerProfile,
+            customerName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    } finally {
+      await bot.close();
+    }
+    onProgress(100, `${customers.length} clienti processati (${errorsCount} errori)`);
+    return { addressesCount, errorsCount };
+  }
+
+  // Single customer mode (legacy or manual trigger)
   onProgress(10, 'Navigazione al cliente');
   await bot.initialize();
   try {
-    await bot.navigateToEditCustomerForm(data.customerName);
+    await bot.navigateToEditCustomerForm(data.customerName!);
     const addresses = await bot.readAltAddresses();
     onProgress(60, 'Salvataggio indirizzi');
-    await upsertAddressesForCustomer(pool, userId, data.customerProfile, addresses);
-    await setAddressesSyncedAt(pool, userId, data.customerProfile);
+    await upsertAddressesForCustomer(pool, userId, data.customerProfile!, addresses);
+    await setAddressesSyncedAt(pool, userId, data.customerProfile!);
     onProgress(100, 'Indirizzi sincronizzati');
-    return { addressesCount: addresses.length };
+    return { addressesCount: addresses.length, errorsCount: 0 };
   } finally {
     await bot.close();
   }
@@ -66,6 +108,7 @@ function createSyncCustomerAddressesHandler(
 export {
   handleSyncCustomerAddresses,
   createSyncCustomerAddressesHandler,
+  type CustomerAddressEntry,
   type SyncCustomerAddressesData,
   type SyncCustomerAddressesBot,
   type SyncCustomerAddressesResult,

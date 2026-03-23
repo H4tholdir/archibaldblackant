@@ -340,14 +340,13 @@ describe('createSyncScheduler', () => {
       expect(enqueue).toHaveBeenCalledWith(
         'sync-customer-addresses',
         'user-1',
-        { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
-        'sync-customer-addresses-user-1-CUST-001',
-      );
-      expect(enqueue).toHaveBeenCalledWith(
-        'sync-customer-addresses',
-        'user-1',
-        { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
-        'sync-customer-addresses-user-1-CUST-002',
+        {
+          customers: [
+            { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
+            { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
+          ],
+        },
+        'sync-customer-addresses-batch-user-1',
       );
 
       scheduler.stop();

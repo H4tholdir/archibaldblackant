@@ -5,6 +5,7 @@ import {
   handleSyncCustomerAddresses,
   type SyncCustomerAddressesBot,
   type SyncCustomerAddressesData,
+  type CustomerAddressEntry,
 } from './sync-customer-addresses';
 
 const userId = 'user-1';
@@ -62,7 +63,7 @@ describe('handleSyncCustomerAddresses', () => {
       (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
     );
     expect(updateCall).toBeDefined();
-    expect(result).toEqual({ addressesCount: mockAltAddresses.length });
+    expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 0 });
   });
 
   it('calls bot.close() in the finally block even when readAltAddresses throws', async () => {
@@ -97,7 +98,68 @@ describe('handleSyncCustomerAddresses', () => {
 
     const result = await handleSyncCustomerAddresses(pool, bot, data, userId, onProgress);
 
-    expect(result).toEqual({ addressesCount: 0 });
+    expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
+  });
+
+  describe('batch mode', () => {
+    const batchCustomers: CustomerAddressEntry[] = [
+      { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
+      { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
+    ];
+    const batchData: SyncCustomerAddressesData = { customers: batchCustomers };
+
+    it('initializes bot once, processes each customer sequentially, closes bot once', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      const onProgress = vi.fn();
+
+      const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, onProgress);
+
+      expect(bot.initialize).toHaveBeenCalledOnce();
+      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
+      expect(bot.navigateToEditCustomerForm).toHaveBeenNthCalledWith(1, 'Rossi Mario');
+      expect(bot.navigateToEditCustomerForm).toHaveBeenNthCalledWith(2, 'Verdi Luca');
+      expect(bot.readAltAddresses).toHaveBeenCalledTimes(2);
+      expect(bot.close).toHaveBeenCalledOnce();
+      expect(result).toEqual({ addressesCount: mockAltAddresses.length * 2, errorsCount: 0 });
+    });
+
+    it('sets addresses_synced_at for each customer in batch', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+
+      await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
+
+      const syncedAtCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
+      );
+      expect(syncedAtCalls).toHaveLength(2);
+    });
+
+    it('skips a failing customer and continues with the next', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('nav error'))
+        .mockResolvedValueOnce(undefined);
+      const onProgress = vi.fn();
+
+      const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, onProgress);
+
+      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
+      expect(bot.close).toHaveBeenCalledOnce();
+      expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 1 });
+    });
+
+    it('closes bot even if all customers fail', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('nav error'));
+
+      await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
+
+      expect(bot.close).toHaveBeenCalledOnce();
+    });
   });
 
   it('resets addresses_synced_at for all customers when called without customer data (manual trigger)', async () => {
@@ -114,6 +176,6 @@ describe('handleSyncCustomerAddresses', () => {
     expect(resetCall).toBeDefined();
     expect(resetCall![1]).toEqual([userId]);
     expect(bot.initialize).not.toHaveBeenCalled();
-    expect(result).toEqual({ addressesCount: 0 });
+    expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
   });
 });

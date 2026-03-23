@@ -146,7 +146,7 @@ describe('createOperationProcessor', () => {
     );
   });
 
-  test('drops job without requeueing when MAX_REQUEUE_COUNT reached', async () => {
+  test('throws when MAX_REQUEUE_COUNT reached (so BullMQ marks job as failed)', async () => {
     const busyLock = createMockAgentLock({
       acquired: false,
       activeJob: { jobId: 'existing-job', type: 'sync-customers' },
@@ -154,11 +154,9 @@ describe('createOperationProcessor', () => {
     });
     const { processor, enqueue } = createProcessor({ agentLock: busyLock });
     const idempotencyKey = 'key-1-r1000-r1001-r1002'; // 3 requeues = MAX_REQUEUE_COUNT
-    const job = createMockJob({ idempotencyKey });
 
-    const result = await processor.processJob(job as any);
-
-    expect(result).toEqual({ success: false, requeued: false, duration: expect.any(Number) });
+    await expect(processor.processJob(createMockJob({ idempotencyKey }) as any))
+      .rejects.toThrow(/busy.*lock not acquired/i);
     expect(enqueue).not.toHaveBeenCalled();
   });
 

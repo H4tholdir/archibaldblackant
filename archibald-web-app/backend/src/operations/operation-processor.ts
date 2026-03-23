@@ -121,7 +121,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
       if (!acquireResult.acquired) {
         const requeueCount = (idempotencyKey.match(/-r\d+/g) ?? []).length;
         if (requeueCount >= MAX_REQUEUE_COUNT) {
-          return { success: false, requeued: false, duration: Date.now() - startTime };
+          throw new Error(`Agent ${userId} busy: lock not acquired after ${MAX_REQUEUE_COUNT} requeues for ${type}`);
         }
         // Use a fresh key to guarantee BullMQ creates a new waiting job
         // (same key would be a no-op when the active job's Redis key still exists).

@@ -67,14 +67,13 @@ function createSyncScheduler(
             pendingTimeouts.push(setTimeout(() => {
               getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
                 .then((customers) => {
-                  for (const c of customers) {
-                    enqueue(
-                      'sync-customer-addresses',
-                      agentUserId,
-                      { customerProfile: c.customer_profile, customerName: c.name },
-                      `sync-customer-addresses-${agentUserId}-${c.customer_profile}`,
-                    );
-                  }
+                  if (customers.length === 0) return;
+                  enqueue(
+                    'sync-customer-addresses',
+                    agentUserId,
+                    { customers: customers.map((c) => ({ customerProfile: c.customer_profile, customerName: c.name })) },
+                    `sync-customer-addresses-batch-${agentUserId}`,
+                  );
                 })
                 .catch((error) => {
                   logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
