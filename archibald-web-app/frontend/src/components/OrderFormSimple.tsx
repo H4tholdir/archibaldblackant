@@ -477,6 +477,21 @@ export default function OrderFormSimple() {
         if (customer) {
           setSelectedCustomer(customer);
           setCustomerSearch(customer.name);
+
+          // Load delivery addresses and restore the saved selection
+          try {
+            const addresses = await getCustomerAddresses(customer.id);
+            const delivery = addresses.filter(
+              (a) => a.tipo === 'Consegna' || a.tipo === 'Indir. cons. alt.',
+            );
+            setDeliveryAddresses(delivery);
+            setSelectedDeliveryAddressId(
+              order.deliveryAddressId ?? (delivery.length === 1 ? delivery[0].id : null),
+            );
+          } catch {
+            setDeliveryAddresses([]);
+            setSelectedDeliveryAddressId(null);
+          }
         }
 
         // Restore sub-client from order
