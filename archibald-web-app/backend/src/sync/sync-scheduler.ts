@@ -39,8 +39,10 @@ function createSyncScheduler(
   let sessionCount = 0;
   let safetyTimeout: NodeJS.Timeout | null = null;
 
-  function start(intervals: SyncIntervals): void {
-    currentIntervals = intervals;
+  function start(intervals?: SyncIntervals): void {
+    if (intervals) {
+      currentIntervals = intervals;
+    }
     running = true;
 
     timers.push(
@@ -81,13 +83,13 @@ function createSyncScheduler(
             }, ADDRESS_SYNC_DELAY_MS));
           }
         }
-      }, intervals.agentSyncMs),
+      }, currentIntervals.agentSyncMs),
     );
 
     timers.push(
       setInterval(() => {
         enqueue('sync-products', 'service-account', {});
-      }, intervals.sharedSyncMs),
+      }, currentIntervals.sharedSyncMs),
     );
   }
 
