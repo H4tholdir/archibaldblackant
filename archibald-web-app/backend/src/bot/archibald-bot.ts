@@ -9523,13 +9523,18 @@ export class ArchibaldBot {
    * @param page Page object to use
    */
   private async ensureOrdersFilterSetToAll(page: Page): Promise<void> {
-    logger.info("[ArchibaldBot] Checking orders filter setting...");
-
-    // Resilient selectors - DevExpress IDs can change between Archibald versions
+    const MAX_ATTEMPTS = 3;
     const FILTER_INPUT_SELECTOR = 'input[name*="mainMenu"][name*="Cb"]';
     const FILTER_INPUT_EXACT = 'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]';
 
-    try {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      logger.info(`[ArchibaldBot] Checking orders filter (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+
+      if (attempt > 1) {
+        await page.keyboard.press("Escape");
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
       const filterVisibility = await page.evaluate(
         (sel: string, exactSel: string) => {
           const input = (
@@ -9577,12 +9582,15 @@ export class ArchibaldBot {
           .catch(() => null);
 
         if (!appeared) {
-          logger.warn("[ArchibaldBot] Filter input never appeared, continuing without filter");
-          return;
+          if (attempt === MAX_ATTEMPTS) {
+            throw new Error(
+              "[ArchibaldBot] Orders filter input never appeared — cannot guarantee all orders are included in PDF",
+            );
+          }
+          continue;
         }
       }
 
-      // Read current filter value using resilient selector
       const currentFilterValue = await page.evaluate((sel: string, exactSel: string) => {
         const input = (
           document.querySelector(exactSel) ||
@@ -9606,9 +9614,8 @@ export class ArchibaldBot {
         return;
       }
 
-      logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', changing filter...");
+      logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', opening dropdown...");
 
-      // Open the dropdown - derive button ID from input's name ($ -> _, append _B-1)
       const dropdownClicked = await page.evaluate((sel: string, exactSel: string) => {
         const input = (
           document.querySelector(exactSel) ||
@@ -9647,16 +9654,31 @@ export class ArchibaldBot {
       }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
       if (!dropdownClicked) {
-        logger.warn("[ArchibaldBot] Could not click filter dropdown, continuing anyway");
-        return;
+        if (attempt === MAX_ATTEMPTS) {
+          throw new Error(
+            "[ArchibaldBot] Could not open orders filter dropdown — cannot guarantee all orders are included in PDF",
+          );
+        }
+        continue;
       }
 
       logger.info("[ArchibaldBot] Dropdown opened, waiting for list...");
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Find and click "Tutti gli ordini" in the dropdown by text content
+      const listAppeared = await page
+        .waitForSelector("[id*='Cb_DDD_L_LBI'], [class*='dxeListBoxItem']", { timeout: 3000 })
+        .catch(() => null);
+
+      if (!listAppeared) {
+        if (attempt === MAX_ATTEMPTS) {
+          throw new Error(
+            "[ArchibaldBot] Orders filter dropdown list never appeared — cannot guarantee all orders are included in PDF",
+          );
+        }
+        continue;
+      }
+
       const optionClicked = await page.evaluate(() => {
-        // Try exact ID first
+        // Strategy 1: exact ID (most specific, fastest)
         const exactOption = document.querySelector(
           "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
         ) as HTMLElement;
@@ -9664,28 +9686,55 @@ export class ArchibaldBot {
           exactOption.click();
           return true;
         }
-        // Fallback: find by text in any visible dropdown list item
-        const listItems = Array.from(
-          document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td, [class*='dxeListBoxItem']"),
-        );
-        for (const item of listItems) {
+
+        // Strategy 2: text search in DevExpress LBI id-based selectors
+        const lbiItems = Array.from(document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td"));
+        for (const item of lbiItems) {
           if ((item as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
             (item as HTMLElement).click();
             return true;
           }
         }
+
+        // Strategy 3: text search in dxeListBoxItem class items
+        const classItems = Array.from(document.querySelectorAll("[class*='dxeListBoxItem']"));
+        for (const item of classItems) {
+          if ((item as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+
+        // Strategy 4: scan all visible DevExpress DDD_L dropdown containers on the page
+        const ddLists = Array.from(document.querySelectorAll("[id*='DDD_L']"));
+        for (const list of ddLists) {
+          const listEl = list as HTMLElement;
+          if (listEl.offsetParent !== null) {
+            const tds = Array.from(listEl.querySelectorAll("td"));
+            for (const td of tds) {
+              if ((td as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
+                (td as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+        }
+
         return false;
       });
 
       if (!optionClicked) {
-        logger.warn("[ArchibaldBot] Could not find 'Tutti gli ordini' option, continuing anyway");
-        return;
+        if (attempt === MAX_ATTEMPTS) {
+          throw new Error(
+            "[ArchibaldBot] Could not find 'Tutti gli ordini' option in dropdown — cannot guarantee all orders are included in PDF",
+          );
+        }
+        continue;
       }
 
       logger.info("[ArchibaldBot] 'Tutti gli ordini' option clicked, waiting for page update...");
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Verify filter change
       const newFilterValue = await page.evaluate((sel: string, exactSel: string) => {
         const input = (
           document.querySelector(exactSel) ||
@@ -9703,16 +9752,21 @@ export class ArchibaldBot {
         success: newIsAllOrders,
       });
 
-      if (!newIsAllOrders) {
-        logger.warn("[ArchibaldBot] Filter change verification failed, but continuing anyway");
+      if (newIsAllOrders) {
+        logger.info("[ArchibaldBot] Filter successfully set to 'Tutti gli ordini'");
+        return;
       }
-    } catch (error) {
-      logger.error("[ArchibaldBot] Error while ensuring filter is set:", {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      logger.warn("[ArchibaldBot] Continuing with current filter despite error");
+
+      if (attempt === MAX_ATTEMPTS) {
+        throw new Error(
+          `[ArchibaldBot] Filter verification failed after ${MAX_ATTEMPTS} attempts, current value: ${newFilterValue} — cannot guarantee all orders are included in PDF`,
+        );
+      }
     }
+
+    throw new Error(
+      "[ArchibaldBot] Exhausted all attempts to set orders filter to 'Tutti gli ordini'",
+    );
   }
 
   /**
