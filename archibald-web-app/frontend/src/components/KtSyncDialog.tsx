@@ -70,9 +70,9 @@ function SubclientPicker({
         <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px' }}>
           Cerca il sottocliente Arca corrispondente:
         </div>
-        <input autoComplete="off"
+        <input autoComplete="new-password"
           autoFocus
-          type="text"
+          type="search"
           placeholder="Cerca per nome, codice, P.IVA, indirizzo..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}

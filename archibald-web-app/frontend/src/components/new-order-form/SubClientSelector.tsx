@@ -243,14 +243,14 @@ export function SubClientSelector({
         <input
           ref={setInputRef}
           id="subclient-search"
-          type="text"
+          type="search"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder="Cerca sotto-cliente per codice o nome..."
           disabled={disabled}
-          autoComplete="off"
+          autoComplete="new-password"
           style={{
             width: "100%",
             padding: "0.5rem",

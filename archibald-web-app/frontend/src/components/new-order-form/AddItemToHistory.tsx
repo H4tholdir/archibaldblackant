@@ -435,7 +435,7 @@ export function AddItemToHistory({
       <div style={{ position: "relative", marginBottom: "0.5rem" }}>
         <input
           ref={searchInputRef}
-          type="text"
+          type="search"
           value={productSearch}
           onChange={(e) => {
             setProductSearch(e.target.value);

@@ -2902,7 +2902,7 @@ export default function OrderFormSimple() {
           <>
             <input
               ref={customerSearchInputRef}
-              type="text"
+              type="search"
               name="customer-search-field"
               value={customerSearch}
               onChange={(e) => handleCustomerSearch(e.target.value)}
@@ -3378,7 +3378,7 @@ export default function OrderFormSimple() {
               </label>
               <input
                 ref={productSearchInputRef}
-                type="text"
+                type="search"
                 name="product-search-field"
                 value={productSearch}
                 onChange={(e) => handleProductSearch(e.target.value)}
@@ -5798,9 +5798,9 @@ export default function OrderFormSimple() {
             >
               Attuale: <strong>{articleChangeModal.currentProductName}</strong>
             </div>
-            <input autoComplete="off"
+            <input autoComplete="new-password"
               autoFocus
-              type="text"
+              type="search"
               placeholder="Cerca nuovo articolo..."
               value={articleChangeSearch}
               onChange={(e) => handleArticleChangeSearch(e.target.value)}

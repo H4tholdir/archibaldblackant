@@ -1301,7 +1301,7 @@ export function OrderHistory() {
               <>
                 <input
                   id="customer-search"
-                  type="text"
+                  type="search"
                   placeholder="Cerca cliente per nome, P.IVA, citta\u0300, CAP..."
                   value={customerSearchQuery}
                   onChange={(e) => handleCustomerSearch(e.target.value)}
@@ -1310,7 +1310,7 @@ export function OrderHistory() {
                     if (customerResults.length > 0)
                       setShowCustomerDropdown(true);
                   }}
-                  autoComplete="off"
+                  autoComplete="new-password"
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -1469,9 +1469,9 @@ export function OrderHistory() {
             >
               {"\ud83d\udd0d"} Ricerca globale
             </label>
-            <input autoComplete="off"
+            <input autoComplete="new-password"
               id="global-search"
-              type="text"
+              type="search"
               placeholder="Cerca in tutti i campi: tracking, DDT, fatture, articoli..."
               value={filters.search}
               onChange={(e) =>

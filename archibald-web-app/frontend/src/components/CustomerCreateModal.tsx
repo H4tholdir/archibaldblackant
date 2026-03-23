@@ -1691,9 +1691,9 @@ export function CustomerCreateModal({
             >
               {currentField.label}
             </label>
-            <input autoComplete="off"
+            <input autoComplete="new-password"
               ref={inputRef}
-              type="text"
+              type="search"
               value={paymentTermsSearch}
               onChange={(e) => {
                 setPaymentTermsSearch(e.target.value);

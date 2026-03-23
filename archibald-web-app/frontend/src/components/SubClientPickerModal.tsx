@@ -82,8 +82,8 @@ export function SubClientPickerModal({ customerProfileId, customerName, onMatche
         </div>
 
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
-          <input autoComplete="off"
-            type="text"
+          <input autoComplete="new-password"
+            type="search"
             placeholder="Cerca sottocliente per nome o codice..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
