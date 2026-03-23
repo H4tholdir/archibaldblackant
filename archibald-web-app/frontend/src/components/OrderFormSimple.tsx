@@ -28,6 +28,7 @@ import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
+import { arcaLineAmount, arcaDocumentTotals } from "../utils/arca-math";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
@@ -490,9 +491,8 @@ export default function OrderFormSimple() {
           order.items.map(async (item) => {
             const rawVatRate = normalizeVatRate(item.vat);
             const vatRate = rawVatRate ?? 0;
-            const subtotal =
-              item.price * item.quantity * (1 - (item.discount || 0) / 100);
-            const vatAmount = subtotal * (vatRate / 100);
+            const subtotal = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
+            const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
 
             // Prefer explicit variant ID, fallback to legacy articleCode
             let productId = item.articleId || item.articleCode;
@@ -2545,30 +2545,32 @@ export default function OrderFormSimple() {
 
   // === CALCULATIONS ===
   const calculateTotals = () => {
-    const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const itemsVAT = items.reduce((sum, item) => sum + item.vat, 0);
-    const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
+    const lines = items.map((item) => ({
+      prezzotot: item.subtotal,  // item.subtotal è già arcaLineAmount (già arrotondato)
+      vatRate: item.vatRate ?? 0,
+    }));
+    // scontif = 1 perché OrderFormSimple applica il globalDiscount già ai singoli item.discount
+    const { totNetto, totIva, totDoc } = arcaDocumentTotals(lines, 1);
 
-    const finalSubtotal = itemsSubtotal;
+    const finalSubtotal = totNetto;
+    const shippingCosts = noShipping
+      ? { cost: 0, tax: 0, total: 0 }
+      : calculateShippingCosts(finalSubtotal);
 
-    const shippingCosts = noShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(finalSubtotal);
-    const shippingCost = shippingCosts.cost;
-    const shippingTax = shippingCosts.tax;
-
-    const finalVAT =
-      Math.round((itemsVAT + shippingTax) * 100) / 100;
-
-    const finalTotal =
-      Math.round((finalSubtotal + shippingCost + finalVAT) * 100) / 100;
+    const withShip = shippingCosts.cost > 0
+      ? arcaDocumentTotals(lines, 1, shippingCosts.cost, 22)
+      : { totIva, totDoc };
+    const totIvaWithShip = withShip.totIva;
+    const finalTotal = withShip.totDoc;
 
     return {
-      itemsSubtotal,
-      itemsVAT,
-      itemsTotal,
+      itemsSubtotal: totNetto,
+      itemsVAT: totIvaWithShip,
+      itemsTotal: finalTotal,
       finalSubtotal,
-      shippingCost,
-      shippingTax,
-      finalVAT,
+      shippingCost: shippingCosts.cost,
+      shippingTax: shippingCosts.tax,
+      finalVAT: totIvaWithShip,
       finalTotal,
     };
   };
@@ -2701,6 +2703,7 @@ export default function OrderFormSimple() {
         price: item.unitPrice,
         vat: item.vatRate,
         discount: item.discount,
+        total: arcaLineAmount(item.quantity, item.unitPrice, item.discount ?? 0),
         originalListPrice: item.originalListPrice,
         // Phase 4: Warehouse integration
         warehouseQuantity: item.warehouseQuantity,
@@ -5268,9 +5271,13 @@ export default function OrderFormSimple() {
               unitPrice: newItem.price,
               vatRate: newItem.vat,
               discount: newItem.discount ?? 0,
-              subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
-              vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
-              total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
+              subtotal: arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0),
+              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * (newItem.vat / 100) * 100) / 100,
+              total: (() => {
+                const sub = arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0);
+                const v = Math.round(sub * (newItem.vat / 100) * 100) / 100;
+                return Math.round((sub + v) * 100) / 100;
+              })(),
               originalListPrice: newItem.price,
               warehouseSources: newItem.warehouseSources,
               warehouseQuantity: newItem.warehouseQuantity,
@@ -5294,9 +5301,13 @@ export default function OrderFormSimple() {
               unitPrice: newItem.price,
               vatRate: newItem.vat,
               discount: newItem.discount ?? 0,
-              subtotal: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100),
-              vat: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (newItem.vat / 100),
-              total: newItem.quantity * newItem.price * (1 - (newItem.discount ?? 0) / 100) * (1 + newItem.vat / 100),
+              subtotal: arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0),
+              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * (newItem.vat / 100) * 100) / 100,
+              total: (() => {
+                const sub = arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0);
+                const v = Math.round(sub * (newItem.vat / 100) * 100) / 100;
+                return Math.round((sub + v) * 100) / 100;
+              })(),
               originalListPrice: newItem.price,
               warehouseSources: newItem.warehouseSources,
               warehouseQuantity: newItem.warehouseQuantity,
