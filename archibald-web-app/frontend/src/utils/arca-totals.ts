@@ -1,5 +1,5 @@
 import type { ArcaRiga } from "../types/arca-data";
-import { round2, arcaVatGroups, arcaDocumentTotals, cascadeDiscountFactor } from "./arca-math";
+import { round2, arcaDocumentTotals, cascadeDiscountFactor } from "./arca-math";
 
 export function parseCascadeDiscount(sconti: string): number {
   const s = sconti.trim();
