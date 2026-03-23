@@ -332,19 +332,23 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
 
       await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
 
       expect(getCustomersNeedingAddressSync).toHaveBeenCalledWith('user-1', ADDRESS_SYNC_BATCH_LIMIT);
-      expect(enqueue).toHaveBeenCalledWith('sync-customer-addresses', 'user-1', {
-        customerProfile: 'CUST-001',
-        customerName: 'Rossi Mario',
-      });
-      expect(enqueue).toHaveBeenCalledWith('sync-customer-addresses', 'user-1', {
-        customerProfile: 'CUST-002',
-        customerName: 'Verdi Luca',
-      });
+      expect(enqueue).toHaveBeenCalledWith(
+        'sync-customer-addresses',
+        'user-1',
+        { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
+        'sync-customer-addresses-user-1-CUST-001',
+      );
+      expect(enqueue).toHaveBeenCalledWith(
+        'sync-customer-addresses',
+        'user-1',
+        { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
+        'sync-customer-addresses-user-1-CUST-002',
+      );
 
       scheduler.stop();
     });
@@ -371,7 +375,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
 
       scheduler.stop();
     });
@@ -383,7 +387,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
 
       scheduler.stop();
     });
@@ -396,7 +400,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await expect(vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS)).resolves.not.toThrow();
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
 
       scheduler.stop();
     });
@@ -415,7 +419,7 @@ describe('createSyncScheduler', () => {
       enqueue.mockClear();
       await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
     });
   });
 

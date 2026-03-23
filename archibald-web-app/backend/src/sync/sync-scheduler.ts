@@ -5,6 +5,7 @@ type EnqueueFn = (
   type: OperationType,
   userId: string,
   data: Record<string, unknown>,
+  idempotencyKey?: string,
 ) => Promise<string>;
 
 type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<string[]>;
@@ -67,10 +68,12 @@ function createSyncScheduler(
               getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
                 .then((customers) => {
                   for (const c of customers) {
-                    enqueue('sync-customer-addresses', agentUserId, {
-                      customerProfile: c.customer_profile,
-                      customerName: c.name,
-                    });
+                    enqueue(
+                      'sync-customer-addresses',
+                      agentUserId,
+                      { customerProfile: c.customer_profile, customerName: c.name },
+                      `sync-customer-addresses-${agentUserId}-${c.customer_profile}`,
+                    );
                   }
                 })
                 .catch((error) => {
