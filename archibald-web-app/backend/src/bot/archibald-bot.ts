@@ -9685,6 +9685,27 @@ export class ArchibaldBot {
         continue;
       }
 
+      // Diagnostic: log all items actually in the dropdown list to understand what's available
+      const dropdownDiag = await page.evaluate(() => {
+        const items: Array<{ sel: string; id: string; text: string; visible: boolean }> = [];
+        const lbiTds = Array.from(document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td"));
+        for (const el of lbiTds) {
+          items.push({ sel: 'LBI-td', id: (el.parentElement as HTMLElement)?.id ?? '', text: (el as HTMLElement).textContent?.trim() ?? '', visible: (el as HTMLElement).offsetParent !== null });
+        }
+        const classItems = Array.from(document.querySelectorAll("[class*='dxeListBoxItem']"));
+        for (const el of classItems) {
+          items.push({ sel: 'dxeListBoxItem', id: (el as HTMLElement).id ?? '', text: (el as HTMLElement).textContent?.trim() ?? '', visible: (el as HTMLElement).offsetParent !== null });
+        }
+        const ddLists = Array.from(document.querySelectorAll("[id*='DDD_L']"));
+        for (const list of ddLists) {
+          for (const td of Array.from(list.querySelectorAll("td"))) {
+            items.push({ sel: 'DDD_L-td', id: (list as HTMLElement).id ?? '', text: (td as HTMLElement).textContent?.trim() ?? '', visible: (list as HTMLElement).offsetParent !== null });
+          }
+        }
+        return items;
+      });
+      logger.info("[ArchibaldBot] Dropdown diagnostic:", { items: dropdownDiag });
+
       const optionClicked = await page.evaluate(() => {
         // Strategy 1: exact ID (most specific, fastest)
         const exactOption = document.querySelector(
@@ -9713,17 +9734,14 @@ export class ArchibaldBot {
           }
         }
 
-        // Strategy 4: scan all visible DevExpress DDD_L dropdown containers on the page
+        // Strategy 4: scan all DevExpress DDD_L dropdown containers (visible or not)
         const ddLists = Array.from(document.querySelectorAll("[id*='DDD_L']"));
         for (const list of ddLists) {
-          const listEl = list as HTMLElement;
-          if (listEl.offsetParent !== null) {
-            const tds = Array.from(listEl.querySelectorAll("td"));
-            for (const td of tds) {
-              if ((td as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
-                (td as HTMLElement).click();
-                return true;
-              }
+          const tds = Array.from(list.querySelectorAll("td"));
+          for (const td of tds) {
+            if ((td as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
+              (td as HTMLElement).click();
+              return true;
             }
           }
         }
