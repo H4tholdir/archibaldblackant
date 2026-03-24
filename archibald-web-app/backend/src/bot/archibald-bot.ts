@@ -5706,11 +5706,11 @@ export class ArchibaldBot {
               }
             }
 
-            // 5.7b: Periodic form save every 10 articles to flush DevExpress DOM bloat.
-            // After 10+ articles, accumulated dropdowns/popups/editors cause
-            // Runtime.callFunctionOn timeouts (>5min protocolTimeout).
-            // "Salvare" triggers a form-level callback that re-renders the grid cleanly.
-            const PERIODIC_SAVE_EVERY = 10;
+            // 5.7b: Periodic save disabled (threshold=50).
+            // "Salvare" mid-insertion causes XAF ObjectSpace rollback + page crash.
+            // cleanupStaleDropdowns() + HeapProfiler.collectGarbage is sufficient.
+            // See bot-xaf-dom-behavior.md — MAI usare "Salvare" mid-inserimento.
+            const PERIODIC_SAVE_EVERY = 50;
             const articleNum = i + 1; // 1-based
             if (
               articleNum % PERIODIC_SAVE_EVERY === 0 &&
