@@ -16,9 +16,10 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
-import { archibaldLineAmount, calculateShippingCosts } from "../utils/order-calculations";
+import { archibaldLineAmount, calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
+import { parseOrderNotesForEdit } from "../utils/parse-order-notes";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
@@ -662,6 +663,7 @@ function TabArticoli({
   onEditProgress,
   customerName,
   initialNotes,
+  initialNoShipping,
   initialDiscountPercent,
 }: {
   orderId: string;
@@ -678,6 +680,7 @@ function TabArticoli({
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
   customerName?: string;
   initialNotes?: string;
+  initialNoShipping?: boolean;
   initialDiscountPercent?: number;
 }) {
   type VerificationMismatch = {
@@ -717,6 +720,7 @@ function TabArticoli({
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingArticles, setSyncingArticles] = useState(false);
   const [editNotes, setEditNotes] = useState('');
+  const [editNoShipping, setEditNoShipping] = useState(false);
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
   const [imponibileTarget, setImponibileTarget] = useState('');
@@ -729,12 +733,12 @@ function TabArticoli({
   const [markupArticleSelection, setMarkupArticleSelection] = useState<Set<number>>(new Set());
   const editTotals = useMemo(() => {
     const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
-    const shipping = calculateShippingCosts(itemsSubtotal);
+    const shipping = editNoShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(itemsSubtotal);
     const vatFromItems = editItems.reduce((s, i) => s + i.vatAmount, 0);
     const finalVAT = Math.round((vatFromItems + shipping.tax) * 100) / 100;
     const finalTotal = Math.round((itemsSubtotal + shipping.cost + finalVAT) * 100) / 100;
     return { itemsSubtotal, shippingCost: shipping.cost, shippingTax: shipping.tax, finalVAT, finalTotal };
-  }, [editItems]);
+  }, [editItems, editNoShipping]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -888,13 +892,20 @@ function TabArticoli({
   useEffect(() => {
     if (editing) {
       setEditNotes(initialNotes ?? '');
+      setEditNoShipping(initialNoShipping ?? false);
       setGlobalEditDiscount(
         initialDiscountPercent && initialDiscountPercent > 0
           ? String(initialDiscountPercent)
           : '',
       );
     }
-  }, [editing, initialNotes, initialDiscountPercent]);
+  }, [editing, initialNotes, initialNoShipping, initialDiscountPercent]);
+
+  useEffect(() => {
+    if (editNoShipping && editTotals.itemsSubtotal >= SHIPPING_THRESHOLD) {
+      setEditNoShipping(false);
+    }
+  }, [editNoShipping, editTotals.itemsSubtotal]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -1265,6 +1276,7 @@ function TabArticoli({
         modifications,
         updatedItems: editItems,
         notes: editNotes,
+        noShipping: editNoShipping || undefined,
       });
 
       if (!result.success) {
@@ -5243,7 +5255,8 @@ export function OrderCardNew({
                   editProgress={editProgress}
                   onEditProgress={setEditProgress}
                   customerName={order.customerName}
-                  initialNotes={order.notes ?? undefined}
+                  initialNotes={parseOrderNotesForEdit(order.notes ?? undefined).notes}
+                  initialNoShipping={parseOrderNotesForEdit(order.notes ?? undefined).noShipping}
                   initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
                 />
               </>
