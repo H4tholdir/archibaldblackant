@@ -248,7 +248,7 @@ describe('post-edit verification', () => {
       ],
     }, testUserId, () => {}, mockInlineSyncDeps);
 
-    expect(result.verificationStatus).toBeDefined();
+    expect(result.verificationStatus).toBe('verified');
   });
 });
 

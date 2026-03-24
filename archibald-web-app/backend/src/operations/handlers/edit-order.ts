@@ -5,8 +5,6 @@ import type { InlineSyncDeps } from '../../verification/inline-order-sync';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
 import type { SnapshotArticle, VerificationResult } from '../../verification/verify-order-articles';
 import { verifyOrderArticles } from '../../verification/verify-order-articles';
-import type { VerificationStatus } from '../../db/repositories/order-verification';
-import { updateVerificationStatus } from '../../db/repositories/order-verification';
 import { logger } from '../../logger';
 
 type EditOrderArticle = {
@@ -166,11 +164,12 @@ async function handleEditOrder(
   if (data.updatedItems && data.updatedItems.length > 0 && inlineSyncDeps) {
     try {
       onProgress(85, 'Verifica modifica su Archibald...');
+      const verifyOnProgress = (p: number, l?: string) => onProgress(Math.max(85, p), l);
       const syncedArticles = await performInlineOrderSync(
         inlineSyncDeps,
         data.orderId,
         userId,
-        onProgress,
+        verifyOnProgress,
       );
 
       if (syncedArticles) {
@@ -185,17 +184,20 @@ async function handleEditOrder(
         const verificationResult: VerificationResult = verifyOrderArticles(expectedItems, syncedArticles);
         verificationStatus = verificationResult.status;
 
-        await updateVerificationStatus(
-          pool,
-          data.orderId,
-          userId,
-          verificationResult.status as VerificationStatus,
-          verificationResult.mismatches.length > 0 ? JSON.stringify(verificationResult.mismatches) : null,
+        const verificationNotes = verificationResult.mismatches.length > 0 ? JSON.stringify(verificationResult.mismatches) : null;
+        await pool.query(
+          `INSERT INTO agents.order_verification_snapshots (order_id, user_id, expected_gross_amount, expected_total_amount, verification_status, verified_at, verification_notes)
+           VALUES ($1, $2, 0, 0, $3, NOW(), $4)
+           ON CONFLICT (order_id, user_id) DO UPDATE SET
+             verification_status = EXCLUDED.verification_status,
+             verified_at = NOW(),
+             verification_notes = EXCLUDED.verification_notes`,
+          [data.orderId, userId, verificationResult.status, verificationNotes],
         );
 
         if (broadcast) {
           broadcast(userId, {
-            type: 'VERIFICATION_RESULT',
+            event: 'VERIFICATION_RESULT',
             orderId: data.orderId,
             status: verificationResult.status,
             mismatches: verificationResult.mismatches,
