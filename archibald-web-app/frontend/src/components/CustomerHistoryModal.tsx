@@ -674,23 +674,7 @@ export function CustomerHistoryModal({
         <WarehouseOrderCopyDialog
           articles={pendingCopyDialog.matchedArticles}
           onConfirm={handleCopyDialogConfirm}
-          onCancel={() => {
-            const { order, builtItems, originalCodes } = pendingCopyDialog;
-            onAddOrder(builtItems, false);
-            setAddedCount(c => c + builtItems.length);
-            for (const originalCode of originalCodes) {
-              setArticleBadges(prev => {
-                const m = new Map(prev);
-                m.set(originalCode, (m.get(originalCode) ?? 0) + 1);
-                return m;
-              });
-            }
-            setCopiedOrderIds(prev => new Set([...prev, order.orderId]));
-            setTimeout(() => {
-              setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
-            }, 1300);
-            setPendingCopyDialog(null);
-          }}
+          onCancel={() => setPendingCopyDialog(null)}
         />
       )}
     </>
