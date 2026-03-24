@@ -88,7 +88,6 @@ export function PendingOrdersPage() {
     errorMessage: vatValidationError,
     reset: resetVatValidation,
   } = useVatValidation();
-  void validateVat;
   void vatValidationError;
   void CustomerCreateModal;
 
@@ -1231,26 +1230,72 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
-                    {(() => {
-                      const richCustomer = customersMap.get(order.customerId);
-                      if (!richCustomer) return null;
+                    {customersMap.get(order.customerId) && (() => {
+                      const richCustomer = customersMap.get(order.customerId)!;
                       const completeness = checkCustomerCompleteness(richCustomer);
                       if (completeness.ok) return null;
+                      const onlyVatMissing =
+                        completeness.missing.length === 1 &&
+                        completeness.missing[0] === 'P.IVA non validata';
+                      const canValidateVat = onlyVatMissing && !!richCustomer.vatNumber;
+                      const isValidatingThis = validatingCustomerProfile === order.customerId;
                       return (
-                        <span
+                        <div
                           style={{
                             background: '#fff3cd',
                             color: '#856404',
                             border: '1px solid #ffc107',
                             borderRadius: '4px',
-                            padding: '2px 6px',
+                            padding: '4px 8px',
                             fontSize: '12px',
-                            display: 'inline-block',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
                             marginBottom: '0.25rem',
+                            flexWrap: 'wrap',
                           }}
                         >
-                          ⚠ Cliente incompleto
-                        </span>
+                          <span>⚠ {completeness.missing.join(', ')}</span>
+                          {canValidateVat ? (
+                            <button
+                              onClick={() => {
+                                if (validatingCustomerProfile !== null) return;
+                                setValidatingCustomerProfile(order.customerId);
+                                validateVat(richCustomer.customerProfile, richCustomer.vatNumber!);
+                              }}
+                              disabled={validatingCustomerProfile !== null}
+                              style={{
+                                marginLeft: '4px',
+                                background: 'none',
+                                border: '1px solid #856404',
+                                color: '#856404',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                cursor: validatingCustomerProfile !== null ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                                opacity: validatingCustomerProfile !== null ? 0.6 : 1,
+                              }}
+                            >
+                              {isValidatingThis ? 'Validazione in corso…' : 'Valida ora →'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setEditCustomerForCompleteness(richCustomer)}
+                              style={{
+                                marginLeft: '4px',
+                                background: 'none',
+                                border: '1px solid #856404',
+                                color: '#856404',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              Completa scheda →
+                            </button>
+                          )}
+                        </div>
                       );
                     })()}
                     {order.subClientCodice && (
