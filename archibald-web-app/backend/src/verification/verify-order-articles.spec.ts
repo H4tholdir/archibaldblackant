@@ -103,25 +103,15 @@ describe('verifyOrderArticles', () => {
     });
   });
 
-  test('5 - different unit price returns price_diff mismatch', () => {
+  test('5 - different unit price alone does NOT trigger mismatch (bot never sets prices)', () => {
+    // Archibald auto-fills unit price from its price list; shared.prices can be stale.
+    // A pure price diff with matching amounts should be ignored.
     const snapshot = [makeSnapshotArticle({ unitPrice: 5.0, expectedLineAmount: 50.0 })];
     const synced = [makeSyncedArticle({ unitPrice: 6.0, lineAmount: 50.0 })];
 
     const result = verifyOrderArticles(snapshot, synced);
 
-    expect(result).toEqual({
-      status: 'mismatch_detected',
-      mismatches: [
-        {
-          type: 'price_diff',
-          snapshotArticleCode: 'ART-001',
-          syncedArticleCode: 'ART-001',
-          field: 'unitPrice',
-          expected: 5.0,
-          found: 6.0,
-        },
-      ],
-    });
+    expect(result).toEqual({ status: 'verified', mismatches: [] });
   });
 
   test('6 - different line discount returns discount_diff mismatch', () => {
@@ -145,9 +135,10 @@ describe('verifyOrderArticles', () => {
     });
   });
 
-  test('7 - different line amount returns amount_diff mismatch', () => {
+  test('7 - amount difference exceeding 10% threshold returns amount_diff mismatch', () => {
+    // tolerance = max(0.05, 50.0 * 0.10) = 5.0; diff = 10.0 > 5.0 → mismatch
     const snapshot = [makeSnapshotArticle({ expectedLineAmount: 50.0 })];
-    const synced = [makeSyncedArticle({ lineAmount: 48.0 })];
+    const synced = [makeSyncedArticle({ lineAmount: 40.0 })];
 
     const result = verifyOrderArticles(snapshot, synced);
 
@@ -160,15 +151,16 @@ describe('verifyOrderArticles', () => {
           syncedArticleCode: 'ART-001',
           field: 'lineAmount',
           expected: 50.0,
-          found: 48.0,
+          found: 40.0,
         },
       ],
     });
   });
 
-  test('8 - amount difference within tolerance (<=0.02) is verified', () => {
+  test('8 - amount difference within 10% tolerance is verified', () => {
+    // tolerance = max(0.05, 50.0 * 0.10) = 5.0; diff = 3.0 < 5.0 → verified
     const snapshot = [makeSnapshotArticle({ expectedLineAmount: 50.0 })];
-    const synced = [makeSyncedArticle({ lineAmount: 50.02 })];
+    const synced = [makeSyncedArticle({ lineAmount: 47.0 })];
 
     const result = verifyOrderArticles(snapshot, synced);
 
@@ -178,9 +170,10 @@ describe('verifyOrderArticles', () => {
     });
   });
 
-  test('9 - amount difference exceeding tolerance (>0.02) is mismatch', () => {
-    const snapshot = [makeSnapshotArticle({ expectedLineAmount: 50.0 })];
-    const synced = [makeSyncedArticle({ lineAmount: 50.03 })];
+  test('9 - minimum floor tolerance (0.05€) applies for very small amounts', () => {
+    // tolerance = max(0.05, 0.10 * 0.10) = max(0.05, 0.01) = 0.05; diff = 0.08 > 0.05 → mismatch
+    const snapshot = [makeSnapshotArticle({ expectedLineAmount: 0.10 })];
+    const synced = [makeSyncedArticle({ lineAmount: 0.02 })];
 
     const result = verifyOrderArticles(snapshot, synced);
 
@@ -192,8 +185,8 @@ describe('verifyOrderArticles', () => {
           snapshotArticleCode: 'ART-001',
           syncedArticleCode: 'ART-001',
           field: 'lineAmount',
-          expected: 50.0,
-          found: 50.03,
+          expected: 0.10,
+          found: 0.02,
         },
       ],
     });
@@ -289,14 +282,7 @@ describe('verifyOrderArticles', () => {
           expected: 10,
           found: 8,
         },
-        {
-          type: 'price_diff',
-          snapshotArticleCode: 'B',
-          syncedArticleCode: 'B',
-          field: 'unitPrice',
-          expected: 20.0,
-          found: 25.0,
-        },
+        // Article B: unitPrice differs (20→25) but amounts match (60.0) → no mismatch (price not compared)
         {
           type: 'missing',
           snapshotArticleCode: 'C',
@@ -307,17 +293,19 @@ describe('verifyOrderArticles', () => {
         },
       ]),
     );
-    expect(result.mismatches).toHaveLength(3);
+    expect(result.mismatches).toHaveLength(2);
   });
 
-  test('custom tolerance overrides default', () => {
+  test('custom amountTolerancePct overrides default', () => {
+    // Default 10% on 50.0 = 5.0 tolerance; diff = 20.0 (50→30) > 5.0 → mismatch by default
     const snapshot = [makeSnapshotArticle({ expectedLineAmount: 50.0 })];
-    const synced = [makeSyncedArticle({ lineAmount: 50.10 })];
+    const synced = [makeSyncedArticle({ lineAmount: 30.0 })];
 
     const resultDefault = verifyOrderArticles(snapshot, synced);
     expect(resultDefault.status).toBe('mismatch_detected');
 
-    const resultCustom = verifyOrderArticles(snapshot, synced, { amountTolerance: 0.15 });
+    // Custom 50% tolerance: 50.0 * 0.50 = 25.0; diff = 20.0 < 25.0 → verified
+    const resultCustom = verifyOrderArticles(snapshot, synced, { amountTolerancePct: 0.50 });
     expect(resultCustom).toEqual({
       status: 'verified',
       mismatches: [],
