@@ -6,8 +6,9 @@ export type WarehousePickupArticle = {
   id: number;
   articleCode: string;
   articleDescription: string | null;
-  warehouseQuantity: number;
-  warehouseSources: Array<{ boxName: string; quantity: number }>;
+  quantity: number;
+  boxName: string;
+  status: 'venduto' | 'riservato';
 };
 
 export type WarehousePickupOrder = {

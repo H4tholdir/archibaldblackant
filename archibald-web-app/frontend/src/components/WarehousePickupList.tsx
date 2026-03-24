@@ -50,7 +50,7 @@ export function WarehousePickupList() {
 
   const totalArticles = orders.reduce((sum, o) => sum + o.articles.length, 0);
   const totalPieces = orders.reduce(
-    (sum, o) => sum + o.articles.reduce((s, a) => s + a.warehouseQuantity, 0),
+    (sum, o) => sum + o.articles.reduce((s, a) => s + a.quantity, 0),
     0,
   );
 
@@ -245,13 +245,14 @@ export function WarehousePickupList() {
                 <th style={{ textAlign: "left", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Codice</th>
                 <th style={{ textAlign: "left", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Descrizione</th>
                 <th style={{ textAlign: "left", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Scatolo</th>
-                <th style={{ textAlign: "center", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Pezzi</th>
+                <th style={{ textAlign: "center", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Stato</th>
+                <th style={{ textAlign: "center", padding: "8px 12px", color: "#666", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Pz</th>
               </tr>
             </thead>
             <tbody>
               {order.articles.map((article) => {
                 const isChecked = checkedIds.has(article.id);
-                const boxName = article.warehouseSources[0]?.boxName ?? "—";
+                const isSold = article.status === "venduto";
                 return (
                   <tr
                     key={article.id}
@@ -296,7 +297,21 @@ export function WarehousePickupList() {
                           fontWeight: 600,
                         }}
                       >
-                        {boxName}
+                        {article.boxName}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <span
+                        style={{
+                          background: isSold ? "#e8f5e9" : "#fff8e1",
+                          color: isSold ? "#2e7d32" : "#f57f17",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {isSold ? "Venduto" : "Riservato"}
                       </span>
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>
@@ -313,7 +328,7 @@ export function WarehousePickupList() {
                           textAlign: "center",
                         }}
                       >
-                        {article.warehouseQuantity}
+                        {article.quantity}
                       </span>
                     </td>
                   </tr>

@@ -1294,8 +1294,9 @@ type WarehousePickupArticle = {
   id: number;
   articleCode: string;
   articleDescription: string | null;
-  warehouseQuantity: number;
-  warehouseSources: Array<{ boxName: string; quantity: number }>;
+  quantity: number;
+  boxName: string;
+  status: 'venduto' | 'riservato';
 };
 
 type WarehousePickupOrder = {
@@ -1311,11 +1312,12 @@ type WarehousePickupRow = {
   order_number: string;
   customer_name: string;
   creation_date: string;
-  article_id: number;
+  item_id: number;
   article_code: string;
   article_description: string | null;
-  warehouse_quantity: number;
-  warehouse_sources_json: string | null;
+  quantity: number;
+  box_name: string;
+  status: 'venduto' | 'riservato';
 };
 
 async function getWarehousePickupsByDate(
@@ -1329,18 +1331,20 @@ async function getWarehousePickupsByDate(
        o.order_number,
        o.customer_name,
        o.creation_date,
-       a.id AS article_id,
-       a.article_code,
-       a.article_description,
-       a.warehouse_quantity,
-       a.warehouse_sources_json
-     FROM agents.order_records o
-     JOIN agents.order_articles a
-       ON a.order_id = o.id AND a.user_id = o.user_id
-     WHERE o.user_id = $1
+       wi.id AS item_id,
+       wi.article_code,
+       wi.description AS article_description,
+       wi.quantity,
+       wi.box_name,
+       CASE WHEN wi.sold_in_order IS NOT NULL THEN 'venduto' ELSE 'riservato' END AS status
+     FROM agents.warehouse_items wi
+     JOIN agents.order_records o
+       ON o.id = COALESCE(wi.sold_in_order, wi.reserved_for_order)
+       AND o.user_id = wi.user_id
+     WHERE wi.user_id = $1
+       AND (wi.sold_in_order IS NOT NULL OR wi.reserved_for_order IS NOT NULL)
        AND DATE(o.creation_date) = $2::date
-       AND a.warehouse_quantity > 0
-     ORDER BY o.creation_date ASC, o.order_number ASC, a.id ASC`,
+     ORDER BY o.creation_date ASC, o.order_number ASC, wi.id ASC`,
     [userId, date],
   );
 
@@ -1357,21 +1361,13 @@ async function getWarehousePickupsByDate(
       };
       ordersMap.set(row.order_id, order);
     }
-    let sources: Array<{ boxName: string; quantity: number }> = [];
-    if (row.warehouse_sources_json) {
-      try {
-        const parsed = JSON.parse(row.warehouse_sources_json);
-        sources = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        sources = [];
-      }
-    }
     order.articles.push({
-      id: row.article_id,
+      id: row.item_id,
       articleCode: row.article_code,
       articleDescription: row.article_description,
-      warehouseQuantity: row.warehouse_quantity,
-      warehouseSources: sources,
+      quantity: row.quantity,
+      boxName: row.box_name,
+      status: row.status,
     });
   }
 

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, it, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../pool';
 import type { OrderInput, OrderArticleInput } from './orders';
 
@@ -827,9 +827,9 @@ describe('getWarehousePickupsByDate', () => {
   const userId = 'user-1';
   const date = '2026-03-09';
 
-  test('returns orders with warehouse articles for the given date', async () => {
-    const pool = createMockPool(async (text, params) => {
-      if (String(text).includes('warehouse_quantity')) {
+  test('returns sold warehouse items grouped by order for the given date', async () => {
+    const pool = createMockPool(async (text) => {
+      if (String(text).includes('warehouse_items')) {
         return {
           rows: [
             {
@@ -837,11 +837,12 @@ describe('getWarehousePickupsByDate', () => {
               order_number: 'ORD/2026/00142',
               customer_name: 'Rossi Mario',
               creation_date: '2026-03-09T08:45:00Z',
-              article_id: 10,
+              item_id: 10,
               article_code: 'H379.104.014',
               article_description: 'Rubinetto 3/4"',
-              warehouse_quantity: 3,
-              warehouse_sources_json: '[{"boxName":"BOX-A1","quantity":3}]',
+              quantity: 3,
+              box_name: 'BOX-A1',
+              status: 'venduto',
             },
           ],
           rowCount: 1,
@@ -864,37 +865,72 @@ describe('getWarehousePickupsByDate', () => {
             id: 10,
             articleCode: 'H379.104.014',
             articleDescription: 'Rubinetto 3/4"',
-            warehouseQuantity: 3,
-            warehouseSources: [{ boxName: 'BOX-A1', quantity: 3 }],
+            quantity: 3,
+            boxName: 'BOX-A1',
+            status: 'venduto',
           },
         ],
       },
     ]);
   });
 
-  test('returns empty array when no warehouse articles for the date', async () => {
+  test('returns empty array when no warehouse items for the date', async () => {
     const pool = createMockPool(async () => ({ rows: [], rowCount: 0 } as any));
     const { getWarehousePickupsByDate } = await import('./orders');
     const result = await getWarehousePickupsByDate(pool, userId, date);
     expect(result).toEqual([]);
   });
 
-  test('groups multiple articles under the same order', async () => {
+  test('returns riservato status for items with only reserved_for_order set', async () => {
     const pool = createMockPool(async (text) => {
-      if (String(text).includes('warehouse_quantity')) {
+      if (String(text).includes('warehouse_items')) {
+        return {
+          rows: [
+            {
+              order_id: 'ord-2', order_number: 'ORD/2026/00200',
+              customer_name: 'Bianchi', creation_date: '2026-03-09T10:00:00Z',
+              item_id: 20, article_code: 'ART-R', article_description: 'Articolo riservato',
+              quantity: 1, box_name: 'BOX-B1', status: 'riservato',
+            },
+          ],
+          rowCount: 1,
+        } as any;
+      }
+      return { rows: [], rowCount: 0 } as any;
+    });
+
+    const { getWarehousePickupsByDate } = await import('./orders');
+    const result = await getWarehousePickupsByDate(pool, userId, date);
+
+    expect(result).toEqual([
+      {
+        orderId: 'ord-2',
+        orderNumber: 'ORD/2026/00200',
+        customerName: 'Bianchi',
+        creationDate: '2026-03-09T10:00:00Z',
+        articles: [
+          { id: 20, articleCode: 'ART-R', articleDescription: 'Articolo riservato', quantity: 1, boxName: 'BOX-B1', status: 'riservato' },
+        ],
+      },
+    ]);
+  });
+
+  test('groups multiple items under the same order', async () => {
+    const pool = createMockPool(async (text) => {
+      if (String(text).includes('warehouse_items')) {
         return {
           rows: [
             {
               order_id: 'ord-1', order_number: 'ORD/2026/00142',
               customer_name: 'Rossi', creation_date: '2026-03-09T08:45:00Z',
-              article_id: 10, article_code: 'ART-A', article_description: 'Desc A',
-              warehouse_quantity: 2, warehouse_sources_json: null,
+              item_id: 10, article_code: 'ART-A', article_description: 'Desc A',
+              quantity: 2, box_name: 'BOX-A1', status: 'venduto',
             },
             {
               order_id: 'ord-1', order_number: 'ORD/2026/00142',
               customer_name: 'Rossi', creation_date: '2026-03-09T08:45:00Z',
-              article_id: 11, article_code: 'ART-B', article_description: 'Desc B',
-              warehouse_quantity: 5, warehouse_sources_json: null,
+              item_id: 11, article_code: 'ART-B', article_description: 'Desc B',
+              quantity: 5, box_name: 'BOX-A2', status: 'riservato',
             },
           ],
           rowCount: 2,
@@ -913,8 +949,8 @@ describe('getWarehousePickupsByDate', () => {
         customerName: 'Rossi',
         creationDate: '2026-03-09T08:45:00Z',
         articles: [
-          { id: 10, articleCode: 'ART-A', articleDescription: 'Desc A', warehouseQuantity: 2, warehouseSources: [] },
-          { id: 11, articleCode: 'ART-B', articleDescription: 'Desc B', warehouseQuantity: 5, warehouseSources: [] },
+          { id: 10, articleCode: 'ART-A', articleDescription: 'Desc A', quantity: 2, boxName: 'BOX-A1', status: 'venduto' },
+          { id: 11, articleCode: 'ART-B', articleDescription: 'Desc B', quantity: 5, boxName: 'BOX-A2', status: 'riservato' },
         ],
       },
     ]);

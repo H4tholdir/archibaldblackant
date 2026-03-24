@@ -16,7 +16,18 @@ type Props = {
 export function WarehouseHistoryDialog({
   articleCode, requestedQuantity, matches, onConfirm, onSkip, onCancel,
 }: Props) {
-  const [selections, setSelections] = useState<Map<number, number>>(() => new Map());
+  const [selections, setSelections] = useState<Map<number, number>>(() => {
+    const initial = new Map<number, number>();
+    let remaining = requestedQuantity;
+    for (const match of matches) {
+      if (isAutoSelected(match.level) && remaining > 0) {
+        const use = Math.min(match.availableQty, remaining);
+        initial.set(match.item.id, use);
+        remaining -= use;
+      }
+    }
+    return initial;
+  });
 
   const handleSelectAll = () => {
     const next = new Map<number, number>();
