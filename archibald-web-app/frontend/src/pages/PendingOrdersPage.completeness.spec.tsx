@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { getCustomers } from '../api/customers';
 
+vi.mock('../hooks/useVatValidation', () => ({
+  useVatValidation: () => ({
+    validate: vi.fn().mockResolvedValue(undefined),
+    status: 'idle' as const,
+    errorMessage: null,
+    reset: vi.fn(),
+  }),
+}));
+
 vi.mock('../hooks/usePendingSync', () => ({
   usePendingSync: () => ({
     pendingOrders: [

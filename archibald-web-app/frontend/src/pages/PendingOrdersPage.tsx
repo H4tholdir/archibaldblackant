@@ -262,16 +262,15 @@ export function PendingOrdersPage() {
       );
       const jobIds = results.map((r) => r.jobId);
 
-      const selectedOrders2 = orders.filter((o) => selectedOrderIds.has(o.id!));
       trackJobs(
-        selectedOrders2.map((order, i) => ({
+        filteredOrders.map((order, i) => ({
           orderId: order.id!,
           jobId: jobIds[i],
         })),
       );
 
-      for (let idx = 0; idx < selectedOrders2.length; idx++) {
-        const order = selectedOrders2[idx];
+      for (let idx = 0; idx < filteredOrders.length; idx++) {
+        const order = filteredOrders[idx];
         const jobId = jobIds[idx];
         if (jobId) {
           trackOperation(order.id!, jobId, order.customerName);
