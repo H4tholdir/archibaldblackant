@@ -196,8 +196,20 @@ export function PendingOrdersPage() {
 
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
+      const incompleteOrders = selectedOrders.filter((o) => {
+        const c = customersMap.get(o.customerId);
+        if (!c) return false;
+        const isGhostOnly = o.items.every((i) => i.isGhostArticle);
+        return !checkCustomerCompleteness(c).ok && !isGhostOnly;
+      });
+      if (incompleteOrders.length > 0) {
+        console.warn('[PendingOrdersPage] Filtered out incomplete customers before submit:', incompleteOrders.map((o) => o.customerId));
+      }
+      const filteredOrders = selectedOrders.filter((o) => !incompleteOrders.includes(o));
+      if (filteredOrders.length === 0) return;
+
       // Pre-load Fresis discounts if any selected order is a Fresis sub-client order
-      const hasFresisSubclient = selectedOrders.some(
+      const hasFresisSubclient = filteredOrders.some(
         (o) => isFresis({ id: o.customerId }) && o.subClientCodice,
       );
       let fresisDiscountMap: Map<string, number> | null = null;
@@ -211,7 +223,7 @@ export function PendingOrdersPage() {
       }
 
       const results = await Promise.all(
-        selectedOrders.map(async (order) => {
+        filteredOrders.map(async (order) => {
           const isFresisSubclient =
             isFresis({ id: order.customerId }) && !!order.subClientCodice;
 
@@ -1171,35 +1183,45 @@ export function PendingOrdersPage() {
                     gap: isMobile ? "0.75rem" : "1rem",
                   }}
                 >
-                  {isWarehouseOrder ? (
-                    <div
-                      style={{
-                        width: isMobile ? "1.375rem" : "1.25rem",
-                        height: isMobile ? "1.375rem" : "1.25rem",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1rem",
-                      }}
-                      title="Ordine magazzino: conferma manuale richiesta"
-                    >
-                      🏪
-                    </div>
-                  ) : (
-                    <input autoComplete="off"
-                      type="checkbox"
-                      checked={selectedOrderIds.has(order.id!)}
-                      onChange={() => handleSelectOrder(order.id!)}
-                      style={{
-                        width: isMobile ? "1.375rem" : "1.25rem",
-                        height: isMobile ? "1.375rem" : "1.25rem",
-                        cursor: "pointer",
-                        marginTop: "0.125rem",
-                        minWidth: "22px",
-                        minHeight: "22px",
-                      }}
-                    />
-                  )}
+                  {(() => {
+                    const richCustomer = customersMap.get(order.customerId);
+                    const isGhostOnly = order.items.length > 0 && order.items.every((i) => i.isGhostArticle);
+                    const checkboxDisabled =
+                      !!richCustomer && !checkCustomerCompleteness(richCustomer).ok && !isGhostOnly;
+
+                    return isWarehouseOrder ? (
+                      <div
+                        style={{
+                          width: isMobile ? "1.375rem" : "1.25rem",
+                          height: isMobile ? "1.375rem" : "1.25rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "1rem",
+                        }}
+                        title="Ordine magazzino: conferma manuale richiesta"
+                      >
+                        🏪
+                      </div>
+                    ) : (
+                      <input
+                        autoComplete="off"
+                        type="checkbox"
+                        checked={selectedOrderIds.has(order.id!)}
+                        disabled={checkboxDisabled}
+                        onChange={() => !checkboxDisabled && handleSelectOrder(order.id!)}
+                        style={{
+                          width: isMobile ? "1.375rem" : "1.25rem",
+                          height: isMobile ? "1.375rem" : "1.25rem",
+                          cursor: checkboxDisabled ? "not-allowed" : "pointer",
+                          opacity: checkboxDisabled ? 0.45 : 1,
+                          marginTop: "0.125rem",
+                          minWidth: "22px",
+                          minHeight: "22px",
+                        }}
+                      />
+                    );
+                  })()}
                   <div style={{ flex: 1 }}>
                     <div
                       style={{
