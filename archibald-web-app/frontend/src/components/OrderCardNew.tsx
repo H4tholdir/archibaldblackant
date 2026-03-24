@@ -576,6 +576,7 @@ interface EditItem {
   lineAmount: number;
   lineTotalWithVat: number;
   articleDescription: string;
+  _origIdx?: number;
 }
 
 interface EditModification {
@@ -596,13 +597,25 @@ function computeModifications(
   editItems: EditItem[],
 ): EditModification[] {
   const mods: EditModification[] = [];
+  const coveredOriginalIndices = new Set<number>();
 
-  const maxOriginal = originalItems.length;
+  for (const edit of editItems) {
+    const origIdx = edit._origIdx;
 
-  for (let i = 0; i < editItems.length; i++) {
-    if (i < maxOriginal) {
-      const orig = originalItems[i];
-      const edit = editItems[i];
+    if (origIdx === undefined) {
+      if (edit.articleCode) {
+        mods.push({
+          type: "add",
+          articleCode: edit.articleCode,
+          productName: edit.productName || edit.articleDescription || undefined,
+          quantity: edit.quantity,
+          discount: edit.discountPercent,
+        });
+      }
+    } else {
+      const orig = originalItems[origIdx];
+      coveredOriginalIndices.add(origIdx);
+
       if (
         orig.articleCode !== edit.articleCode ||
         orig.quantity !== edit.quantity ||
@@ -610,7 +623,7 @@ function computeModifications(
       ) {
         mods.push({
           type: "update",
-          rowIndex: i,
+          rowIndex: origIdx,
           articleCode: edit.articleCode,
           productName: edit.productName || edit.articleDescription || undefined,
           articleChanged: orig.articleCode !== edit.articleCode,
@@ -621,24 +634,18 @@ function computeModifications(
           oldDiscount: orig.discountPercent,
         });
       }
-    } else {
-      mods.push({
-        type: "add",
-        articleCode: editItems[i].articleCode,
-        productName: editItems[i].productName || editItems[i].articleDescription || undefined,
-        quantity: editItems[i].quantity,
-        discount: editItems[i].discountPercent,
-      });
     }
   }
 
-  for (let i = editItems.length; i < maxOriginal; i++) {
-    mods.push({
-      type: "delete",
-      rowIndex: i,
-      articleCode: originalItems[i].articleCode,
-      oldQuantity: originalItems[i].quantity,
-    });
+  for (let i = 0; i < originalItems.length; i++) {
+    if (!coveredOriginalIndices.has(i)) {
+      mods.push({
+        type: "delete",
+        rowIndex: i,
+        articleCode: originalItems[i].articleCode,
+        oldQuantity: originalItems[i].quantity,
+      });
+    }
   }
 
   return mods;
@@ -879,7 +886,7 @@ function TabArticoli({
       if (cancelled) return;
 
       // 3. Initialize edit items from fresh articles
-      const mapped: EditItem[] = freshArticles.map((item: OrderArticle) => ({
+      const mapped: EditItem[] = freshArticles.map((item: OrderArticle, i: number) => ({
         articleCode: item.productName || item.articleCode || "",
         productName: item.productName || "",
         quantity: item.quantity || 0,
@@ -890,6 +897,7 @@ function TabArticoli({
         lineAmount: item.lineAmount ?? 0,
         lineTotalWithVat: item.lineTotalWithVat ?? 0,
         articleDescription: item.articleDescription ?? "",
+        _origIdx: i,
       }));
       setEditItems(mapped);
       setOriginalItems(mapped.map((m) => ({ ...m })));
@@ -1052,6 +1060,8 @@ function TabArticoli({
       }
 
       const newItems = [...editItems];
+      const replacedOrigIdx = editItems[idx]?._origIdx;
+      breakdownItems[0] = { ...breakdownItems[0], _origIdx: replacedOrigIdx };
       newItems.splice(idx, 1, ...breakdownItems);
       setEditItems(newItems);
       setEditingArticleIdx(null);
@@ -1184,6 +1194,8 @@ function TabArticoli({
               }
               setEditItems((prev) => {
                 const updated = [...prev];
+                const replacedOrigIdx = updated[idx]?._origIdx;
+                breakdownItems[0] = { ...breakdownItems[0], _origIdx: replacedOrigIdx };
                 updated.splice(idx, 1, ...breakdownItems);
                 return updated;
               });
