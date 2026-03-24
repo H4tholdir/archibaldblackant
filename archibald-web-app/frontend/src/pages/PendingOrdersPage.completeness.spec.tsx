@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { getCustomers } from '../api/customers';
+import { checkCustomerCompleteness } from '../utils/customer-completeness';
 
 vi.mock('../hooks/useVatValidation', () => ({
   useVatValidation: () => ({
@@ -165,6 +166,8 @@ const mockCustomer = {
   vatValidatedAt: null,
 };
 
+const mockCustomerWithVat = { ...mockCustomer, vatNumber: '12345678901' };
+
 import { PendingOrdersPage } from './PendingOrdersPage';
 
 describe('PendingOrdersPage — completeness badge', () => {
@@ -173,6 +176,7 @@ describe('PendingOrdersPage — completeness badge', () => {
       success: true,
       data: { customers: [mockCustomer as never], total: 1 },
     });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
   });
 
   test('renders page without error when orders are present', () => {
@@ -194,5 +198,56 @@ describe('PendingOrdersPage — completeness badge', () => {
     await waitFor(() => {
       expect(screen.getByText(/P\.IVA non validata/)).toBeTruthy();
     });
+  });
+
+  test('shows "Valida ora" button when only VAT missing and vatNumber is present', async () => {
+    vi.mocked(getCustomers).mockResolvedValue({
+      success: true,
+      data: { customers: [mockCustomerWithVat as never], total: 1 },
+    });
+
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Valida ora →')).toBeTruthy();
+    });
+  });
+
+  test('shows "Completa scheda" button when non-VAT fields are missing', async () => {
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({
+      ok: false,
+      missing: ['PEC o SDI mancante', 'Indirizzo mancante'],
+    });
+
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Completa scheda →')).toBeTruthy();
+    });
+  });
+
+  test('disables order checkbox when customer is incomplete and order is not ghost-only', async () => {
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      screen.getByText(/P\.IVA non validata/);
+    });
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    // index 0 = "Seleziona Tutti" header checkbox, index 1 = per-order checkbox
+    const orderCheckbox = checkboxes[1] as HTMLInputElement;
+    expect(orderCheckbox.disabled).toBe(true);
   });
 });
