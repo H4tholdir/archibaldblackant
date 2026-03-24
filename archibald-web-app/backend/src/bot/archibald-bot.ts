@@ -21,6 +21,7 @@ import {
   computeVariantHeaderIndices,
   normalizeLookupText,
 } from "../variant-selection";
+import { buildOrderNotesText } from '../utils/order-notes';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -49,12 +50,6 @@ type BotDeps = {
   getUserById?: BotGetUserById;
 };
 
-export function buildOrderNotesText(noShipping?: boolean, notes?: string): string {
-  const parts: string[] = [];
-  if (noShipping) parts.push('NO SPESE DI SPEDIZIONE');
-  if (notes?.trim()) parts.push(notes.trim());
-  return parts.join('\n');
-}
 
 export class ArchibaldBot {
   private browser: Browser | null = null;

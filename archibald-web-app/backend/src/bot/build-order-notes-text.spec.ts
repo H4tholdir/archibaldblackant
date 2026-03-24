@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { buildOrderNotesText } from './archibald-bot';
+import { buildOrderNotesText } from '../utils/order-notes';
 
 describe('buildOrderNotesText', () => {
   test('returns empty string when neither noShipping nor notes', () => {
