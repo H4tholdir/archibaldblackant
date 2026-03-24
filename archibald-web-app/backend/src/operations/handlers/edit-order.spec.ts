@@ -167,6 +167,42 @@ describe('handleEditOrder', () => {
   });
 });
 
+describe('totals refresh', () => {
+  test('updates gross_amount and total_vat_amount and total_with_vat in order_records after article update', async () => {
+    const pool = createMockPool();
+    const mockBot: EditOrderBot = {
+      editOrderInArchibald: async () => ({ success: true, message: 'ok' }),
+      setProgressCallback: () => {},
+    };
+
+    await handleEditOrder(pool, mockBot, {
+      orderId: 'ORD-001',
+      modifications: [],
+      updatedItems: [
+        {
+          articleCode: 'ART001',
+          quantity: 2,
+          unitPrice: 10,
+          discountPercent: 0,
+          lineAmount: 20,
+          vatPercent: 22,
+          vatAmount: 4.4,
+          lineTotalWithVat: 24.4,
+        },
+      ],
+    }, 'user-1', () => {});
+
+    const totalsCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('UPDATE agents.order_records') &&
+        (c[0] as string).includes('gross_amount'),
+      );
+    expect(totalsCalls).toHaveLength(1);
+    expect(totalsCalls[0][1]).toEqual(['ORD-001', 'user-1']);
+  });
+});
+
 describe('noShipping propagation', () => {
   test('passes noShipping=true to bot as 4th argument', async () => {
     const pool = createMockPool();
