@@ -733,7 +733,8 @@ function TabArticoli({
   const [markupArticleSelection, setMarkupArticleSelection] = useState<Set<number>>(new Set());
   const editTotals = useMemo(() => {
     const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
-    const shipping = editNoShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(itemsSubtotal);
+    const effectiveNoShipping = editNoShipping && itemsSubtotal < SHIPPING_THRESHOLD;
+    const shipping = effectiveNoShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(itemsSubtotal);
     const vatFromItems = editItems.reduce((s, i) => s + i.vatAmount, 0);
     const finalVAT = Math.round((vatFromItems + shipping.tax) * 100) / 100;
     const finalTotal = Math.round((itemsSubtotal + shipping.cost + finalVAT) * 100) / 100;
@@ -5244,21 +5245,26 @@ export function OrderCardNew({
             )}
             {activeTab === "articoli" && (
               <>
-                <TabArticoli
-                  orderId={order.id}
-                  archibaldOrderId={order.id}
-                  token={token}
-                  onTotalsUpdate={setArticlesTotals}
-                  searchQuery={searchQuery}
-                  editing={editing}
-                  onEditDone={onEditDone}
-                  editProgress={editProgress}
-                  onEditProgress={setEditProgress}
-                  customerName={order.customerName}
-                  initialNotes={parseOrderNotesForEdit(order.notes ?? undefined).notes}
-                  initialNoShipping={parseOrderNotesForEdit(order.notes ?? undefined).noShipping}
-                  initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
-                />
+                {(() => {
+                  const parsedOrderNotes = parseOrderNotesForEdit(order.notes ?? undefined);
+                  return (
+                    <TabArticoli
+                      orderId={order.id}
+                      archibaldOrderId={order.id}
+                      token={token}
+                      onTotalsUpdate={setArticlesTotals}
+                      searchQuery={searchQuery}
+                      editing={editing}
+                      onEditDone={onEditDone}
+                      editProgress={editProgress}
+                      onEditProgress={setEditProgress}
+                      customerName={order.customerName}
+                      initialNotes={parsedOrderNotes.notes}
+                      initialNoShipping={parsedOrderNotes.noShipping}
+                      initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
+                    />
+                  );
+                })()}
               </>
             )}
             {activeTab === "logistica" && (
