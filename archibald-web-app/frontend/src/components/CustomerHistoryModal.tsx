@@ -849,7 +849,6 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
   const bestLevel = bestMatchLevel(warehouseMatches);
   const colors = WAREHOUSE_LEVEL_COLORS[bestLevel];
   const topMatch = warehouseMatches[0] ?? null;
-  const [hovered, setHovered] = useState(false);
   const listinoUnit = listinoInfo ? listinoInfo.price : null;
   const listinoTot = listinoInfo !== null && listinoUnit !== null
     ? Math.round(article.quantity * listinoUnit * (1 + article.vatPercent / 100) * 100) / 100
@@ -858,12 +857,10 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
     ? Math.round((listinoUnit / article.unitPrice - 1) * 10000) / 100
     : null;
 
-  const rowBg = isFlashing ? undefined : (hovered ? '#eff6ff' : (bestLevel !== 'none' ? colors.backgroundLight : 'white'));
+  const rowBg = isFlashing ? undefined : (bestLevel !== 'none' ? colors.backgroundLight : 'white');
 
   return (
     <tr
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         borderBottom: '1px solid #f1f5f9',
         background: rowBg,
