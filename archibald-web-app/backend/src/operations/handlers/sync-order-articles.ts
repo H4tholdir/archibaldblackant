@@ -160,6 +160,13 @@ async function handleSyncOrderArticles(
       [grossAmount.toString(), totalWithVat.toString(), totalVatAmount.toString(), totalWithVat.toString(), new Date().toISOString(), Math.floor(Date.now() / 1000), articleSearchText, data.orderId, userId],
     );
 
+    await pool.query(
+      `UPDATE agents.order_verification_snapshots
+       SET verification_status = 'verified', verified_at = NOW(), verification_notes = NULL
+       WHERE order_id = $1 AND user_id = $2`,
+      [data.orderId, userId],
+    );
+
     onProgress(100, 'Sincronizzazione articoli completata');
 
     return { articlesCount: enrichedArticles.length, totalVatAmount, totalWithVat };

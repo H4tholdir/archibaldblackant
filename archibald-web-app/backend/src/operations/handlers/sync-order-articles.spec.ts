@@ -263,4 +263,21 @@ describe('handleSyncOrderArticles', () => {
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('clears verification snapshot after successful sync', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps = createMockDeps(pool, bot);
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const clearCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('UPDATE agents.order_verification_snapshots') &&
+        (c[0] as string).includes("verification_status = 'verified'"),
+    );
+    expect(clearCalls).toHaveLength(1);
+    expect(clearCalls[0][1]).toEqual(['ORD-001', 'user-1']);
+  });
 });
