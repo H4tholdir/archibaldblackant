@@ -7284,6 +7284,7 @@ export class ArchibaldBot {
       | { type: "delete"; rowIndex: number }
     >,
     notes?: string,
+    noShipping?: boolean,
   ): Promise<{ success: boolean; message: string }> {
     const normalizedId = archibaldOrderId.replace(/\./g, "");
     logger.info(
@@ -8067,8 +8068,8 @@ export class ArchibaldBot {
         logger.info(`[editOrder] Row ${mod.rowIndex} deleted`);
       }
 
-      if (notes !== undefined) {
-        const notesText = buildOrderNotesText(undefined, notes);
+      if (notes !== undefined || noShipping !== undefined) {
+        const notesText = buildOrderNotesText(noShipping, notes);
         await this.fillOrderNotes(notesText);
       }
 
