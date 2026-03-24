@@ -737,7 +737,7 @@ describe('notes storage with noShipping', () => {
 
     const params = insertCalls[0][1] as unknown[];
     const notesParam = params[25]; // notes is the 26th param (index 25)
-    expect(notesParam).toBe(`NO SPESE DI SPEDIZIONE\n${notesText}`);
+    expect(notesParam).toBe(`NO SPESE DI SPEDIZIONE ${notesText}`);
   });
 
   test('stores only notes when noShipping not set', async () => {

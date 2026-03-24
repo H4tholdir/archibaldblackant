@@ -328,7 +328,7 @@ describe('noShipping propagation', () => {
         (c[0] as string).includes('notes'),
       );
     expect(notesCalls).toHaveLength(1);
-    expect(notesCalls[0][1]).toEqual([`${NO_SHIPPING_MARKER}\nconsegna`, 'ORD-001', 'user-1']);
+    expect(notesCalls[0][1]).toEqual([`${NO_SHIPPING_MARKER} consegna`, 'ORD-001', 'user-1']);
   });
 
   test('stores plain notes in order_records.notes when noShipping not set', async () => {

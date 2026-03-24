@@ -3,7 +3,7 @@ import { buildOrderNotesText, NO_SHIPPING_MARKER } from './order-notes';
 
 describe('buildOrderNotesText', () => {
   test('noShipping=true + notes → marker then notes', () => {
-    expect(buildOrderNotesText(true, 'consegna urgente')).toBe(`${NO_SHIPPING_MARKER}\nconsegna urgente`);
+    expect(buildOrderNotesText(true, 'consegna urgente')).toBe(`${NO_SHIPPING_MARKER} consegna urgente`);
   });
 
   test('noShipping=true + no notes → marker only', () => {

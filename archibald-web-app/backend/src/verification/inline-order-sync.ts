@@ -91,6 +91,9 @@ async function saveArticlesToDb(
     );
   }
 
+  const grossAmount = parseFloat(
+    enrichedArticles.reduce((sum, a) => sum + a.lineAmount, 0).toFixed(2),
+  );
   const totalVatAmount = parseFloat(
     enrichedArticles.reduce((sum, a) => sum + a.vatAmount, 0).toFixed(2),
   );
@@ -103,10 +106,12 @@ async function saveArticlesToDb(
 
   await pool.query(
     `UPDATE agents.order_records
-     SET total_vat_amount = $1, total_with_vat = $2, articles_synced_at = $3,
-         last_sync = $4, article_search_text = $5
-     WHERE id = $6 AND user_id = $7`,
+     SET gross_amount = $1, total_amount = $2, total_vat_amount = $3, total_with_vat = $4,
+         articles_synced_at = $5, last_sync = $6, article_search_text = $7
+     WHERE id = $8 AND user_id = $9`,
     [
+      grossAmount.toString(),
+      totalWithVat.toString(),
       totalVatAmount.toString(),
       totalWithVat.toString(),
       new Date().toISOString(),

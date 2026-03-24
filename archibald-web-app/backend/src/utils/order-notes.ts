@@ -4,5 +4,5 @@ export function buildOrderNotesText(noShipping?: boolean, notes?: string): strin
   const parts: string[] = [];
   if (noShipping) parts.push(NO_SHIPPING_MARKER);
   if (notes?.trim()) parts.push(notes.trim());
-  return parts.join('\n');
+  return parts.join(' ');
 }
