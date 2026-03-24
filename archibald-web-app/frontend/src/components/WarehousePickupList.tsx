@@ -212,7 +212,9 @@ export function WarehousePickupList() {
                 <span
                   style={{ fontSize: "15px", fontWeight: 700, color: "#1565c0" }}
                 >
-                  {order.orderNumber}
+                  {order.orderNumber?.startsWith("warehouse-")
+                    ? "Ordine completato direttamente dal magazzino"
+                    : order.orderNumber}
                 </span>
                 <span style={{ margin: "0 8px", color: "#bbb" }}>·</span>
                 <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
