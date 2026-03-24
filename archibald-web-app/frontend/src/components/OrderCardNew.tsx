@@ -2278,15 +2278,35 @@ function TabArticoli({
           </div>
 
           {/* Spese trasporto */}
-          {editTotals.shippingCost > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#f59e0b' }}>
-              <span>
-                Spese di trasporto K3{' '}
-                <span style={{ fontSize: '11px' }}>({formatCurrency(editTotals.shippingCost)} + IVA)</span>
-              </span>
-              <strong>{formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}</strong>
-            </div>
-          )}
+          {(() => {
+            const rawShipping = calculateShippingCosts(editTotals.itemsSubtotal);
+            const showShippingRow = rawShipping.cost > 0 || editNoShipping;
+            if (!showShippingRow) return null;
+            return (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                color: editNoShipping ? '#9ca3af' : '#f59e0b', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editNoShipping}
+                    onChange={(e) => setEditNoShipping(e.target.checked)}
+                    style={{ accentColor: '#f59e0b', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ textDecoration: editNoShipping ? 'line-through' : 'none' }}>
+                    Spese di trasporto K3
+                  </span>
+                  {!editNoShipping && rawShipping.cost > 0 && (
+                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                      ({formatCurrency(rawShipping.cost)} + IVA)
+                    </span>
+                  )}
+                </label>
+                <strong style={{ textDecoration: editNoShipping ? 'line-through' : 'none' }}>
+                  {editNoShipping ? formatCurrency(0) : formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}
+                </strong>
+              </div>
+            );
+          })()}
 
           {/* IVA totale */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#6b7280' }}>
