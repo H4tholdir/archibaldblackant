@@ -724,6 +724,9 @@ function TabArticoli({
   const [showTotaleDialog, setShowTotaleDialog] = useState(false);
   const [totaleTarget, setTotaleTarget] = useState('');
   const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<number>>(new Set());
+  const [showMarkupPanel, setShowMarkupPanel] = useState(false);
+  const [markupAmount, setMarkupAmount] = useState(0);
+  const [markupArticleSelection, setMarkupArticleSelection] = useState<Set<number>>(new Set());
   const editTotals = useMemo(() => {
     const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
     const shipping = calculateShippingCosts(itemsSubtotal);
@@ -1376,6 +1379,121 @@ function TabArticoli({
 
     setEditItems(updatedItems);
     setShowImponibileDialog(false);
+  };
+
+  const handleTotaleCalcola = () => {
+    const target = parseFloat(totaleTarget.replace(',', '.'));
+    if (isNaN(target) || target <= 0 || totaleSelectedItems.size === 0) return;
+
+    if (target > editTotals.finalTotal) {
+      const unselSub = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.lineAmount, 0);
+      const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
+      const selItemsForMax = editItems.filter((_, i) => totaleSelectedItems.has(i));
+      const maxSub = unselSub + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * 100) / 100, 0);
+      const maxVAT = unselVAT + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * (it.vatPercent / 100) * 100) / 100, 0);
+      const maxShipping = calculateShippingCosts(maxSub);
+      const maxTotal = Math.round((maxSub + maxShipping.cost + maxVAT + maxShipping.tax) * 100) / 100;
+
+      if (target > maxTotal) {
+        const diff = target - editTotals.finalTotal;
+        setMarkupAmount(diff);
+        setMarkupArticleSelection(new Set(totaleSelectedItems));
+        setShowMarkupPanel(true);
+        setShowTotaleDialog(false);
+        return;
+      }
+    }
+
+    const selItems = editItems.filter((_, i) => totaleSelectedItems.has(i));
+    const unselSub = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.lineAmount, 0);
+    const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
+    const shipping = calculateShippingCosts(editTotals.itemsSubtotal);
+    const fixedPortion = unselSub + unselVAT + shipping.cost + shipping.tax;
+    const targetForSelected = target - fixedPortion;
+    if (targetForSelected <= 0) {
+      setError('Impossibile raggiungere il totale target con gli articoli selezionati');
+      setShowTotaleDialog(false);
+      return;
+    }
+
+    const computeDiscountedTotal = (disc: number) => {
+      let testSub = 0; let testVAT = 0;
+      for (const it of selItems) {
+        const itemSub = Math.round(it.unitPrice * it.quantity * (1 - disc / 100) * 100) / 100;
+        testSub += itemSub;
+        testVAT += Math.round(itemSub * (it.vatPercent / 100) * 100) / 100;
+      }
+      return Math.round((testSub + testVAT + fixedPortion) * 100) / 100;
+    };
+
+    let low = 0; let high = 100; let bestDiscount = 0;
+    for (let iter = 0; iter < 100; iter++) {
+      const mid = (low + high) / 2;
+      const testTotal = computeDiscountedTotal(mid);
+      if (Math.abs(testTotal - target) < 0.005) { bestDiscount = mid; break; }
+      if (testTotal > target) low = mid; else high = mid;
+      bestDiscount = mid;
+    }
+
+    let finalDiscount = Math.floor(bestDiscount * 100) / 100;
+    while (computeDiscountedTotal(finalDiscount) < target && finalDiscount > 0) {
+      finalDiscount = Math.round((finalDiscount - 0.01) * 100) / 100;
+    }
+    const stepped = Math.round((finalDiscount + 0.01) * 100) / 100;
+    if (computeDiscountedTotal(stepped) >= target) finalDiscount = stepped;
+
+    setEditItems(prev =>
+      prev.map((item, i) =>
+        totaleSelectedItems.has(i)
+          ? recalcLineAmounts({ ...item, discountPercent: finalDiscount })
+          : item,
+      ),
+    );
+    setShowTotaleDialog(false);
+  };
+
+  const handleApplyMarkup = () => {
+    if (markupArticleSelection.size === 0) return;
+    const targetTotal = editTotals.finalTotal + markupAmount;
+    const selItems = editItems.filter((_, i) => markupArticleSelection.has(i));
+    const selSub = selItems.reduce((s, it) => s + it.lineAmount, 0);
+    const selVAT = selItems.reduce((s, it) => s + it.vatAmount, 0);
+    const avgVatRate = selSub > 0 ? selVAT / selSub : 0.22;
+    const netMarkup = markupAmount / (1 + avgVatRate);
+
+    let updatedItems = editItems.map((item, i) => {
+      if (!markupArticleSelection.has(i)) return item;
+      const weight = selSub > 0 ? item.lineAmount / selSub : 1 / selItems.length;
+      const itemMarkup = netMarkup * weight;
+      const newUnitPrice = item.quantity > 0 ? item.unitPrice + itemMarkup / item.quantity : item.unitPrice;
+      const roundedPrice = Math.round(newUnitPrice * 100) / 100;
+      return recalcLineAmounts({ ...item, unitPrice: roundedPrice });
+    });
+
+    const computeTotal = (items: typeof editItems) => {
+      const sub = items.reduce((s, i) => s + i.lineAmount, 0);
+      const sh = calculateShippingCosts(sub);
+      const vat = items.reduce((s, i) => s + i.vatAmount, 0);
+      return Math.round((sub + sh.cost + vat + sh.tax) * 100) / 100;
+    };
+
+    let actualTotal = computeTotal(updatedItems);
+    if (actualTotal < targetTotal) {
+      const sorted = updatedItems.map((it, idx) => ({ it, idx }))
+        .filter(({ idx }) => markupArticleSelection.has(idx))
+        .sort((a, b) => a.it.quantity - b.it.quantity);
+      for (const { idx } of sorted) {
+        if (actualTotal >= targetTotal) break;
+        const item = updatedItems[idx];
+        updatedItems = updatedItems.map((it, i) =>
+          i === idx ? recalcLineAmounts({ ...item, unitPrice: Math.round((item.unitPrice + 0.01) * 100) / 100 }) : it,
+        );
+        actualTotal = computeTotal(updatedItems);
+      }
+    }
+
+    setEditItems(updatedItems);
+    setShowMarkupPanel(false);
   };
 
   const handleCancelEdit = () => {
@@ -2262,7 +2380,140 @@ function TabArticoli({
           </div>
         </div>
       )}
-        {showTotaleDialog && <div data-totale-target={totaleTarget} data-items={totaleSelectedItems.size} />}
+      {/* Totale dialog */}
+      {showTotaleDialog && (
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+          onClick={() => setShowTotaleDialog(false)}
+        >
+          <div
+            style={{ backgroundColor: 'white', padding: '24px', borderRadius: '8px', maxWidth: '480px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Modifica Totale (con IVA)</h3>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Nuovo totale target (con IVA)</label>
+              <input
+                autoComplete="off"
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={totaleTarget}
+                onChange={(e) => setTotaleTarget(e.target.value)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={totaleSelectedItems.size === editItems.length}
+                  onChange={(e) =>
+                    setTotaleSelectedItems(
+                      e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                    )
+                  }
+                />
+                Seleziona tutti
+              </label>
+              {editItems.map((item, idx) => (
+                <label
+                  key={idx}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '4px', borderBottom: '1px solid #f3f4f6', background: totaleSelectedItems.has(idx) ? '#eff6ff' : 'transparent' }}
+                >
+                  <input
+                    autoComplete="off"
+                    type="checkbox"
+                    checked={totaleSelectedItems.has(idx)}
+                    onChange={(e) => {
+                      const next = new Set(totaleSelectedItems);
+                      if (e.target.checked) next.add(idx); else next.delete(idx);
+                      setTotaleSelectedItems(next);
+                    }}
+                  />
+                  {item.articleCode} – {formatCurrency(item.lineTotalWithVat)}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleTotaleCalcola}
+                disabled={totaleSelectedItems.size === 0}
+                style={{ flex: 1, padding: '10px', background: totaleSelectedItems.size > 0 ? '#3b82f6' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: totaleSelectedItems.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+              >
+                Calcola
+              </button>
+              <button
+                onClick={() => setShowTotaleDialog(false)}
+                style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Maggiorazione panel */}
+      {showMarkupPanel && (
+        <div style={{ marginTop: '16px', padding: '16px', background: '#fffbeb', borderRadius: '8px', border: '2px solid #f59e0b' }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#92400e' }}>
+            Maggiorazione: +{formatCurrency(markupAmount)}
+          </h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#78350f' }}>
+            Il totale desiderato è superiore al massimo. Seleziona gli articoli su cui distribuire la maggiorazione:
+          </p>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: '#92400e' }}>
+              <input
+                autoComplete="off"
+                type="checkbox"
+                checked={markupArticleSelection.size === editItems.length}
+                onChange={(e) =>
+                  setMarkupArticleSelection(
+                    e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                  )
+                }
+              />
+              Tutti gli articoli
+            </label>
+            {editItems.map((item, idx) => (
+              <label
+                key={idx}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '3px 4px', borderBottom: '1px solid #fef3c7', background: markupArticleSelection.has(idx) ? '#fef9c3' : 'transparent' }}
+              >
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={markupArticleSelection.has(idx)}
+                  onChange={(e) => {
+                    const next = new Set(markupArticleSelection);
+                    if (e.target.checked) next.add(idx); else next.delete(idx);
+                    setMarkupArticleSelection(next);
+                  }}
+                />
+                {item.articleCode} – {formatCurrency(item.unitPrice)}/pz
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleApplyMarkup}
+              disabled={markupArticleSelection.size === 0}
+              style={{ flex: 1, padding: '10px', background: markupArticleSelection.size > 0 ? '#f59e0b' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: markupArticleSelection.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+            >
+              Applica Maggiorazione
+            </button>
+            <button
+              onClick={() => setShowMarkupPanel(false)}
+              style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
       </div>
     );
   }
