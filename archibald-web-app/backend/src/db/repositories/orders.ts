@@ -1329,10 +1329,10 @@ async function getWarehousePickupsByDate(
 ): Promise<WarehousePickupOrder[]> {
   const { rows } = await pool.query<WarehousePickupRow>(
     `SELECT
-       o.id AS order_id,
-       o.order_number,
-       o.customer_name,
-       o.creation_date,
+       COALESCE(wi.sold_in_order, wi.reserved_for_order) AS order_id,
+       COALESCE(o.order_number, wi.order_number)         AS order_number,
+       COALESCE(o.customer_name, wi.customer_name)       AS customer_name,
+       COALESCE(o.creation_date, wi.order_date)          AS creation_date,
        wi.id AS item_id,
        wi.article_code,
        wi.description AS article_description,
@@ -1341,13 +1341,13 @@ async function getWarehousePickupsByDate(
        CASE WHEN wi.sold_in_order IS NOT NULL THEN 'venduto' ELSE 'riservato' END AS status,
        wi.sub_client_name
      FROM agents.warehouse_items wi
-     JOIN agents.order_records o
+     LEFT JOIN agents.order_records o
        ON o.id = COALESCE(wi.sold_in_order, wi.reserved_for_order)
        AND o.user_id = wi.user_id
      WHERE wi.user_id = $1
        AND (wi.sold_in_order IS NOT NULL OR wi.reserved_for_order IS NOT NULL)
        AND DATE(wi.order_date) = $2::date
-     ORDER BY o.creation_date ASC, o.order_number ASC, wi.id ASC`,
+     ORDER BY wi.order_date ASC, COALESCE(o.order_number, wi.order_number) ASC, wi.id ASC`,
     [userId, date],
   );
 
