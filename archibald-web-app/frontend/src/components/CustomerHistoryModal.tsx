@@ -756,8 +756,8 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
             background: '#e2e8f0', color: '#475569',
           }}>Sconto {order.orderDiscountPercent}%</span>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>€ {formatEur(totalAmount)}</span>
         <button onClick={onCopyOrder} disabled={isCopying} style={{
+          marginLeft: 'auto',
           background: isCopying ? '#475569' : '#1e293b', color: 'white', border: 'none',
           padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
           cursor: isCopying ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
