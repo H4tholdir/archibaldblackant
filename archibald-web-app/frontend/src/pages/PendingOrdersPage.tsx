@@ -22,6 +22,8 @@ import { getCustomers } from "../api/customers";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
+import { useVatValidation } from '../hooks/useVatValidation';
+import { CustomerCreateModal } from '../components/CustomerCreateModal';
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -75,6 +77,36 @@ export function PendingOrdersPage() {
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
+  const [editCustomerForCompleteness, setEditCustomerForCompleteness] =
+    useState<RichCustomer | null>(null);
+  const [validatingCustomerProfile, setValidatingCustomerProfile] =
+    useState<string | null>(null);
+
+  const {
+    validate: validateVat,
+    status: vatValidationStatus,
+    reset: resetVatValidation,
+  } = useVatValidation();
+  void validateVat;
+  void CustomerCreateModal;
+
+  const refreshCustomer = useCallback(async (customerProfile: string) => {
+    const token = localStorage.getItem('archibald_jwt') ?? '';
+    const res = await fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const updated: RichCustomer = await res.json();
+    setCustomersMap((prev) => new Map(prev).set(customerProfile, updated));
+  }, []);
+
+  useEffect(() => {
+    if (vatValidationStatus === 'done' && validatingCustomerProfile) {
+      refreshCustomer(validatingCustomerProfile);
+      setValidatingCustomerProfile(null);
+      resetVatValidation();
+    }
+  }, [vatValidationStatus, validatingCustomerProfile, refreshCustomer, resetVatValidation]);
 
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -246,6 +278,13 @@ export function PendingOrdersPage() {
       setSubmitting(false);
     }
   };
+
+  const handleCompletenessModalClose = () => {
+    const profile = editCustomerForCompleteness?.customerProfile;
+    setEditCustomerForCompleteness(null);
+    if (profile) refreshCustomer(profile);
+  };
+  void handleCompletenessModalClose;
 
   const handleRetryOrder = async (orderId: string) => {
     try {
