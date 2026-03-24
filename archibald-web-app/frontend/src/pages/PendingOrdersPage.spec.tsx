@@ -17,6 +17,15 @@ vi.mock("react-router-dom", () => ({
 let mockPendingOrders: PendingOrder[] = [];
 let mockIsSyncing = false;
 const mockRefetch = vi.fn();
+vi.mock('../hooks/useVatValidation', () => ({
+  useVatValidation: () => ({
+    validate: vi.fn().mockResolvedValue(undefined),
+    status: 'idle' as const,
+    errorMessage: null,
+    reset: vi.fn(),
+  }),
+}));
+
 vi.mock("../hooks/usePendingSync", () => ({
   usePendingSync: () => ({
     pendingOrders: mockPendingOrders,
