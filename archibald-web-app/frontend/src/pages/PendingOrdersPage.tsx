@@ -1230,8 +1230,9 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
-                    {customersMap.get(order.customerId) && (() => {
-                      const richCustomer = customersMap.get(order.customerId)!;
+                    {(() => {
+                      const richCustomer = customersMap.get(order.customerId);
+                      if (!richCustomer) return null;
                       const completeness = checkCustomerCompleteness(richCustomer);
                       if (completeness.ok) return null;
                       const onlyVatMissing =

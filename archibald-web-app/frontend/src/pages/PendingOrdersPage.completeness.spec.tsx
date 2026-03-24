@@ -192,7 +192,7 @@ describe('PendingOrdersPage — completeness badge', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('⚠ Cliente incompleto')).toBeTruthy();
+      expect(screen.getByText(/P\.IVA non validata/)).toBeTruthy();
     });
   });
 });
