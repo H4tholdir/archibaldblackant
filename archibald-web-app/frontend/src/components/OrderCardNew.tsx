@@ -16,9 +16,10 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
-import { archibaldLineAmount, calculateShippingCosts } from "../utils/order-calculations";
+import { archibaldLineAmount, calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
+import { parseOrderNotesForEdit } from "../utils/parse-order-notes";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
@@ -662,6 +663,7 @@ function TabArticoli({
   onEditProgress,
   customerName,
   initialNotes,
+  initialNoShipping,
   initialDiscountPercent,
 }: {
   orderId: string;
@@ -678,6 +680,7 @@ function TabArticoli({
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
   customerName?: string;
   initialNotes?: string;
+  initialNoShipping?: boolean;
   initialDiscountPercent?: number;
 }) {
   type VerificationMismatch = {
@@ -717,6 +720,17 @@ function TabArticoli({
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingArticles, setSyncingArticles] = useState(false);
   const [editNotes, setEditNotes] = useState('');
+  const [editNoShipping, setEditNoShipping] = useState(false);
+  const [verificationBanner, setVerificationBanner] = useState<{
+    status: 'verified' | 'mismatch_detected';
+    mismatches?: Array<{
+      snapshotArticleCode: string | null;
+      syncedArticleCode: string | null;
+      field: string | null;
+      expected: number | null;
+      found: number | null;
+    }>;
+  } | null>(null);
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
   const [imponibileTarget, setImponibileTarget] = useState('');
@@ -729,12 +743,13 @@ function TabArticoli({
   const [markupArticleSelection, setMarkupArticleSelection] = useState<Set<number>>(new Set());
   const editTotals = useMemo(() => {
     const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
-    const shipping = calculateShippingCosts(itemsSubtotal);
+    const effectiveNoShipping = editNoShipping && itemsSubtotal < SHIPPING_THRESHOLD;
+    const shipping = effectiveNoShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(itemsSubtotal);
     const vatFromItems = editItems.reduce((s, i) => s + i.vatAmount, 0);
     const finalVAT = Math.round((vatFromItems + shipping.tax) * 100) / 100;
     const finalTotal = Math.round((itemsSubtotal + shipping.cost + finalVAT) * 100) / 100;
     return { itemsSubtotal, shippingCost: shipping.cost, shippingTax: shipping.tax, finalVAT, finalTotal };
-  }, [editItems]);
+  }, [editItems, editNoShipping]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -888,13 +903,35 @@ function TabArticoli({
   useEffect(() => {
     if (editing) {
       setEditNotes(initialNotes ?? '');
+      setEditNoShipping(initialNoShipping ?? false);
       setGlobalEditDiscount(
         initialDiscountPercent && initialDiscountPercent > 0
           ? String(initialDiscountPercent)
           : '',
       );
+      setVerificationBanner(null);
     }
-  }, [editing, initialNotes, initialDiscountPercent]);
+  }, [editing, initialNotes, initialNoShipping, initialDiscountPercent]);
+
+  useEffect(() => {
+    if (editNoShipping && editTotals.itemsSubtotal >= SHIPPING_THRESHOLD) {
+      setEditNoShipping(false);
+    }
+  }, [editNoShipping, editTotals.itemsSubtotal]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const unsubscribe = subscribe('VERIFICATION_RESULT', (payload: unknown) => {
+      const p = payload as { orderId: string; status: string; mismatches?: Array<{ snapshotArticleCode: string | null; syncedArticleCode: string | null; field: string | null; expected: number | null; found: number | null }> };
+      if (p.orderId === orderId) {
+        setVerificationBanner({
+          status: p.status as 'verified' | 'mismatch_detected',
+          mismatches: p.mismatches,
+        });
+      }
+    });
+    return () => { unsubscribe(); };
+  }, [editing, orderId, subscribe]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -1265,6 +1302,7 @@ function TabArticoli({
         modifications,
         updatedItems: editItems,
         notes: editNotes,
+        noShipping: editNoShipping || undefined,
       });
 
       if (!result.success) {
@@ -2265,15 +2303,35 @@ function TabArticoli({
           </div>
 
           {/* Spese trasporto */}
-          {editTotals.shippingCost > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#f59e0b' }}>
-              <span>
-                Spese di trasporto K3{' '}
-                <span style={{ fontSize: '11px' }}>({formatCurrency(editTotals.shippingCost)} + IVA)</span>
-              </span>
-              <strong>{formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}</strong>
-            </div>
-          )}
+          {(() => {
+            const rawShipping = calculateShippingCosts(editTotals.itemsSubtotal);
+            const showShippingRow = rawShipping.cost > 0 || editNoShipping;
+            if (!showShippingRow) return null;
+            return (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                color: editNoShipping ? '#9ca3af' : '#f59e0b', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editNoShipping}
+                    onChange={(e) => setEditNoShipping(e.target.checked)}
+                    style={{ accentColor: '#f59e0b', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ textDecoration: editNoShipping ? 'line-through' : 'none' }}>
+                    Spese di trasporto K3
+                  </span>
+                  {!editNoShipping && rawShipping.cost > 0 && (
+                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                      ({formatCurrency(rawShipping.cost)} + IVA)
+                    </span>
+                  )}
+                </label>
+                <strong style={{ textDecoration: editNoShipping ? 'line-through' : 'none' }}>
+                  {editNoShipping ? formatCurrency(0) : formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}
+                </strong>
+              </div>
+            );
+          })()}
 
           {/* IVA totale */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#6b7280' }}>
@@ -2305,6 +2363,32 @@ function TabArticoli({
             <strong style={{ color: '#3b82f6' }}>{formatCurrency(editTotals.finalTotal)}</strong>
           </div>
         </div>
+
+        {verificationBanner && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.75rem',
+            borderRadius: '0.375rem',
+            backgroundColor: verificationBanner.status === 'verified' ? '#d1fae5' : '#fef3c7',
+            border: `1px solid ${verificationBanner.status === 'verified' ? '#6ee7b7' : '#fcd34d'}`,
+            fontSize: '0.875rem',
+          }}>
+            {verificationBanner.status === 'verified' ? (
+              <span style={{ color: '#065f46' }}>✅ Modifica confermata da Archibald ERP</span>
+            ) : (
+              <div>
+                <div style={{ color: '#92400e', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  ⚠️ Discrepanze rilevate su Archibald:
+                </div>
+                {verificationBanner.mismatches?.map((m, i) => (
+                  <div key={i} style={{ color: '#78350f', fontSize: '0.8125rem' }}>
+                    {m.snapshotArticleCode ?? m.syncedArticleCode}: {m.field} atteso {String(m.expected)} → trovato {String(m.found)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Dialogs – rendered by subsequent tasks */}
       {/* Imponibile dialog */}
@@ -5232,20 +5316,26 @@ export function OrderCardNew({
             )}
             {activeTab === "articoli" && (
               <>
-                <TabArticoli
-                  orderId={order.id}
-                  archibaldOrderId={order.id}
-                  token={token}
-                  onTotalsUpdate={setArticlesTotals}
-                  searchQuery={searchQuery}
-                  editing={editing}
-                  onEditDone={onEditDone}
-                  editProgress={editProgress}
-                  onEditProgress={setEditProgress}
-                  customerName={order.customerName}
-                  initialNotes={order.notes ?? undefined}
-                  initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
-                />
+                {(() => {
+                  const parsedOrderNotes = parseOrderNotesForEdit(order.notes ?? undefined);
+                  return (
+                    <TabArticoli
+                      orderId={order.id}
+                      archibaldOrderId={order.id}
+                      token={token}
+                      onTotalsUpdate={setArticlesTotals}
+                      searchQuery={searchQuery}
+                      editing={editing}
+                      onEditDone={onEditDone}
+                      editProgress={editProgress}
+                      onEditProgress={setEditProgress}
+                      customerName={order.customerName}
+                      initialNotes={parsedOrderNotes.notes}
+                      initialNoShipping={parsedOrderNotes.noShipping}
+                      initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
+                    />
+                  );
+                })()}
               </>
             )}
             {activeTab === "logistica" && (

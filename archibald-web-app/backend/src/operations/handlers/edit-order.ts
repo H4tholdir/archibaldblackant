@@ -1,5 +1,11 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { buildOrderNotesText } from '../../utils/order-notes';
+import type { InlineSyncDeps } from '../../verification/inline-order-sync';
+import { performInlineOrderSync } from '../../verification/inline-order-sync';
+import type { SnapshotArticle, VerificationResult } from '../../verification/verify-order-articles';
+import { verifyOrderArticles } from '../../verification/verify-order-articles';
+import { logger } from '../../logger';
 
 type EditOrderArticle = {
   articleCode: string;
@@ -19,6 +25,7 @@ type EditOrderData = {
   modifications: Array<Record<string, unknown>>;
   updatedItems?: EditOrderArticle[];
   notes?: string;
+  noShipping?: boolean;
 };
 
 type EditOrderBot = {
@@ -26,6 +33,7 @@ type EditOrderBot = {
     orderId: string,
     modifications: Array<Record<string, unknown>>,
     notes?: string,
+    noShipping?: boolean,
   ) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -54,7 +62,9 @@ async function handleEditOrder(
   data: EditOrderData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ success: boolean; message: string }> {
+  inlineSyncDeps?: InlineSyncDeps,
+  broadcast?: (userId: string, event: Record<string, unknown>) => void,
+): Promise<{ success: boolean; message: string; verificationStatus?: string }> {
   bot.setProgressCallback(async (category, metadata) => {
     if (category === 'edit.modify' && metadata) {
       const current = metadata.current as number;
@@ -70,7 +80,7 @@ async function handleEditOrder(
   });
 
   onProgress(5, 'Modifica ordine su Archibald');
-  const result = await bot.editOrderInArchibald(data.orderId, data.modifications, data.notes);
+  const result = await bot.editOrderInArchibald(data.orderId, data.modifications, data.notes, data.noShipping);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -129,26 +139,102 @@ async function handleEditOrder(
         'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
         [articleSearchText, data.orderId, userId],
       );
+
+      await tx.query(
+        `UPDATE agents.order_records
+         SET gross_amount = (SELECT COALESCE(SUM(line_amount), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2),
+             total_vat_amount = (SELECT COALESCE(SUM(vat_amount), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2),
+             total_with_vat = (SELECT COALESCE(SUM(line_total_with_vat), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2)
+         WHERE id = $1 AND user_id = $2`,
+        [data.orderId, userId],
+      );
     });
   }
 
-  if (data.notes !== undefined) {
+  if (data.notes !== undefined || data.noShipping !== undefined) {
+    const notesText = buildOrderNotesText(data.noShipping, data.notes) || null;
     await pool.query(
       'UPDATE agents.order_records SET notes = $1 WHERE id = $2 AND user_id = $3',
-      [data.notes, data.orderId, userId],
+      [notesText, data.orderId, userId],
     );
+  }
+
+  let verificationStatus: string | undefined;
+
+  if (data.updatedItems && data.updatedItems.length > 0 && inlineSyncDeps) {
+    try {
+      onProgress(85, 'Verifica modifica su Archibald...');
+      const verifyOnProgress = (p: number, l?: string) => onProgress(Math.max(85, p), l);
+      const syncedArticles = await performInlineOrderSync(
+        inlineSyncDeps,
+        data.orderId,
+        userId,
+        verifyOnProgress,
+      );
+
+      if (syncedArticles) {
+        const expectedItems: SnapshotArticle[] = data.updatedItems.map(item => ({
+          articleCode: item.articleCode,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineDiscountPercent: item.discountPercent ?? 0,
+          expectedLineAmount: item.lineAmount ?? 0,
+        }));
+
+        const verificationResult: VerificationResult = verifyOrderArticles(expectedItems, syncedArticles);
+        verificationStatus = verificationResult.status;
+
+        const verificationNotes = verificationResult.mismatches.length > 0 ? JSON.stringify(verificationResult.mismatches) : null;
+        await pool.query(
+          `INSERT INTO agents.order_verification_snapshots (order_id, user_id, expected_gross_amount, expected_total_amount, verification_status, verified_at, verification_notes)
+           VALUES ($1, $2, 0, 0, $3, NOW(), $4)
+           ON CONFLICT (order_id, user_id) DO UPDATE SET
+             verification_status = EXCLUDED.verification_status,
+             verified_at = NOW(),
+             verification_notes = EXCLUDED.verification_notes`,
+          [data.orderId, userId, verificationResult.status, verificationNotes],
+        );
+
+        if (broadcast) {
+          broadcast(userId, {
+            event: 'VERIFICATION_RESULT',
+            orderId: data.orderId,
+            status: verificationResult.status,
+            mismatches: verificationResult.mismatches,
+          });
+        }
+
+        logger.info('[editOrder] Verification complete', {
+          orderId: data.orderId,
+          status: verificationResult.status,
+          mismatches: verificationResult.mismatches.length,
+        });
+      }
+    } catch (err) {
+      logger.warn('[editOrder] Inline verification failed, skipping', {
+        orderId: data.orderId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      onProgress(95, 'Verifica posticipata');
+    }
   }
 
   onProgress(100, 'Modifica completata');
 
-  return { success: true, message: result.message };
+  return { success: true, message: result.message, verificationStatus };
 }
 
-function createEditOrderHandler(pool: DbPool, createBot: (userId: string) => EditOrderBot): OperationHandler {
+function createEditOrderHandler(
+  pool: DbPool,
+  createBot: (userId: string) => EditOrderBot,
+  inlineSyncDeps?: Omit<InlineSyncDeps, 'pool'>,
+  broadcast?: (userId: string, event: Record<string, unknown>) => void,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as EditOrderData;
-    const result = await handleEditOrder(pool, bot, typedData, userId, onProgress);
+    const fullDeps: InlineSyncDeps | undefined = inlineSyncDeps ? { pool, ...inlineSyncDeps } : undefined;
+    const result = await handleEditOrder(pool, bot, typedData, userId, onProgress, fullDeps, broadcast);
     return result as unknown as Record<string, unknown>;
   };
 }

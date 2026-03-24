@@ -21,6 +21,7 @@ import {
   computeVariantHeaderIndices,
   normalizeLookupText,
 } from "../variant-selection";
+import { buildOrderNotesText } from '../utils/order-notes';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -49,12 +50,6 @@ type BotDeps = {
   getUserById?: BotGetUserById;
 };
 
-export function buildOrderNotesText(noShipping?: boolean, notes?: string): string {
-  const parts: string[] = [];
-  if (noShipping) parts.push('NO SPESE DI SPEDIZIONE');
-  if (notes?.trim()) parts.push(notes.trim());
-  return parts.join('\n');
-}
 
 export class ArchibaldBot {
   private browser: Browser | null = null;
@@ -7289,6 +7284,7 @@ export class ArchibaldBot {
       | { type: "delete"; rowIndex: number }
     >,
     notes?: string,
+    noShipping?: boolean,
   ): Promise<{ success: boolean; message: string }> {
     const normalizedId = archibaldOrderId.replace(/\./g, "");
     logger.info(
@@ -7808,8 +7804,10 @@ export class ArchibaldBot {
         await this.setEditRowQuantity(mod.quantity);
 
         // Set discount if present
-        if (mod.discount !== undefined && mod.discount > 0) {
+        if (mod.discount !== undefined) {
+          logger.info('[editOrder] Applying discount to row', { rowIndex: mod.rowIndex, discount: mod.discount });
           await this.setEditRowDiscount(mod.discount);
+          logger.info('[editOrder] Discount applied', { rowIndex: mod.rowIndex });
         }
 
         // Save the row
@@ -7880,8 +7878,10 @@ export class ArchibaldBot {
         await this.setEditRowQuantity(mod.quantity);
 
         // Set discount if present
-        if (mod.discount !== undefined && mod.discount > 0) {
+        if (mod.discount !== undefined) {
+          logger.info('[editOrder] Applying discount to row', { articleCode: mod.articleCode, discount: mod.discount });
           await this.setEditRowDiscount(mod.discount);
+          logger.info('[editOrder] Discount applied', { articleCode: mod.articleCode });
         }
 
         // Save the row
@@ -8072,8 +8072,8 @@ export class ArchibaldBot {
         logger.info(`[editOrder] Row ${mod.rowIndex} deleted`);
       }
 
-      if (notes !== undefined) {
-        const notesText = buildOrderNotesText(undefined, notes);
+      if (notes !== undefined || noShipping !== undefined) {
+        const notesText = buildOrderNotesText(noShipping, notes);
         await this.fillOrderNotes(notesText);
       }
 

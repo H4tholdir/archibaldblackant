@@ -715,6 +715,53 @@ describe('handleSubmitOrder — TEMP profile fallback', () => {
   });
 });
 
+describe('notes storage with noShipping', () => {
+  const notesText = 'consegna';
+
+  test('stores formatted notes with marker when noShipping=true', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-NOTES-1');
+    const onProgress = vi.fn();
+
+    const dataWithNoShipping: SubmitOrderData = {
+      ...sampleData,
+      noShipping: true,
+      notes: notesText,
+    };
+
+    await handleSubmitOrder(pool, bot, dataWithNoShipping, 'user-1', onProgress);
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_records'));
+    expect(insertCalls).toHaveLength(1);
+
+    const params = insertCalls[0][1] as unknown[];
+    const notesParam = params[25]; // notes is the 26th param (index 25)
+    expect(notesParam).toBe(`NO SPESE DI SPEDIZIONE\n${notesText}`);
+  });
+
+  test('stores only notes when noShipping not set', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-NOTES-2');
+    const onProgress = vi.fn();
+
+    const dataWithNotesOnly: SubmitOrderData = {
+      ...sampleData,
+      notes: notesText,
+    };
+
+    await handleSubmitOrder(pool, bot, dataWithNotesOnly, 'user-1', onProgress);
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO agents.order_records'));
+    expect(insertCalls).toHaveLength(1);
+
+    const params = insertCalls[0][1] as unknown[];
+    const notesParam = params[25]; // notes is the 26th param (index 25)
+    expect(notesParam).toBe(notesText);
+  });
+});
+
 describe('calculateAmounts', () => {
   const items: SubmitOrderItem[] = [
     { articleCode: 'A1', quantity: 7,  price: 167.20, discount: 45.00 },

@@ -442,6 +442,24 @@ async function bootstrap(): Promise<void> {
     jobEventBus.publish(userId, { event: event.event as string, data: event });
   };
 
+  const sharedInlineSyncDeps = {
+    downloadOrderArticlesPDF: async (archibaldOrderId: string) => {
+      const syncBot = createBotForUser('sync-orchestrator');
+      const ctx = await browserPool.acquireContext('sync-orchestrator', { fromQueue: true });
+      try {
+        return await syncBot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+      } finally {
+        await browserPool.releaseContext('sync-orchestrator', ctx as never, true);
+      }
+    },
+    parsePdf: async (pdfPath: string) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
+    getProductVat: async (articleCode: string) => {
+      const variants = await getProductVariants(pool, articleCode);
+      return variants[0]?.vat ?? null;
+    },
+    cleanupFile,
+  };
+
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
@@ -459,23 +477,7 @@ async function bootstrap(): Promise<void> {
         deleteOrderFromArchibald: async (orderId) => { await ensureInit(); return bot!.deleteOrderFromArchibald(orderId); },
         setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
-    }, {
-      downloadOrderArticlesPDF: async (archibaldOrderId) => {
-        const syncBot = createBotForUser('sync-orchestrator');
-        const ctx = await browserPool.acquireContext('sync-orchestrator', { fromQueue: true });
-        try {
-          return await syncBot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
-        } finally {
-          await browserPool.releaseContext('sync-orchestrator', ctx as never, true);
-        }
-      },
-      parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
-      getProductVat: async (articleCode: string) => {
-        const variants = await getProductVariants(pool, articleCode);
-        return variants[0]?.vat ?? null;
-      },
-      cleanupFile,
-    }, broadcastEvent),
+    }, sharedInlineSyncDeps, broadcastEvent),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {
       const bot = createBotForUser(userId);
       let initialized = false;
@@ -521,10 +523,10 @@ async function bootstrap(): Promise<void> {
         }
       };
       return {
-        editOrderInArchibald: async (id, data, notes) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes); },
+        editOrderInArchibald: async (id, data, notes, noShipping) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes, noShipping); },
         setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
-    }),
+    }, sharedInlineSyncDeps, broadcastEvent),
     'send-to-verona': createSendToVeronaHandler(pool, (userId) => {
       const bot = createBotForUser(userId);
       let initialized = false;
