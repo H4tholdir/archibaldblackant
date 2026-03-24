@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { WarehousePickupOrder } from "../api/warehouse-pickups";
 import { getWarehousePickups } from "../api/warehouse-pickups";
+import { useAuth } from "../hooks/useAuth";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -15,7 +16,130 @@ function formatDate(iso: string): string {
       d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function orderDisplayName(order: WarehousePickupOrder): string {
+  if (order.orderNumber?.startsWith("warehouse-")) return "Ordine completato direttamente dal magazzino";
+  return order.orderNumber ?? "—";
+}
+
+function buildPrintHtml(
+  orders: WarehousePickupOrder[],
+  selectedDate: string,
+  checkedIds: Set<number>,
+  totalArticles: number,
+  totalPieces: number,
+  agentName: string,
+): string {
+  const dateLabel = formatDateShort(selectedDate);
+  const now = new Date();
+  const printedDate = now.toLocaleDateString("it-IT");
+  const printedTime = now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+  const orderRows = orders.map((order) => {
+    const subClient = order.articles.find((a) => a.subClientName)?.subClientName;
+    const customerLine = subClient
+      ? `${order.customerName ?? "—"} / ${subClient}`
+      : (order.customerName ?? "—");
+    const articleRows = order.articles.map((article) => {
+      const isChecked = checkedIds.has(article.id);
+      const isSold = article.status === "venduto";
+      const strike = isChecked ? "text-decoration:line-through;color:#999;" : "";
+      return `
+        <tr style="border-bottom:1px solid #e0e0e0;${isChecked ? "opacity:0.6;" : ""}">
+          <td style="padding:7px 10px;text-align:center;font-size:14px;">${isChecked ? "☑" : "☐"}</td>
+          <td style="padding:7px 10px;font-family:monospace;font-size:11px;font-weight:700;color:#1565c0;${strike}">${article.articleCode}</td>
+          <td style="padding:7px 10px;font-size:11px;${strike}">${article.articleDescription ?? "—"}</td>
+          <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#e65100;">${article.boxName}</td>
+          <td style="padding:7px 10px;text-align:center;">
+            <span style="background:${isSold ? "#e8f5e9" : "#fff8e1"};color:${isSold ? "#2e7d32" : "#f57f17"};padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">
+              ${isSold ? "Venduto" : "Riservato"}
+            </span>
+          </td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;font-size:12px;">${article.quantity}</td>
+        </tr>`;
+    }).join("");
+
+    return `
+      <div style="border:1px solid #ddd;border-radius:6px;margin-bottom:14px;page-break-inside:avoid;overflow:hidden;">
+        <div style="background:#f5f5f5;padding:10px 14px;border-bottom:1px solid #ddd;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <span style="color:#1565c0;font-size:14px;margin-right:6px;">&#9679;</span>
+              <span style="font-size:13px;font-weight:700;color:#1565c0;">${orderDisplayName(order)}</span>
+              <br>
+              <span style="font-size:12px;color:#444;margin-left:20px;">${customerLine}</span>
+            </div>
+            <div style="text-align:right;font-size:11px;color:#888;white-space:nowrap;">
+              ${formatDate(order.creationDate)}<br>
+              <span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${order.articles.length} art.</span>
+            </div>
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:#fafafa;">
+              <th style="width:30px;padding:6px 10px;"></th>
+              <th style="text-align:left;padding:6px 10px;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Codice</th>
+              <th style="text-align:left;padding:6px 10px;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Descrizione</th>
+              <th style="text-align:left;padding:6px 10px;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Scatolo</th>
+              <th style="text-align:center;padding:6px 10px;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Stato</th>
+              <th style="text-align:center;padding:6px 10px;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Pz</th>
+            </tr>
+          </thead>
+          <tbody>${articleRows}</tbody>
+        </table>
+      </div>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Lista_Prelievi_${selectedDate}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; background: white; color: #222; padding: 24px; }
+    @media print {
+      body { padding: 16px; }
+      @page { margin: 1.5cm; }
+      .footer { position: fixed; bottom: 0; left: 0; right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div style="border-bottom:2px solid #1565c0;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <div style="font-size:22px;font-weight:700;color:#1565c0;">Lista Prelievi Magazzino</div>
+      <div style="font-size:13px;color:#555;margin-top:4px;">Data: ${dateLabel}</div>
+    </div>
+    <div style="font-size:11px;color:#777;text-align:right;line-height:1.6;">
+      Stampato il ${printedDate} alle ${printedTime}<br>
+      Agente: ${agentName}
+    </div>
+  </div>
+
+  <div style="background:#f3f4ff;border:1px solid #c5cae9;border-radius:6px;padding:8px 14px;margin-bottom:18px;font-size:12px;color:#3949ab;">
+    <strong>${orders.length}</strong> ordini &nbsp;·&nbsp; <strong>${totalArticles}</strong> articoli da prelevare &nbsp;·&nbsp; <strong>${totalPieces}</strong> pezzi totali
+  </div>
+
+  ${orderRows}
+
+  <div class="footer" style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:10px;color:#888;text-align:center;">
+    Completato &nbsp;·&nbsp; Lista Prelievi Magazzino &nbsp;·&nbsp; ${dateLabel}
+  </div>
+</body>
+</html>`;
+}
+
 export function WarehousePickupList() {
+  const { user } = useAuth();
+  const agentName = user?.fullName ?? "—";
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
   const [orders, setOrders] = useState<WarehousePickupOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,7 +178,18 @@ export function WarehousePickupList() {
     0,
   );
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const html = buildPrintHtml(orders, selectedDate, checkedIds, totalArticles, totalPieces, agentName);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+      win.close();
+    }, 300);
+  };
 
   return (
     <div style={{ padding: "20px" }}>
@@ -212,9 +347,7 @@ export function WarehousePickupList() {
                 <span
                   style={{ fontSize: "15px", fontWeight: 700, color: "#1565c0" }}
                 >
-                  {order.orderNumber?.startsWith("warehouse-")
-                    ? "Ordine completato direttamente dal magazzino"
-                    : order.orderNumber}
+                  {orderDisplayName(order)}
                 </span>
                 <span style={{ margin: "0 8px", color: "#bbb" }}>·</span>
                 <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
@@ -350,14 +483,6 @@ export function WarehousePickupList() {
           </table>
         </div>
       ))}
-
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          nav, .no-print { display: none !important; }
-          body { background: white !important; }
-        }
-      `}</style>
     </div>
   );
 }
