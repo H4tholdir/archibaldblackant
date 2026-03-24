@@ -37,16 +37,14 @@ type VerificationResult = {
 };
 
 type VerificationOptions = {
-  amountTolerancePct?: number;
   amountToleranceMin?: number;
   discountTolerance?: number;
 };
 
-// 10% of expected line amount (or 0.05€ minimum) — handles Archibald price-list
-// updates between order creation and submission without generating false positives.
+// Flat tolerance for amount comparison (0.05€ covers rounding differences).
+// The amount check uses Archibald's own synced unit price — see compareArticlePair.
 // Unit price is NOT compared: the bot never sets prices (Archibald auto-fills from
 // its price list), so any price diff is just shared.prices staleness, not a real error.
-const DEFAULT_AMOUNT_TOLERANCE_PCT = 0.10;
 const DEFAULT_AMOUNT_TOLERANCE_MIN = 0.05;
 const DEFAULT_DISCOUNT_TOLERANCE = 0.02;
 
@@ -69,7 +67,6 @@ function groupByCode<T extends { articleCode: string }>(
 function compareArticlePair(
   snap: SnapshotArticle,
   synced: SyncedArticle,
-  amountTolerancePct: number,
   amountToleranceMin: number,
   discountTolerance: number,
 ): ArticleMismatch[] {
@@ -101,20 +98,23 @@ function compareArticlePair(
     });
   }
 
-  const effectiveTolerance = Math.max(
-    amountToleranceMin,
-    snap.expectedLineAmount * amountTolerancePct,
-  );
-  const amountDiff = Math.round((snap.expectedLineAmount - synced.lineAmount) * 1e8) / 1e8;
-  if (Math.abs(amountDiff) > effectiveTolerance) {
-    mismatches.push({
-      type: 'amount_diff',
-      snapshotArticleCode: snap.articleCode,
-      syncedArticleCode: synced.articleCode,
-      field: 'lineAmount',
-      expected: snap.expectedLineAmount,
-      found: synced.lineAmount,
-    });
+  // Amount check: recompute using Archibald's own unit price so the comparison is
+  // independent of the snapshot price (which may be a subclient price for Fresis orders).
+  // Verifies that Archibald correctly applied our quantity and discount to its price.
+  if (synced.unitPrice > 0) {
+    const recomputedExpected =
+      Math.round(snap.quantity * synced.unitPrice * (1 - snapDiscount / 100) * 100) / 100;
+    const amountDiff = Math.round((recomputedExpected - synced.lineAmount) * 1e8) / 1e8;
+    if (Math.abs(amountDiff) > amountToleranceMin) {
+      mismatches.push({
+        type: 'amount_diff',
+        snapshotArticleCode: snap.articleCode,
+        syncedArticleCode: synced.articleCode,
+        field: 'lineAmount',
+        expected: recomputedExpected,
+        found: synced.lineAmount,
+      });
+    }
   }
 
   return mismatches;
@@ -125,7 +125,6 @@ function verifyOrderArticles(
   syncedArticles: readonly SyncedArticle[],
   options?: VerificationOptions,
 ): VerificationResult {
-  const amtPct = options?.amountTolerancePct ?? DEFAULT_AMOUNT_TOLERANCE_PCT;
   const amtMin = options?.amountToleranceMin ?? DEFAULT_AMOUNT_TOLERANCE_MIN;
   const discTolerance = options?.discountTolerance ?? DEFAULT_DISCOUNT_TOLERANCE;
   const mismatches: ArticleMismatch[] = [];
@@ -142,7 +141,7 @@ function verifyOrderArticles(
     const pairCount = Math.min(snaps.length, syncs.length);
 
     for (let i = 0; i < pairCount; i++) {
-      mismatches.push(...compareArticlePair(snaps[i], syncs[i], amtPct, amtMin, discTolerance));
+      mismatches.push(...compareArticlePair(snaps[i], syncs[i], amtMin, discTolerance));
     }
 
     for (let i = pairCount; i < snaps.length; i++) {
