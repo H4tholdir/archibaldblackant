@@ -18,10 +18,15 @@ type EditOrderData = {
   orderId: string;
   modifications: Array<Record<string, unknown>>;
   updatedItems?: EditOrderArticle[];
+  notes?: string;
 };
 
 type EditOrderBot = {
-  editOrderInArchibald: (orderId: string, modifications: Array<Record<string, unknown>>) => Promise<{ success: boolean; message: string }>;
+  editOrderInArchibald: (
+    orderId: string,
+    modifications: Array<Record<string, unknown>>,
+    notes?: string,
+  ) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -65,7 +70,7 @@ async function handleEditOrder(
   });
 
   onProgress(5, 'Modifica ordine su Archibald');
-  const result = await bot.editOrderInArchibald(data.orderId, data.modifications);
+  const result = await bot.editOrderInArchibald(data.orderId, data.modifications, data.notes);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -125,6 +130,13 @@ async function handleEditOrder(
         [articleSearchText, data.orderId, userId],
       );
     });
+  }
+
+  if (data.notes !== undefined) {
+    await pool.query(
+      'UPDATE agents.order_records SET notes = $1 WHERE id = $2 AND user_id = $3',
+      [data.notes, data.orderId, userId],
+    );
   }
 
   onProgress(100, 'Modifica completata');
