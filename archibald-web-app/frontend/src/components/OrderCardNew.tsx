@@ -1264,6 +1264,7 @@ function TabArticoli({
         orderId,
         modifications,
         updatedItems: editItems,
+        notes: editNotes,
       });
 
       if (!result.success) {
