@@ -203,6 +203,55 @@ describe('totals refresh', () => {
   });
 });
 
+describe('post-edit verification', () => {
+  const testOrderId = 'ORD-VERIFY-001';
+  const testUserId = 'user-verify';
+
+  test('returns verificationStatus when inlineSyncDeps and updatedItems are present', async () => {
+    const pool = createMockPool();
+    const mockBot: EditOrderBot = {
+      editOrderInArchibald: async () => ({ success: true, message: 'ok' }),
+      setProgressCallback: () => {},
+    };
+
+    const parsedArticle = {
+      articleCode: 'ART001',
+      description: null,
+      quantity: 2,
+      unitPrice: 10,
+      discountPercent: 0,
+      lineAmount: 20,
+    };
+
+    const mockInlineSyncDeps = {
+      pool,
+      downloadOrderArticlesPDF: async (_archibaldOrderId: string) => '/tmp/test.pdf',
+      parsePdf: async (_path: string) => [parsedArticle],
+      getProductVat: async (_code: string) => 22,
+      cleanupFile: async (_path: string) => {},
+    };
+
+    const result = await handleEditOrder(pool, mockBot, {
+      orderId: testOrderId,
+      modifications: [],
+      updatedItems: [
+        {
+          articleCode: 'ART001',
+          quantity: 2,
+          unitPrice: 10,
+          discountPercent: 0,
+          lineAmount: 20,
+          vatPercent: 22,
+          vatAmount: 4.4,
+          lineTotalWithVat: 24.4,
+        },
+      ],
+    }, testUserId, () => {}, mockInlineSyncDeps);
+
+    expect(result.verificationStatus).toBeDefined();
+  });
+});
+
 describe('noShipping propagation', () => {
   test('passes noShipping=true to bot as 4th argument', async () => {
     const pool = createMockPool();
