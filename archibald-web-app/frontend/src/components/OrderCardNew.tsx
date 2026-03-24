@@ -721,6 +721,10 @@ function TabArticoli({
   const [syncingArticles, setSyncingArticles] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [editNoShipping, setEditNoShipping] = useState(false);
+  const [verificationBanner, setVerificationBanner] = useState<{
+    status: 'verified' | 'mismatch_detected';
+    mismatches?: Array<{ articleCode: string; field: string | null; expected: number | null; found: number | null }>;
+  } | null>(null);
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
   const [imponibileTarget, setImponibileTarget] = useState('');
@@ -899,6 +903,7 @@ function TabArticoli({
           ? String(initialDiscountPercent)
           : '',
       );
+      setVerificationBanner(null);
     }
   }, [editing, initialNotes, initialNoShipping, initialDiscountPercent]);
 
@@ -907,6 +912,20 @@ function TabArticoli({
       setEditNoShipping(false);
     }
   }, [editNoShipping, editTotals.itemsSubtotal]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const unsubscribe = subscribe('VERIFICATION_RESULT', (payload: unknown) => {
+      const p = payload as { orderId: string; status: string; mismatches?: Array<{ articleCode: string; field: string | null; expected: number | null; found: number | null }> };
+      if (p.orderId === orderId) {
+        setVerificationBanner({
+          status: p.status as 'verified' | 'mismatch_detected',
+          mismatches: p.mismatches,
+        });
+      }
+    });
+    return () => { unsubscribe(); };
+  }, [editing, orderId, subscribe]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -2338,6 +2357,32 @@ function TabArticoli({
             <strong style={{ color: '#3b82f6' }}>{formatCurrency(editTotals.finalTotal)}</strong>
           </div>
         </div>
+
+        {verificationBanner && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.75rem',
+            borderRadius: '0.375rem',
+            backgroundColor: verificationBanner.status === 'verified' ? '#d1fae5' : '#fef3c7',
+            border: `1px solid ${verificationBanner.status === 'verified' ? '#6ee7b7' : '#fcd34d'}`,
+            fontSize: '0.875rem',
+          }}>
+            {verificationBanner.status === 'verified' ? (
+              <span style={{ color: '#065f46' }}>✅ Modifica confermata da Archibald ERP</span>
+            ) : (
+              <div>
+                <div style={{ color: '#92400e', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  ⚠️ Discrepanze rilevate su Archibald:
+                </div>
+                {verificationBanner.mismatches?.map((m, i) => (
+                  <div key={i} style={{ color: '#78350f', fontSize: '0.8125rem' }}>
+                    {m.articleCode}: {m.field} atteso {String(m.expected)} → trovato {String(m.found)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Dialogs – rendered by subsequent tasks */}
       {/* Imponibile dialog */}
