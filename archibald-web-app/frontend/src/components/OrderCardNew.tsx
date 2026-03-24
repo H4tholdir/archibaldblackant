@@ -18,6 +18,7 @@ import {
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { archibaldLineAmount } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
+import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
@@ -660,6 +661,8 @@ function TabArticoli({
   editProgress,
   onEditProgress,
   customerName,
+  initialNotes,
+  initialDiscountPercent,
 }: {
   orderId: string;
   archibaldOrderId?: string;
@@ -674,6 +677,8 @@ function TabArticoli({
   editProgress?: { progress: number; operation: string } | null;
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
   customerName?: string;
+  initialNotes?: string;
+  initialDiscountPercent?: number;
 }) {
   type VerificationMismatch = {
     type: string;
@@ -711,6 +716,8 @@ function TabArticoli({
   );
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingArticles, setSyncingArticles] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [globalEditDiscount, setGlobalEditDiscount] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -860,6 +867,17 @@ function TabArticoli({
       cancelled = true;
     };
   }, [editing, orderId]);
+
+  useEffect(() => {
+    if (editing) {
+      setEditNotes(initialNotes ?? '');
+      setGlobalEditDiscount(
+        initialDiscountPercent && initialDiscountPercent > 0
+          ? String(initialDiscountPercent)
+          : '',
+      );
+    }
+  }, [editing, initialNotes, initialDiscountPercent]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -1257,6 +1275,14 @@ function TabArticoli({
       setError(err instanceof Error ? err.message : "Errore di rete");
       setSubmittingEdit(false);
       onEditProgress?.(null);
+    }
+  };
+
+  const handleGlobalDiscountChange = (val: string) => {
+    if (val === '' || /^\d*[.,]?\d{0,2}$/.test(val)) {
+      setGlobalEditDiscount(val);
+      const disc = parseFloat(val.replace(',', '.')) || 0;
+      setEditItems((prev) => prev.map((item) => recalcLineAmounts({ ...item, discountPercent: disc })));
     }
   };
 
@@ -1918,7 +1944,7 @@ function TabArticoli({
                         }}
                         title="Rimuovi riga"
                       >
-                        {"✕"}
+                        {"🗑️"}
                       </button>
                     </td>
                   </tr>
@@ -1946,6 +1972,46 @@ function TabArticoli({
           >
             + Aggiungi articolo
           </button>
+        </div>
+
+        {/* Sconto globale */}
+        <div style={{ marginTop: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>
+            Sconto su tutte le righe (%)
+          </label>
+          <input
+            autoComplete="off"
+            type="text"
+            inputMode="decimal"
+            value={globalEditDiscount}
+            onChange={(e) => handleGlobalDiscountChange(e.target.value)}
+            style={{ width: '160px', padding: '6px 8px', fontSize: '13px', border: '1px solid #d1d5db', borderRadius: '4px' }}
+          />
+        </div>
+
+        {/* Note ordine */}
+        <div style={{ marginTop: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>
+            Note
+          </label>
+          <textarea
+            autoComplete="off"
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+            placeholder="Note per l'ordine..."
+            maxLength={500}
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontFamily: 'system-ui',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
       </div>
     );
@@ -4675,6 +4741,8 @@ export function OrderCardNew({
                   editProgress={editProgress}
                   onEditProgress={setEditProgress}
                   customerName={order.customerName}
+                  initialNotes={order.notes ?? undefined}
+                  initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
                 />
               </>
             )}
