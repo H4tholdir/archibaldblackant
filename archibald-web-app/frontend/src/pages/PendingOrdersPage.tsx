@@ -32,6 +32,10 @@ function itemSubtotal(
   return archibaldLineAmount(item.quantity, item.price, item.discount || 0);
 }
 
+function isInventtableError(msg: string | undefined | null): boolean {
+  return !!msg?.includes('INVENTTABLE field not focused');
+}
+
 export function PendingOrdersPage() {
   const navigate = useNavigate();
   const { trackOperation } = useOperationTracking();
@@ -89,7 +93,6 @@ export function PendingOrdersPage() {
     reset: resetVatValidation,
   } = useVatValidation();
   void vatValidationError;
-  void CustomerCreateModal;
 
   const refreshCustomer = useCallback(async (customerProfile: string) => {
     const token = localStorage.getItem('archibald_jwt') ?? '';
@@ -307,7 +310,6 @@ export function PendingOrdersPage() {
     setEditCustomerForCompleteness(null);
     if (profile) refreshCustomer(profile);
   };
-  void handleCompletenessModalClose;
 
   const handleRetryOrder = async (orderId: string) => {
     try {
@@ -1469,6 +1471,44 @@ export function PendingOrdersPage() {
                       Verifica stato in corso...
                     </div>
                   )}
+                  {isJobFailed && isInventtableError(order.jobError) && (
+                    <div
+                      style={{
+                        marginTop: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '6px',
+                        color: '#991b1b',
+                        fontSize: isMobile ? '0.8125rem' : '0.875rem',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 0.5rem 0' }}>
+                        La scheda anagrafica del cliente <strong>{order.customerName}</strong> non è
+                        completa in Archibald ERP e non è stato possibile inserire gli articoli.
+                        Aggiorna i dati del cliente e reinvia l&apos;ordine.
+                      </p>
+                      {customersMap.get(order.customerId) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditCustomerForCompleteness(customersMap.get(order.customerId)!)
+                          }
+                          style={{
+                            background: 'none',
+                            border: '1px solid #991b1b',
+                            color: '#991b1b',
+                            borderRadius: '4px',
+                            padding: '4px 10px',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          Completa scheda →
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {isJobFailed && (
                     <button
                       onClick={() => handleRetryOrder(order.id!)}
@@ -1503,7 +1543,36 @@ export function PendingOrdersPage() {
                       fontSize: isMobile ? "0.8125rem" : "0.875rem",
                     }}
                   >
-                    Errore: {order.errorMessage || "Errore sconosciuto"}
+                    {isInventtableError(order.errorMessage) ? (
+                      <>
+                        <p style={{ margin: '0 0 0.5rem 0' }}>
+                          La scheda anagrafica del cliente <strong>{order.customerName}</strong> non è
+                          completa in Archibald ERP e non è stato possibile inserire gli articoli.
+                          Aggiorna i dati del cliente e reinvia l&apos;ordine.
+                        </p>
+                        {customersMap.get(order.customerId) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditCustomerForCompleteness(customersMap.get(order.customerId)!)
+                            }
+                            style={{
+                              background: 'none',
+                              border: '1px solid #991b1b',
+                              color: '#991b1b',
+                              borderRadius: '4px',
+                              padding: '4px 10px',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem',
+                            }}
+                          >
+                            Completa scheda →
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>Errore: {order.errorMessage || 'Errore sconosciuto'}</>
+                    )}
                   </div>
                   <button
                     onClick={() => handleRetryOrder(order.id!)}
@@ -2248,6 +2317,14 @@ export function PendingOrdersPage() {
         }
         isLoading={emailDialogLoading}
       />
+      {editCustomerForCompleteness && (
+        <CustomerCreateModal
+          isOpen={true}
+          onClose={handleCompletenessModalClose}
+          onSaved={handleCompletenessModalClose}
+          editCustomer={editCustomerForCompleteness}
+        />
+      )}
     </div>
   );
 }
