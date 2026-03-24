@@ -155,16 +155,18 @@ type PollOptions = {
   intervalMs?: number;
   maxWaitMs?: number;
   onProgress?: (progress: number, label?: string) => void;
+  signal?: { cancelled: boolean };
 };
 
 async function pollJobUntilDone(
   jobId: string,
   options: PollOptions = {},
 ): Promise<Record<string, unknown>> {
-  const { intervalMs = 1500, maxWaitMs = 180_000, onProgress } = options;
+  const { intervalMs = 1500, maxWaitMs = 180_000, onProgress, signal } = options;
   const deadline = Date.now() + maxWaitMs;
 
   while (Date.now() < deadline) {
+    if (signal?.cancelled) return {};
     try {
       const { job } = await getJobStatus(jobId);
 
@@ -218,6 +220,7 @@ async function waitForJobViaWebSocket(
     let wsActive = false;
     const unsubscribers: Array<() => void> = [];
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const fallbackSignal = { cancelled: false };
 
     const hardDeadline = setTimeout(() => {
       if (resolved) return;
@@ -229,6 +232,7 @@ async function waitForJobViaWebSocket(
 
     const cleanup = () => {
       resolved = true;
+      fallbackSignal.cancelled = true;
       clearTimeout(hardDeadline);
       if (fallbackTimer) clearTimeout(fallbackTimer);
       if (safetyPollTimer) clearInterval(safetyPollTimer);
@@ -247,7 +251,7 @@ async function waitForJobViaWebSocket(
       if (fallbackTimer) clearTimeout(fallbackTimer);
       fallbackTimer = setTimeout(() => {
         if (resolved) return;
-        pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress })
+        pollJobUntilDone(jobId, { intervalMs, maxWaitMs, onProgress, signal: fallbackSignal })
           .then((result) => { if (!resolved) { cleanup(); resolve(result); } })
           .catch((err) => { if (!resolved) { cleanup(); reject(err); } });
       }, wsFallbackMs);

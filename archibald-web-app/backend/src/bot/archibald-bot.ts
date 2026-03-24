@@ -10017,6 +10017,11 @@ export class ArchibaldBot {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
+    // Wait for DevExpress to settle any in-flight XHRs (e.g. from the previous
+    // field's Tab commit) before typing. Without this, a delayed XHR response
+    // can reset the field mid-type, causing only the tail of the value to land.
+    await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-${inputId}` });
+
     // Step 2: Type the value via real CDP keyboard events.
     // page.type() generates authentic keydown/keypress/keyup/input events that
     // DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
@@ -10058,6 +10063,7 @@ export class ArchibaldBot {
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }, inputId);
 
+      await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-retry-${inputId}` });
       await this.page.type(`#${inputId}`, value, { delay: 5 });
 
       await this.page.keyboard.press("Tab");
