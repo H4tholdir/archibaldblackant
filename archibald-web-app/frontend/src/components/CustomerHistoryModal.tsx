@@ -471,7 +471,7 @@ export function CustomerHistoryModal({
   return (
     <>
       <style>{`
-        @keyframes artFlash { 0%,100% { background: inherit; } 30% { background: #dcfce7; } }
+        @keyframes artFlash { 0%,100% { background: inherit; } 30% { background: #e2e8f0; } }
         @keyframes badgePop { 0% { transform: scale(0.6); opacity: 0; } 80% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
         @keyframes badgeBump { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
         @keyframes counterBump { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
@@ -503,11 +503,11 @@ export function CustomerHistoryModal({
               {addedCount > 0 && (
                 <div id="cart-counter" style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'rgba(5,150,105,0.25)', borderRadius: 20,
-                  padding: '4px 12px', fontSize: 12, color: '#6ee7b7', fontWeight: 700,
+                  background: 'rgba(255,255,255,0.15)', borderRadius: 20,
+                  padding: '4px 12px', fontSize: 12, color: '#cbd5e1', fontWeight: 700,
                   animation: 'counterBump 0.3s ease',
                 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
                   {addedCount} articol{addedCount === 1 ? 'o' : 'i'} nell'ordine
                 </div>
               )}
@@ -586,10 +586,10 @@ export function CustomerHistoryModal({
                 <option key={city} value={city}>{city}</option>
               ))}
             </select>
-            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e0e7ff', color: '#4338ca', whiteSpace: 'nowrap' }}>
+            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
               Ordini: {ordersCount}
             </span>
-            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#ede9fe', color: '#6d28d9', whiteSpace: 'nowrap' }}>
+            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
               Fresis: {fresisCount}
             </span>
             <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
@@ -716,23 +716,22 @@ type OrderCardProps = {
 
 function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, isFresisWithSubClient, onAddArticle, onAddGhostArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
-  const accent = isFresis ? '#8b5cf6' : '#3b82f6';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
 
   return (
-    <div style={{ position: 'relative', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accent}`, borderRadius: 8, width: '100%', background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+    <div style={{ position: 'relative', border: '1px solid #e2e8f0', borderLeft: '4px solid #94a3b8', borderRadius: 8, width: '100%', background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
       {(isCopying || isCopied) && (
         <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(5,150,105,0.15)', borderRadius: 8,
+          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.08)', borderRadius: 8,
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
         }}>
-          <div style={{ animation: 'checkPop 0.4s ease', fontSize: 48, color: '#059669' }}>✓</div>
+          <div style={{ animation: 'checkPop 0.4s ease', fontSize: 48, color: '#475569' }}>✓</div>
         </div>
       )}
       <div style={{
-        background: isFresis ? '#ede9fe' : '#dbeafe', padding: '10px 14px',
+        background: '#f1f5f9', padding: '10px 14px',
         display: 'flex', alignItems: 'center', gap: 10,
-        borderBottom: `1px solid ${isFresis ? '#c4b5fd' : '#93c5fd'}`, borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
+        borderBottom: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
@@ -746,7 +745,7 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
             </div>
           )}
           {isFresis && order.subClientCodice && (
-            <div style={{ fontSize: 11, color: '#a78bfa' }}>
+            <div style={{ fontSize: 11, color: '#64748b' }}>
               Sottocliente: {[order.subClientCodice, order.subClientRagioneSociale, order.subClientCity].filter(Boolean).join(' · ')}
             </div>
           )}
@@ -754,10 +753,10 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
         {order.orderDiscountPercent > 0 && (
           <span style={{
             padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-            background: '#fef9c3', color: '#854d0e',
+            background: '#e2e8f0', color: '#475569',
           }}>Sconto {order.orderDiscountPercent}%</span>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, color: '#059669' }}>€ {formatEur(totalAmount)}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>€ {formatEur(totalAmount)}</span>
         <button onClick={onCopyOrder} disabled={isCopying} style={{
           background: isCopying ? '#475569' : '#1e293b', color: 'white', border: 'none',
           padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
@@ -787,11 +786,11 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
             <th style={{ padding: '7px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Descrizione</th>
             <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Qtà</th>
             <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>P.unit. storico</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', background: '#f5f3ff', borderBottom: '1px solid #e2e8f0' }}>Listino unit.</th>
+            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Listino unit.</th>
             <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Sconto</th>
             <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>IVA</th>
             <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Tot.+IVA storico</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', background: '#f5f3ff', borderBottom: '1px solid #e2e8f0' }}>Tot. listino+IVA</th>
+            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Tot. listino+IVA</th>
             <th style={{ padding: '7px 8px', borderBottom: '1px solid #e2e8f0' }}></th>
           </tr>
         </thead>
@@ -871,7 +870,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         <span style={{
           fontFamily: 'monospace',
           fontSize: 12,
-          color: '#6366f1',
+          color: '#1e293b',
           fontWeight: 700,
           display: 'block',
           overflow: 'hidden',
@@ -883,10 +882,10 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
           {article.articleCode}
         </span>
         {substituteCode && (
-          <span style={{ display: 'block', fontSize: 9, color: '#d97706', fontWeight: 600 }}>→ {substituteCode}</span>
+          <span style={{ display: 'block', fontSize: 9, color: '#64748b', fontWeight: 600 }}>→ {substituteCode}</span>
         )}
         {isUnmatched && (
-          <span style={{ display: 'block', fontSize: 9, color: '#dc2626' }}>non nel catalogo</span>
+          <span style={{ display: 'block', fontSize: 9, color: '#64748b' }}>non nel catalogo</span>
         )}
         {bestLevel !== 'none' && topMatch && (
           <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: colors.accentColor, marginTop: 1 }}>
@@ -913,12 +912,12 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
       <td style={{ padding: '8px 8px', textAlign: 'right', color: '#64748b', borderLeft: '2px solid #f1f5f9' }}>{formatEur(article.unitPrice)}</td>
 
       {/* Listino unit. (NEW) */}
-      <td style={{ padding: '8px 8px', textAlign: 'right', background: '#fafaff' }}>
+      <td style={{ padding: '8px 8px', textAlign: 'right', background: '#f8fafc' }}>
         {listinoUnit !== null ? (
           <>
-            <span style={{ fontWeight: 700, color: '#6366f1' }}>{formatEur(listinoUnit)}</span>
+            <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatEur(listinoUnit)}</span>
             {delta !== null && Math.abs(delta) > 0.001 && (
-              <span style={{ display: 'block', fontSize: 8, fontWeight: 600, color: delta > 0 ? '#dc2626' : '#059669' }}>
+              <span style={{ display: 'block', fontSize: 8, fontWeight: 600, color: '#64748b' }}>
                 {delta > 0 ? `▲ +${delta}%` : `▼ −${Math.abs(delta)}%`}
               </span>
             )}
@@ -930,17 +929,17 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
       </td>
 
       <td style={{ padding: '8px 8px', textAlign: 'right', borderLeft: '2px solid #f1f5f9' }}>
-        <span style={{ background: '#fef9c3', color: '#854d0e', padding: '1px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>{article.discountPercent}%</span>
+        <span style={{ background: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>{article.discountPercent}%</span>
       </td>
       <td style={{ padding: '8px 8px', textAlign: 'right' }}>
-        <span style={{ background: '#f0fdf4', color: '#166534', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>{article.vatPercent}%</span>
+        <span style={{ background: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>{article.vatPercent}%</span>
       </td>
 
       {/* Tot.+IVA storico */}
       <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, borderLeft: '2px solid #f1f5f9' }}>{formatEur(article.lineTotalWithVat)}</td>
 
       {/* Tot. listino+IVA (NEW) */}
-      <td style={{ padding: '8px 8px', textAlign: 'right', background: '#fafaff', fontWeight: 700, color: '#6366f1' }}>
+      <td style={{ padding: '8px 8px', textAlign: 'right', background: '#f8fafc', fontWeight: 700, color: '#1e293b' }}>
         {listinoTot !== null ? formatEur(listinoTot) : <span style={{ color: '#94a3b8' }}>—</span>}
       </td>
 
@@ -949,7 +948,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
           onClick={canAddAsGhost ? onAddGhost : onAdd}
           disabled={isUnmatched && !canAddAsGhost}
           style={{
-            background: (isUnmatched && !canAddAsGhost) ? '#94a3b8' : isFlashing ? '#16a34a' : canAddAsGhost ? '#d97706' : '#6366f1',
+            background: (isUnmatched && !canAddAsGhost) ? '#cbd5e1' : isFlashing ? '#475569' : '#1e293b',
             color: 'white', border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10,
             fontWeight: 600, cursor: (isUnmatched && !canAddAsGhost) ? 'not-allowed' : 'pointer',
             width: '100%', whiteSpace: 'nowrap', transition: 'background 0.15s',
@@ -960,7 +959,7 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         {badgeCount > 0 && (
           <span style={{
             position: 'absolute', top: 2, right: 2,
-            background: '#4ade80', color: '#14532d',
+            background: '#e2e8f0', color: '#1e293b',
             borderRadius: 10, padding: '1px 6px', fontSize: 9, fontWeight: 700,
             animation: badgeCount === 1 ? 'badgePop 0.3s ease' : 'badgeBump 0.2s ease',
             pointerEvents: 'none', lineHeight: '14px',
@@ -977,7 +976,7 @@ function FooterItem({ label, value, green }: { label: string; value: string; gre
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
       <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-      <span style={{ fontWeight: 700, color: green ? '#059669' : '#1e293b', fontSize: green ? 15 : 13 }}>{value}</span>
+      <span style={{ fontWeight: 700, color: '#1e293b', fontSize: green ? 15 : 13 }}>{value}</span>
     </div>
   );
 }
@@ -998,7 +997,7 @@ function SkippedDialog({ skipped, onClose }: { skipped: string[]; onClose: () =>
           {skipped.map((s, i) => <li key={i}>{s}</li>)}
         </ul>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#6366f1', color: 'white', border: 'none', padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Capito</button>
+          <button onClick={onClose} style={{ background: '#1e293b', color: 'white', border: 'none', padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Capito</button>
         </div>
       </div>
     </div>

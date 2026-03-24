@@ -16,18 +16,25 @@ type Props = {
 export function WarehouseHistoryDialog({
   articleCode, requestedQuantity, matches, onConfirm, onSkip, onCancel,
 }: Props) {
-  const [selections, setSelections] = useState<Map<number, number>>(() => {
-    const m = new Map<number, number>();
+  const [selections, setSelections] = useState<Map<number, number>>(() => new Map());
+
+  const handleSelectAll = () => {
+    const next = new Map<number, number>();
     let remaining = requestedQuantity;
     for (const match of matches) {
       if (isAutoSelected(match.level) && remaining > 0) {
         const use = Math.min(match.availableQty, remaining);
-        m.set(match.item.id, use);
+        next.set(match.item.id, use);
         remaining -= use;
       }
     }
-    return m;
-  });
+    if (next.size === 0 && matches.length > 0) {
+      next.set(matches[0].item.id, Math.min(matches[0].availableQty, requestedQuantity));
+    }
+    setSelections(next);
+  };
+
+  const handleDeselectAll = () => setSelections(new Map());
 
   const totalSelected = Array.from(selections.values()).reduce((s, q) => s + q, 0);
   const toOrder = Math.max(0, requestedQuantity - totalSelected);
@@ -63,7 +70,13 @@ export function WarehouseHistoryDialog({
       <div style={{ background: 'white', borderRadius: 10, width: '100%', maxWidth: 480, boxShadow: '0 20px 50px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ background: '#1e293b', color: 'white', padding: '14px 18px' }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Articoli trovati in magazzino</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Articoli trovati in magazzino</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handleSelectAll} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid #475569', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Seleziona tutto</button>
+              <button onClick={handleDeselectAll} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid #475569', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Deseleziona tutto</button>
+            </div>
+          </div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontFamily: 'monospace' }}>{articleCode}</div>
         </div>
 
@@ -149,6 +162,14 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
   const [allSelections, setAllSelections] = useState<Map<string, Map<number, number>>>(() => {
     const outer = new Map<string, Map<number, number>>();
     for (const art of articles) {
+      outer.set(art.articleCode, new Map());
+    }
+    return outer;
+  });
+
+  const handleSelectAll = () => {
+    const next = new Map<string, Map<number, number>>();
+    for (const art of articles) {
       const inner = new Map<number, number>();
       let remaining = art.requestedQuantity;
       for (const match of art.matches) {
@@ -158,10 +179,22 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
           remaining -= use;
         }
       }
-      outer.set(art.articleCode, inner);
+      if (inner.size === 0) {
+        const topMatch = art.matches[0];
+        inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+      }
+      next.set(art.articleCode, inner);
     }
-    return outer;
-  });
+    setAllSelections(next);
+  };
+
+  const handleDeselectAll = () => {
+    const next = new Map<string, Map<number, number>>();
+    for (const art of articles) {
+      next.set(art.articleCode, new Map());
+    }
+    setAllSelections(next);
+  };
 
   const handleConfirm = () => {
     const result = new Map<string, SelectedWarehouseMatch[]>();
@@ -181,7 +214,13 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
     <div style={{ position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'white', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
         <div style={{ background: '#1e293b', color: 'white', padding: '14px 18px', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Articoli trovati in magazzino — ordine copiato</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Articoli trovati in magazzino — ordine copiato</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handleSelectAll} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid #475569', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Seleziona tutto</button>
+              <button onClick={handleDeselectAll} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid #475569', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Deseleziona tutto</button>
+            </div>
+          </div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Seleziona quali articoli usare dal magazzino</div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
