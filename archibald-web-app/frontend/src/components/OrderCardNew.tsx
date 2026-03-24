@@ -1294,7 +1294,9 @@ function TabArticoli({
       return;
     }
     const mods = computeModifications(originalItems, editItems);
-    if (mods.length === 0) {
+    const notesChanged = editNotes !== (initialNotes ?? '');
+    const shippingChanged = editNoShipping !== (initialNoShipping ?? false);
+    if (mods.length === 0 && !notesChanged && !shippingChanged) {
       onEditDone?.();
       return;
     }
@@ -1691,6 +1693,17 @@ function TabArticoli({
           >
             Conferma modifiche
           </h3>
+
+          {editNoShipping !== (initialNoShipping ?? false) && (
+            <div style={{ marginBottom: "16px", fontSize: "13px", color: "#555" }}>
+              Spese di spedizione: {editNoShipping ? "rimosse (NO SPESE DI SPEDIZIONE)" : "ripristinate"}
+            </div>
+          )}
+          {editNotes !== (initialNotes ?? '') && (
+            <div style={{ marginBottom: "16px", fontSize: "13px", color: "#555" }}>
+              Note aggiornate
+            </div>
+          )}
 
           {updates.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
