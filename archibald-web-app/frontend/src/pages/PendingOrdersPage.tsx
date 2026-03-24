@@ -160,7 +160,7 @@ export function PendingOrdersPage() {
   const completableOrders = selectableOrders.filter((o) => {
     const c = customersMap.get(o.customerId);
     if (!c) return true; // map not yet loaded: don't block
-    const isGhostOnly = o.items.every((i) => i.isGhostArticle);
+    const isGhostOnly = o.items.length > 0 && o.items.every((i) => i.isGhostArticle);
     return checkCustomerCompleteness(c).ok || isGhostOnly;
   });
 
