@@ -280,13 +280,15 @@ async function handleSubmitOrder(
         remaining_sales_financial, customer_reference, sales_status,
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
-        total_amount, hash, last_sync, created_at, articles_synced_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+        total_amount, hash, last_sync, created_at, articles_synced_at,
+        notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       ON CONFLICT (id, user_id) DO UPDATE SET
         order_number = EXCLUDED.order_number,
         gross_amount = EXCLUDED.gross_amount,
         total_amount = EXCLUDED.total_amount,
-        last_sync = EXCLUDED.last_sync`,
+        last_sync = EXCLUDED.last_sync,
+        notes = EXCLUDED.notes`,
       [
         orderId,
         userId,
@@ -313,6 +315,7 @@ async function handleSubmitOrder(
         Math.floor(Date.now() / 1000),
         now,
         isWarehouseOnly ? now : null,
+        data.notes ?? null,
       ],
     );
 

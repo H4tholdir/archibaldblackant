@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { Order, OrderArticle } from "../types/order";
 
@@ -16,8 +16,9 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
-import { archibaldLineAmount } from "../utils/order-calculations";
+import { archibaldLineAmount, calculateShippingCosts } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
+import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { getDiscountForArticle } from "../api/fresis-discounts";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
@@ -660,6 +661,8 @@ function TabArticoli({
   editProgress,
   onEditProgress,
   customerName,
+  initialNotes,
+  initialDiscountPercent,
 }: {
   orderId: string;
   archibaldOrderId?: string;
@@ -674,6 +677,8 @@ function TabArticoli({
   editProgress?: { progress: number; operation: string } | null;
   onEditProgress?: (progress: { progress: number; operation: string } | null) => void;
   customerName?: string;
+  initialNotes?: string;
+  initialDiscountPercent?: number;
 }) {
   type VerificationMismatch = {
     type: string;
@@ -711,6 +716,25 @@ function TabArticoli({
   );
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingArticles, setSyncingArticles] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [globalEditDiscount, setGlobalEditDiscount] = useState('');
+  const [showImponibileDialog, setShowImponibileDialog] = useState(false);
+  const [imponibileTarget, setImponibileTarget] = useState('');
+  const [imponibileSelectedItems, setImponibileSelectedItems] = useState<Set<number>>(new Set());
+  const [showTotaleDialog, setShowTotaleDialog] = useState(false);
+  const [totaleTarget, setTotaleTarget] = useState('');
+  const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<number>>(new Set());
+  const [showMarkupPanel, setShowMarkupPanel] = useState(false);
+  const [markupAmount, setMarkupAmount] = useState(0);
+  const [markupArticleSelection, setMarkupArticleSelection] = useState<Set<number>>(new Set());
+  const editTotals = useMemo(() => {
+    const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
+    const shipping = calculateShippingCosts(itemsSubtotal);
+    const vatFromItems = editItems.reduce((s, i) => s + i.vatAmount, 0);
+    const finalVAT = Math.round((vatFromItems + shipping.tax) * 100) / 100;
+    const finalTotal = Math.round((itemsSubtotal + shipping.cost + finalVAT) * 100) / 100;
+    return { itemsSubtotal, shippingCost: shipping.cost, shippingTax: shipping.tax, finalVAT, finalTotal };
+  }, [editItems]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -860,6 +884,17 @@ function TabArticoli({
       cancelled = true;
     };
   }, [editing, orderId]);
+
+  useEffect(() => {
+    if (editing) {
+      setEditNotes(initialNotes ?? '');
+      setGlobalEditDiscount(
+        initialDiscountPercent && initialDiscountPercent > 0
+          ? String(initialDiscountPercent)
+          : '',
+      );
+    }
+  }, [editing, initialNotes, initialDiscountPercent]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -1229,6 +1264,7 @@ function TabArticoli({
         orderId,
         modifications,
         updatedItems: editItems,
+        notes: editNotes,
       });
 
       if (!result.success) {
@@ -1258,6 +1294,207 @@ function TabArticoli({
       setSubmittingEdit(false);
       onEditProgress?.(null);
     }
+  };
+
+  const handleGlobalDiscountChange = (val: string) => {
+    if (val === '' || /^\d*[.,]?\d{0,2}$/.test(val)) {
+      setGlobalEditDiscount(val);
+      const disc = parseFloat(val.replace(',', '.')) || 0;
+      setEditItems((prev) => prev.map((item) => recalcLineAmounts({ ...item, discountPercent: disc })));
+    }
+  };
+
+  const handleImponibileViaSconto = () => {
+    const target = parseFloat(imponibileTarget.replace(',', '.'));
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+
+    const selectedSubtotal = editItems
+      .filter((_, i) => imponibileSelectedItems.has(i))
+      .reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const unselectedSubtotal = editItems
+      .filter((_, i) => !imponibileSelectedItems.has(i))
+      .reduce((sum, item) => sum + item.lineAmount, 0);
+
+    const targetForSelected = target - unselectedSubtotal;
+    if (targetForSelected < 0 || selectedSubtotal === 0) {
+      setError("Impossibile raggiungere l'imponibile target");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
+    if (scontoNecessario < 0 || scontoNecessario >= 100) {
+      setError("Sconto necessario fuori range (0-100%)");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const computeImponibile = (disc: number) =>
+      editItems.reduce((sum, item, i) => {
+        if (!imponibileSelectedItems.has(i)) return sum + item.lineAmount;
+        return sum + Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
+      }, 0);
+
+    let newDiscount = Math.floor(scontoNecessario * 100) / 100;
+    while (computeImponibile(newDiscount) < target && newDiscount > 0) {
+      newDiscount = Math.round((newDiscount - 0.01) * 100) / 100;
+    }
+    const stepped = Math.round((newDiscount + 0.01) * 100) / 100;
+    if (computeImponibile(stepped) >= target) {
+      newDiscount = stepped;
+    }
+
+    let updatedItems = editItems.map((item, i) =>
+      imponibileSelectedItems.has(i)
+        ? recalcLineAmounts({ ...item, discountPercent: newDiscount })
+        : item,
+    );
+
+    // Correzione centesimi residui sull'ultimo articolo selezionato
+    const actualImponibile = updatedItems.reduce((s, i) => s + i.lineAmount, 0);
+    const residualCents = Math.round((actualImponibile - target) * 100);
+    if (residualCents > 0 && residualCents <= 10) {
+      const indices = Array.from(imponibileSelectedItems);
+      const lastIdx = indices[indices.length - 1];
+      const lastItem = editItems[lastIdx];
+      let lo = newDiscount;
+      let hi = Math.min(newDiscount + 5, 100);
+      let bestDisc = newDiscount;
+      for (let iter = 0; iter < 80; iter++) {
+        const mid = Math.round(((lo + hi) / 2) * 100) / 100;
+        const testItems = updatedItems.map((it, i) =>
+          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: mid }) : it,
+        );
+        const testImp = testItems.reduce((s, i) => s + i.lineAmount, 0);
+        if (testImp === target) { bestDisc = mid; break; }
+        if (testImp > target) lo = mid;
+        else hi = mid;
+        if (testImp >= target && mid > bestDisc) bestDisc = mid;
+      }
+      if (bestDisc > newDiscount) {
+        updatedItems = updatedItems.map((it, i) =>
+          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: bestDisc }) : it,
+        );
+      }
+    }
+
+    setEditItems(updatedItems);
+    setShowImponibileDialog(false);
+  };
+
+  const handleTotaleCalcola = () => {
+    const target = parseFloat(totaleTarget.replace(',', '.'));
+    if (isNaN(target) || target <= 0 || totaleSelectedItems.size === 0) return;
+
+    if (target > editTotals.finalTotal) {
+      const unselSub = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.lineAmount, 0);
+      const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
+      const selItemsForMax = editItems.filter((_, i) => totaleSelectedItems.has(i));
+      const maxSub = unselSub + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * 100) / 100, 0);
+      const maxVAT = unselVAT + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * (it.vatPercent / 100) * 100) / 100, 0);
+      const maxShipping = calculateShippingCosts(maxSub);
+      const maxTotal = Math.round((maxSub + maxShipping.cost + maxVAT + maxShipping.tax) * 100) / 100;
+
+      if (target > maxTotal) {
+        const diff = target - editTotals.finalTotal;
+        setMarkupAmount(diff);
+        setMarkupArticleSelection(new Set(totaleSelectedItems));
+        setShowMarkupPanel(true);
+        setShowTotaleDialog(false);
+        return;
+      }
+    }
+
+    const selItems = editItems.filter((_, i) => totaleSelectedItems.has(i));
+    const unselSub = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.lineAmount, 0);
+    const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
+    const shipping = calculateShippingCosts(editTotals.itemsSubtotal);
+    const fixedPortion = unselSub + unselVAT + shipping.cost + shipping.tax;
+    const targetForSelected = target - fixedPortion;
+    if (targetForSelected <= 0) {
+      setError('Impossibile raggiungere il totale target con gli articoli selezionati');
+      setShowTotaleDialog(false);
+      return;
+    }
+
+    const computeDiscountedTotal = (disc: number) => {
+      let testSub = 0; let testVAT = 0;
+      for (const it of selItems) {
+        const itemSub = Math.round(it.unitPrice * it.quantity * (1 - disc / 100) * 100) / 100;
+        testSub += itemSub;
+        testVAT += Math.round(itemSub * (it.vatPercent / 100) * 100) / 100;
+      }
+      return Math.round((testSub + testVAT + fixedPortion) * 100) / 100;
+    };
+
+    let low = 0; let high = 100; let bestDiscount = 0;
+    for (let iter = 0; iter < 100; iter++) {
+      const mid = (low + high) / 2;
+      const testTotal = computeDiscountedTotal(mid);
+      if (Math.abs(testTotal - target) < 0.005) { bestDiscount = mid; break; }
+      if (testTotal > target) low = mid; else high = mid;
+      bestDiscount = mid;
+    }
+
+    let finalDiscount = Math.floor(bestDiscount * 100) / 100;
+    while (computeDiscountedTotal(finalDiscount) < target && finalDiscount > 0) {
+      finalDiscount = Math.round((finalDiscount - 0.01) * 100) / 100;
+    }
+    const stepped = Math.round((finalDiscount + 0.01) * 100) / 100;
+    if (computeDiscountedTotal(stepped) >= target) finalDiscount = stepped;
+
+    setEditItems(prev =>
+      prev.map((item, i) =>
+        totaleSelectedItems.has(i)
+          ? recalcLineAmounts({ ...item, discountPercent: finalDiscount })
+          : item,
+      ),
+    );
+    setShowTotaleDialog(false);
+  };
+
+  const handleApplyMarkup = () => {
+    if (markupArticleSelection.size === 0) return;
+    const targetTotal = editTotals.finalTotal + markupAmount;
+    const selItems = editItems.filter((_, i) => markupArticleSelection.has(i));
+    const selSub = selItems.reduce((s, it) => s + it.lineAmount, 0);
+    const selVAT = selItems.reduce((s, it) => s + it.vatAmount, 0);
+    const avgVatRate = selSub > 0 ? selVAT / selSub : 0.22;
+    const netMarkup = markupAmount / (1 + avgVatRate);
+
+    let updatedItems = editItems.map((item, i) => {
+      if (!markupArticleSelection.has(i)) return item;
+      const weight = selSub > 0 ? item.lineAmount / selSub : 1 / selItems.length;
+      const itemMarkup = netMarkup * weight;
+      const newUnitPrice = item.quantity > 0 ? item.unitPrice + itemMarkup / item.quantity : item.unitPrice;
+      const roundedPrice = Math.round(newUnitPrice * 100) / 100;
+      return recalcLineAmounts({ ...item, unitPrice: roundedPrice });
+    });
+
+    const computeTotal = (items: typeof editItems) => {
+      const sub = items.reduce((s, i) => s + i.lineAmount, 0);
+      const sh = calculateShippingCosts(sub);
+      const vat = items.reduce((s, i) => s + i.vatAmount, 0);
+      return Math.round((sub + sh.cost + vat + sh.tax) * 100) / 100;
+    };
+
+    let actualTotal = computeTotal(updatedItems);
+    if (actualTotal < targetTotal) {
+      const sorted = updatedItems.map((it, idx) => ({ it, idx }))
+        .filter(({ idx }) => markupArticleSelection.has(idx))
+        .sort((a, b) => a.it.quantity - b.it.quantity);
+      for (const { idx } of sorted) {
+        if (actualTotal >= targetTotal) break;
+        const item = updatedItems[idx];
+        updatedItems = updatedItems.map((it, i) =>
+          i === idx ? recalcLineAmounts({ ...item, unitPrice: Math.round((item.unitPrice + 0.01) * 100) / 100 }) : it,
+        );
+        actualTotal = computeTotal(updatedItems);
+      }
+    }
+
+    setEditItems(updatedItems);
+    setShowMarkupPanel(false);
   };
 
   const handleCancelEdit = () => {
@@ -1918,7 +2155,7 @@ function TabArticoli({
                         }}
                         title="Rimuovi riga"
                       >
-                        {"✕"}
+                        {"🗑️"}
                       </button>
                     </td>
                   </tr>
@@ -1947,6 +2184,337 @@ function TabArticoli({
             + Aggiungi articolo
           </button>
         </div>
+
+        {/* Sconto globale */}
+        <div style={{ marginTop: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>
+            Sconto su tutte le righe (%)
+          </label>
+          <input
+            autoComplete="off"
+            type="text"
+            inputMode="decimal"
+            value={globalEditDiscount}
+            onChange={(e) => handleGlobalDiscountChange(e.target.value)}
+            style={{ width: '160px', padding: '6px 8px', fontSize: '13px', border: '1px solid #d1d5db', borderRadius: '4px' }}
+          />
+        </div>
+
+        {/* Note ordine */}
+        <div style={{ marginTop: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>
+            Note
+          </label>
+          <textarea
+            autoComplete="off"
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+            placeholder="Note per l'ordine..."
+            maxLength={500}
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontFamily: 'system-ui',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Riepilogo totali */}
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '16px',
+            background: 'white',
+            borderRadius: '8px',
+            border: '2px solid #3b82f6',
+          }}
+        >
+          {/* Subtotale articoli */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+            <span>Subtotale articoli:</span>
+            <strong>{formatCurrency(editTotals.itemsSubtotal)}</strong>
+          </div>
+
+          {/* Imponibile – cliccabile */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
+              paddingTop: '8px',
+              borderTop: '1px solid #e5e7eb',
+              fontSize: '13px',
+              cursor: editItems.length > 0 ? 'pointer' : 'default',
+              ...(editItems.length > 0 ? { background: '#f0f9ff', borderRadius: '4px', padding: '8px 4px', margin: '-4px 0 8px 0' } : {}),
+            }}
+            onClick={() => {
+              if (editItems.length === 0) return;
+              setImponibileTarget(editTotals.itemsSubtotal.toFixed(2));
+              setImponibileSelectedItems(new Set(editItems.map((_, i) => i)));
+              setShowImponibileDialog(true);
+            }}
+          >
+            <span>Imponibile:{editItems.length > 0 ? ' (clicca per modificare)' : ''}</span>
+            <strong>{formatCurrency(editTotals.itemsSubtotal)}</strong>
+          </div>
+
+          {/* Spese trasporto */}
+          {editTotals.shippingCost > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#f59e0b' }}>
+              <span>
+                Spese di trasporto K3{' '}
+                <span style={{ fontSize: '11px' }}>({formatCurrency(editTotals.shippingCost)} + IVA)</span>
+              </span>
+              <strong>{formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}</strong>
+            </div>
+          )}
+
+          {/* IVA totale */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#6b7280' }}>
+            <span>IVA Totale:</span>
+            <strong>{formatCurrency(editTotals.finalVAT)}</strong>
+          </div>
+
+          {/* Totale con IVA – cliccabile */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              paddingTop: '8px',
+              borderTop: '2px solid #3b82f6',
+              fontSize: '15px',
+              cursor: editItems.length > 0 ? 'pointer' : 'default',
+              ...(editItems.length > 0 ? { background: '#eff6ff', borderRadius: '4px', padding: '8px 4px' } : {}),
+            }}
+            onClick={() => {
+              if (editItems.length === 0) return;
+              setTotaleTarget(editTotals.finalTotal.toFixed(2));
+              setTotaleSelectedItems(new Set(editItems.map((_, i) => i)));
+              setShowTotaleDialog(true);
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              TOTALE (con IVA):{editItems.length > 0 ? ' (clicca)' : ''}
+            </span>
+            <strong style={{ color: '#3b82f6' }}>{formatCurrency(editTotals.finalTotal)}</strong>
+          </div>
+        </div>
+
+        {/* Dialogs – rendered by subsequent tasks */}
+      {/* Imponibile dialog */}
+      {showImponibileDialog && (
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+          onClick={() => setShowImponibileDialog(false)}
+        >
+          <div
+            style={{ backgroundColor: 'white', padding: '24px', borderRadius: '8px', maxWidth: '480px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Modifica Imponibile</h3>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Nuovo imponibile target</label>
+              <input
+                autoComplete="off"
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={imponibileTarget}
+                onChange={(e) => setImponibileTarget(e.target.value)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={imponibileSelectedItems.size === editItems.length}
+                  onChange={(e) =>
+                    setImponibileSelectedItems(
+                      e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                    )
+                  }
+                />
+                Seleziona tutti
+              </label>
+              {editItems.map((item, idx) => (
+                <label
+                  key={idx}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '4px', borderBottom: '1px solid #f3f4f6', background: imponibileSelectedItems.has(idx) ? '#eff6ff' : 'transparent' }}
+                >
+                  <input
+                    autoComplete="off"
+                    type="checkbox"
+                    checked={imponibileSelectedItems.has(idx)}
+                    onChange={(e) => {
+                      const next = new Set(imponibileSelectedItems);
+                      if (e.target.checked) next.add(idx); else next.delete(idx);
+                      setImponibileSelectedItems(next);
+                    }}
+                  />
+                  {item.articleCode} – {formatCurrency(item.lineAmount)}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleImponibileViaSconto}
+                disabled={imponibileSelectedItems.size === 0}
+                style={{ flex: 1, padding: '10px', background: imponibileSelectedItems.size > 0 ? '#8b5cf6' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: imponibileSelectedItems.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+              >
+                Via sconto
+              </button>
+              <button
+                onClick={() => setShowImponibileDialog(false)}
+                style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Totale dialog */}
+      {showTotaleDialog && (
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+          onClick={() => setShowTotaleDialog(false)}
+        >
+          <div
+            style={{ backgroundColor: 'white', padding: '24px', borderRadius: '8px', maxWidth: '480px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Modifica Totale (con IVA)</h3>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Nuovo totale target (con IVA)</label>
+              <input
+                autoComplete="off"
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={totaleTarget}
+                onChange={(e) => setTotaleTarget(e.target.value)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={totaleSelectedItems.size === editItems.length}
+                  onChange={(e) =>
+                    setTotaleSelectedItems(
+                      e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                    )
+                  }
+                />
+                Seleziona tutti
+              </label>
+              {editItems.map((item, idx) => (
+                <label
+                  key={idx}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '4px', borderBottom: '1px solid #f3f4f6', background: totaleSelectedItems.has(idx) ? '#eff6ff' : 'transparent' }}
+                >
+                  <input
+                    autoComplete="off"
+                    type="checkbox"
+                    checked={totaleSelectedItems.has(idx)}
+                    onChange={(e) => {
+                      const next = new Set(totaleSelectedItems);
+                      if (e.target.checked) next.add(idx); else next.delete(idx);
+                      setTotaleSelectedItems(next);
+                    }}
+                  />
+                  {item.articleCode} – {formatCurrency(item.lineTotalWithVat)}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleTotaleCalcola}
+                disabled={totaleSelectedItems.size === 0}
+                style={{ flex: 1, padding: '10px', background: totaleSelectedItems.size > 0 ? '#3b82f6' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: totaleSelectedItems.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+              >
+                Calcola
+              </button>
+              <button
+                onClick={() => setShowTotaleDialog(false)}
+                style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Maggiorazione panel */}
+      {showMarkupPanel && (
+        <div style={{ marginTop: '16px', padding: '16px', background: '#fffbeb', borderRadius: '8px', border: '2px solid #f59e0b' }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#92400e' }}>
+            Maggiorazione: +{formatCurrency(markupAmount)}
+          </h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#78350f' }}>
+            Il totale desiderato è superiore al massimo. Seleziona gli articoli su cui distribuire la maggiorazione:
+          </p>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: '#92400e' }}>
+              <input
+                autoComplete="off"
+                type="checkbox"
+                checked={markupArticleSelection.size === editItems.length}
+                onChange={(e) =>
+                  setMarkupArticleSelection(
+                    e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                  )
+                }
+              />
+              Tutti gli articoli
+            </label>
+            {editItems.map((item, idx) => (
+              <label
+                key={idx}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '3px 4px', borderBottom: '1px solid #fef3c7', background: markupArticleSelection.has(idx) ? '#fef9c3' : 'transparent' }}
+              >
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={markupArticleSelection.has(idx)}
+                  onChange={(e) => {
+                    const next = new Set(markupArticleSelection);
+                    if (e.target.checked) next.add(idx); else next.delete(idx);
+                    setMarkupArticleSelection(next);
+                  }}
+                />
+                {item.articleCode} – {formatCurrency(item.unitPrice)}/pz
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleApplyMarkup}
+              disabled={markupArticleSelection.size === 0}
+              style={{ flex: 1, padding: '10px', background: markupArticleSelection.size > 0 ? '#f59e0b' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: markupArticleSelection.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+            >
+              Applica Maggiorazione
+            </button>
+            <button
+              onClick={() => setShowMarkupPanel(false)}
+              style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
       </div>
     );
   }
@@ -4675,6 +5243,8 @@ export function OrderCardNew({
                   editProgress={editProgress}
                   onEditProgress={setEditProgress}
                   customerName={order.customerName}
+                  initialNotes={order.notes ?? undefined}
+                  initialDiscountPercent={parseOrderDiscountPercent(order.discountPercent)}
                 />
               </>
             )}

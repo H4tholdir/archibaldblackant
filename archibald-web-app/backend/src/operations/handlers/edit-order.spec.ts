@@ -44,7 +44,7 @@ describe('handleEditOrder', () => {
 
     await handleEditOrder(pool, bot, sampleData, 'user-1', vi.fn());
 
-    expect(bot.editOrderInArchibald).toHaveBeenCalledWith('ORD-001', sampleData.modifications);
+    expect(bot.editOrderInArchibald).toHaveBeenCalledWith('ORD-001', sampleData.modifications, undefined);
   });
 
   test('deletes existing articles and saves updated items', async () => {
@@ -102,5 +102,64 @@ describe('handleEditOrder', () => {
     await handleEditOrder(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+
+  test('passes notes to bot when data.notes is defined', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const dataWithNotes: EditOrderData = { ...sampleData, notes: 'Urgente' };
+
+    await handleEditOrder(pool, bot, dataWithNotes, 'user-1', vi.fn());
+
+    expect(bot.editOrderInArchibald).toHaveBeenCalledWith(
+      'ORD-001',
+      sampleData.modifications,
+      'Urgente',
+    );
+  });
+
+  test('does not pass notes to bot when data.notes is undefined', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleEditOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.editOrderInArchibald).toHaveBeenCalledWith(
+      'ORD-001',
+      sampleData.modifications,
+      undefined,
+    );
+  });
+
+  test('updates order_records.notes in DB when data.notes is defined', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const dataWithNotes: EditOrderData = { ...sampleData, notes: 'Test note' };
+
+    await handleEditOrder(pool, bot, dataWithNotes, 'user-1', vi.fn());
+
+    const notesCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('UPDATE agents.order_records') &&
+        (c[0] as string).includes('notes'),
+      );
+    expect(notesCalls).toHaveLength(1);
+    expect(notesCalls[0][1]).toEqual(['Test note', 'ORD-001', 'user-1']);
+  });
+
+  test('does not update notes in DB when data.notes is undefined', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleEditOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    const notesCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('UPDATE agents.order_records') &&
+        (c[0] as string).includes('notes'),
+      );
+    expect(notesCalls).toHaveLength(0);
   });
 });
