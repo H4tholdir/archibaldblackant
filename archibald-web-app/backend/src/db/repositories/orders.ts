@@ -614,7 +614,7 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
     paramIndex++;
   } else if (options?.customer) {
     conditions.push(`translate(customer_name, E'\\n\\r\\t', '   ') ILIKE $${paramIndex}`);
-    params.push(options.customer.replace(/[\n\r\t]+/g, ' ').trim());
+    params.push(`%${options.customer.replace(/[\n\r\t]+/g, ' ').trim()}%`);
     paramIndex++;
   }
 
