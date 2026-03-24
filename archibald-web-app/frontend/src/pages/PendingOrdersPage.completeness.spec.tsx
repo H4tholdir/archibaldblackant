@@ -200,11 +200,12 @@ describe('PendingOrdersPage — completeness badge', () => {
     });
   });
 
-  test('shows "Valida ora" button when only VAT missing and vatNumber is present', async () => {
+  test('shows "Valida ora →" button when only VAT missing and vatNumber is present', async () => {
     vi.mocked(getCustomers).mockResolvedValue({
       success: true,
       data: { customers: [mockCustomerWithVat as never], total: 1 },
     });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
 
     render(
       <MemoryRouter>
@@ -213,11 +214,11 @@ describe('PendingOrdersPage — completeness badge', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Valida ora →')).toBeTruthy();
+      expect(screen.getByText('Valida ora →')).toBeInTheDocument();
     });
   });
 
-  test('shows "Completa scheda" button when non-VAT fields are missing', async () => {
+  test('shows "Completa scheda →" button when non-VAT fields are missing', async () => {
     vi.mocked(checkCustomerCompleteness).mockReturnValue({
       ok: false,
       missing: ['PEC o SDI mancante', 'Indirizzo mancante'],
@@ -230,7 +231,22 @@ describe('PendingOrdersPage — completeness badge', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Completa scheda →')).toBeTruthy();
+      expect(screen.getByText('Completa scheda →')).toBeInTheDocument();
+    });
+  });
+
+  test('shows "Completa scheda →" button when only VAT missing but vatNumber is null', async () => {
+    // vatNumber: null in mockCustomer (default) + only P.IVA missing → "Completa scheda" not "Valida ora"
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
+
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Completa scheda →')).toBeInTheDocument();
     });
   });
 
@@ -246,7 +262,7 @@ describe('PendingOrdersPage — completeness badge', () => {
     });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    // index 0 = "Seleziona Tutti" header checkbox, index 1 = per-order checkbox
+    expect(checkboxes).toHaveLength(2); // header + 1 order
     const orderCheckbox = checkboxes[1] as HTMLInputElement;
     expect(orderCheckbox.disabled).toBe(true);
   });
