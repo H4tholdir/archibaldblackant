@@ -1300,6 +1300,84 @@ function TabArticoli({
     }
   };
 
+  const handleImponibileViaSconto = () => {
+    const target = parseFloat(imponibileTarget.replace(',', '.'));
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+
+    const selectedSubtotal = editItems
+      .filter((_, i) => imponibileSelectedItems.has(i))
+      .reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const unselectedSubtotal = editItems
+      .filter((_, i) => !imponibileSelectedItems.has(i))
+      .reduce((sum, item) => sum + item.lineAmount, 0);
+
+    const targetForSelected = target - unselectedSubtotal;
+    if (targetForSelected < 0 || selectedSubtotal === 0) {
+      setError("Impossibile raggiungere l'imponibile target");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
+    if (scontoNecessario < 0 || scontoNecessario >= 100) {
+      setError("Sconto necessario fuori range (0-100%)");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const computeImponibile = (disc: number) =>
+      editItems.reduce((sum, item, i) => {
+        if (!imponibileSelectedItems.has(i)) return sum + item.lineAmount;
+        return sum + Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
+      }, 0);
+
+    let newDiscount = Math.floor(scontoNecessario * 100) / 100;
+    while (computeImponibile(newDiscount) < target && newDiscount > 0) {
+      newDiscount = Math.round((newDiscount - 0.01) * 100) / 100;
+    }
+    const stepped = Math.round((newDiscount + 0.01) * 100) / 100;
+    if (computeImponibile(stepped) >= target) {
+      newDiscount = stepped;
+    }
+
+    let updatedItems = editItems.map((item, i) =>
+      imponibileSelectedItems.has(i)
+        ? recalcLineAmounts({ ...item, discountPercent: newDiscount })
+        : item,
+    );
+
+    // Correzione centesimi residui sull'ultimo articolo selezionato
+    const actualImponibile = updatedItems.reduce((s, i) => s + i.lineAmount, 0);
+    const residualCents = Math.round((actualImponibile - target) * 100);
+    if (residualCents > 0 && residualCents <= 10) {
+      const indices = Array.from(imponibileSelectedItems);
+      const lastIdx = indices[indices.length - 1];
+      const lastItem = editItems[lastIdx];
+      let lo = newDiscount;
+      let hi = Math.min(newDiscount + 5, 100);
+      let bestDisc = newDiscount;
+      for (let iter = 0; iter < 80; iter++) {
+        const mid = Math.round(((lo + hi) / 2) * 100) / 100;
+        const testItems = updatedItems.map((it, i) =>
+          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: mid }) : it,
+        );
+        const testImp = testItems.reduce((s, i) => s + i.lineAmount, 0);
+        if (testImp === target) { bestDisc = mid; break; }
+        if (testImp > target) lo = mid;
+        else hi = mid;
+        if (testImp >= target && mid > bestDisc) bestDisc = mid;
+      }
+      if (bestDisc > newDiscount) {
+        updatedItems = updatedItems.map((it, i) =>
+          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: bestDisc }) : it,
+        );
+      }
+    }
+
+    setEditItems(updatedItems);
+    setShowImponibileDialog(false);
+  };
+
   const handleCancelEdit = () => {
     setEditItems(originalItems.map((m) => ({ ...m })));
     setConfirmModal(null);
@@ -2110,7 +2188,80 @@ function TabArticoli({
         </div>
 
         {/* Dialogs – rendered by subsequent tasks */}
-        {showImponibileDialog && <div data-imponibile-target={imponibileTarget} data-items={imponibileSelectedItems.size} />}
+      {/* Imponibile dialog */}
+      {showImponibileDialog && (
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+          onClick={() => setShowImponibileDialog(false)}
+        >
+          <div
+            style={{ backgroundColor: 'white', padding: '24px', borderRadius: '8px', maxWidth: '480px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Modifica Imponibile</h3>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Nuovo imponibile target</label>
+              <input
+                autoComplete="off"
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={imponibileTarget}
+                onChange={(e) => setImponibileTarget(e.target.value)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
+                <input
+                  autoComplete="off"
+                  type="checkbox"
+                  checked={imponibileSelectedItems.size === editItems.length}
+                  onChange={(e) =>
+                    setImponibileSelectedItems(
+                      e.target.checked ? new Set(editItems.map((_, i) => i)) : new Set(),
+                    )
+                  }
+                />
+                Seleziona tutti
+              </label>
+              {editItems.map((item, idx) => (
+                <label
+                  key={idx}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', padding: '4px', borderBottom: '1px solid #f3f4f6', background: imponibileSelectedItems.has(idx) ? '#eff6ff' : 'transparent' }}
+                >
+                  <input
+                    autoComplete="off"
+                    type="checkbox"
+                    checked={imponibileSelectedItems.has(idx)}
+                    onChange={(e) => {
+                      const next = new Set(imponibileSelectedItems);
+                      if (e.target.checked) next.add(idx); else next.delete(idx);
+                      setImponibileSelectedItems(next);
+                    }}
+                  />
+                  {item.articleCode} – {formatCurrency(item.lineAmount)}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleImponibileViaSconto}
+                disabled={imponibileSelectedItems.size === 0}
+                style={{ flex: 1, padding: '10px', background: imponibileSelectedItems.size > 0 ? '#8b5cf6' : '#d1d5db', color: 'white', border: 'none', borderRadius: '6px', cursor: imponibileSelectedItems.size > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '13px' }}
+              >
+                Via sconto
+              </button>
+              <button
+                onClick={() => setShowImponibileDialog(false)}
+                style={{ padding: '10px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         {showTotaleDialog && <div data-totale-target={totaleTarget} data-items={totaleSelectedItems.size} />}
       </div>
     );
