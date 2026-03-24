@@ -12,8 +12,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['submit-order']).toBe(1);
   });
 
-  test('sync-customer-addresses has lowest priority (18)', () => {
-    expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(18);
+  test('sync-customer-addresses has lowest priority (19)', () => {
+    expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
   test('all 18 operation types have a priority', () => {

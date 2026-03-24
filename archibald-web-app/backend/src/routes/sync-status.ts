@@ -91,6 +91,19 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     'sync-order-states',
   ];
 
+  const STALE_THRESHOLDS_MS: Partial<Record<OperationType, number>> = {
+    'sync-customers': 30 * 60_000,
+    'sync-orders': 30 * 60_000,
+    'sync-ddt': 30 * 60_000,
+    'sync-invoices': 30 * 60_000,
+    'sync-tracking': 30 * 60_000,
+    'sync-order-states': 30 * 60_000,
+    'sync-order-articles': 60 * 60_000,
+    'sync-products': 90 * 60_000,
+    'sync-prices': 90 * 60_000,
+    'sync-customer-addresses': 4 * 60 * 60_000,
+  };
+
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
     try {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 149);
@@ -144,10 +157,16 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         const lastSuccess: boolean | null = lastJob ? !lastJob.failedReason : null;
         const lastError: string | null = lastJob?.failedReason ?? null;
 
-        const health: 'healthy' | 'degraded' | 'idle' =
+        const staleThresholdMs = STALE_THRESHOLDS_MS[syncType as OperationType];
+        const isStale = staleThresholdMs !== undefined && lastJob?.finishedOn !== undefined
+          ? Date.now() - lastJob.finishedOn > staleThresholdMs
+          : false;
+
+        const health: 'healthy' | 'degraded' | 'stale' | 'idle' =
           typeJobs.length === 0 ? 'idle'
             : consecutiveFailures >= 3 ? 'degraded'
-              : 'healthy';
+              : isStale ? 'stale'
+                : 'healthy';
 
         const history = typeJobs.slice(0, 20).map((job) => ({
           timestamp: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,

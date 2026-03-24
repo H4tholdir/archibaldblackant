@@ -23,7 +23,7 @@ type SyncIntervals = {
 const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTICLE_SYNC_BATCH_LIMIT = 10;
 const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
-const ADDRESS_SYNC_BATCH_LIMIT = 10;
+const ADDRESS_SYNC_BATCH_LIMIT = 30;
 const ADDRESS_SYNC_DELAY_MS = 5 * 60 * 1000;
 
 function createSyncScheduler(
@@ -34,7 +34,7 @@ function createSyncScheduler(
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
-  const addressSyncTimeouts: NodeJS.Timeout[] = [];
+  const addressSyncTimeouts = new Map<string, NodeJS.Timeout>();
   let running = false;
   let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
   let sessionCount = 0;
@@ -65,11 +65,10 @@ function createSyncScheduler(
             }, ARTICLE_SYNC_DELAY_MS));
           }
 
-          if (getCustomersNeedingAddressSync) {
+          if (getCustomersNeedingAddressSync && !addressSyncTimeouts.has(userId)) {
             const agentUserId = userId;
             const tid = setTimeout(() => {
-              const idx = addressSyncTimeouts.indexOf(tid);
-              if (idx >= 0) addressSyncTimeouts.splice(idx, 1);
+              addressSyncTimeouts.delete(agentUserId);
               getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
                 .then((customers) => {
                   if (customers.length === 0) return;
@@ -77,14 +76,13 @@ function createSyncScheduler(
                     'sync-customer-addresses',
                     agentUserId,
                     { customers: customers.map((c) => ({ customerProfile: c.customer_profile, customerName: c.name })) },
-                    `sync-customer-addresses-batch-${agentUserId}`,
                   );
                 })
                 .catch((error) => {
                   logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
                 });
             }, ADDRESS_SYNC_DELAY_MS);
-            addressSyncTimeouts.push(tid);
+            addressSyncTimeouts.set(agentUserId, tid);
           }
         }
       }, currentIntervals.agentSyncMs),

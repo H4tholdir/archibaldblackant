@@ -123,8 +123,9 @@ async function getCustomersNeedingAddressSync(
     `SELECT customer_profile, name
      FROM agents.customers
      WHERE user_id = $1
-       AND addresses_synced_at IS NULL
-     ORDER BY name ASC
+       AND (addresses_synced_at IS NULL
+            OR addresses_synced_at < NOW() - INTERVAL '7 days')
+     ORDER BY CASE WHEN addresses_synced_at IS NULL THEN 0 ELSE 1 END, name ASC
      LIMIT $2`,
     [userId, limit],
   );

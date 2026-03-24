@@ -52,8 +52,8 @@ describe('createOperationQueue', () => {
       }),
       expect.objectContaining({
         priority: 1,
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 50 },
+        removeOnComplete: { count: 500 },
+        removeOnFail: { count: 100 },
       }),
     );
     expect(jobId).toBe('job-123');
@@ -68,11 +68,11 @@ describe('createOperationQueue', () => {
     expect(mockAdd).toHaveBeenCalledWith(
       'sync-prices',
       expect.objectContaining({ type: 'sync-prices' }),
-      expect.objectContaining({ priority: 16 }),
+      expect.objectContaining({ priority: 17 }),
     );
   });
 
-  test('enqueue sets retry config for sync operations', async () => {
+  test('enqueue sets attempts:1 for sync operations (scheduler handles retry at next cycle)', async () => {
     mockAdd.mockResolvedValue({ id: 'job-789' });
 
     const queue = createOperationQueue();
@@ -81,10 +81,7 @@ describe('createOperationQueue', () => {
     expect(mockAdd).toHaveBeenCalledWith(
       'sync-customers',
       expect.anything(),
-      expect.objectContaining({
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 30000 },
-      }),
+      expect.objectContaining({ attempts: 1 }),
     );
   });
 

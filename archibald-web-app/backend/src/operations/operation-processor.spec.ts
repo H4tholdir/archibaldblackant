@@ -146,6 +146,24 @@ describe('createOperationProcessor', () => {
     );
   });
 
+  test('skips gracefully when a scheduled sync finds another scheduled sync running', async () => {
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'chain-job', type: 'sync-orders' },
+      preemptable: false,
+    });
+    const { processor, enqueue } = createProcessor({
+      agentLock: busyLock,
+      handlers: { 'sync-customers': vi.fn().mockResolvedValue({}) } as any,
+    });
+    const job = createMockJob({ type: 'sync-customers' });
+
+    const result = await processor.processJob(job as any);
+
+    expect(result).toEqual({ success: true, data: { skipped: true }, duration: expect.any(Number) });
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
   test('throws when MAX_REQUEUE_COUNT reached (so BullMQ marks job as failed)', async () => {
     const busyLock = createMockAgentLock({
       acquired: false,
@@ -326,6 +344,18 @@ describe('createOperationProcessor', () => {
       'user-a',
       'job-123',
     );
+  });
+
+  test('does not enqueue next sync in chain when handler fails', async () => {
+    const failingHandler = vi.fn().mockRejectedValue(new Error('handler failed'));
+    const { processor, enqueue } = createProcessor({
+      handlers: { 'sync-customers': failingHandler } as any,
+    });
+    const job = createMockJob({ type: 'sync-customers' });
+
+    await expect(processor.processJob(job as any)).rejects.toThrow('handler failed');
+
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   test('does not fail if onJobStarted throws', async () => {

@@ -50,12 +50,12 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
   function getJobOptions(type: OperationType): JobsOptions {
     const base: JobsOptions = {
       priority: OPERATION_PRIORITIES[type],
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
+      removeOnComplete: { count: 500 },
+      removeOnFail: { count: 100 },
     };
 
     if (isScheduledSync(type)) {
-      return { ...base, attempts: 3, backoff: { type: 'exponential', delay: 30000 } };
+      return { ...base, attempts: 1 };
     }
 
     if (type === 'download-ddt-pdf' || type === 'download-invoice-pdf') {

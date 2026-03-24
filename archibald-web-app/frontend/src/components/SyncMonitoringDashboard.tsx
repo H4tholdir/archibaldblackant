@@ -24,7 +24,7 @@ type SyncTypeStats = {
   lastDuration: number | null;
   lastSuccess: boolean | null;
   lastError: string | null;
-  health: "healthy" | "degraded" | "idle";
+  health: "healthy" | "degraded" | "stale" | "idle";
   totalCompleted: number;
   totalFailed: number;
   consecutiveFailures: number;
@@ -68,12 +68,14 @@ const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
   { type: "sync-customer-addresses" as SyncType, label: "Indirizzi Clienti", icon: "🏠" },
 ];
 
-function getHealthBadge(health: "healthy" | "degraded" | "idle") {
+function getHealthBadge(health: "healthy" | "degraded" | "stale" | "idle") {
   switch (health) {
     case "healthy":
       return { color: "#4caf50", bg: "#e8f5e9", label: "HEALTHY" };
     case "degraded":
       return { color: "#f44336", bg: "#ffebee", label: "DEGRADED" };
+    case "stale":
+      return { color: "#e65100", bg: "#fff8e1", label: "STALE" };
     case "idle":
       return { color: "#ff9800", bg: "#fff3e0", label: "IDLE" };
   }

@@ -120,6 +120,12 @@ function createOperationProcessor(deps: ProcessorDeps) {
       }
 
       if (!acquireResult.acquired) {
+        // When a scheduled sync can't acquire because another scheduled sync is running,
+        // skip silently — the scheduler will re-enqueue at the next cycle.
+        if (isScheduledSync(type) && isScheduledSync(acquireResult.activeJob.type)) {
+          return { success: true, data: { skipped: true }, duration: Date.now() - startTime };
+        }
+
         const requeueCount = (idempotencyKey.match(/-r\d+/g) ?? []).length;
         if (requeueCount >= MAX_REQUEUE_COUNT) {
           throw new Error(`Agent ${userId} busy: lock not acquired after ${MAX_REQUEUE_COUNT} requeues for ${type}`);
@@ -201,11 +207,6 @@ function createOperationProcessor(deps: ProcessorDeps) {
         type,
         error: errorMessage,
       });
-
-      const nextSync = getNextSyncInChain(type);
-      if (nextSync) {
-        await enqueue(nextSync, userId, {}).catch(() => { /* ignore chain enqueue errors */ });
-      }
 
       throw error;
     } finally {

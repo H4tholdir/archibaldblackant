@@ -332,7 +332,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
 
       await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
 
@@ -346,8 +346,24 @@ describe('createSyncScheduler', () => {
             { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
           ],
         },
-        'sync-customer-addresses-batch-user-1',
       );
+
+      scheduler.stop();
+    });
+
+    test('enqueues sync-customer-addresses without idempotency key to allow re-enqueue each cycle', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
+        { customer_profile: 'CUST-001', name: 'Rossi Mario' },
+      ]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+
+      const addressCall = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
+      expect(addressCall).toBeDefined();
+      expect(addressCall!.length).toBe(3);
 
       scheduler.stop();
     });
@@ -374,7 +390,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
 
       scheduler.stop();
     });
@@ -386,7 +402,7 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
 
       scheduler.stop();
     });
@@ -399,7 +415,28 @@ describe('createSyncScheduler', () => {
       scheduler.start(intervals);
       await expect(vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS)).resolves.not.toThrow();
 
-      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object), expect.any(String));
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
+
+      scheduler.stop();
+    });
+
+    test('does not create duplicate address sync timeout when interval fires multiple times before delay expires', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
+        { customer_profile: 'CUST-001', name: 'Rossi' },
+      ]);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(100); // first interval fires, timeout set
+      await vi.advanceTimersByTimeAsync(100); // second interval fires, timeout already pending — no duplicate
+
+      enqueue.mockClear();
+      await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
+
+      // Only one enqueue despite two intervals: second interval skipped because timeout already pending
+      const addressCalls = enqueue.mock.calls.filter((c) => c[0] === 'sync-customer-addresses');
+      expect(addressCalls.length).toBe(1);
 
       scheduler.stop();
     });
@@ -422,7 +459,6 @@ describe('createSyncScheduler', () => {
         'sync-customer-addresses',
         'user-1',
         expect.objectContaining({ customers: expect.any(Array) }),
-        expect.any(String),
       );
     });
   });

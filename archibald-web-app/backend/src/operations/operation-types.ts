@@ -30,16 +30,16 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'delete-order': 6,
   'download-ddt-pdf': 7,
   'download-invoice-pdf': 8,
-  'sync-order-articles': 9,
   'sync-order-states': 10,
   'sync-customers': 11,
   'sync-orders': 12,
-  'sync-ddt': 13,
-  'sync-invoices': 14,
-  'sync-products': 15,
-  'sync-prices': 16,
-  'sync-tracking': 17,
-  'sync-customer-addresses': 18,
+  'sync-order-articles': 13,
+  'sync-ddt': 14,
+  'sync-invoices': 15,
+  'sync-products': 16,
+  'sync-prices': 17,
+  'sync-tracking': 18,
+  'sync-customer-addresses': 19,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([
