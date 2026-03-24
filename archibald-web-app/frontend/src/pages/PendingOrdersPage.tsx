@@ -157,11 +157,18 @@ export function PendingOrdersPage() {
     (o) => o.status !== "completed-warehouse",
   );
 
+  const completableOrders = selectableOrders.filter((o) => {
+    const c = customersMap.get(o.customerId);
+    if (!c) return true; // map not yet loaded: don't block
+    const isGhostOnly = o.items.every((i) => i.isGhostArticle);
+    return checkCustomerCompleteness(c).ok || isGhostOnly;
+  });
+
   const handleSelectAll = () => {
-    if (selectedOrderIds.size === selectableOrders.length) {
+    if (selectedOrderIds.size === completableOrders.length && completableOrders.length > 0) {
       setSelectedOrderIds(new Set());
     } else {
-      setSelectedOrderIds(new Set(selectableOrders.map((o) => o.id)));
+      setSelectedOrderIds(new Set(completableOrders.map((o) => o.id)));
     }
   };
 
@@ -1084,10 +1091,7 @@ export function PendingOrdersPage() {
         >
           <input autoComplete="off"
             type="checkbox"
-            checked={
-              selectableOrders.length > 0 &&
-              selectedOrderIds.size === selectableOrders.length
-            }
+            checked={selectedOrderIds.size === completableOrders.length && completableOrders.length > 0}
             onChange={handleSelectAll}
             style={{
               width: isMobile ? "1.375rem" : "1.25rem",
