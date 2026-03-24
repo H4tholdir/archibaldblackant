@@ -4417,6 +4417,15 @@ export function OrderCardNew({
     return { totalVatAmount, totalWithVat };
   });
 
+  // Sync header totals when order prop is refreshed (e.g. after edit + fetchOrders)
+  useEffect(() => {
+    const newTotal = order.totalWithVat ? parseFloat(order.totalWithVat) : undefined;
+    const newVat = order.totalVatAmount ? parseFloat(order.totalVatAmount) : undefined;
+    if (newTotal !== undefined && !isNaN(newTotal) && newTotal !== 0) {
+      setArticlesTotals(prev => ({ ...prev, totalWithVat: newTotal, totalVatAmount: newVat }));
+    }
+  }, [order.totalWithVat, order.totalVatAmount]);
+
   const canSendToVerona = isNotSentToVerona(order) && !justSentToVerona;
 
   const tabs = [

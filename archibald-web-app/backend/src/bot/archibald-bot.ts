@@ -2908,8 +2908,14 @@ export class ArchibaldBot {
     }, fieldInfo.id);
     await this.wait(100);
 
-    // Type value using real keyboard events
-    await this.page.keyboard.type(value, { delay: 0 });
+    // Type value using real keyboard events.
+    // For non-empty values, typing replaces the selected text.
+    // For empty values, Delete clears the selection (keyboard.type('') is a no-op).
+    if (value.length > 0) {
+      await this.page.keyboard.type(value, { delay: 0 });
+    } else {
+      await this.page.keyboard.press('Delete');
+    }
     await this.wait(300);
 
     // Do NOT call waitForDevExpressIdle here — it triggers/waits for callbacks
