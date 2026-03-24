@@ -1297,6 +1297,7 @@ type WarehousePickupArticle = {
   quantity: number;
   boxName: string;
   status: 'venduto' | 'riservato';
+  subClientName: string | null;
 };
 
 type WarehousePickupOrder = {
@@ -1318,6 +1319,7 @@ type WarehousePickupRow = {
   quantity: number;
   box_name: string;
   status: 'venduto' | 'riservato';
+  sub_client_name: string | null;
 };
 
 async function getWarehousePickupsByDate(
@@ -1336,14 +1338,15 @@ async function getWarehousePickupsByDate(
        wi.description AS article_description,
        wi.quantity,
        wi.box_name,
-       CASE WHEN wi.sold_in_order IS NOT NULL THEN 'venduto' ELSE 'riservato' END AS status
+       CASE WHEN wi.sold_in_order IS NOT NULL THEN 'venduto' ELSE 'riservato' END AS status,
+       wi.sub_client_name
      FROM agents.warehouse_items wi
      JOIN agents.order_records o
        ON o.id = COALESCE(wi.sold_in_order, wi.reserved_for_order)
        AND o.user_id = wi.user_id
      WHERE wi.user_id = $1
        AND (wi.sold_in_order IS NOT NULL OR wi.reserved_for_order IS NOT NULL)
-       AND DATE(o.creation_date) = $2::date
+       AND DATE(wi.order_date) = $2::date
      ORDER BY o.creation_date ASC, o.order_number ASC, wi.id ASC`,
     [userId, date],
   );
@@ -1368,6 +1371,7 @@ async function getWarehousePickupsByDate(
       quantity: row.quantity,
       boxName: row.box_name,
       status: row.status,
+      subClientName: row.sub_client_name,
     });
   }
 

@@ -208,15 +208,25 @@ export function WarehousePickupList() {
             }}
           >
             <div>
-              <span
-                style={{ fontSize: "15px", fontWeight: 700, color: "#1565c0" }}
-              >
-                {order.orderNumber}
-              </span>
-              <span style={{ margin: "0 8px", color: "#bbb" }}>·</span>
-              <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
-                {order.customerName}
-              </span>
+              <div>
+                <span
+                  style={{ fontSize: "15px", fontWeight: 700, color: "#1565c0" }}
+                >
+                  {order.orderNumber}
+                </span>
+                <span style={{ margin: "0 8px", color: "#bbb" }}>·</span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
+                  {order.customerName}
+                </span>
+              </div>
+              {(() => {
+                const subClient = order.articles.find((a) => a.subClientName)?.subClientName;
+                return subClient ? (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
+                    Sotto-cliente: <strong>{subClient}</strong>
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ fontSize: "12px", color: "#888" }}>

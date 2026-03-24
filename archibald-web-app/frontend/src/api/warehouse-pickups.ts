@@ -9,6 +9,7 @@ export type WarehousePickupArticle = {
   quantity: number;
   boxName: string;
   status: 'venduto' | 'riservato';
+  subClientName: string | null;
 };
 
 export type WarehousePickupOrder = {
