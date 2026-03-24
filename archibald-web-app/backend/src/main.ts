@@ -521,7 +521,7 @@ async function bootstrap(): Promise<void> {
         }
       };
       return {
-        editOrderInArchibald: async (id, data, notes) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes); },
+        editOrderInArchibald: async (id, data, notes, noShipping) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes, noShipping); },
         setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
       };
     }),
