@@ -15,6 +15,7 @@ import { getUnitPricesByProductIds } from '../../db/repositories/prices';
 import { logger } from '../../logger';
 import type { CustomerAddress } from '../../db/repositories/customer-addresses';
 import { getAddressById } from '../../db/repositories/customer-addresses';
+import { buildOrderNotesText } from '../../utils/order-notes';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -315,7 +316,7 @@ async function handleSubmitOrder(
         Math.floor(Date.now() / 1000),
         now,
         isWarehouseOnly ? now : null,
-        data.notes ?? null,
+        buildOrderNotesText(data.noShipping, data.notes) || null,
       ],
     );
 
