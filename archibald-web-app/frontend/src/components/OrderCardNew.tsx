@@ -723,7 +723,13 @@ function TabArticoli({
   const [editNoShipping, setEditNoShipping] = useState(false);
   const [verificationBanner, setVerificationBanner] = useState<{
     status: 'verified' | 'mismatch_detected';
-    mismatches?: Array<{ articleCode: string; field: string | null; expected: number | null; found: number | null }>;
+    mismatches?: Array<{
+      snapshotArticleCode: string | null;
+      syncedArticleCode: string | null;
+      field: string | null;
+      expected: number | null;
+      found: number | null;
+    }>;
   } | null>(null);
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
@@ -916,7 +922,7 @@ function TabArticoli({
   useEffect(() => {
     if (!editing) return;
     const unsubscribe = subscribe('VERIFICATION_RESULT', (payload: unknown) => {
-      const p = payload as { orderId: string; status: string; mismatches?: Array<{ articleCode: string; field: string | null; expected: number | null; found: number | null }> };
+      const p = payload as { orderId: string; status: string; mismatches?: Array<{ snapshotArticleCode: string | null; syncedArticleCode: string | null; field: string | null; expected: number | null; found: number | null }> };
       if (p.orderId === orderId) {
         setVerificationBanner({
           status: p.status as 'verified' | 'mismatch_detected',
@@ -2376,7 +2382,7 @@ function TabArticoli({
                 </div>
                 {verificationBanner.mismatches?.map((m, i) => (
                   <div key={i} style={{ color: '#78350f', fontSize: '0.8125rem' }}>
-                    {m.articleCode}: {m.field} atteso {String(m.expected)} → trovato {String(m.found)}
+                    {m.snapshotArticleCode ?? m.syncedArticleCode}: {m.field} atteso {String(m.expected)} → trovato {String(m.found)}
                   </div>
                 ))}
               </div>
