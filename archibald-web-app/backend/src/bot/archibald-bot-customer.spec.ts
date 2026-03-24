@@ -25,6 +25,23 @@ const addressA: AddressEntry = { tipo: 'Consegna', via: 'Via Roma 1', cap: '3710
 const addressB: AddressEntry = { tipo: 'Ufficio', nome: 'HQ', via: 'Corso Italia 5', cap: '20122', citta: 'Milano' };
 const emptyAddress: AddressEntry = { tipo: 'Consegna', via: undefined, cap: undefined, citta: undefined };
 
+describe('close', () => {
+  it('does not throw when page.close() fails with a CDP Protocol error (dead session)', async () => {
+    const cdpError = new Error('Protocol error: Connection closed. Most likely the page has been closed.');
+    const pageMock = {
+      ...makePageMock(),
+      isClosed: vi.fn().mockReturnValue(false),
+      close: vi.fn().mockRejectedValue(cdpError),
+    };
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = pageMock;
+    (bot as any).writeOperationReport = vi.fn().mockResolvedValue('/tmp/report.json');
+
+    await expect(bot.close()).resolves.toBeUndefined();
+    expect(pageMock.close).toHaveBeenCalledOnce();
+  });
+});
+
 describe('writeAltAddresses', () => {
   let page: ReturnType<typeof makePageMock>;
   let bot: ArchibaldBot;

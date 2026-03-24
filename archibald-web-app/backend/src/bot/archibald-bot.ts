@@ -9092,7 +9092,13 @@ export class ArchibaldBot {
     }
 
     if (this.page && !this.page.isClosed()) {
-      await this.page.close();
+      try {
+        await this.page.close();
+      } catch (err) {
+        logger.warn('Bot close: failed to close page (CDP session likely dead)', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       this.page = null;
     }
 
