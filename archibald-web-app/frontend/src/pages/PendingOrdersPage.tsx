@@ -85,19 +85,25 @@ export function PendingOrdersPage() {
   const {
     validate: validateVat,
     status: vatValidationStatus,
+    errorMessage: vatValidationError,
     reset: resetVatValidation,
   } = useVatValidation();
   void validateVat;
+  void vatValidationError;
   void CustomerCreateModal;
 
   const refreshCustomer = useCallback(async (customerProfile: string) => {
     const token = localStorage.getItem('archibald_jwt') ?? '';
-    const res = await fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return;
-    const updated: RichCustomer = await res.json();
-    setCustomersMap((prev) => new Map(prev).set(customerProfile, updated));
+    try {
+      const res = await fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const body: { success: boolean; data: RichCustomer } = await res.json();
+      setCustomersMap((prev) => new Map(prev).set(customerProfile, body.data));
+    } catch (err) {
+      console.warn('Failed to refresh customer completeness', err);
+    }
   }, []);
 
   useEffect(() => {
