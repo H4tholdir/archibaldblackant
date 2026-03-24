@@ -252,6 +252,29 @@ describe('post-edit verification', () => {
   });
 });
 
+describe('discount propagation', () => {
+  const testOrderId = 'ORD-DISCOUNT-001';
+  const testUserId = 'user-discount';
+
+  test('passes discount=0 to bot modifications (does not skip zero discount)', async () => {
+    const pool = createMockPool();
+    const botCalls: Array<{ mods: unknown }> = [];
+    const mockBot: EditOrderBot = {
+      editOrderInArchibald: async (_id: string, mods: unknown) => {
+        botCalls.push({ mods });
+        return { success: true, message: 'ok' };
+      },
+      setProgressCallback: () => {},
+    };
+    await handleEditOrder(pool, mockBot as never, {
+      orderId: testOrderId,
+      modifications: [{ type: 'update', rowIndex: 0, discount: 0 }],
+    }, testUserId, () => {});
+    const mods = botCalls[0].mods as Array<{ discount?: number }>;
+    expect(mods[0].discount).toEqual(0);
+  });
+});
+
 describe('noShipping propagation', () => {
   test('passes noShipping=true to bot as 4th argument', async () => {
     const pool = createMockPool();

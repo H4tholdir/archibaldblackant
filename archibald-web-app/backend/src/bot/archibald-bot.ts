@@ -7804,8 +7804,10 @@ export class ArchibaldBot {
         await this.setEditRowQuantity(mod.quantity);
 
         // Set discount if present
-        if (mod.discount !== undefined && mod.discount > 0) {
+        if (mod.discount !== undefined) {
+          logger.info('[editOrder] Applying discount to row', { rowIndex: mod.rowIndex, discount: mod.discount });
           await this.setEditRowDiscount(mod.discount);
+          logger.info('[editOrder] Discount applied', { rowIndex: mod.rowIndex });
         }
 
         // Save the row
@@ -7876,8 +7878,10 @@ export class ArchibaldBot {
         await this.setEditRowQuantity(mod.quantity);
 
         // Set discount if present
-        if (mod.discount !== undefined && mod.discount > 0) {
+        if (mod.discount !== undefined) {
+          logger.info('[editOrder] Applying discount to row', { articleCode: mod.articleCode, discount: mod.discount });
           await this.setEditRowDiscount(mod.discount);
+          logger.info('[editOrder] Discount applied', { articleCode: mod.articleCode });
         }
 
         // Save the row
