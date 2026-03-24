@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { Order, OrderArticle } from "../types/order";
 
@@ -16,7 +16,7 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
-import { archibaldLineAmount } from "../utils/order-calculations";
+import { archibaldLineAmount, calculateShippingCosts } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { getDiscountForArticle } from "../api/fresis-discounts";
@@ -718,6 +718,20 @@ function TabArticoli({
   const [syncingArticles, setSyncingArticles] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
+  const [showImponibileDialog, setShowImponibileDialog] = useState(false);
+  const [imponibileTarget, setImponibileTarget] = useState('');
+  const [imponibileSelectedItems, setImponibileSelectedItems] = useState<Set<number>>(new Set());
+  const [showTotaleDialog, setShowTotaleDialog] = useState(false);
+  const [totaleTarget, setTotaleTarget] = useState('');
+  const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<number>>(new Set());
+  const editTotals = useMemo(() => {
+    const itemsSubtotal = editItems.reduce((s, i) => s + i.lineAmount, 0);
+    const shipping = calculateShippingCosts(itemsSubtotal);
+    const vatFromItems = editItems.reduce((s, i) => s + i.vatAmount, 0);
+    const finalVAT = Math.round((vatFromItems + shipping.tax) * 100) / 100;
+    const finalTotal = Math.round((itemsSubtotal + shipping.cost + finalVAT) * 100) / 100;
+    return { itemsSubtotal, shippingCost: shipping.cost, shippingTax: shipping.tax, finalVAT, finalTotal };
+  }, [editItems]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -2013,6 +2027,91 @@ function TabArticoli({
             }}
           />
         </div>
+
+        {/* Riepilogo totali */}
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '16px',
+            background: 'white',
+            borderRadius: '8px',
+            border: '2px solid #3b82f6',
+          }}
+        >
+          {/* Subtotale articoli */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+            <span>Subtotale articoli:</span>
+            <strong>{formatCurrency(editTotals.itemsSubtotal)}</strong>
+          </div>
+
+          {/* Imponibile – cliccabile */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
+              paddingTop: '8px',
+              borderTop: '1px solid #e5e7eb',
+              fontSize: '13px',
+              cursor: editItems.length > 0 ? 'pointer' : 'default',
+              ...(editItems.length > 0 ? { background: '#f0f9ff', borderRadius: '4px', padding: '8px 4px', margin: '-4px 0 8px 0' } : {}),
+            }}
+            onClick={() => {
+              if (editItems.length === 0) return;
+              setImponibileTarget(editTotals.itemsSubtotal.toFixed(2));
+              setImponibileSelectedItems(new Set(editItems.map((_, i) => i)));
+              setShowImponibileDialog(true);
+            }}
+          >
+            <span>Imponibile:{editItems.length > 0 ? ' (clicca per modificare)' : ''}</span>
+            <strong>{formatCurrency(editTotals.itemsSubtotal)}</strong>
+          </div>
+
+          {/* Spese trasporto */}
+          {editTotals.shippingCost > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#f59e0b' }}>
+              <span>
+                Spese di trasporto K3{' '}
+                <span style={{ fontSize: '11px' }}>({formatCurrency(editTotals.shippingCost)} + IVA)</span>
+              </span>
+              <strong>{formatCurrency(editTotals.shippingCost + editTotals.shippingTax)}</strong>
+            </div>
+          )}
+
+          {/* IVA totale */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#6b7280' }}>
+            <span>IVA Totale:</span>
+            <strong>{formatCurrency(editTotals.finalVAT)}</strong>
+          </div>
+
+          {/* Totale con IVA – cliccabile */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              paddingTop: '8px',
+              borderTop: '2px solid #3b82f6',
+              fontSize: '15px',
+              cursor: editItems.length > 0 ? 'pointer' : 'default',
+              ...(editItems.length > 0 ? { background: '#eff6ff', borderRadius: '4px', padding: '8px 4px' } : {}),
+            }}
+            onClick={() => {
+              if (editItems.length === 0) return;
+              setTotaleTarget(editTotals.finalTotal.toFixed(2));
+              setTotaleSelectedItems(new Set(editItems.map((_, i) => i)));
+              setShowTotaleDialog(true);
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              TOTALE (con IVA):{editItems.length > 0 ? ' (clicca)' : ''}
+            </span>
+            <strong style={{ color: '#3b82f6' }}>{formatCurrency(editTotals.finalTotal)}</strong>
+          </div>
+        </div>
+
+        {/* Dialogs – rendered by subsequent tasks */}
+        {showImponibileDialog && <div data-imponibile-target={imponibileTarget} data-items={imponibileSelectedItems.size} />}
+        {showTotaleDialog && <div data-totale-target={totaleTarget} data-items={totaleSelectedItems.size} />}
       </div>
     );
   }
