@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { buildOrderNotesText } from '../../utils/order-notes';
 
 type EditOrderArticle = {
   articleCode: string;
@@ -19,6 +20,7 @@ type EditOrderData = {
   modifications: Array<Record<string, unknown>>;
   updatedItems?: EditOrderArticle[];
   notes?: string;
+  noShipping?: boolean;
 };
 
 type EditOrderBot = {
@@ -26,6 +28,7 @@ type EditOrderBot = {
     orderId: string,
     modifications: Array<Record<string, unknown>>,
     notes?: string,
+    noShipping?: boolean,
   ) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -70,7 +73,7 @@ async function handleEditOrder(
   });
 
   onProgress(5, 'Modifica ordine su Archibald');
-  const result = await bot.editOrderInArchibald(data.orderId, data.modifications, data.notes);
+  const result = await bot.editOrderInArchibald(data.orderId, data.modifications, data.notes, data.noShipping);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -132,10 +135,11 @@ async function handleEditOrder(
     });
   }
 
-  if (data.notes !== undefined) {
+  if (data.notes !== undefined || data.noShipping !== undefined) {
+    const notesText = buildOrderNotesText(data.noShipping, data.notes) || null;
     await pool.query(
       'UPDATE agents.order_records SET notes = $1 WHERE id = $2 AND user_id = $3',
-      [data.notes, data.orderId, userId],
+      [notesText, data.orderId, userId],
     );
   }
 
