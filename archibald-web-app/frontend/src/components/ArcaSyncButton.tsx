@@ -134,6 +134,7 @@ function InlineMatcher({
     setImportExists(null);
     setImportError(null);
     setImportChecking(false);
+    setImporting(false);
     if (currentIdx + 1 >= items.length) {
       onMatchComplete();
     } else {
