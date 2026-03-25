@@ -1476,7 +1476,9 @@ function TabArticoli({
         testSub += itemSub;
         testVAT += Math.round(itemSub * (it.vatPercent / 100) * 100) / 100;
       }
-      return Math.round((testSub + testVAT + fixedPortion) * 100) / 100;
+      // Match editTotals: intermediate round2 on total VAT before final sum
+      const totalVAT = Math.round((testVAT + unselVAT + shipping.tax) * 100) / 100;
+      return Math.round((testSub + unselSub + shipping.cost + totalVAT) * 100) / 100;
     };
 
     let low = 0; let high = 100; let bestDiscount = 0;

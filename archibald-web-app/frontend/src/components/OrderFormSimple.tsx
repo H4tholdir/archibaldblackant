@@ -2358,20 +2358,20 @@ export default function OrderFormSimple() {
     let high = 100;
     let bestDiscount = 0;
 
-    // Compute total matching forward calculation rounding
-    const computeDiscountedTotal = (disc: number) => {
-      let testSub = 0;
-      let testVAT = 0;
-      for (const i of selectedItems) {
-        const itemSub =
-          Math.round(i.unitPrice * i.quantity * (1 - disc / 100) * 100) / 100;
-        testSub += itemSub;
-        testVAT +=
-          Math.round(itemSub * (i.vatRate / 100) * 100) / 100;
+    // Compute total using arcaDocumentTotals (VAT by group) to match calculateTotals()
+    const computeDiscountedTotal = (disc: number): number => {
+      const selLines = selectedItems.map(i => ({
+        prezzotot: Math.round(i.unitPrice * i.quantity * (1 - disc / 100) * 100) / 100,
+        vatRate: i.vatRate,
+      }));
+      const unselLines = unselectedItems.map(i => ({ prezzotot: i.subtotal, vatRate: i.vatRate }));
+      const allLines = [...unselLines, ...selLines];
+      const newSub = allLines.reduce((s, l) => s + l.prezzotot, 0);
+      const newShipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(newSub);
+      if (newShipping.cost > 0) {
+        return arcaDocumentTotals(allLines, 1, newShipping.cost, 22).totDoc;
       }
-      return (
-        Math.round((testSub + testVAT + fixedPortion) * 100) / 100
-      );
+      return arcaDocumentTotals(allLines, 1).totDoc;
     };
 
     for (let iter = 0; iter < 100; iter++) {
