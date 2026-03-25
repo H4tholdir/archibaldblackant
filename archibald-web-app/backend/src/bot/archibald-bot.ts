@@ -11094,7 +11094,7 @@ export class ArchibaldBot {
       )?.set;
       if (setter) setter.call(input, "");
       else input.value = "";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      // No dispatchEvent — avoids DevExpress XHR that restores the original value
       return input.id;
     });
 
