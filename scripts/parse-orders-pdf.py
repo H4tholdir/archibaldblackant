@@ -87,6 +87,23 @@ def normalize_multiline(text: Optional[str]) -> Optional[str]:
     return re.sub(r"\s+", " ", text.strip())
 
 
+def normalize_currency(value: Optional[str]) -> Optional[str]:
+    """Ensure Italian currency values have € suffix.
+
+    Guards against pdfplumber cell extraction inconsistency where the €
+    symbol is occasionally dropped for specific rows despite being visible
+    in the PDF (e.g. due to internal PDF coordinate layout differences).
+    """
+    if value is None:
+        return None
+    if "€" in value:
+        return value
+    # Italian currency: optional minus, digits with optional dot thousands separator, comma decimal
+    if re.match(r"^-?\d{1,3}(\.\d{3})*,\d{2}$", value.strip()):
+        return value.strip() + " €"
+    return value
+
+
 def get_column_value(table: list, row_idx: int, header_text: str) -> Optional[str]:
     """
     Extract value from table by matching header text.
@@ -305,12 +322,12 @@ def parse_orders_pdf(pdf_path: str):
                     discount_percent = get_column_value(
                         tables[5], row_idx, "APPLICA SCONTO"
                     )
-                    gross_amount = get_column_value(tables[5], row_idx, "IMPORTO LORDO")
+                    gross_amount = normalize_currency(get_column_value(tables[5], row_idx, "IMPORTO LORDO"))
 
                     # Page 7/7: IMPORTO TOTALE, ORDINE OMAGGIO, E-MAIL (2-3 columns)
-                    total_amount = get_column_value(
+                    total_amount = normalize_currency(get_column_value(
                         tables[6], row_idx, "IMPORTO TOTALE"
-                    )
+                    ))
                     is_gift_order = get_column_value(
                         tables[6], row_idx, "ORDINE OMAGGIO"
                     )
