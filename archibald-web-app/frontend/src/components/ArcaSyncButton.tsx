@@ -101,14 +101,17 @@ function InlineMatcher({
   useEffect(() => {
     if (mode !== 'import') return;
     if (!/^C[0-9]{5}$/.test(importCodice)) { setImportExists(null); return; }
+    let cancelled = false;
     setImportChecking(true);
     const t = setTimeout(() => {
       fetch(`/api/arca-sync/check-codice?code=${importCodice}`, { headers: authHeaders() })
         .then(r => r.json())
-        .then((d: { exists: boolean }) => { setImportExists(d.exists); setImportChecking(false); })
-        .catch(() => setImportChecking(false));
+        .then((d: { exists: boolean }) => {
+          if (!cancelled) { setImportExists(d.exists); setImportChecking(false); }
+        })
+        .catch(() => { if (!cancelled) setImportChecking(false); });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [importCodice, mode]);
 
   if (!current) { onMatchComplete(); return null; }
@@ -130,6 +133,7 @@ function InlineMatcher({
     setImportCodice('');
     setImportExists(null);
     setImportError(null);
+    setImportChecking(false);
     if (currentIdx + 1 >= items.length) {
       onMatchComplete();
     } else {
