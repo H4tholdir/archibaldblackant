@@ -301,7 +301,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           const editSession = sessionManager.getSession(sessionId, userId);
           if (editSession?.customerProfile && vatResult.vatValidated) {
-            const v = vatResult.vatValidated.toUpperCase();
+            const v = vatResult.vatValidated.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
             if (v.includes('SI') || v.includes('YES') || v === 'TRUE' || v === '1') {
               await updateVatValidatedAt(userId, editSession.customerProfile).catch((err) => {
                 logger.warn('Failed to mark vat_validated_at after VAT check', { err });

@@ -268,6 +268,30 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
+    test('calls updateVatValidatedAt when vatValidated is "Sì" (accented Italian yes)', async () => {
+      const mockBot = createMockBot();
+      (mockBot.submitVatAndReadAutofill as ReturnType<typeof vi.fn>).mockResolvedValue({
+        lastVatCheck: '2026-03-25',
+        vatValidated: 'Sì',
+        vatAddress: '',
+        parsed: { companyName: '', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+        pec: '',
+        sdi: '0000000',
+      });
+      const editSessionId = sessionManager.createSession('user-1');
+      sessionManager.updateState(editSessionId, 'ready');
+      sessionManager.setBot(editSessionId, mockBot);
+      sessionManager.setCustomerProfile(editSessionId, 'CUST-002');
+
+      await request(app)
+        .post(`/api/customers/interactive/${editSessionId}/vat`)
+        .send({ vatNumber: 'IT05303240658' });
+
+      await vi.waitFor(() => {
+        expect(deps.updateVatValidatedAt).toHaveBeenCalledWith('user-1', 'CUST-002');
+      });
+    });
+
     test('does not call updateVatValidatedAt when session has no customerProfile', async () => {
       await request(app)
         .post(`/api/customers/interactive/${sessionId}/vat`)
