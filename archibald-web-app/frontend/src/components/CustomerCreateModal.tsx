@@ -350,8 +350,14 @@ export function CustomerCreateModal({
             setCurrentStep({ kind: "vat-input" });
           });
       } else {
-        // show-validated-check
+        // show-validated-check: start bot session in background to read ERP fields
+        // (email, mobile, url, etc.) and populate empty form fields via CUSTOMER_INTERACTIVE_READY.
         setCurrentStep({ kind: "vat-edit-check" });
+        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
+          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
+          .catch((err) => {
+            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
+          });
       }
     } else {
       if (interactiveSessionIdRef.current) {
@@ -466,12 +472,14 @@ export function CustomerCreateModal({
           const af = payload.archibaldFields as Record<string, string>;
           setFormData((prev) => ({
             ...prev,
-            email:    (af.email     && !prev.email)                           ? af.email     : prev.email,
-            pec:      (af.pec       && !prev.pec)                             ? af.pec       : prev.pec,
-            sdi:      (af.sdi       && !prev.sdi)                             ? af.sdi       : prev.sdi,
-            phone:    (af.phone     && (!prev.phone || prev.phone === "+39")) ? af.phone     : prev.phone,
-            street:   (af.street    && !prev.street)                          ? af.street    : prev.street,
-            vatNumber:(af.vatNumber && !prev.vatNumber)                       ? af.vatNumber : prev.vatNumber,
+            email:    (af.email     && !prev.email)                              ? af.email     : prev.email,
+            pec:      (af.pec       && !prev.pec)                                ? af.pec       : prev.pec,
+            sdi:      (af.sdi       && !prev.sdi)                                ? af.sdi       : prev.sdi,
+            phone:    (af.phone     && (!prev.phone || prev.phone === "+39"))    ? af.phone     : prev.phone,
+            mobile:   (af.mobile    && (!prev.mobile || prev.mobile === "+39"))  ? af.mobile    : prev.mobile,
+            url:      (af.url       && !prev.url)                                ? af.url       : prev.url,
+            street:   (af.street    && !prev.street)                             ? af.street    : prev.street,
+            vatNumber:(af.vatNumber && !prev.vatNumber)                          ? af.vatNumber : prev.vatNumber,
           }));
         }
         // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata

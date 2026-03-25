@@ -12921,6 +12921,8 @@ export class ArchibaldBot {
         pec:      getVal(/xaf_dviLEGALEMAIL_Edit_I$/),
         sdi:      getVal(/xaf_dviLEGALAUTHORITY_Edit_I$/),
         phone:    getVal(/xaf_dviPHONE_Edit_I$/),
+        mobile:   getVal(/xaf_dviCELLULARPHONE_Edit_I$/),
+        url:      getVal(/xaf_dviURL_Edit_I$/),
         street:   getVal(/xaf_dviSTREET_Edit_I$/),
         vatNumber:getVal(/xaf_dviVATNUM_Edit_I$/),
       };

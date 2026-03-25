@@ -7,6 +7,7 @@ vi.mock('../services/customers.service', () => ({
   customerService: {
     createCustomer: vi.fn(),
     updateCustomer: vi.fn(),
+    saveInteractiveCustomer: vi.fn(),
     startEditInteractiveSession: vi.fn().mockResolvedValue({ sessionId: 'test-session' }),
     cancelInteractiveSession: vi.fn().mockResolvedValue(undefined),
     submitVatNumber: vi.fn(),
@@ -17,7 +18,11 @@ vi.mock('../api/operations', () => ({
   waitForJobViaWebSocket: vi.fn(),
 }));
 vi.mock('../contexts/WebSocketContext', () => ({
-  useWebSocketContext: () => ({ socket: null, isConnected: false, subscribe: vi.fn().mockReturnValue(vi.fn()) }),
+  useWebSocketContext: () => ({
+    socket: null,
+    isConnected: false,
+    subscribe: vi.fn().mockReturnValue(vi.fn()),
+  }),
 }));
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn().mockResolvedValue([]),
@@ -49,6 +54,8 @@ function makeCustomer(overrides: Partial<Customer> = {}): Customer {
 describe('CustomerCreateModal — campi mobile e url', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (customerService.startEditInteractiveSession as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ sessionId: 'test-session' });
   });
 
   it('mostra il campo mobile (pre-popolato) quando si modifica un cliente esistente', async () => {
@@ -104,11 +111,15 @@ describe('CustomerCreateModal — campi mobile e url', () => {
 describe('CustomerCreateModal — payload di salvataggio', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (customerService.startEditInteractiveSession as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ sessionId: 'test-session' });
   });
 
-  it('include mobile e url nel payload updateCustomer (non azzerati a stringa vuota)', async () => {
+  it('include mobile e url nel payload di salvataggio (non azzerati a stringa vuota)', async () => {
     const user = userEvent.setup();
-    (customerService.updateCustomer as ReturnType<typeof vi.fn>).mockResolvedValue({ taskId: null });
+    // show-validated-check avvia startEditInteractiveSession → handleSave usa saveInteractiveCustomer
+    (customerService.saveInteractiveCustomer as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ taskId: null });
 
     render(
       <CustomerCreateModal
@@ -133,8 +144,8 @@ describe('CustomerCreateModal — payload di salvataggio', () => {
     await user.click(screen.getByRole('button', { name: /salva modifiche/i }));
 
     await waitFor(() => {
-      expect(customerService.updateCustomer).toHaveBeenCalledWith(
-        '55.041',
+      expect(customerService.saveInteractiveCustomer).toHaveBeenCalledWith(
+        'test-session',
         expect.objectContaining({
           mobile: '+39 333 111 2222',
           url: 'https://verace.it',
