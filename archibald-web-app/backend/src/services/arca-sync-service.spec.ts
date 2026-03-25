@@ -10,6 +10,8 @@ import {
   invoiceNumberToKey,
   splitArticlesByWarehouse,
   arcaDataHash,
+  suggestNextCodice,
+  importCustomerAsSubclient,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult, AnagrafeExportRecord } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -1773,5 +1775,134 @@ describe("getKtSyncStatus", () => {
       readyToExport: 1,
       unmatched: [{ orderId: "o3", customerName: "Beta", customerProfileId: unmatchedProfileId }],
     });
+  });
+});
+
+describe("suggestNextCodice", () => {
+  test("returns C00001 when no C codes exist", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{ max_codice: null }] }),
+    } as unknown as DbPool;
+
+    const result = await suggestNextCodice(pool);
+
+    expect(result).toBe("C00001");
+  });
+
+  test("increments the max code by 1", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{ max_codice: "C00041" }] }),
+    } as unknown as DbPool;
+
+    const result = await suggestNextCodice(pool);
+
+    expect(result).toBe("C00042");
+  });
+
+  test("throws when C99999 is the max (overflow)", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{ max_codice: "C99999" }] }),
+    } as unknown as DbPool;
+
+    await expect(suggestNextCodice(pool)).rejects.toThrow("Codici C esauriti");
+  });
+});
+
+describe("importCustomerAsSubclient", () => {
+  const baseCustomer = {
+    customer_profile: "C01273",
+    user_id: "user-1",
+    name: "LAB. ODONTOIATRICO ROSSI SRL",
+    vat_number: "12345678901",
+    fiscal_code: null,
+    phone: "0812345678",
+    mobile: null,
+    email: "rossi@lab.it",
+    pec: null,
+    url: null,
+    street: "VIA ROMA, 15",
+    postal_code: "80100",
+    city: "NAPOLI",
+    attention_to: null,
+  };
+
+  test("inserts subclient with correct field mapping and cod_nazione = 'I'", async () => {
+    const insertedParams: unknown[][] = [];
+    const pool = {
+      query: vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+        if (sql.includes("SELECT") && sql.includes("agents.customers")) {
+          return Promise.resolve({ rows: [baseCustomer] });
+        }
+        if (sql.includes("INSERT INTO shared.sub_clients")) {
+          insertedParams.push(params);
+          return Promise.resolve({ rows: [] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    } as unknown as DbPool;
+
+    await importCustomerAsSubclient(pool, "user-1", "C01273", "C00042");
+
+    expect(insertedParams).toHaveLength(1);
+    const params = insertedParams[0] as unknown[];
+    // codice, ragione_sociale, partita_iva, telefono, email, indirizzo, cap, localita, cod_nazione, cb_nazione, matched_customer_profile_id
+    expect(params).toContain("C00042");
+    expect(params).toContain("LAB. ODONTOIATRICO ROSSI SRL");
+    expect(params).toContain("12345678901");
+    expect(params).toContain("C01273");
+    // cod_nazione and cb_nazione must both be 'I'
+    const iCount = (params as string[]).filter(p => p === "I").length;
+    expect(iCount).toBe(2);
+  });
+
+  test("throws 'Codice già in uso' when INSERT hits conflict", async () => {
+    const conflict = Object.assign(new Error("duplicate key value"), { code: "23505" });
+    const pool = {
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("agents.customers")) return Promise.resolve({ rows: [baseCustomer] });
+        if (sql.includes("INSERT")) return Promise.reject(conflict);
+        return Promise.resolve({ rows: [] });
+      }),
+    } as unknown as DbPool;
+
+    await expect(importCustomerAsSubclient(pool, "user-1", "C01273", "C00042"))
+      .rejects.toThrow("Codice già in uso");
+  });
+
+  test("throws 'Cliente non trovato' when customer profile does not exist", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [] }), // empty = not found
+    } as unknown as DbPool;
+
+    await expect(importCustomerAsSubclient(pool, "user-1", "C01273", "C00042"))
+      .rejects.toThrow("Cliente non trovato");
+  });
+
+  test("throws on invalid codice format", async () => {
+    const pool = { query: vi.fn() } as unknown as DbPool;
+
+    await expect(importCustomerAsSubclient(pool, "user-1", "C01273", "P00001"))
+      .rejects.toThrow("Formato codice non valido");
+    await expect(importCustomerAsSubclient(pool, "user-1", "C01273", "CTEST1"))
+      .rejects.toThrow("Formato codice non valido");
+    await expect(importCustomerAsSubclient(pool, "user-1", "C01273", "C1234"))
+      .rejects.toThrow("Formato codice non valido");
+  });
+
+  test("truncates name to 40 characters for DESCRIZION", async () => {
+    const longNameCustomer = { ...baseCustomer, name: "A".repeat(50) };
+    const insertedParams: unknown[][] = [];
+    const pool = {
+      query: vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+        if (sql.includes("agents.customers")) return Promise.resolve({ rows: [longNameCustomer] });
+        if (sql.includes("INSERT")) { insertedParams.push(params); return Promise.resolve({ rows: [] }); }
+        return Promise.resolve({ rows: [] });
+      }),
+    } as unknown as DbPool;
+
+    await importCustomerAsSubclient(pool, "user-1", "C01273", "C00042");
+
+    const name = (insertedParams[0] as string[]).find(p => typeof p === "string" && p.length === 40);
+    expect(name).toBe("A".repeat(40));
   });
 });

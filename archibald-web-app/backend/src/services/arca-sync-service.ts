@@ -1797,3 +1797,76 @@ export async function generateKtExportVbs(
 
   return { ktExported, warehouseOnlyExported, vbsScript };
 }
+
+export async function suggestNextCodice(pool: DbPool): Promise<string> {
+  const { rows } = await pool.query<{ max_codice: string | null }>(
+    `SELECT MAX(codice) AS max_codice FROM shared.sub_clients WHERE codice ~ '^C[0-9]{5}$'`,
+  );
+  const max = rows[0]?.max_codice;
+  if (!max) return 'C00001';
+  if (max === 'C99999') throw new Error('Codici C esauriti: tutti i codici C00001-C99999 sono in uso');
+  const next = parseInt(max.slice(1), 10) + 1;
+  return 'C' + String(next).padStart(5, '0');
+}
+
+export async function importCustomerAsSubclient(
+  pool: DbPool,
+  userId: string,
+  customerProfileId: string,
+  codice: string,
+): Promise<void> {
+  if (!/^C[0-9]{5}$/.test(codice)) {
+    throw new Error('Formato codice non valido: deve essere C seguito da 5 cifre');
+  }
+
+  const { rows } = await pool.query<{
+    name: string; vat_number: string | null; fiscal_code: string | null;
+    phone: string | null; mobile: string | null; email: string | null;
+    pec: string | null; url: string | null; street: string | null;
+    postal_code: string | null; city: string | null; attention_to: string | null;
+  }>(
+    `SELECT name, vat_number, fiscal_code, phone, mobile, email, pec, url,
+            street, postal_code, city, attention_to
+     FROM agents.customers
+     WHERE customer_profile = $1 AND user_id = $2`,
+    [customerProfileId, userId],
+  );
+
+  if (rows.length === 0) throw new Error('Cliente non trovato');
+  const c = rows[0];
+
+  try {
+    await pool.query(
+      `INSERT INTO shared.sub_clients
+         (codice, ragione_sociale, partita_iva, cod_fiscale,
+          telefono, telefono2, email, email_amministraz, url,
+          indirizzo, cap, localita, pers_da_contattare,
+          cod_nazione, cb_nazione,
+          matched_customer_profile_id, arca_synced_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NULL)`,
+      [
+        codice,
+        c.name.slice(0, 40),
+        c.vat_number,
+        c.fiscal_code,
+        c.phone,
+        c.mobile,
+        c.email,
+        c.pec,
+        c.url,
+        c.street,
+        c.postal_code,
+        c.city,
+        c.attention_to,
+        'I',  // cod_nazione — ArcaPro uses 'I', not 'IT'
+        'I',  // cb_nazione
+        customerProfileId,
+      ],
+    );
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
+      throw new Error('Codice già in uso');
+    }
+    throw err;
+  }
+}
