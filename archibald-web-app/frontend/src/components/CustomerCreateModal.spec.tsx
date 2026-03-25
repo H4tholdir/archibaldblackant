@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock di tutti i moduli esterni usati da CustomerCreateModal
@@ -17,13 +17,14 @@ vi.mock('../api/operations', () => ({
   waitForJobViaWebSocket: vi.fn(),
 }));
 vi.mock('../contexts/WebSocketContext', () => ({
-  useWebSocketContext: () => ({ socket: null, isConnected: false }),
+  useWebSocketContext: () => ({ socket: null, isConnected: false, subscribe: vi.fn().mockReturnValue(vi.fn()) }),
 }));
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn().mockResolvedValue([]),
 }));
 
 import { CustomerCreateModal } from './CustomerCreateModal';
+import { customerService } from '../services/customers.service';
 import type { Customer } from '../types/customer';
 
 function makeCustomer(overrides: Partial<Customer> = {}): Customer {
@@ -97,5 +98,48 @@ describe('CustomerCreateModal — campi mobile e url', () => {
     }
 
     expect(urlInput).toBeInTheDocument();
+  });
+});
+
+describe('CustomerCreateModal — payload di salvataggio', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('include mobile e url nel payload updateCustomer (non azzerati a stringa vuota)', async () => {
+    const user = userEvent.setup();
+    (customerService.updateCustomer as ReturnType<typeof vi.fn>).mockResolvedValue({ taskId: null });
+
+    render(
+      <CustomerCreateModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        editCustomer={makeCustomer({ postalCode: '' })}
+      />,
+    );
+
+    // Naviga: vat-edit-check → Salta → 12 campi (Avanti×12) → indirizzi (Avanti×1) → riepilogo
+    const clickByName = async (nameRegex: RegExp) => {
+      const btn = screen.queryByRole('button', { name: nameRegex });
+      if (btn) await user.click(btn);
+    };
+
+    await clickByName(/salta/i); // vat-edit-check → field 0
+    for (let i = 0; i < 13; i++) { // 12 campi + step indirizzi → riepilogo
+      await clickByName(/^avanti$/i);
+    }
+
+    await user.click(screen.getByRole('button', { name: /salva modifiche/i }));
+
+    await waitFor(() => {
+      expect(customerService.updateCustomer).toHaveBeenCalledWith(
+        '55.041',
+        expect.objectContaining({
+          mobile: '+39 333 111 2222',
+          url: 'https://verace.it',
+        }),
+      );
+    });
   });
 });

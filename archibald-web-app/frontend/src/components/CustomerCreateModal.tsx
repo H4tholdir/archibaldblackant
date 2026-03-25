@@ -778,11 +778,7 @@ export function CustomerCreateModal({
     setError(null);
     setBotError(null);
     try {
-      const dataToSend: CustomerFormData = {
-        ...formData,
-        mobile: "",
-        url: "",
-      };
+      const dataToSend: CustomerFormData = { ...formData };
 
       let resultTaskId: string | null = null;
 
