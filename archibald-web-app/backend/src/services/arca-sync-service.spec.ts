@@ -652,6 +652,39 @@ describe("generateVbsScript", () => {
     expect(resultKt.vbs).toContain("REPLACE TIPOMOD WITH [KT]");
     expect(resultKt.vbs).not.toContain("REPLACE TIPOMOD WITH [FT]");
   });
+
+  test("ANAGRAFE section appears before FT/KT document records in VBS output", () => {
+    const arcaData = makeArcaData();
+    const records: VbsExportRecord[] = [
+      { invoiceNumber: "FT 1/2026", arcaData },
+    ];
+    const anagrafeRecord: AnagrafeExportRecord = {
+      subclient: {
+        codice: "C00042",
+        ragioneSociale: "Nuovo Cliente Srl",
+        supplRagioneSociale: null,
+        indirizzo: null, cap: null, localita: null, prov: null,
+        telefono: null, fax: null, email: null,
+        partitaIva: null, codFiscale: null, zona: null, persDaContattare: null,
+        emailAmministraz: null, agente: null, agente2: null, settore: null,
+        classe: null, pag: null, listino: null, banca: null, valuta: null,
+        codNazione: null, aliiva: null, contoscar: null, tipofatt: null,
+        telefono2: null, telefono3: null, url: null, cbNazione: null,
+        cbBic: null, cbCinUe: null, cbCinIt: null, abicab: null, contocorr: null,
+        matchedCustomerProfileId: null, matchConfidence: null, arcaSyncedAt: null,
+        customerMatchCount: 0, subClientMatchCount: 0,
+      },
+    };
+
+    const result = generateVbsScript(records, [anagrafeRecord]);
+
+    const anagrafePos = result.vbs.indexOf("' --- ANAGRAFE Export ---");
+    const ftPos = result.vbs.indexOf("' --- FT 1/2026 ---");
+
+    expect(anagrafePos).toBeGreaterThan(-1);
+    expect(ftPos).toBeGreaterThan(-1);
+    expect(anagrafePos).toBeLessThan(ftPos);
+  });
 });
 
 type MockExistingRecord = {

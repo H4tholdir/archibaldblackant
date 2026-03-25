@@ -485,6 +485,28 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push("rs.Close");
   lines.push("");
 
+  // ANAGRAFE export for new/modified subclients
+  if (anagrafeRecords && anagrafeRecords.length > 0) {
+    lines.push("' --- ANAGRAFE Export ---");
+    for (const { subclient } of anagrafeRecords) {
+      lines.push(`' --- ANAGRAFE ${sanitizeVbsComment(subclient.codice)} ---`);
+      lines.push("Err.Clear");
+      for (const l of buildExecScriptAnagrafe(subclient)) {
+        lines.push(l);
+      }
+      lines.push("If Err.Number <> 0 Then");
+      lines.push(
+        `  logFile.WriteLine "ERROR anagrafe ${sanitizeVbsComment(subclient.codice)}: " & Err.Description`,
+      );
+      lines.push("  errCount = errCount + 1");
+      lines.push("  Err.Clear");
+      lines.push("Else");
+      lines.push("  okCount = okCount + 1");
+      lines.push("End If");
+      lines.push("");
+    }
+  }
+
   for (const record of records) {
     const { arcaData, invoiceNumber } = record;
     const { testata, righe } = arcaData;
@@ -552,28 +574,6 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
     lines.push("  End If");
     lines.push("End If");
     lines.push("");
-  }
-
-  // ANAGRAFE export for new/modified subclients
-  if (anagrafeRecords && anagrafeRecords.length > 0) {
-    lines.push("' --- ANAGRAFE Export ---");
-    for (const { subclient } of anagrafeRecords) {
-      lines.push(`' --- ANAGRAFE ${sanitizeVbsComment(subclient.codice)} ---`);
-      lines.push("Err.Clear");
-      for (const l of buildExecScriptAnagrafe(subclient)) {
-        lines.push(l);
-      }
-      lines.push("If Err.Number <> 0 Then");
-      lines.push(
-        `  logFile.WriteLine "ERROR anagrafe ${sanitizeVbsComment(subclient.codice)}: " & Err.Description`,
-      );
-      lines.push("  errCount = errCount + 1");
-      lines.push("  Err.Clear");
-      lines.push("Else");
-      lines.push("  okCount = okCount + 1");
-      lines.push("End If");
-      lines.push("");
-    }
   }
 
   lines.push("conn.Close");
