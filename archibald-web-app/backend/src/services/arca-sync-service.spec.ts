@@ -1787,6 +1787,9 @@ describe("suggestNextCodice", () => {
     const result = await suggestNextCodice(pool);
 
     expect(result).toBe("C00001");
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("FROM shared.sub_clients WHERE codice ~"),
+    );
   });
 
   test("increments the max code by 1", async () => {
@@ -1797,6 +1800,9 @@ describe("suggestNextCodice", () => {
     const result = await suggestNextCodice(pool);
 
     expect(result).toBe("C00042");
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("FROM shared.sub_clients WHERE codice ~"),
+    );
   });
 
   test("throws when C99999 is the max (overflow)", async () => {
@@ -1805,6 +1811,9 @@ describe("suggestNextCodice", () => {
     } as unknown as DbPool;
 
     await expect(suggestNextCodice(pool)).rejects.toThrow("Codici C esauriti");
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("FROM shared.sub_clients WHERE codice ~"),
+    );
   });
 });
 
@@ -1843,16 +1852,24 @@ describe("importCustomerAsSubclient", () => {
 
     await importCustomerAsSubclient(pool, "user-1", "C01273", "C00042");
 
-    expect(insertedParams).toHaveLength(1);
-    const params = insertedParams[0] as unknown[];
-    // codice, ragione_sociale, partita_iva, telefono, email, indirizzo, cap, localita, cod_nazione, cb_nazione, matched_customer_profile_id
-    expect(params).toContain("C00042");
-    expect(params).toContain("LAB. ODONTOIATRICO ROSSI SRL");
-    expect(params).toContain("12345678901");
-    expect(params).toContain("C01273");
-    // cod_nazione and cb_nazione must both be 'I'
-    const iCount = (params as string[]).filter(p => p === "I").length;
-    expect(iCount).toBe(2);
+    expect(insertedParams[0]).toEqual([
+      "C00042",                          // codice
+      "LAB. ODONTOIATRICO ROSSI SRL",   // ragione_sociale
+      "12345678901",                     // partita_iva (vat_number)
+      null,                              // cod_fiscale (fiscal_code)
+      "0812345678",                      // telefono (phone)
+      null,                              // telefono2 (mobile)
+      "rossi@lab.it",                    // email
+      null,                              // email_amministraz (pec)
+      null,                              // url
+      "VIA ROMA, 15",                    // indirizzo (street)
+      "80100",                           // cap (postal_code)
+      "NAPOLI",                          // localita (city)
+      null,                              // pers_da_contattare (attention_to)
+      "I",                               // cod_nazione
+      "I",                               // cb_nazione
+      "C01273",                          // matched_customer_profile_id
+    ]);
   });
 
   test("throws 'Codice già in uso' when INSERT hits conflict", async () => {
