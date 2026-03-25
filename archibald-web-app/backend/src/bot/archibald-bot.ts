@@ -9990,31 +9990,32 @@ export class ArchibaldBot {
     if (!this.page) throw new Error("Browser page is null");
 
     // Step 1: Find the field, scroll into view, focus it, and clear it.
-    // We use the native value setter (not execCommand) to clear without
-    // triggering DevExpress events prematurely.
-    const inputId = await this.page.evaluate(
+    // We do NOT dispatch "input" here — doing so triggers a DevExpress XHR that
+    // restores the original value before page.type() runs, causing doubling.
+    // page.type() fires authentic keydown/keypress/keyup/input events per character,
+    // which is sufficient for DevExpress to commit the value on Tab.
+    const { id: inputId, maxLength } = await this.page.evaluate(
       (regex: string) => {
         const inputs = Array.from(document.querySelectorAll("input"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
         ) as HTMLInputElement | null;
-        if (!input) return null;
+        if (!input) return { id: null, maxLength: 0 };
 
         input.scrollIntoView({ block: "center" });
         input.focus();
         input.click();
         input.select();
 
-        // Clear via native setter so page.type() appends to an empty field
+        // Clear via native setter — no dispatchEvent to avoid triggering DevExpress XHR
         const setter = Object.getOwnPropertyDescriptor(
           HTMLInputElement.prototype,
           "value",
         )?.set;
         if (setter) setter.call(input, "");
         else input.value = "";
-        input.dispatchEvent(new Event("input", { bubbles: true }));
 
-        return input.id;
+        return { id: input.id, maxLength: input.maxLength ?? 0 };
       },
       fieldRegex.source,
     );
@@ -10023,17 +10024,18 @@ export class ArchibaldBot {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
+    // Truncate to field's maxLength so typing and comparison use the actual storable value.
+    // Pattern mirrors ensureNameFieldBeforeSave which is already proven in production.
+    const effectiveValue = maxLength > 0 ? value.substring(0, maxLength) : value;
+
     // Wait for DevExpress to settle any in-flight XHRs (e.g. from the previous
-    // field's Tab commit) before typing. Without this, a delayed XHR response
-    // can reset the field mid-type, causing only the tail of the value to land.
+    // field's Tab commit) before typing.
     await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-${inputId}` });
 
     // Step 2: Type the value via real CDP keyboard events.
     // page.type() generates authentic keydown/keypress/keyup/input events that
     // DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
-    // execCommand('insertText') only fires the 'input' event and does NOT cause
-    // DevExpress to commit the value to the server model, leading to save errors.
-    await this.page.type(`#${inputId}`, value, { delay: 5 });
+    await this.page.type(`#${inputId}`, effectiveValue, { delay: 5 });
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
@@ -10046,10 +10048,10 @@ export class ArchibaldBot {
       return input?.value ?? "";
     }, inputId);
 
-    if (actual !== value) {
+    if (actual !== effectiveValue) {
       logger.warn("typeDevExpressField value mismatch, retrying", {
         id: inputId,
-        expected: value,
+        expected: effectiveValue,
         actual,
       });
 
@@ -10066,11 +10068,11 @@ export class ArchibaldBot {
         )?.set;
         if (setter) setter.call(input, "");
         else input.value = "";
-        input.dispatchEvent(new Event("input", { bubbles: true }));
+        // No dispatchEvent — same reasoning as main path
       }, inputId);
 
       await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-retry-${inputId}` });
-      await this.page.type(`#${inputId}`, value, { delay: 5 });
+      await this.page.type(`#${inputId}`, effectiveValue, { delay: 5 });
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
@@ -10079,7 +10081,7 @@ export class ArchibaldBot {
       });
     }
 
-    logger.debug("typeDevExpressField done", { id: inputId, value });
+    logger.debug("typeDevExpressField done", { id: inputId, value: effectiveValue });
   }
 
   private async setDevExpressComboBox(
