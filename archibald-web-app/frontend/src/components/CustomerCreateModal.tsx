@@ -65,7 +65,9 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
     fieldType: "cap",
   },
   { key: "phone", label: "Telefono", defaultValue: "+39", type: "tel" },
+  { key: "mobile", label: "Cellulare", defaultValue: "+39", type: "tel" },
   { key: "email", label: "Email", defaultValue: "", type: "email" },
+  { key: "url", label: "Sito web / URL", defaultValue: "", type: "url" },
 ];
 
 
