@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { render, screen, waitFor, act } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { getCustomers } from '../api/customers';
 import { checkCustomerCompleteness } from '../utils/customer-completeness';
@@ -177,6 +177,11 @@ describe('PendingOrdersPage — completeness badge', () => {
       data: { customers: [mockCustomer as never], total: 1 },
     });
     vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
+  });
+
+  afterEach(async () => {
+    // Drain async state updates (getCustomers, getFresisDiscounts) to avoid act() warnings.
+    await act(async () => {});
   });
 
   test('renders page without error when orders are present', () => {

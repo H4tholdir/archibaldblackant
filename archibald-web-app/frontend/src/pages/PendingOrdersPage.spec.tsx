@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { PendingOrdersPage } from "./PendingOrdersPage";
 import type { PendingOrder } from "../types/pending-order";
 import { isFresis } from "../utils/fresis-constants";
@@ -200,6 +200,11 @@ describe("PendingOrdersPage", () => {
       ok: true,
       json: async () => ({ data: { customers: [] } }),
     });
+  });
+
+  afterEach(async () => {
+    // Drain async state updates (getCustomers, getFresisDiscounts) to avoid act() warnings.
+    await act(async () => {});
   });
 
   test("renders empty state when no pending orders", () => {

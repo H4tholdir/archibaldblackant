@@ -12,6 +12,7 @@ vi.mock("../api/warehouse", () => ({
   batchReserve: vi.fn().mockResolvedValue({ reserved: 0, skipped: 0 }),
   batchRelease: vi.fn().mockResolvedValue({ released: 0 }),
   batchMarkSold: vi.fn().mockResolvedValue({ sold: 0 }),
+  batchReturnSold: vi.fn().mockResolvedValue({ returned: 0 }),
 }));
 
 vi.mock("../utils/device-id", () => ({
