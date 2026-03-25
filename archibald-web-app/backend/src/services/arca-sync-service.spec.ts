@@ -6,6 +6,7 @@ import {
   generateVbsScript,
   performArcaSync,
   generateKtExportVbs,
+  getKtSyncStatus,
   invoiceNumberToKey,
   splitArticlesByWarehouse,
   arcaDataHash,
@@ -1633,4 +1634,111 @@ describe('splitArticlesByWarehouse', () => {
     },
     60000,
   );
+});
+
+function makeMinimalSubclientRow(overrides: { matched_customer_profile_id?: string | null } = {}) {
+  return {
+    codice: "C00001",
+    ragione_sociale: "Test Subclient",
+    suppl_ragione_sociale: null,
+    indirizzo: null,
+    cap: null,
+    localita: null,
+    prov: null,
+    telefono: null,
+    fax: null,
+    email: null,
+    partita_iva: null,
+    cod_fiscale: null,
+    zona: null,
+    pers_da_contattare: null,
+    email_amministraz: null,
+    agente: null,
+    agente2: null,
+    settore: null,
+    classe: null,
+    pag: null,
+    listino: null,
+    banca: null,
+    valuta: null,
+    cod_nazione: null,
+    aliiva: null,
+    contoscar: null,
+    tipofatt: null,
+    telefono2: null,
+    telefono3: null,
+    url: null,
+    cb_nazione: null,
+    cb_bic: null,
+    cb_cin_ue: null,
+    cb_cin_it: null,
+    abicab: null,
+    contocorr: null,
+    matched_customer_profile_id: null,
+    match_confidence: null,
+    arca_synced_at: null,
+    customer_match_count: 0,
+    sub_client_match_count: 0,
+    ...overrides,
+  };
+}
+
+describe("getKtSyncStatus", () => {
+  test("unmatched orders do not contribute to articlesPending or articlesReady", async () => {
+    const unmatchedProfileId = "C99999";
+    const matchedProfileId = "C00001";
+
+    const ktEligibleOrders = [
+      // matched, articles ready
+      {
+        id: "o1",
+        order_number: "KT 1/2026",
+        customer_name: "Alfa",
+        customer_profile_id: matchedProfileId,
+        creation_date: "2026-01-01",
+        discount_percent: null,
+        remaining_sales_financial: null,
+        articles_synced_at: "2026-01-02T00:00:00Z",
+      },
+      // matched, articles pending
+      {
+        id: "o2",
+        order_number: "KT 2/2026",
+        customer_name: "Alfa",
+        customer_profile_id: matchedProfileId,
+        creation_date: "2026-01-01",
+        discount_percent: null,
+        remaining_sales_financial: null,
+        articles_synced_at: null,
+      },
+      // unmatched, articles also null — must NOT count in pending
+      {
+        id: "o3",
+        order_number: "KT 3/2026",
+        customer_name: "Beta",
+        customer_profile_id: unmatchedProfileId,
+        creation_date: "2026-01-01",
+        discount_percent: null,
+        remaining_sales_financial: null,
+        articles_synced_at: null,
+      },
+    ];
+
+    const subclientRows = [
+      makeMinimalSubclientRow({ matched_customer_profile_id: matchedProfileId }),
+    ];
+
+    const pool = createMockPool({ ktEligibleOrders, subclientRows });
+
+    const status = await getKtSyncStatus(pool, "user-1");
+
+    expect(status).toEqual({
+      total: 3,
+      articlesReady: 1,
+      articlesPending: 1,
+      matched: 2,
+      readyToExport: 1,
+      unmatched: [{ orderId: "o3", customerName: "Beta", customerProfileId: unmatchedProfileId }],
+    });
+  });
 });

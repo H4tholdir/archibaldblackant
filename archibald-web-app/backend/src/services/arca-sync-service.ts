@@ -1533,11 +1533,11 @@ export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtS
   const unmatched: KtSyncStatus['unmatched'] = [];
 
   for (const order of ktOrders) {
-    if (order.articlesSyncedAt) { articlesReady++; } else { articlesPending++; }
     const hasMatch = order.customerProfileId ? subByProfile.has(order.customerProfileId) : false;
     if (hasMatch) {
       matched++;
-      if (order.articlesSyncedAt) readyToExport++;
+      if (order.articlesSyncedAt) { articlesReady++; readyToExport++; }
+      else { articlesPending++; }
     } else {
       unmatched.push({ orderId: order.id, customerName: order.customerName, customerProfileId: order.customerProfileId });
     }
