@@ -13,6 +13,11 @@ import type { Subclient } from '../services/subclients.service';
 
 type DeletionWarning = ArcaSyncResponse['sync']['deletionWarnings'] extends Array<infer T> | undefined ? T : never;
 
+function authHeaders(): HeadersInit {
+  const jwt = localStorage.getItem('archibald_jwt');
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+}
+
 interface ArcaSyncButtonProps {
   onSyncComplete?: (deletionWarnings?: DeletionWarning[]) => void;
 }
@@ -50,6 +55,12 @@ function InlineMatcher({
   const [results, setResults] = useState<Subclient[]>([]);
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [mode, setMode] = useState<'search' | 'import'>('search');
+  const [importCodice, setImportCodice] = useState('');
+  const [importChecking, setImportChecking] = useState(false);
+  const [importExists, setImportExists] = useState<boolean | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const current = items[currentIdx];
 
@@ -75,6 +86,31 @@ function InlineMatcher({
     }
   }, [current]);
 
+  // Fetch suggested code once when entering import mode
+  useEffect(() => {
+    if (mode !== 'import') return;
+    fetch('/api/arca-sync/suggest-codice', { headers: authHeaders() })
+      .then(r => r.json())
+      .then((d: { suggestedCode?: string }) => {
+        if (d.suggestedCode) setImportCodice(d.suggestedCode);
+      })
+      .catch(() => {/* use empty field */});
+  }, [mode]);
+
+  // Real-time validation — debounced 300ms
+  useEffect(() => {
+    if (mode !== 'import') return;
+    if (!/^C[0-9]{5}$/.test(importCodice)) { setImportExists(null); return; }
+    setImportChecking(true);
+    const t = setTimeout(() => {
+      fetch(`/api/arca-sync/check-codice?code=${importCodice}`, { headers: authHeaders() })
+        .then(r => r.json())
+        .then((d: { exists: boolean }) => { setImportExists(d.exists); setImportChecking(false); })
+        .catch(() => setImportChecking(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [importCodice, mode]);
+
   if (!current) { onMatchComplete(); return null; }
 
   const handleSelect = async (subclient: Subclient) => {
@@ -90,10 +126,43 @@ function InlineMatcher({
   };
 
   const moveNext = () => {
+    setMode('search');
+    setImportCodice('');
+    setImportExists(null);
+    setImportError(null);
     if (currentIdx + 1 >= items.length) {
       onMatchComplete();
     } else {
       setCurrentIdx((i) => i + 1);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!current.customerProfileId) { moveNext(); return; }
+    setImporting(true);
+    setImportError(null);
+    try {
+      const res = await fetch('/api/arca-sync/import-customer', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerProfileId: current.customerProfileId, codice: importCodice }),
+      });
+      if (res.status === 409) {
+        setImportExists(true);
+        setImportError('Codice già in uso — scegli un altro codice');
+        setImporting(false);
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        setImportError(err.error || `Errore ${res.status}`);
+        setImporting(false);
+        return;
+      }
+      moveNext();
+    } catch {
+      setImportError('Errore di rete — riprova');
+      setImporting(false);
     }
   };
 
@@ -119,62 +188,166 @@ function InlineMatcher({
         <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px' }}>
           Cerca il sottocliente Arca corrispondente:
         </div>
-        <input autoComplete="off"
-          autoFocus
-          type="search"
-          placeholder="Cerca per nome, codice, P.IVA, indirizzo..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: '8px',
-            border: '1px solid #ddd', fontSize: '14px', boxSizing: 'border-box', marginBottom: '8px',
-          }}
-        />
-        <div style={{ flex: 1, overflow: 'auto', minHeight: '150px' }}>
-          {loading && <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Ricerca...</div>}
-          {!loading && debouncedQuery.length >= 2 && results.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Nessun risultato</div>
-          )}
-          {results.map((sc) => (
-            <div
-              key={sc.codice}
-              onClick={() => !matching && handleSelect(sc)}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+          <button
+            onClick={() => setMode('search')}
+            style={{
+              flex: 1, padding: '5px 10px', borderRadius: '6px', fontSize: '12px',
+              border: mode === 'search' ? '2px solid #6366f1' : '1px solid #ddd',
+              background: mode === 'search' ? '#eef2ff' : '#fff',
+              fontWeight: mode === 'search' ? 700 : 400, cursor: 'pointer',
+            }}
+          >
+            Abbina
+          </button>
+          <button
+            onClick={() => setMode('import')}
+            style={{
+              flex: 1, padding: '5px 10px', borderRadius: '6px', fontSize: '12px',
+              border: mode === 'import' ? '2px solid #059669' : '1px solid #ddd',
+              background: mode === 'import' ? '#ecfdf5' : '#fff',
+              fontWeight: mode === 'import' ? 700 : 400, cursor: 'pointer',
+            }}
+          >
+            Importa in Arca
+          </button>
+        </div>
+        {mode === 'search' && (
+          <>
+            <input autoComplete="off"
+              autoFocus
+              type="search"
+              placeholder="Cerca per nome, codice, P.IVA, indirizzo..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               style={{
-                padding: '8px 10px', borderRadius: '8px', cursor: matching ? 'not-allowed' : 'pointer',
-                marginBottom: '4px', border: '1px solid #eee', opacity: matching ? 0.5 : 1,
+                width: '100%', padding: '10px 14px', borderRadius: '8px',
+                border: '1px solid #ddd', fontSize: '14px', boxSizing: 'border-box', marginBottom: '8px',
               }}
-              onMouseEnter={(e) => { if (!matching) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f0f7ff'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#fff'; }}
-            >
-              <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{sc.ragioneSociale}</div>
-              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                {sc.codice}
-                {sc.partitaIva && ` · P.IVA: ${sc.partitaIva}`}
+            />
+            <div style={{ flex: 1, overflow: 'auto', minHeight: '150px' }}>
+              {loading && <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Ricerca...</div>}
+              {!loading && debouncedQuery.length >= 2 && results.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '13px' }}>Nessun risultato</div>
+              )}
+              {results.map((sc) => (
+                <div
+                  key={sc.codice}
+                  onClick={() => !matching && handleSelect(sc)}
+                  style={{
+                    padding: '8px 10px', borderRadius: '8px', cursor: matching ? 'not-allowed' : 'pointer',
+                    marginBottom: '4px', border: '1px solid #eee', opacity: matching ? 0.5 : 1,
+                  }}
+                  onMouseEnter={(e) => { if (!matching) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f0f7ff'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = '#fff'; }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: '#333' }}>{sc.ragioneSociale}</div>
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                    {sc.codice}
+                    {sc.partitaIva && ` · P.IVA: ${sc.partitaIva}`}
+                  </div>
+                  {(sc.indirizzo || sc.localita) && (
+                    <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                      {sc.indirizzo}{sc.localita && `, ${sc.localita}`}{sc.prov && ` (${sc.prov})`}
+                    </div>
+                  )}
+                  {(sc.telefono || sc.email) && (
+                    <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                      {sc.telefono}{sc.email && ` · ${sc.email}`}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+              <button
+                onClick={moveNext}
+                style={{
+                  padding: '6px 14px', borderRadius: '6px', border: '1px solid #ddd',
+                  backgroundColor: '#fff', cursor: 'pointer', fontSize: '12px', color: '#666',
+                }}
+              >
+                Salta
+              </button>
+            </div>
+          </>
+        )}
+        {mode === 'import' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>
+              Crea nuovo cliente in ArcaPro ANAGRAFE e abbina automaticamente.
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                Codice ANAGRAFE (C + 5 cifre)
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{
+                  padding: '8px 10px', background: '#f1f5f9', border: '1px solid #ddd',
+                  borderRadius: '8px 0 0 8px', fontSize: '14px', fontWeight: 700, color: '#1e293b',
+                }}>C</span>
+                <input autoComplete="off"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="00001"
+                  value={importCodice.slice(1)}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
+                    setImportCodice('C' + digits);
+                    setImportExists(null);
+                  }}
+                  style={{
+                    flex: 1, padding: '8px 10px', border: '1px solid #ddd', borderLeft: 'none',
+                    borderRadius: '0 8px 8px 0', fontSize: '14px', fontFamily: 'monospace',
+                  }}
+                />
+                {importCodice.length === 6 && (
+                  <span style={{ fontSize: '18px' }}>
+                    {importChecking ? '⏳' : importExists === true ? '🔴' : importExists === false ? '🟢' : ''}
+                  </span>
+                )}
               </div>
-              {(sc.indirizzo || sc.localita) && (
-                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {sc.indirizzo}{sc.localita && `, ${sc.localita}`}{sc.prov && ` (${sc.prov})`}
+              {importExists === true && (
+                <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '3px' }}>
+                  Codice già in uso — scegli un altro
                 </div>
               )}
-              {(sc.telefono || sc.email) && (
-                <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {sc.telefono}{sc.email && ` · ${sc.email}`}
+              {importExists === false && (
+                <div style={{ fontSize: '11px', color: '#059669', marginTop: '3px' }}>
+                  Codice disponibile
                 </div>
               )}
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
-          <button
-            onClick={moveNext}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', border: '1px solid #ddd',
-              backgroundColor: '#fff', cursor: 'pointer', fontSize: '12px', color: '#666',
-            }}
-          >
-            Salta
-          </button>
-        </div>
+            {importError && (
+              <div style={{ fontSize: '12px', color: '#dc2626', background: '#fef2f2', padding: '6px 10px', borderRadius: '6px' }}>
+                {importError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button
+                onClick={moveNext}
+                style={{
+                  flex: 1, padding: '7px 12px', borderRadius: '6px', border: '1px solid #ddd',
+                  background: '#fff', cursor: 'pointer', fontSize: '12px', color: '#666',
+                }}
+              >
+                Salta
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing || importExists !== false || importCodice.length !== 6}
+                style={{
+                  flex: 2, padding: '7px 12px', borderRadius: '6px', border: 'none',
+                  background: importing || importExists !== false || importCodice.length !== 6 ? '#a7f3d0' : '#059669',
+                  color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '12px',
+                }}
+              >
+                {importing ? 'Importazione...' : 'Importa e abbina'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
