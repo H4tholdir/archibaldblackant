@@ -803,9 +803,9 @@ describe('getLastSalesForArticle', () => {
     const { getLastSalesForArticle } = await import('./orders');
     await getLastSalesForArticle(pool, 'SF55.000.');
     const sql = pool.queryCalls[0].text;
-    expect(sql).toContain("gross_amount NOT LIKE '-%'");
+    expect(sql).toContain("total_amount NOT LIKE '-%'");
     expect(sql).toContain('NOT EXISTS');
-    expect(sql).toContain("cn.gross_amount LIKE '-%'");
+    expect(sql).toContain("cn.total_amount LIKE '-%'");
     expect(sql).toContain('ABS(');
   });
 });
@@ -816,9 +816,9 @@ describe('getOrderHistoryByCustomer', () => {
     const { getOrderHistoryByCustomer } = await import('./orders');
     await getOrderHistoryByCustomer(pool, 'user-1', 'Cupo S.A.S');
     const sql = pool.queryCalls[0].text;
-    expect(sql).toContain("gross_amount NOT LIKE '-%'");
+    expect(sql).toContain("total_amount NOT LIKE '-%'");
     expect(sql).toContain('NOT EXISTS');
-    expect(sql).toContain("cn.gross_amount LIKE '-%'");
+    expect(sql).toContain("cn.total_amount LIKE '-%'");
     expect(sql).toContain('ABS(');
   });
 });

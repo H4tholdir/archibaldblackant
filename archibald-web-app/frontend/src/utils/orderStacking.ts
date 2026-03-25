@@ -32,12 +32,12 @@ type ManualStacksStorage = {
 const MANUAL_STACKS_KEY = "archibald_order_stacks";
 
 function isCreditNote(order: Order): boolean {
-  const ga = (order.grossAmount as string | undefined) ?? "";
-  return ga.trimStart().startsWith("-");
+  const t = (order.total as string | undefined) ?? "";
+  return t.trimStart().startsWith("-");
 }
 
-function normalizeAmount(grossAmount: string): string {
-  return grossAmount.trimStart().replace(/^-/, "").trim();
+function normalizeAmount(amount: string): string {
+  return amount.trimStart().replace(/^-/, "").trim();
 }
 
 function parseAmount(amount: string): number | null {

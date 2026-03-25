@@ -124,15 +124,15 @@ export async function calculateRevenueInRange(
       AND o.creation_date <= $4
       AND o.total_amount IS NOT NULL
       AND o.total_amount != ''
-      AND o.gross_amount NOT LIKE '-%'
+      AND o.total_amount NOT LIKE '-%'
       AND NOT EXISTS (
         SELECT 1 FROM agents.order_records cn
         WHERE cn.user_id = o.user_id
           AND cn.customer_name = o.customer_name
-          AND cn.gross_amount LIKE '-%'
+          AND cn.total_amount LIKE '-%'
           AND ABS(
-            CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-            + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            CAST(REPLACE(REPLACE(REPLACE(cn.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            + CAST(REPLACE(REPLACE(REPLACE(o.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
           ) < 1.0
           AND cn.creation_date >= o.creation_date
       )
@@ -269,15 +269,15 @@ export async function countOrdersInRange(
     WHERE o.user_id = $2
       AND o.creation_date >= $3
       AND o.creation_date <= $4
-      AND o.gross_amount NOT LIKE '-%'
+      AND o.total_amount NOT LIKE '-%'
       AND NOT EXISTS (
         SELECT 1 FROM agents.order_records cn
         WHERE cn.user_id = o.user_id
           AND cn.customer_name = o.customer_name
-          AND cn.gross_amount LIKE '-%'
+          AND cn.total_amount LIKE '-%'
           AND ABS(
-            CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-            + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            CAST(REPLACE(REPLACE(REPLACE(cn.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            + CAST(REPLACE(REPLACE(REPLACE(o.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
           ) < 1.0
           AND cn.creation_date >= o.creation_date
       )

@@ -28,20 +28,20 @@ function makeOrder(overrides: Partial<Order> & { id: string }): Order {
 }
 
 describe(isCreditNote, () => {
-  test("returns true for negative grossAmount", () => {
-    expect(isCreditNote(makeOrder({ id: "1", grossAmount: "-4.264,48 €" }))).toBe(true);
+  test("returns true for negative total", () => {
+    expect(isCreditNote(makeOrder({ id: "1", total: "-4.264,48 €" }))).toBe(true);
   });
 
-  test("returns false for positive grossAmount", () => {
-    expect(isCreditNote(makeOrder({ id: "1", grossAmount: "4.264,48 €" }))).toBe(false);
+  test("returns false for positive total", () => {
+    expect(isCreditNote(makeOrder({ id: "1", total: "4.264,48 €" }))).toBe(false);
   });
 
-  test("returns false when grossAmount is missing", () => {
-    expect(isCreditNote(makeOrder({ id: "1", grossAmount: undefined }))).toBe(false);
+  test("returns false when total is missing", () => {
+    expect(isCreditNote(makeOrder({ id: "1", total: undefined }))).toBe(false);
   });
 
   test("handles leading whitespace", () => {
-    expect(isCreditNote(makeOrder({ id: "1", grossAmount: "  -100,00 €" }))).toBe(true);
+    expect(isCreditNote(makeOrder({ id: "1", total: "  -100,00 €" }))).toBe(true);
   });
 });
 

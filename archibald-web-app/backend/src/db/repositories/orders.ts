@@ -1086,18 +1086,18 @@ async function getLastSalesForArticle(pool: DbPool, articleCode: string, userId:
      JOIN agents.order_records o ON a.order_id = o.id AND a.user_id = o.user_id
      WHERE a.article_code = $1
        AND o.user_id = $2
-       AND o.gross_amount NOT LIKE '-%'
+       AND o.total_amount NOT LIKE '-%'
        AND NOT EXISTS (
          SELECT 1 FROM agents.order_records cn
          WHERE cn.user_id = o.user_id
            AND cn.customer_name = o.customer_name
-           AND cn.gross_amount LIKE '-%'
+           AND cn.total_amount LIKE '-%'
            AND ABS(
-             CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-               THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             CASE WHEN cn.total_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(cn.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
                ELSE 0 END
-             + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-               THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             + CASE WHEN o.total_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(o.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
                ELSE 0 END
            ) < 1.0
            AND cn.creation_date >= o.creation_date
@@ -1242,18 +1242,18 @@ async function getOrderHistoryByCustomer(
        LIMIT 1
      ) p ON TRUE
      WHERE o.user_id = $1 AND LOWER(o.customer_name) = LOWER($2)
-       AND o.gross_amount NOT LIKE '-%'
+       AND o.total_amount NOT LIKE '-%'
        AND NOT EXISTS (
          SELECT 1 FROM agents.order_records cn
          WHERE cn.user_id = o.user_id
            AND cn.customer_name = o.customer_name
-           AND cn.gross_amount LIKE '-%'
+           AND cn.total_amount LIKE '-%'
            AND ABS(
-             CASE WHEN cn.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-               THEN CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             CASE WHEN cn.total_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(cn.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
                ELSE 0 END
-             + CASE WHEN o.gross_amount ~ '^-?[0-9.,]+ ?€?$'
-               THEN CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+             + CASE WHEN o.total_amount ~ '^-?[0-9.,]+ ?€?$'
+               THEN CAST(REPLACE(REPLACE(REPLACE(o.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
                ELSE 0 END
            ) < 1.0
            AND cn.creation_date >= o.creation_date
