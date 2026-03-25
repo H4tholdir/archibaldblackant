@@ -118,7 +118,8 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
       res.json({ suggestedCode });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to suggest codice';
-      res.status(422).json({ error: message });
+      const isOverflow = message.includes('Codici C esauriti');
+      res.status(isOverflow ? 422 : 500).json({ error: message });
     }
   });
 

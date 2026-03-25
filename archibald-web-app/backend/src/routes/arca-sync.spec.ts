@@ -51,6 +51,7 @@ describe('GET /api/arca-sync/suggest-codice', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ suggestedCode: 'C00042' });
+    expect(mockSuggestNextCodice).toHaveBeenCalledWith(deps.pool);
   });
 
   test('returns 422 when service throws overflow error', async () => {
