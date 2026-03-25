@@ -482,6 +482,10 @@ export function CustomerCreateModal({
             vatNumber:(af.vatNumber && !prev.vatNumber)                          ? af.vatNumber : prev.vatNumber,
           }));
         }
+        // Auto-advance from vat-edit-check to the field wizard once ERP fields are loaded
+        setCurrentStep((prev) =>
+          prev.kind === "vat-edit-check" ? { kind: "field", fieldIndex: 0 } : prev,
+        );
         // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata
         if (autoSubmitVatOnReadyRef.current) {
           const vatToSubmit = autoSubmitVatOnReadyRef.current;
@@ -1433,6 +1437,12 @@ export function CustomerCreateModal({
             <div style={{ color: "#666", fontSize: "14px" }}>
               Vuoi riconvalidare per aggiornare i dati da Archibald?
             </div>
+            {!botReady && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#6b7280", fontSize: "13px" }}>
+                <span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid #d1d5db", borderTopColor: "#6b7280", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                Caricamento dati da ERP...
+              </div>
+            )}
             <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
               <button
                 onClick={() => {
