@@ -151,6 +151,21 @@ describe('handleEditOrder', () => {
     expect(notesCalls[0][1]).toEqual(['Test note', 'ORD-001', 'user-1']);
   });
 
+  test('does not write total_amount in order_records totals UPDATE', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleEditOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    const totalAmountWrites = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('UPDATE agents.order_records') &&
+        (c[0] as string).includes('total_amount'),
+    );
+    expect(totalAmountWrites).toHaveLength(0);
+  });
+
   test('does not update notes in DB when data.notes is undefined', async () => {
     const pool = createMockPool();
     const bot = createMockBot();

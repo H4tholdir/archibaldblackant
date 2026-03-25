@@ -106,6 +106,30 @@ describe('handleSyncOrderArticles', () => {
     expect(updateCalls).toHaveLength(1);
   });
 
+  test('does not write total_amount and stores gross_amount, total_vat_amount, total_with_vat correctly', async () => {
+    // ART-01: lineAmount=50, VAT=22% → vatAmount=11, lineTotalWithVat=61
+    // ART-02: lineAmount=90, VAT=22% → vatAmount=19.8, lineTotalWithVat=109.8
+    // grossAmount=140, totalVatAmount=30.8, totalWithVat=170.8
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps = createMockDeps(pool, bot);
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const updateCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('SET gross_amount'),
+    );
+    expect(updateCall).toBeDefined();
+    const sql = updateCall![0] as string;
+    const params = updateCall![1] as unknown[];
+    // total_amount must not be written by this handler
+    expect(sql).not.toContain('total_amount');
+    // $1=gross_amount (Italian format), $2=total_vat_amount, $3=total_with_vat
+    expect(params[0]).toBe('140,00'); // gross_amount in Italian format
+    expect(params[1]).toBe('30.8');   // total_vat_amount
+    expect(params[2]).toBe('170.8');  // total_with_vat
+  });
+
   test('returns articles count and totals', async () => {
     const pool = createMockPool();
     const bot = createMockBot();

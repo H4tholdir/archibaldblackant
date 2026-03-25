@@ -106,12 +106,11 @@ async function saveArticlesToDb(
 
   await pool.query(
     `UPDATE agents.order_records
-     SET gross_amount = $1, total_amount = $2, total_vat_amount = $3, total_with_vat = $4,
-         articles_synced_at = $5, last_sync = $6, article_search_text = $7
-     WHERE id = $8 AND user_id = $9`,
+     SET gross_amount = $1, total_vat_amount = $2, total_with_vat = $3,
+         articles_synced_at = $4, last_sync = $5, article_search_text = $6
+     WHERE id = $7 AND user_id = $8`,
     [
-      grossAmount.toString(),
-      totalWithVat.toString(),
+      grossAmount.toFixed(2).replace('.', ','),
       totalVatAmount.toString(),
       totalWithVat.toString(),
       new Date().toISOString(),

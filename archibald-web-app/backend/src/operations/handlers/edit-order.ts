@@ -143,7 +143,6 @@ async function handleEditOrder(
       await tx.query(
         `UPDATE agents.order_records
          SET gross_amount = (SELECT COALESCE(SUM(line_amount), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2),
-             total_amount = (SELECT COALESCE(SUM(line_total_with_vat), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2),
              total_vat_amount = (SELECT COALESCE(SUM(vat_amount), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2),
              total_with_vat = (SELECT COALESCE(SUM(line_total_with_vat), 0) FROM agents.order_articles WHERE order_id = $1 AND user_id = $2)
          WHERE id = $1 AND user_id = $2`,

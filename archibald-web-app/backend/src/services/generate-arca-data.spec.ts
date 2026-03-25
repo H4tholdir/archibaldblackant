@@ -154,9 +154,7 @@ describe("generateArcaData", () => {
 
   test("defaults DATADOC to today if not provided", () => {
     const result = generateArcaData(makeInput(), FT_NUMBER, ESERCIZIO);
-    const today = new Date().toISOString().slice(0, 10);
-
-    expect(result.testata.DATADOC).toBe(today);
+    expect(result.testata.DATADOC).toBe(formatArcaDate());
   });
 
   test("populates destinazione_diversa from subClientData", () => {
