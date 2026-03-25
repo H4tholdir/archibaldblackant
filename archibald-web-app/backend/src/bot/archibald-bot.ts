@@ -13385,7 +13385,34 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
+    // Re-type STREET at the end to fix race conditions: rapid XHR callbacks (from
+    // NAME/SDI Tab presses) can fire mid-typing and corrupt the field.  Writing it last
+    // lets all earlier XHRs settle before we commit the final value.
+    if (customerData.street) {
+      await this.typeDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
+    }
+
+    // Set NOME DI RICERCA (SEARCHNAME/NAMEALIAS) explicitly — DevExpress does not
+    // auto-generate it reliably in create mode.  Mirrors what the edit flow already does.
+    try {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        customerData.name,
+      );
+    } catch {
+      logger.warn("completeCustomerCreation: NAMEALIAS field not found — skipping");
+    }
+
     await this.ensureNameFieldBeforeSave(customerData.name);
+
+    // Re-set delivery mode after all text-field retries: XHR callbacks triggered by
+    // Tab presses on NAME/SDI can reset combo-box selections.
+    if (customerData.deliveryMode) {
+      await this.setDevExpressComboBox(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        customerData.deliveryMode,
+      );
+    }
 
     // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
     await this.emitProgress("customer.tab.indirizzo");
