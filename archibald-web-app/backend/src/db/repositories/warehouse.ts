@@ -120,17 +120,17 @@ function mapRowToItem(row: WarehouseItemRow): WarehouseItem {
 async function getBoxes(pool: DbPool, userId: string): Promise<WarehouseBox[]> {
   const { rows } = await pool.query<WarehouseBoxRow>(
     `SELECT
-      i.box_name AS name,
-      COALESCE(b.created_at, 0) AS created_at,
-      COALESCE(b.updated_at, 0) AS updated_at,
-      COUNT(*)::int AS items_count,
+      b.name,
+      b.created_at,
+      b.updated_at,
+      COUNT(i.id)::int AS items_count,
       COALESCE(SUM(i.quantity), 0)::int AS total_quantity,
-      COUNT(*) FILTER (WHERE i.reserved_for_order IS NULL AND i.sold_in_order IS NULL)::int AS available_count
-    FROM agents.warehouse_items i
-    LEFT JOIN agents.warehouse_boxes b ON b.user_id = i.user_id AND b.name = i.box_name
-    WHERE i.user_id = $1
-    GROUP BY i.box_name, b.created_at, b.updated_at
-    ORDER BY i.box_name`,
+      COUNT(i.id) FILTER (WHERE i.reserved_for_order IS NULL AND i.sold_in_order IS NULL)::int AS available_count
+    FROM agents.warehouse_boxes b
+    LEFT JOIN agents.warehouse_items i ON i.user_id = b.user_id AND i.box_name = b.name
+    WHERE b.user_id = $1
+    GROUP BY b.name, b.created_at, b.updated_at
+    ORDER BY b.name`,
     [userId],
   );
   return rows.map(mapRowToBox);
