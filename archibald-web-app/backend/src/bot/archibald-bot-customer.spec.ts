@@ -312,6 +312,29 @@ describe('typeDevExpressField', () => {
     expect(page.type).toHaveBeenNthCalledWith(1, '#field-id', 'hello', { delay: 5 });
     expect(page.type).toHaveBeenNthCalledWith(2, '#field-id', 'hello', { delay: 5 });
   });
+
+  it('usa Ctrl+A+Delete invece di page.type quando il valore è stringa vuota', async () => {
+    const page = {
+      ...makePageWithType(),
+      keyboard: {
+        press: vi.fn().mockResolvedValue(undefined),
+        type: vi.fn().mockResolvedValue(undefined),
+        down: vi.fn().mockResolvedValue(undefined),
+        up: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    page.evaluate
+      .mockResolvedValueOnce({ id: 'field-id', maxLength: 0 })
+      .mockResolvedValueOnce(''); // campo risulta vuoto dopo il clear → nessun retry
+
+    const bot = makeBot(page as any);
+    await (bot as any).typeDevExpressField(/field/, '');
+
+    expect(page.type).not.toHaveBeenCalled();
+    expect(page.keyboard.down).toHaveBeenCalledWith('Control');
+    expect(page.keyboard.up).toHaveBeenCalledWith('Control');
+    expect(page.keyboard.press).toHaveBeenCalledWith('Delete');
+  });
 });
 
 describe('ensureNameFieldBeforeSave', () => {
@@ -385,5 +408,19 @@ describe('updateCustomer — writeAltAddresses integration', () => {
     await bot.updateCustomer(profile, dataWithoutAddresses as any, 'Acme');
 
     expect((bot as any).writeAltAddresses).toHaveBeenCalledWith([]);
+  });
+
+  it('chiama typeDevExpressField per url e mobile anche quando sono stringhe vuote', async () => {
+    const bot = makeUpdateBot();
+
+    await bot.updateCustomer(profile, { name: 'Acme S.r.l.', url: '', mobile: '' } as any, 'Acme');
+
+    const typeFieldCalls: [RegExp, string][] = (bot as any).typeDevExpressField.mock.calls;
+    const urlCall = typeFieldCalls.find(([, v]) => v === '' && typeFieldCalls.indexOf([, v]) >= 0);
+    const calledRegexSources = typeFieldCalls.map(([r]) => r.source);
+    expect(calledRegexSources).toContain('xaf_dviURL_Edit_I$');
+    expect(calledRegexSources).toContain('xaf_dviCELLULARPHONE_Edit_I$');
+    const emptyStringCalls = typeFieldCalls.filter(([, v]) => v === '');
+    expect(emptyStringCalls).toHaveLength(2);
   });
 });

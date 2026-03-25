@@ -10032,10 +10032,12 @@ export class ArchibaldBot {
     // field's Tab commit) before typing.
     await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-${inputId}` });
 
-    // Step 2: Type the value via real CDP keyboard events.
-    // page.type() generates authentic keydown/keypress/keyup/input events that
-    // DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
-    await this.page.type(`#${inputId}`, effectiveValue, { delay: 5 });
+    // Step 2: Write the value via real CDP keyboard events.
+    // For non-empty values: page.type() generates authentic keydown/keypress/keyup/input
+    // events that DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
+    // For empty string: Ctrl+A + Delete fires a real 'input' event so DevExpress
+    // recognises the field was cleared — page.type('') would fire no events at all.
+    await this.typeOrClear(inputId, effectiveValue);
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
@@ -10072,7 +10074,7 @@ export class ArchibaldBot {
       }, inputId);
 
       await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-retry-${inputId}` });
-      await this.page.type(`#${inputId}`, effectiveValue, { delay: 5 });
+      await this.typeOrClear(inputId, effectiveValue);
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
@@ -10082,6 +10084,20 @@ export class ArchibaldBot {
     }
 
     logger.debug("typeDevExpressField done", { id: inputId, value: effectiveValue });
+  }
+
+  private async typeOrClear(inputId: string, value: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    if (value === "") {
+      // Ctrl+A + Delete fires real keyboard events (including 'input') so DevExpress
+      // commits the empty value. page.type('') would fire no events at all.
+      await this.page.keyboard.down("Control");
+      await this.page.keyboard.press("a");
+      await this.page.keyboard.up("Control");
+      await this.page.keyboard.press("Delete");
+    } else {
+      await this.page.type(`#${inputId}`, value, { delay: 5 });
+    }
   }
 
   private async setDevExpressComboBox(
@@ -12647,7 +12663,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    if (customerData.mobile) {
+    if (customerData.mobile !== undefined) {
       await this.typeDevExpressField(
         /xaf_dviCELLULARPHONE_Edit_I$/,
         customerData.mobile,
@@ -12658,7 +12674,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url) {
+    if (customerData.url !== undefined) {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
@@ -13352,7 +13368,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    if (customerData.mobile) {
+    if (customerData.mobile !== undefined) {
       await this.typeDevExpressField(
         /xaf_dviCELLULARPHONE_Edit_I$/,
         customerData.mobile,
@@ -13363,7 +13379,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url) {
+    if (customerData.url !== undefined) {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
