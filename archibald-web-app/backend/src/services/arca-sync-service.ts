@@ -1828,7 +1828,7 @@ export async function importCustomerAsSubclient(
     `SELECT name, vat_number, fiscal_code, phone, mobile, email, pec, url,
             street, postal_code, city, attention_to
      FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
+     WHERE internal_id = $1 AND user_id = $2`,
     [customerProfileId, userId],
   );
 

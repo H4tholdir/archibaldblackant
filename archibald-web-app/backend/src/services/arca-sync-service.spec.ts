@@ -1839,7 +1839,7 @@ describe("importCustomerAsSubclient", () => {
     const insertedParams: unknown[][] = [];
     const pool = {
       query: vi.fn().mockImplementation((sql: string, params: unknown[]) => {
-        if (sql.includes("SELECT") && sql.includes("agents.customers")) {
+        if (sql.includes("internal_id") && sql.includes("agents.customers")) {
           return Promise.resolve({ rows: [baseCustomer] });
         }
         if (sql.includes("INSERT INTO shared.sub_clients")) {
