@@ -4,6 +4,13 @@ import type { AltAddress } from '../../db/repositories/customer-addresses';
 import { upsertAddressesForCustomer, setAddressesSyncedAt } from '../../db/repositories/customer-addresses';
 import { logger } from '../../logger';
 
+// CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
+const BROWSER_CONNECTION_ERROR_RE = /protocol error|connection closed|target closed/i;
+
+function isBrowserConnectionError(err: unknown): boolean {
+  return err instanceof Error && BROWSER_CONNECTION_ERROR_RE.test(err.message);
+}
+
 type CustomerAddressEntry = {
   customerProfile: string;
   customerName: string;
@@ -63,11 +70,25 @@ async function handleSyncCustomerAddresses(
           addressesCount += addresses.length;
         } catch (err) {
           errorsCount++;
+          const errorMessage = err instanceof Error ? err.message : String(err);
           logger.warn('[sync-customer-addresses] Failed to sync customer, skipping', {
             customerProfile,
             customerName,
-            error: err instanceof Error ? err.message : String(err),
+            error: errorMessage,
           });
+          // When the browser page is closed externally (e.g. preempted by a write operation),
+          // reinitialize the bot so remaining customers in the batch can still be processed.
+          if (isBrowserConnectionError(err)) {
+            logger.warn('[sync-customer-addresses] Browser connection lost — reinitializing bot for remaining customers');
+            try { await bot.close(); } catch {}
+            try {
+              await bot.initialize();
+            } catch (reinitErr) {
+              logger.warn('[sync-customer-addresses] Bot reinitialization failed, remaining customers will be skipped', {
+                error: reinitErr instanceof Error ? reinitErr.message : String(reinitErr),
+              });
+            }
+          }
         }
       }
     } finally {

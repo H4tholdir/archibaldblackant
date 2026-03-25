@@ -160,6 +160,40 @@ describe('handleSyncCustomerAddresses', () => {
 
       expect(bot.close).toHaveBeenCalledOnce();
     });
+
+    it('reinitializes bot when a Protocol error occurs, allowing remaining customers to be processed', async () => {
+      const protocolError = new Error('Protocol error: Connection closed. Most likely the page has been closed.');
+      const pool = createMockPool();
+      const bot = createMockBot();
+      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(protocolError)
+        .mockResolvedValueOnce(undefined);
+
+      const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
+
+      expect(bot.close).toHaveBeenCalledTimes(2); // once for recovery, once in finally
+      expect(bot.initialize).toHaveBeenCalledTimes(2); // once at start, once for recovery
+      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 1 });
+    });
+
+    it('skips remaining customers gracefully when bot reinitialization also fails after a Protocol error', async () => {
+      const protocolError = new Error('Protocol error: Connection closed. Most likely the page has been closed.');
+      const pageNullError = new Error('Browser page is null'); // page is null after failed reinit
+      const pool = createMockPool();
+      const bot = createMockBot();
+      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(protocolError)
+        .mockRejectedValueOnce(pageNullError); // page is dead because reinit failed
+      (bot.initialize as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(undefined)           // first call (outer batch init)
+        .mockRejectedValueOnce(new Error('login failed')); // recovery call fails
+
+      const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
+
+      expect(result.errorsCount).toBe(2);
+      expect(bot.close).toHaveBeenCalledTimes(2); // once for recovery, once in finally
+    });
   });
 
   it('resets addresses_synced_at for all customers when called without customer data (manual trigger)', async () => {
