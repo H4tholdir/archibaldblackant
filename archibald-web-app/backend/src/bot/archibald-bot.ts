@@ -3685,24 +3685,35 @@ export class ArchibaldBot {
               }
 
               // Scenario 2b: fall back to name matching
-              // Archibald ERP may truncate long customer names, so we check
-              // if either string starts with the other (handles truncation)
+              // Priority: exact match first, then prefix match (handles ERP truncation).
+              // Exact match must take precedence to avoid selecting a longer name that
+              // starts with the query (e.g. "Caliendo & Francesco" vs "Caliendo").
               const queryLower = customerName.trim().toLowerCase();
               let bestIndex = -1;
 
+              // Pass 1: exact match
               for (let i = 0; i < rowData.length; i++) {
-                const hasExact = rowData[i].some((text) => {
-                  const cellLower = text.trim().toLowerCase();
-                  return (
-                    cellLower.length > 0 &&
-                    (cellLower === queryLower ||
-                    cellLower.startsWith(queryLower) ||
-                    queryLower.startsWith(cellLower))
-                  );
-                });
-                if (hasExact) {
+                if (rowData[i].some((text) => text.trim().toLowerCase() === queryLower)) {
                   bestIndex = i;
                   break;
+                }
+              }
+
+              // Pass 2: prefix match (ERP may truncate long names)
+              if (bestIndex === -1) {
+                for (let i = 0; i < rowData.length; i++) {
+                  const hasPrefix = rowData[i].some((text) => {
+                    const cellLower = text.trim().toLowerCase();
+                    return (
+                      cellLower.length > 0 &&
+                      (cellLower.startsWith(queryLower) ||
+                        queryLower.startsWith(cellLower))
+                    );
+                  });
+                  if (hasPrefix) {
+                    bestIndex = i;
+                    break;
+                  }
                 }
               }
 
