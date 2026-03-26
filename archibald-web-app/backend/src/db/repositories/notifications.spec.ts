@@ -26,6 +26,9 @@ function createMockPool(rows: unknown[] = [], rowCount = 0): DbPool & { queryCal
   };
 }
 
+const CREATED_AT = new Date('2026-03-26T10:00:00Z');
+const EXPIRES_AT = new Date('2026-04-02T10:00:00Z');
+
 const sampleRow = {
   id: 1,
   user_id: TEST_USER_ID,
@@ -35,8 +38,8 @@ const sampleRow = {
   body: 'Il cliente Rossi è stato eliminato da ERP',
   data: { deletedProfiles: [] },
   read_at: null,
-  created_at: '2026-03-26T10:00:00Z',
-  expires_at: '2026-04-02T10:00:00Z',
+  created_at: CREATED_AT,
+  expires_at: EXPIRES_AT,
 };
 
 describe('getUnreadCount', () => {
@@ -82,9 +85,15 @@ describe('getNotifications', () => {
       body: 'Il cliente Rossi è stato eliminato da ERP',
       data: { deletedProfiles: [] },
       readAt: null,
-      createdAt: '2026-03-26T10:00:00Z',
-      expiresAt: '2026-04-02T10:00:00Z',
+      createdAt: CREATED_AT,
+      expiresAt: EXPIRES_AT,
     }]);
+  });
+
+  test('filter=all does not add read_at clause', async () => {
+    const pool = createMockPool([sampleRow]);
+    await getNotifications(pool, TEST_USER_ID, 'all', 20, 0);
+    expect(pool.queryCalls[0].text).not.toContain('read_at');
   });
 });
 
@@ -126,6 +135,13 @@ describe('deleteExpired', () => {
     const deleted = await deleteExpired(pool);
     expect(deleted).toEqual(5);
   });
+
+  test('returns 0 when rowCount is null', async () => {
+    const pool = createMockPool([], 0);
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: null });
+    const result = await deleteExpired(pool);
+    expect(result).toEqual(0);
+  });
 });
 
 describe('insertNotification', () => {
@@ -140,6 +156,7 @@ describe('insertNotification', () => {
       title: 'Cliente eliminato',
       body: 'Il cliente Rossi è stato eliminato da ERP',
       data: { deletedProfiles: [] },
+      expiresAt: EXPIRES_AT,
     });
     expect(result).toEqual({
       id: 1,
@@ -150,8 +167,22 @@ describe('insertNotification', () => {
       body: 'Il cliente Rossi è stato eliminato da ERP',
       data: { deletedProfiles: [] },
       readAt: null,
-      createdAt: '2026-03-26T10:00:00Z',
-      expiresAt: '2026-04-02T10:00:00Z',
+      createdAt: CREATED_AT,
+      expiresAt: EXPIRES_AT,
     });
+  });
+
+  test('passes expiresAt as bound parameter $7', async () => {
+    const pool = createMockPool([sampleRow]);
+    await insertNotification(pool, {
+      userId: TEST_USER_ID,
+      type: 'erp_customer_deleted',
+      severity: 'error',
+      title: 'Cliente eliminato',
+      body: 'Il cliente Rossi è stato eliminato da ERP',
+      expiresAt: EXPIRES_AT,
+    });
+    expect(pool.queryCalls[0].params?.[6]).toEqual(EXPIRES_AT);
+    expect(pool.queryCalls[0].text).toContain('$7');
   });
 });

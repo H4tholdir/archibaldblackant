@@ -13,9 +13,9 @@ type Notification = {
   title: string;
   body: string;
   data: Record<string, unknown> | null;
-  readAt: string | null;
-  createdAt: string;
-  expiresAt: string;
+  readAt: Date | null;
+  createdAt: Date;
+  expiresAt: Date;
 };
 
 type InsertNotificationParams = {
@@ -25,6 +25,7 @@ type InsertNotificationParams = {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  expiresAt: Date;
 };
 
 type NotificationRow = {
@@ -35,9 +36,9 @@ type NotificationRow = {
   title: string;
   body: string;
   data: Record<string, unknown> | null;
-  read_at: string | null;
-  created_at: string;
-  expires_at: string;
+  read_at: Date | null;
+  created_at: Date;
+  expires_at: Date;
 };
 
 function mapRow(row: NotificationRow): Notification {
@@ -58,9 +59,9 @@ function mapRow(row: NotificationRow): Notification {
 async function insertNotification(pool: DbPool, params: InsertNotificationParams): Promise<Notification> {
   const { rows } = await pool.query<NotificationRow>(
     `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '7 days')
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [params.userId, params.type, params.severity, params.title, params.body, params.data ?? null],
+    [params.userId, params.type, params.severity, params.title, params.body, params.data ?? null, params.expiresAt],
   );
   return mapRow(rows[0]);
 }
