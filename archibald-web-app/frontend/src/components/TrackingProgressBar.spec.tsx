@@ -183,6 +183,24 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
     expect(info.label.toLowerCase()).toContain("ritorno");
   });
 
+  test("status canceled → label contiene annullato", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({
+        date: "2026-03-26",
+        time: "08:00:00",
+        gmtOffset: "",
+        status: "Shipment cancelled",
+        statusCD: "CA",
+        scanLocation: "VERONA, IT",
+        delivered: false,
+        exception: false,
+        exceptionCode: "",
+      }),
+    ];
+    const info = getTrackingInfo(makeOrder({ trackingStatus: "canceled", trackingEvents: events }));
+    expect(info.label.toLowerCase()).toContain("annullato");
+  });
+
   test("exceptionCode viene prefissato nella exceptionReason", () => {
     const exceptionCode = "DEX08";
     const exceptionDescription = "Recipient not in";
