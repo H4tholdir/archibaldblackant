@@ -226,9 +226,31 @@ describe('getExceptionStats', () => {
 
     await getExceptionStats(pool, { userId: USER_ID });
     expect(pool.queryCalls).toHaveLength(3);
-    pool.queryCalls.forEach(call => {
-      expect(call.params?.[0]).toEqual(USER_ID);
-    });
+    expect(pool.queryCalls.map((c) => c.params?.[0])).toEqual([USER_ID, USER_ID, USER_ID]);
+  });
+
+  test('senza userId — le query non includono il filtro user_id', async () => {
+    const totalsRow = { total: 0, exception_active: 0, held: 0, returning: 0 };
+    const claimsRow = { open: 0, submitted: 0, resolved: 0 };
+    let callIndex = 0;
+    const pool = {
+      queryCalls: [] as Array<{ text: string; params?: unknown[] }>,
+      query: vi.fn(async (text: string, params?: unknown[]) => {
+        pool.queryCalls.push({ text, params });
+        const results = [
+          { rows: [totalsRow] },
+          { rows: [] },
+          { rows: [claimsRow] },
+        ];
+        return results[callIndex++] as any;
+      }),
+      withTransaction: vi.fn(),
+      end: vi.fn(async () => {}),
+      getStats: vi.fn(() => ({ totalCount: 1, idleCount: 1, waitingCount: 0 })),
+    };
+
+    await getExceptionStats(pool, {});
+    expect(pool.queryCalls.every((c) => !c.params || c.params.length === 0)).toBe(true);
   });
 });
 

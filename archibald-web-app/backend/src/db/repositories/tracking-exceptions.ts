@@ -78,7 +78,6 @@ export async function resolveOpenExceptions(
   );
 }
 
-// userId opzionale: se assente restituisce eccezioni di tutti gli agenti (uso admin)
 export async function getExceptionsByUser(
   pool: DbPool,
   userId: string | undefined,
