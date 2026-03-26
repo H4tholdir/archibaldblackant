@@ -134,6 +134,50 @@ async function deleteExpired(pool: DbPool): Promise<number> {
   return rowCount ?? 0;
 }
 
+type OrphanedCustomer = {
+  internalId: string;
+  customerName: string;
+  affectedAgentIds: string[];
+};
+
+// Returns customers with orders in order_records that no longer exist in agents.customers
+// (neither active nor soft-deleted), skipping those that already have a recent notification.
+async function findOrphanedCustomerOrders(pool: DbPool): Promise<OrphanedCustomer[]> {
+  const { rows } = await pool.query<{ customer_profile_id: string; customer_name: string; user_id: string }>(
+    `SELECT DISTINCT o.customer_profile_id, o.customer_name, o.user_id
+     FROM agents.order_records o
+     WHERE o.customer_profile_id IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.customers c
+         WHERE c.internal_id = o.customer_profile_id
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.notifications n
+         WHERE n.user_id = o.user_id
+           AND n.type = 'erp_customer_deleted'
+           AND n.expires_at > NOW()
+           AND n.data::text LIKE '%' || o.customer_profile_id || '%'
+       )
+     ORDER BY o.customer_profile_id, o.user_id`,
+  );
+
+  const map = new Map<string, { name: string; agentIds: string[] }>();
+  for (const row of rows) {
+    const entry = map.get(row.customer_profile_id);
+    if (entry) {
+      if (!entry.agentIds.includes(row.user_id)) entry.agentIds.push(row.user_id);
+    } else {
+      map.set(row.customer_profile_id, { name: row.customer_name, agentIds: [row.user_id] });
+    }
+  }
+
+  return [...map.entries()].map(([internalId, { name, agentIds }]) => ({
+    internalId,
+    customerName: name,
+    affectedAgentIds: agentIds,
+  }));
+}
+
 export {
   insertNotification,
   getNotifications,
@@ -143,9 +187,11 @@ export {
   markAllRead,
   deleteNotification,
   deleteExpired,
+  findOrphanedCustomerOrders,
   type Notification,
   type NotificationId,
   type NotificationSeverity,
   type NotificationFilter,
   type InsertNotificationParams,
+  type OrphanedCustomer,
 };

@@ -41,7 +41,7 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
 } from './operations/handlers';
-import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications } from './db/repositories/notifications';
+import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { createNotification } from './services/notification-service';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
@@ -471,6 +471,35 @@ async function bootstrap(): Promise<void> {
       wsServer.broadcast(userId, msg),
   };
 
+  // Reconcile orphaned customers: find customers with orders but no longer in agents.customers
+  // (hard-deleted before soft-delete migration). Generates erp_customer_deleted notifications.
+  findOrphanedCustomerOrders(pool).then(async (orphans) => {
+    if (orphans.length === 0) return;
+    logger.info(`Startup reconciliation: found ${orphans.length} orphaned customer(s) — generating notifications`);
+    for (const orphan of orphans) {
+      const profileText = `${orphan.customerName} (${orphan.internalId})`;
+      for (const agentId of orphan.affectedAgentIds) {
+        await createNotification(notificationDeps, {
+          target: 'user',
+          userId: agentId,
+          type: 'erp_customer_deleted',
+          severity: 'error',
+          title: 'Cliente eliminato da ERP',
+          body: `Il cliente ${profileText} non è più presente su Archibald ERP`,
+          data: { internalId: orphan.internalId, customerName: orphan.customerName, deletedProfiles: [{ internalId: orphan.internalId, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
+        });
+      }
+      await createNotification(notificationDeps, {
+        target: 'admin',
+        type: 'erp_customer_deleted',
+        severity: 'error',
+        title: 'Cliente eliminato da ERP',
+        body: `Il cliente ${profileText} non è più presente su Archibald ERP`,
+        data: { internalId: orphan.internalId, customerName: orphan.customerName, deletedProfiles: [{ internalId: orphan.internalId, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
+      });
+    }
+  }).catch((err) => logger.error('Startup reconciliation failed', { err }));
+
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
@@ -677,6 +706,33 @@ async function bootstrap(): Promise<void> {
           title: 'Clienti eliminati da ERP',
           body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${allProfileText}`,
           data: { deletedProfiles: deletedInfos },
+        });
+      },
+      async (restoredInfos) => {
+        const uniqueAgentIds = [...new Set(restoredInfos.flatMap((r) => r.affectedAgentIds))];
+
+        for (const agentId of uniqueAgentIds) {
+          const agentProfiles = restoredInfos.filter((r) => r.affectedAgentIds.includes(agentId));
+          const profileText = agentProfiles.map((r) => r.name).join(', ');
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'erp_customer_restored',
+            severity: 'success',
+            title: 'Clienti ripristinati su ERP',
+            body: `I seguenti clienti sono tornati disponibili su Archibald: ${profileText}`,
+            data: { restoredProfiles: agentProfiles },
+          });
+        }
+
+        const allProfileText = restoredInfos.map((r) => r.name).join(', ');
+        await createNotification(notificationDeps, {
+          target: 'admin',
+          type: 'erp_customer_restored',
+          severity: 'success',
+          title: 'Clienti ripristinati su ERP',
+          body: `${restoredInfos.length} cliente/i ripristinati su Archibald ERP: ${allProfileText}`,
+          data: { restoredProfiles: restoredInfos },
         });
       },
     ),

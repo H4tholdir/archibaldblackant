@@ -304,7 +304,7 @@ describe('deleteCustomers', () => {
     vi.restoreAllMocks();
   });
 
-  test('deletes customers by profile IDs for given user', async () => {
+  test('soft-deletes customers by profile IDs for given user', async () => {
     const pool = createMockPool();
 
     const { deleteCustomers } = await import('./customers');
@@ -312,7 +312,7 @@ describe('deleteCustomers', () => {
 
     expect(result).toBe(0);
     const call = pool.queryCalls[0];
-    expect(call.text).toContain('DELETE FROM agents.customers');
+    expect(call.text).toContain('UPDATE agents.customers SET deleted_at = NOW()');
     expect(call.text).toContain('user_id');
     expect(call.params).toEqual(['CUST001', 'CUST002', TEST_USER_ID]);
   });

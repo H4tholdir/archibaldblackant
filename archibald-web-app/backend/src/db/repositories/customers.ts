@@ -248,6 +248,7 @@ async function getCustomers(
       `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
        WHERE user_id = $1
          AND hidden = FALSE
+         AND deleted_at IS NULL
          AND ${wordConditions}
        ORDER BY
          CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
@@ -261,7 +262,7 @@ async function getCustomers(
 
   const { rows } = await pool.query<CustomerRow>(
     `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
-     WHERE user_id = $1 AND hidden = FALSE
+     WHERE user_id = $1 AND hidden = FALSE AND deleted_at IS NULL
      ORDER BY name ASC`,
     [userId],
   );
@@ -271,7 +272,7 @@ async function getCustomers(
 async function getHiddenCustomers(pool: DbPool, userId: string): Promise<Customer[]> {
   const { rows } = await pool.query<CustomerRow>(
     `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
-     WHERE user_id = $1 AND hidden = TRUE
+     WHERE user_id = $1 AND hidden = TRUE AND deleted_at IS NULL
      ORDER BY name ASC`,
     [userId],
   );
@@ -299,7 +300,7 @@ async function getCustomerByProfile(
 ): Promise<Customer | undefined> {
   const { rows } = await pool.query<CustomerRow>(
     `SELECT * FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
+     WHERE customer_profile = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [customerProfile, userId],
   );
   return rows.length > 0 ? mapRowToCustomer(rows[0]) : undefined;
@@ -307,7 +308,7 @@ async function getCustomerByProfile(
 
 async function getCustomerCount(pool: DbPool, userId: string): Promise<number> {
   const { rows } = await pool.query<{ count: string }>(
-    'SELECT COUNT(*) AS count FROM agents.customers WHERE user_id = $1',
+    'SELECT COUNT(*) AS count FROM agents.customers WHERE user_id = $1 AND deleted_at IS NULL',
     [userId],
   );
   return parseInt(rows[0].count, 10);
@@ -315,7 +316,7 @@ async function getCustomerCount(pool: DbPool, userId: string): Promise<number> {
 
 async function getLastSyncTime(pool: DbPool, userId: string): Promise<number | null> {
   const { rows } = await pool.query<{ last_sync: string | null }>(
-    'SELECT MAX(last_sync) AS last_sync FROM agents.customers WHERE user_id = $1',
+    'SELECT MAX(last_sync) AS last_sync FROM agents.customers WHERE user_id = $1 AND deleted_at IS NULL',
     [userId],
   );
   const value = rows[0].last_sync;
@@ -324,14 +325,14 @@ async function getLastSyncTime(pool: DbPool, userId: string): Promise<number | n
 
 async function getGlobalCustomerCount(pool: DbPool): Promise<number> {
   const { rows } = await pool.query<{ count: string }>(
-    'SELECT COUNT(*) AS count FROM agents.customers',
+    'SELECT COUNT(*) AS count FROM agents.customers WHERE deleted_at IS NULL',
   );
   return parseInt(rows[0].count, 10);
 }
 
 async function getGlobalCustomerLastSyncTime(pool: DbPool): Promise<number | null> {
   const { rows } = await pool.query<{ last_sync: string | null }>(
-    'SELECT MAX(last_sync) AS last_sync FROM agents.customers',
+    'SELECT MAX(last_sync) AS last_sync FROM agents.customers WHERE deleted_at IS NULL',
   );
   const value = rows[0].last_sync;
   return value !== null ? Number(value) : null;
@@ -455,6 +456,7 @@ async function findDeletedCustomers(
   const { rows } = await pool.query<{ customer_profile: string }>(
     `SELECT customer_profile FROM agents.customers
      WHERE user_id = $${currentIds.length + 1}
+       AND deleted_at IS NULL
        AND customer_profile NOT IN (${placeholders})`,
     [...currentIds, userId],
   );
@@ -472,9 +474,10 @@ async function deleteCustomers(
 
   const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
   const result = await pool.query(
-    `DELETE FROM agents.customers
+    `UPDATE agents.customers SET deleted_at = NOW()
      WHERE customer_profile IN (${placeholders})
-       AND user_id = $${ids.length + 1}`,
+       AND user_id = $${ids.length + 1}
+       AND deleted_at IS NULL`,
     [...ids, userId],
   );
   return result.rowCount ?? 0;
