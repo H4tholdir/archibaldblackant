@@ -27,8 +27,8 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
   const totalProgressiveBonuses = data.steps
     .filter((s) => s.status === "completed")
     .reduce((sum, s) => sum + s.bonusAmount, 0);
-  const baseCommissions = data.balance.totalCommissionsMatured - totalProgressiveBonuses - totalSpecialBonuses;
-  const totalMaturato = data.balance.totalCommissionsMatured;
+  const baseCommissions = data.balance.totalCommissionsMatured;
+  const totalMaturato = baseCommissions + totalProgressiveBonuses + totalSpecialBonuses;
 
   const monthsElapsed = now.getMonth() + 1;
 
@@ -59,7 +59,6 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
           <div style={{ textAlign: "right" as const }}>
             <div style={{ fontSize: "11px", opacity: 0.7, textTransform: "uppercase" as const, fontWeight: 600 }}>Fatturato {now.getFullYear()}</div>
             <div style={{ fontSize: "18px", fontWeight: 800 }}>{maskValue(data.currentYearRevenue, "money")}</div>
-            <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "2px" }}>Anticipo {fmt(data.balance.totalAdvancePaid)}</div>
           </div>
         </div>
       </div>
@@ -109,8 +108,32 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
       <div style={{ marginBottom: "14px" }}>
         <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🏆 Premi extra-budget (oltre target annuale)</div>
         {!data.extraBudget.visible ? (
-          <div style={{ background: "#f5f5f5", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "12px", fontStyle: "italic" as const }}>
-            Target annuale non ancora raggiunto — disponibile da {maskValue(data.extraBudget.nextStep, "money")}
+          <div style={{ background: "#f9f9f9", border: "1px solid #e8e8e8", borderRadius: "8px", padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+              <span style={{ fontSize: "20px" }}>🔒</span>
+              <div>
+                <div style={{ fontSize: "13px", color: "#555", fontWeight: 600 }}>Target annuale non ancora raggiunto</div>
+                <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>
+                  Mancano <strong style={{ color: "#e65100" }}>{fmt(data.extraBudget.missingToNextStep)}</strong> al target — premi disponibili da {fmt(data.extraBudget.yearlyTarget)}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: "#e0e0e0", borderRadius: "4px", height: "6px", marginBottom: "8px", overflow: "hidden" }}>
+              <div style={{ background: "linear-gradient(90deg,#43a047,#1b5e20)", width: `${Math.min(100, Math.round((data.currentYearRevenue / data.extraBudget.yearlyTarget) * 100))}%`, height: "100%", borderRadius: "4px" }} />
+            </div>
+            <div style={{ fontSize: "11px", color: "#aaa", marginBottom: "12px" }}>
+              {fmt(data.currentYearRevenue)} su {fmt(data.extraBudget.yearlyTarget)} ({Math.round((data.currentYearRevenue / data.extraBudget.yearlyTarget) * 100)}%)
+            </div>
+            <div style={{ fontSize: "10px", color: "#bbb", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: "8px" }}>Premi disponibili al raggiungimento:</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "6px" }}>
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} style={{ background: "#fff", border: "1px dashed #d0d0d0", borderRadius: "8px", padding: "8px", textAlign: "center" as const, opacity: 0.7 - i * 0.1 }}>
+                  <div style={{ fontSize: "9px", color: "#bbb", fontWeight: 600, marginBottom: "2px" }}>Tier {i + 1}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#ccc" }}>+{fmt(data.extraBudget.extraBudgetReward * (i + 1))}</div>
+                  <div style={{ fontSize: "10px", color: "#ddd" }}>oltre {fmt(data.extraBudget.yearlyTarget + data.extraBudget.extraBudgetInterval * i)}</div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "7px" }}>
@@ -165,9 +188,9 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
           </div>
           <div style={{ background: "#e8f5e9", borderRadius: "8px", padding: "10px" }}>
             <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>Provvigioni maturate</div>
-            <div style={{ fontSize: "18px", fontWeight: 800, color: "#1b5e20" }}>{maskValue(totalMaturato, "money")}</div>
+            <div style={{ fontSize: "18px", fontWeight: 800, color: "#1b5e20" }}>{maskValue(data.balance.totalCommissionsMatured, "money")}</div>
             <div style={{ background: "#c8e6c9", borderRadius: "3px", height: "6px", marginTop: "6px", overflow: "hidden" }}>
-              <div style={{ background: "#27ae60", width: `${Math.min(100, Math.round((totalMaturato / Math.max(1, data.balance.totalAdvancePaid * 12 / monthsElapsed)) * 100))}%`, height: "100%", borderRadius: "3px" }} />
+              <div style={{ background: "#27ae60", width: `${Math.min(100, Math.round((data.balance.totalCommissionsMatured / Math.max(1, data.balance.totalAdvancePaid * 12 / monthsElapsed)) * 100))}%`, height: "100%", borderRadius: "3px" }} />
             </div>
             <div style={{ fontSize: "11px", color: "#888", marginTop: "3px" }}>vs anticipo annuale</div>
           </div>

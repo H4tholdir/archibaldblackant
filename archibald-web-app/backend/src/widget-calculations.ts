@@ -379,7 +379,7 @@ export function calculateBonusRoadmap(
 
   const steps = [];
   for (let i = 0; i < 4; i++) {
-    const stepNumber = completedSteps + i;
+    const stepNumber = i;
     const threshold = bonusInterval * (stepNumber + 1);
 
     let status: "completed" | "active" | "locked";
@@ -395,8 +395,8 @@ export function calculateBonusRoadmap(
       threshold,
       bonusAmount,
       status,
-      label: `${(threshold / 1000).toFixed(0)}k`,
-      bonusLabel: `+${(bonusAmount / 1000).toFixed(0)}k`,
+      label: threshold.toLocaleString('it-IT') + ' €',
+      bonusLabel: '+' + bonusAmount.toLocaleString('it-IT') + ' €',
     });
   }
 
@@ -635,8 +635,11 @@ export function calculateExtraBudget(
       extraRevenue: 0,
       extraBonuses: 0,
       extraBonusesAmount: 0,
-      nextStep: 0,
-      missingToNextStep: 0,
+      nextStep: yearlyTarget,
+      missingToNextStep: yearlyTarget - currentYearRevenue,
+      yearlyTarget,
+      extraBudgetInterval,
+      extraBudgetReward,
     };
   }
 
@@ -655,6 +658,9 @@ export function calculateExtraBudget(
     extraBonusesAmount,
     nextStep: extraBudgetInterval,
     missingToNextStep,
+    yearlyTarget,
+    extraBudgetInterval,
+    extraBudgetReward,
   };
 }
 
