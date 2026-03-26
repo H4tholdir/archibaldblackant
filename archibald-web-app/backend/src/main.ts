@@ -41,7 +41,7 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
 } from './operations/handlers';
-import { insertNotification as insertNotificationRepo } from './db/repositories/notifications';
+import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications } from './db/repositories/notifications';
 import { createNotification } from './services/notification-service';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
@@ -232,6 +232,7 @@ async function bootstrap(): Promise<void> {
     () => cachedAgentIds,
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
     (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
+    () => deleteExpiredNotifications(pool),
   );
 
   const wsServer = createWebSocketServer({

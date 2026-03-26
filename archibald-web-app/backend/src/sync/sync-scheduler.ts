@@ -25,12 +25,16 @@ const ARTICLE_SYNC_BATCH_LIMIT = 10;
 const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
 const ADDRESS_SYNC_BATCH_LIMIT = 30;
 const ADDRESS_SYNC_DELAY_MS = 5 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+type DeleteExpiredFn = () => Promise<number>;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getActiveAgentIds: () => string[],
   getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
   getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn,
+  deleteExpiredNotifications?: DeleteExpiredFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -93,6 +97,16 @@ function createSyncScheduler(
         enqueue('sync-products', 'service-account', {});
       }, currentIntervals.sharedSyncMs),
     );
+
+    if (deleteExpiredNotifications) {
+      timers.push(
+        setInterval(() => {
+          deleteExpiredNotifications().catch((error) => {
+            logger.error('Failed to delete expired notifications', { error });
+          });
+        }, CLEANUP_INTERVAL_MS),
+      );
+    }
   }
 
   function stop(): void {
@@ -201,9 +215,11 @@ export {
   ARTICLE_SYNC_DELAY_MS,
   ADDRESS_SYNC_BATCH_LIMIT,
   ADDRESS_SYNC_DELAY_MS,
+  CLEANUP_INTERVAL_MS,
   type SyncScheduler,
   type SyncIntervals,
   type EnqueueFn,
   type GetOrdersNeedingArticleSyncFn,
   type GetCustomersNeedingAddressSyncFn,
+  type DeleteExpiredFn,
 };

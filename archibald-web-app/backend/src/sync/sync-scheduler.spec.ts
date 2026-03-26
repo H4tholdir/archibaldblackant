@@ -6,6 +6,7 @@ import {
   ARTICLE_SYNC_DELAY_MS,
   ADDRESS_SYNC_BATCH_LIMIT,
   ADDRESS_SYNC_DELAY_MS,
+  CLEANUP_INTERVAL_MS,
   type SyncIntervals,
   type GetCustomersNeedingAddressSyncFn,
 } from './sync-scheduler';
@@ -476,6 +477,38 @@ describe('createSyncScheduler', () => {
 
       expect(scheduler.getSessionCount()).toBe(0);
       expect(scheduler.isRunning()).toBe(true);
+    });
+
+    test('calls deleteExpiredNotifications every CLEANUP_INTERVAL_MS when provided', () => {
+      const enqueue = createMockEnqueue();
+      const deleteExpired = vi.fn().mockResolvedValue(3);
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, undefined, deleteExpired);
+
+      scheduler.start(intervals);
+
+      vi.advanceTimersByTime(CLEANUP_INTERVAL_MS - 1);
+      expect(deleteExpired).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(deleteExpired).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(CLEANUP_INTERVAL_MS);
+      expect(deleteExpired).toHaveBeenCalledTimes(2);
+
+      scheduler.stop();
+    });
+
+    test('does not call deleteExpiredNotifications when not provided', () => {
+      const enqueue = createMockEnqueue();
+      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+
+      scheduler.start(intervals);
+      vi.advanceTimersByTime(CLEANUP_INTERVAL_MS * 2);
+
+      // No error thrown, scheduler works normally
+      expect(enqueue).toHaveBeenCalled();
+
+      scheduler.stop();
     });
 
     test('safety timeout resets on subsequent smartCustomerSync calls', async () => {
