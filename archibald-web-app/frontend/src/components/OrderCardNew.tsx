@@ -4584,7 +4584,7 @@ export function OrderCardNew({
                   {orderStatusStyle.label}
                 </span>
                 {order.trackingStatus === 'delivered' && (() => {
-                  const events = (order.trackingEvents || []) as Array<{ exception: boolean }>;
+                  const events = order.trackingEvents ?? [];
                   const exceptionsCount = events.filter((ev) => ev.exception).length;
                   return exceptionsCount > 0 ? (
                     <div style={{
