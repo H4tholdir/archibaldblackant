@@ -13,4 +13,4 @@ CREATE TABLE agents.notifications (
 
 CREATE INDEX notifications_user_unread
   ON agents.notifications (user_id, created_at DESC)
-  WHERE read_at IS NULL AND expires_at > NOW();
+  WHERE read_at IS NULL;
