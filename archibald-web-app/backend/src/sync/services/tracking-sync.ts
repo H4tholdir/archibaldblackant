@@ -110,7 +110,7 @@ async function syncTracking(
           try {
             await onTrackingEvent(status, orderNumber);
           } catch (err) {
-            console.error('onTrackingEvent callback failed:', err);
+            logger.error('onTrackingEvent callback failed', { err });
           }
         }
 
