@@ -6,6 +6,13 @@ import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole, UserTarget } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
 import { logger } from '../logger';
+import {
+  getExceptionStats,
+  getExceptionsByUser,
+  updateClaimStatus,
+  getExceptionById,
+} from '../db/repositories/tracking-exceptions';
+import { generateClaimPdf } from '../services/fedex-claim-pdf';
 
 type AdminJob = {
   jobId: string;
@@ -336,6 +343,75 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (error) {
       logger.error('Error importing Komet listino', { error });
       return res.status(500).json({ success: false, error: 'Errore durante importazione listino Komet' });
+    }
+  });
+
+  // --- Tracking FedEx ---
+
+  router.get('/tracking/stats', async (req, res) => {
+    try {
+      const { userId, from, to } = req.query as Record<string, string>;
+      const stats = await getExceptionStats(deps.pool, { userId, from, to });
+      const { rows } = await deps.pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE tracking_status IS NOT NULL)::int AS total_with_tracking,
+           COUNT(*) FILTER (WHERE tracking_status = 'delivered')::int AS delivered
+         FROM agents.order_records
+         ${userId ? 'WHERE user_id = $1' : ''}`,
+        userId ? [userId] : [],
+      );
+      res.json({ ...rows[0], ...stats });
+    } catch (err) {
+      logger.error('Error fetching tracking stats', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/tracking/exceptions', async (req, res) => {
+    try {
+      const { userId, status = 'all', from, to } = req.query as Record<string, string>;
+      const exceptions = await getExceptionsByUser(
+        deps.pool,
+        userId || undefined,
+        { status: status as 'open' | 'closed' | 'all', from, to },
+      );
+      res.json(exceptions);
+    } catch (err) {
+      logger.error('Error fetching tracking exceptions', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.patch('/tracking/exceptions/:id/claim', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { claimStatus } = req.body as { claimStatus: 'open' | 'submitted' | 'resolved' };
+      const allowed: Array<'open' | 'submitted' | 'resolved'> = ['open', 'submitted', 'resolved'];
+      if (!allowed.includes(claimStatus)) {
+        return res.status(400).json({ error: 'Invalid claimStatus' });
+      }
+      const exception = await getExceptionById(deps.pool, id);
+      if (!exception) return res.status(404).json({ error: 'Not found' });
+      await updateClaimStatus(deps.pool, id, claimStatus, exception.userId);
+      res.json({ id, claimStatus });
+    } catch (err) {
+      logger.error('Error updating claim status', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/tracking/exceptions/:id/claim-pdf', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const exception = await getExceptionById(deps.pool, id);
+      if (!exception) return res.status(404).json({ error: 'Not found' });
+      const pdfBuffer = await generateClaimPdf(exception);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="reclamo-${exception.trackingNumber}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      logger.error('Error generating claim PDF', { err });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
