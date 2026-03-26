@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { checkCustomerInactivity, checkOverduePayments } from './notification-scheduler';
+import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones } from './notification-scheduler';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import type { DbPool } from '../db/pool';
 
@@ -112,6 +112,67 @@ describe('checkOverduePayments', () => {
     const count = await checkOverduePayments(pool, deps);
 
     expect(count).toBe(0);
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkBudgetMilestones', () => {
+  test('calls createNotification when currentBudget >= budget_threshold', async () => {
+    const condition = { id: 1, user_id: 'U1', title: 'Obiettivo Primavera', reward_amount: 500, budget_threshold: 10000 };
+    const budgetRow = { current_budget: 12000 };
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [condition] })
+        .mockResolvedValueOnce({ rows: [budgetRow] }),
+    } as unknown as DbPool;
+    const deps = makeDeps(pool);
+    const markAchieved = vi.fn().mockResolvedValue(null);
+
+    const count = await checkBudgetMilestones(pool, deps, markAchieved);
+
+    expect(count).toBe(1);
+    expect(markAchieved).toHaveBeenCalledWith(pool, 1, 'U1');
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'budget_milestone',
+        severity: 'success',
+        data: expect.objectContaining({ conditionId: 1, conditionTitle: 'Obiettivo Primavera', rewardAmount: 500 }),
+      }),
+    );
+    expect(deps.broadcast).toHaveBeenCalledWith('U1', expect.objectContaining({ type: 'NOTIFICATION_NEW' }));
+  });
+
+  test('does NOT call createNotification when currentBudget < budget_threshold', async () => {
+    const condition = { id: 2, user_id: 'U2', title: 'Obiettivo Estate', reward_amount: 300, budget_threshold: 20000 };
+    const budgetRow = { current_budget: 5000 };
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [condition] })
+        .mockResolvedValueOnce({ rows: [budgetRow] }),
+    } as unknown as DbPool;
+    const deps = makeDeps(pool);
+    const markAchieved = vi.fn().mockResolvedValue(null);
+
+    const count = await checkBudgetMilestones(pool, deps, markAchieved);
+
+    expect(count).toBe(0);
+    expect(markAchieved).not.toHaveBeenCalled();
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+
+  test('does NOT call anything when no unachieved budget conditions exist', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValueOnce({ rows: [] }),
+    } as unknown as DbPool;
+    const deps = makeDeps(pool);
+    const markAchieved = vi.fn().mockResolvedValue(null);
+
+    const count = await checkBudgetMilestones(pool, deps, markAchieved);
+
+    expect(count).toBe(0);
+    expect(markAchieved).not.toHaveBeenCalled();
     expect(deps.insertNotification).not.toHaveBeenCalled();
   });
 });
