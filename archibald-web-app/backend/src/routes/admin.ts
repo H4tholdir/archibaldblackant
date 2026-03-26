@@ -385,6 +385,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
   router.patch('/tracking/exceptions/:id/claim', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
+      if (isNaN(id) || id < 1) return res.status(400).json({ error: 'Invalid id' });
       const { claimStatus } = req.body as { claimStatus: 'open' | 'submitted' | 'resolved' };
       const allowed: Array<'open' | 'submitted' | 'resolved'> = ['open', 'submitted', 'resolved'];
       if (!allowed.includes(claimStatus)) {
@@ -403,6 +404,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
   router.get('/tracking/exceptions/:id/claim-pdf', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
+      if (isNaN(id) || id < 1) return res.status(400).json({ error: 'Invalid id' });
       const exception = await getExceptionById(deps.pool, id);
       if (!exception) return res.status(404).json({ error: 'Not found' });
       const pdfBuffer = await generateClaimPdf(exception);

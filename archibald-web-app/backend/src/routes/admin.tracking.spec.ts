@@ -179,6 +179,33 @@ describe('createAdminRouter — tracking endpoints', () => {
       expect(res.body).toEqual({ id: 7, claimStatus: 'submitted' });
       expect(updateClaimStatus).toHaveBeenCalledWith(deps.pool, 7, 'submitted', 'u1');
     });
+
+    test('restituisce 400 per id non numerico', async () => {
+      const res = await request(app)
+        .patch('/api/admin/tracking/exceptions/abc/claim')
+        .send({ claimStatus: 'open' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
+    });
+
+    test('restituisce 400 per id zero', async () => {
+      const res = await request(app)
+        .patch('/api/admin/tracking/exceptions/0/claim')
+        .send({ claimStatus: 'open' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
+    });
+
+    test('restituisce 400 per id negativo', async () => {
+      const res = await request(app)
+        .patch('/api/admin/tracking/exceptions/-5/claim')
+        .send({ claimStatus: 'open' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
+    });
   });
 
   describe('GET /api/admin/tracking/exceptions', () => {
@@ -235,6 +262,27 @@ describe('createAdminRouter — tracking endpoints', () => {
 
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'Internal server error' });
+    });
+
+    test('restituisce 400 per id non numerico', async () => {
+      const res = await request(app).get('/api/admin/tracking/exceptions/abc/claim-pdf');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
+    });
+
+    test('restituisce 400 per id zero', async () => {
+      const res = await request(app).get('/api/admin/tracking/exceptions/0/claim-pdf');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
+    });
+
+    test('restituisce 400 per id negativo', async () => {
+      const res = await request(app).get('/api/admin/tracking/exceptions/-5/claim-pdf');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Invalid id' });
     });
   });
 });
