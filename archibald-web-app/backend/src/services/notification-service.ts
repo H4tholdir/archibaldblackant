@@ -29,28 +29,21 @@ async function createNotification(
 ): Promise<void> {
   const { pool, getAllUsers, insertNotification, broadcast } = deps;
   const { target, type, severity, title, body, data } = params;
-
-  const insertAndBroadcast = async (userId: string) => {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const notification = await insertNotification(pool, { userId, type, severity, title, body, data, expiresAt });
-    broadcast(userId, {
-      type: 'NOTIFICATION_NEW',
-      payload: notification,
-      timestamp: new Date().toISOString(),
-    });
-  };
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   if (target === 'user') {
     if (!params.userId) throw new Error('userId required when target=user');
-    await insertAndBroadcast(params.userId);
+    const notification = await insertNotification(pool, { userId: params.userId, type, severity, title, body, data, expiresAt });
+    broadcast(params.userId, { type: 'NOTIFICATION_NEW', payload: notification, timestamp: new Date().toISOString() });
     return;
   }
 
   const users = await getAllUsers(pool);
   const targets = target === 'admin' ? users.filter((u) => u.role === 'admin') : users;
-  for (const user of targets) {
-    await insertAndBroadcast(user.id);
-  }
+  await Promise.all(targets.map(async (user) => {
+    const notification = await insertNotification(pool, { userId: user.id, type, severity, title, body, data, expiresAt });
+    broadcast(user.id, { type: 'NOTIFICATION_NEW', payload: notification, timestamp: new Date().toISOString() });
+  }));
 }
 
 export {

@@ -63,6 +63,10 @@ describe('createNotification', () => {
 
     expect(deps.insertNotification).toHaveBeenCalledTimes(ALL_USERS.length);
     expect(deps.broadcast).toHaveBeenCalledTimes(ALL_USERS.length);
+    for (const user of ALL_USERS) {
+      expect(deps.insertNotification).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ userId: user.id }));
+      expect(deps.broadcast).toHaveBeenCalledWith(user.id, expect.objectContaining({ type: 'NOTIFICATION_NEW' }));
+    }
   });
 
   test('target=user without userId throws', async () => {
