@@ -40,7 +40,6 @@ type QuickFilterType =
   | "editable"
   | "backorder"
   | "inTransit"
-  | "exception"
   | "delivered"
   | "invoiced"
   | "overdue"
@@ -287,8 +286,6 @@ export function OrderHistory() {
   // Show hidden orders toggle
   const [showHidden, setShowHidden] = useState(false);
 
-  // Exception quick-filter toggle
-  const [showOnlyExceptions, setShowOnlyExceptions] = useState(false);
 
   // Note summaries and previews for collapsed badges
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
@@ -751,7 +748,6 @@ export function OrderHistory() {
     handleClearCustomer();
     setActiveTimePreset(null);
     setShowHidden(false);
-    setShowOnlyExceptions(false);
   };
 
   const handleSendToVerona = (orderId: string, customerName: string) => {
@@ -937,13 +933,6 @@ export function OrderHistory() {
             );
             break;
 
-          case "exception":
-            matches = !order.deliveryConfirmedAt && (
-              order.trackingStatus === 'exception'
-              || (order.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true)
-            );
-            break;
-
           case "delivered":
             matches = !!order.deliveryConfirmedAt;
             break;
@@ -973,7 +962,7 @@ export function OrderHistory() {
   };
 
   // Reset visibleCount when filters change
-  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${showHidden}_${showOnlyExceptions}_${[...hiddenOrderIds].sort().join(",")}`;
+  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${showHidden}_${[...hiddenOrderIds].sort().join(",")}`;
   const prevFilterKeyRef = useRef(filterKey);
   if (prevFilterKeyRef.current !== filterKey) {
     prevFilterKeyRef.current = filterKey;
@@ -1004,16 +993,7 @@ export function OrderHistory() {
     return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
   }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch, orderIndex]);
 
-  const exceptionStatuses = new Set(['exception', 'held', 'returning']);
-  const displayedOrders = showOnlyExceptions
-    ? filteredOrders.filter((o) => {
-        if (exceptionStatuses.has(o.trackingStatus ?? '')) return true;
-        if (o.trackingStatus === 'delivered') {
-          return (o.trackingEvents ?? []).some((ev) => ev.exception);
-        }
-        return false;
-      })
-    : filteredOrders;
+  const displayedOrders = filteredOrders;
 
   const hasActiveFilters =
     selectedCustomer !== null ||
@@ -1021,8 +1001,7 @@ export function OrderHistory() {
     filters.dateTo !== "" ||
     filters.quickFilters.size > 0 ||
     filters.search !== "" ||
-    showHidden ||
-    showOnlyExceptions;
+    showHidden;
 
   // Track which stack was force-expanded by search so we can close it
   const [searchExpandedStackId, setSearchExpandedStackId] = useState<string | null>(null);
@@ -1145,13 +1124,6 @@ export function OrderHistory() {
           || isInTransit(o)
         )
       ).length,
-    },
-    {
-      id: "exception" as QuickFilterType,
-      label: "\u26a0\ufe0f Eccezione corriere",
-      color: "#cc0066",
-      bgColor: "#fff0f5",
-      count: ordersForCounts.filter((o) => !o.deliveryConfirmedAt && (o.trackingStatus === 'exception' || (o.trackingEvents ?? []).some((e: { exception?: boolean }) => e.exception === true))).length,
     },
     {
       id: "delivered",
@@ -1754,21 +1726,6 @@ export function OrderHistory() {
                 </button>
               );
             })}
-            <button
-              onClick={() => setShowOnlyExceptions((v) => !v)}
-              style={{
-                background: showOnlyExceptions ? '#fff0f5' : '#f5f5f5',
-                color: showOnlyExceptions ? '#cc0066' : '#666',
-                border: `1px solid ${showOnlyExceptions ? '#cc0066' : '#ddd'}`,
-                borderRadius: '20px',
-                padding: '6px 14px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              ⚠ Con eccezioni
-            </button>
           </div>
         </div>
 

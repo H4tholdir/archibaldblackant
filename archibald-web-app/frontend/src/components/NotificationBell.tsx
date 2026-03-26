@@ -20,10 +20,18 @@ type RowInfo = {
   iconBg: string;
   title: string;
   subtitle: string | undefined;
+  description: string | undefined;
   tag: string;
   tagColor: string;
   tagBg: string;
 };
+
+function extractDescription(reason: string | undefined, body: string): string {
+  if (!reason) return body;
+  // "17: testo descrizione" → "testo descrizione"
+  const match = reason.match(/^\w+:\s*(.+)/);
+  return match ? match[1] : reason;
+}
 
 function getRowInfo(n: Notification): RowInfo {
   const data = n.data ?? {};
@@ -35,13 +43,12 @@ function getRowInfo(n: Notification): RowInfo {
         exType === 'returning' ? 'In ritorno' :
         exType === 'canceled' ? 'Annullato' : 'Eccezione';
       const reason = data.reason as string | undefined;
-      const codeMatch = reason?.match(/^(\w+):/);
-      const suffix = codeMatch ? ` · cod.${codeMatch[1]}` : '';
       return {
         icon: '📦', iconBg: 'rgba(204,0,102,0.18)',
         title: (data.orderNumber as string) ?? n.title,
         subtitle: data.customerName as string | undefined,
-        tag: tag + suffix, tagColor: '#ff6699', tagBg: 'rgba(204,0,102,0.18)',
+        description: extractDescription(reason, n.body),
+        tag, tagColor: '#ff6699', tagBg: 'rgba(204,0,102,0.18)',
       };
     }
     case 'fedex_delivered':
@@ -49,6 +56,7 @@ function getRowInfo(n: Notification): RowInfo {
         icon: '✅', iconBg: 'rgba(46,125,50,0.18)',
         title: (data.orderNumber as string) ?? n.title,
         subtitle: data.customerName as string | undefined,
+        description: 'Consegna avvenuta con successo',
         tag: 'Consegnato', tagColor: '#66bb6a', tagBg: 'rgba(46,125,50,0.18)',
       };
     case 'sync_anomaly':
@@ -56,12 +64,14 @@ function getRowInfo(n: Notification): RowInfo {
       return {
         icon: '⚠️', iconBg: 'rgba(230,81,0,0.18)',
         title: n.title, subtitle: undefined,
+        description: n.body,
         tag: 'Anomalia', tagColor: '#ffa040', tagBg: 'rgba(230,81,0,0.18)',
       };
     default:
       return {
         icon: '🔔', iconBg: 'rgba(255,255,255,0.08)',
         title: n.title, subtitle: undefined,
+        description: n.body,
         tag: '', tagColor: '#aaa', tagBg: 'rgba(255,255,255,0.08)',
       };
   }
@@ -198,16 +208,21 @@ function NotificationBell() {
                 {/* Body */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4, marginBottom: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
                       {info.title}
                     </span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', flexShrink: 0, marginLeft: 6 }}>
                       {formatRelativeTime(n.createdAt)}
                     </span>
                   </div>
                   {info.subtitle && (
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 3 }}>
                       {info.subtitle}
+                    </div>
+                  )}
+                  {info.description && (
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', lineHeight: 1.4, marginBottom: 4 }}>
+                      {info.description}
                     </div>
                   )}
                   {info.tag && (

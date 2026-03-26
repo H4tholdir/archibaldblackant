@@ -32,13 +32,15 @@ function getTableMeta(n: Notification): TableMeta {
         exType === 'returning' ? '↩ In ritorno' :
         exType === 'canceled' ? '✖ Annullato' : '📦 Eccezione';
       const reason = data.reason as string | undefined;
-      const codeMatch = reason?.match(/^(\w+):/);
+      const codeMatch = reason?.match(/^(\w+):\s*(.+)/);
+      const codice = codeMatch ? codeMatch[1] : '';
+      const descrizione = codeMatch ? codeMatch[2] : (reason ?? n.body);
       return {
         tag, tagColor: '#cc0066', tagBg: 'rgba(204,0,102,0.15)',
         ordine: orderNumber ?? '—',
         cliente: customerName ?? '—',
-        dettaglio: reason ?? n.body,
-        codice: codeMatch ? codeMatch[1] : '',
+        dettaglio: descrizione,
+        codice,
       };
     }
     case 'fedex_delivered':
@@ -220,7 +222,7 @@ function NotificationsPage() {
                       <td style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                         {meta.cliente}
                       </td>
-                      <td style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(255,255,255,0.55)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>
                         {meta.dettaglio}
                       </td>
                       <td style={{ padding: '12px 10px' }}>
