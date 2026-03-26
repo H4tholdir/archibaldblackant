@@ -186,6 +186,9 @@ export interface ExtraBudgetData {
   extraBonusesAmount: number; // Total amount of extra bonuses
   nextStep: number;
   missingToNextStep: number;
+  yearlyTarget: number;
+  extraBudgetInterval: number;
+  extraBudgetReward: number;
   // Temporal comparisons
   comparisonLastYear?: TemporalComparison;
   sparkline?: SparklineData;
