@@ -145,7 +145,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
               return (
                 <div key={i} style={{ background: achieved ? "#e8f5e9" : "#f5f5f5", border: `2px solid ${achieved ? "#27ae60" : "#e0e0e0"}`, borderRadius: "8px", padding: "9px", textAlign: "center" as const, opacity: achieved ? 1 : 0.6 }}>
                   <div style={{ fontSize: "10px", color: "#555", fontWeight: 600 }}>Tier {i + 1}</div>
-                  <div style={{ fontSize: "13px", fontWeight: 800, color: achieved ? "#1b5e20" : "#bbb" }}>+{fmt(data.extraBudget.nextStep * (i + 1))}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 800, color: achieved ? "#1b5e20" : "#bbb" }}>+{fmt(data.extraBudget.extraBudgetReward * (i + 1))}</div>
                   <div style={{ fontSize: "11px", color: achieved ? "#27ae60" : "#bbb", fontWeight: 700 }}>{tierReward > 0 ? `+${fmt(tierReward)}` : ""}</div>
                 </div>
               );

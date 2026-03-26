@@ -379,13 +379,12 @@ export function calculateBonusRoadmap(
 
   const steps = [];
   for (let i = 0; i < 4; i++) {
-    const stepNumber = i;
-    const threshold = bonusInterval * (stepNumber + 1);
+    const threshold = bonusInterval * (i + 1);
 
     let status: "completed" | "active" | "locked";
-    if (stepNumber < completedSteps) {
+    if (i < completedSteps) {
       status = "completed";
-    } else if (stepNumber === completedSteps) {
+    } else if (i === completedSteps) {
       status = "active";
     } else {
       status = "locked";
