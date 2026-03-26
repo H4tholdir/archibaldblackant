@@ -7,14 +7,14 @@ import type { Order } from "../types/order";
 describe("groupEventsByDay", () => {
   test("groups events across two days with correct labels and isLatest", () => {
     const events: ScanEvent[] = [
-      { date: "2026-03-07", time: "14:30:00", gmtOffset: "+01:00", status: "In consegna", statusCD: "OD", scanLocation: "Milano, IT", delivered: false, exception: false },
-      { date: "2026-03-07", time: "10:15:00", gmtOffset: "+01:00", status: "Hub locale", statusCD: "AR", scanLocation: "Milano Hub, IT", delivered: false, exception: false },
-      { date: "2026-03-07", time: "06:00:00", gmtOffset: "+01:00", status: "In transito", statusCD: "IT", scanLocation: "Bologna, IT", delivered: false, exception: false },
-      { date: "2026-03-06", time: "22:00:00", gmtOffset: "+01:00", status: "Partito", statusCD: "DP", scanLocation: "Roma, IT", delivered: false, exception: false },
-      { date: "2026-03-06", time: "18:30:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Roma, IT", delivered: false, exception: false },
-      { date: "2026-03-06", time: "15:00:00", gmtOffset: "+01:00", status: "Etichetta creata", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false },
-      { date: "2026-03-06", time: "12:00:00", gmtOffset: "+01:00", status: "Info ricevute", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false },
-      { date: "2026-03-06", time: "09:00:00", gmtOffset: "+01:00", status: "Ordine creato", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false },
+      { date: "2026-03-07", time: "14:30:00", gmtOffset: "+01:00", status: "In consegna", statusCD: "OD", scanLocation: "Milano, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-07", time: "10:15:00", gmtOffset: "+01:00", status: "Hub locale", statusCD: "AR", scanLocation: "Milano Hub, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-07", time: "06:00:00", gmtOffset: "+01:00", status: "In transito", statusCD: "IT", scanLocation: "Bologna, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-06", time: "22:00:00", gmtOffset: "+01:00", status: "Partito", statusCD: "DP", scanLocation: "Roma, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-06", time: "18:30:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Roma, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-06", time: "15:00:00", gmtOffset: "+01:00", status: "Etichetta creata", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-06", time: "12:00:00", gmtOffset: "+01:00", status: "Info ricevute", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false, exceptionCode: "" },
+      { date: "2026-03-06", time: "09:00:00", gmtOffset: "+01:00", status: "Ordine creato", statusCD: "OC", scanLocation: "Roma, IT", delivered: false, exception: false, exceptionCode: "" },
     ];
 
     const result = groupEventsByDay(events);
@@ -43,7 +43,7 @@ describe("groupEventsByDay", () => {
 
   test("single event returns one group with isLatest true", () => {
     const events: ScanEvent[] = [
-      { date: "2026-03-07", time: "08:00:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Napoli, IT", delivered: false, exception: false },
+      { date: "2026-03-07", time: "08:00:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Napoli, IT", delivered: false, exception: false, exceptionCode: "" },
     ];
 
     const result = groupEventsByDay(events);
@@ -79,8 +79,8 @@ describe("TrackingTimeline", () => {
       trackingOrigin: "VERONA, IT",
       trackingDestination: "NAPOLI, IT",
       trackingEvents: [
-        { date: "2026-03-07", time: "14:00:00", gmtOffset: "+01:00", status: "In transito verso destinazione", statusCD: "IT", scanLocation: "Bologna Hub, IT", delivered: false, exception: false },
-        { date: "2026-03-06", time: "10:00:00", gmtOffset: "+01:00", status: "Spedizione ritirata", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false },
+        { date: "2026-03-07", time: "14:00:00", gmtOffset: "+01:00", status: "In transito verso destinazione", statusCD: "IT", scanLocation: "Bologna Hub, IT", delivered: false, exception: false, exceptionCode: "" },
+        { date: "2026-03-06", time: "10:00:00", gmtOffset: "+01:00", status: "Spedizione ritirata", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false, exceptionCode: "" },
       ],
     };
 
@@ -101,7 +101,7 @@ describe("TrackingTimeline", () => {
       deliveryConfirmedAt: "2026-03-08T10:30:00Z",
       deliverySignedBy: "Mario Rossi",
       trackingEvents: [
-        { date: "2026-03-08", time: "10:30:00", gmtOffset: "+01:00", status: "Consegnato", statusCD: "DL", scanLocation: "Napoli, IT", delivered: true, exception: false },
+        { date: "2026-03-08", time: "10:30:00", gmtOffset: "+01:00", status: "Consegnato", statusCD: "DL", scanLocation: "Napoli, IT", delivered: true, exception: false, exceptionCode: "" },
       ],
     };
 
@@ -128,8 +128,8 @@ describe("TrackingTimeline", () => {
     const order: Order = {
       ...baseOrder,
       trackingEvents: [
-        { date: "2026-03-07", time: "14:00:00", gmtOffset: "+01:00", status: "On the way", statusCD: "IT", scanLocation: "Bologna, IT", delivered: false, exception: false },
-        { date: "2026-03-06", time: "10:00:00", gmtOffset: "+01:00", status: "Picked up", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false },
+        { date: "2026-03-07", time: "14:00:00", gmtOffset: "+01:00", status: "On the way", statusCD: "IT", scanLocation: "Bologna, IT", delivered: false, exception: false, exceptionCode: "" },
+        { date: "2026-03-06", time: "10:00:00", gmtOffset: "+01:00", status: "Picked up", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false, exceptionCode: "" },
       ],
     };
     render(<TrackingTimeline order={order} borderColor="#4caf50" />);
@@ -147,7 +147,7 @@ describe("TrackingTimeline", () => {
         trackingUrl: "https://fedex.com/track/123456789",
       },
       trackingEvents: [
-        { date: "2026-03-07", time: "08:00:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false },
+        { date: "2026-03-07", time: "08:00:00", gmtOffset: "+01:00", status: "Ritirato", statusCD: "PU", scanLocation: "Verona, IT", delivered: false, exception: false, exceptionCode: "" },
       ],
     };
 

@@ -10,6 +10,7 @@ type FedExScanEvent = {
   delivered: boolean;
   exception: boolean;
   exceptionDescription: string;
+  exceptionCode: string;
 };
 
 type FedExTrackingResult = {
@@ -29,6 +30,9 @@ type FedExTrackingResult = {
   destination?: string;
   serviceDesc?: string;
   scanEvents?: FedExScanEvent[];
+  delayReason?: string;
+  deliveryAttempts?: number;
+  attemptedDeliveryAt?: string;
 };
 
 type FedExOAuthToken = {
@@ -78,6 +82,7 @@ type FedExApiScanEvent = {
   eventType?: string;
   derivedStatusCode?: string;
   scanLocation?: FedExApiAddress;
+  exceptionCode?: string;
   exceptionDescription?: string;
 };
 
@@ -89,6 +94,7 @@ type FedExApiTrackResult = {
     statusByLocale?: string;
     description?: string;
     scanLocation?: FedExApiAddress;
+    delayDetail?: { type?: string; subType?: string; status?: string };
   };
   dateAndTimes?: Array<{ type?: string; dateTime?: string }>;
   serviceDetail?: { description?: string; type?: string };
@@ -99,6 +105,7 @@ type FedExApiTrackResult = {
   deliveryDetails?: {
     receivedByName?: string;
     actualDeliveryAddress?: FedExApiAddress;
+    deliveryAttempts?: string;
   };
   scanEvents?: FedExApiScanEvent[];
   error?: { code?: string; message?: string };
@@ -152,6 +159,7 @@ function parseApiTrackResult(
     delivered: e.derivedStatusCode === 'DL',
     exception: e.derivedStatusCode === 'DE' || Boolean(e.exceptionDescription),
     exceptionDescription: e.exceptionDescription ?? '',
+    exceptionCode: e.exceptionCode ?? '',
   }));
 
   const shipperAddr =
@@ -183,6 +191,14 @@ function parseApiTrackResult(
     destination: buildLocation(recipientAddr),
     serviceDesc: result.serviceDetail?.description,
     scanEvents,
+    delayReason: result.latestStatusDetail?.delayDetail?.type,
+    deliveryAttempts: (() => {
+      const raw = result.deliveryDetails?.deliveryAttempts;
+      if (raw == null) return undefined;
+      const n = parseInt(raw, 10);
+      return isNaN(n) ? undefined : n;
+    })(),
+    attemptedDeliveryAt: findDateTime(result.dateAndTimes, 'ATTEMPTED_DELIVERY'),
   };
 }
 

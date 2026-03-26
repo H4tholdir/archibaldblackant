@@ -1,5 +1,5 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { parseApiTrackResult, resetTokenCache } from './fedex-api-tracker';
+import { describe, expect, test } from 'vitest';
+import { parseApiTrackResult } from './fedex-api-tracker';
 
 describe('parseApiTrackResult', () => {
   test('parses a delivered shipment correctly', () => {
@@ -69,6 +69,7 @@ describe('parseApiTrackResult', () => {
           delivered: true,
           exception: false,
           exceptionDescription: '',
+          exceptionCode: '',
         },
         {
           date: '2026-03-04',
@@ -80,6 +81,7 @@ describe('parseApiTrackResult', () => {
           delivered: false,
           exception: false,
           exceptionDescription: '',
+          exceptionCode: '',
         },
       ],
     });
@@ -166,5 +168,43 @@ describe('parseApiTrackResult', () => {
     });
 
     expect(result.origin).toBe('BOLOGNA, IT');
+  });
+
+  test('estrae exceptionCode dal scan event', () => {
+    const result = parseApiTrackResult('123', {
+      latestStatusDetail: { code: 'DE', derivedCode: 'DE', statusByLocale: 'Eccezione', description: 'Exception' },
+      scanEvents: [{
+        date: '2026-03-25T10:14:00+01:00',
+        eventDescription: 'Delivery exception',
+        derivedStatusCode: 'DE',
+        exceptionCode: 'DEX08',
+        exceptionDescription: 'Recipient not in',
+      }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.scanEvents?.[0].exceptionCode).toBe('DEX08');
+  });
+
+  test('estrae delayReason, deliveryAttempts e attemptedDeliveryAt', () => {
+    const result = parseApiTrackResult('456', {
+      latestStatusDetail: {
+        code: 'DE', derivedCode: 'DE', statusByLocale: 'Eccezione', description: 'Delay',
+        delayDetail: { type: 'WEATHER', subType: 'SNOW', status: 'DELAYED' },
+      },
+      deliveryDetails: { deliveryAttempts: '3' },
+      dateAndTimes: [{ type: 'ATTEMPTED_DELIVERY', dateTime: '2026-03-24T09:00:00+01:00' }],
+    });
+    expect(result.delayReason).toBe('WEATHER');
+    expect(result.deliveryAttempts).toBe(3);
+    expect(result.attemptedDeliveryAt).toBe('2026-03-24T09:00:00+01:00');
+  });
+
+  test('returns undefined for missing optional fields', () => {
+    const result = parseApiTrackResult('789', {
+      latestStatusDetail: { code: 'IT', derivedCode: 'IT', statusByLocale: 'In transito', description: 'In transit' },
+    });
+    expect(result.delayReason).toBeUndefined();
+    expect(result.deliveryAttempts).toBeUndefined();
+    expect(result.attemptedDeliveryAt).toBeUndefined();
   });
 });

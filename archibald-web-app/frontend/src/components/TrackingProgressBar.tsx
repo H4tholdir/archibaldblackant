@@ -9,6 +9,7 @@ export type ScanEvent = {
   scanLocation: string;
   delivered: boolean;
   exception: boolean;
+  exceptionCode: string;
   exceptionDescription?: string;
 };
 
@@ -117,8 +118,17 @@ export function getTrackingInfo(order: Order): TrackingInfo {
   const dotsCompleted = highestCompleted + 1;
   const activeEvent = highestCompleted >= 0 ? matchedEvents[highestCompleted] : undefined;
 
-  const icon = highestCompleted >= 0 ? STEP_ICONS[highestCompleted] : "";
-  const label = highestCompleted >= 0 ? STEP_LABELS[highestCompleted] : "";
+  const trackingStatus = order.trackingStatus;
+
+  const labelOverride: Record<string, { icon: string; label: string }> = {
+    held:      { icon: "🏪", label: "🏪 In giacenza" },
+    returning: { icon: "↩️", label: "↩ In ritorno" },
+    canceled:  { icon: "✕", label: "✕ Annullato" },
+  };
+  const override = trackingStatus ? labelOverride[trackingStatus] : undefined;
+
+  const icon = override ? override.icon : highestCompleted >= 0 ? STEP_ICONS[highestCompleted] : "";
+  const label = override ? override.label : highestCompleted >= 0 ? STEP_LABELS[highestCompleted] : "";
   const location = activeEvent ? activeEvent.scanLocation : "";
   const dateTime = activeEvent ? `${formatShortDate(activeEvent.date)} ${formatTime(activeEvent.time)}` : "";
 
@@ -137,7 +147,11 @@ export function getTrackingInfo(order: Order): TrackingInfo {
     rightInfo = `arr. ~${formatShortDate(order.trackingEstimatedDelivery)}`;
   }
 
-  const exceptionReason = exceptionEvent?.exceptionDescription || exceptionEvent?.status || "";
+  const exceptionReason = exceptionEvent
+    ? (exceptionEvent.exceptionCode
+        ? `${exceptionEvent.exceptionCode}: ${exceptionEvent.exceptionDescription || exceptionEvent.status}`
+        : exceptionEvent.exceptionDescription || exceptionEvent.status || "")
+    : "";
 
   const firstDate = events[events.length - 1].date;
   const lastEvent = events[0];

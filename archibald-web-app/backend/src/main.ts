@@ -908,15 +908,46 @@ async function bootstrap(): Promise<void> {
             body: `L'ordine ${orderNumber} (${customerName}) è stato consegnato.`,
             data: { orderNumber, customerName },
           });
+        } else if (type === 'held') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Ordine in giacenza FedEx',
+            body: `L'ordine ${orderNumber} (${customerName}) è disponibile per il ritiro presso un punto FedEx.`,
+            data: { orderNumber, customerName, exceptionType: 'held' },
+          });
+        } else if (type === 'returning') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Ordine in ritorno FedEx',
+            body: `L'ordine ${orderNumber} (${customerName}) è in ritorno al mittente.`,
+            data: { orderNumber, customerName, exceptionType: 'returning' },
+          });
         } else {
+          // type === 'exception' | 'canceled'
+          const orderData = await pool.query(
+            `SELECT tracking_events FROM agents.order_records
+             WHERE user_id = $1 AND order_number = $2`,
+            [agentId, orderNumber],
+          );
+          const events = (orderData.rows[0]?.tracking_events ?? []) as Array<{ exception: boolean; exceptionDescription?: string; exceptionCode?: string }>;
+          const latestEx = events.find((ev) => ev.exception);
+          const reason = latestEx?.exceptionDescription
+            ? (latestEx.exceptionCode ? `${latestEx.exceptionCode}: ${latestEx.exceptionDescription}` : latestEx.exceptionDescription)
+            : 'Problema di consegna';
           await createNotification(notificationDeps, {
             target: 'user',
             userId: agentId,
             type: 'fedex_exception',
             severity: 'warning',
             title: 'Eccezione tracking FedEx',
-            body: `L'ordine ${orderNumber} (${customerName}) ha un problema di consegna.`,
-            data: { orderNumber, customerName },
+            body: `Ordine ${orderNumber} (${customerName}): ${reason}.`,
+            data: { orderNumber, customerName, reason, exceptionType: type },
           });
         }
       },

@@ -4469,6 +4469,7 @@ export function OrderCardNew({
 
   return (
     <div
+      id={`order-card-${order.orderNumber}`}
       style={{
         display: "flex",
         borderRadius: "12px",
@@ -4582,6 +4583,20 @@ export function OrderCardNew({
                 >
                   {orderStatusStyle.label}
                 </span>
+                {order.trackingStatus === 'delivered' && (() => {
+                  const events = order.trackingEvents ?? [];
+                  const exceptionsCount = events.filter((ev) => ev.exception).length;
+                  return exceptionsCount > 0 ? (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, fontWeight: 600, color: '#b45309',
+                      background: '#fef3c7', border: '1px solid #fcd34d',
+                      borderRadius: 20, padding: '2px 8px', marginTop: 6,
+                    }}>
+                      ⚠️ {exceptionsCount} {exceptionsCount === 1 ? 'eccezione' : 'eccezioni'} in transito
+                    </div>
+                  ) : null;
+                })()}
                 {(order.verificationStatus === "correction_failed" || order.verificationStatus === "mismatch_detected") && (
                   <span
                     style={{
