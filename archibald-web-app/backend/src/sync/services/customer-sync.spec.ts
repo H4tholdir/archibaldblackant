@@ -206,7 +206,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
 
     expect(onDeletedCustomers).toHaveBeenCalledOnce();
     expect(onDeletedCustomers).toHaveBeenCalledWith([
-      { profile: 'CUST-OLD', internalId: 'INT-OLD', name: 'Old Corp' },
+      { profile: 'CUST-OLD', internalId: 'INT-OLD', name: 'Old Corp', affectedAgentIds: ['agent-1'] },
     ]);
   });
 

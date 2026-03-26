@@ -652,15 +652,11 @@ async function bootstrap(): Promise<void> {
         },
       }),
       async (deletedInfos) => {
-        const { rows: agentRows } = await pool.query<{ user_id: string }>(
-          `SELECT DISTINCT user_id FROM agents.order_records WHERE customer_profile_id = ANY($1)`,
-          [deletedInfos.map((d) => d.internalId)],
-        );
-        const uniqueAgentIds = [...new Set(agentRows.map((r) => r.user_id))];
-
-        const profileText = deletedInfos.map((d) => d.name).join(', ');
+        const uniqueAgentIds = [...new Set(deletedInfos.flatMap((d) => d.affectedAgentIds))];
 
         for (const agentId of uniqueAgentIds) {
+          const agentProfiles = deletedInfos.filter((d) => d.affectedAgentIds.includes(agentId));
+          const profileText = agentProfiles.map((d) => d.name).join(', ');
           await createNotification(notificationDeps, {
             target: 'user',
             userId: agentId,
@@ -668,16 +664,17 @@ async function bootstrap(): Promise<void> {
             severity: 'error',
             title: 'Clienti eliminati da ERP',
             body: `I seguenti clienti sono stati rimossi da Archibald: ${profileText}`,
-            data: { deletedProfiles: deletedInfos },
+            data: { deletedProfiles: agentProfiles },
           });
         }
 
+        const allProfileText = deletedInfos.map((d) => d.name).join(', ');
         await createNotification(notificationDeps, {
           target: 'admin',
           type: 'erp_customer_deleted',
           severity: 'error',
           title: 'Clienti eliminati da ERP',
-          body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${profileText}`,
+          body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${allProfileText}`,
           data: { deletedProfiles: deletedInfos },
         });
       },

@@ -36,6 +36,7 @@ type DeletedProfileInfo = {
   profile: string;
   internalId: string;
   name: string;
+  affectedAgentIds: string[];
 };
 
 type CustomerSyncDeps = {
@@ -199,12 +200,11 @@ async function syncCustomers(
             .filter((id): id is string => id !== null);
 
           if (internalIds.length > 0) {
-            const placeholderIds = internalIds.map((_, i) => `$${i + 1}`).join(', ');
-            const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
+              const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
               `SELECT DISTINCT o.user_id, o.customer_profile_id
                FROM agents.order_records o
-               WHERE o.customer_profile_id = ANY(ARRAY[${placeholderIds}])`,
-              internalIds,
+               WHERE o.customer_profile_id = ANY($1::text[])`,
+              [internalIds],
             );
 
             if (orderUsers.length > 0) {
@@ -212,13 +212,20 @@ async function syncCustomers(
                 r.internal_id !== null && orderUsers.some((ou) => ou.customer_profile_id === r.internal_id),
               );
               if (profilesWithOrders.length > 0) {
-                await deps.onDeletedCustomers(
-                  profilesWithOrders.map((r) => ({
-                    profile: r.customer_profile,
-                    internalId: r.internal_id!,
-                    name: r.name,
-                  })),
-                );
+                try {
+                  await deps.onDeletedCustomers(
+                    profilesWithOrders.map((r) => ({
+                      profile: r.customer_profile,
+                      internalId: r.internal_id!,
+                      name: r.name,
+                      affectedAgentIds: orderUsers
+                        .filter((ou) => ou.customer_profile_id === r.internal_id)
+                        .map((ou) => ou.user_id),
+                    })),
+                  );
+                } catch (err) {
+                  console.error('onDeletedCustomers callback failed:', err);
+                }
               }
             }
           }
