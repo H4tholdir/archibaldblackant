@@ -5,6 +5,7 @@ import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
 import WebSocketMonitor from "../components/WebSocketMonitor";
 import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
 import { KometListinoImporter } from "../components/KometListinoImporter";
+import { FedExReportSection } from "../components/admin/FedExReportSection";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -359,6 +360,10 @@ export function AdminPage(_props: AdminPageProps) {
             📊 Sync Monitoring Dashboard
           </h2>
           <SyncMonitoringDashboard />
+        </section>
+
+        <section className="admin-section">
+          <FedExReportSection />
         </section>
 
         <section className="admin-section">
