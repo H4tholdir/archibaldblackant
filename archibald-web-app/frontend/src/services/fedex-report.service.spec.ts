@@ -39,24 +39,26 @@ describe('updateClaimStatus', () => {
 });
 
 describe('getTrackingExceptions', () => {
-  test('chiama /api/admin/tracking/exceptions con i filtri', async () => {
+  test('chiama /api/admin/tracking/exceptions con i filtri e ritorna i dati', async () => {
     mockFetch.mockResolvedValueOnce(makeResponse([]));
-    await getTrackingExceptions({ status: 'open', from: '2026-01-01' });
+    const result = await getTrackingExceptions({ status: 'open', from: '2026-01-01' });
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/admin/tracking/exceptions?'),
       expect.any(Object),
     );
+    expect(result).toEqual([]);
   });
 });
 
 describe('getMyExceptions', () => {
-  test('chiama /api/tracking/my-exceptions', async () => {
+  test('chiama /api/tracking/my-exceptions e ritorna i dati', async () => {
     mockFetch.mockResolvedValueOnce(makeResponse([]));
-    await getMyExceptions();
+    const result = await getMyExceptions();
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/tracking/my-exceptions'),
       expect.any(Object),
     );
+    expect(result).toEqual([]);
   });
 });
 
@@ -69,18 +71,30 @@ describe('exportExceptionsCsv', () => {
     claimSubmittedAt: null, notes: null, userId: 'u1', createdAt: '2026-03-25T10:00:00',
   };
 
-  test('genera CSV con le colonne corrette', () => {
+  test('genera CSV con le colonne corrette e i dati dell\'eccezione', async () => {
+    let capturedBlob: Blob | undefined;
     const mockAnchor = { href: '', download: '', click: vi.fn(), style: {} } as unknown as HTMLAnchorElement;
     const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValueOnce(mockAnchor);
     const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchor);
     const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchor);
-    URL.createObjectURL = vi.fn().mockReturnValue('blob:mock');
+    URL.createObjectURL = vi.fn().mockImplementation((blob: Blob) => { capturedBlob = blob; return 'blob:mock'; });
     URL.revokeObjectURL = vi.fn();
 
     exportExceptionsCsv([exceptionStub]);
 
+    const csvText = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsText(capturedBlob!);
+    });
     expect(mockAnchor.click).toHaveBeenCalled();
     expect(mockAnchor.download).toMatch(/eccezioni-fedex-/);
+    expect(csvText).toContain('"ID"');
+    expect(csvText).toContain('"Ordine"');
+    expect(csvText).toContain('"ORD-001"');
+    expect(csvText).toContain('"FX001"');
+    expect(csvText).toContain('"DEX08"');
     createElementSpy.mockRestore();
     appendChildSpy.mockRestore();
     removeChildSpy.mockRestore();
