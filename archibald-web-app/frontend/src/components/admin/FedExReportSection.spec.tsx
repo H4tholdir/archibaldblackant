@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { FedExReportSection } from './FedExReportSection';
+import { updateClaimStatus } from '../../services/fedex-report.service';
 
 vi.mock('../../services/fedex-report.service', () => ({
   getTrackingStats: vi.fn().mockResolvedValue({
@@ -23,16 +24,23 @@ describe('FedExReportSection', () => {
   test('mostra i contatori statistiche', async () => {
     render(<FedExReportSection />);
     await waitFor(() => {
-      expect(screen.getByText('42')).toBeTruthy();  // delivered
-      expect(screen.getByText('4')).toBeTruthy();   // exceptionActive
+      expect(screen.getByText('42')).toBeInTheDocument();  // delivered
+      expect(screen.getByText('4')).toBeInTheDocument();   // exceptionActive
     });
   });
 
   test('mostra una riga per ogni eccezione', async () => {
     render(<FedExReportSection />);
     await waitFor(() => {
-      expect(screen.getByText('ORD-001')).toBeTruthy();
-      expect(screen.getByText('FX001')).toBeTruthy();
+      expect(screen.getByText('ORD-001')).toBeInTheDocument();
+      expect(screen.getByText('FX001')).toBeInTheDocument();
     });
+  });
+
+  test('chiama updateClaimStatus al click su Apri reclamo', async () => {
+    render(<FedExReportSection />);
+    await waitFor(() => expect(screen.getByText('Apri reclamo')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Apri reclamo'));
+    await waitFor(() => expect(vi.mocked(updateClaimStatus)).toHaveBeenCalledWith(1, 'open'));
   });
 });

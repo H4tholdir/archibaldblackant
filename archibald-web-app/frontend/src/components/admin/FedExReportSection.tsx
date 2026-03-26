@@ -37,14 +37,20 @@ export function FedExReportSection() {
 
   async function load() {
     setLoading(true);
-    const { from, to } = getPeriodDates();
-    const filters = { userId: agentFilter || undefined, from, to };
-    const [s, e] = await Promise.all([getTrackingStats(filters), getTrackingExceptions({ ...filters, status: 'all' })]);
-    setStats(s);
-    setExceptions(e);
-    setLoading(false);
+    try {
+      const { from, to } = getPeriodDates();
+      const filters = { userId: agentFilter || undefined, from, to };
+      const [s, e] = await Promise.all([getTrackingStats(filters), getTrackingExceptions({ ...filters, status: 'all' })]);
+      setStats(s);
+      setExceptions(e);
+    } catch {
+      // errore silenzioso — loading viene comunque resettato
+    } finally {
+      setLoading(false);
+    }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [agentFilter, periodFilter]);
 
   async function handleClaimUpdate(id: number, status: 'open' | 'submitted' | 'resolved') {
