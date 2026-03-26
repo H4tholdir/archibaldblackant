@@ -67,7 +67,7 @@ function NotificationBell() {
       </div>
 
       {/* Lista */}
-      <div style={{ overflowY: 'auto', flex: 1 }}>
+      <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
         {preview.length === 0 ? (
           <p style={{ padding: '24px 16px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>
             Nessuna notifica

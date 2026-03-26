@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import { copyFile } from 'node:fs/promises';
+import { logger } from '../../logger';
 
 type ParsedCustomer = {
   customerProfile: string;
@@ -224,7 +225,7 @@ async function syncCustomers(
                     })),
                   );
                 } catch (err) {
-                  console.error('onDeletedCustomers callback failed:', err);
+                  logger.error('onDeletedCustomers callback failed', { err });
                 }
               }
             }
