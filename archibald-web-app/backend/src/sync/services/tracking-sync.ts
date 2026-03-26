@@ -19,6 +19,8 @@ type TrackingSyncResult = {
   error?: string;
 };
 
+type TrackingEventType = 'delivered' | 'exception';
+
 function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
   if (statusBarCD === 'DL') return 'delivered';
   if (statusBarCD === 'DE' || keyStatusCD === 'DE' || keyStatusCD === 'DF') return 'exception';
@@ -34,6 +36,7 @@ async function syncTracking(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
+  onTrackingEvent?: (type: TrackingEventType, orderNumber: string) => Promise<void>,
 ): Promise<TrackingSyncResult> {
   const startTime = Date.now();
 
@@ -103,6 +106,14 @@ async function syncTracking(
           location: result.lastScanLocation ?? '-',
         });
 
+        if (onTrackingEvent && (status === 'delivered' || status === 'exception')) {
+          try {
+            await onTrackingEvent(status, orderNumber);
+          } catch (err) {
+            console.error('onTrackingEvent callback failed:', err);
+          }
+        }
+
         if (status === 'delivered') newDeliveries++;
         trackingUpdated++;
       } else {
@@ -143,4 +154,4 @@ async function syncTracking(
 }
 
 export { mapTrackingStatus, syncTracking };
-export type { TrackingSyncResult };
+export type { TrackingSyncResult, TrackingEventType };
