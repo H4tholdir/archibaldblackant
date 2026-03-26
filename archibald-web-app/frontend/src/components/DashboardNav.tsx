@@ -184,11 +184,14 @@ export function DashboardNav() {
           />
         </div>
 
-        {/* Hamburger button */}
-        <HamburgerMenu
-          isOpen={isMenuOpen}
-          onToggle={() => setIsMenuOpen(!isMenuOpen)}
-        />
+        {/* Notification bell + Hamburger button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <NotificationBell />
+          <HamburgerMenu
+            isOpen={isMenuOpen}
+            onToggle={() => setIsMenuOpen(!isMenuOpen)}
+          />
+        </div>
       </nav>
 
       {/* Mobile drawer */}
