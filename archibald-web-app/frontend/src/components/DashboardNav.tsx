@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { HamburgerMenu } from "./HamburgerMenu";
+import { NotificationBell } from "./NotificationBell";
 
 export function DashboardNav() {
   const location = useLocation();
@@ -123,6 +124,9 @@ export function DashboardNav() {
             </Link>
           );
         })}
+
+        {/* Notification Bell */}
+        <NotificationBell />
 
         {/* Logout button */}
         <button
