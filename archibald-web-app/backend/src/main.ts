@@ -41,7 +41,6 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
 } from './operations/handlers';
-import { createNotification } from './services/notification-service';
 import { insertNotification as insertNotificationRepo } from './db/repositories/notifications';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
@@ -469,9 +468,6 @@ async function bootstrap(): Promise<void> {
     broadcast: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) =>
       wsServer.broadcast(userId, msg),
   };
-
-  void createNotification;
-  void notificationDeps;
 
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
