@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { NotificationItem } from './NotificationItem';
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { notifications, unreadCount, markRead, markAllRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, markRead, markAllRead, deleteNotification } = useNotificationsContext();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

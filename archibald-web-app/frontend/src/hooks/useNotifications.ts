@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import {
   fetchNotifications,
@@ -31,6 +31,8 @@ function useNotifications(): UseNotificationsResult {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const { subscribe } = useWebSocketContext();
+  const filterRef = useRef(filter);
+  useEffect(() => { filterRef.current = filter; }, [filter]);
 
   const load = useCallback(async (currentFilter: NotificationFilter, currentOffset: number) => {
     const [items, count] = await Promise.all([
@@ -44,13 +46,13 @@ function useNotifications(): UseNotificationsResult {
 
   useEffect(() => {
     setOffset(0);
-    load(filter, 0);
+    load(filter, 0).catch((err) => console.error('Failed to load notifications:', err));
   }, [filter, load]);
 
   useEffect(() => {
     const unsub1 = subscribe('NOTIFICATION_NEW', (payload: unknown) => {
       const notification = payload as Notification;
-      setNotifications((prev) => [notification, ...prev]);
+      setNotifications((prev) => filterRef.current !== 'read' ? [notification, ...prev] : prev);
       setUnreadCount((c) => c + 1);
     });
 
@@ -76,25 +78,31 @@ function useNotifications(): UseNotificationsResult {
   }, []);
 
   const markRead = useCallback((id: number) => {
-    markNotificationRead(id).then(() => {
-      setNotifications((prev) =>
-        prev.map((n) => n.id === id ? { ...n, readAt: new Date().toISOString() } : n),
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
-    });
+    markNotificationRead(id)
+      .then(() => {
+        setNotifications((prev) =>
+          prev.map((n) => n.id === id ? { ...n, readAt: new Date().toISOString() } : n),
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      })
+      .catch((err) => console.error('Failed to mark notification as read:', err));
   }, []);
 
   const markAllRead = useCallback(() => {
-    markAllNotificationsRead().then(() => {
-      setNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
-      setUnreadCount(0);
-    });
+    markAllNotificationsRead()
+      .then(() => {
+        setNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
+        setUnreadCount(0);
+      })
+      .catch((err) => console.error('Failed to mark all notifications as read:', err));
   }, []);
 
   const deleteNotification = useCallback((id: number) => {
-    deleteNotificationById(id).then(() => {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    });
+    deleteNotificationById(id)
+      .then(() => {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      })
+      .catch((err) => console.error('Failed to delete notification:', err));
   }, []);
 
   const loadMore = useCallback(() => {

@@ -32,6 +32,7 @@ import { PrivacyProvider } from "./contexts/PrivacyContext";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { OperationTrackingProvider } from "./contexts/OperationTrackingContext";
 import { GlobalOperationBanner } from "./components/GlobalOperationBanner";
 import WebSocketSync from "./components/WebSocketSync";
@@ -231,6 +232,7 @@ function AppRouter() {
       <BrowserRouter>
         {/* WebSocket Real-Time Sync - Singleton provider for entire app */}
         <WebSocketProvider>
+          <NotificationsProvider>
           {/* Initialize WebSocket subscriptions for pending sync when authenticated */}
           {auth.isAuthenticated && <WebSocketSync />}
           <ToastContainer
@@ -485,6 +487,7 @@ function AppRouter() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </OperationTrackingProvider>
+          </NotificationsProvider>
         </WebSocketProvider>
       </BrowserRouter>
     </PrivacyProvider>

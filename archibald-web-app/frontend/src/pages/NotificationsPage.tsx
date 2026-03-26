@@ -1,4 +1,4 @@
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { NotificationItem } from '../components/NotificationItem';
 import type { Notification, NotificationFilter } from '../services/notifications.service';
 
@@ -32,7 +32,7 @@ function NotificationsPage() {
   const {
     notifications, unreadCount, filter, setFilter,
     markRead, markAllRead, deleteNotification, loadMore, hasMore,
-  } = useNotifications();
+  } = useNotificationsContext();
 
   const grouped = groupByDate(notifications);
 
@@ -92,7 +92,7 @@ function NotificationsPage() {
               </h3>
               <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#1e293b' }}>
                 {grouped[group].map((n) => (
-                  <div key={n.id} onClick={() => markRead(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer' }}>
+                  <div key={n.id} onClick={n.readAt ? undefined : () => markRead(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer' }}>
                     <NotificationItem notification={n} onDelete={deleteNotification} />
                   </div>
                 ))}
