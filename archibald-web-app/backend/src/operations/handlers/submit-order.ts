@@ -36,6 +36,7 @@ type SubmitOrderData = {
   pendingOrderId: string;
   customerId: string;
   customerName: string;
+  customerNameFallback?: string;
   customerInternalId?: string;
   items: SubmitOrderItem[];
   discountPercent?: number;
@@ -263,7 +264,10 @@ async function handleSubmitOrder(
       data = { ...data, deliveryAddress: await getAddressById(pool, userId, data.deliveryAddressId) ?? null };
     }
 
-    orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName });
+    const customerNameFallback =
+      effectiveCustomerName.trim() !== data.customerName.trim() ? data.customerName : undefined;
+
+    orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName, customerNameFallback });
   }
 
   onProgress(60, 'Salvataggio nel database');

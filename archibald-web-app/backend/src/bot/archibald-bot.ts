@@ -3491,75 +3491,110 @@ export class ArchibaldBot {
             orderData.customerName.substring(0, 50),
           );
 
+          const fallbackSearchName =
+            orderData.customerNameFallback?.trim() !== orderData.customerName.trim()
+              ? orderData.customerNameFallback
+              : undefined;
+          let effectiveSearchName = orderData.customerName;
+
           logger.debug("✓ Customer name pasted and Enter triggered", {
             original: orderData.customerName,
             truncated: orderData.customerName.substring(0, 50),
+            fallback: fallbackSearchName ?? null,
           });
 
           // Phase 3: Wait for filtered rows to appear (callback-aware)
-          await this.page!.waitForFunction(
-            (baseId: string) => {
-              const w = window as any;
-              const collection =
-                w.ASPxClientControl?.GetControlCollection?.() ?? null;
-              if (collection) {
-                let inCallback = false;
-                try {
-                  if (typeof collection.ForEachControl === "function") {
-                    collection.ForEachControl((c: any) => {
-                      if (
-                        c?.name?.includes(baseId) &&
-                        typeof c.InCallback === "function" &&
-                        c.InCallback()
-                      ) {
-                        inCallback = true;
-                      }
-                      if (typeof c?.GetGridView === "function") {
-                        const gv = c.GetGridView();
+          const waitForFilteredRows = (timeoutMs: number) =>
+            this.page!.waitForFunction(
+              (baseId: string) => {
+                const w = window as any;
+                const collection =
+                  w.ASPxClientControl?.GetControlCollection?.() ?? null;
+                if (collection) {
+                  let inCallback = false;
+                  try {
+                    if (typeof collection.ForEachControl === "function") {
+                      collection.ForEachControl((c: any) => {
                         if (
-                          gv &&
-                          typeof gv.InCallback === "function" &&
-                          gv.InCallback()
+                          c?.name?.includes(baseId) &&
+                          typeof c.InCallback === "function" &&
+                          c.InCallback()
                         ) {
                           inCallback = true;
                         }
-                      }
-                    });
+                        if (typeof c?.GetGridView === "function") {
+                          const gv = c.GetGridView();
+                          if (
+                            gv &&
+                            typeof gv.InCallback === "function" &&
+                            gv.InCallback()
+                          ) {
+                            inCallback = true;
+                          }
+                        }
+                      });
+                    }
+                  } catch {
+                    // ignore
                   }
-                } catch {
-                  // ignore
+                  if (inCallback) return false;
                 }
-                if (inCallback) return false;
-              }
 
-              const containers = Array.from(
-                document.querySelectorAll('[id*="_DDD"], .dxpcLite'),
-              ).filter((node) => {
-                const el = node as HTMLElement;
-                return (
-                  el.offsetParent !== null &&
-                  el.getBoundingClientRect().width > 0
-                );
-              });
-              const container =
-                containers.find(
-                  (c) =>
-                    (c as HTMLElement).id.includes(baseId) &&
+                const containers = Array.from(
+                  document.querySelectorAll('[id*="_DDD"], .dxpcLite'),
+                ).filter((node) => {
+                  const el = node as HTMLElement;
+                  return (
+                    el.offsetParent !== null &&
+                    el.getBoundingClientRect().width > 0
+                  );
+                });
+                const container =
+                  containers.find(
+                    (c) =>
+                      (c as HTMLElement).id.includes(baseId) &&
+                      c.querySelector('tr[class*="dxgvDataRow"]'),
+                  ) ||
+                  containers.find((c) =>
                     c.querySelector('tr[class*="dxgvDataRow"]'),
-                ) ||
-                containers.find((c) =>
-                  c.querySelector('tr[class*="dxgvDataRow"]'),
-                );
-              if (!container) return false;
+                  );
+                if (!container) return false;
 
-              const rows = Array.from(
-                container.querySelectorAll('tr[class*="dxgvDataRow"]'),
-              ).filter((r) => (r as HTMLElement).offsetParent !== null);
-              return rows.length > 0;
-            },
-            { timeout: 8000, polling: 100 },
-            customerBaseId,
-          );
+                const rows = Array.from(
+                  container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                ).filter((r) => (r as HTMLElement).offsetParent !== null);
+                return rows.length > 0;
+              },
+              { timeout: timeoutMs, polling: 100 },
+              customerBaseId,
+            );
+
+          try {
+            await waitForFilteredRows(fallbackSearchName ? 4000 : 8000);
+          } catch (err) {
+            if (!fallbackSearchName) throw err;
+            logger.warn("No results with primary customer name, trying fallback", {
+              primary: orderData.customerName,
+              fallback: fallbackSearchName,
+            });
+            effectiveSearchName = fallbackSearchName;
+            await this.page!.evaluate(
+              (sel: string, value: string) => {
+                const input = document.querySelector(sel) as HTMLInputElement | null;
+                if (!input) return;
+                input.focus();
+                const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+                if (setter) setter.call(input, value); else input.value = value;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
+              },
+              searchSelector,
+              fallbackSearchName.substring(0, 50),
+            );
+            await waitForFilteredRows(4000);
+          }
 
           logger.debug("✓ Filtered rows appeared");
 
@@ -3704,7 +3739,7 @@ export class ArchibaldBot {
               };
             },
             customerBaseId,
-            orderData.customerName,
+            effectiveSearchName,
             orderData.customerInternalId ?? "",
           );
 
@@ -3717,7 +3752,7 @@ export class ArchibaldBot {
 
           if (!selectionResult.clicked) {
             throw new Error(
-              `No matching customer row for: ${orderData.customerName}`,
+              `No matching customer row for: ${effectiveSearchName}`,
             );
           }
 
