@@ -29,7 +29,10 @@ describe('updateClaimStatus', () => {
     await updateClaimStatus(1, 'open');
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/admin/tracking/exceptions/1/claim'),
-      expect.objectContaining({ method: 'PATCH' }),
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ claimStatus: 'open' }),
+      }),
     );
   });
 });
