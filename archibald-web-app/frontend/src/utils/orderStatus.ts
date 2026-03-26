@@ -14,7 +14,10 @@ export type OrderStatusCategory =
   | "invoiced"
   | "overdue"
   | "paid"
-  | "exception";
+  | "exception"
+  | "held"
+  | "returning"
+  | "canceled";
 
 /**
  * Visual styling for order status
@@ -134,6 +137,33 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     icon: "⚠️",
     sidebarLabel: "Eccezione",
   },
+  held: {
+    category: "held",
+    label: "Fermo al deposito",
+    description: "Il corriere ha fermato il pacco al deposito",
+    borderColor: "#cc0066",
+    backgroundColor: "#fff0f5",
+    icon: "📫",
+    sidebarLabel: "Fermo",
+  },
+  returning: {
+    category: "returning",
+    label: "In reso al mittente",
+    description: "Il corriere sta restituendo il pacco al mittente",
+    borderColor: "#cc0066",
+    backgroundColor: "#fff0f5",
+    icon: "↩️",
+    sidebarLabel: "Reso",
+  },
+  canceled: {
+    category: "canceled",
+    label: "Annullato",
+    description: "La spedizione è stata annullata",
+    borderColor: "#757575",
+    backgroundColor: "#f5f5f5",
+    icon: "🚫",
+    sidebarLabel: "Annullato",
+  },
 };
 
 function parseItalianAmount(value: string): number {
@@ -197,6 +227,9 @@ export function isOverdue(order: Order): boolean {
  * 1. Pagato - Invoice exists and is fully paid
  * 2. Pagamento scaduto - Invoice overdue
  * 3. Eccezione corriere - trackingStatus === 'exception'
+ * 3b. Fermo al deposito - trackingStatus === 'held'
+ * 3c. In reso - trackingStatus === 'returning'
+ * 3d. Annullato - trackingStatus === 'canceled'
  * 4. In transito (tracking) - trackingStatus === 'in_transit' | 'out_for_delivery'
  * 5. Consegnato (tracking) - deliveryConfirmedAt set
  * 6. Fatturato - Invoice exists but no tracking override
@@ -219,6 +252,18 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
 
   if (order.trackingStatus === 'exception') {
     return ORDER_STATUS_STYLES.exception;
+  }
+
+  if (order.trackingStatus === 'held') {
+    return ORDER_STATUS_STYLES.held;
+  }
+
+  if (order.trackingStatus === 'returning') {
+    return ORDER_STATUS_STYLES.returning;
+  }
+
+  if (order.trackingStatus === 'canceled') {
+    return ORDER_STATUS_STYLES.canceled;
   }
 
   if (order.trackingStatus === 'out_for_delivery' || order.trackingStatus === 'in_transit') {
