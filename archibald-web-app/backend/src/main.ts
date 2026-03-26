@@ -46,6 +46,7 @@ import { createNotification } from './services/notification-service';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
+import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
@@ -470,6 +471,9 @@ async function bootstrap(): Promise<void> {
     broadcast: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) =>
       wsServer.broadcast(userId, msg),
   };
+
+  const notificationScheduler = createNotificationScheduler(pool, notificationDeps);
+  notificationScheduler.start();
 
   // Reconcile orphaned customers: find customers with orders but no longer in agents.customers
   // (hard-deleted before soft-delete migration). Generates erp_customer_deleted notifications.
@@ -990,6 +994,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(cleanupInterval);
     clearInterval(agentIdRefreshInterval);
     syncScheduler.stop();
+    notificationScheduler.stop();
     await worker.close();
     await queue.close();
     workerConnection.disconnect();

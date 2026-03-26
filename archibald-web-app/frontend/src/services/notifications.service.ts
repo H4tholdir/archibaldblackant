@@ -72,7 +72,7 @@ function getNotificationRoute(notification: Notification): string {
     case 'sync_anomaly':
       return '/admin';
     case 'order_expiring':
-      return '/pending-orders';
+      return '/orders';
     case 'budget_milestone':
       return '/revenue-report';
     default:
