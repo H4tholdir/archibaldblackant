@@ -89,6 +89,13 @@ export interface BonusRoadmapStep {
   bonusLabel: string; // es. "+5k"
 }
 
+export type SpecialBonus = {
+  id: number;
+  title: string;
+  amount: number;
+  receivedAt: string;
+};
+
 export interface BonusRoadmapData {
   steps: BonusRoadmapStep[];
   currentYearRevenue: number;
@@ -97,6 +104,10 @@ export interface BonusRoadmapData {
   // Temporal comparisons
   comparisonLastYear?: TemporalComparison;
   sparkline?: SparklineData;
+  // Merged data (previously in separate widgets)
+  balance: BalanceData;
+  extraBudget: ExtraBudgetData;
+  specialBonuses: SpecialBonus[];
 }
 
 // ============================================================================
@@ -229,8 +240,6 @@ export interface DashboardData {
   bonusRoadmap: BonusRoadmapData;
   forecast: ForecastData;
   actionSuggestion: ActionSuggestion;
-  balance: BalanceData;
-  extraBudget: ExtraBudgetData;
   alerts: AlertData;
 }
 

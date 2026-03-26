@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 import { PrivacyToggle } from "../components/PrivacyToggle";
 import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
-import { KpiCardsWidget } from "../components/widgets/KpiCardsWidget";
 import { BonusRoadmapWidgetNew } from "../components/widgets/BonusRoadmapWidgetNew";
-import { ForecastWidgetNew } from "../components/widgets/ForecastWidgetNew";
-import { ActionSuggestionWidgetNew } from "../components/widgets/ActionSuggestionWidgetNew";
-import { BalanceWidget } from "../components/widgets/BalanceWidget";
-import { ExtraBudgetWidget } from "../components/widgets/ExtraBudgetWidget";
 import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
@@ -241,28 +236,13 @@ export function Dashboard() {
         {/* 1. Hero Status Widget with Gauge - Full Width */}
         <HeroStatusWidgetNew data={dashboardData.heroStatus} />
 
-        {/* 2. KPI Cards Widget - 4 Fixed Cards */}
-        <KpiCardsWidget cards={dashboardData.kpiCards} />
-
-        {/* 3. Bonus Roadmap Widget Rinnovato */}
+        {/* 2. Bonus Roadmap Widget Rinnovato */}
         <BonusRoadmapWidgetNew data={dashboardData.bonusRoadmap} />
 
-        {/* 4. Forecast Widget Rinnovato */}
-        <ForecastWidgetNew data={dashboardData.forecast} />
-
-        {/* 5. Action Suggestion Widget Rinnovato */}
-        <ActionSuggestionWidgetNew data={dashboardData.actionSuggestion} />
-
-        {/* 6. Balance Widget (Anticipi vs Maturato) */}
-        <BalanceWidget data={dashboardData.balance} />
-
-        {/* 7. Orders Summary Widget with Comparisons */}
+        {/* 3. Orders Summary Widget with Comparisons */}
         <OrdersSummaryWidgetNew data={orderMetrics} />
 
-        {/* 8. Extra Budget Widget (Conditional) */}
-        <ExtraBudgetWidget data={dashboardData.extraBudget} />
-
-        {/* 9. Alerts Widget Rinnovato (Conditional) */}
+        {/* 4. Alerts Widget Rinnovato (Conditional) */}
         <AlertsWidgetNew data={dashboardData.alerts} />
       </div>
 

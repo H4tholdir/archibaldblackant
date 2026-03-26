@@ -41,6 +41,9 @@ import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
 import { createNotificationsRouter } from './routes/notifications';
 import * as notificationsRepo from './db/repositories/notifications';
+import { createBonusesRouter } from './routes/bonuses';
+import * as specialBonusesRepo from './db/repositories/special-bonuses';
+import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
@@ -914,6 +917,8 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/cache', authenticateJWT, createDeltaSyncRouter({ pool }));
+
+  app.use('/api/bonuses', authenticateJWT, createBonusesRouter({ pool, specialBonusesRepo, bonusConditionsRepo }));
 
   app.use('/api/notifications', authenticateJWT, createNotificationsRouter({
     getNotifications: (userId, filter, limit, offset) =>

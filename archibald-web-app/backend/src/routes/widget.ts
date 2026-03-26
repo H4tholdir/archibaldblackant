@@ -9,8 +9,6 @@ type DashboardData = {
   bonusRoadmap: unknown;
   forecast: unknown;
   actionSuggestion: unknown;
-  balance: unknown;
-  extraBudget: unknown;
   alerts: unknown;
 };
 
