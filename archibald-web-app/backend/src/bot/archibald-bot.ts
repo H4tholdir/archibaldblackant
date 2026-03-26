@@ -12447,7 +12447,7 @@ export class ArchibaldBot {
     return customerProfileId;
   }
 
-  private async getCustomerProfileId(): Promise<string> {
+  private async getCustomerProfileId(fallbackName?: string): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 
     await this.waitForDevExpressIdle({
@@ -12466,12 +12466,55 @@ export class ArchibaldBot {
       return "";
     });
 
-    if (!profileId || profileId.trim() === "") {
-      logger.warn("Could not extract customer profile ID");
-      return "UNKNOWN";
+    if (profileId && profileId.trim() !== "") return profileId;
+
+    // Form already closed (we are on list view) — try to extract from list
+    if (fallbackName) {
+      const extracted = await this.extractProfileFromListByName(fallbackName);
+      if (extracted) {
+        logger.info("Customer profile extracted from list", { profileId: extracted, fallbackName });
+        return extracted;
+      }
     }
 
-    return profileId;
+    logger.warn("Could not extract customer profile ID");
+    return "UNKNOWN";
+  }
+
+  private async extractProfileFromListByName(name: string): Promise<string> {
+    if (!this.page) return "";
+    try {
+      const nameLower = name.trim().toLowerCase().replace(/[.]+$/, "");
+
+      const profileId = await this.page.evaluate((targetName: string) => {
+        const rows = Array.from(
+          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((r) => (r as HTMLElement).offsetParent !== null);
+
+        for (const row of rows) {
+          const cellTexts = Array.from(row.querySelectorAll("td")).map((c) => {
+            const clone = c.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll("script, style").forEach((s) => s.remove());
+            return (clone.innerText || clone.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          });
+
+          if (!cellTexts.some((t) => t === targetName || t.includes(targetName))) continue;
+
+          const editLink = row.querySelector(
+            'a[href*="DetailView"], a[data-args*="Edit"]',
+          ) as HTMLAnchorElement | null;
+          if (editLink?.href) {
+            const match = editLink.href.match(/DetailView[^/]*\/([^/?#]+)\//);
+            if (match?.[1]) return match[1];
+          }
+        }
+        return "";
+      }, nameLower);
+
+      return profileId ?? "";
+    } catch {
+      return "";
+    }
   }
 
   private async updateCustomerName(newName: string): Promise<void> {
@@ -12841,6 +12884,35 @@ export class ArchibaldBot {
               reason: "contains-match",
               rowCount: rows.length,
             };
+          }
+        }
+      }
+
+      // Third pass: try with trailing punctuation stripped (ERP may drop trailing "." from abbreviations)
+      const normalizedName = nameLower.replace(/[.]+$/, "").trim();
+      if (normalizedName !== nameLower) {
+        for (const row of rows) {
+          const cellTexts = getCellTexts(row);
+          if (
+            cellTexts.some(
+              (t) => t === normalizedName || t.includes(normalizedName),
+            )
+          ) {
+            const editBtn = row.querySelector(
+              'img[title="Modifica"], a[data-args*="Edit"]',
+            );
+            if (editBtn) {
+              const target =
+                editBtn.tagName === "IMG"
+                  ? editBtn.closest("a") || editBtn
+                  : editBtn;
+              (target as HTMLElement).click();
+              return {
+                found: true,
+                reason: "normalized-match",
+                rowCount: rows.length,
+              };
+            }
           }
         }
       }
@@ -13421,7 +13493,7 @@ export class ArchibaldBot {
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
-    const customerProfileId = await this.getCustomerProfileId();
+    const customerProfileId = await this.getCustomerProfileId(customerData.name);
     logger.info("Interactive: customer created successfully", {
       customerProfileId,
       name: customerData.name,
