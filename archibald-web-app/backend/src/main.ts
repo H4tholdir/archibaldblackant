@@ -496,6 +496,7 @@ async function bootstrap(): Promise<void> {
         title: 'Cliente eliminato da ERP',
         body: `Il cliente ${profileText} non è più presente su Archibald ERP`,
         data: { internalId: orphan.internalId, customerName: orphan.customerName, deletedProfiles: [{ internalId: orphan.internalId, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
+        excludeUserIds: orphan.affectedAgentIds,
       });
     }
   }).catch((err) => logger.error('Startup reconciliation failed', { err }));
@@ -706,6 +707,7 @@ async function bootstrap(): Promise<void> {
           title: 'Clienti eliminati da ERP',
           body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${allProfileText}`,
           data: { deletedProfiles: deletedInfos },
+          excludeUserIds: uniqueAgentIds,
         });
       },
       async (restoredInfos) => {
@@ -733,6 +735,7 @@ async function bootstrap(): Promise<void> {
           title: 'Clienti ripristinati su ERP',
           body: `${restoredInfos.length} cliente/i ripristinati su Archibald ERP: ${allProfileText}`,
           data: { restoredProfiles: restoredInfos },
+          excludeUserIds: uniqueAgentIds,
         });
       },
     ),

@@ -21,6 +21,8 @@ type CreateNotificationParams = {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  // When target is 'admin' or 'all', skip these user IDs (e.g. agents who already got a user-scoped notification).
+  excludeUserIds?: string[];
 };
 
 async function createNotification(
@@ -39,7 +41,9 @@ async function createNotification(
   }
 
   const users = await getAllUsers(pool);
-  const targets = target === 'admin' ? users.filter((u) => u.role === 'admin') : users;
+  const excluded = new Set(params.excludeUserIds ?? []);
+  const targets = (target === 'admin' ? users.filter((u) => u.role === 'admin') : users)
+    .filter((u) => !excluded.has(u.id));
   await Promise.all(targets.map(async (user) => {
     const notification = await insertNotification(pool, { userId: user.id, type, severity, title, body, data, expiresAt });
     broadcast(user.id, { type: 'NOTIFICATION_NEW', payload: notification, timestamp: new Date().toISOString() });
