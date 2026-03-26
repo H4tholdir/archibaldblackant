@@ -1,8 +1,9 @@
 import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 export type TrackingStats = {
-  totalWithTracking: number;
+  total_with_tracking: number;
   delivered: number;
+  total: number;
   exceptionActive: number;
   held: number;
   returning: number;
@@ -20,10 +21,11 @@ export type TrackingException = {
   exceptionType: 'exception' | 'held' | 'returning' | 'canceled';
   occurredAt: string;
   resolvedAt: string | null;
-  resolution: string | null;
+  resolution: 'delivered' | 'returned' | 'claimed' | null;
   claimStatus: 'open' | 'submitted' | 'resolved' | null;
   claimSubmittedAt: string | null;
   notes: string | null;
+  createdAt: string;
 };
 
 type StatsFilters = { userId?: string; from?: string; to?: string };
@@ -32,7 +34,7 @@ type ClaimStatus = 'open' | 'submitted' | 'resolved';
 
 function toQueryString(params: Record<string, string | undefined>): string {
   const parts = Object.entries(params)
-    .filter(([, v]) => v !== undefined)
+    .filter(([, v]) => v !== undefined && v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v!)}`);
   return parts.length ? `?${parts.join('&')}` : '';
 }
@@ -62,7 +64,9 @@ function downloadClaimPdf(id: number, trackingNumber: string): void {
   const a = document.createElement('a');
   a.href = `/api/admin/tracking/exceptions/${id}/claim-pdf`;
   a.download = `reclamo-${trackingNumber}.pdf`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
 }
 
 function exportExceptionsCsv(exceptions: TrackingException[]): void {
@@ -80,7 +84,9 @@ function exportExceptionsCsv(exceptions: TrackingException[]): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = `eccezioni-fedex-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
