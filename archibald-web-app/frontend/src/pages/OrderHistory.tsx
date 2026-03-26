@@ -287,6 +287,9 @@ export function OrderHistory() {
   // Show hidden orders toggle
   const [showHidden, setShowHidden] = useState(false);
 
+  // Exception quick-filter toggle
+  const [showOnlyExceptions, setShowOnlyExceptions] = useState(false);
+
   // Note summaries and previews for collapsed badges
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
   const [notePreviews, setNotePreviews] = useState<Record<string, Array<{ text: string; checked: boolean }>>>({});
@@ -571,6 +574,35 @@ export function OrderHistory() {
     }, 2500);
   }, [highlightOrderId, orders, setSearchParams, visibleCount]);
 
+  // Scroll-highlight by orderNumber (from notification navigate-to links)
+  useEffect(() => {
+    if (!highlightOrderId || orders.length === 0) return;
+    const target = orders.find((o) => o.orderNumber === highlightOrderId);
+    if (!target) return;
+
+    // Ensure the order is within the visible infinite-scroll window
+    const targetIndex = orders.indexOf(target);
+    if (targetIndex >= visibleCount) {
+      setVisibleCount(targetIndex + 5);
+    }
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("highlight");
+      return next;
+    }, { replace: true });
+
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-order-number="${target.orderNumber}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.style.transition = "box-shadow 0.3s";
+        el.style.boxShadow = "0 0 0 3px #cc0066";
+        setTimeout(() => { el.style.boxShadow = ""; }, 2000);
+      }
+    }, 300);
+  }, [highlightOrderId, orders, setSearchParams, visibleCount]);
+
   // Customer search handler
   const handleCustomerSearch = async (query: string) => {
     setCustomerSearchQuery(query);
@@ -719,6 +751,7 @@ export function OrderHistory() {
     handleClearCustomer();
     setActiveTimePreset(null);
     setShowHidden(false);
+    setShowOnlyExceptions(false);
   };
 
   const handleSendToVerona = (orderId: string, customerName: string) => {
@@ -940,7 +973,7 @@ export function OrderHistory() {
   };
 
   // Reset visibleCount when filters change
-  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${showHidden}_${[...hiddenOrderIds].sort().join(",")}`;
+  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${showHidden}_${showOnlyExceptions}_${[...hiddenOrderIds].sort().join(",")}`;
   const prevFilterKeyRef = useRef(filterKey);
   if (prevFilterKeyRef.current !== filterKey) {
     prevFilterKeyRef.current = filterKey;
@@ -971,13 +1004,25 @@ export function OrderHistory() {
     return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
   }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch, orderIndex]);
 
+  const exceptionStatuses = new Set(['exception', 'held', 'returning']);
+  const displayedOrders = showOnlyExceptions
+    ? filteredOrders.filter((o) => {
+        if (exceptionStatuses.has(o.trackingStatus ?? '')) return true;
+        if (o.trackingStatus === 'delivered') {
+          return (o.trackingEvents ?? []).some((ev) => ev.exception);
+        }
+        return false;
+      })
+    : filteredOrders;
+
   const hasActiveFilters =
     selectedCustomer !== null ||
     filters.dateFrom !== "" ||
     filters.dateTo !== "" ||
     filters.quickFilters.size > 0 ||
     filters.search !== "" ||
-    showHidden;
+    showHidden ||
+    showOnlyExceptions;
 
   // Track which stack was force-expanded by search so we can close it
   const [searchExpandedStackId, setSearchExpandedStackId] = useState<string | null>(null);
@@ -1024,8 +1069,8 @@ export function OrderHistory() {
     setSearchFocusIndex((i) => (i - 1 + filteredOrders.length) % filteredOrders.length);
   }, [filteredOrders.length]);
 
-  const visibleOrders = filteredOrders.slice(0, visibleCount);
-  const hasMoreOrders = visibleCount < filteredOrders.length;
+  const visibleOrders = displayedOrders.slice(0, visibleCount);
+  const hasMoreOrders = visibleCount < displayedOrders.length;
   const orderGroups = useMemo(() => groupOrdersByPeriod(visibleOrders), [visibleOrders]);
   const visibleOrdersById = useMemo(() => new Map(visibleOrders.map((o) => [o.id, o])), [visibleOrders]);
 
@@ -1036,14 +1081,14 @@ export function OrderHistory() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => Math.min(prev + 30, filteredOrders.length));
+          setVisibleCount((prev) => Math.min(prev + 30, displayedOrders.length));
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, hasMoreOrders, filteredOrders.length]);
+  }, [visibleCount, hasMoreOrders, displayedOrders.length]);
 
   // Quick filter definitions
   const quickFilterDefs = useMemo<{
@@ -1709,6 +1754,21 @@ export function OrderHistory() {
                 </button>
               );
             })}
+            <button
+              onClick={() => setShowOnlyExceptions((v) => !v)}
+              style={{
+                background: showOnlyExceptions ? '#fff0f5' : '#f5f5f5',
+                color: showOnlyExceptions ? '#cc0066' : '#666',
+                border: `1px solid ${showOnlyExceptions ? '#cc0066' : '#ddd'}`,
+                borderRadius: '20px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              ⚠ Con eccezioni
+            </button>
           </div>
         </div>
 
@@ -1929,7 +1989,7 @@ export function OrderHistory() {
       {!loading &&
         !error &&
         orders.length > 0 &&
-        filteredOrders.length === 0 && (
+        displayedOrders.length === 0 && (
           <div
             style={{
               textAlign: "center",
@@ -2033,7 +2093,7 @@ export function OrderHistory() {
       )}
 
       {/* Timeline content */}
-      {!loading && !error && filteredOrders.length > 0 && (
+      {!loading && !error && displayedOrders.length > 0 && (
         <div onClick={handleBackgroundClick}>
           {/* Results summary */}
           <div
@@ -2043,9 +2103,9 @@ export function OrderHistory() {
               marginBottom: "12px",
             }}
           >
-            {filteredOrders.length === orders.length
+            {displayedOrders.length === orders.length
               ? `${orders.length} ordini`
-              : `${filteredOrders.length} di ${orders.length} ordini`}
+              : `${displayedOrders.length} di ${orders.length} ordini`}
             {hasMoreOrders && ` (${visibleCount} visualizzati)`}
           </div>
 
@@ -2255,6 +2315,7 @@ export function OrderHistory() {
                           key={order.id}
                           id={`order-${order.id}`}
                           data-order-card
+                          data-order-number={order.orderNumber}
                           style={{
                             borderRadius: "12px",
                             transition: "box-shadow 0.5s ease, outline 0.5s ease, opacity 0.3s ease",

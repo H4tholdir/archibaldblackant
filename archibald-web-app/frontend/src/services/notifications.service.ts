@@ -59,7 +59,9 @@ function getNotificationRoute(notification: Notification): string {
   switch (notification.type) {
     case 'fedex_exception':
     case 'fedex_delivered':
-      return '/orders';
+      return notification.data?.orderNumber
+        ? `/orders?highlight=${notification.data.orderNumber}`
+        : '/orders';
     case 'erp_customer_deleted':
     case 'erp_customer_restored':
     case 'customer_inactive':
