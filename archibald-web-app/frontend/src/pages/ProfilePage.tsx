@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrencyWithCurrency } from "../utils/format-currency";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
+import { BonusesTab } from "../components/BonusesTab";
 
 interface TargetData {
   yearlyTarget: number;
@@ -26,6 +27,8 @@ export function ProfilePage() {
   // User info (from localStorage or auth context)
   const fullName = localStorage.getItem("archibald_fullName") || "Utente";
   const username = localStorage.getItem("archibald_username") || "";
+
+  const [activeTab, setActiveTab] = useState<"target" | "premi">("target");
 
   // Current target state (from API)
   const [currentTarget, setCurrentTarget] = useState<TargetData | null>(null);
@@ -310,261 +313,283 @@ export function ProfilePage() {
       <div style={styles.card}>
         <h2 style={styles.sectionTitle}>Configurazione Obiettivi</h2>
 
-        {/* Current values display */}
-        <div
-          style={{
-            backgroundColor: "#ecf0f1",
-            padding: "15px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "14px",
-              color: "#7f8c8d",
-              margin: "0 0 8px 0",
-              fontWeight: "bold",
-            }}
+        {/* Tab bar */}
+        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e0e0e0", marginBottom: "20px" }}>
+          <button
+            onClick={() => setActiveTab("target")}
+            style={{ padding: "8px 18px", border: "none", background: "none", cursor: "pointer", fontSize: "14px", fontWeight: activeTab === "target" ? 700 : 400, color: activeTab === "target" ? "#1565c0" : "#888", borderBottom: activeTab === "target" ? "3px solid #1565c0" : "3px solid transparent", marginBottom: "-2px" }}
           >
-            Configurazione attuale:
-          </p>
-          <p style={{ fontSize: "16px", color: "#2c3e50", margin: "4px 0" }}>
-            <strong>Target annuale:</strong>{" "}
-            {formatCurrency(currentTarget.yearlyTarget, currentTarget.currency)}{" "}
-            (mensile:{" "}
-            {formatCurrency(
-              currentTarget.monthlyTarget,
-              currentTarget.currency,
-            )}
-            )
-          </p>
-          <p style={{ fontSize: "16px", color: "#2c3e50", margin: "4px 0" }}>
-            <strong>Provvigioni:</strong>{" "}
-            {(currentTarget.commissionRate * 100).toFixed(1)}%
-          </p>
-          <p
-            style={{ fontSize: "14px", color: "#7f8c8d", margin: "8px 0 0 0" }}
+            🎯 Target
+          </button>
+          <button
+            onClick={() => setActiveTab("premi")}
+            style={{ padding: "8px 18px", border: "none", background: "none", cursor: "pointer", fontSize: "14px", fontWeight: activeTab === "premi" ? 700 : 400, color: activeTab === "premi" ? "#1565c0" : "#888", borderBottom: activeTab === "premi" ? "3px solid #1565c0" : "3px solid transparent", marginBottom: "-2px" }}
           >
-            Ultimo aggiornamento: {formatDate(currentTarget.updatedAt)}
-          </p>
+            🏆 Premi
+          </button>
         </div>
 
-        {/* Edit form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* Yearly Target */}
-          <div>
-            <label style={styles.label}>Target Annuale ({editCurrency})</label>
-            <input autoComplete="off"
-              type="number"
-              value={editYearlyTarget}
-              onChange={(e) => setEditYearlyTarget(e.target.value)}
-              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-              style={styles.input}
-              step="100"
-            />
-            <p
-              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
-            >
-              Mensile:{" "}
-              {formatCurrency(
-                Math.round(parseFloat(editYearlyTarget || "0") / 12),
-                editCurrency,
-              )}
-            </p>
-          </div>
-
-          {/* Currency */}
-          <div>
-            <label style={styles.label}>Valuta</label>
-            <select
-              value={editCurrency}
-              onChange={(e) => setEditCurrency(e.target.value)}
-              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-              style={styles.input}
-            >
-              <option value="EUR">EUR (€)</option>
-              <option value="USD">USD ($)</option>
-              <option value="GBP">GBP (£)</option>
-            </select>
-          </div>
-
-          {/* Commission Rate */}
-          <div>
-            <label style={styles.label}>Provvigioni Base (%)</label>
-            <input autoComplete="off"
-              type="number"
-              value={editCommissionRate}
-              onChange={(e) => setEditCommissionRate(e.target.value)}
-              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-              style={styles.input}
-              step="0.5"
-              min="0"
-              max="100"
-            />
-            <p
-              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
-            >
-              Su{" "}
-              {formatCurrency(
-                parseFloat(editYearlyTarget || "0"),
-                editCurrency,
-              )}
-              , riceverai{" "}
-              {formatCurrency(
-                (parseFloat(editYearlyTarget || "0") *
-                  parseFloat(editCommissionRate || "0")) /
-                  100,
-                editCurrency,
-              )}{" "}
-              di provvigioni base
-            </p>
-          </div>
-
-          {/* Progressive Bonus */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "15px",
-            }}
-          >
-            <div>
-              <label style={styles.label}>Bonus Progressivo</label>
-              <input autoComplete="off"
-                type="number"
-                value={editBonusAmount}
-                onChange={(e) => setEditBonusAmount(e.target.value)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-                style={styles.input}
-                step="100"
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Ogni (Intervallo)</label>
-              <input autoComplete="off"
-                type="number"
-                value={editBonusInterval}
-                onChange={(e) => setEditBonusInterval(e.target.value)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-                style={styles.input}
-                step="1000"
-              />
-            </div>
-          </div>
-
-          {/* Extra-Budget Rewards */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "15px",
-            }}
-          >
-            <div>
-              <label style={styles.label}>Premio Extra-Budget</label>
-              <input autoComplete="off"
-                type="number"
-                value={editExtraBudgetReward}
-                onChange={(e) => setEditExtraBudgetReward(e.target.value)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-                style={styles.input}
-                step="100"
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Intervallo Extra-Budget</label>
-              <input autoComplete="off"
-                type="number"
-                value={editExtraBudgetInterval}
-                onChange={(e) => setEditExtraBudgetInterval(e.target.value)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-                style={styles.input}
-                step="1000"
-              />
-            </div>
-          </div>
-
-          {/* Monthly Advance */}
-          <div>
-            <label style={styles.label}>Anticipo Mensile</label>
-            <input autoComplete="off"
-              type="number"
-              value={editMonthlyAdvance}
-              onChange={(e) => setEditMonthlyAdvance(e.target.value)}
-              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-              style={styles.input}
-              step="100"
-            />
-            <p
-              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
-            >
-              Totale anticipato nell'anno:{" "}
-              {formatCurrency(
-                parseFloat(editMonthlyAdvance || "0") * 12,
-                editCurrency,
-              )}
-            </p>
-          </div>
-
-          {/* Privacy Toggle */}
-          <div>
-            <label
-              style={{
-                ...styles.label,
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                cursor: "pointer",
-              }}
-            >
-              <input autoComplete="off"
-                type="checkbox"
-                checked={editHideCommissions}
-                onChange={(e) => setEditHideCommissions(e.target.checked)}
-                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
-                style={{ width: "20px", height: "20px", cursor: "pointer" }}
-              />
-              Nascondi dati provvigionali dai widget della dashboard
-            </label>
-          </div>
-
-          {/* Validation Error */}
-          {validationError && (
+        {activeTab === "target" && (
+          <>
+            {/* Current values display */}
             <div
               style={{
-                backgroundColor: "#ffe0e0",
-                color: "#e74c3c",
-                padding: "12px",
+                backgroundColor: "#ecf0f1",
+                padding: "15px",
                 borderRadius: "8px",
-                fontSize: "14px",
+                marginBottom: "20px",
               }}
             >
-              {validationError}
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "#7f8c8d",
+                  margin: "0 0 8px 0",
+                  fontWeight: "bold",
+                }}
+              >
+                Configurazione attuale:
+              </p>
+              <p style={{ fontSize: "16px", color: "#2c3e50", margin: "4px 0" }}>
+                <strong>Target annuale:</strong>{" "}
+                {formatCurrency(currentTarget.yearlyTarget, currentTarget.currency)}{" "}
+                (mensile:{" "}
+                {formatCurrency(
+                  currentTarget.monthlyTarget,
+                  currentTarget.currency,
+                )}
+                )
+              </p>
+              <p style={{ fontSize: "16px", color: "#2c3e50", margin: "4px 0" }}>
+                <strong>Provvigioni:</strong>{" "}
+                {(currentTarget.commissionRate * 100).toFixed(1)}%
+              </p>
+              <p
+                style={{ fontSize: "14px", color: "#7f8c8d", margin: "8px 0 0 0" }}
+              >
+                Ultimo aggiornamento: {formatDate(currentTarget.updatedAt)}
+              </p>
             </div>
-          )}
 
-          {/* Action Buttons */}
-          <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges() || saving}
-              style={{
-                ...styles.buttonPrimary,
-                ...((!hasChanges() || saving) && styles.buttonDisabled),
-              }}
-            >
-              {saving ? "Salvataggio..." : "Salva Modifiche"}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={saving}
-              style={styles.buttonSecondary}
-            >
-              Annulla
-            </button>
-          </div>
-        </div>
+            {/* Edit form */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Yearly Target */}
+              <div>
+                <label style={styles.label}>Target Annuale ({editCurrency})</label>
+                <input autoComplete="off"
+                  type="number"
+                  value={editYearlyTarget}
+                  onChange={(e) => setEditYearlyTarget(e.target.value)}
+                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  style={styles.input}
+                  step="100"
+                />
+                <p
+                  style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+                >
+                  Mensile:{" "}
+                  {formatCurrency(
+                    Math.round(parseFloat(editYearlyTarget || "0") / 12),
+                    editCurrency,
+                  )}
+                </p>
+              </div>
+
+              {/* Currency */}
+              <div>
+                <label style={styles.label}>Valuta</label>
+                <select
+                  value={editCurrency}
+                  onChange={(e) => setEditCurrency(e.target.value)}
+                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  style={styles.input}
+                >
+                  <option value="EUR">EUR (€)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="GBP">GBP (£)</option>
+                </select>
+              </div>
+
+              {/* Commission Rate */}
+              <div>
+                <label style={styles.label}>Provvigioni Base (%)</label>
+                <input autoComplete="off"
+                  type="number"
+                  value={editCommissionRate}
+                  onChange={(e) => setEditCommissionRate(e.target.value)}
+                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  style={styles.input}
+                  step="0.5"
+                  min="0"
+                  max="100"
+                />
+                <p
+                  style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+                >
+                  Su{" "}
+                  {formatCurrency(
+                    parseFloat(editYearlyTarget || "0"),
+                    editCurrency,
+                  )}
+                  , riceverai{" "}
+                  {formatCurrency(
+                    (parseFloat(editYearlyTarget || "0") *
+                      parseFloat(editCommissionRate || "0")) /
+                      100,
+                    editCurrency,
+                  )}{" "}
+                  di provvigioni base
+                </p>
+              </div>
+
+              {/* Progressive Bonus */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Bonus Progressivo</label>
+                  <input autoComplete="off"
+                    type="number"
+                    value={editBonusAmount}
+                    onChange={(e) => setEditBonusAmount(e.target.value)}
+                    onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                    style={styles.input}
+                    step="100"
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Ogni (Intervallo)</label>
+                  <input autoComplete="off"
+                    type="number"
+                    value={editBonusInterval}
+                    onChange={(e) => setEditBonusInterval(e.target.value)}
+                    onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                    style={styles.input}
+                    step="1000"
+                  />
+                </div>
+              </div>
+
+              {/* Extra-Budget Rewards */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <label style={styles.label}>Premio Extra-Budget</label>
+                  <input autoComplete="off"
+                    type="number"
+                    value={editExtraBudgetReward}
+                    onChange={(e) => setEditExtraBudgetReward(e.target.value)}
+                    onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                    style={styles.input}
+                    step="100"
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Intervallo Extra-Budget</label>
+                  <input autoComplete="off"
+                    type="number"
+                    value={editExtraBudgetInterval}
+                    onChange={(e) => setEditExtraBudgetInterval(e.target.value)}
+                    onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                    style={styles.input}
+                    step="1000"
+                  />
+                </div>
+              </div>
+
+              {/* Monthly Advance */}
+              <div>
+                <label style={styles.label}>Anticipo Mensile</label>
+                <input autoComplete="off"
+                  type="number"
+                  value={editMonthlyAdvance}
+                  onChange={(e) => setEditMonthlyAdvance(e.target.value)}
+                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  style={styles.input}
+                  step="100"
+                />
+                <p
+                  style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+                >
+                  Totale anticipato nell'anno:{" "}
+                  {formatCurrency(
+                    parseFloat(editMonthlyAdvance || "0") * 12,
+                    editCurrency,
+                  )}
+                </p>
+              </div>
+
+              {/* Privacy Toggle */}
+              <div>
+                <label
+                  style={{
+                    ...styles.label,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input autoComplete="off"
+                    type="checkbox"
+                    checked={editHideCommissions}
+                    onChange={(e) => setEditHideCommissions(e.target.checked)}
+                    onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                    style={{ width: "20px", height: "20px", cursor: "pointer" }}
+                  />
+                  Nascondi dati provvigionali dai widget della dashboard
+                </label>
+              </div>
+
+              {/* Validation Error */}
+              {validationError && (
+                <div
+                  style={{
+                    backgroundColor: "#ffe0e0",
+                    color: "#e74c3c",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  {validationError}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+                <button
+                  onClick={handleSave}
+                  disabled={!hasChanges() || saving}
+                  style={{
+                    ...styles.buttonPrimary,
+                    ...((!hasChanges() || saving) && styles.buttonDisabled),
+                  }}
+                >
+                  {saving ? "Salvataggio..." : "Salva Modifiche"}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={saving}
+                  style={styles.buttonSecondary}
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "premi" && <BonusesTab />}
       </div>
     </div>
   );
