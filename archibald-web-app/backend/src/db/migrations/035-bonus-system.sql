@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS agents.bonus_conditions (
   budget_threshold DOUBLE PRECISION,
   is_achieved      BOOLEAN NOT NULL DEFAULT FALSE,
   achieved_at      TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ DEFAULT NOW()
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  CHECK ((is_achieved = FALSE AND achieved_at IS NULL) OR (is_achieved = TRUE AND achieved_at IS NOT NULL))
 );
 
 CREATE INDEX IF NOT EXISTS idx_bonus_conditions_user
