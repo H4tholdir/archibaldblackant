@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { NotificationItem } from './NotificationItem';
 
+type DropdownPos = { top: number; right: number };
+
 function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<DropdownPos>({ top: 64, right: 8 });
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { notifications, unreadCount, markRead, markAllRead, deleteNotification } = useNotificationsContext();
@@ -19,12 +22,23 @@ function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const handleToggle = () => {
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
   const preview = notifications.slice(0, 5);
 
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         style={{
           background: 'none',
           border: 'none',
@@ -65,15 +79,16 @@ function NotificationBell() {
       {open && (
         <div
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            right: 0,
+            position: 'fixed',
+            top: dropdownPos.top,
+            right: dropdownPos.right,
             width: '340px',
+            maxWidth: 'calc(100vw - 16px)',
             maxHeight: '480px',
             background: '#1e293b',
             borderRadius: '8px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            zIndex: 1000,
+            zIndex: 9999,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
