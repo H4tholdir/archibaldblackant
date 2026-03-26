@@ -56,6 +56,7 @@ describe('createSyncCustomersHandler', () => {
         downloadPdf: expect.any(Function),
         parsePdf,
         cleanupFile,
+        onDeletedCustomers: undefined,
       },
       'user-1',
       onProgress,
@@ -115,5 +116,26 @@ describe('createSyncCustomersHandler', () => {
     const handler = createSyncCustomersHandler(pool, parsePdf, cleanupFile, createBot);
 
     await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('PDF download failed');
+  });
+
+  test('passes onDeletedCustomers to syncCustomers deps when provided', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn<(pdfPath: string) => Promise<ParsedCustomer[]>>().mockResolvedValue([]);
+    const cleanupFile = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined);
+    const bot = createMockBot();
+    const createBot = vi.fn<(userId: string) => SyncCustomersBot>().mockReturnValue(bot);
+    const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
+
+    syncCustomersMock.mockResolvedValue(sampleResult);
+
+    const handler = createSyncCustomersHandler(pool, parsePdf, cleanupFile, createBot, onDeletedCustomers);
+    await handler(null, {}, 'user-1', vi.fn());
+
+    expect(syncCustomersMock).toHaveBeenCalledWith(
+      expect.objectContaining({ onDeletedCustomers }),
+      'user-1',
+      expect.any(Function),
+      expect.any(Function),
+    );
   });
 });

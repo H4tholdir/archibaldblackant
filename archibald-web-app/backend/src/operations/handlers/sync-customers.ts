@@ -1,5 +1,5 @@
 import type { DbPool } from '../../db/pool';
-import type { ParsedCustomer, CustomerSyncResult } from '../../sync/services/customer-sync';
+import type { ParsedCustomer, CustomerSyncResult, DeletedProfileInfo } from '../../sync/services/customer-sync';
 import { syncCustomers } from '../../sync/services/customer-sync';
 import type { OperationHandler } from '../operation-processor';
 
@@ -12,11 +12,12 @@ function createSyncCustomersHandler(
   parsePdf: (pdfPath: string) => Promise<ParsedCustomer[]>,
   cleanupFile: (filePath: string) => Promise<void>,
   createBot: (userId: string) => SyncCustomersBot,
+  onDeletedCustomers?: (infos: DeletedProfileInfo[]) => Promise<void>,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: CustomerSyncResult = await syncCustomers(
-      { pool, downloadPdf: () => bot.downloadCustomersPdf(), parsePdf, cleanupFile },
+      { pool, downloadPdf: () => bot.downloadCustomersPdf(), parsePdf, cleanupFile, onDeletedCustomers },
       userId,
       onProgress,
       () => false,

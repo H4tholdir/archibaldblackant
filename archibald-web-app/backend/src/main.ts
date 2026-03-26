@@ -42,6 +42,7 @@ import {
   createSyncTrackingHandler,
 } from './operations/handlers';
 import { insertNotification as insertNotificationRepo } from './db/repositories/notifications';
+import { createNotification } from './services/notification-service';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
@@ -650,6 +651,36 @@ async function bootstrap(): Promise<void> {
           }
         },
       }),
+      async (deletedInfos) => {
+        const { rows: agentRows } = await pool.query<{ user_id: string }>(
+          `SELECT DISTINCT user_id FROM agents.order_records WHERE customer_profile_id = ANY($1)`,
+          [deletedInfos.map((d) => d.internalId)],
+        );
+        const uniqueAgentIds = [...new Set(agentRows.map((r) => r.user_id))];
+
+        const profileText = deletedInfos.map((d) => d.name).join(', ');
+
+        for (const agentId of uniqueAgentIds) {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'erp_customer_deleted',
+            severity: 'error',
+            title: 'Clienti eliminati da ERP',
+            body: `I seguenti clienti sono stati rimossi da Archibald: ${profileText}`,
+            data: { deletedProfiles: deletedInfos },
+          });
+        }
+
+        await createNotification(notificationDeps, {
+          target: 'admin',
+          type: 'erp_customer_deleted',
+          severity: 'error',
+          title: 'Clienti eliminati da ERP',
+          body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${profileText}`,
+          data: { deletedProfiles: deletedInfos },
+        });
+      },
     ),
     'sync-orders': createSyncOrdersHandler(
       pool,
