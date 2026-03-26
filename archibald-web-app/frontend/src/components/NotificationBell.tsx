@@ -1,18 +1,80 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationsContext } from '../contexts/NotificationsContext';
-import { NotificationItem } from './NotificationItem';
+import { formatRelativeTime } from './NotificationItem';
 import { getNotificationRoute } from '../services/notifications.service';
+import type { Notification } from '../services/notifications.service';
 
 type DropdownPos = { top: number; right: number };
+type TabKey = 'all' | 'fedex' | 'sync' | 'delivered';
+
+function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'other' {
+  if (type === 'fedex_exception') return 'fedex';
+  if (type === 'fedex_delivered') return 'delivered';
+  if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
+  return 'other';
+}
+
+type RowInfo = {
+  icon: string;
+  iconBg: string;
+  title: string;
+  subtitle: string | undefined;
+  tag: string;
+  tagColor: string;
+  tagBg: string;
+};
+
+function getRowInfo(n: Notification): RowInfo {
+  const data = n.data ?? {};
+  const exType = data.exceptionType as string | undefined;
+  switch (n.type) {
+    case 'fedex_exception': {
+      const tag =
+        exType === 'held' ? 'In giacenza' :
+        exType === 'returning' ? 'In ritorno' :
+        exType === 'canceled' ? 'Annullato' : 'Eccezione';
+      const reason = data.reason as string | undefined;
+      const codeMatch = reason?.match(/^(\w+):/);
+      const suffix = codeMatch ? ` · cod.${codeMatch[1]}` : '';
+      return {
+        icon: '📦', iconBg: 'rgba(204,0,102,0.18)',
+        title: (data.orderNumber as string) ?? n.title,
+        subtitle: data.customerName as string | undefined,
+        tag: tag + suffix, tagColor: '#ff6699', tagBg: 'rgba(204,0,102,0.18)',
+      };
+    }
+    case 'fedex_delivered':
+      return {
+        icon: '✅', iconBg: 'rgba(46,125,50,0.18)',
+        title: (data.orderNumber as string) ?? n.title,
+        subtitle: data.customerName as string | undefined,
+        tag: 'Consegnato', tagColor: '#66bb6a', tagBg: 'rgba(46,125,50,0.18)',
+      };
+    case 'sync_anomaly':
+    case 'product_missing_vat':
+      return {
+        icon: '⚠️', iconBg: 'rgba(230,81,0,0.18)',
+        title: n.title, subtitle: undefined,
+        tag: 'Anomalia', tagColor: '#ffa040', tagBg: 'rgba(230,81,0,0.18)',
+      };
+    default:
+      return {
+        icon: '🔔', iconBg: 'rgba(255,255,255,0.08)',
+        title: n.title, subtitle: undefined,
+        tag: '', tagColor: '#aaa', tagBg: 'rgba(255,255,255,0.08)',
+      };
+  }
+}
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [dropdownPos, setDropdownPos] = useState<DropdownPos>({ top: 64, right: 8 });
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { notifications, unreadCount, markRead, markUnread, markAllRead, deleteNotification } = useNotificationsContext();
+  const { notifications, unreadCount, markRead, markAllRead } = useNotificationsContext();
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -22,9 +84,7 @@ function NotificationBell() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -33,70 +93,142 @@ function NotificationBell() {
   const handleToggle = () => {
     if (!open && ref.current) {
       const rect = ref.current.getBoundingClientRect();
-      setDropdownPos({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      });
+      setDropdownPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     }
     setOpen((v) => !v);
   };
 
-  const preview = notifications.slice(0, 5);
+  const fedexCount  = notifications.filter(n => getCategory(n.type) === 'fedex'     && !n.readAt).length;
+  const syncCount   = notifications.filter(n => getCategory(n.type) === 'sync'      && !n.readAt).length;
+  const delivCount  = notifications.filter(n => getCategory(n.type) === 'delivered' && !n.readAt).length;
+
+  const tabsConfig: Array<{ key: TabKey; label: string; count: number; color: string; bg: string }> = [
+    { key: 'all',       label: 'Tutte', count: unreadCount, color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
+    { key: 'fedex',     label: '📦',    count: fedexCount,  color: '#ff6699', bg: 'rgba(204,0,102,0.25)' },
+    { key: 'sync',      label: '⚠️',    count: syncCount,   color: '#ffa040', bg: 'rgba(230,81,0,0.25)' },
+    { key: 'delivered', label: '✅',    count: delivCount,  color: '#66bb6a', bg: 'rgba(46,125,50,0.25)' },
+  ];
+
+  const filtered = (activeTab === 'all'
+    ? notifications
+    : notifications.filter(n => getCategory(n.type) === activeTab)
+  ).slice(0, 5);
 
   const panelContent = (
     <>
       {/* Header */}
-      <div
-        style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>Notifiche</span>
-        {unreadCount > 0 && (
-          <button
-            onClick={markAllRead}
-            style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', cursor: 'pointer', padding: 0 }}
-          >
-            Segna tutte come lette
-          </button>
-        )}
+      <div style={{
+        padding: '12px 16px 0',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>🔔 Notifiche</span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                Segna lette
+              </button>
+            )}
+            <button
+              onClick={() => { setOpen(false); navigate('/notifications'); }}
+              style={{ background: 'none', border: 'none', color: '#cc0066', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+            >
+              Vedi tutte →
+            </button>
+          </div>
+        </div>
+
+        {/* Mini tab bar */}
+        <div style={{ display: 'flex', gap: 2, borderBottom: '2px solid rgba(255,255,255,0.08)', paddingBottom: 0 }}>
+          {tabsConfig.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 10px', background: 'none', border: 'none',
+                borderBottom: activeTab === t.key ? '2px solid #cc0066' : '2px solid transparent',
+                marginBottom: -2,
+                cursor: 'pointer',
+                color: activeTab === t.key ? '#fff' : 'rgba(255,255,255,0.45)',
+                fontSize: 12, fontWeight: activeTab === t.key ? 700 : 400,
+                transition: 'color 0.12s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 5px', borderRadius: 6, background: t.bg, color: t.color, lineHeight: '14px' }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Lista */}
       <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
-        {preview.length === 0 ? (
-          <p style={{ padding: '24px 16px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>
+        {filtered.length === 0 ? (
+          <p style={{ padding: '24px 16px', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>
             Nessuna notifica
           </p>
         ) : (
-          preview.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => { if (n.readAt === null) markRead(n.id); setOpen(false); navigate(getNotificationRoute(n)); }}
-              style={{ cursor: 'pointer' }}
-            >
-              <NotificationItem
-                notification={n}
-                onDelete={(id) => deleteNotification(id)}
-                onMarkUnread={(id) => markUnread(id)}
-              />
-            </div>
-          ))
+          filtered.map(n => {
+            const info = getRowInfo(n);
+            const isUnread = n.readAt === null;
+            return (
+              <div
+                key={n.id}
+                onClick={() => { if (isUnread) markRead(n.id); setOpen(false); navigate(getNotificationRoute(n)); }}
+                style={{
+                  display: 'flex', gap: 10, padding: '10px 14px',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  cursor: 'pointer',
+                  background: isUnread ? 'rgba(255,255,255,0.03)' : 'transparent',
+                  transition: 'background 0.1s',
+                }}
+              >
+                {/* Unread dot */}
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: isUnread ? '#cc0066' : 'transparent', flexShrink: 0, marginTop: 7 }} />
+                {/* Icon */}
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: info.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                  {info.icon}
+                </div>
+                {/* Body */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {info.title}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', flexShrink: 0 }}>
+                      {formatRelativeTime(n.createdAt)}
+                    </span>
+                  </div>
+                  {info.subtitle && (
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {info.subtitle}
+                    </div>
+                  )}
+                  {info.tag && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: info.tagBg, color: info.tagColor }}>
+                      {info.tag}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 16px', textAlign: 'center', flexShrink: 0 }}>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px', textAlign: 'center', flexShrink: 0 }}>
         <button
           onClick={() => { setOpen(false); navigate('/notifications'); }}
-          style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '13px', cursor: 'pointer' }}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}
         >
-          Vedi tutte →
+          📋 Vedi tutte le notifiche
         </button>
       </div>
     </>
@@ -107,38 +239,17 @@ function NotificationBell() {
       {/* Campanella */}
       <button
         onClick={handleToggle}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#fff',
-          fontSize: '20px',
-          cursor: 'pointer',
-          padding: '6px 10px',
-          position: 'relative',
-          lineHeight: 1,
-        }}
+        style={{ background: 'none', border: 'none', color: '#fff', fontSize: '20px', cursor: 'pointer', padding: '6px 10px', position: 'relative', lineHeight: 1 }}
         title="Notifiche"
       >
         🔔
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: '2px',
-              right: '4px',
-              background: '#ef4444',
-              color: '#fff',
-              borderRadius: '9999px',
-              fontSize: '10px',
-              fontWeight: 700,
-              minWidth: '16px',
-              height: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 3px',
-            }}
-          >
+          <span style={{
+            position: 'absolute', top: '2px', right: '4px',
+            background: '#ef4444', color: '#fff', borderRadius: '9999px',
+            fontSize: '10px', fontWeight: 700, minWidth: '16px', height: '16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+          }}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -146,23 +257,13 @@ function NotificationBell() {
 
       {/* Desktop dropdown */}
       {open && !isMobile && (
-        <div
-          style={{
-            position: 'fixed',
-            top: dropdownPos.top,
-            right: dropdownPos.right,
-            width: '360px',
-            maxWidth: 'calc(100vw - 16px)',
-            maxHeight: '480px',
-            background: '#1e293b',
-            borderRadius: '8px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
+        <div style={{
+          position: 'fixed', top: dropdownPos.top, right: dropdownPos.right,
+          width: '380px', maxWidth: 'calc(100vw - 16px)', maxHeight: '480px',
+          background: '#1e293b', borderRadius: '10px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
           {panelContent}
         </div>
       )}
@@ -170,34 +271,14 @@ function NotificationBell() {
       {/* Mobile bottom sheet */}
       {open && isMobile && (
         <>
-          {/* Backdrop */}
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.55)',
-              zIndex: 9998,
-            }}
-            onClick={() => setOpen(false)}
-          />
-          {/* Sheet */}
-          <div
-            style={{
-              position: 'fixed',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              background: '#1e293b',
-              borderRadius: '16px 16px 0 0',
-              zIndex: 9999,
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              boxShadow: '0 -4px 24px rgba(0,0,0,0.4)',
-            }}
-          >
-            {/* Drag handle */}
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: '#1e293b', borderRadius: '16px 16px 0 0',
+            zIndex: 9999, maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.4)',
+          }}>
             <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.25)' }} />
             </div>

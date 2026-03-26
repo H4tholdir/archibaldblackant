@@ -93,6 +93,26 @@ describe('logTrackingException', () => {
     });
     expect(pool.queryCalls[0].params?.[3]).toBeNull();
   });
+
+  test('returns true when new row inserted (rowCount = 1)', async () => {
+    const pool = createMockPool([], 1);
+    const result = await logTrackingException(pool, {
+      userId: USER_ID, orderNumber: ORDER_NUMBER, trackingNumber: TRACKING_NUMBER,
+      exceptionCode: 'DEX08', exceptionDescription: 'Recipient not in',
+      exceptionType: 'exception', occurredAt: OCCURRED_AT,
+    });
+    expect(result).toBe(true);
+  });
+
+  test('returns false on conflict (rowCount = 0)', async () => {
+    const pool = createMockPool([], 0);
+    const result = await logTrackingException(pool, {
+      userId: USER_ID, orderNumber: ORDER_NUMBER, trackingNumber: TRACKING_NUMBER,
+      exceptionCode: 'DEX08', exceptionDescription: 'Recipient not in',
+      exceptionType: 'exception', occurredAt: OCCURRED_AT,
+    });
+    expect(result).toBe(false);
+  });
 });
 
 describe('resolveOpenExceptions', () => {

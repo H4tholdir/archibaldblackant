@@ -14,6 +14,7 @@ const mockTrackViaFedExApi = vi.mocked(trackViaFedExApi);
 
 function makeMockPool(
   mockOrders: Array<{ order_number: string; tracking_number: string }>,
+  insertRowCount = 1,
 ): { pool: DbPool; queries: Array<{ text: string; values: unknown[] }> } {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const pool = {
@@ -21,6 +22,9 @@ function makeMockPool(
       queries.push({ text, values: values ?? [] });
       if (text.includes('tracking_number IS NOT NULL')) {
         return { rows: mockOrders, rowCount: mockOrders.length };
+      }
+      if (text.trim().toUpperCase().startsWith('INSERT')) {
+        return { rows: [], rowCount: insertRowCount };
       }
       return { rows: [], rowCount: 0 };
     },
@@ -202,18 +206,40 @@ describe('syncTracking', () => {
     expect(onTrackingEvent).toHaveBeenCalledWith('delivered', 'ORD/001');
   });
 
-  test('calls onTrackingEvent with "exception" when status is exception', async () => {
+  test('calls onTrackingEvent with "exception" when status is exception and is new', async () => {
     const mockOrders = [{ order_number: 'ORD/002', tracking_number: 'TRK222' }];
     mockTrackViaFedExApi.mockResolvedValue([
-      makeResult('TRK222', { statusBarCD: 'DE', keyStatusCD: 'DE' }),
+      makeResult('TRK222', {
+        statusBarCD: 'DE', keyStatusCD: 'DE',
+        scanEvents: [{ statusCD: 'DE', exception: true, exceptionCode: '08',
+          exceptionDescription: 'Recipient not in', date: '2026-03-26', time: '10:00:00', status: 'Delivery exception' }],
+      }),
     ]);
-    const { pool } = makeMockPool(mockOrders);
+    const { pool } = makeMockPool(mockOrders, 1);
     const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
 
     await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
 
     expect(onTrackingEvent).toHaveBeenCalledOnce();
     expect(onTrackingEvent).toHaveBeenCalledWith('exception', 'ORD/002');
+  });
+
+  test('does not call onTrackingEvent for duplicate exception (ON CONFLICT DO NOTHING)', async () => {
+    const mockOrders = [{ order_number: 'ORD/DEDUP', tracking_number: 'TRK_DEDUP' }];
+    mockTrackViaFedExApi.mockResolvedValue([
+      makeResult('TRK_DEDUP', {
+        statusBarCD: 'DE', keyStatusCD: 'DE',
+        scanEvents: [{ statusCD: 'DE', exception: true, exceptionCode: '08',
+          exceptionDescription: 'Recipient not in', date: '2026-03-26', time: '10:00:00', status: 'Delivery exception' }],
+      }),
+    ]);
+    // insertRowCount = 0 simula ON CONFLICT DO NOTHING (nessuna riga inserita)
+    const { pool } = makeMockPool(mockOrders, 0);
+    const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
+
+    await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
+
+    expect(onTrackingEvent).not.toHaveBeenCalled();
   });
 
   test('does not call onTrackingEvent for in_transit status', async () => {

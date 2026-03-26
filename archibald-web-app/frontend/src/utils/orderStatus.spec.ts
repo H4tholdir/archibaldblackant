@@ -436,10 +436,10 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all 11 status styles", () => {
+  test("returns all status styles including held/returning/canceled", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(11);
+    expect(allStyles).toHaveLength(14);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
@@ -453,6 +453,9 @@ describe("getAllStatusStyles", () => {
     expect(categories).toContain("overdue");
     expect(categories).toContain("paid");
     expect(categories).toContain("exception");
+    expect(categories).toContain("held");
+    expect(categories).toContain("returning");
+    expect(categories).toContain("canceled");
   });
 
   test("each status has required fields", () => {

@@ -131,4 +131,4 @@ function NotificationItem({ notification, onDelete, onMarkUnread }: Notification
   );
 }
 
-export { NotificationItem };
+export { NotificationItem, formatRelativeTime };

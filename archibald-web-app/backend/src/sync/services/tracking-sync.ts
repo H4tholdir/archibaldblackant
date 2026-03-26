@@ -119,6 +119,8 @@ async function syncTracking(
         });
 
         // Logga eccezione se anomalia, dedup su (tracking_number, occurred_at)
+        // isNewException = true solo se il record è stato inserito ora (non era già presente)
+        let isNewException = false;
         if (['exception', 'held', 'returning', 'canceled'].includes(status)) {
           const exceptionStatusCDs: Record<string, string[]> = {
             exception: ['DE', 'SE', 'DY', 'DD', 'CD'],
@@ -130,7 +132,7 @@ async function syncTracking(
           const latestEvent = (result.scanEvents ?? [])
             .find((ev) => codes.includes(ev.statusCD) || (status === 'exception' && ev.exception));
           if (latestEvent) {
-            await logTrackingException(pool, {
+            isNewException = await logTrackingException(pool, {
               userId,
               orderNumber,
               trackingNumber: result.trackingNumber,
@@ -147,8 +149,10 @@ async function syncTracking(
           await resolveOpenExceptions(pool, orderNumber, 'delivered');
         }
 
+        // Per le consegne: notifica sempre. Per le eccezioni: solo se nuova (evita duplicati)
         const trackingEventTypes: readonly TrackingEventType[] = ['delivered', 'exception', 'held', 'returning', 'canceled'];
-        if (onTrackingEvent && trackingEventTypes.includes(status as TrackingEventType)) {
+        const shouldNotify = status === 'delivered' || isNewException;
+        if (onTrackingEvent && trackingEventTypes.includes(status as TrackingEventType) && shouldNotify) {
           try {
             await onTrackingEvent(status as TrackingEventType, orderNumber);
           } catch (err) {

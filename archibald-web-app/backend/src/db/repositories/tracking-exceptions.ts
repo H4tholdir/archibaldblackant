@@ -52,8 +52,8 @@ function toException(row: Record<string, unknown>): TrackingException {
   };
 }
 
-export async function logTrackingException(pool: DbPool, params: LogExceptionParams): Promise<void> {
-  await pool.query(
+export async function logTrackingException(pool: DbPool, params: LogExceptionParams): Promise<boolean> {
+  const { rowCount } = await pool.query(
     `INSERT INTO agents.tracking_exceptions
        (user_id, order_number, tracking_number, exception_code, exception_description,
         exception_type, occurred_at)
@@ -63,6 +63,7 @@ export async function logTrackingException(pool: DbPool, params: LogExceptionPar
      params.exceptionCode || null, params.exceptionDescription,
      params.exceptionType, params.occurredAt],
   );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function resolveOpenExceptions(
@@ -93,8 +94,8 @@ export async function getExceptionsByUser(
   } else if (filters.status === 'closed') {
     conditions.push('resolved_at IS NOT NULL');
   }
-  if (filters.from) { conditions.push(`occurred_at >= $${idx++}`); values.push(filters.from); }
-  if (filters.to)   { conditions.push(`occurred_at <= $${idx++}`); values.push(filters.to); }
+  if (filters.from) { conditions.push(`occurred_at::date >= $${idx++}::date`); values.push(filters.from); }
+  if (filters.to)   { conditions.push(`occurred_at::date <= $${idx++}::date`); values.push(filters.to); }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
@@ -122,8 +123,8 @@ export async function getExceptionStats(
   let idx = 1;
 
   if (filters.userId) { conditions.push(`user_id = $${idx++}`); values.push(filters.userId); }
-  if (filters.from)   { conditions.push(`occurred_at >= $${idx++}`); values.push(filters.from); }
-  if (filters.to)     { conditions.push(`occurred_at <= $${idx++}`); values.push(filters.to); }
+  if (filters.from)   { conditions.push(`occurred_at::date >= $${idx++}::date`); values.push(filters.from); }
+  if (filters.to)     { conditions.push(`occurred_at::date <= $${idx++}::date`); values.push(filters.to); }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
