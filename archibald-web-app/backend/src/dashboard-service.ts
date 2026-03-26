@@ -12,6 +12,7 @@ import {
   buildComparison,
 } from './temporal-comparisons';
 import * as WidgetCalc from './widget-calculations';
+import * as specialBonusesRepo from './db/repositories/special-bonuses';
 
 async function getDashboardData(pool: DbPool, userId: string) {
   const userConfig = await usersRepo.getUserTarget(pool, userId);
@@ -45,9 +46,31 @@ async function getDashboardData(pool: DbPool, userId: string) {
     userConfig.bonusInterval, userConfig.bonusAmount,
   );
 
-  const bonusRoadmap = WidgetCalc.calculateBonusRoadmap(
-    currentYearRevenue, userConfig.bonusInterval, userConfig.bonusAmount,
-  );
+  const [bonusRoadmapBase, balance, extraBudget, specialBonuses] = await Promise.all([
+    Promise.resolve(WidgetCalc.calculateBonusRoadmap(
+      currentYearRevenue, userConfig.bonusInterval, userConfig.bonusAmount,
+    )),
+    Promise.resolve(WidgetCalc.calculateBalance(
+      userConfig.commissionRate, currentYearRevenue, userConfig.monthlyAdvance,
+    )),
+    Promise.resolve(WidgetCalc.calculateExtraBudget(
+      currentYearRevenue, userConfig.yearlyTarget,
+      userConfig.extraBudgetInterval, userConfig.extraBudgetReward,
+    )),
+    specialBonusesRepo.getByUserId(pool, userId),
+  ]);
+
+  const bonusRoadmap = {
+    ...bonusRoadmapBase,
+    balance,
+    extraBudget,
+    specialBonuses: specialBonuses.map((b) => ({
+      id: b.id as number,
+      title: b.title,
+      amount: b.amount,
+      receivedAt: b.receivedAt,
+    })),
+  };
 
   const forecast = await WidgetCalc.calculateForecast(
     currentMonthRevenue, currentYearRevenue,
@@ -62,22 +85,13 @@ async function getDashboardData(pool: DbPool, userId: string) {
     averageOrderValue, userConfig.yearlyTarget, currentYearRevenue,
   );
 
-  const balance = WidgetCalc.calculateBalance(
-    userConfig.commissionRate, currentYearRevenue, userConfig.monthlyAdvance,
-  );
-
-  const extraBudget = WidgetCalc.calculateExtraBudget(
-    currentYearRevenue, userConfig.yearlyTarget,
-    userConfig.extraBudgetInterval, userConfig.extraBudgetReward,
-  );
-
   const alerts = WidgetCalc.calculateAlerts(
     forecast.projectedMonthRevenue, userConfig.monthlyTarget,
     currentMonthRevenue, averageDailyRevenue,
     workingDaysRemaining, averageOrderValue,
   );
 
-  return { heroStatus, kpiCards, bonusRoadmap, forecast, actionSuggestion, balance, extraBudget, alerts };
+  return { heroStatus, kpiCards, bonusRoadmap, forecast, actionSuggestion, alerts };
 }
 
 async function getBudgetMetrics(pool: DbPool, userId: string) {

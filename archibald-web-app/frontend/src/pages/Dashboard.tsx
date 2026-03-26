@@ -254,13 +254,13 @@ export function Dashboard() {
         <ActionSuggestionWidgetNew data={dashboardData.actionSuggestion} />
 
         {/* 6. Balance Widget (Anticipi vs Maturato) */}
-        <BalanceWidget data={dashboardData.balance} />
+        <BalanceWidget data={dashboardData.bonusRoadmap.balance} />
 
         {/* 7. Orders Summary Widget with Comparisons */}
         <OrdersSummaryWidgetNew data={orderMetrics} />
 
         {/* 8. Extra Budget Widget (Conditional) */}
-        <ExtraBudgetWidget data={dashboardData.extraBudget} />
+        <ExtraBudgetWidget data={dashboardData.bonusRoadmap.extraBudget} />
 
         {/* 9. Alerts Widget Rinnovato (Conditional) */}
         <AlertsWidgetNew data={dashboardData.alerts} />
