@@ -760,7 +760,39 @@ async function bootstrap(): Promise<void> {
       },
       (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
     ),
-    'sync-tracking': createSyncTrackingHandler(pool),
+    'sync-tracking': createSyncTrackingHandler(
+      pool,
+      async (type, orderNumber) => {
+        const { rows } = await pool.query<{ user_id: string; customer_name: string }>(
+          `SELECT user_id, customer_name FROM agents.order_records WHERE order_number = $1 LIMIT 1`,
+          [orderNumber],
+        );
+        if (rows.length === 0) return;
+        const { user_id: agentId, customer_name: customerName } = rows[0];
+
+        if (type === 'delivered') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_delivered',
+            severity: 'success',
+            title: 'Ordine consegnato',
+            body: `L'ordine ${orderNumber} (${customerName}) è stato consegnato.`,
+            data: { orderNumber, customerName },
+          });
+        } else {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Eccezione tracking FedEx',
+            body: `L'ordine ${orderNumber} (${customerName}) ha un problema di consegna.`,
+            data: { orderNumber, customerName },
+          });
+        }
+      },
+    ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
   };
 
