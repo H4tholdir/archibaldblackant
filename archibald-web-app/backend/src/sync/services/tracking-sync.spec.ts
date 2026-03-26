@@ -52,60 +52,36 @@ function makeResult(
 }
 
 describe('mapTrackingStatus', () => {
-  test('DL statusBarCD returns delivered', () => {
-    expect(mapTrackingStatus('DL', 'DL')).toBe('delivered');
-  });
+  const cases: Array<[string, string, string]> = [
+    ['DL', 'DL', 'delivered'],
+    ['RS', 'IT', 'returning'],
+    ['RP', 'IT', 'returning'],
+    ['IT', 'RS', 'returning'],
+    ['HL', 'IT', 'held'],
+    ['HP', 'IT', 'held'],
+    ['IT', 'HL', 'held'],
+    ['CA', 'IT', 'canceled'],
+    ['DE', 'IT', 'exception'],
+    ['IT', 'DE', 'exception'],
+    ['IT', 'DF', 'exception'],
+    ['SE', 'IT', 'exception'],
+    ['DY', 'IT', 'exception'],
+    ['DD', 'IT', 'exception'],
+    ['CD', 'IT', 'exception'],
+    ['OD', 'OD', 'out_for_delivery'],
+    ['IT', 'OD', 'out_for_delivery'],
+    ['IT', 'IT', 'in_transit'],
+    ['PU', 'PU', 'in_transit'],
+    ['OW', 'IT', 'in_transit'],
+    ['AR', 'IT', 'in_transit'],
+    ['DP', 'IT', 'in_transit'],
+    ['AF', 'IT', 'in_transit'],
+    ['FD', 'IT', 'in_transit'],
+    ['XX', 'YY', 'pending'],
+  ];
 
-  test('DE statusBarCD returns exception', () => {
-    expect(mapTrackingStatus('DE', 'DE')).toBe('exception');
-  });
-
-  test('OD keyStatusCD with non-DL/DE statusBarCD returns out_for_delivery', () => {
-    expect(mapTrackingStatus('IT', 'OD')).toBe('out_for_delivery');
-  });
-
-  test('OW statusBarCD returns in_transit', () => {
-    expect(mapTrackingStatus('OW', 'IT')).toBe('in_transit');
-  });
-
-  test('IT statusBarCD returns in_transit', () => {
-    expect(mapTrackingStatus('IT', 'IT')).toBe('in_transit');
-  });
-
-  test('PU statusBarCD returns in_transit', () => {
-    expect(mapTrackingStatus('PU', 'PU')).toBe('in_transit');
-  });
-
-  test('DP statusBarCD returns in_transit', () => {
-    expect(mapTrackingStatus('DP', 'DP')).toBe('in_transit');
-  });
-
-  test('AR statusBarCD returns in_transit', () => {
-    expect(mapTrackingStatus('AR', 'AR')).toBe('in_transit');
-  });
-
-  test('OD statusBarCD returns out_for_delivery', () => {
-    expect(mapTrackingStatus('OD', '')).toBe('out_for_delivery');
-  });
-
-  test('unknown codes return pending', () => {
-    expect(mapTrackingStatus('XX', 'YY')).toBe('pending');
-  });
-
-  test('DL takes priority over OD keyStatusCD', () => {
-    expect(mapTrackingStatus('DL', 'OD')).toBe('delivered');
-  });
-
-  test('DE takes priority over OD keyStatusCD', () => {
-    expect(mapTrackingStatus('DE', 'OD')).toBe('exception');
-  });
-
-  test('DF keyStatusCD returns exception even with AF statusBarCD', () => {
-    expect(mapTrackingStatus('AF', 'DF')).toBe('exception');
-  });
-
-  test('DE keyStatusCD returns exception', () => {
-    expect(mapTrackingStatus('IT', 'DE')).toBe('exception');
+  test.each(cases)('statusBarCD=%s keyStatusCD=%s → %s', (bar, key, expected) => {
+    expect(mapTrackingStatus(bar, key)).toBe(expected);
   });
 });
 

@@ -21,9 +21,14 @@ type TrackingSyncResult = {
 
 type TrackingEventType = 'delivered' | 'exception';
 
-function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
+export function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
   if (statusBarCD === 'DL') return 'delivered';
-  if (statusBarCD === 'DE' || keyStatusCD === 'DE' || keyStatusCD === 'DF') return 'exception';
+  if (statusBarCD === 'RS' || statusBarCD === 'RP' || keyStatusCD === 'RS') return 'returning';
+  if (statusBarCD === 'HL' || statusBarCD === 'HP' || keyStatusCD === 'HL') return 'held';
+  if (statusBarCD === 'CA') return 'canceled';
+  if (statusBarCD === 'DE' || keyStatusCD === 'DE' || keyStatusCD === 'DF'
+    || statusBarCD === 'SE' || statusBarCD === 'DY'
+    || statusBarCD === 'DD' || statusBarCD === 'CD') return 'exception';
   if (keyStatusCD === 'OD' || statusBarCD === 'OD') return 'out_for_delivery';
   if (statusBarCD === 'IT' || statusBarCD === 'OW' || statusBarCD === 'PU'
     || statusBarCD === 'DP' || statusBarCD === 'AR' || statusBarCD === 'AF'
@@ -99,6 +104,9 @@ async function syncTracking(
           deliverySignedBy: status === 'delivered' ? (result.receivedByName ?? null) : null,
           trackingEvents: result.scanEvents ?? [],
           trackingSyncFailures: 0,
+          trackingDelayReason: result.delayReason ?? null,
+          trackingDeliveryAttempts: result.deliveryAttempts ?? null,
+          trackingAttemptedDeliveryAt: result.attemptedDeliveryAt ?? null,
         });
 
         logger.info(`Tracking: ${result.trackingNumber} → ${status}`, {
@@ -153,5 +161,5 @@ async function syncTracking(
   }
 }
 
-export { mapTrackingStatus, syncTracking };
+export { syncTracking };
 export type { TrackingSyncResult, TrackingEventType };

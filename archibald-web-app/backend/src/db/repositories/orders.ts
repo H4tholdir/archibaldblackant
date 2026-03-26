@@ -958,6 +958,9 @@ async function updateTrackingData(
     deliverySignedBy: string | null;
     trackingEvents: unknown;
     trackingSyncFailures: number;
+    trackingDelayReason: string | null;
+    trackingDeliveryAttempts: number | null;
+    trackingAttemptedDeliveryAt: string | null;
   },
 ): Promise<void> {
   await pool.query(
@@ -976,6 +979,9 @@ async function updateTrackingData(
       delivery_signed_by = $14,
       tracking_events = $15,
       tracking_sync_failures = $16,
+      tracking_delay_reason = $17,
+      tracking_delivery_attempts = $18,
+      tracking_attempted_delivery_at = $19,
       tracking_last_synced_at = NOW()
     WHERE user_id = $1 AND order_number = $2`,
     [
@@ -995,6 +1001,9 @@ async function updateTrackingData(
       data.deliverySignedBy,
       JSON.stringify(data.trackingEvents),
       data.trackingSyncFailures,
+      data.trackingDelayReason,
+      data.trackingDeliveryAttempts,
+      data.trackingAttemptedDeliveryAt,
     ],
   );
 }
