@@ -39,6 +39,8 @@ import { createOrderStacksRouter } from './routes/order-stacks';
 import { createOrderNotesRouter } from './routes/order-notes';
 import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
+import { createNotificationsRouter } from './routes/notifications';
+import * as notificationsRepo from './db/repositories/notifications';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
@@ -912,6 +914,16 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/cache', authenticateJWT, createDeltaSyncRouter({ pool }));
+
+  app.use('/api/notifications', authenticateJWT, createNotificationsRouter({
+    getNotifications: (userId, filter, limit, offset) =>
+      notificationsRepo.getNotifications(pool, userId, filter, limit, offset),
+    getUnreadCount: (userId) => notificationsRepo.getUnreadCount(pool, userId),
+    markRead: (userId, id) => notificationsRepo.markRead(pool, userId, id),
+    markAllRead: (userId) => notificationsRepo.markAllRead(pool, userId),
+    deleteNotification: (userId, id) => notificationsRepo.deleteNotification(pool, userId, id),
+    broadcast: deps.broadcast ?? (() => {}),
+  }));
 
   app.get('/api/cache/export', authenticateJWT, async (req, res) => {
     const startTime = Date.now();
