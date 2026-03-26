@@ -41,6 +41,7 @@ import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
 import { createNotificationsRouter } from './routes/notifications';
 import * as notificationsRepo from './db/repositories/notifications';
+import { createTrackingRouter } from './routes/tracking';
 import { createBonusesRouter } from './routes/bonuses';
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
@@ -930,6 +931,8 @@ function createApp(deps: AppDeps): Express {
     deleteNotification: (userId, id) => notificationsRepo.deleteNotification(pool, userId, id),
     broadcast: deps.broadcast ?? (() => {}),
   }));
+
+  app.use('/api/tracking', authenticateJWT, createTrackingRouter({ pool }));
 
   app.get('/api/cache/export', authenticateJWT, async (req, res) => {
     const startTime = Date.now();
