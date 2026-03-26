@@ -192,9 +192,12 @@ function parseApiTrackResult(
     serviceDesc: result.serviceDetail?.description,
     scanEvents,
     delayReason: result.latestStatusDetail?.delayDetail?.type,
-    deliveryAttempts: result.deliveryDetails?.deliveryAttempts
-      ? parseInt(result.deliveryDetails.deliveryAttempts, 10)
-      : undefined,
+    deliveryAttempts: (() => {
+      const raw = result.deliveryDetails?.deliveryAttempts;
+      if (raw == null) return undefined;
+      const n = parseInt(raw, 10);
+      return isNaN(n) ? undefined : n;
+    })(),
     attemptedDeliveryAt: findDateTime(result.dateAndTimes, 'ATTEMPTED_DELIVERY'),
   };
 }
