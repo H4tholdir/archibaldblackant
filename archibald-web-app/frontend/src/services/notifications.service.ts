@@ -55,6 +55,31 @@ async function deleteNotificationById(id: number): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete notification');
 }
 
+function getNotificationRoute(notification: Notification): string {
+  switch (notification.type) {
+    case 'fedex_exception':
+    case 'fedex_delivered':
+      return '/orders';
+    case 'erp_customer_deleted':
+    case 'erp_customer_restored':
+    case 'customer_inactive':
+      return '/customers';
+    case 'price_change':
+      return '/prezzi-variazioni';
+    case 'product_change':
+      return '/prodotti-variazioni';
+    case 'product_missing_vat':
+    case 'sync_anomaly':
+      return '/admin';
+    case 'order_expiring':
+      return '/pending-orders';
+    case 'budget_milestone':
+      return '/revenue-report';
+    default:
+      return '/notifications';
+  }
+}
+
 export {
   fetchNotifications,
   fetchUnreadCount,
@@ -62,6 +87,7 @@ export {
   markNotificationUnread,
   markAllNotificationsRead,
   deleteNotificationById,
+  getNotificationRoute,
   type Notification,
   type NotificationFilter,
   type NotificationSeverity,

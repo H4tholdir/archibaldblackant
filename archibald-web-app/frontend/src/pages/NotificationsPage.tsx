@@ -1,5 +1,7 @@
+import { useNavigate } from 'react-router-dom';
 import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { NotificationItem } from '../components/NotificationItem';
+import { getNotificationRoute } from '../services/notifications.service';
 import type { Notification, NotificationFilter } from '../services/notifications.service';
 
 const FILTER_LABELS: Record<NotificationFilter, string> = {
@@ -29,6 +31,7 @@ function groupByDate(items: Notification[]): Record<string, Notification[]> {
 const GROUP_ORDER = ['Oggi', 'Ieri', 'Questa settimana', 'Precedenti'];
 
 function NotificationsPage() {
+  const navigate = useNavigate();
   const {
     notifications, unreadCount, filter, setFilter,
     markRead, markUnread, markAllRead, deleteNotification, loadMore, hasMore,
@@ -92,7 +95,11 @@ function NotificationsPage() {
               </h3>
               <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#1e293b' }}>
                 {grouped[group].map((n) => (
-                  <div key={n.id} onClick={n.readAt ? undefined : () => markRead(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer' }}>
+                  <div
+                    key={n.id}
+                    onClick={() => { if (n.readAt === null) markRead(n.id); navigate(getNotificationRoute(n)); }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <NotificationItem notification={n} onDelete={deleteNotification} onMarkUnread={markUnread} />
                   </div>
                 ))}

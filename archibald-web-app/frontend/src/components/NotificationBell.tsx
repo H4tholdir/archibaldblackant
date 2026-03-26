@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { NotificationItem } from './NotificationItem';
+import { getNotificationRoute } from '../services/notifications.service';
 
 type DropdownPos = { top: number; right: number };
 
@@ -76,7 +77,7 @@ function NotificationBell() {
           preview.map((n) => (
             <div
               key={n.id}
-              onClick={() => { if (n.readAt === null) markRead(n.id); setOpen(false); navigate('/notifications'); }}
+              onClick={() => { if (n.readAt === null) markRead(n.id); setOpen(false); navigate(getNotificationRoute(n)); }}
               style={{ cursor: 'pointer' }}
             >
               <NotificationItem
