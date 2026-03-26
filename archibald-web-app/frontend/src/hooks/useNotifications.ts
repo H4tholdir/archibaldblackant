@@ -4,6 +4,7 @@ import {
   fetchNotifications,
   fetchUnreadCount,
   markNotificationRead,
+  markNotificationUnread,
   markAllNotificationsRead,
   deleteNotificationById,
   type Notification,
@@ -16,6 +17,7 @@ type UseNotificationsResult = {
   filter: NotificationFilter;
   setFilter: (f: NotificationFilter) => void;
   markRead: (id: number) => void;
+  markUnread: (id: number) => void;
   markAllRead: () => void;
   deleteNotification: (id: number) => void;
   loadMore: () => void;
@@ -69,7 +71,13 @@ function useNotifications(): UseNotificationsResult {
       setUnreadCount(0);
     });
 
-    return () => { unsub1(); unsub2(); unsub3(); };
+    const unsub4 = subscribe('NOTIFICATION_UNREAD', (payload: unknown) => {
+      const { id } = payload as { id: number };
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, readAt: null } : n));
+      setUnreadCount((c) => c + 1);
+    });
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
   }, [subscribe]);
 
   const setFilter = useCallback((f: NotificationFilter) => {
@@ -86,6 +94,15 @@ function useNotifications(): UseNotificationsResult {
         setUnreadCount((c) => Math.max(0, c - 1));
       })
       .catch((err) => console.error('Failed to mark notification as read:', err));
+  }, []);
+
+  const markUnread = useCallback((id: number) => {
+    markNotificationUnread(id)
+      .then(() => {
+        setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, readAt: null } : n));
+        setUnreadCount((c) => c + 1);
+      })
+      .catch((err) => console.error('Failed to mark notification as unread:', err));
   }, []);
 
   const markAllRead = useCallback(() => {
@@ -111,7 +128,7 @@ function useNotifications(): UseNotificationsResult {
     load(filter, newOffset);
   }, [offset, filter, load]);
 
-  return { notifications, unreadCount, filter, setFilter, markRead, markAllRead, deleteNotification, loadMore, hasMore };
+  return { notifications, unreadCount, filter, setFilter, markRead, markUnread, markAllRead, deleteNotification, loadMore, hasMore };
 }
 
 export { useNotifications };

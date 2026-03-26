@@ -920,6 +920,7 @@ function createApp(deps: AppDeps): Express {
       notificationsRepo.getNotifications(pool, userId, filter, limit, offset),
     getUnreadCount: (userId) => notificationsRepo.getUnreadCount(pool, userId),
     markRead: (userId, id) => notificationsRepo.markRead(pool, userId, id),
+    markUnread: (userId, id) => notificationsRepo.markUnread(pool, userId, id),
     markAllRead: (userId) => notificationsRepo.markAllRead(pool, userId),
     deleteNotification: (userId, id) => notificationsRepo.deleteNotification(pool, userId, id),
     broadcast: deps.broadcast ?? (() => {}),

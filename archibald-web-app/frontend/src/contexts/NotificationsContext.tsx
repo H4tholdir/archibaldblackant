@@ -9,6 +9,7 @@ type NotificationsContextValue = {
   filter: NotificationFilter;
   setFilter: (f: NotificationFilter) => void;
   markRead: (id: number) => void;
+  markUnread: (id: number) => void;
   markAllRead: () => void;
   deleteNotification: (id: number) => void;
   loadMore: () => void;

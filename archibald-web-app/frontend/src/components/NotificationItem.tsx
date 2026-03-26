@@ -20,52 +20,113 @@ function formatRelativeTime(iso: string): string {
 type NotificationItemProps = {
   notification: Notification;
   onDelete: (id: number) => void;
+  onMarkUnread?: (id: number) => void;
 };
 
-function NotificationItem({ notification, onDelete }: NotificationItemProps) {
+function NotificationItem({ notification, onDelete, onMarkUnread }: NotificationItemProps) {
   const color = SEVERITY_COLORS[notification.severity] ?? '#6b7280';
   const isUnread = notification.readAt === null;
 
   return (
     <div
       style={{
-        display: 'flex',
-        gap: '12px',
-        padding: '12px 16px',
+        padding: '12px 14px 10px',
         borderLeft: `4px solid ${color}`,
-        background: isUnread ? 'rgba(255,255,255,0.05)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: isUnread ? 'rgba(59,130,246,0.07)' : 'transparent',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-          <span style={{ fontWeight: isUnread ? 600 : 400, fontSize: '14px', color: '#fff' }}>
-            {notification.title}
-          </span>
-          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {formatRelativeTime(notification.createdAt)}
-          </span>
-        </div>
-        <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
-          {notification.body}
-        </p>
+      {/* Riga titolo + pulsante elimina */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '5px' }}>
+        {isUnread && (
+          <span
+            style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: color,
+              flexShrink: 0,
+              marginTop: '4px',
+            }}
+          />
+        )}
+        <span
+          style={{
+            flex: 1,
+            fontWeight: isUnread ? 600 : 400,
+            fontSize: '13px',
+            color: isUnread ? '#fff' : 'rgba(255,255,255,0.72)',
+            lineHeight: 1.45,
+            wordBreak: 'break-word',
+          }}
+        >
+          {notification.title}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(notification.id); }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            cursor: 'pointer',
+            fontSize: '17px',
+            padding: '0 0 0 4px',
+            flexShrink: 0,
+            lineHeight: 1,
+            marginTop: '-1px',
+          }}
+          title="Elimina notifica"
+        >
+          ×
+        </button>
       </div>
-      <button
-        onClick={() => onDelete(notification.id)}
+
+      {/* Corpo */}
+      <p
         style={{
-          background: 'none',
-          border: 'none',
-          color: 'rgba(255,255,255,0.4)',
-          cursor: 'pointer',
-          fontSize: '16px',
-          padding: '2px 4px',
-          flexShrink: 0,
-          lineHeight: 1,
+          margin: '0 0 8px',
+          fontSize: '12px',
+          color: 'rgba(255,255,255,0.58)',
+          lineHeight: 1.55,
+          wordBreak: 'break-word',
+          paddingLeft: isUnread ? '13px' : '0',
         }}
-        title="Elimina"
       >
-        ×
-      </button>
+        {notification.body}
+      </p>
+
+      {/* Footer: segna da leggere (sx) + timestamp (dx) */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingLeft: isUnread ? '13px' : '0',
+        }}
+      >
+        {!isUnread && onMarkUnread ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMarkUnread(notification.id); }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.38)',
+              cursor: 'pointer',
+              fontSize: '11px',
+              padding: 0,
+              lineHeight: 1,
+            }}
+            title="Segna come da leggere"
+          >
+            ↩ Da leggere
+          </button>
+        ) : (
+          <span />
+        )}
+        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.38)', whiteSpace: 'nowrap' }}>
+          {formatRelativeTime(notification.createdAt)}
+        </span>
+      </div>
     </div>
   );
 }

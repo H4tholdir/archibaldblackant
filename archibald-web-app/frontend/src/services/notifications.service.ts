@@ -45,6 +45,11 @@ async function markAllNotificationsRead(): Promise<void> {
   if (!res.ok) throw new Error('Failed to mark all notifications as read');
 }
 
+async function markNotificationUnread(id: number): Promise<void> {
+  const res = await fetchWithRetry(`/api/notifications/${id}/unread`, { method: 'PATCH' });
+  if (!res.ok) throw new Error('Failed to mark notification as unread');
+}
+
 async function deleteNotificationById(id: number): Promise<void> {
   const res = await fetchWithRetry(`/api/notifications/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete notification');
@@ -54,6 +59,7 @@ export {
   fetchNotifications,
   fetchUnreadCount,
   markNotificationRead,
+  markNotificationUnread,
   markAllNotificationsRead,
   deleteNotificationById,
   type Notification,

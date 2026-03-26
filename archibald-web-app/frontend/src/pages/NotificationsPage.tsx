@@ -31,7 +31,7 @@ const GROUP_ORDER = ['Oggi', 'Ieri', 'Questa settimana', 'Precedenti'];
 function NotificationsPage() {
   const {
     notifications, unreadCount, filter, setFilter,
-    markRead, markAllRead, deleteNotification, loadMore, hasMore,
+    markRead, markUnread, markAllRead, deleteNotification, loadMore, hasMore,
   } = useNotificationsContext();
 
   const grouped = groupByDate(notifications);
@@ -93,7 +93,7 @@ function NotificationsPage() {
               <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#1e293b' }}>
                 {grouped[group].map((n) => (
                   <div key={n.id} onClick={n.readAt ? undefined : () => markRead(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer' }}>
-                    <NotificationItem notification={n} onDelete={deleteNotification} />
+                    <NotificationItem notification={n} onDelete={deleteNotification} onMarkUnread={markUnread} />
                   </div>
                 ))}
               </div>

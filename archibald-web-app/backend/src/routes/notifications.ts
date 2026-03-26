@@ -9,6 +9,7 @@ type NotificationsRouterDeps = {
   getNotifications: (userId: string, filter: NotificationFilter, limit: number, offset: number) => Promise<Notification[]>;
   getUnreadCount: (userId: string) => Promise<number>;
   markRead: (userId: string, id: NotificationId) => Promise<void>;
+  markUnread: (userId: string, id: NotificationId) => Promise<void>;
   markAllRead: (userId: string) => Promise<void>;
   deleteNotification: (userId: string, id: NotificationId) => Promise<void>;
   broadcast: (userId: string, msg: BroadcastMsg) => void;
@@ -17,7 +18,7 @@ type NotificationsRouterDeps = {
 const VALID_FILTERS: NotificationFilter[] = ['all', 'unread', 'read'];
 
 function createNotificationsRouter(deps: NotificationsRouterDeps) {
-  const { getNotifications, getUnreadCount, markRead, markAllRead, deleteNotification, broadcast } = deps;
+  const { getNotifications, getUnreadCount, markRead, markUnread, markAllRead, deleteNotification, broadcast } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -55,6 +56,20 @@ function createNotificationsRouter(deps: NotificationsRouterDeps) {
     } catch (error) {
       logger.error('Error marking all notifications read', { error });
       res.status(500).json({ success: false, error: 'Errore nel segnare tutte le notifiche come lette' });
+    }
+  });
+
+  router.patch('/:id/unread', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid notification id' });
+      await markUnread(userId, id as NotificationId);
+      broadcast(userId, { type: 'NOTIFICATION_UNREAD', payload: { id }, timestamp: new Date().toISOString() });
+      res.sendStatus(204);
+    } catch (error) {
+      logger.error('Error marking notification unread', { error });
+      res.status(500).json({ success: false, error: 'Errore nel segnare la notifica come da leggere' });
     }
   });
 

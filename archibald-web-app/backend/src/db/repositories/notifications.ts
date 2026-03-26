@@ -104,6 +104,14 @@ async function markRead(pool: DbPool, userId: string, id: NotificationId): Promi
   );
 }
 
+async function markUnread(pool: DbPool, userId: string, id: NotificationId): Promise<void> {
+  await pool.query(
+    `UPDATE agents.notifications SET read_at = NULL
+     WHERE id = $1 AND user_id = $2 AND read_at IS NOT NULL`,
+    [id, userId],
+  );
+}
+
 async function markAllRead(pool: DbPool, userId: string): Promise<void> {
   await pool.query(
     `UPDATE agents.notifications SET read_at = NOW()
@@ -131,6 +139,7 @@ export {
   getNotifications,
   getUnreadCount,
   markRead,
+  markUnread,
   markAllRead,
   deleteNotification,
   deleteExpired,
