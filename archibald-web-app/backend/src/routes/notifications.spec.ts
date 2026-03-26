@@ -68,6 +68,28 @@ describe('createNotificationsRouter', () => {
       await request(app).get('/api/notifications?filter=unread&limit=10&offset=5');
       expect(deps.getNotifications).toHaveBeenCalledWith(TEST_USER_ID, 'unread', 10, 5);
     });
+
+    test('defaults to filter=all for invalid filter value', async () => {
+      await request(app).get('/api/notifications?filter=bogus');
+      expect(deps.getNotifications).toHaveBeenCalledWith(TEST_USER_ID, 'all', 20, 0);
+    });
+
+    test('defaults to limit=20 and offset=0 for non-numeric values', async () => {
+      await request(app).get('/api/notifications?limit=abc&offset=xyz');
+      expect(deps.getNotifications).toHaveBeenCalledWith(TEST_USER_ID, 'all', 20, 0);
+    });
+
+    test('caps limit at 100', async () => {
+      await request(app).get('/api/notifications?limit=999');
+      expect(deps.getNotifications).toHaveBeenCalledWith(TEST_USER_ID, 'all', 100, 0);
+    });
+
+    test('returns 500 when getNotifications throws', async () => {
+      (deps.getNotifications as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+      const res = await request(app).get('/api/notifications');
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nel recupero notifiche' });
+    });
   });
 
   describe('GET /api/notifications/count', () => {
@@ -76,6 +98,13 @@ describe('createNotificationsRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ count: 1 });
       expect(deps.getUnreadCount).toHaveBeenCalledWith(TEST_USER_ID);
+    });
+
+    test('returns 500 when getUnreadCount throws', async () => {
+      (deps.getUnreadCount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+      const res = await request(app).get('/api/notifications/count');
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nel recupero contatore notifiche' });
     });
   });
 
@@ -89,6 +118,19 @@ describe('createNotificationsRouter', () => {
         expect.objectContaining({ type: 'NOTIFICATION_READ', payload: { id: 1 } }),
       );
     });
+
+    test('returns 400 for non-numeric id', async () => {
+      const res = await request(app).patch('/api/notifications/abc/read');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Invalid notification id' });
+    });
+
+    test('returns 500 when markRead throws', async () => {
+      (deps.markRead as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+      const res = await request(app).patch('/api/notifications/1/read');
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nel segnare la notifica come letta' });
+    });
   });
 
   describe('PATCH /api/notifications/read-all', () => {
@@ -101,6 +143,13 @@ describe('createNotificationsRouter', () => {
         expect.objectContaining({ type: 'NOTIFICATION_READ_ALL' }),
       );
     });
+
+    test('returns 500 when markAllRead throws', async () => {
+      (deps.markAllRead as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+      const res = await request(app).patch('/api/notifications/read-all');
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nel segnare tutte le notifiche come lette' });
+    });
   });
 
   describe('DELETE /api/notifications/:id', () => {
@@ -108,6 +157,19 @@ describe('createNotificationsRouter', () => {
       const res = await request(app).delete('/api/notifications/1');
       expect(res.status).toBe(204);
       expect(deps.deleteNotification).toHaveBeenCalledWith(TEST_USER_ID, 1);
+    });
+
+    test('returns 400 for non-numeric id', async () => {
+      const res = await request(app).delete('/api/notifications/abc');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Invalid notification id' });
+    });
+
+    test('returns 500 when deleteNotification throws', async () => {
+      (deps.deleteNotification as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+      const res = await request(app).delete('/api/notifications/1');
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Errore nella cancellazione della notifica' });
     });
   });
 });
