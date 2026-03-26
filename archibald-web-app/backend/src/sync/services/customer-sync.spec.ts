@@ -319,6 +319,47 @@ describe('syncCustomers - onRestoredCustomers', () => {
     expect(infos[0].affectedAgentIds).toContain('agent-2');
   });
 
+  test('calls onRestoredCustomers when a hard-deleted customer (no DB row) reappears in ERP with existing orders', async () => {
+    const pool = createPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+
+    q
+      // SELECT hash, deleted_at for CUST-001 → no row (hard-deleted, was never soft-deleted)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      // INSERT new customer
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      // SELECT toDelete → nothing to delete
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      // SELECT DISTINCT customer_profile_id for newWithInternalId check → has orders
+      .mockResolvedValueOnce({ rows: [{ customer_profile_id: 'INT-001' }], rowCount: 1 })
+      // SELECT DISTINCT user_id, customer_profile_id for restoredWithAgents
+      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-2', customer_profile_id: 'INT-001' }], rowCount: 1 });
+
+    const onRestoredCustomers = vi.fn<[RestoredProfileInfo[]], Promise<void>>().mockResolvedValue(undefined);
+    const deps: CustomerSyncDeps = {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
+      parsePdf: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      onRestoredCustomers,
+    };
+
+    const result = await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    expect(result.success).toBe(true);
+    expect(result.newCustomers).toBe(1);
+    expect(onRestoredCustomers).toHaveBeenCalledOnce();
+    const [infos] = onRestoredCustomers.mock.calls[0];
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toMatchObject({
+      profile: 'CUST-001',
+      internalId: 'INT-001',
+      name: 'Acme Corp',
+    });
+    expect(infos[0].affectedAgentIds).toContain('user-1');
+    expect(infos[0].affectedAgentIds).toContain('agent-2');
+  });
+
   test('does not call onRestoredCustomers when not provided', async () => {
     const pool = createPool();
     const q = pool.query as ReturnType<typeof vi.fn>;

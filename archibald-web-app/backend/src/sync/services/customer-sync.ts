@@ -104,6 +104,7 @@ async function syncCustomers(
     let updatedCustomers = 0;
     let restoredCustomers = 0;
     const restored: Array<{ profile: string; internalId: string; name: string }> = [];
+    const newWithInternalId: Array<{ profile: string; internalId: string; name: string }> = [];
 
     const now = Date.now();
     for (const customer of parsedCustomers) {
@@ -144,6 +145,9 @@ async function syncCustomers(
           customerParams,
         );
         newCustomers++;
+        if (customer.internalId) {
+          newWithInternalId.push({ profile: customer.customerProfile, internalId: customer.internalId, name: customer.name });
+        }
       } else if (existing.deleted_at !== null) {
         // Customer was soft-deleted but reappeared in ERP — restore it
         await pool.query(
@@ -264,8 +268,21 @@ async function syncCustomers(
       }
     }
 
-    if (deps.onRestoredCustomers && restored.length > 0) {
-      const restoredIds = restored.map((r) => r.internalId).filter(Boolean);
+    if (deps.onRestoredCustomers) {
+      // Combine soft-delete restores with hard-delete restores (customers that had no DB row
+      // but reappeared in ERP and have existing orders — i.e. previously orphaned customers).
+      let allRestored = [...restored];
+      if (newWithInternalId.length > 0) {
+        const newIds = newWithInternalId.map((c) => c.internalId);
+        const { rows: hasOrders } = await pool.query<{ customer_profile_id: string }>(
+          `SELECT DISTINCT customer_profile_id FROM agents.order_records WHERE customer_profile_id = ANY($1::text[])`,
+          [newIds],
+        );
+        const hasOrdersSet = new Set(hasOrders.map((r) => r.customer_profile_id));
+        allRestored = [...allRestored, ...newWithInternalId.filter((c) => hasOrdersSet.has(c.internalId))];
+      }
+
+      const restoredIds = allRestored.map((r) => r.internalId).filter(Boolean);
       if (restoredIds.length > 0) {
         const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
           `SELECT DISTINCT o.user_id, o.customer_profile_id
@@ -273,7 +290,7 @@ async function syncCustomers(
            WHERE o.customer_profile_id = ANY($1::text[])`,
           [restoredIds],
         );
-        const restoredWithAgents: RestoredProfileInfo[] = restored
+        const restoredWithAgents: RestoredProfileInfo[] = allRestored
           .filter((r) => r.internalId)
           .map((r) => ({
             ...r,
