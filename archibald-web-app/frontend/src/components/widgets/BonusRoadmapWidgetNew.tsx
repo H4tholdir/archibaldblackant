@@ -66,7 +66,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
 
       {/* BLOCCO 2 — Milestone ladder bonus progressivi */}
       <div style={{ marginBottom: "14px" }}>
-        <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🎁 Bonus progressivi</div>
+        <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🎁 Bonus progressivi (ogni {fmt(data.steps[0]?.threshold || 0)})</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "7px" }}>
           {data.steps.map((step, index) => {
             const isCompleted = step.status === "completed";
@@ -107,7 +107,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
 
       {/* BLOCCO 3 — Premi extra-budget */}
       <div style={{ marginBottom: "14px" }}>
-        <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🏆 Premi extra-budget</div>
+        <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🏆 Premi extra-budget (oltre target annuale)</div>
         {!data.extraBudget.visible ? (
           <div style={{ background: "#f5f5f5", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "12px", fontStyle: "italic" as const }}>
             Target annuale non ancora raggiunto — disponibile da {maskValue(data.extraBudget.nextStep, "money")}
