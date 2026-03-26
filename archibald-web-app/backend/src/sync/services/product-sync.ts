@@ -46,6 +46,8 @@ type ProductSyncDeps = {
   cleanupFile: (filePath: string) => Promise<void>;
   softDeleteGhosts: (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
   trackProductCreated: (productId: string, syncSessionId: string) => Promise<void>;
+  onProductsChanged?: (newProducts: number, ghostsDeleted: number) => Promise<void>;
+  onProductsMissingVat?: () => Promise<void>;
 };
 
 type ProductSyncResult = {
@@ -159,6 +161,14 @@ async function syncProducts(
     const syncedIds = products.map((p) => p.id);
     const syncedNames = new Map(products.map((p) => [p.name, p.id]));
     const ghostsDeleted = await softDeleteGhosts(syncedIds, syncedNames);
+
+    if ((newProducts > 0 || ghostsDeleted > 0) && deps.onProductsChanged) {
+      await deps.onProductsChanged(newProducts, ghostsDeleted).catch(() => {});
+    }
+
+    if (deps.onProductsMissingVat) {
+      await deps.onProductsMissingVat().catch(() => {});
+    }
 
     onProgress(100, 'Sincronizzazione prodotti completata');
 

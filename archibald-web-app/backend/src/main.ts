@@ -501,6 +501,24 @@ async function bootstrap(): Promise<void> {
     }
   }).catch((err) => logger.error('Startup reconciliation failed', { err }));
 
+  // Wraps a sync handler: if the result is a failure (not a user-requested stop), notifies admin.
+  const withAnomalyNotification = (handler: OperationHandler, syncName: string): OperationHandler =>
+    async (context, data, userId, onProgress) => {
+      const result = await handler(context, data, userId, onProgress);
+      const r = result as { success?: boolean; error?: string };
+      if (r.success === false && r.error && !r.error.includes('stop')) {
+        await createNotification(notificationDeps, {
+          target: 'admin',
+          type: 'sync_anomaly',
+          severity: 'error',
+          title: `Anomalia sincronizzazione: ${syncName}`,
+          body: r.error.slice(0, 300),
+          data: { syncName, error: r.error },
+        }).catch(() => {});
+      }
+      return result;
+    };
+
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
@@ -641,7 +659,7 @@ async function bootstrap(): Promise<void> {
         close: async () => bot.close(),
       };
     }),
-    'sync-prices': createSyncPricesHandler(
+    'sync-prices': withAnomalyNotification(createSyncPricesHandler(
       pool,
       async (pdfPath) => (await pricesParser.parsePDF(pdfPath)).map(adaptPrice),
       cleanupFile,
@@ -663,8 +681,18 @@ async function bootstrap(): Promise<void> {
         updateProductPrice: (id, price, vat, priceSource, vatSource) => updateProductPrice(pool, id, price, vat, priceSource, vatSource),
         recordPriceChange: (data) => recordPriceChange(pool, data).then(() => {}),
       }),
-    ),
-    'sync-customers': createSyncCustomersHandler(
+      async (pricesUpdated) => {
+        await createNotification(notificationDeps, {
+          target: 'all',
+          type: 'price_change',
+          severity: 'info',
+          title: 'Prezzi aggiornati',
+          body: `${pricesUpdated} prezzo/i aggiornati nel listino condiviso.`,
+          data: { pricesUpdated },
+        });
+      },
+    ), 'Prezzi'),
+    'sync-customers': withAnomalyNotification(createSyncCustomersHandler(
       pool,
       async (pdfPath) => {
         const result = await pdfParserService.parsePDF(pdfPath);
@@ -738,7 +766,7 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-    ),
+    ), 'Clienti'),
     'sync-orders': createSyncOrdersHandler(
       pool,
       async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),
@@ -787,7 +815,7 @@ async function bootstrap(): Promise<void> {
         },
       }),
     ),
-    'sync-products': createSyncProductsHandler(
+    'sync-products': withAnomalyNotification(createSyncProductsHandler(
       pool,
       async (pdfPath) => (await productsParser.parsePDF(pdfPath)).map(adaptProduct),
       cleanupFile,
@@ -819,7 +847,43 @@ async function bootstrap(): Promise<void> {
         return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
       },
       (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
-    ),
+      async (newProducts, ghostsDeleted) => {
+        const parts: string[] = [];
+        if (newProducts > 0) parts.push(`${newProducts} nuovo/i`);
+        if (ghostsDeleted > 0) parts.push(`${ghostsDeleted} rimosso/i dal catalogo`);
+        await createNotification(notificationDeps, {
+          target: 'all',
+          type: 'product_change',
+          severity: 'info',
+          title: 'Catalogo prodotti aggiornato',
+          body: `Variazioni catalogo: ${parts.join(', ')}.`,
+          data: { newProducts, ghostsDeleted },
+        });
+      },
+      async () => {
+        const { rows } = await pool.query<{ count: number }>(
+          `SELECT COUNT(*)::int AS count FROM shared.products WHERE vat IS NULL AND deleted_at IS NULL`,
+        );
+        const missingCount = rows[0]?.count ?? 0;
+        if (missingCount === 0) return;
+        // Dedup: skip if admin already has a recent (24h) notification of this type
+        const { rows: recentRows } = await pool.query<{ count: number }>(
+          `SELECT COUNT(*)::int AS count
+           FROM agents.notifications n JOIN agents.users u ON u.id = n.user_id
+           WHERE u.role = 'admin' AND n.type = 'product_missing_vat'
+             AND n.created_at > NOW() - INTERVAL '24 hours'`,
+        );
+        if ((recentRows[0]?.count ?? 0) > 0) return;
+        await createNotification(notificationDeps, {
+          target: 'admin',
+          type: 'product_missing_vat',
+          severity: 'warning',
+          title: 'Prodotti senza IVA',
+          body: `${missingCount} prodotto/i nel catalogo non ha un'aliquota IVA configurata.`,
+          data: { missingVatCount: missingCount },
+        });
+      },
+    ), 'Prodotti'),
     'sync-tracking': createSyncTrackingHandler(
       pool,
       async (type, orderNumber) => {

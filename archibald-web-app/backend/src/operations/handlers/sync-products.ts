@@ -17,11 +17,13 @@ function createSyncProductsHandler(
   createBot: (userId: string) => SyncProductsBot,
   softDeleteGhosts: SoftDeleteGhostsFn,
   trackProductCreated: TrackProductCreatedFn,
+  onProductsChanged?: (newProducts: number, ghostsDeleted: number) => Promise<void>,
+  onProductsMissingVat?: () => Promise<void>,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: ProductSyncResult = await syncProducts(
-      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated },
+      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat },
       onProgress,
       () => false,
     );

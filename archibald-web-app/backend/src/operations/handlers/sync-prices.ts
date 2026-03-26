@@ -16,11 +16,12 @@ function createSyncPricesHandler(
   cleanupFile: (filePath: string) => Promise<void>,
   createBot: (userId: string) => SyncPricesBot,
   matchPricesToProducts?: MatchPricesFn,
+  onPricesChanged?: (pricesUpdated: number) => Promise<void>,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: PriceSyncResult = await syncPrices(
-      { pool, downloadPdf: () => bot.downloadPricePdf(), parsePdf, cleanupFile },
+      { pool, downloadPdf: () => bot.downloadPricePdf(), parsePdf, cleanupFile, onPricesChanged },
       onProgress,
       () => false,
     );

@@ -25,6 +25,7 @@ type PriceSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedPrice[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  onPricesChanged?: (pricesUpdated: number) => Promise<void>;
 };
 
 type PriceSyncResult = {
@@ -122,6 +123,10 @@ async function syncPrices(
       } else {
         pricesSkipped++;
       }
+    }
+
+    if (pricesUpdated > 0 && deps.onPricesChanged) {
+      await deps.onPricesChanged(pricesUpdated).catch(() => {});
     }
 
     onProgress(100, 'Sincronizzazione prezzi completata');

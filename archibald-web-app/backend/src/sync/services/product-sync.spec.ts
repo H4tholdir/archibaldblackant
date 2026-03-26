@@ -92,6 +92,57 @@ describe('syncProducts', () => {
     expect(trackProductCreated).not.toHaveBeenCalled();
   });
 
+  test('calls onProductsChanged when new products are found', async () => {
+    const onProductsChanged = vi.fn().mockResolvedValue(undefined);
+    // pool default → rows: [] → both products are new
+    const deps = createMockDeps(undefined, { onProductsChanged });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsChanged).toHaveBeenCalledOnce();
+    expect(onProductsChanged).toHaveBeenCalledWith(2, 0);
+  });
+
+  test('calls onProductsChanged when ghosts are deleted', async () => {
+    const onProductsChanged = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    // Products already exist and are not new
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null }], rowCount: 1 });
+    const softDeleteGhosts = vi.fn().mockResolvedValue(3);
+    const deps = createMockDeps(pool, { softDeleteGhosts, onProductsChanged });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsChanged).toHaveBeenCalledOnce();
+    expect(onProductsChanged).toHaveBeenCalledWith(0, 3);
+  });
+
+  test('does not call onProductsChanged when nothing new or deleted', async () => {
+    const onProductsChanged = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null }], rowCount: 1 });
+    // softDeleteGhosts returns 0
+    const deps = createMockDeps(pool, { onProductsChanged });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsChanged).not.toHaveBeenCalled();
+  });
+
+  test('calls onProductsMissingVat after sync when provided', async () => {
+    const onProductsMissingVat = vi.fn().mockResolvedValue(undefined);
+    const deps = createMockDeps(undefined, { onProductsMissingVat });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsMissingVat).toHaveBeenCalledOnce();
+  });
+
+  test('does not call onProductsMissingVat when not provided', async () => {
+    const deps = createMockDeps();
+    await expect(syncProducts(deps, vi.fn(), () => false)).resolves.toMatchObject({ success: true });
+  });
+
   test('tracks restored soft-deleted product as created and clears deleted_at', async () => {
     const trackProductCreated = vi.fn().mockResolvedValue(undefined);
     const pool = createMockPool();
