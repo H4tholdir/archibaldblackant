@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { syncCustomers, type CustomerSyncDeps, type CustomerSyncResult } from './customer-sync';
+import { syncCustomers, type CustomerSyncDeps, type CustomerSyncResult, type DeletedProfileInfo } from './customer-sync';
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
@@ -165,5 +165,99 @@ describe('syncCustomers', () => {
     const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
       .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.pending_orders'));
     expect(updateCalls).toHaveLength(0);
+  });
+});
+
+describe('syncCustomers - onDeletedCustomers', () => {
+  function createPool() {
+    return {
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    } as unknown as DbPool;
+  }
+
+  const TWO_PARSED = [
+    { customerProfile: 'CUST-001', name: 'Acme Corp' },
+    { customerProfile: 'CUST-002', name: 'Beta Ltd' },
+  ];
+
+  test('calls onDeletedCustomers with profiles that have orders', async () => {
+    const pool = createPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-001
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-001
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-002
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-002
+      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
+      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-1', customer_profile_id: 'INT-OLD' }], rowCount: 1 })  // SELECT DISTINCT order users
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // DELETE
+
+    const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
+    const deps: CustomerSyncDeps = {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
+      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      onDeletedCustomers,
+    };
+
+    await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    expect(onDeletedCustomers).toHaveBeenCalledOnce();
+    expect(onDeletedCustomers).toHaveBeenCalledWith([
+      { profile: 'CUST-OLD', internalId: 'INT-OLD', name: 'Old Corp' },
+    ]);
+  });
+
+  test('does not call onDeletedCustomers when deleted customers have no orders', async () => {
+    const pool = createPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT DISTINCT order users → none
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // DELETE
+
+    const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
+    const deps: CustomerSyncDeps = {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
+      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      onDeletedCustomers,
+    };
+
+    await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    expect(onDeletedCustomers).not.toHaveBeenCalled();
+  });
+
+  test('does not call onDeletedCustomers when not defined in deps', async () => {
+    const pool = createPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // DELETE (no SELECT DISTINCT query)
+
+    const deps: CustomerSyncDeps = {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
+      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      // onDeletedCustomers not defined
+    };
+
+    await expect(syncCustomers(deps, 'user-1', vi.fn(), () => false)).resolves.toMatchObject({ success: true });
+    // The SELECT DISTINCT query must NOT be called
+    const orderQuery = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('order_records')
+    );
+    expect(orderQuery).toBeUndefined();
   });
 });

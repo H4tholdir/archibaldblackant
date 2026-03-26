@@ -32,11 +32,18 @@ type ParsedCustomer = {
   internalId?: string;
 };
 
+type DeletedProfileInfo = {
+  profile: string;
+  internalId: string;
+  name: string;
+};
+
 type CustomerSyncDeps = {
   pool: DbPool;
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedCustomer[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  onDeletedCustomers?: (infos: DeletedProfileInfo[]) => Promise<void>;
 };
 
 type CustomerSyncResult = {
@@ -158,8 +165,8 @@ async function syncCustomers(
     let deletedCustomers = 0;
     if (parsedIds.length > 0) {
       const placeholders = parsedIds.map((_, i) => `$${i + 2}`).join(', ');
-      const { rows: toDelete } = await pool.query<{ customer_profile: string }>(
-        `SELECT customer_profile FROM agents.customers WHERE user_id = $1 AND customer_profile NOT IN (${placeholders})`,
+      const { rows: toDelete } = await pool.query<{ customer_profile: string; internal_id: string | null; name: string }>(
+        `SELECT customer_profile, internal_id, name FROM agents.customers WHERE user_id = $1 AND customer_profile NOT IN (${placeholders})`,
         [userId, ...parsedIds],
       );
       if (toDelete.length > 0) {
@@ -182,6 +189,37 @@ async function syncCustomers(
                 `UPDATE agents.pending_orders SET customer_id = $1 WHERE customer_id = $2 AND user_id = $3`,
                 [realRow.customer_profile, tempProfile, userId],
               );
+            }
+          }
+        }
+
+        if (deps.onDeletedCustomers) {
+          const internalIds = toDelete
+            .map((r) => r.internal_id)
+            .filter((id): id is string => id !== null);
+
+          if (internalIds.length > 0) {
+            const placeholderIds = internalIds.map((_, i) => `$${i + 1}`).join(', ');
+            const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
+              `SELECT DISTINCT o.user_id, o.customer_profile_id
+               FROM agents.order_records o
+               WHERE o.customer_profile_id = ANY(ARRAY[${placeholderIds}])`,
+              internalIds,
+            );
+
+            if (orderUsers.length > 0) {
+              const profilesWithOrders = toDelete.filter((r) =>
+                r.internal_id !== null && orderUsers.some((ou) => ou.customer_profile_id === r.internal_id),
+              );
+              if (profilesWithOrders.length > 0) {
+                await deps.onDeletedCustomers(
+                  profilesWithOrders.map((r) => ({
+                    profile: r.customer_profile,
+                    internalId: r.internal_id!,
+                    name: r.name,
+                  })),
+                );
+              }
             }
           }
         }
@@ -243,4 +281,4 @@ function computeSimpleHash(customer: ParsedCustomer): string {
   return require('crypto').createHash('sha256').update(data).digest('hex');
 }
 
-export { syncCustomers, SyncStoppedError, type CustomerSyncDeps, type CustomerSyncResult, type ParsedCustomer };
+export { syncCustomers, SyncStoppedError, type CustomerSyncDeps, type CustomerSyncResult, type ParsedCustomer, type DeletedProfileInfo };
