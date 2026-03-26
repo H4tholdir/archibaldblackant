@@ -8,6 +8,10 @@ import {
 } from '../../db/repositories/orders';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
+import {
+  logTrackingException,
+  resolveOpenExceptions,
+} from '../../db/repositories/tracking-exceptions';
 
 type TrackingSyncResult = {
   success: boolean;
@@ -19,7 +23,7 @@ type TrackingSyncResult = {
   error?: string;
 };
 
-type TrackingEventType = 'delivered' | 'exception';
+type TrackingEventType = 'delivered' | 'exception' | 'held' | 'returning' | 'canceled';
 
 export function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): string {
   if (statusBarCD === 'DL') return 'delivered';
@@ -114,9 +118,38 @@ async function syncTracking(
           location: result.lastScanLocation ?? '-',
         });
 
-        if (onTrackingEvent && (status === 'delivered' || status === 'exception')) {
+        // Logga eccezione se anomalia, dedup su (tracking_number, occurred_at)
+        if (['exception', 'held', 'returning', 'canceled'].includes(status)) {
+          const exceptionStatusCDs: Record<string, string[]> = {
+            exception: ['DE', 'SE', 'DY', 'DD', 'CD'],
+            held:      ['HL', 'HP'],
+            returning: ['RS', 'RP'],
+            canceled:  ['CA'],
+          };
+          const codes = exceptionStatusCDs[status] ?? [];
+          const latestEvent = (result.scanEvents ?? [])
+            .find((ev) => codes.includes(ev.statusCD) || (status === 'exception' && ev.exception));
+          if (latestEvent) {
+            await logTrackingException(pool, {
+              userId,
+              orderNumber,
+              trackingNumber: result.trackingNumber,
+              exceptionCode: latestEvent.exceptionCode,
+              exceptionDescription: latestEvent.exceptionDescription || latestEvent.status,
+              exceptionType: status as 'exception' | 'held' | 'returning' | 'canceled',
+              occurredAt: `${latestEvent.date}T${latestEvent.time}`,
+            });
+          }
+        }
+
+        // Risolvi eccezioni aperte quando l'ordine viene consegnato
+        if (status === 'delivered') {
+          await resolveOpenExceptions(pool, orderNumber, 'delivered');
+        }
+
+        if (onTrackingEvent && (['delivered', 'exception', 'held', 'returning', 'canceled'] as string[]).includes(status)) {
           try {
-            await onTrackingEvent(status, orderNumber);
+            await onTrackingEvent(status as TrackingEventType, orderNumber);
           } catch (err) {
             logger.error('onTrackingEvent callback failed', { err });
           }
