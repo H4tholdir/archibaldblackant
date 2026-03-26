@@ -5,12 +5,13 @@ import { formatRelativeTime } from '../components/NotificationItem';
 import { getNotificationRoute } from '../services/notifications.service';
 import type { Notification } from '../services/notifications.service';
 
-type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered';
+type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients';
 
-function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'other' {
+function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
   if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
+  if (type === 'customer_inactive') return 'clients';
   return 'other';
 }
 
@@ -58,6 +59,14 @@ function getTableMeta(n: Notification): TableMeta {
         ordine: '—', cliente: 'Sistema',
         dettaglio: n.body, codice: '',
       };
+    case 'customer_inactive':
+      return {
+        tag: '👤 Esclusività', tagColor: '#f59e0b', tagBg: 'rgba(245,158,11,0.15)',
+        ordine: '—',
+        cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
     default:
       return {
         tag: n.title, tagColor: '#aaa', tagBg: 'rgba(255,255,255,0.1)',
@@ -94,12 +103,14 @@ function NotificationsPage() {
   const fedexUnread    = notifications.filter(n => getCategory(n.type) === 'fedex'     && !n.readAt).length;
   const syncUnread     = notifications.filter(n => getCategory(n.type) === 'sync'      && !n.readAt).length;
   const delivUnread    = notifications.filter(n => getCategory(n.type) === 'delivered' && !n.readAt).length;
+  const clientsUnread  = notifications.filter(n => getCategory(n.type) === 'clients'   && !n.readAt).length;
 
   const tabsConfig: Array<{ key: CategoryTab; label: string; count: number; color: string; bg: string }> = [
-    { key: 'all',       label: 'Tutte',              count: unreadCount, color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
-    { key: 'fedex',     label: '📦 Eccezioni FedEx', count: fedexUnread, color: '#cc0066', bg: 'rgba(204,0,102,0.15)' },
-    { key: 'sync',      label: '⚠️ Anomalie Sync',   count: syncUnread,  color: '#e65100', bg: 'rgba(230,81,0,0.15)' },
-    { key: 'delivered', label: '✅ Consegnate',       count: delivUnread, color: '#2e7d32', bg: 'rgba(46,125,50,0.15)' },
+    { key: 'all',       label: 'Tutte',              count: unreadCount,   color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
+    { key: 'fedex',     label: '📦 Eccezioni FedEx', count: fedexUnread,   color: '#cc0066', bg: 'rgba(204,0,102,0.15)' },
+    { key: 'sync',      label: '⚠️ Anomalie Sync',   count: syncUnread,    color: '#e65100', bg: 'rgba(230,81,0,0.15)' },
+    { key: 'delivered', label: '✅ Consegnate',       count: delivUnread,   color: '#2e7d32', bg: 'rgba(46,125,50,0.15)' },
+    { key: 'clients',   label: '👤 Clienti',          count: clientsUnread, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   ];
 
   const visible = activeTab === 'all'

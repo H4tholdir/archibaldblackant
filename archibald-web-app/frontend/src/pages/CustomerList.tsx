@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CustomerCard } from "../components/CustomerCard";
 import { CustomerCreateModal } from "../components/CustomerCreateModal";
 import { customerService } from "../services/customers.service";
@@ -22,6 +23,9 @@ interface CustomerListResponse {
 
 export function CustomerList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightProfile = searchParams.get('highlight');
+  const searchParam = searchParams.get('search');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [retryingProfiles, setRetryingProfiles] = useState<Set<string>>(new Set());
@@ -31,7 +35,7 @@ export function CustomerList() {
     null,
   );
   const [filters, setFilters] = useState<CustomerFilters>({
-    search: "",
+    search: searchParam ?? "",
     city: "",
     customerType: "",
   });
@@ -110,6 +114,27 @@ export function CustomerList() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  // Scroll+flash al cliente evidenziato da notifica (?highlight=<customerProfile>)
+  useEffect(() => {
+    if (!highlightProfile || customers.length === 0) return;
+    const target = customers.find((c) => c.customerProfile === highlightProfile);
+    if (!target) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('highlight');
+      return next;
+    }, { replace: true });
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-customer-profile="${highlightProfile}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'box-shadow 0.3s';
+        el.style.boxShadow = '0 0 0 3px #f59e0b';
+        setTimeout(() => { el.style.boxShadow = ''; }, 2000);
+      }
+    }, 300);
+  }, [highlightProfile, customers, setSearchParams]);
 
   // Lazy load photos for visible customers
   useEffect(() => {
@@ -503,18 +528,19 @@ export function CustomerList() {
                 expandedCustomerId === customer.customerProfile;
 
               return (
-                <CustomerCard
-                  key={customer.customerProfile}
-                  customer={customer}
-                  expanded={isExpanded}
-                  onToggle={() => handleToggle(customer.customerProfile)}
-                  onEdit={handleEdit}
-                  onRetry={handleRetry}
-                  isRetrying={retryingProfiles.has(customer.customerProfile)}
-                  photoUrl={customerPhotos[customer.customerProfile]}
-                  onPhotoUpload={handlePhotoUpload}
-                  onPhotoDelete={handlePhotoDelete}
-                />
+                <div key={customer.customerProfile} data-customer-profile={customer.customerProfile}>
+                  <CustomerCard
+                    customer={customer}
+                    expanded={isExpanded}
+                    onToggle={() => handleToggle(customer.customerProfile)}
+                    onEdit={handleEdit}
+                    onRetry={handleRetry}
+                    isRetrying={retryingProfiles.has(customer.customerProfile)}
+                    photoUrl={customerPhotos[customer.customerProfile]}
+                    onPhotoUpload={handlePhotoUpload}
+                    onPhotoDelete={handlePhotoDelete}
+                  />
+                </div>
               );
             })}
           </div>

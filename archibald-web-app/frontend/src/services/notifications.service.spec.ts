@@ -37,9 +37,17 @@ describe('getNotificationRoute', () => {
       .toBe('/orders');
   });
 
+  test('customer_inactive con customerProfile e customerName → /customers?highlight=...&search=...', () => {
+    expect(getNotificationRoute(makeNotif('customer_inactive', { customerProfile: '55.261', customerName: 'Acme Srl' })))
+      .toBe('/customers?highlight=55.261&search=Acme%20Srl');
+  });
+
+  test('customer_inactive senza data → /customers', () => {
+    expect(getNotificationRoute(makeNotif('customer_inactive'))).toBe('/customers');
+  });
+
   test('altri tipi non fedex non sono influenzati', () => {
     expect(getNotificationRoute(makeNotif('order_expiring'))).toBe('/orders');
-    expect(getNotificationRoute(makeNotif('customer_inactive'))).toBe('/customers');
     expect(getNotificationRoute(makeNotif('price_change'))).toBe('/prezzi-variazioni');
   });
 });
