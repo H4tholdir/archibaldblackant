@@ -147,7 +147,8 @@ async function syncTracking(
           await resolveOpenExceptions(pool, orderNumber, 'delivered');
         }
 
-        if (onTrackingEvent && (['delivered', 'exception', 'held', 'returning', 'canceled'] as string[]).includes(status)) {
+        const trackingEventTypes: readonly TrackingEventType[] = ['delivered', 'exception', 'held', 'returning', 'canceled'];
+        if (onTrackingEvent && trackingEventTypes.includes(status as TrackingEventType)) {
           try {
             await onTrackingEvent(status as TrackingEventType, orderNumber);
           } catch (err) {
