@@ -95,6 +95,14 @@ describe('getNotifications', () => {
     await getNotifications(pool, TEST_USER_ID, 'all', 20, 0);
     expect(pool.queryCalls[0].text).not.toContain('read_at');
   });
+
+  test('passes userId, limit, and offset as bound parameters', async () => {
+    const pool = createMockPool([], 0);
+    const limit = 20;
+    const offset = 40;
+    await getNotifications(pool, TEST_USER_ID, 'all', limit, offset);
+    expect(pool.queryCalls[0].params).toEqual([TEST_USER_ID, limit, offset]);
+  });
 });
 
 describe('markRead', () => {
