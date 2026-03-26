@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
+import type React from "react";
 import {
   getSpecialBonuses, createSpecialBonus, deleteSpecialBonus,
   getBonusConditions, createBonusCondition, achieveBonusCondition, deleteBonusCondition,
 } from "../services/bonuses.service";
 import type { SpecialBonus, BonusCondition } from "../services/bonuses.service";
+
+const inputStyle: React.CSSProperties = { border: "1px solid #ddd", borderRadius: "6px", padding: "6px 10px", fontSize: "13px", outline: "none" };
+const btnStyle: React.CSSProperties = { background: "#1565c0", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 14px", fontSize: "12px", cursor: "pointer", fontWeight: 600 };
+const deleteBtnStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#e53935" };
 
 export function BonusesTab() {
   const [specialBonuses, setSpecialBonuses] = useState<SpecialBonus[]>([]);
@@ -12,13 +17,11 @@ export function BonusesTab() {
   const [loadingConditions, setLoadingConditions] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state — special bonus
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newDate, setNewDate] = useState("");
   const [addingSpecial, setAddingSpecial] = useState(false);
 
-  // Form state — condition
   const [condTitle, setCondTitle] = useState("");
   const [condReward, setCondReward] = useState("");
   const [condType, setCondType] = useState<"manual" | "budget">("manual");
@@ -102,10 +105,6 @@ export function BonusesTab() {
     }
   }
 
-  const inputStyle: React.CSSProperties = { border: "1px solid #ddd", borderRadius: "6px", padding: "6px 10px", fontSize: "13px", outline: "none" };
-  const btnStyle: React.CSSProperties = { background: "#1565c0", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 14px", fontSize: "12px", cursor: "pointer", fontWeight: 600 };
-  const deleteBtnStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#e53935" };
-
   return (
     <div>
       {error && (
@@ -114,7 +113,6 @@ export function BonusesTab() {
         </div>
       )}
 
-      {/* Sezione 1: Premi speciali */}
       <div style={{ fontWeight: 700, fontSize: "11px", color: "#888", textTransform: "uppercase", marginBottom: "8px" }}>Premi speciali ricevuti</div>
       <div style={{ border: "1px solid #e0e0e0", borderRadius: "8px", overflow: "hidden", marginBottom: "24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 120px 40px", background: "#f5f5f5", padding: "6px 10px", fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase", gap: "8px" }}>
@@ -136,7 +134,6 @@ export function BonusesTab() {
           ))
         )}
 
-        {/* Riga aggiunta */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 120px 40px", padding: "8px 10px", gap: "8px", borderTop: "1px solid #eee", background: "#fafafa", alignItems: "center" }}>
           <input style={inputStyle} placeholder="Es. Premio fiera Bologna…" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
           <input style={{ ...inputStyle, textAlign: "right" }} placeholder="€ 0" type="number" min="0" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
@@ -145,7 +142,6 @@ export function BonusesTab() {
         </div>
       </div>
 
-      {/* Sezione 2: Condizioni obiettivo */}
       <div style={{ fontWeight: 700, fontSize: "11px", color: "#888", textTransform: "uppercase", marginBottom: "8px" }}>Condizioni obiettivo</div>
       <div style={{ border: "1px solid #e0e0e0", borderRadius: "8px", overflow: "hidden", marginBottom: "24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 100px 80px 40px", background: "#f5f5f5", padding: "6px 10px", fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase", gap: "8px" }}>
@@ -185,7 +181,6 @@ export function BonusesTab() {
           ))
         )}
 
-        {/* Riga aggiunta condizione */}
         <div style={{ padding: "10px", borderTop: "1px solid #eee", background: "#fafafa" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px", gap: "8px", marginBottom: "6px" }}>
             <input style={inputStyle} placeholder="Titolo condizione…" value={condTitle} onChange={(e) => setCondTitle(e.target.value)} />
