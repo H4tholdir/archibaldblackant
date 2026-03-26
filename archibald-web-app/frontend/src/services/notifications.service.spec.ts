@@ -46,8 +46,16 @@ describe('getNotificationRoute', () => {
     expect(getNotificationRoute(makeNotif('customer_inactive'))).toBe('/customers');
   });
 
-  test('altri tipi non fedex non sono influenzati', () => {
+  test('order_expiring con orderNumber → /orders?highlight=ORD-003', () => {
+    expect(getNotificationRoute(makeNotif('order_expiring', { orderNumber: 'ORD-003' })))
+      .toBe('/orders?highlight=ORD-003');
+  });
+
+  test('order_expiring senza orderNumber → /orders', () => {
     expect(getNotificationRoute(makeNotif('order_expiring'))).toBe('/orders');
+  });
+
+  test('altri tipi non fedex non sono influenzati', () => {
     expect(getNotificationRoute(makeNotif('price_change'))).toBe('/prezzi-variazioni');
   });
 });

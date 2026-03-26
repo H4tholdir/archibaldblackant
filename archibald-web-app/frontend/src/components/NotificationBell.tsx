@@ -6,13 +6,14 @@ import { getNotificationRoute } from '../services/notifications.service';
 import type { Notification } from '../services/notifications.service';
 
 type DropdownPos = { top: number; right: number };
-type TabKey = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients';
+type TabKey = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments';
 
-function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'other' {
+function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
   if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
   if (type === 'customer_inactive') return 'clients';
+  if (type === 'order_expiring') return 'payments';
   return 'other';
 }
 
@@ -76,6 +77,16 @@ function getRowInfo(n: Notification): RowInfo {
         description: n.body,
         tag: 'Esclusività', tagColor: '#f59e0b', tagBg: 'rgba(245,158,11,0.18)',
       };
+    case 'order_expiring': {
+      const daysPastDue = data.daysPastDue as number | undefined;
+      return {
+        icon: '💰', iconBg: 'rgba(239,68,68,0.18)',
+        title: (data.orderNumber as string) ?? n.title,
+        subtitle: data.customerName as string | undefined,
+        description: daysPastDue != null ? `${daysPastDue} gg fuori scadenza` : n.body,
+        tag: 'Scaduto', tagColor: '#f87171', tagBg: 'rgba(239,68,68,0.18)',
+      };
+    }
     default:
       return {
         icon: '🔔', iconBg: 'rgba(255,255,255,0.08)',
@@ -117,17 +128,19 @@ function NotificationBell() {
     setOpen((v) => !v);
   };
 
-  const fedexCount   = notifications.filter(n => getCategory(n.type) === 'fedex'     && !n.readAt).length;
-  const syncCount    = notifications.filter(n => getCategory(n.type) === 'sync'      && !n.readAt).length;
-  const delivCount   = notifications.filter(n => getCategory(n.type) === 'delivered' && !n.readAt).length;
-  const clientsCount = notifications.filter(n => getCategory(n.type) === 'clients'   && !n.readAt).length;
+  const fedexCount    = notifications.filter(n => getCategory(n.type) === 'fedex'     && !n.readAt).length;
+  const syncCount     = notifications.filter(n => getCategory(n.type) === 'sync'      && !n.readAt).length;
+  const delivCount    = notifications.filter(n => getCategory(n.type) === 'delivered' && !n.readAt).length;
+  const clientsCount  = notifications.filter(n => getCategory(n.type) === 'clients'   && !n.readAt).length;
+  const paymentsCount = notifications.filter(n => getCategory(n.type) === 'payments'  && !n.readAt).length;
 
   const tabsConfig: Array<{ key: TabKey; label: string; count: number; color: string; bg: string }> = [
-    { key: 'all',       label: 'Tutte', count: unreadCount,  color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
-    { key: 'fedex',     label: '📦',    count: fedexCount,   color: '#ff6699', bg: 'rgba(204,0,102,0.25)' },
-    { key: 'sync',      label: '⚠️',    count: syncCount,    color: '#ffa040', bg: 'rgba(230,81,0,0.25)' },
-    { key: 'delivered', label: '✅',    count: delivCount,   color: '#66bb6a', bg: 'rgba(46,125,50,0.25)' },
-    { key: 'clients',   label: '👤',    count: clientsCount, color: '#f59e0b', bg: 'rgba(245,158,11,0.25)' },
+    { key: 'all',      label: 'Tutte', count: unreadCount,   color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
+    { key: 'fedex',    label: '📦',    count: fedexCount,    color: '#ff6699', bg: 'rgba(204,0,102,0.25)' },
+    { key: 'sync',     label: '⚠️',    count: syncCount,     color: '#ffa040', bg: 'rgba(230,81,0,0.25)' },
+    { key: 'delivered',label: '✅',    count: delivCount,    color: '#66bb6a', bg: 'rgba(46,125,50,0.25)' },
+    { key: 'clients',  label: '👤',    count: clientsCount,  color: '#f59e0b', bg: 'rgba(245,158,11,0.25)' },
+    { key: 'payments', label: '💰',    count: paymentsCount, color: '#f87171', bg: 'rgba(239,68,68,0.25)' },
   ];
 
   const filtered = (activeTab === 'all'

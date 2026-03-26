@@ -5,13 +5,14 @@ import { formatRelativeTime } from '../components/NotificationItem';
 import { getNotificationRoute } from '../services/notifications.service';
 import type { Notification } from '../services/notifications.service';
 
-type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients';
+type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments';
 
-function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'other' {
+function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
   if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
   if (type === 'customer_inactive') return 'clients';
+  if (type === 'order_expiring') return 'payments';
   return 'other';
 }
 
@@ -67,6 +68,16 @@ function getTableMeta(n: Notification): TableMeta {
         dettaglio: n.body,
         codice: '',
       };
+    case 'order_expiring': {
+      const daysPastDue = data.daysPastDue as number | undefined;
+      return {
+        tag: '💰 Scaduto', tagColor: '#ef4444', tagBg: 'rgba(239,68,68,0.15)',
+        ordine: orderNumber ?? '—',
+        cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: daysPastDue != null ? `${daysPastDue}gg` : '',
+      };
+    }
     default:
       return {
         tag: n.title, tagColor: '#aaa', tagBg: 'rgba(255,255,255,0.1)',
@@ -104,13 +115,15 @@ function NotificationsPage() {
   const syncUnread     = notifications.filter(n => getCategory(n.type) === 'sync'      && !n.readAt).length;
   const delivUnread    = notifications.filter(n => getCategory(n.type) === 'delivered' && !n.readAt).length;
   const clientsUnread  = notifications.filter(n => getCategory(n.type) === 'clients'   && !n.readAt).length;
+  const paymentsUnread = notifications.filter(n => getCategory(n.type) === 'payments'  && !n.readAt).length;
 
   const tabsConfig: Array<{ key: CategoryTab; label: string; count: number; color: string; bg: string }> = [
-    { key: 'all',       label: 'Tutte',              count: unreadCount,   color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
-    { key: 'fedex',     label: '📦 Eccezioni FedEx', count: fedexUnread,   color: '#cc0066', bg: 'rgba(204,0,102,0.15)' },
-    { key: 'sync',      label: '⚠️ Anomalie Sync',   count: syncUnread,    color: '#e65100', bg: 'rgba(230,81,0,0.15)' },
-    { key: 'delivered', label: '✅ Consegnate',       count: delivUnread,   color: '#2e7d32', bg: 'rgba(46,125,50,0.15)' },
-    { key: 'clients',   label: '👤 Clienti',          count: clientsUnread, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+    { key: 'all',      label: 'Tutte',              count: unreadCount,    color: '#fff',    bg: 'rgba(255,255,255,0.15)' },
+    { key: 'fedex',    label: '📦 Eccezioni FedEx', count: fedexUnread,    color: '#cc0066', bg: 'rgba(204,0,102,0.15)' },
+    { key: 'sync',     label: '⚠️ Anomalie Sync',   count: syncUnread,     color: '#e65100', bg: 'rgba(230,81,0,0.15)' },
+    { key: 'delivered',label: '✅ Consegnate',       count: delivUnread,    color: '#2e7d32', bg: 'rgba(46,125,50,0.15)' },
+    { key: 'clients',  label: '👤 Clienti',          count: clientsUnread,  color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+    { key: 'payments', label: '💰 Pagamenti',        count: paymentsUnread, color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
   ];
 
   const visible = activeTab === 'all'

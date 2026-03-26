@@ -77,7 +77,9 @@ function getNotificationRoute(notification: Notification): string {
     case 'sync_anomaly':
       return '/admin';
     case 'order_expiring':
-      return '/orders';
+      return notification.data?.orderNumber
+        ? `/orders?highlight=${String(notification.data.orderNumber)}`
+        : '/orders';
     case 'budget_milestone':
       return '/revenue-report';
     default:
