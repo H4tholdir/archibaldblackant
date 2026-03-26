@@ -199,6 +199,8 @@ export interface Order {
     scanLocation: string;
     delivered: boolean;
     exception: boolean;
+    exceptionCode: string;
+    exceptionDescription?: string;
   }>;
 
   arcaKtSyncedAt?: string;

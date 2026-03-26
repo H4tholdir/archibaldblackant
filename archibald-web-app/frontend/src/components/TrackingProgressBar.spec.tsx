@@ -14,6 +14,7 @@ function makeScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
     scanLocation: "VERONA IT",
     delivered: false,
     exception: false,
+    exceptionCode: "",
     ...overrides,
   };
 }
@@ -142,6 +143,86 @@ describe("getTrackingInfo", () => {
 
     expect(info.rightInfo).toEqual("arr. oggi");
     expect(info.dotsCompleted).toEqual(4);
+  });
+});
+
+describe("getTrackingInfo — held/returning/canceled states and exceptionCode", () => {
+  test("status held → label contiene giacenza", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({
+        date: "2026-03-26",
+        time: "09:00:00",
+        gmtOffset: "",
+        status: "Held at location",
+        statusCD: "HL",
+        scanLocation: "NAPOLI, IT",
+        delivered: false,
+        exception: false,
+        exceptionCode: "",
+      }),
+    ];
+    const info = getTrackingInfo(makeOrder({ trackingStatus: "held", trackingEvents: events }));
+    expect(info.label.toLowerCase()).toContain("giacenza");
+  });
+
+  test("status returning → label contiene ritorno", () => {
+    const events: ScanEvent[] = [
+      makeScanEvent({
+        date: "2026-03-26",
+        time: "10:00:00",
+        gmtOffset: "",
+        status: "Return in progress",
+        statusCD: "RS",
+        scanLocation: "MILANO, IT",
+        delivered: false,
+        exception: false,
+        exceptionCode: "",
+      }),
+    ];
+    const info = getTrackingInfo(makeOrder({ trackingStatus: "returning", trackingEvents: events }));
+    expect(info.label.toLowerCase()).toContain("ritorno");
+  });
+
+  test("exceptionCode viene prefissato nella exceptionReason", () => {
+    const exceptionCode = "DEX08";
+    const exceptionDescription = "Recipient not in";
+    const events: ScanEvent[] = [
+      makeScanEvent({
+        date: "2026-03-25",
+        time: "10:14:00",
+        gmtOffset: "",
+        status: "Delivery exception",
+        statusCD: "DE",
+        scanLocation: "NAPOLI, IT",
+        delivered: false,
+        exception: true,
+        exceptionCode,
+        exceptionDescription,
+      }),
+    ];
+    const info = getTrackingInfo(makeOrder({ trackingStatus: "exception", trackingEvents: events }));
+    expect(info.exceptionReason).toContain(exceptionCode);
+    expect(info.exceptionReason).toContain(exceptionDescription);
+  });
+
+  test("exceptionCode vuoto → mostra solo exceptionDescription", () => {
+    const exceptionDescription = "Customer not available";
+    const events: ScanEvent[] = [
+      makeScanEvent({
+        date: "2026-03-25",
+        time: "10:14:00",
+        gmtOffset: "",
+        status: "Delivery exception",
+        statusCD: "DE",
+        scanLocation: "NAPOLI, IT",
+        delivered: false,
+        exception: true,
+        exceptionCode: "",
+        exceptionDescription,
+      }),
+    ];
+    const info = getTrackingInfo(makeOrder({ trackingStatus: "exception", trackingEvents: events }));
+    expect(info.exceptionReason).toBe(exceptionDescription);
   });
 });
 
