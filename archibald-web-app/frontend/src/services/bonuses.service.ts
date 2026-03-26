@@ -106,5 +106,5 @@ async function deleteBonusCondition(id: number): Promise<void> {
 export {
   getSpecialBonuses, createSpecialBonus, deleteSpecialBonus,
   getBonusConditions, createBonusCondition, achieveBonusCondition, deleteBonusCondition,
-  type SpecialBonus, type BonusCondition, type CreateSpecialBonusParams, type CreateBonusConditionParams,
 };
+export type { SpecialBonus, BonusCondition, CreateSpecialBonusParams, CreateBonusConditionParams };
