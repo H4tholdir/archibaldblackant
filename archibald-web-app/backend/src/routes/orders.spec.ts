@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createOrdersRouter, type OrdersRouterDeps } from './orders';
 import type { WarehousePickupOrder } from '../db/repositories/orders';
+import type { Customer } from '../db/repositories/customers';
 
 const mockOrder = {
   id: 'ORD-001',
@@ -120,6 +121,56 @@ const mockLastSale = {
   unitPrice: 10.00,
   lineAmount: 50.00,
   date: '2026-01-15',
+};
+
+const mockCompleteCustomer: Customer = {
+  customerProfile: 'CUST-001',
+  userId: 'user-1',
+  internalId: null,
+  name: 'Rossi Mario',
+  vatNumber: 'IT12345678901',
+  fiscalCode: null,
+  sdi: 'AAABBB1',
+  pec: null,
+  phone: null,
+  mobile: null,
+  email: null,
+  url: null,
+  attentionTo: null,
+  street: 'Via Roma 1',
+  logisticsAddress: null,
+  postalCode: '47921',
+  city: 'Rimini',
+  customerType: null,
+  type: null,
+  deliveryTerms: null,
+  description: null,
+  lastOrderDate: null,
+  actualOrderCount: null,
+  actualSales: null,
+  previousOrderCount1: null,
+  previousSales1: null,
+  previousOrderCount2: null,
+  previousSales2: null,
+  externalAccountNumber: null,
+  ourAccountNumber: null,
+  hash: 'abc',
+  lastSync: 1708300000,
+  createdAt: null,
+  updatedAt: null,
+  botStatus: null,
+  archibaldName: null,
+  vatValidatedAt: '2026-01-10T00:00:00Z',
+  photo: null,
+  sector: null,
+  priceGroup: null,
+  lineDiscount: null,
+  paymentTerms: null,
+  notes: null,
+  nameAlias: null,
+  county: null,
+  state: null,
+  country: null,
 };
 
 function createMockDeps(): OrdersRouterDeps {
@@ -319,6 +370,51 @@ describe('createOrdersRouter', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('non inviabile');
       expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    test('returns 400 with customer_incomplete error when customer is missing required fields', async () => {
+      const incompleteCustomer: Customer = { ...mockCompleteCustomer, vatNumber: null, vatValidatedAt: null };
+      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerProfileId: 'CUST-001' };
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
+      deps.getCustomerByProfile = vi.fn().mockResolvedValue(incompleteCustomer);
+      deps.isCustomerComplete = vi.fn().mockReturnValue(false);
+
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'customer_incomplete',
+        message: expect.stringContaining('Scheda cliente incompleta'),
+        missingFields: expect.arrayContaining(['vatNumber', 'vatValidatedAt']),
+        customerProfile: 'CUST-001',
+      });
+      expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    test('proceeds with enqueue when customer is complete', async () => {
+      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerProfileId: 'CUST-001' };
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
+      deps.getCustomerByProfile = vi.fn().mockResolvedValue(mockCompleteCustomer);
+      deps.isCustomerComplete = vi.fn().mockReturnValue(true);
+
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+    });
+
+    test('proceeds with enqueue when getCustomerByProfile dep is not provided (graceful degradation)', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'creato', sentToMilanoAt: null });
+      deps.getCustomerByProfile = undefined;
+      deps.isCustomerComplete = undefined;
+
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.queue.enqueue).toHaveBeenCalled();
     });
   });
 

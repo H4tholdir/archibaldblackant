@@ -48,6 +48,7 @@ type CustomersRouterDeps = {
   smartCustomerSync: (userId: string) => Promise<void>;
   resumeOtherSyncs: () => void;
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
+  getIncompleteCustomersCount?: (userId: string) => Promise<number>;
 };
 
 const createCustomerSchema = z.object({
@@ -178,6 +179,20 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     } catch (error) {
       logger.error('Error counting customers', { error });
       res.status(500).json({ success: false, error: 'Errore nel conteggio clienti' });
+    }
+  });
+
+  router.get('/stats', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const [total, incomplete] = await Promise.all([
+        getCustomerCount(userId),
+        deps.getIncompleteCustomersCount?.(userId) ?? Promise.resolve(0),
+      ]);
+      res.json({ success: true, total, incomplete });
+    } catch (err) {
+      logger.error('GET /customers/stats error', { error: String(err) });
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   });
 
