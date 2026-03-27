@@ -48,6 +48,11 @@ export function CustomerDetailPage() {
   const [addrSaving, setAddrSaving] = useState(false);
   const [addrError, setAddrError] = useState<string | null>(null);
 
+  const [agentNotes, setAgentNotes] = useState<string>('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+
   const loadCustomer = useCallback(async () => {
     if (!customerProfile) return;
     try {
@@ -85,6 +90,38 @@ export function CustomerDetailPage() {
       .then((data) => { setAddresses(data); setAddressesLoaded(true); })
       .catch(() => setAddressesLoaded(true));
   }, [activeTab, customer, addressesLoaded]);
+
+  useEffect(() => {
+    if (customer) {
+      setAgentNotes(customer.agentNotes ?? '');
+      setNotesSaved(false);
+    }
+  }, [customer]);
+
+  const handleSaveNotes = async () => {
+    if (!customer) return;
+    setNotesSaving(true);
+    setNotesError(null);
+    setNotesSaved(false);
+    try {
+      const jwt = localStorage.getItem('archibald_jwt') ?? '';
+      const res = await fetch(
+        `/api/customers/${encodeURIComponent(customer.customerProfile)}/agent-notes`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+          body: JSON.stringify({ notes: agentNotes || null }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 3000);
+    } catch (e: unknown) {
+      setNotesError(e instanceof Error ? e.message : 'Errore salvataggio note');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
 
   const isMobile = window.innerWidth < 641;
 
@@ -382,11 +419,43 @@ export function CustomerDetailPage() {
             )}
             {activeTab === 'note' && (
               <div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                  Note private — visibili solo a te, non sincronizzate con Archibald ERP.
+                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                  Note private sull&apos;agente — visibili solo a te, non sincronizzate con Archibald ERP.
                 </div>
-                <textarea placeholder="Aggiungi note private su questo cliente..." rows={8}
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: '7px', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
+                <textarea
+                  value={agentNotes}
+                  onChange={(e) => { setAgentNotes(e.target.value); setNotesSaved(false); }}
+                  disabled={notesSaving}
+                  placeholder="Es: preferisce ordini mattutini, contatto: Mario Bianchi..."
+                  rows={10}
+                  style={{
+                    width: '100%', padding: '10px 12px',
+                    border: '1.5px solid #d1d5db', borderRadius: '7px',
+                    fontSize: '13px', resize: 'vertical', boxSizing: 'border-box',
+                    background: notesSaving ? '#f9fafb' : 'white',
+                  }}
+                />
+                {notesError && (
+                  <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '6px' }}>{notesError}</div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px' }}>
+                  <button
+                    onClick={() => void handleSaveNotes()}
+                    disabled={notesSaving}
+                    style={{
+                      padding: '8px 18px', background: notesSaving ? '#93c5fd' : '#2563eb',
+                      color: 'white', border: 'none', borderRadius: '7px',
+                      fontSize: '13px', fontWeight: 700, cursor: notesSaving ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {notesSaving ? 'Salvataggio...' : 'Salva note'}
+                  </button>
+                  {notesSaved && (
+                    <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
+                      &#x2713; Note salvate
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             {activeTab === 'indirizzi' && (
