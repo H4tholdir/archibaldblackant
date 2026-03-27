@@ -5,6 +5,8 @@ import { CustomerSidebar } from '../components/CustomerSidebar';
 import { CustomerInlineSection } from '../components/CustomerInlineSection';
 import type { SectionField } from '../components/CustomerInlineSection';
 import { checkCustomerCompleteness } from '../utils/customer-completeness';
+import { getCustomerFullHistory } from '../api/customer-full-history';
+import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 
 type Tab = 'dati' | 'ordini' | 'note' | 'indirizzi';
 
@@ -27,6 +29,11 @@ export function CustomerDetailPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dati');
 
+  const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+
   const loadCustomer = useCallback(async () => {
     if (!customerProfile) return;
     try {
@@ -41,6 +48,22 @@ export function CustomerDetailPage() {
   }, [customerProfile]);
 
   useEffect(() => { void loadCustomer(); }, [loadCustomer]);
+
+  useEffect(() => {
+    if (activeTab !== 'ordini' || !customer || ordersLoaded) return;
+    setOrdersLoading(true);
+    setOrdersError(null);
+    getCustomerFullHistory({ customerProfileIds: [customer.customerProfile] })
+      .then((data) => {
+        setOrders(data.slice(0, 20));
+        setOrdersLoaded(true);
+      })
+      .catch((e: unknown) => {
+        setOrdersError(e instanceof Error ? e.message : 'Errore caricamento ordini');
+        setOrdersLoaded(true);
+      })
+      .finally(() => setOrdersLoading(false));
+  }, [activeTab, customer, ordersLoaded]);
 
   const isMobile = window.innerWidth < 641;
 
@@ -219,22 +242,77 @@ export function CustomerDetailPage() {
               </>
             )}
             {activeTab === 'ordini' && (
-              <div style={{ padding: '8px 0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-                  {([
-                    { label: 'Ordini totali',     value: String(customer.actualOrderCount ?? 0) },
-                    { label: 'Fatturato corrente', value: customer.actualSales ? `€ ${customer.actualSales.toLocaleString('it-IT')}` : '—' },
-                    { label: 'Ultima attività',   value: customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('it-IT') : '—' },
-                  ] as const).map(({ label, value }) => (
-                    <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '7px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{value}</div>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '3px' }}>{label}</div>
+              <div>
+                {/* Stats strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                  {[
+                    { label: 'Ordini totali',      value: String(customer.actualOrderCount ?? 0) },
+                    { label: 'Fatturato corrente', value: customer.actualSales ? `\u20ac ${customer.actualSales.toLocaleString('it-IT')}` : '\u2014' },
+                    { label: 'Ultima attivit\u00e0',    value: customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('it-IT') : '\u2014' },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '7px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{value}</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '2px' }}>{label}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
-                  Storico ordini completo disponibile nella pagina Ordini
-                </div>
+
+                {/* Stato caricamento / errore */}
+                {ordersLoading && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '13px', color: '#64748b' }}>
+                    Caricamento ordini...
+                  </div>
+                )}
+                {ordersError && (
+                  <div style={{ background: '#fff5f5', border: '1px solid #fca5a5', borderRadius: '6px', padding: '10px', fontSize: '12px', color: '#dc2626', marginBottom: '12px' }}>
+                    {ordersError}
+                  </div>
+                )}
+                {!ordersLoading && !ordersError && orders.length === 0 && ordersLoaded && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '13px', color: '#94a3b8' }}>
+                    Nessun ordine trovato
+                  </div>
+                )}
+
+                {/* Tabella ordini */}
+                {orders.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                    {/* Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 110px 60px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '8px 12px' }}>
+                      {(['Data', 'N\u00b0 Ordine', 'Importo', 'Tipo'] as const).map((h) => (
+                        <div key={h} style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{h}</div>
+                      ))}
+                    </div>
+                    {/* Righe */}
+                    {orders.map((order) => (
+                      <div
+                        key={order.orderId}
+                        style={{ display: 'grid', gridTemplateColumns: '90px 1fr 110px 60px', padding: '9px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'default' }}
+                      >
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          {new Date(order.orderDate).toLocaleDateString('it-IT')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#1e293b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {order.orderNumber || order.orderId.slice(0, 8)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#1e293b', fontWeight: 600 }}>
+                          {order.totalAmount != null
+                            ? `\u20ac ${order.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '\u2014'}
+                        </div>
+                        <div>
+                          <span style={{
+                            fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                            background: order.source === 'fresis' ? '#eff6ff' : '#f0fdf4',
+                            color: order.source === 'fresis' ? '#2563eb' : '#16a34a',
+                          }}>
+                            {order.source === 'fresis' ? 'FT' : 'KT'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {activeTab === 'note' && (
