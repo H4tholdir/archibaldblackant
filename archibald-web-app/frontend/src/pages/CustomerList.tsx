@@ -31,7 +31,6 @@ export function CustomerList() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [retryingProfiles, setRetryingProfiles] = useState<Set<string>>(new Set());
-  const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(
     null,
@@ -71,17 +70,10 @@ export function CustomerList() {
       .catch(() => {});
   }, []);
 
-  // Fetch customers only when search is active
+  // Fetch customers: default view loads first 30, filters load up to 100/500
   const fetchCustomers = useCallback(async () => {
-    if (!incompleteOnly && !debouncedSearch && !filters.city && !filters.customerType) {
-      setCustomers([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError(null);
-    setHasSearched(true);
 
     try {
       const token = localStorage.getItem("archibald_jwt");
@@ -91,10 +83,15 @@ export function CustomerList() {
         return;
       }
 
+      const hasActiveFilter = incompleteOnly || !!debouncedSearch || !!filters.city || !!filters.customerType;
+
       // Build query params
       const params = new URLSearchParams();
       if (incompleteOnly) {
         params.append('limit', '500');
+      } else if (!hasActiveFilter) {
+        // Default view: primi 30 clienti (sorted by last_sync desc, backend default)
+        params.append('limit', '30');
       } else {
         if (debouncedSearch) params.append("search", debouncedSearch);
         if (filters.city) params.append("city", filters.city);
@@ -224,7 +221,6 @@ export function CustomerList() {
       city: "",
       customerType: "",
     });
-    setHasSearched(false);
   };
 
   const handleRetry = async (customerProfile: string) => {
@@ -279,31 +275,33 @@ export function CustomerList() {
           ...keyboardPaddingStyle,
         }}
       >
+      {/* Topbar dark — coerente con CustomerDetailPage */}
+      <div style={{
+        background: '#1e293b',
+        color: '#f8fafc',
+        padding: '9px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '13px',
+        fontWeight: 600,
+        marginBottom: '0',
+      }}>
+        <span style={{ fontSize: '14px' }}>👥</span>
+        <span>Clienti</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: '11px', color: '#64748b' }}>Formicola Biagio</span>
+      </div>
+
       <div
       style={{
         maxWidth: "1200px",
         margin: "0 auto",
-        padding: "24px",
+        padding: "16px",
         backgroundColor: "#f5f5f5",
         minHeight: "100vh",
       }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: "24px" }}>
-        <h1
-          style={{
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "#333",
-            marginBottom: "8px",
-          }}
-        >
-          👥 Clienti
-        </h1>
-        <p style={{ fontSize: "16px", color: "#666" }}>
-          Gestisci l'anagrafica dei tuoi clienti
-        </p>
-      </div>
 
       {/* Filters */}
       <div
@@ -540,7 +538,7 @@ export function CustomerList() {
           }}
         >
           <div style={{ fontSize: "64px", marginBottom: "16px" }}>
-            {hasSearched ? "👤" : "🔍"}
+            👤
           </div>
           <p
             style={{
@@ -550,12 +548,10 @@ export function CustomerList() {
               marginBottom: "8px",
             }}
           >
-            {hasSearched ? "Nessun cliente trovato" : "Cerca un cliente"}
+            Nessun cliente trovato
           </p>
           <p style={{ fontSize: "14px", color: "#666" }}>
-            {hasSearched
-              ? "Prova a modificare i filtri di ricerca"
-              : "Usa il campo di ricerca per trovare clienti per nome, P.IVA, telefono, città..."}
+            Prova a modificare i filtri di ricerca
           </p>
         </div>
       )}
@@ -566,13 +562,14 @@ export function CustomerList() {
           <div
             style={{
               marginBottom: "12px",
-              fontSize: "14px",
-              color: "#666",
+              fontSize: "12px",
+              color: "#64748b",
               paddingLeft: "4px",
             }}
           >
-            {displayedCustomers.length} client{displayedCustomers.length !== 1 ? "i" : "e"} trovat
-            {displayedCustomers.length !== 1 ? "i" : "o"}
+            {!incompleteOnly && !filters.search && !filters.city && !filters.customerType
+              ? `${displayedCustomers.length} clienti recenti`
+              : `${displayedCustomers.length} clienti trovati`}
           </div>
           <div
             style={{
