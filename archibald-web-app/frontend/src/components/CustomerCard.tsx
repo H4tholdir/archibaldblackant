@@ -226,7 +226,13 @@ export function CustomerCard({
       >
         {/* Card Header */}
         <div
-          onClick={onToggle}
+          onClick={() => {
+            if (onNavigate) {
+              onNavigate(customer.customerProfile);
+            } else {
+              onToggle();
+            }
+          }}
           style={{
             padding: "20px",
             cursor: "pointer",
@@ -377,17 +383,19 @@ export function CustomerCard({
               )}
             </div>
 
-            {/* Expand icon */}
-            <div
-              style={{
-                fontSize: "24px",
-                color: "#1976d2",
-                transition: "transform 0.3s",
-                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              ▼
-            </div>
+            {/* Expand icon — only shown when there is no navigate handler */}
+            {!onNavigate && (
+              <div
+                style={{
+                  fontSize: "24px",
+                  color: "#1976d2",
+                  transition: "transform 0.3s",
+                  transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              >
+                ▼
+              </div>
+            )}
           </div>
 
           {/* Quick stats */}
@@ -420,7 +428,7 @@ export function CustomerCard({
         </div>
 
         {/* Expanded Details */}
-        {expanded && (
+        {expanded && !onNavigate && (
           <div
             style={{
               borderTop: "1px solid #e0e0e0",
@@ -926,10 +934,7 @@ export function CustomerCard({
               }}
             >
               <button
-                onClick={() => onNavigate
-                  ? onNavigate(customer.customerProfile)
-                  : onEdit(customer.customerProfile)
-                }
+                onClick={() => onEdit(customer.customerProfile)}
                 style={{
                   padding: "10px 20px",
                   fontSize: "14px",
