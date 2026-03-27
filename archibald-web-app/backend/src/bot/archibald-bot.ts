@@ -10056,14 +10056,15 @@ export class ArchibaldBot {
         input.select();
 
         // Clear via native setter — no dispatchEvent to avoid triggering DevExpress XHR
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
+        // Use the correct prototype depending on the element type (input vs textarea).
+        const proto = input.tagName === "TEXTAREA"
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
         if (setter) setter.call(input, "");
         else input.value = "";
 
-        return { id: input.id, maxLength: input.maxLength ?? 0 };
+        return { id: input.id, maxLength: (input as HTMLInputElement).maxLength ?? 0 };
       },
       fieldRegex.source,
     );
@@ -10112,10 +10113,10 @@ export class ArchibaldBot {
         input.focus();
         input.click();
         input.select();
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
+        const proto = input.tagName === "TEXTAREA"
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
         if (setter) setter.call(input, "");
         else input.value = "";
         // No dispatchEvent — same reasoning as main path
