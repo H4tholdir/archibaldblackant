@@ -766,6 +766,9 @@ export function CustomerCreateModal({
   const isProcessing = processingState !== "idle";
   const isInteractiveStep = isVatInput || isVatProcessing || isVatReview;
 
+  const isMobile = window.innerWidth < 640;
+  const isDesktop = window.innerWidth >= 1024;
+
   return (
     <div
       style={{
@@ -774,28 +777,34 @@ export function CustomerCreateModal({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: isMobile ? "white" : "rgba(0, 0, 0, 0.5)",
         display: "flex",
-        alignItems: "center",
+        alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
         zIndex: 10000,
-        backdropFilter: "blur(4px)",
-        ...modalOverlayKeyboardStyle,
+        backdropFilter: isMobile ? "none" : "blur(4px)",
+        overflowY: isMobile ? "auto" : "visible",
+        ...(!isMobile ? modalOverlayKeyboardStyle : {}),
       }}
     >
       <div
         style={{
           backgroundColor: "#fff",
-          borderRadius: "16px",
-          padding: "32px",
-          maxWidth: "500px",
-          width: "90%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
-          ...keyboardPaddingStyle,
+          borderRadius: isMobile ? "0" : "16px",
+          padding: isMobile ? "12px 16px" : "32px",
+          maxWidth: isMobile ? "100%" : (isDesktop ? "580px" : "500px"),
+          width: isMobile ? "100%" : "90%",
+          minHeight: isMobile ? "100dvh" : "auto",
+          maxHeight: isMobile ? "none" : "90vh",
+          overflowY: isMobile ? "visible" : "auto",
+          boxShadow: isMobile ? "none" : "0 20px 60px rgba(0,0,0,0.3)",
+          ...(!isMobile ? keyboardPaddingStyle : {}),
         }}
       >
+        {isMobile && (
+          <div style={{ width: "36px", height: "3px", background: "#d1d5db", borderRadius: "2px", margin: "0 auto 12px" }} />
+        )}
+
         {/* Close button */}
         {!isProcessing && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -839,6 +848,25 @@ export function CustomerCreateModal({
             {!isSummary && !isCapDisambiguation && (
               <p style={{ fontSize: "14px", color: "#999" }}>
                 Passo {currentStepNumber} di {totalSteps}
+                {isDesktop && (
+                  <span style={{ fontSize: "11px", color: "#64748b", marginLeft: "8px" }}>
+                    — {(() => {
+                      const stepLabelMap: Record<string, string> = {
+                        "vat-input":          "Verifica P.IVA",
+                        "vat-processing":     "Verifica P.IVA",
+                        "vat-review":         "Dati Fiscali",
+                        "step-anagrafica":    "Anagrafica",
+                        "step-indirizzo":     "Indirizzo",
+                        "step-contatti":      "Contatti",
+                        "step-commerciale":   "Commerciale",
+                        "addresses":          "Indirizzi alt.",
+                        "summary":            "Riepilogo",
+                        "cap-disambiguation": "Selezione CAP",
+                      };
+                      return stepLabelMap[currentStep.kind] ?? "";
+                    })()}
+                  </span>
+                )}
                 {!isAddressesStep ? " — Premi Enter per avanzare" : ""}
               </p>
             )}
