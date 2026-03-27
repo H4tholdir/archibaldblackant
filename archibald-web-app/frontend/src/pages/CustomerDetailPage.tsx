@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Customer } from '../types/customer';
 import { CustomerSidebar } from '../components/CustomerSidebar';
+import { customerService } from '../services/customers.service';
 import { CustomerInlineSection } from '../components/CustomerInlineSection';
 import type { SectionField } from '../components/CustomerInlineSection';
 import { checkCustomerCompleteness } from '../utils/customer-completeness';
@@ -53,6 +54,8 @@ export function CustomerDetailPage() {
   const [notesSaved, setNotesSaved] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
 
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
   const loadCustomer = useCallback(async () => {
     if (!customerProfile) return;
     try {
@@ -67,6 +70,20 @@ export function CustomerDetailPage() {
   }, [customerProfile]);
 
   useEffect(() => { void loadCustomer(); }, [loadCustomer]);
+
+  useEffect(() => {
+    if (!customerProfile) return;
+    customerService.getPhotoUrl(customerProfile)
+      .then((url) => setPhotoUrl(url ?? null))
+      .catch(() => setPhotoUrl(null));
+  }, [customerProfile]);
+
+  const refreshPhoto = useCallback(() => {
+    if (!customerProfile) return;
+    customerService.getPhotoUrl(customerProfile)
+      .then((url) => setPhotoUrl(url ?? null))
+      .catch(() => setPhotoUrl(null));
+  }, [customerProfile]);
 
   useEffect(() => {
     if (activeTab !== 'ordini' || !customer || ordersLoaded) return;
@@ -321,7 +338,12 @@ export function CustomerDetailPage() {
       {mobileHeader}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <CustomerSidebar customer={customer} onNewOrder={() => navigate('/')} />
+        <CustomerSidebar
+          customer={customer}
+          onNewOrder={() => navigate('/')}
+          photoUrl={photoUrl}
+          onPhotoChange={refreshPhoto}
+        />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tabs */}

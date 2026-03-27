@@ -1,8 +1,12 @@
+import { useRef, useState } from 'react';
 import type { Customer } from '../types/customer';
+import { customerService } from '../services/customers.service';
 
 type CustomerSidebarProps = {
   customer: Customer;
   onNewOrder: () => void;
+  photoUrl?: string | null;
+  onPhotoChange?: () => void;
 };
 
 function getInitials(name: string): string {
@@ -20,8 +24,43 @@ function daysSince(dateStr: string | null): string {
   return `${days}gg`;
 }
 
-export function CustomerSidebar({ customer, onNewOrder }: CustomerSidebarProps) {
+export function CustomerSidebar({ customer, onNewOrder, photoUrl, onPhotoChange }: CustomerSidebarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   if (window.innerWidth < 641) return null;
+
+  const handlePhotoClick = () => {
+    if (!photoUploading) fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setPhotoUploading(true);
+    try {
+      await customerService.uploadPhoto(customer.customerProfile, file);
+      onPhotoChange?.();
+    } catch {
+      // silenzioso
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!window.confirm('Rimuovere la foto del cliente?')) return;
+    setPhotoUploading(true);
+    try {
+      await customerService.deletePhoto(customer.customerProfile);
+      onPhotoChange?.();
+    } catch {
+      // silenzioso
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const sidebarWidth = window.innerWidth >= 1024 ? '32%' : '36%';
   const phone = customer.mobile || customer.phone;
@@ -81,25 +120,56 @@ export function CustomerSidebar({ customer, onNewOrder }: CustomerSidebarProps) 
     >
       {/* Photo / initials */}
       <div style={{ textAlign: 'center', paddingBottom: '12px', borderBottom: '1px solid #334155' }}>
-        {customer.photoUrl ? (
-          <img
-            src={customer.photoUrl}
-            alt={customer.name}
-            style={{
+        {/* Input file nascosto */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => void handleFileSelected(e)}
+          style={{ display: 'none' }}
+        />
+
+        {/* Avatar cliccabile */}
+        <div
+          style={{ position: 'relative', width: '52px', height: '52px', margin: '0 auto 8px', cursor: 'pointer' }}
+          onClick={handlePhotoClick}
+          title={photoUrl ? 'Clicca per cambiare foto' : 'Clicca per aggiungere foto'}
+        >
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={customer.name}
+              style={{ width: '52px', height: '52px', borderRadius: '10px', objectFit: 'cover', border: '2px solid #4a90d9', display: 'block' }}
+            />
+          ) : (
+            <div style={{
               width: '52px', height: '52px', borderRadius: '10px',
-              objectFit: 'cover', margin: '0 auto 8px', display: 'block',
-              border: '2px solid #4a90d9',
-            }}
-          />
-        ) : (
+              background: '#2d4a6b', border: '2px solid #4a90d9',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 800, color: '#93c5fd', fontSize: '18px',
+            }}>
+              {getInitials(customer.name)}
+            </div>
+          )}
+          {/* Overlay 📷 */}
           <div style={{
-            width: '52px', height: '52px', borderRadius: '10px',
-            background: '#2d4a6b', border: '2px solid #4a90d9',
-            margin: '0 auto 8px', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontWeight: 800, color: '#93c5fd', fontSize: '18px',
+            position: 'absolute', bottom: '2px', right: '2px',
+            background: 'rgba(15,23,42,0.75)', borderRadius: '50%',
+            width: '18px', height: '18px', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '10px',
           }}>
-            {getInitials(customer.name)}
+            {photoUploading ? '⏳' : '📷'}
           </div>
+        </div>
+
+        {/* Bottone elimina foto */}
+        {photoUrl && !photoUploading && (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handlePhotoDelete(); }}
+            style={{ fontSize: '9px', color: '#fca5a5', background: 'none', border: 'none', cursor: 'pointer', display: 'block', margin: '0 auto 4px' }}
+          >
+            × Rimuovi foto
+          </button>
         )}
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#f1f5f9' }}>{customer.name}</div>
         <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{customer.customerProfile}</div>
