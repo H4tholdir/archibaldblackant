@@ -191,6 +191,7 @@ vi.mock('./operations/handlers', () => ({
   createSubmitOrderHandler: vi.fn(() => vi.fn()),
   createCreateCustomerHandler: vi.fn(() => vi.fn()),
   createUpdateCustomerHandler: vi.fn(() => vi.fn()),
+  createReadVatStatusHandler: vi.fn(() => vi.fn()),
   createDeleteOrderHandler: vi.fn(() => vi.fn()),
   createEditOrderHandler: vi.fn(() => vi.fn()),
   createSendToVeronaHandler: vi.fn(() => vi.fn()),
@@ -313,7 +314,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 18 operation handlers', async () => {
+  test('registers all 19 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -326,6 +327,7 @@ describe('bootstrap', () => {
       'submit-order',
       'create-customer',
       'update-customer',
+      'read-vat-status',
       'delete-order',
       'edit-order',
       'send-to-verona',
@@ -342,7 +344,7 @@ describe('bootstrap', () => {
       'sync-tracking',
       'sync-customer-addresses',
     ]));
-    expect(handlerKeys).toHaveLength(18);
+    expect(handlerKeys).toHaveLength(19);
   });
 
   test('getActiveAgentIds returns whitelisted user IDs', async () => {

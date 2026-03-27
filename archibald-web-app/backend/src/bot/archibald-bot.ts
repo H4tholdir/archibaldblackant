@@ -12688,6 +12688,39 @@ export class ArchibaldBot {
     }
   }
 
+  async readCustomerVatStatus(
+    customerProfile: string,
+  ): Promise<{ vatValidated: string; lastChecked: string } | null> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
+      { waitUntil: "networkidle2", timeout: 60000 },
+    );
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    try {
+      await this.searchAndOpenCustomer(customerProfile);
+    } catch {
+      logger.warn("readCustomerVatStatus: customer not found", { customerProfile });
+      return null;
+    }
+
+    const readField = async (selector: string): Promise<string> =>
+      this.page!.evaluate(
+        (s: string) => (document.querySelector(s) as HTMLInputElement | null)?.value ?? "",
+        selector,
+      );
+
+    const vatValidated = await readField('[id*="VATVALIEDE"][id$="_I"]');
+    const lastChecked  = await readField('[id*="VATLASTCHECKEDDATE"][id$="_I"]');
+
+    await this.page.keyboard.press("Escape");
+    await this.wait(500);
+
+    return { vatValidated, lastChecked };
+  }
+
   private async extractProfileFromListByName(name: string): Promise<string> {
     if (!this.page) return "";
     try {

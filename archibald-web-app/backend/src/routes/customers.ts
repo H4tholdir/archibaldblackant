@@ -49,6 +49,7 @@ type CustomersRouterDeps = {
   resumeOtherSyncs: () => void;
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
+  enqueueReadVatStatus?: (userId: string, customerProfile: string) => Promise<string>;
 };
 
 const createCustomerSchema = z.object({
@@ -288,6 +289,21 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     } catch (error) {
       logger.error('Error updating customer', { error });
       res.status(500).json({ success: false, error: 'Errore durante l\'aggiornamento del cliente' });
+    }
+  });
+
+  router.post('/:customerProfile/vat-status', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { customerProfile } = req.params;
+      if (!deps.enqueueReadVatStatus) {
+        return res.status(503).json({ error: 'VAT status enrichment not available' });
+      }
+      const jobId = await deps.enqueueReadVatStatus(userId, customerProfile);
+      res.json({ jobId, message: 'VAT status read queued' });
+    } catch (err) {
+      logger.error('POST /customers/:customerProfile/vat-status error', { error: String(err) });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

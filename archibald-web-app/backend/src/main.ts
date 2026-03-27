@@ -40,6 +40,7 @@ import {
   createSyncProductsHandler,
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
+  createReadVatStatusHandler,
 } from './operations/handlers';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { createNotification } from './services/notification-service';
@@ -562,6 +563,17 @@ async function bootstrap(): Promise<void> {
       return {
         updateCustomer: async (customerProfile, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(customerProfile, customerData as never, originalName); },
         buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'read-vat-status': createReadVatStatusHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        readCustomerVatStatus: async (customerProfile) => { await ensureInit(); return bot.readCustomerVatStatus(customerProfile); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),
