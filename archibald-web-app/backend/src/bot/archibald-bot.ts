@@ -10042,7 +10042,9 @@ export class ArchibaldBot {
     // which is sufficient for DevExpress to commit the value on Tab.
     const { id: inputId, maxLength } = await this.page.evaluate(
       (regex: string) => {
-        const inputs = Array.from(document.querySelectorAll("input"));
+        // Include textarea so that multi-line DevExpress fields (e.g. CUSTINFO/notes)
+        // are found by the same helper used for single-line inputs.
+        const inputs = Array.from(document.querySelectorAll("input, textarea"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
         ) as HTMLInputElement | null;
