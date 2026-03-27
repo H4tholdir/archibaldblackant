@@ -29,8 +29,17 @@ async function fetchCustomer(customerProfile: string): Promise<Customer> {
   return body.data;
 }
 
-export function CustomerDetailPage() {
-  const { customerProfile } = useParams<{ customerProfile: string }>();
+interface CustomerDetailPageProps {
+  customerProfileOverride?: string;
+  embedded?: boolean;
+}
+
+export function CustomerDetailPage({
+  customerProfileOverride,
+  embedded = false,
+}: CustomerDetailPageProps = {}) {
+  const params = useParams<{ customerProfile: string }>();
+  const customerProfile = customerProfileOverride ?? params.customerProfile;
   const navigate = useNavigate();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -322,20 +331,22 @@ export function CustomerDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'white' }}>
       {/* Topbar */}
-      <div style={{ background: '#1e293b', color: '#f8fafc', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 600 }}>
-        <button onClick={() => navigate('/customers')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '10px' }}>
-          ← Clienti
-        </button>
-        <span style={{ marginLeft: '4px', fontWeight: 700 }}>{customer.name}</span>
-        <span style={{ flex: 1 }} />
-        {!completeness.ok && (
-          <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '9px' }}>
-            ⚠ {completeness.missingFields.length} mancanti
-          </span>
-        )}
-      </div>
+      {!embedded && (
+        <div style={{ background: '#1e293b', color: '#f8fafc', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 600 }}>
+          <button onClick={() => navigate('/customers')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '10px' }}>
+            ← Clienti
+          </button>
+          <span style={{ marginLeft: '4px', fontWeight: 700 }}>{customer.name}</span>
+          <span style={{ flex: 1 }} />
+          {!completeness.ok && (
+            <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '9px' }}>
+              ⚠ {completeness.missingFields.length} mancanti
+            </span>
+          )}
+        </div>
+      )}
 
-      {mobileHeader}
+      {!embedded && mobileHeader}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <CustomerSidebar

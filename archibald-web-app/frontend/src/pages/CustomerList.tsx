@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CustomerCard } from "../components/CustomerCard";
+import { CustomerDetailPage } from "./CustomerDetailPage";
 import { customerService } from "../services/customers.service";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { toastService } from "../services/toast.service";
@@ -242,8 +243,15 @@ export function CustomerList() {
     }
   };
 
+  const isDesktop = window.innerWidth > 1024;
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+
   const handleNavigate = (customerProfile: string) => {
-    navigate(`/customers/${encodeURIComponent(customerProfile)}`);
+    if (isDesktop) {
+      setSelectedProfile((prev) => prev === customerProfile ? null : customerProfile);
+    } else {
+      navigate(`/customers/${encodeURIComponent(customerProfile)}`);
+    }
   };
 
   const isTablet = window.innerWidth >= 641;
@@ -256,14 +264,26 @@ export function CustomerList() {
     filters.search || filters.city || filters.customerType;
 
   return (
-    <div
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
+      {/* Pannello lista — sinistra */}
+      <div
+        style={{
+          width: isDesktop && selectedProfile ? '38%' : '100%',
+          flexShrink: 0,
+          overflowY: 'auto',
+          background: '#f5f5f5',
+          borderRight: isDesktop && selectedProfile ? '1.5px solid #e5e7eb' : 'none',
+          transition: 'width 0.2s ease',
+          ...keyboardPaddingStyle,
+        }}
+      >
+      <div
       style={{
         maxWidth: "1200px",
         margin: "0 auto",
         padding: "24px",
         backgroundColor: "#f5f5f5",
         minHeight: "100vh",
-        ...keyboardPaddingStyle,
       }}
     >
       {/* Header */}
@@ -564,7 +584,17 @@ export function CustomerList() {
                 expandedCustomerId === customer.customerProfile;
 
               return (
-                <div key={customer.customerProfile} data-customer-profile={customer.customerProfile}>
+                <div
+                  key={customer.customerProfile}
+                  data-customer-profile={customer.customerProfile}
+                  style={{
+                    outline: isDesktop && selectedProfile === customer.customerProfile
+                      ? '2px solid #2563eb'
+                      : 'none',
+                    borderRadius: '12px',
+                    transition: 'outline 0.1s',
+                  }}
+                >
                   <CustomerCard
                     customer={customer}
                     expanded={isExpanded}
@@ -581,6 +611,29 @@ export function CustomerList() {
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+      </div>
+      {/* Pannello dettaglio — destra (solo desktop + cliente selezionato) */}
+      {isDesktop && selectedProfile && (
+        <div style={{ flex: 1, overflowY: 'auto', position: 'relative', background: 'white' }}>
+          <button
+            onClick={() => setSelectedProfile(null)}
+            style={{
+              position: 'absolute', top: '10px', right: '12px', zIndex: 10,
+              background: 'rgba(15,23,42,0.6)', color: 'white', border: 'none',
+              borderRadius: '50%', width: '24px', height: '24px', fontSize: '14px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              lineHeight: '1',
+            }}
+          >
+            ✕
+          </button>
+          <CustomerDetailPage
+            customerProfileOverride={selectedProfile}
+            embedded
+          />
         </div>
       )}
     </div>

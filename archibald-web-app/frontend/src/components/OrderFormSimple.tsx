@@ -34,6 +34,7 @@ import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
 import type { Customer as RichCustomer } from '../types/customer';
 import { CustomerCreateModal } from './CustomerCreateModal';
+import { CustomerQuickFix } from './CustomerQuickFix';
 import type { CustomerAddress } from '../types/customer-address';
 import { getCustomerAddresses } from '../services/customer-addresses';
 import { useVatValidation } from '../hooks/useVatValidation';
@@ -6348,10 +6349,15 @@ export default function OrderFormSimple() {
       )}
 
       {editCustomerForCompleteness && (
-        <CustomerCreateModal
-          isOpen={true}
-          onClose={handleCompletionModalClose}
-          onSaved={handleCompletionModalClose}
+        <CustomerQuickFix
+          customerProfile={editCustomerForCompleteness.customerProfile}
+          customerName={editCustomerForCompleteness.name}
+          missingFields={customerCompleteness?.missingFields ?? []}
+          onSaved={() => {
+            handleCompletionModalClose();
+            fetchAndSetCustomerCompleteness(editCustomerForCompleteness.customerProfile);
+          }}
+          onDismiss={handleCompletionModalClose}
         />
       )}
 
