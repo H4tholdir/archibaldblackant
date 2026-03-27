@@ -25,5 +25,13 @@ export type CustomerFormData = {
   url: string;
   postalCodeCity: string;
   postalCodeCountry: string;
+  // Extended ERP fields (wizard v2)
+  fiscalCode?: string;
+  sector?: string;
+  attentionTo?: string;
+  notes?: string;
+  county?: string;
+  state?: string;
+  country?: string;
   addresses?: AddressEntry[];
 };

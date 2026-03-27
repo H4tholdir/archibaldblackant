@@ -40,6 +40,15 @@ type CustomerRow = {
   archibald_name: string | null;
   photo: string | null;
   vat_validated_at: string | null;
+  sector: string | null;
+  price_group: string | null;
+  line_discount: string | null;
+  payment_terms: string | null;
+  notes: string | null;
+  name_alias: string | null;
+  county: string | null;
+  state: string | null;
+  country: string | null;
 };
 
 type Customer = {
@@ -81,6 +90,15 @@ type Customer = {
   archibaldName: string | null;
   vatValidatedAt: string | null;
   photo: string | null;
+  sector: string | null;
+  priceGroup: string | null;
+  lineDiscount: string | null;
+  paymentTerms: string | null;
+  notes: string | null;
+  nameAlias: string | null;
+  county: string | null;
+  state: string | null;
+  country: string | null;
 };
 
 type CustomerInput = {
@@ -127,6 +145,14 @@ type CustomerFormInput = {
   email?: string;
   url?: string;
   deliveryMode?: string;
+  paymentTerms?: string;
+  fiscalCode?: string;
+  sector?: string;
+  attentionTo?: string;
+  notes?: string;
+  county?: string;
+  state?: string;
+  country?: string;
 };
 
 type UpsertResult = {
@@ -145,7 +171,8 @@ const COLUMNS_WITHOUT_PHOTO = `
   previous_order_count_1, previous_sales_1,
   previous_order_count_2, previous_sales_2,
   external_account_number, our_account_number,
-  hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at
+  hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at,
+  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -188,6 +215,15 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     archibaldName: row.archibald_name,
     vatValidatedAt: row.vat_validated_at,
     photo: row.photo,
+    sector: row.sector,
+    priceGroup: row.price_group,
+    lineDiscount: row.line_discount,
+    paymentTerms: row.payment_terms,
+    notes: row.notes,
+    nameAlias: row.name_alias,
+    county: row.county,
+    state: row.state,
+    country: row.country,
   };
 }
 
@@ -507,13 +543,16 @@ async function upsertSingleCustomer(
 
   await pool.query(
     `INSERT INTO agents.customers (
-      customer_profile, user_id, name, vat_number, pec, sdi,
-      street, postal_code, phone, mobile, email, url,
-      delivery_terms, hash, last_sync, bot_status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      customer_profile, user_id, name, vat_number, fiscal_code, pec, sdi,
+      street, postal_code, phone, mobile, email, url, attention_to,
+      delivery_terms, payment_terms, sector, notes, county, state, country,
+      price_group, line_discount,
+      hash, last_sync, bot_status
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
     ON CONFLICT (customer_profile, user_id) DO UPDATE SET
       name = EXCLUDED.name,
       vat_number = EXCLUDED.vat_number,
+      fiscal_code = EXCLUDED.fiscal_code,
       pec = EXCLUDED.pec,
       sdi = EXCLUDED.sdi,
       street = EXCLUDED.street,
@@ -522,18 +561,33 @@ async function upsertSingleCustomer(
       mobile = EXCLUDED.mobile,
       email = EXCLUDED.email,
       url = EXCLUDED.url,
+      attention_to = EXCLUDED.attention_to,
       delivery_terms = EXCLUDED.delivery_terms,
+      payment_terms = EXCLUDED.payment_terms,
+      sector = EXCLUDED.sector,
+      notes = EXCLUDED.notes,
+      county = EXCLUDED.county,
+      state = EXCLUDED.state,
+      country = EXCLUDED.country,
+      price_group = EXCLUDED.price_group,
+      line_discount = EXCLUDED.line_discount,
       hash = EXCLUDED.hash,
       last_sync = EXCLUDED.last_sync,
       bot_status = EXCLUDED.bot_status,
       updated_at = NOW()`,
     [
       customerProfile, userId, formData.name,
-      formData.vatNumber ?? null, formData.pec ?? null, formData.sdi ?? null,
+      formData.vatNumber ?? null, formData.fiscalCode ?? null,
+      formData.pec ?? null, formData.sdi ?? null,
       formData.street ?? null, formData.postalCode ?? null,
       formData.phone ?? null, formData.mobile ?? null,
       formData.email ?? null, formData.url ?? null,
-      formData.deliveryMode ?? null, hash, now, botStatus,
+      formData.attentionTo ?? null,
+      formData.deliveryMode ?? null, formData.paymentTerms ?? null,
+      formData.sector ?? null, formData.notes ?? null,
+      formData.county ?? null, formData.state ?? null, formData.country ?? null,
+      'DETTAGLIO (consigliato)', 'N/A',
+      hash, now, botStatus,
     ],
   );
 

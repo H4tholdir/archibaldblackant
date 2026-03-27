@@ -32,7 +32,17 @@ export interface Customer {
   lastSync: number;
   createdAt: number;
   updatedAt: number;
-  botStatus?: "pending" | "placed" | "failed" | null;
+  botStatus?: "pending" | "placed" | "snapshot" | "failed" | null;
   photoUrl?: string | null;
   vatValidatedAt: string | null;
+  // Extended fields from migration 037
+  sector?: string | null;
+  priceGroup?: string | null;
+  lineDiscount?: string | null;
+  paymentTerms?: string | null;
+  notes?: string | null;
+  nameAlias?: string | null;
+  county?: string | null;
+  state?: string | null;
+  country?: string | null;
 }

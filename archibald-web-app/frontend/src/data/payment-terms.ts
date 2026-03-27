@@ -1,7 +1,11 @@
 export type PaymentTerm = { id: string; descrizione: string };
 
+// Fonte: ERP Archibald - scraping completo via virtual scroll 2026-03-27
+// 102 termini di pagamento
 export const PAYMENT_TERMS: PaymentTerm[] = [
   { id: "001", descrizione: "RIMESSA DIRETTA A VISTA" },
+  { id: "008", descrizione: "CARTA DI CREDITO" },
+  { id: "009", descrizione: "ASSEGNO BANCARIO" },
   { id: "010", descrizione: "CONTRASSEGNO" },
   { id: "101", descrizione: "RI.BA 30 GG.D.F. FINE MESE" },
   { id: "102", descrizione: "RI.BA 60 GG.D.F. FINE MESE Ago/Dic NO SCAD 10" },
@@ -37,8 +41,8 @@ export const PAYMENT_TERMS: PaymentTerm[] = [
   { id: "134", descrizione: "RI.BA. 90/120/150/180/210 GG.DF F.M." },
   { id: "135", descrizione: "RI.BA 60/90/120/150/180/210/240/270/300/330 GG.DF F.M." },
   { id: "136", descrizione: "N.18 rate mensili, prima rata 60 gg DFFM" },
-  { id: "24", descrizione: "rate mensili, prima rata dopo 1 mese d.f." },
-  { id: "124", descrizione: "RI.BA n.24 rate mensili, prima rata dopo 7 mesi d.f." },
+  { id: "137", descrizione: "24 rate mensili, prima rata dopo 1 mese d.f." },
+  { id: "138", descrizione: "RI.BA n.24 rate mensili, prima rata dopo 7 mesi d.f." },
   { id: "139", descrizione: "RI.BA n.24 rate mensili, prima rata dopo 7 mesi d.f." },
   { id: "140", descrizione: "RI.BA. n.12 rate mensili, prima dopo 30 gg dffm" },
   { id: "141", descrizione: "RI.BA n. 10 rate mensili, prima rata dopo 1 mesi d.f." },
@@ -61,7 +65,7 @@ export const PAYMENT_TERMS: PaymentTerm[] = [
   { id: "214", descrizione: "BONIF. 60/90/120GG D.F.F.M. IT21J0200811796000106970061" },
   { id: "215", descrizione: "BONIF. 60/90 GG D.F.F.M. IT21J0200811796000106970061" },
   { id: "216", descrizione: "BONIF. BANC 15 GG D.F. SCONTO 1,5%" },
-  { id: "216", descrizione: "BONIF. BANC 15 GG D.F. SCONTO 0,75%" },
+  { id: "217", descrizione: "BONIF. BANC 15 GG D.F. SCONTO 0,75%" },
   { id: "218", descrizione: "BONIF. BANC. 60/90/120/150/180/210/240/270/300 D.F.F.M." },
   { id: "219", descrizione: "BONIF. 90/120/150/180 DFFM. IT21J0200811796000106970061" },
   { id: "220", descrizione: "BONIF. BANC. 60 GG.D.F. F.M. IT21J0200811796000106970061" },
@@ -99,8 +103,9 @@ export const PAYMENT_TERMS: PaymentTerm[] = [
   { id: "321", descrizione: "RI.BA 90/120 GG.D.F. FINE MESE" },
   { id: "322", descrizione: "BONIF 60/90/120/150/180/210 GG. D.F.F.M" },
   { id: "323", descrizione: "RI.BA 150/180/210/240/270GG D.F. FINE MESE" },
-  { id: "008", descrizione: "CARTA DI CREDITO" },
-  { id: "009", descrizione: "ASSEGNO BANCARIO" },
   { id: "900", descrizione: "PAGAM ANTICIPATO CON BONIFICO" },
   { id: "999", descrizione: "NOTA DI ACCREDITO" },
 ];
+
+export const DEFAULT_PAYMENT_TERM_ID = "206";
+export const DEFAULT_PAYMENT_TERM = PAYMENT_TERMS.find(t => t.id === DEFAULT_PAYMENT_TERM_ID);

@@ -56,6 +56,17 @@ export interface CustomerFormData {
   paymentTerms?: string; // Default: "206"
   lineDiscount?: "N/A" | string; // Default: N/A
 
+  // Optional fields - ERP fields not previously in form
+  fiscalCode?: string;    // FISCALCODE — auto-fill from VAT, editable
+  sector?: string;        // BUSINESSSECTORID dropdown
+  attentionTo?: string;   // BRASCRMATTENTIONTO (= DB attention_to column)
+  notes?: string;         // CUSTINFO/MEMO textarea
+
+  // Optional fields - CAP auto-fill (readonly in form, written by bot after CAP lookup)
+  county?: string;        // COUNTY — auto-fill from CAP
+  state?: string;         // STATE — auto-fill from CAP
+  country?: string;       // COUNTRYREGIONID — auto-fill from CAP
+
   // Optional fields - CAP disambiguation hints (frontend → bot, not persisted)
   postalCodeCity?: string;
   postalCodeCountry?: string;

@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { customerService } from "../services/customers.service";
 import type { Customer } from "../types/customer";
-import { PAYMENT_TERMS } from "../data/payment-terms";
+import { PAYMENT_TERMS, DEFAULT_PAYMENT_TERM_ID } from "../data/payment-terms";
+import { DELIVERY_MODES, DEFAULT_DELIVERY_MODE } from "../data/delivery-modes";
 import { CAP_BY_CODE } from "../data/cap-list";
 import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
@@ -24,6 +25,8 @@ interface CustomerCreateModalProps {
   onClose: () => void;
   onSaved: () => void;
   editCustomer?: Customer | null;
+  contextMode?: "standalone" | "order";
+  prefillName?: string;
 }
 
 type FieldDef = {
@@ -73,9 +76,9 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
 
 const INITIAL_FORM: CustomerFormData = {
   name: "",
-  deliveryMode: "FedEx",
+  deliveryMode: DEFAULT_DELIVERY_MODE,
   vatNumber: "",
-  paymentTerms: "206",
+  paymentTerms: DEFAULT_PAYMENT_TERM_ID,
   pec: "",
   sdi: "",
   street: "",
@@ -86,15 +89,22 @@ const INITIAL_FORM: CustomerFormData = {
   url: "",
   postalCodeCity: "",
   postalCodeCountry: "",
+  fiscalCode: "",
+  sector: "",
+  attentionTo: "",
+  notes: "",
+  county: "",
+  state: "",
+  country: "",
   addresses: [],
 };
 
 function customerToFormData(customer: Customer): CustomerFormData {
   return {
     name: customer.name || "",
-    deliveryMode: customer.deliveryTerms || "FedEx",
+    deliveryMode: customer.deliveryTerms || DEFAULT_DELIVERY_MODE,
     vatNumber: customer.vatNumber || "",
-    paymentTerms: "206",
+    paymentTerms: customer.paymentTerms || DEFAULT_PAYMENT_TERM_ID,
     pec: customer.pec || "",
     sdi: customer.sdi || "",
     street: customer.street || "",
@@ -113,6 +123,13 @@ function customerToFormData(customer: Customer): CustomerFormData {
     url: customer.url || "",
     postalCodeCity: "",
     postalCodeCountry: "",
+    fiscalCode: customer.fiscalCode || "",
+    sector: customer.sector || "",
+    attentionTo: customer.attentionTo || "",
+    notes: customer.notes || "",
+    county: customer.county || "",
+    state: customer.state || "",
+    country: customer.country || "",
     addresses: [],
   };
 }
@@ -122,6 +139,10 @@ type StepType =
   | { kind: "vat-processing" }
   | { kind: "vat-review" }
   | { kind: "field"; fieldIndex: number }
+  | { kind: "step-anagrafica" }
+  | { kind: "step-indirizzo" }
+  | { kind: "step-contatti" }
+  | { kind: "step-commerciale" }
   | { kind: "addresses" }
   | { kind: "cap-disambiguation"; targetField: "postalCode" }
   | { kind: "summary" }
@@ -143,6 +164,8 @@ export function CustomerCreateModal({
   onClose,
   onSaved,
   editCustomer,
+  contextMode = "standalone",
+  prefillName,
 }: CustomerCreateModalProps) {
   const isEditMode = !!editCustomer;
   const isEditModeRef = useRef(isEditMode);
@@ -234,10 +257,15 @@ export function CustomerCreateModal({
       case "vat-edit-check":
       case "vat-diff-review":
         return 0;
+      // New wizard group steps
+      case "step-anagrafica": return 1;
+      case "step-indirizzo":  return 2;
+      case "step-contatti":   return 3;
+      case "step-commerciale": return 4;
+      case "addresses":       return 5;
+      // Legacy field step (edit mode)
       case "field":
         return currentStep.fieldIndex + 1;
-      case "addresses":
-        return totalFieldsBefore + 1;
       case "cap-disambiguation":
         return FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
           (f) => f.key === "postalCode",
@@ -294,10 +322,13 @@ export function CustomerCreateModal({
       pollingProfileRef.current = null;
 
       if (!isEditMode) {
-        setFormData({ ...INITIAL_FORM });
+        const initial = { ...INITIAL_FORM };
+        if (prefillName) initial.name = prefillName;
+        setFormData(initial);
         setCurrentStep({ kind: "vat-input" });
 
-        customerService
+        // In order context, skip interactive session (faster: uses POST/queue directly)
+        if (contextMode !== "order") customerService
           .startInteractiveSession()
           .then(({ sessionId }) => {
             setInteractiveSessionId(sessionId);
@@ -584,6 +615,28 @@ export function CustomerCreateModal({
 
   const goForward = () => {
     switch (currentStep.kind) {
+      // New wizard group steps
+      case "step-anagrafica":
+        setCurrentStep({ kind: "step-indirizzo" });
+        break;
+      case "step-indirizzo": {
+        // Resolve CAP then advance
+        if (formData.postalCode) {
+          resolveCapAndAdvance(formData.postalCode, "postalCode", () =>
+            setCurrentStep({ kind: "step-contatti" }),
+          );
+        } else {
+          setCurrentStep({ kind: "step-contatti" });
+        }
+        break;
+      }
+      case "step-contatti":
+        setCurrentStep({ kind: "step-commerciale" });
+        break;
+      case "step-commerciale":
+        setCurrentStep({ kind: "addresses" });
+        break;
+      // Legacy field step (used in edit mode)
       case "field": {
         const field = FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex];
         const isCapField =
@@ -627,6 +680,29 @@ export function CustomerCreateModal({
 
   const goBack = () => {
     switch (currentStep.kind) {
+      // New wizard group steps
+      case "step-anagrafica":
+        // If VAT was reviewed, go back to review; if skipped, go back to input
+        setCurrentStep(vatResult ? { kind: "vat-review" } : { kind: "vat-input" });
+        break;
+      case "step-indirizzo":
+        setCurrentStep({ kind: "step-anagrafica" });
+        break;
+      case "step-contatti":
+        setCurrentStep({ kind: "step-indirizzo" });
+        break;
+      case "step-commerciale":
+        setCurrentStep({ kind: "step-contatti" });
+        break;
+      case "addresses":
+        // In create mode go back to commerciale (new wizard); in edit mode go to last legacy field
+        if (isEditMode) {
+          setCurrentStep({ kind: "field", fieldIndex: totalFieldsBefore - 1 });
+        } else {
+          setCurrentStep({ kind: "step-commerciale" });
+        }
+        break;
+      // Legacy field step (edit mode)
       case "field": {
         if (currentStep.fieldIndex > 0) {
           setCurrentStep({
@@ -636,9 +712,6 @@ export function CustomerCreateModal({
         }
         break;
       }
-      case "addresses":
-        setCurrentStep({ kind: "field", fieldIndex: totalFieldsBefore - 1 });
-        break;
       case "cap-disambiguation": {
         const idx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
           (f) => f.key === "postalCode",
@@ -778,11 +851,11 @@ export function CustomerCreateModal({
   };
 
   const handleSkipVat = () => {
-    setCurrentStep({ kind: "field", fieldIndex: 0 });
+    setCurrentStep({ kind: "step-anagrafica" });
   };
 
   const handleVatReviewContinue = () => {
-    setCurrentStep({ kind: "field", fieldIndex: 0 });
+    setCurrentStep({ kind: "step-anagrafica" });
   };
 
   const handleSave = async () => {
@@ -865,6 +938,10 @@ export function CustomerCreateModal({
   const isAddressesStep = currentStep.kind === "addresses";
   const isCapDisambiguation = currentStep.kind === "cap-disambiguation";
   const isSummary = currentStep.kind === "summary";
+  const isStepAnagrafica = currentStep.kind === "step-anagrafica";
+  const isStepIndirizzo = currentStep.kind === "step-indirizzo";
+  const isStepContatti = currentStep.kind === "step-contatti";
+  const isStepCommerciale = currentStep.kind === "step-commerciale";
   const isFirstStep =
     currentStep.kind === "field" && currentStep.fieldIndex === 0;
   const isProcessing = processingState !== "idle";
@@ -1933,6 +2010,244 @@ export function CustomerCreateModal({
                 }}
               >
                 Indietro
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP ANAGRAFICA ────────────────────────────────────────────── */}
+        {isStepAnagrafica && (
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "20px" }}>
+              Anagrafica cliente
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Nome / Ragione sociale *
+              </label>
+              <input autoComplete="off"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(f => ({ ...f, name: e.target.value }))}
+                placeholder="Es. Rossi Dr. Mario"
+                style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "2px solid #1976d2", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Codice Fiscale
+              </label>
+              <input autoComplete="off"
+                type="text"
+                value={formData.fiscalCode || ""}
+                onChange={(e) => setFormData(f => ({ ...f, fiscalCode: e.target.value.toUpperCase() }))}
+                maxLength={16}
+                placeholder="Auto-compilato dalla P.IVA (opzionale)"
+                style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Settore
+              </label>
+              <select
+                value={formData.sector || ""}
+                onChange={(e) => setFormData(f => ({ ...f, sector: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
+              >
+                <option value="">— nessuno —</option>
+                <option value="concessionari">Concessionari</option>
+                <option value="Spett. Laboratorio Odontotecnico">Lab. Odontotecnico</option>
+                <option value="Spett. Studio Dentistico">Studio Dentistico</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+              <button onClick={goBack}
+                style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>
+                Indietro
+              </button>
+              <button onClick={() => { if (!formData.name.trim()) return; goForward(); }}
+                disabled={!formData.name.trim()}
+                style={{ padding: "10px 24px", fontSize: "14px", fontWeight: 600, backgroundColor: formData.name.trim() ? "#1976d2" : "#ccc", color: "#fff", border: "none", borderRadius: "8px", cursor: formData.name.trim() ? "pointer" : "not-allowed" }}>
+                Avanti →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP INDIRIZZO ─────────────────────────────────────────────── */}
+        {isStepIndirizzo && (
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "20px" }}>
+              Indirizzo principale
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Via e civico
+              </label>
+              <input autoComplete="off"
+                type="text"
+                value={formData.street}
+                onChange={(e) => setFormData(f => ({ ...f, street: e.target.value }))}
+                placeholder="Es. Via Roma 1"
+                style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                  CAP
+                </label>
+                <input autoComplete="off"
+                  type="text"
+                  value={formData.postalCode}
+                  onChange={(e) => setFormData(f => ({ ...f, postalCode: e.target.value, postalCodeCity: "" }))}
+                  maxLength={5}
+                  placeholder="Es. 80100"
+                  style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                  Città (se CAP ambiguo)
+                </label>
+                <input autoComplete="off"
+                  type="text"
+                  value={formData.postalCodeCity}
+                  onChange={(e) => setFormData(f => ({ ...f, postalCodeCity: e.target.value }))}
+                  placeholder="Es. Napoli"
+                  style={{ width: "100%", padding: "12px 14px", fontSize: "16px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+            {formData.county && (
+              <div style={{ padding: "10px 14px", background: "#f0f7ff", borderRadius: "8px", fontSize: "13px", color: "#1976d2", marginBottom: "8px" }}>
+                📍 {[formData.county, formData.state].filter(Boolean).join(" · ")} · {formData.country}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+              <button onClick={goBack}
+                style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>
+                Indietro
+              </button>
+              <button onClick={goForward}
+                style={{ padding: "10px 24px", fontSize: "14px", fontWeight: 600, backgroundColor: "#1976d2", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+                Avanti →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP CONTATTI ──────────────────────────────────────────────── */}
+        {isStepContatti && (
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "20px" }}>
+              Informazioni di contatto
+            </div>
+            {[
+              { key: "phone", label: "Telefono", type: "tel", placeholder: "+39 0..." },
+              { key: "mobile", label: "Cellulare", type: "tel", placeholder: "+39 3..." },
+              { key: "email", label: "E-mail", type: "email", placeholder: "email@dominio.it" },
+              { key: "url", label: "Sito web", type: "url", placeholder: "https://..." },
+              { key: "pec", label: "PEC", type: "email", placeholder: "pec@pec.it" },
+              { key: "sdi", label: "SDI", type: "text", placeholder: "0000000", maxLength: 7 },
+            ].map(({ key, label, type, placeholder, maxLength }) => (
+              <div key={key} style={{ marginBottom: "12px" }}>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#555", marginBottom: "4px" }}>{label}</label>
+                <input autoComplete="off"
+                  type={type}
+                  value={(formData as any)[key] || ""}
+                  onChange={(e) => {
+                    const v = key === "sdi" ? e.target.value.toUpperCase() : e.target.value;
+                    setFormData(f => ({ ...f, [key]: v }));
+                  }}
+                  placeholder={placeholder}
+                  maxLength={maxLength}
+                  style={{ width: "100%", padding: "10px 12px", fontSize: "15px", border: "1.5px solid #ddd", borderRadius: "8px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+              <button onClick={goBack}
+                style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>
+                Indietro
+              </button>
+              <button onClick={goForward}
+                style={{ padding: "10px 24px", fontSize: "14px", fontWeight: 600, backgroundColor: "#1976d2", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+                Avanti →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP COMMERCIALE ───────────────────────────────────────────── */}
+        {isStepCommerciale && (
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "20px" }}>
+              Dati commerciali
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                All'attenzione di
+              </label>
+              <input autoComplete="off"
+                type="text"
+                value={formData.attentionTo || ""}
+                onChange={(e) => setFormData(f => ({ ...f, attentionTo: e.target.value }))}
+                placeholder="Nome referente (opzionale)"
+                maxLength={50}
+                style={{ width: "100%", padding: "12px 14px", fontSize: "15px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Modalità di consegna
+              </label>
+              <select
+                value={formData.deliveryMode}
+                onChange={(e) => setFormData(f => ({ ...f, deliveryMode: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", fontSize: "15px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
+              >
+                {DELIVERY_MODES.map(dm => (
+                  <option key={dm.value} value={dm.value}>{dm.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Termini di pagamento
+              </label>
+              <select
+                value={formData.paymentTerms}
+                onChange={(e) => setFormData(f => ({ ...f, paymentTerms: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", fontSize: "15px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
+              >
+                {PAYMENT_TERMS.map(pt => (
+                  <option key={pt.id} value={pt.id}>{pt.id} — {pt.descrizione}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#555", marginBottom: "6px" }}>
+                Note / Memo
+              </label>
+              <textarea
+                value={formData.notes || ""}
+                onChange={(e) => setFormData(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Note interne (opzionale)"
+                rows={3}
+                maxLength={4000}
+                style={{ width: "100%", padding: "12px 14px", fontSize: "15px", border: "1.5px solid #ddd", borderRadius: "10px", outline: "none", boxSizing: "border-box", resize: "vertical" }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+              <button onClick={goBack}
+                style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>
+                Indietro
+              </button>
+              <button onClick={goForward}
+                style={{ padding: "10px 24px", fontSize: "14px", fontWeight: 600, backgroundColor: "#1976d2", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+                Avanti →
               </button>
             </div>
           </div>

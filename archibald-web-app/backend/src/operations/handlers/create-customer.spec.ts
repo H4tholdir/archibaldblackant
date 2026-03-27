@@ -13,6 +13,7 @@ function createMockPool(): DbPool {
 function createMockBot(): CreateCustomerBot {
   return {
     createCustomer: vi.fn().mockResolvedValue('CUST-PROFILE-001'),
+    buildCustomerSnapshot: vi.fn().mockResolvedValue(null),
     setProgressCallback: vi.fn(),
   };
 }
@@ -50,7 +51,7 @@ describe('handleCreateCustomer', () => {
     expect(insertCalls.length).toBeGreaterThanOrEqual(1);
   });
 
-  test('updates customer bot_status to placed on success', async () => {
+  test('updates customer bot_status to snapshot on success', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -59,7 +60,7 @@ describe('handleCreateCustomer', () => {
     const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
       .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.customers') && (c[0] as string).includes('bot_status'));
     expect(updateCalls).toHaveLength(1);
-    expect(updateCalls[0][1]).toContain('placed');
+    expect(updateCalls[0][1]).toContain('snapshot');
   });
 
   test('returns customerProfile in result', async () => {

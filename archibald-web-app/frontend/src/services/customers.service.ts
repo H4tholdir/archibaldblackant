@@ -112,11 +112,21 @@ export class CustomerService {
     street?: string;
     postalCode?: string;
     phone?: string;
+    mobile?: string;
     email?: string;
+    url?: string;
     deliveryMode?: string;
     paymentTerms?: string;
     postalCodeCity?: string;
     postalCodeCountry?: string;
+    fiscalCode?: string;
+    sector?: string;
+    attentionTo?: string;
+    notes?: string;
+    county?: string;
+    state?: string;
+    country?: string;
+    addresses?: Array<{ tipo: string; nome?: string; via?: string; cap?: string; citta?: string; contea?: string; stato?: string; idRegione?: string; contra?: string }>;
   }): Promise<{ taskId: string | null }> {
     const response = await fetchWithRetry("/api/customers", {
       method: "POST",
@@ -179,7 +189,9 @@ export class CustomerService {
     }
 
     const data = await response.json();
-    return data.data?.botStatus || "placed";
+    // 'snapshot' is treated as completed (data ready, pending background sync confirmation)
+    const status = data.data?.botStatus || "placed";
+    return status === "snapshot" ? "placed" : status;
   }
 
   async retryBotPlacement(customerProfile: string): Promise<void> {

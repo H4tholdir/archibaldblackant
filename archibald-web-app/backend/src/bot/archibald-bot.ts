@@ -12429,8 +12429,22 @@ export class ArchibaldBot {
       );
     }
 
+    if (customerData.sector) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        customerData.sector,
+      );
+    }
+
     // Phase D: All other text fields (after VAT callback completed)
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+
+    if (customerData.fiscalCode) {
+      await this.typeDevExpressField(
+        /xaf_dviFISCALCODE_Edit_I$/,
+        customerData.fiscalCode,
+      );
+    }
 
     if (customerData.pec) {
       await this.typeDevExpressField(
@@ -12474,6 +12488,20 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
 
+    if (customerData.attentionTo) {
+      await this.typeDevExpressField(
+        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
+        customerData.attentionTo,
+      );
+    }
+
+    if (customerData.notes) {
+      await this.typeDevExpressField(
+        /xaf_dviCUSTINFO_Edit_I$/,
+        customerData.notes,
+      );
+    }
+
     await this.ensureNameFieldBeforeSave(customerData.name);
 
     // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
@@ -12503,8 +12531,10 @@ export class ArchibaldBot {
 
     const profileId = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
+      // dviID_Edit_I contains the real customer ID (e.g. "55.839").
+      // dviACCOUNTNUM_Edit_I was always empty in ERP tests — do not use it.
       const profileInput = inputs.find((input) =>
-        /xaf_dviACCOUNTNUM_Edit_I$/.test(input.id),
+        /xaf_dviID_Edit_I$/.test(input.id),
       );
       if (profileInput) {
         return (profileInput as HTMLInputElement).value;
@@ -12525,6 +12555,137 @@ export class ArchibaldBot {
 
     logger.warn("Could not extract customer profile ID");
     return "UNKNOWN";
+  }
+
+  /**
+   * Reads all available customer fields from the ERP DetailView after creation/update.
+   * Returns a structured snapshot for immediate use in the PWA (optimistic state).
+   * Returns null if the page cannot be navigated or fields cannot be read.
+   */
+  async buildCustomerSnapshot(customerProfile: string): Promise<{
+    internalId: string | null;
+    name: string | null;
+    nameAlias: string | null;
+    vatNumber: string | null;
+    vatValidated: string | null;
+    fiscalCode: string | null;
+    pec: string | null;
+    sdi: string | null;
+    notes: string | null;
+    street: string | null;
+    postalCode: string | null;
+    city: string | null;
+    county: string | null;
+    state: string | null;
+    country: string | null;
+    phone: string | null;
+    mobile: string | null;
+    email: string | null;
+    url: string | null;
+    attentionTo: string | null;
+    deliveryMode: string | null;
+    paymentTerms: string | null;
+    sector: string | null;
+    priceGroup: string | null;
+    lineDiscount: string | null;
+  } | null> {
+    if (!this.page) return null;
+    try {
+      await this.page.goto(
+        `${config.archibald.url}/CUSTTABLE_DetailView/${customerProfile}/`,
+        { waitUntil: "domcontentloaded", timeout: 30000 },
+      );
+      await this.waitForDevExpressReady({ timeout: 10000 });
+
+      // Click edit button to access all fields
+      const editClicked = await this.page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll("a, button"))
+          .filter((el) => (el as HTMLElement).offsetParent !== null)
+          .find(
+            (el) =>
+              /modif|edit/i.test((el as HTMLElement).title ?? "") ||
+              /modif|edit/i.test(el.textContent?.trim() ?? ""),
+          );
+        if (btn) { (btn as HTMLElement).click(); return true; }
+        return false;
+      });
+      if (!editClicked) return null;
+
+      await this.page.waitForFunction(
+        () => window.location.href.includes("mode=Edit"),
+        { timeout: 8000, polling: 300 },
+      ).catch(() => {});
+      await this.waitForDevExpressReady({ timeout: 10000 });
+
+      const get = (regex: string) =>
+        this.page!.evaluate((re: string) => {
+          const pat = new RegExp(re);
+          return (
+            (Array.from(document.querySelectorAll("input, textarea")) as (HTMLInputElement | HTMLTextAreaElement)[])
+              .find((el) => el.offsetParent !== null && pat.test(el.id))?.value ?? null
+          );
+        }, regex);
+
+      // Read main tab fields first, then switch to Prezzi tab — sequential to avoid race conditions
+      const mainFields = await this.page.evaluate(() => {
+        const g = (re: string) => {
+          const pat = new RegExp(re);
+          return (
+            (Array.from(document.querySelectorAll("input, textarea")) as (HTMLInputElement | HTMLTextAreaElement)[])
+              .find((el) => el.offsetParent !== null && pat.test(el.id))?.value ?? null
+          );
+        };
+        return {
+          internalId:   g("dviID_Edit_I$"),
+          name:         g("dviNAME_Edit_I$"),
+          nameAlias:    g("dviNAMEALIAS_Edit_I$"),
+          vatNumber:    g("dviVATNUM_Edit_I$"),
+          vatValidated: g("dviVATVALIEDE_Edit_I$"),
+          fiscalCode:   g("dviFISCALCODE_Edit_I$"),
+          pec:          g("dviLEGALEMAIL_Edit_I$"),
+          sdi:          g("dviLEGALAUTHORITY_Edit_I$"),
+          notes:        g("dviCUSTINFO_Edit_I$"),
+          street:       g("dviSTREET_Edit_I$"),
+          postalCode:   g("dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I$"),
+          city:         g("dviCITY_Edit_I$"),
+          county:       g("dviCOUNTY_Edit_I$"),
+          state:        g("dviSTATE_Edit_I$"),
+          country:      g("dviCOUNTRYREGIONID_Edit_I$"),
+          phone:        g("dviPHONE_Edit_I$"),
+          mobile:       g("dviCELLULARPHONE_Edit_I$"),
+          email:        g("dviEMAIL_Edit_I$"),
+          url:          g("dviURL_Edit_I$"),
+          attentionTo:  g("dviBRASCRMATTENTIONTO_Edit_I$"),
+          deliveryMode: g("dviDLVMODE_Edit_dropdown_DD_I$"),
+          paymentTerms: g("dviPAYMTERMID_Edit_find_Edit_I$"),
+          sector:       g("dviBUSINESSSECTORID_Edit_dropdown_DD_I$"),
+        };
+      });
+
+      await this.openCustomerTab("Prezzi e sconti");
+      const prezziFields = await this.page.evaluate(() => {
+        const g = (re: string) => {
+          const pat = new RegExp(re);
+          return (
+            (Array.from(document.querySelectorAll("input")) as HTMLInputElement[])
+              .find((el) => el.offsetParent !== null && pat.test(el.id))?.value ?? null
+          );
+        };
+        return {
+          priceGroup:   g("dviPRICEGROUP_Edit_dropdown_DD_I$"),
+          lineDiscount: g("dviLINEDISC_Edit_dropdown_DD_I$"),
+        };
+      });
+
+      logger.debug("buildCustomerSnapshot completed", { customerProfile });
+      return { ...mainFields, ...prezziFields };
+    } catch (err) {
+      logger.warn("buildCustomerSnapshot failed", {
+        customerProfile,
+        error: String(err),
+      });
+      return null;
+    }
   }
 
   private async extractProfileFromListByName(name: string): Promise<string> {
@@ -13458,8 +13619,22 @@ export class ArchibaldBot {
       );
     }
 
+    if (customerData.sector) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        customerData.sector,
+      );
+    }
+
     // Phase C: Text fields (set after lookups so they don't get cleared)
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+
+    if (customerData.fiscalCode) {
+      await this.typeDevExpressField(
+        /xaf_dviFISCALCODE_Edit_I$/,
+        customerData.fiscalCode,
+      );
+    }
 
     if (customerData.pec) {
       await this.typeDevExpressField(
@@ -13501,6 +13676,20 @@ export class ArchibaldBot {
 
     if (customerData.url !== undefined) {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+    }
+
+    if (customerData.attentionTo) {
+      await this.typeDevExpressField(
+        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
+        customerData.attentionTo,
+      );
+    }
+
+    if (customerData.notes) {
+      await this.typeDevExpressField(
+        /xaf_dviCUSTINFO_Edit_I$/,
+        customerData.notes,
+      );
     }
 
     // Re-type STREET at the end to fix race conditions: rapid XHR callbacks (from

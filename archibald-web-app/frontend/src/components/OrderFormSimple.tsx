@@ -105,6 +105,10 @@ export default function OrderFormSimple() {
   const [hidingCustomerId, setHidingCustomerId] = useState<string | null>(null);
   const [restoringCustomerId, setRestoringCustomerId] = useState<string | null>(null);
 
+  // Shortcut: crea nuovo cliente da ricerca con 0 risultati
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
+  const [createCustomerPrefill, setCreateCustomerPrefill] = useState("");
+
   // Customer completeness check
   const [selectedCustomerFull, setSelectedCustomerFull] = useState<RichCustomer | null>(null);
   const [customerCompleteness, setCustomerCompleteness] = useState<CompletenessResult | null>(null);
@@ -2938,6 +2942,23 @@ export default function OrderFormSimple() {
 
             {searchingCustomer && (
               <p style={{ color: "#6b7280" }}>Ricerca...</p>
+            )}
+
+            {!searchingCustomer && customerSearch.length >= 2 && customerResults.length === 0 && (
+              <div style={{ padding: "12px 14px", background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                  Nessun cliente trovato per &ldquo;{customerSearch}&rdquo;
+                </span>
+                <button
+                  onClick={() => {
+                    setCreateCustomerPrefill(customerSearch);
+                    setCreateCustomerOpen(true);
+                  }}
+                  style={{ flexShrink: 0, padding: "6px 14px", fontSize: "13px", fontWeight: 600, backgroundColor: "#1976d2", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  + Crea cliente
+                </button>
+              </div>
             )}
 
             {customerResults.length > 0 && (
@@ -6334,6 +6355,21 @@ export default function OrderFormSimple() {
           editCustomer={editCustomerForCompleteness}
         />
       )}
+
+      {/* Shortcut: crea cliente rapido da ordine quando ricerca ha 0 risultati */}
+      <CustomerCreateModal
+        isOpen={createCustomerOpen}
+        onClose={() => setCreateCustomerOpen(false)}
+        onSaved={() => {
+          setCreateCustomerOpen(false);
+          // Re-search: il cliente è già in DB, apparirà nei risultati
+          if (createCustomerPrefill) {
+            handleCustomerSearch(createCustomerPrefill);
+          }
+        }}
+        contextMode="order"
+        prefillName={createCustomerPrefill}
+      />
     </div>
   );
 }
