@@ -2,9 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Customer } from '../types/customer';
 import { CustomerSidebar } from '../components/CustomerSidebar';
+import { customerService } from '../services/customers.service';
 import { CustomerInlineSection } from '../components/CustomerInlineSection';
 import type { SectionField } from '../components/CustomerInlineSection';
 import { checkCustomerCompleteness } from '../utils/customer-completeness';
+import { getCustomerFullHistory } from '../api/customer-full-history';
+import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
+import {
+  getCustomerAddresses,
+  addCustomerAddress,
+  updateCustomerAddress,
+  deleteCustomerAddress,
+} from '../services/customer-addresses';
+import type { CustomerAddress } from '../types/customer-address';
+import type { AddressEntry } from '../types/customer-form-data';
 
 type Tab = 'dati' | 'ordini' | 'note' | 'indirizzi';
 
@@ -27,6 +38,24 @@ export function CustomerDetailPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dati');
 
+  const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
+  const [addrForm, setAddrForm] = useState<(AddressEntry & { id?: number }) | null>(null);
+  const [addrSaving, setAddrSaving] = useState(false);
+  const [addrError, setAddrError] = useState<string | null>(null);
+
+  const [agentNotes, setAgentNotes] = useState<string>('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
   const loadCustomer = useCallback(async () => {
     if (!customerProfile) return;
     try {
@@ -41,6 +70,75 @@ export function CustomerDetailPage() {
   }, [customerProfile]);
 
   useEffect(() => { void loadCustomer(); }, [loadCustomer]);
+
+  useEffect(() => {
+    if (!customerProfile) return;
+    customerService.getPhotoUrl(customerProfile)
+      .then((url) => setPhotoUrl(url ?? null))
+      .catch(() => setPhotoUrl(null));
+  }, [customerProfile]);
+
+  const refreshPhoto = useCallback(() => {
+    if (!customerProfile) return;
+    customerService.getPhotoUrl(customerProfile)
+      .then((url) => setPhotoUrl(url ?? null))
+      .catch(() => setPhotoUrl(null));
+  }, [customerProfile]);
+
+  useEffect(() => {
+    if (activeTab !== 'ordini' || !customer || ordersLoaded) return;
+    setOrdersLoading(true);
+    setOrdersError(null);
+    getCustomerFullHistory({ customerProfileIds: [customer.customerProfile] })
+      .then((data) => {
+        setOrders(data.slice(0, 20));
+        setOrdersLoaded(true);
+      })
+      .catch((e: unknown) => {
+        setOrdersError(e instanceof Error ? e.message : 'Errore caricamento ordini');
+        setOrdersLoaded(true);
+      })
+      .finally(() => setOrdersLoading(false));
+  }, [activeTab, customer, ordersLoaded]);
+
+  useEffect(() => {
+    if (activeTab !== 'indirizzi' || !customer || addressesLoaded) return;
+    getCustomerAddresses(customer.customerProfile)
+      .then((data) => { setAddresses(data); setAddressesLoaded(true); })
+      .catch(() => setAddressesLoaded(true));
+  }, [activeTab, customer, addressesLoaded]);
+
+  useEffect(() => {
+    if (customer) {
+      setAgentNotes(customer.agentNotes ?? '');
+      setNotesSaved(false);
+    }
+  }, [customer]);
+
+  const handleSaveNotes = async () => {
+    if (!customer) return;
+    setNotesSaving(true);
+    setNotesError(null);
+    setNotesSaved(false);
+    try {
+      const jwt = localStorage.getItem('archibald_jwt') ?? '';
+      const res = await fetch(
+        `/api/customers/${encodeURIComponent(customer.customerProfile)}/agent-notes`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+          body: JSON.stringify({ notes: agentNotes || null }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 3000);
+    } catch (e: unknown) {
+      setNotesError(e instanceof Error ? e.message : 'Errore salvataggio note');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
 
   const isMobile = window.innerWidth < 641;
 
@@ -115,6 +213,50 @@ export function CustomerDetailPage() {
   const isIndirizzoError = completeness.missingFields.some((f) =>
     ['street', 'postalCode', 'city'].includes(f),
   );
+
+  const TIPO_OPTIONS = ['Consegna', 'Indir. cons. alt.', 'Fatturazione', 'Amministrativa'];
+
+  const handleAddrSave = async () => {
+    if (!addrForm || !customer) return;
+    setAddrSaving(true);
+    setAddrError(null);
+    try {
+      const entry: AddressEntry = {
+        tipo: addrForm.tipo,
+        nome: addrForm.nome || undefined,
+        via: addrForm.via || undefined,
+        cap: addrForm.cap || undefined,
+        citta: addrForm.citta || undefined,
+        contea: addrForm.contea || undefined,
+        stato: addrForm.stato || undefined,
+        idRegione: addrForm.idRegione || undefined,
+        contra: addrForm.contra || undefined,
+      };
+      if (addrForm.id !== undefined) {
+        const updated = await updateCustomerAddress(customer.customerProfile, addrForm.id, entry);
+        setAddresses((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      } else {
+        const created = await addCustomerAddress(customer.customerProfile, entry);
+        setAddresses((prev) => [...prev, created]);
+      }
+      setAddrForm(null);
+    } catch (e: unknown) {
+      setAddrError(e instanceof Error ? e.message : 'Errore salvataggio');
+    } finally {
+      setAddrSaving(false);
+    }
+  };
+
+  const handleAddrDelete = async (id: number) => {
+    if (!customer) return;
+    if (!window.confirm('Eliminare questo indirizzo?')) return;
+    try {
+      await deleteCustomerAddress(customer.customerProfile, id);
+      setAddresses((prev) => prev.filter((a) => a.id !== id));
+    } catch (e: unknown) {
+      setAddrError(e instanceof Error ? e.message : 'Errore eliminazione');
+    }
+  };
 
   const tabBtn = (id: Tab, label: string, badge?: number) => (
     <button
@@ -196,7 +338,12 @@ export function CustomerDetailPage() {
       {mobileHeader}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <CustomerSidebar customer={customer} onNewOrder={() => navigate('/')} />
+        <CustomerSidebar
+          customer={customer}
+          onNewOrder={() => navigate('/')}
+          photoUrl={photoUrl}
+          onPhotoChange={refreshPhoto}
+        />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tabs */}
@@ -219,36 +366,238 @@ export function CustomerDetailPage() {
               </>
             )}
             {activeTab === 'ordini' && (
-              <div style={{ padding: '8px 0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-                  {([
-                    { label: 'Ordini totali',     value: String(customer.actualOrderCount ?? 0) },
-                    { label: 'Fatturato corrente', value: customer.actualSales ? `€ ${customer.actualSales.toLocaleString('it-IT')}` : '—' },
-                    { label: 'Ultima attività',   value: customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('it-IT') : '—' },
-                  ] as const).map(({ label, value }) => (
-                    <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '7px', padding: '12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{value}</div>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '3px' }}>{label}</div>
+              <div>
+                {/* Stats strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                  {[
+                    { label: 'Ordini totali',      value: String(customer.actualOrderCount ?? 0) },
+                    { label: 'Fatturato corrente', value: customer.actualSales ? `\u20ac ${customer.actualSales.toLocaleString('it-IT')}` : '\u2014' },
+                    { label: 'Ultima attivit\u00e0',    value: customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('it-IT') : '\u2014' },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '7px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{value}</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '2px' }}>{label}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
-                  Storico ordini completo disponibile nella pagina Ordini
-                </div>
+
+                {/* Stato caricamento / errore */}
+                {ordersLoading && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '13px', color: '#64748b' }}>
+                    Caricamento ordini...
+                  </div>
+                )}
+                {ordersError && (
+                  <div style={{ background: '#fff5f5', border: '1px solid #fca5a5', borderRadius: '6px', padding: '10px', fontSize: '12px', color: '#dc2626', marginBottom: '12px' }}>
+                    {ordersError}
+                  </div>
+                )}
+                {!ordersLoading && !ordersError && orders.length === 0 && ordersLoaded && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '13px', color: '#94a3b8' }}>
+                    Nessun ordine trovato
+                  </div>
+                )}
+
+                {/* Tabella ordini */}
+                {orders.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                    {/* Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 110px 60px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '8px 12px' }}>
+                      {(['Data', 'N\u00b0 Ordine', 'Importo', 'Tipo'] as const).map((h) => (
+                        <div key={h} style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{h}</div>
+                      ))}
+                    </div>
+                    {/* Righe */}
+                    {orders.map((order) => (
+                      <div
+                        key={order.orderId}
+                        style={{ display: 'grid', gridTemplateColumns: '90px 1fr 110px 60px', padding: '9px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'default' }}
+                      >
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          {new Date(order.orderDate).toLocaleDateString('it-IT')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#1e293b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {order.orderNumber || order.orderId.slice(0, 8)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#1e293b', fontWeight: 600 }}>
+                          {order.totalAmount != null
+                            ? `\u20ac ${order.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '\u2014'}
+                        </div>
+                        <div>
+                          <span style={{
+                            fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px',
+                            background: order.source === 'fresis' ? '#eff6ff' : '#f0fdf4',
+                            color: order.source === 'fresis' ? '#2563eb' : '#16a34a',
+                          }}>
+                            {order.source === 'fresis' ? 'FT' : 'KT'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {activeTab === 'note' && (
               <div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                  Note private — visibili solo a te, non sincronizzate con Archibald ERP.
+                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                  Note private sull&apos;agente — visibili solo a te, non sincronizzate con Archibald ERP.
                 </div>
-                <textarea placeholder="Aggiungi note private su questo cliente..." rows={8}
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: '7px', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
+                <textarea
+                  value={agentNotes}
+                  onChange={(e) => { setAgentNotes(e.target.value); setNotesSaved(false); }}
+                  disabled={notesSaving}
+                  placeholder="Es: preferisce ordini mattutini, contatto: Mario Bianchi..."
+                  rows={10}
+                  style={{
+                    width: '100%', padding: '10px 12px',
+                    border: '1.5px solid #d1d5db', borderRadius: '7px',
+                    fontSize: '13px', resize: 'vertical', boxSizing: 'border-box',
+                    background: notesSaving ? '#f9fafb' : 'white',
+                  }}
+                />
+                {notesError && (
+                  <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '6px' }}>{notesError}</div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px' }}>
+                  <button
+                    onClick={() => void handleSaveNotes()}
+                    disabled={notesSaving}
+                    style={{
+                      padding: '8px 18px', background: notesSaving ? '#93c5fd' : '#2563eb',
+                      color: 'white', border: 'none', borderRadius: '7px',
+                      fontSize: '13px', fontWeight: 700, cursor: notesSaving ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {notesSaving ? 'Salvataggio...' : 'Salva note'}
+                  </button>
+                  {notesSaved && (
+                    <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
+                      &#x2713; Note salvate
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             {activeTab === 'indirizzi' && (
-              <div style={{ fontSize: '13px', color: '#64748b', padding: '16px 0' }}>
-                Gestione indirizzi alternativi disponibile tramite il form di modifica cliente.
+              <div>
+                {addrError && (
+                  <div style={{ background: '#fff5f5', border: '1px solid #fca5a5', borderRadius: '6px', padding: '9px 12px', fontSize: '12px', color: '#dc2626', marginBottom: '12px' }}>
+                    {addrError}
+                  </div>
+                )}
+
+                {addresses.length === 0 && !addrForm && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '13px', color: '#94a3b8' }}>
+                    Nessun indirizzo alternativo
+                  </div>
+                )}
+
+                {addresses.map((addr) => (
+                  <div key={addr.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px 12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, background: '#eff6ff', color: '#2563eb', padding: '1px 7px', borderRadius: '8px', marginRight: '8px' }}>
+                        {addr.tipo}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#1e293b', fontWeight: 500 }}>
+                        {[addr.via, addr.cap, addr.citta].filter(Boolean).join(', ') || '\u2014'}
+                      </span>
+                      {addr.nome && (
+                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>c/o {addr.nome}</div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => setAddrForm({
+                          id: addr.id,
+                          tipo: addr.tipo,
+                          nome: addr.nome ?? undefined,
+                          via: addr.via ?? undefined,
+                          cap: addr.cap ?? undefined,
+                          citta: addr.citta ?? undefined,
+                          contea: addr.contea ?? undefined,
+                          stato: addr.stato ?? undefined,
+                          idRegione: addr.idRegione ?? undefined,
+                          contra: addr.contra ?? undefined,
+                        })}
+                        style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        ✏
+                      </button>
+                      <button
+                        onClick={() => void handleAddrDelete(addr.id)}
+                        style={{ fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {addrForm ? (
+                  <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '8px', padding: '14px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2563eb', marginBottom: '10px' }}>
+                      {addrForm.id !== undefined ? '\u270e Modifica indirizzo' : '+ Nuovo indirizzo'}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <label style={{ display: 'block', fontSize: '9px', color: '#374151', fontWeight: 600, marginBottom: '3px' }}>Tipo *</label>
+                        <select
+                          value={addrForm.tipo}
+                          onChange={(e) => setAddrForm((f) => f ? { ...f, tipo: e.target.value } : f)}
+                          style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #d1d5db', borderRadius: '5px', fontSize: '12px' }}
+                        >
+                          {TIPO_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <label style={{ display: 'block', fontSize: '9px', color: '#374151', fontWeight: 600, marginBottom: '3px' }}>c/o (nome)</label>
+                        <input type="text" value={addrForm.nome ?? ''}
+                          onChange={(e) => setAddrForm((f) => f ? { ...f, nome: e.target.value } : f)}
+                          style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #d1d5db', borderRadius: '4px', fontSize: '11px', boxSizing: 'border-box' }} />
+                      </div>
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <label style={{ display: 'block', fontSize: '9px', color: '#374151', fontWeight: 600, marginBottom: '3px' }}>Via</label>
+                        <input type="text" value={addrForm.via ?? ''}
+                          onChange={(e) => setAddrForm((f) => f ? { ...f, via: e.target.value } : f)}
+                          style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #d1d5db', borderRadius: '4px', fontSize: '11px', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', color: '#374151', fontWeight: 600, marginBottom: '3px' }}>CAP</label>
+                        <input type="text" value={addrForm.cap ?? ''}
+                          onChange={(e) => setAddrForm((f) => f ? { ...f, cap: e.target.value } : f)}
+                          style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #d1d5db', borderRadius: '4px', fontSize: '11px', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', color: '#374151', fontWeight: 600, marginBottom: '3px' }}>Citt\u00e0</label>
+                        <input type="text" value={addrForm.citta ?? ''}
+                          onChange={(e) => setAddrForm((f) => f ? { ...f, citta: e.target.value } : f)}
+                          style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #d1d5db', borderRadius: '4px', fontSize: '11px', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    {addrError && (
+                      <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '6px' }}>{addrError}</div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
+                      <button onClick={() => { setAddrForm(null); setAddrError(null); }}
+                        style={{ fontSize: '11px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        Annulla
+                      </button>
+                      <button onClick={() => void handleAddrSave()} disabled={addrSaving}
+                        style={{ fontSize: '11px', fontWeight: 700, color: 'white', background: addrSaving ? '#93c5fd' : '#2563eb', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: addrSaving ? 'not-allowed' : 'pointer' }}>
+                        {addrSaving ? 'Salvataggio...' : 'Salva indirizzo'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddrForm({ tipo: 'Consegna' })}
+                    style={{ fontSize: '12px', color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', marginTop: '4px' }}
+                  >
+                    + Aggiungi indirizzo
+                  </button>
+                )}
               </div>
             )}
           </div>

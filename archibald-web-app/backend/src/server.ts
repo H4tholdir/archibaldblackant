@@ -350,6 +350,8 @@ function createApp(deps: AppDeps): Express {
     resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, customerProfile) => queue.enqueue('read-vat-status', userId, { customerProfile }),
+    updateAgentNotes: (userId, customerProfile, notes) =>
+      customersRepo.updateAgentNotes(pool, userId, customerProfile, notes),
     getCustomerSyncMetrics: async () => {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
       const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');

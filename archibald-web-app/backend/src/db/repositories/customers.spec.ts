@@ -56,6 +56,17 @@ const sampleRow: CustomerRow = {
   bot_status: 'placed',
   archibald_name: 'ACME CORP',
   photo: null,
+  vat_validated_at: null,
+  sector: null,
+  price_group: null,
+  line_discount: null,
+  payment_terms: null,
+  notes: null,
+  name_alias: null,
+  county: null,
+  state: null,
+  country: null,
+  agent_notes: null,
 };
 
 describe('getCustomerByProfile', () => {
@@ -405,6 +416,17 @@ describe('mapRowToCustomer', () => {
       botStatus: 'placed',
       archibaldName: 'ACME CORP',
       photo: null,
+      vatValidatedAt: null,
+      sector: null,
+      priceGroup: null,
+      lineDiscount: null,
+      paymentTerms: null,
+      notes: null,
+      nameAlias: null,
+      county: null,
+      state: null,
+      country: null,
+      agentNotes: null,
     });
   });
 
@@ -458,6 +480,7 @@ describe('mapRowToCustomer', () => {
       county: null,
       state: null,
       country: null,
+      agent_notes: null,
     };
 
     const result = mapRowToCustomer(minimalRow);
@@ -518,6 +541,7 @@ const completeCustomer: Customer = {
   county: null,
   state: null,
   country: null,
+  agentNotes: null,
 };
 
 describe('isCustomerComplete', () => {
@@ -572,5 +596,26 @@ describe('isCustomerComplete', () => {
     const { isCustomerComplete } = await import('./customers');
     const customer: Customer = { ...completeCustomer, city: null };
     expect(isCustomerComplete(customer)).toBe(false);
+  });
+});
+
+describe('updateAgentNotes', () => {
+  test('calls UPDATE with agent_notes and correct params', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    const { updateAgentNotes } = await import('./customers');
+    await updateAgentNotes(pool as never, 'user1', '55.261', 'Note test');
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const updateCall = calls.find(([sql]) => sql.includes('agent_notes'));
+    expect(updateCall).toBeDefined();
+    expect(updateCall![1]).toEqual(['Note test', '55.261', 'user1']);
+  });
+
+  test('passes null to DB when notes is null', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    const { updateAgentNotes } = await import('./customers');
+    await updateAgentNotes(pool as never, 'user1', '55.261', null);
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const updateCall = calls.find(([sql]) => sql.includes('agent_notes'));
+    expect(updateCall![1][0]).toBeNull();
   });
 });
