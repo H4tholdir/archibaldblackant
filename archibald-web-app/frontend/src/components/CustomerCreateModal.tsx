@@ -163,7 +163,6 @@ export function CustomerCreateModal({
     string | null
   >(null);
   const interactiveSessionIdRef = useRef<string | null>(null);
-  const [botReady, setBotReady] = useState(false);
   const [vatResult, setVatResult] = useState<VatLookupResult | null>(null);
   const [earlyVatInput, setEarlyVatInput] = useState("");
   const earlyVatInputRef = useRef("");
@@ -252,7 +251,6 @@ export function CustomerCreateModal({
       setProgressLabel("");
       setBotError(null);
       setInteractiveSessionId(null);
-      setBotReady(false);
       setVatResult(null);
       setEarlyVatInput("");
       setVatError(null);
@@ -263,19 +261,6 @@ export function CustomerCreateModal({
       setFormData(initial);
       setCurrentStep({ kind: "vat-input" });
 
-      // In order context, skip interactive session (faster: uses POST/queue directly)
-      if (contextMode !== "order") customerService
-        .startInteractiveSession()
-        .then(({ sessionId }) => {
-          setInteractiveSessionId(sessionId);
-        })
-        .catch((err) => {
-          console.error(
-            "[CustomerCreateModal] Failed to start interactive session:",
-            err,
-          );
-          setCurrentStep({ kind: "field", fieldIndex: 0 });
-        });
     } else {
       if (interactiveSessionIdRef.current) {
         customerService
@@ -379,13 +364,6 @@ export function CustomerCreateModal({
     if (!interactiveSessionId) return;
 
     const unsubs: Array<() => void> = [];
-
-    unsubs.push(
-      subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
-        if (payload.sessionId !== interactiveSessionIdRef.current) return;
-        setBotReady(true);
-      }),
-    );
 
     unsubs.push(
       subscribe("CUSTOMER_VAT_RESULT", (payload: any) => {
@@ -674,22 +652,33 @@ export function CustomerCreateModal({
     });
   };
 
-  const handleSubmitVat = () => {
+  const handleSubmitVat = async () => {
     const vat = earlyVatInput.trim();
-    if (!vat || !interactiveSessionId) return;
+    if (!vat) return;
 
     setVatError(null);
+    setCurrentStep({ kind: "vat-processing" });
 
-    if (botReady) {
-      setCurrentStep({ kind: "vat-processing" });
-      customerService
-        .submitVatNumber(interactiveSessionId, vat)
-        .catch((err) => {
-          setVatError(
-            err instanceof Error ? err.message : "Errore verifica P.IVA",
-          );
-          setCurrentStep({ kind: "vat-input" });
-        });
+    try {
+      let sessionId = interactiveSessionId;
+
+      if (!sessionId && contextMode !== "order") {
+        const { sessionId: newId } = await customerService.startInteractiveSession();
+        setInteractiveSessionId(newId);
+        sessionId = newId;
+      }
+
+      if (sessionId) {
+        await customerService.submitVatNumber(sessionId, vat);
+      } else {
+        // contextMode === "order": nessuna sessione bot, vai direttamente all'anagrafica
+        setCurrentStep({ kind: "step-anagrafica" });
+      }
+    } catch (err) {
+      setVatError(
+        err instanceof Error ? err.message : "Errore avvio verifica P.IVA. Riprova.",
+      );
+      setCurrentStep({ kind: "vat-input" });
     }
   };
 
@@ -880,49 +869,6 @@ export function CustomerCreateModal({
               </p>
             </div>
 
-            {!botReady && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "12px",
-                  backgroundColor: "#e3f2fd",
-                  borderRadius: "8px",
-                  marginBottom: "16px",
-                  fontSize: "14px",
-                  color: "#1976d2",
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: "16px",
-                    height: "16px",
-                    border: "2px solid #1976d2",
-                    borderTop: "2px solid transparent",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                  }}
-                />
-                Bot in avvio...
-              </div>
-            )}
-
-            {botReady && (
-              <div
-                style={{
-                  padding: "12px",
-                  backgroundColor: "#e8f5e9",
-                  borderRadius: "8px",
-                  marginBottom: "16px",
-                  fontSize: "14px",
-                  color: "#2e7d32",
-                }}
-              >
-                Bot pronto
-              </div>
-            )}
 
             <label
               style={{
@@ -943,8 +889,8 @@ export function CustomerCreateModal({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (earlyVatInput.trim().length > 0 && botReady) {
-                    handleSubmitVat();
+                  if (earlyVatInput.trim().length > 0) {
+                    void handleSubmitVat();
                   }
                 }
               }}
@@ -1002,22 +948,22 @@ export function CustomerCreateModal({
                 Salta
               </button>
               <button
-                onClick={handleSubmitVat}
-                disabled={earlyVatInput.trim().length === 0 || !botReady}
+                onClick={() => void handleSubmitVat()}
+                disabled={earlyVatInput.trim().length === 0}
                 style={{
                   flex: 1,
                   padding: "14px",
                   fontSize: "16px",
                   fontWeight: 700,
                   backgroundColor:
-                    earlyVatInput.trim().length === 0 || !botReady
+                    earlyVatInput.trim().length === 0
                       ? "#ccc"
                       : "#1976d2",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
                   cursor:
-                    earlyVatInput.trim().length === 0 || !botReady
+                    earlyVatInput.trim().length === 0
                       ? "not-allowed"
                       : "pointer",
                 }}
