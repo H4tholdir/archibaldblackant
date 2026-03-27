@@ -176,7 +176,7 @@ describe('PendingOrdersPage — completeness badge', () => {
       success: true,
       data: { customers: [mockCustomer as never], total: 1 },
     });
-    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'], missingFields: [] });
   });
 
   afterEach(async () => {
@@ -210,7 +210,7 @@ describe('PendingOrdersPage — completeness badge', () => {
       success: true,
       data: { customers: [mockCustomerWithVat as never], total: 1 },
     });
-    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'], missingFields: [] });
 
     render(
       <MemoryRouter>
@@ -227,6 +227,7 @@ describe('PendingOrdersPage — completeness badge', () => {
     vi.mocked(checkCustomerCompleteness).mockReturnValue({
       ok: false,
       missing: ['PEC o SDI mancante', 'Indirizzo mancante'],
+      missingFields: [],
     });
 
     render(
@@ -242,7 +243,7 @@ describe('PendingOrdersPage — completeness badge', () => {
 
   test('shows "Completa scheda →" button when only VAT missing but vatNumber is null', async () => {
     // vatNumber: null in mockCustomer (default) + only P.IVA missing → "Completa scheda" not "Valida ora"
-    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'] });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['P.IVA non validata'], missingFields: [] });
 
     render(
       <MemoryRouter>

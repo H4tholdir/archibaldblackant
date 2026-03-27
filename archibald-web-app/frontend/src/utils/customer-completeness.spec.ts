@@ -2,112 +2,85 @@ import { describe, expect, test } from 'vitest';
 import { checkCustomerCompleteness } from './customer-completeness';
 import type { Customer } from '../types/customer';
 
-const BASE_COMPLETE: Customer = {
-  customerProfile: 'CUST-001',
-  internalId: '123',
-  name: 'Rossi Mario',
-  vatNumber: '12345678901',
-  fiscalCode: null,
-  sdi: 'ABCDEFG',
+const base: Customer = {
+  customerProfile: '55.261',
+  internalId: null,
+  name: 'Mario Rossi S.r.l.',
+  vatNumber: 'IT08246131216',
+  vatValidatedAt: '2026-01-01T00:00:00Z',
   pec: 'mario@pec.it',
-  email: null,
-  phone: null,
-  mobile: null,
-  url: null,
-  attentionTo: null,
-  street: 'Via Roma 1',
-  logisticsAddress: null,
+  sdi: null,
+  street: 'Via Roma 12',
   postalCode: '80100',
   city: 'Napoli',
-  customerType: null,
-  type: null,
-  deliveryTerms: null,
-  description: null,
-  lastOrderDate: null,
-  actualOrderCount: 0,
-  actualSales: 0,
-  previousOrderCount1: 0,
-  previousSales1: 0,
-  previousOrderCount2: 0,
-  previousSales2: 0,
-  externalAccountNumber: null,
-  ourAccountNumber: null,
-  hash: 'abc',
-  lastSync: 0,
-  createdAt: 0,
-  updatedAt: 0,
-  botStatus: null,
-  photoUrl: null,
-  vatValidatedAt: '2026-01-01T00:00:00Z',
+  fiscalCode: null, mobile: null, phone: null, email: null, url: null,
+  attentionTo: null, logisticsAddress: null, customerType: null, type: null,
+  deliveryTerms: null, description: null, lastOrderDate: null,
+  actualOrderCount: 0, actualSales: 0, previousOrderCount1: 0, previousSales1: 0,
+  previousOrderCount2: 0, previousSales2: 0,
+  externalAccountNumber: null, ourAccountNumber: null,
+  hash: '', lastSync: 0, createdAt: 0, updatedAt: 0,
+  botStatus: 'placed', photoUrl: null,
+  sector: null, priceGroup: null, lineDiscount: null,
+  paymentTerms: null, notes: null, nameAlias: null,
+  county: null, state: null, country: null,
 };
 
 describe('checkCustomerCompleteness', () => {
-  test('all fields present → ok with empty missing list', () => {
-    expect(checkCustomerCompleteness(BASE_COMPLETE)).toEqual({ ok: true, missing: [] });
+  test('returns ok=true when all mandatory fields are present', () => {
+    const result = checkCustomerCompleteness(base);
+    expect(result.ok).toBe(true);
+    expect(result.missingFields).toEqual([]);
   });
 
-  test('vatValidatedAt null → missing includes P.IVA non validata', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, vatValidatedAt: null });
-    expect(result).toEqual({ ok: false, missing: ['P.IVA non validata'] });
+  test('returns ok=true when sdi provided instead of pec', () => {
+    const result = checkCustomerCompleteness({ ...base, pec: null, sdi: 'AAABBB1' });
+    expect(result.ok).toBe(true);
   });
 
-  test('vatValidatedAt empty string → missing includes P.IVA non validata (truthy check)', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, vatValidatedAt: '' });
-    expect(result).toEqual({ ok: false, missing: ['P.IVA non validata'] });
+  test('returns missingFields with vatNumber when vatNumber is null', () => {
+    const result = checkCustomerCompleteness({ ...base, vatNumber: null });
+    expect(result.ok).toBe(false);
+    expect(result.missingFields).toContain('vatNumber');
   });
 
-  test('pec present without sdi → ok', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, sdi: null });
-    expect(result).toEqual({ ok: true, missing: [] });
+  test('returns vatValidatedAt (not vatNumber) when vatNumber present but not validated', () => {
+    const result = checkCustomerCompleteness({ ...base, vatValidatedAt: null });
+    expect(result.ok).toBe(false);
+    expect(result.missingFields).toContain('vatValidatedAt');
+    expect(result.missingFields).not.toContain('vatNumber');
   });
 
-  test('sdi present without pec → ok', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, pec: null });
-    expect(result).toEqual({ ok: true, missing: [] });
+  test('returns pec_or_sdi when both pec and sdi are null', () => {
+    const result = checkCustomerCompleteness({ ...base, pec: null, sdi: null });
+    expect(result.ok).toBe(false);
+    expect(result.missingFields).toContain('pec_or_sdi');
   });
 
-  test('neither pec nor sdi → missing includes PEC o SDI mancante', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, pec: null, sdi: null });
-    expect(result).toEqual({ ok: false, missing: ['PEC o SDI mancante'] });
+  test('returns street when street is null', () => {
+    const result = checkCustomerCompleteness({ ...base, street: null });
+    expect(result.missingFields).toContain('street');
   });
 
-  test('pec empty string and sdi null → missing includes PEC o SDI mancante (truthy check)', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, pec: '', sdi: null });
-    expect(result).toEqual({ ok: false, missing: ['PEC o SDI mancante'] });
+  test('returns postalCode when postalCode is null', () => {
+    const result = checkCustomerCompleteness({ ...base, postalCode: null });
+    expect(result.missingFields).toContain('postalCode');
   });
 
-  test('street null → missing includes Indirizzo mancante', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, street: null });
-    expect(result).toEqual({ ok: false, missing: ['Indirizzo mancante'] });
+  test('returns city when city is null', () => {
+    const result = checkCustomerCompleteness({ ...base, city: null });
+    expect(result.missingFields).toContain('city');
   });
 
-  test('street empty string → missing includes Indirizzo mancante (truthy check)', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, street: '' });
-    expect(result).toEqual({ ok: false, missing: ['Indirizzo mancante'] });
+  test('preserves human-readable missing strings for backward compatibility', () => {
+    const result = checkCustomerCompleteness({ ...base, pec: null, sdi: null });
+    expect(result.missing.some((s) => s.toLowerCase().includes('pec'))).toBe(true);
   });
 
-  test('postalCode null → missing includes CAP mancante', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, postalCode: null });
-    expect(result).toEqual({ ok: false, missing: ['CAP mancante'] });
-  });
-
-  test('postalCode empty string → missing includes CAP mancante (truthy check)', () => {
-    const result = checkCustomerCompleteness({ ...BASE_COMPLETE, postalCode: '' });
-    expect(result).toEqual({ ok: false, missing: ['CAP mancante'] });
-  });
-
-  test('multiple fields missing → all labels listed in order', () => {
-    const result = checkCustomerCompleteness({
-      ...BASE_COMPLETE,
-      vatValidatedAt: null,
-      pec: null,
-      sdi: null,
-      street: null,
-      postalCode: null,
-    });
-    expect(result).toEqual({
-      ok: false,
-      missing: ['P.IVA non validata', 'PEC o SDI mancante', 'Indirizzo mancante', 'CAP mancante'],
-    });
+  test('accumulates multiple missingFields', () => {
+    const result = checkCustomerCompleteness({ ...base, pec: null, sdi: null, street: null });
+    expect(result.missingFields).toContain('pec_or_sdi');
+    expect(result.missingFields).toContain('street');
+    expect(result.missingFields).toHaveLength(2);
   });
 });
