@@ -20,7 +20,9 @@ function getInitials(name: string): string {
 
 function daysSince(dateStr: string | null): string {
   if (!dateStr) return '—';
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
+  const ms = new Date(dateStr).getTime();
+  if (isNaN(ms)) return '—';
+  const days = Math.floor((Date.now() - ms) / 86_400_000);
   return `${days}gg`;
 }
 
