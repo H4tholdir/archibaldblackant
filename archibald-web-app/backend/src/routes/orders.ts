@@ -5,6 +5,7 @@ import { requireAdmin } from '../middleware/auth';
 import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumberMapping, CustomerHistoryOrder, WarehousePickupOrder } from '../db/repositories/orders';
 import type { OrderVerificationSnapshot } from '../db/repositories/order-verification';
 import type { OperationType } from '../operations/operation-types';
+import type { Customer } from '../db/repositories/customers';
 import { logger } from '../logger';
 
 type LastSaleEntry = {
@@ -43,6 +44,8 @@ type OrdersRouterDeps = {
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
   getVerificationSnapshot?: (orderId: string, userId: string) => Promise<OrderVerificationSnapshot | null>;
   getWarehousePickupsByDate?: (userId: string, date: string) => Promise<WarehousePickupOrder[]>;
+  getCustomerByProfile?: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
+  isCustomerComplete?: (customer: Customer) => boolean;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
@@ -277,6 +280,27 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
           success: false,
           error: `Ordine non inviabile nello stato attuale: ${order.state}`,
         });
+      }
+
+      if (deps.getCustomerByProfile && deps.isCustomerComplete && order.customerProfileId) {
+        const customer = await deps.getCustomerByProfile(userId, order.customerProfileId);
+        if (customer && !deps.isCustomerComplete(customer)) {
+          const missingFields: string[] = [];
+          if (!customer.name) missingFields.push('name');
+          if (!customer.vatNumber) missingFields.push('vatNumber');
+          if (!customer.vatValidatedAt) missingFields.push('vatValidatedAt');
+          if (!customer.pec && !customer.sdi) missingFields.push('pec_or_sdi');
+          if (!customer.street) missingFields.push('street');
+          if (!customer.postalCode) missingFields.push('postalCode');
+          if (!customer.city) missingFields.push('city');
+          return res.status(400).json({
+            success: false,
+            error: 'customer_incomplete',
+            message: "Scheda cliente incompleta — completare i dati obbligatori prima di piazzare l'ordine",
+            missingFields,
+            customerProfile: order.customerProfileId,
+          });
+        }
       }
 
       const jobId = await queue.enqueue('send-to-verona', userId, { orderId });

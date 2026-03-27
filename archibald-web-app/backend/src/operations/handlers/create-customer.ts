@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import type { CustomerSnapshot } from '../../types';
 import { logger } from '../../logger';
 
 type CreateCustomerData = {
@@ -29,33 +30,6 @@ type CreateCustomerData = {
   addresses?: { tipo: string; nome?: string; via?: string; cap?: string; citta?: string; contea?: string; stato?: string; idRegione?: string; contra?: string }[];
 };
 
-type CustomerSnapshot = {
-  internalId: string | null;
-  name: string | null;
-  nameAlias: string | null;
-  vatNumber: string | null;
-  vatValidated: string | null;
-  fiscalCode: string | null;
-  pec: string | null;
-  sdi: string | null;
-  notes: string | null;
-  street: string | null;
-  postalCode: string | null;
-  city: string | null;
-  county: string | null;
-  state: string | null;
-  country: string | null;
-  phone: string | null;
-  mobile: string | null;
-  email: string | null;
-  url: string | null;
-  attentionTo: string | null;
-  deliveryMode: string | null;
-  paymentTerms: string | null;
-  sector: string | null;
-  priceGroup: string | null;
-  lineDiscount: string | null;
-} | null;
 
 type CreateCustomerBot = {
   createCustomer: (customerData: CreateCustomerData) => Promise<string>;

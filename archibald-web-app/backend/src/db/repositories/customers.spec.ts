@@ -1,6 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../pool';
-import type { CustomerRow } from './customers';
+import type { Customer, CustomerRow } from './customers';
 
 function createMockPool(): DbPool & { queryCalls: Array<{ text: string; params?: unknown[] }> } {
   const queryCalls: Array<{ text: string; params?: unknown[] }> = [];
@@ -448,6 +448,16 @@ describe('mapRowToCustomer', () => {
       bot_status: null,
       archibald_name: null,
       photo: null,
+      vat_validated_at: null,
+      sector: null,
+      price_group: null,
+      line_discount: null,
+      payment_terms: null,
+      notes: null,
+      name_alias: null,
+      county: null,
+      state: null,
+      country: null,
     };
 
     const result = mapRowToCustomer(minimalRow);
@@ -457,5 +467,110 @@ describe('mapRowToCustomer', () => {
     expect(result.internalId).toBeNull();
     expect(result.vatNumber).toBeNull();
     expect(result.createdAt).toBeNull();
+  });
+});
+
+const completeCustomer: Customer = {
+  customerProfile: 'C001',
+  userId: 'user-1',
+  internalId: null,
+  name: 'Acme Srl',
+  vatNumber: 'IT12345678901',
+  fiscalCode: null,
+  sdi: null,
+  pec: 'acme@pec.it',
+  phone: null,
+  mobile: null,
+  email: null,
+  url: null,
+  attentionTo: null,
+  street: 'Via Roma 1',
+  logisticsAddress: null,
+  postalCode: '80100',
+  city: 'Napoli',
+  customerType: null,
+  type: null,
+  deliveryTerms: null,
+  description: null,
+  lastOrderDate: null,
+  actualOrderCount: null,
+  actualSales: null,
+  previousOrderCount1: null,
+  previousSales1: null,
+  previousOrderCount2: null,
+  previousSales2: null,
+  externalAccountNumber: null,
+  ourAccountNumber: null,
+  hash: 'abc123',
+  lastSync: 1711497600000,
+  createdAt: null,
+  updatedAt: null,
+  botStatus: null,
+  archibaldName: null,
+  vatValidatedAt: '2026-01-15T10:00:00Z',
+  photo: null,
+  sector: null,
+  priceGroup: null,
+  lineDiscount: null,
+  paymentTerms: null,
+  notes: null,
+  nameAlias: null,
+  county: null,
+  state: null,
+  country: null,
+};
+
+describe('isCustomerComplete', () => {
+  test('returns true when all mandatory fields are present (pec path)', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    expect(isCustomerComplete(completeCustomer)).toBe(true);
+  });
+
+  test('returns true when sdi is provided instead of pec', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, pec: null, sdi: 'ABCDEF1' };
+    expect(isCustomerComplete(customer)).toBe(true);
+  });
+
+  test('returns false when name is missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, name: '' };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when vatNumber is missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, vatNumber: null };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when vatValidatedAt is null', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, vatValidatedAt: null };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when both pec and sdi are missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, pec: null, sdi: null };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when street is missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, street: null };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when postalCode is missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, postalCode: null };
+    expect(isCustomerComplete(customer)).toBe(false);
+  });
+
+  test('returns false when city is missing', async () => {
+    const { isCustomerComplete } = await import('./customers');
+    const customer: Customer = { ...completeCustomer, city: null };
+    expect(isCustomerComplete(customer)).toBe(false);
   });
 });

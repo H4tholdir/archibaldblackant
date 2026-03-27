@@ -348,6 +348,8 @@ function createApp(deps: AppDeps): Express {
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
     smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
     resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
+    getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
+    enqueueReadVatStatus: (userId, customerProfile) => queue.enqueue('read-vat-status', userId, { customerProfile }),
     getCustomerSyncMetrics: async () => {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
       const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
@@ -516,6 +518,8 @@ function createApp(deps: AppDeps): Express {
     getOrderHistoryByCustomer: (userId, customerName) => ordersRepo.getOrderHistoryByCustomer(pool, userId, customerName),
     getVerificationSnapshot: (orderId, userId) => getOrderVerificationSnapshot(pool, orderId, userId),
     getWarehousePickupsByDate: (userId, date) => ordersRepo.getWarehousePickupsByDate(pool, userId, date),
+    getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
+    isCustomerComplete: customersRepo.isCustomerComplete,
   }));
 
   app.use('/api/orders', authenticateJWT, createOrderVerificationRouter({ pool }));

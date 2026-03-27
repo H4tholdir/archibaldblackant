@@ -12688,6 +12688,39 @@ export class ArchibaldBot {
     }
   }
 
+  async readCustomerVatStatus(
+    customerProfile: string,
+  ): Promise<{ vatValidated: string; lastChecked: string } | null> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
+      { waitUntil: "networkidle2", timeout: 60000 },
+    );
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    try {
+      await this.searchAndOpenCustomer(customerProfile);
+    } catch {
+      logger.warn("readCustomerVatStatus: customer not found", { customerProfile });
+      return null;
+    }
+
+    const readField = async (selector: string): Promise<string> =>
+      this.page!.evaluate(
+        (s: string) => (document.querySelector(s) as HTMLInputElement | null)?.value ?? "",
+        selector,
+      );
+
+    const vatValidated = await readField('[id*="VATVALIEDE"][id$="_I"]');
+    const lastChecked  = await readField('[id*="VATLASTCHECKEDDATE"][id$="_I"]');
+
+    await this.page.keyboard.press("Escape");
+    await this.wait(500);
+
+    return { vatValidated, lastChecked };
+  }
+
   private async extractProfileFromListByName(name: string): Promise<string> {
     if (!this.page) return "";
     try {
@@ -12847,10 +12880,38 @@ export class ArchibaldBot {
       await this.updateCustomerName(customerData.name);
     }
 
+    if (customerData.attentionTo !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
+        customerData.attentionTo ?? '',
+      );
+    }
+
+    if (customerData.fiscalCode !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviFISCALCODE_Edit_I$/,
+        customerData.fiscalCode ?? '',
+      );
+    }
+
+    if (customerData.notes !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviCUSTINFO_Edit_I$/,
+        customerData.notes ?? '',
+      );
+    }
+
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
         customerData.deliveryMode,
+      );
+    }
+
+    if (customerData.sector !== undefined && customerData.sector !== null) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        customerData.sector,
       );
     }
 

@@ -16,3 +16,4 @@ export { createSyncOrderStatesHandler } from './sync-order-states';
 export { createSyncTrackingHandler } from './sync-tracking';
 export { createSyncCustomerAddressesHandler, type SyncCustomerAddressesBot } from './sync-customer-addresses';
 export { createUpdateCustomerHandler, type UpdateCustomerBot } from './update-customer';
+export { createReadVatStatusHandler, type ReadVatStatusBot } from './read-vat-status';

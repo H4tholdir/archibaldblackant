@@ -41,7 +41,17 @@ const mockCustomers = [
     updatedAt: null,
     botStatus: null,
     archibaldName: null,
+    vatValidatedAt: null,
     photo: null,
+    sector: null,
+    priceGroup: null,
+    lineDiscount: null,
+    paymentTerms: null,
+    notes: null,
+    nameAlias: null,
+    county: null,
+    state: null,
+    country: null,
   },
 ];
 
@@ -368,6 +378,37 @@ describe('createCustomersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, count: 42 });
+    });
+  });
+
+  describe('GET /api/customers/stats', () => {
+    test('returns total and incomplete counts when dep is provided', async () => {
+      deps.getIncompleteCustomersCount = vi.fn().mockResolvedValue(5);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/customers/stats');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, total: 42, incomplete: 5 });
+      expect(deps.getIncompleteCustomersCount).toHaveBeenCalledWith('user-1');
+    });
+
+    test('returns incomplete=0 when getIncompleteCustomersCount dep is not provided', async () => {
+      const res = await request(app).get('/api/customers/stats');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, total: 42, incomplete: 0 });
+    });
+
+    test('returns 500 when getCustomerCount throws', async () => {
+      (deps.getCustomerCount as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      deps.getIncompleteCustomersCount = vi.fn().mockResolvedValue(0);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/customers/stats');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Internal server error' });
     });
   });
 
