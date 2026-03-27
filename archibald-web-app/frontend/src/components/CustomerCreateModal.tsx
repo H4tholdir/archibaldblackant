@@ -393,7 +393,10 @@ export function CustomerCreateModal({
         const result = payload.vatResult as VatLookupResult;
         setVatResult(result);
 
-        setCurrentStep({ kind: "vat-review" });
+        setCurrentStep((prev) => {
+          if (prev.kind !== 'vat-input' && prev.kind !== 'vat-processing') return prev;
+          return { kind: 'vat-review' };
+        });
         setFormData((prev) => ({
           ...prev,
           vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
