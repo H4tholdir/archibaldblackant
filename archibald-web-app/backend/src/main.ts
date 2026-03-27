@@ -561,6 +561,7 @@ async function bootstrap(): Promise<void> {
       };
       return {
         updateCustomer: async (customerProfile, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(customerProfile, customerData as never, originalName); },
+        buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),
