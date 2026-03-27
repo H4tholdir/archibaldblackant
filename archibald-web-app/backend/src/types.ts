@@ -74,6 +74,34 @@ export interface CustomerFormData {
   addresses?: AddressEntry[];
 }
 
+export type CustomerSnapshot = {
+  internalId: string | null;
+  name: string | null;
+  nameAlias: string | null;
+  vatNumber: string | null;
+  vatValidated: string | null;
+  fiscalCode: string | null;
+  pec: string | null;
+  sdi: string | null;
+  notes: string | null;
+  street: string | null;
+  postalCode: string | null;
+  city: string | null;
+  county: string | null;
+  state: string | null;
+  country: string | null;
+  phone: string | null;
+  mobile: string | null;
+  email: string | null;
+  url: string | null;
+  attentionTo: string | null;
+  deliveryMode: string | null;
+  paymentTerms: string | null;
+  sector: string | null;
+  priceGroup: string | null;
+  lineDiscount: string | null;
+} | null;
+
 export type ApiResponse<T = unknown> = {
   success: boolean;
   data?: T;
