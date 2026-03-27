@@ -144,3 +144,4 @@ LOGO-FRESIS*.jpeg
 # Planning analysis documents (temporary)
 .planning/CUSTOMER_SCRAPING_*.md
 VPS-ACCESS-CREDENTIALS.md
+.playwright-mcp/
