@@ -23,7 +23,6 @@ import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
 import { useVatValidation } from '../hooks/useVatValidation';
-import { CustomerCreateModal } from '../components/CustomerCreateModal';
 import { CustomerQuickFix } from '../components/CustomerQuickFix';
 import type { MissingFieldKey } from '../utils/customer-completeness';
 
@@ -83,8 +82,6 @@ export function PendingOrdersPage() {
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
-  const [editCustomerForCompleteness, setEditCustomerForCompleteness] =
-    useState<RichCustomer | null>(null);
   const [quickFixCustomer, setQuickFixCustomer] = useState<{
     customerProfile: string;
     customerName: string;
@@ -330,12 +327,6 @@ export function PendingOrdersPage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleCompletenessModalClose = () => {
-    const profile = editCustomerForCompleteness?.customerProfile;
-    setEditCustomerForCompleteness(null);
-    if (profile) refreshCustomer(profile);
   };
 
   const handleRetryOrder = async (orderId: string) => {
@@ -1364,7 +1355,14 @@ export function PendingOrdersPage() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => setEditCustomerForCompleteness(richCustomer)}
+                              onClick={() => {
+                                const completeness = checkCustomerCompleteness(richCustomer);
+                                setQuickFixCustomer({
+                                  customerProfile: richCustomer.customerProfile,
+                                  customerName: richCustomer.name,
+                                  missingFields: completeness.missingFields,
+                                });
+                              }}
                               style={{
                                 marginLeft: '4px',
                                 background: 'none',
@@ -1572,9 +1570,16 @@ export function PendingOrdersPage() {
                       {customersMap.get(order.customerId) && (
                         <button
                           type="button"
-                          onClick={() =>
-                            setEditCustomerForCompleteness(customersMap.get(order.customerId)!)
-                          }
+                          onClick={() => {
+                            const c = customersMap.get(order.customerId);
+                            if (!c) return;
+                            const completeness = checkCustomerCompleteness(c);
+                            setQuickFixCustomer({
+                              customerProfile: c.customerProfile,
+                              customerName: c.name,
+                              missingFields: completeness.missingFields,
+                            });
+                          }}
                           style={{
                             background: 'none',
                             border: '1px solid #991b1b',
@@ -1634,9 +1639,16 @@ export function PendingOrdersPage() {
                         {customersMap.get(order.customerId) && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditCustomerForCompleteness(customersMap.get(order.customerId)!)
-                            }
+                            onClick={() => {
+                              const c = customersMap.get(order.customerId);
+                              if (!c) return;
+                              const completeness = checkCustomerCompleteness(c);
+                              setQuickFixCustomer({
+                                customerProfile: c.customerProfile,
+                                customerName: c.name,
+                                missingFields: completeness.missingFields,
+                              });
+                            }}
                             style={{
                               background: 'none',
                               border: '1px solid #991b1b',
@@ -2398,13 +2410,6 @@ export function PendingOrdersPage() {
         }
         isLoading={emailDialogLoading}
       />
-      {editCustomerForCompleteness && (
-        <CustomerCreateModal
-          isOpen={true}
-          onClose={handleCompletenessModalClose}
-          onSaved={handleCompletenessModalClose}
-        />
-      )}
       {quickFixCustomer && (
         <CustomerQuickFix
           customerProfile={quickFixCustomer.customerProfile}
