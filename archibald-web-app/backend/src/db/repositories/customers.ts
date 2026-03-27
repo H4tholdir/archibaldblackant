@@ -676,6 +676,37 @@ async function deleteCustomerPhoto(
   );
 }
 
+function isCustomerComplete(customer: Customer): boolean {
+  return !!(
+    customer.name &&
+    customer.vatNumber &&
+    customer.vatValidatedAt &&
+    (customer.pec || customer.sdi) &&
+    customer.street &&
+    customer.postalCode &&
+    customer.city
+  );
+}
+
+async function getIncompleteCustomersCount(pool: DbPool, userId: string): Promise<number> {
+  const { rows } = await pool.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM agents.customers
+     WHERE user_id = $1
+       AND deleted_at IS NULL
+       AND (
+         name IS NULL OR name = '' OR
+         vat_number IS NULL OR
+         vat_validated_at IS NULL OR
+         (pec IS NULL AND sdi IS NULL) OR
+         street IS NULL OR
+         postal_code IS NULL OR
+         city IS NULL
+       )`,
+    [userId],
+  );
+  return parseInt(rows[0]?.count ?? '0', 10);
+}
+
 export {
   getCustomers,
   getHiddenCustomers,
@@ -695,6 +726,8 @@ export {
   getCustomerPhoto,
   setCustomerPhoto,
   deleteCustomerPhoto,
+  isCustomerComplete,
+  getIncompleteCustomersCount,
   mapRowToCustomer,
   calculateHash,
   type CustomerRow,
