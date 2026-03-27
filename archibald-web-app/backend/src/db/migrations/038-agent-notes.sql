@@ -1,0 +1,2 @@
+ALTER TABLE agents.customers
+  ADD COLUMN IF NOT EXISTS agent_notes TEXT DEFAULT NULL;

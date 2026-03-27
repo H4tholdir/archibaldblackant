@@ -50,6 +50,7 @@ type CustomersRouterDeps = {
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, customerProfile: string) => Promise<string>;
+  updateAgentNotes?: (userId: string, customerProfile: string, notes: string | null) => Promise<void>;
 };
 
 const createCustomerSchema = z.object({
@@ -303,6 +304,22 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       res.json({ jobId, message: 'VAT status read queued' });
     } catch (err) {
       logger.error('POST /customers/:customerProfile/vat-status error', { error: String(err) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.patch('/:customerProfile/agent-notes', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { customerProfile } = req.params;
+      if (!deps.updateAgentNotes) {
+        return res.status(503).json({ error: 'Agent notes not available' });
+      }
+      const body = req.body as { notes?: string | null };
+      await deps.updateAgentNotes(userId, customerProfile, body.notes ?? null);
+      res.json({ success: true });
+    } catch (err) {
+      logger.error('PATCH /customers/:customerProfile/agent-notes error', { error: String(err) });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

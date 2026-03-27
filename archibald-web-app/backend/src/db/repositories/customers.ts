@@ -49,6 +49,7 @@ type CustomerRow = {
   county: string | null;
   state: string | null;
   country: string | null;
+  agent_notes: string | null;
 };
 
 type Customer = {
@@ -99,6 +100,7 @@ type Customer = {
   county: string | null;
   state: string | null;
   country: string | null;
+  agentNotes: string | null;
 };
 
 type CustomerInput = {
@@ -224,6 +226,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     county: row.county,
     state: row.state,
     country: row.country,
+    agentNotes: row.agent_notes,
   };
 }
 
@@ -707,6 +710,19 @@ async function getIncompleteCustomersCount(pool: DbPool, userId: string): Promis
   return parseInt(rows[0]?.count ?? '0', 10);
 }
 
+async function updateAgentNotes(
+  pool: DbPool,
+  userId: string,
+  customerProfile: string,
+  notes: string | null,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET agent_notes = $1, updated_at = NOW()
+     WHERE customer_profile = $2 AND user_id = $3`,
+    [notes, customerProfile, userId],
+  );
+}
+
 export {
   getCustomers,
   getHiddenCustomers,
@@ -723,6 +739,7 @@ export {
   updateCustomerBotStatus,
   updateArchibaldName,
   updateVatValidatedAt,
+  updateAgentNotes,
   getCustomerPhoto,
   setCustomerPhoto,
   deleteCustomerPhoto,
