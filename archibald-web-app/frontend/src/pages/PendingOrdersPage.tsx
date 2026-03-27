@@ -24,6 +24,8 @@ import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
 import { useVatValidation } from '../hooks/useVatValidation';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
+import { CustomerQuickFix } from '../components/CustomerQuickFix';
+import type { MissingFieldKey } from '../utils/customer-completeness';
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -83,6 +85,11 @@ export function PendingOrdersPage() {
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
   const [editCustomerForCompleteness, setEditCustomerForCompleteness] =
     useState<RichCustomer | null>(null);
+  const [quickFixCustomer, setQuickFixCustomer] = useState<{
+    customerProfile: string;
+    customerName: string;
+    missingFields: MissingFieldKey[];
+  } | null>(null);
   const [validatingCustomerProfile, setValidatingCustomerProfile] =
     useState<string | null>(null);
 
@@ -165,6 +172,26 @@ export function PendingOrdersPage() {
     const isGhostOnly = o.items.length > 0 && o.items.every((i) => i.isGhostArticle);
     return checkCustomerCompleteness(c).ok || isGhostOnly;
   });
+
+  const incompleteSelectedOrders = useMemo(() => {
+    return orders
+      .filter((o) => selectedOrderIds.has(o.id!))
+      .filter((o) => {
+        const c = customersMap.get(o.customerId);
+        if (!c) return false;
+        const isGhostOnly = o.items.every((i) => i.isGhostArticle);
+        return !checkCustomerCompleteness(c).ok && !isGhostOnly;
+      })
+      .map((o) => {
+        const c = customersMap.get(o.customerId)!;
+        return {
+          orderId: o.id!,
+          customerProfile: o.customerId,
+          customerName: o.customerName,
+          missingFields: checkCustomerCompleteness(c).missingFields,
+        };
+      });
+  }, [orders, selectedOrderIds, customersMap]);
 
   const handleSelectAll = () => {
     if (selectedOrderIds.size === completableOrders.length && completableOrders.length > 0) {
@@ -1082,6 +1109,60 @@ export function PendingOrdersPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {incompleteSelectedOrders.length > 0 && (
+        <div
+          style={{
+            background: '#fff5f5',
+            border: '1.5px solid #fca5a5',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '12px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#dc2626',
+              marginBottom: '8px',
+            }}
+          >
+            ⚠{' '}
+            {incompleteSelectedOrders.length === 1
+              ? '1 ordine bloccato — scheda cliente incompleta'
+              : `${incompleteSelectedOrders.length} ordini bloccati — schede clienti incomplete`}
+          </div>
+          {incompleteSelectedOrders.map((item) => (
+            <div
+              key={item.orderId}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '6px',
+              }}
+            >
+              <span style={{ fontSize: '13px', color: '#374151' }}>{item.customerName}</span>
+              <button
+                onClick={() => setQuickFixCustomer(item)}
+                style={{
+                  padding: '4px 10px',
+                  background: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Completa →
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -2323,6 +2404,18 @@ export function PendingOrdersPage() {
           onClose={handleCompletenessModalClose}
           onSaved={handleCompletenessModalClose}
           editCustomer={editCustomerForCompleteness}
+        />
+      )}
+      {quickFixCustomer && (
+        <CustomerQuickFix
+          customerProfile={quickFixCustomer.customerProfile}
+          customerName={quickFixCustomer.customerName}
+          missingFields={quickFixCustomer.missingFields}
+          onSaved={() => {
+            void refreshCustomer(quickFixCustomer.customerProfile);
+            setQuickFixCustomer(null);
+          }}
+          onDismiss={() => setQuickFixCustomer(null)}
         />
       )}
     </div>
