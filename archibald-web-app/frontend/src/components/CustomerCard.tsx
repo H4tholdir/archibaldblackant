@@ -4,6 +4,7 @@ import type { CustomerAddress } from "../types/customer-address";
 import { formatCurrency } from "../utils/format-currency";
 import { PhotoCropModal } from "./PhotoCropModal";
 import { getCustomerAddresses } from "../services/customer-addresses";
+import { checkCustomerCompleteness } from "../utils/customer-completeness";
 
 interface CustomerCardProps {
   customer: Customer;
@@ -15,6 +16,7 @@ interface CustomerCardProps {
   photoUrl?: string | null;
   onPhotoUpload?: (customerProfile: string, file: File) => void;
   onPhotoDelete?: (customerProfile: string) => void;
+  onNavigate?: (customerProfile: string) => void;
 }
 
 export function CustomerCard({
@@ -27,6 +29,7 @@ export function CustomerCard({
   photoUrl,
   onPhotoUpload,
   onPhotoDelete,
+  onNavigate,
 }: CustomerCardProps) {
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(0);
@@ -35,6 +38,8 @@ export function CustomerCard({
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [altAddresses, setAltAddresses] = useState<CustomerAddress[]>([]);
+  const completeness = checkCustomerCompleteness(customer);
+  const phone = customer.mobile || customer.phone;
 
   useEffect(() => {
     if (!expanded) return;
@@ -296,6 +301,15 @@ export function CustomerCard({
                 >
                   {customer.name}
                   {botStatusBadge()}
+                  {!completeness.ok && (
+                    <span style={{
+                      fontSize: '10px', fontWeight: 700, color: '#dc2626',
+                      background: '#fee2e2', padding: '2px 7px', borderRadius: '10px',
+                      marginLeft: '6px', flexShrink: 0,
+                    }}>
+                      ⚠ Incompleta
+                    </span>
+                  )}
                 </div>
                 <div
                   style={{
@@ -323,6 +337,44 @@ export function CustomerCard({
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Quick actions */}
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {phone && (
+                <button
+                  data-testid="card-call"
+                  onClick={() => { window.location.href = `tel:${phone}`; }}
+                  title={phone}
+                  style={{
+                    padding: '5px 8px', background: '#f0fdf4',
+                    border: '1px solid #bbf7d0', borderRadius: '6px',
+                    fontSize: '14px', cursor: 'pointer', lineHeight: '1',
+                  }}
+                >
+                  📞
+                </button>
+              )}
+              {(customer.mobile || customer.phone) && (
+                <button
+                  data-testid="card-whatsapp"
+                  onClick={() => {
+                    const n = (customer.mobile || customer.phone)!.replace(/\D/g, '');
+                    window.open(`https://wa.me/${n}`, '_blank');
+                  }}
+                  title="WhatsApp"
+                  style={{
+                    padding: '5px 8px', background: '#f0fdf4',
+                    border: '1px solid #86efac', borderRadius: '6px',
+                    fontSize: '14px', cursor: 'pointer', lineHeight: '1',
+                  }}
+                >
+                  💬
+                </button>
+              )}
             </div>
 
             {/* Expand icon */}
@@ -874,7 +926,10 @@ export function CustomerCard({
               }}
             >
               <button
-                onClick={() => onEdit(customer.customerProfile)}
+                onClick={() => onNavigate
+                  ? onNavigate(customer.customerProfile)
+                  : onEdit(customer.customerProfile)
+                }
                 style={{
                   padding: "10px 20px",
                   fontSize: "14px",
@@ -893,7 +948,7 @@ export function CustomerCard({
                   e.currentTarget.style.backgroundColor = "#1976d2";
                 }}
               >
-                Modifica
+                Scheda cliente
               </button>
               {hasSwipeAction && (
                 <button

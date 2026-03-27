@@ -2403,7 +2403,6 @@ export function PendingOrdersPage() {
           isOpen={true}
           onClose={handleCompletenessModalClose}
           onSaved={handleCompletenessModalClose}
-          editCustomer={editCustomerForCompleteness}
         />
       )}
       {quickFixCustomer && (

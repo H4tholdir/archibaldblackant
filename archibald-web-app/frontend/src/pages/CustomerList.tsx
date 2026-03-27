@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CustomerCard } from "../components/CustomerCard";
-import { CustomerCreateModal } from "../components/CustomerCreateModal";
 import { customerService } from "../services/customers.service";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { toastService } from "../services/toast.service";
+import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer } from "../types/customer";
 
 interface CustomerFilters {
@@ -40,8 +40,9 @@ export function CustomerList() {
     customerType: "",
   });
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const navigate = useNavigate();
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const [incompleteCount, setIncompleteCount] = useState<number | null>(null);
   const [customerPhotos, setCustomerPhotos] = useState<
     Record<string, string | null>
   >({});
@@ -55,9 +56,21 @@ export function CustomerList() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  useEffect(() => {
+    const jwt = localStorage.getItem('archibald_jwt') ?? '';
+    fetch('/api/customers/stats', {
+      headers: { Authorization: `Bearer ${jwt}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { total: number; incomplete: number } | null) => {
+        if (body) setIncompleteCount(body.incomplete);
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch customers only when search is active
   const fetchCustomers = useCallback(async () => {
-    if (!debouncedSearch && !filters.city && !filters.customerType) {
+    if (!incompleteOnly && !debouncedSearch && !filters.city && !filters.customerType) {
       setCustomers([]);
       setLoading(false);
       return;
@@ -77,10 +90,14 @@ export function CustomerList() {
 
       // Build query params
       const params = new URLSearchParams();
-      if (debouncedSearch) params.append("search", debouncedSearch);
-      if (filters.city) params.append("city", filters.city);
-      if (filters.customerType) params.append("type", filters.customerType);
-      params.append("limit", "100");
+      if (incompleteOnly) {
+        params.append('limit', '500');
+      } else {
+        if (debouncedSearch) params.append("search", debouncedSearch);
+        if (filters.city) params.append("city", filters.city);
+        if (filters.customerType) params.append("type", filters.customerType);
+        params.append("limit", "100");
+      }
 
       const response = await fetch(`/api/customers?${params.toString()}`, {
         headers: {
@@ -109,7 +126,7 @@ export function CustomerList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, filters.city, filters.customerType]);
+  }, [debouncedSearch, filters.city, filters.customerType, incompleteOnly]);
 
   useEffect(() => {
     fetchCustomers();
@@ -225,13 +242,15 @@ export function CustomerList() {
     }
   };
 
-  const handleEdit = (customerId: string) => {
-    const customer = customers.find((c) => c.customerProfile === customerId);
-    if (customer) {
-      setEditingCustomer(customer);
-      setModalOpen(true);
-    }
+  const handleNavigate = (customerProfile: string) => {
+    navigate(`/customers/${encodeURIComponent(customerProfile)}`);
   };
+
+  const isTablet = window.innerWidth >= 641;
+
+  const displayedCustomers = incompleteOnly
+    ? customers.filter((c) => !checkCustomerCompleteness(c).ok)
+    : customers;
 
   const hasActiveFilters =
     filters.search || filters.city || filters.customerType;
@@ -324,8 +343,24 @@ export function CustomerList() {
           </div>
         </div>
 
+        {/* Incomplete filter chip */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+          <button
+            onClick={() => setIncompleteOnly((v) => !v)}
+            style={{
+              padding: '5px 12px', borderRadius: '14px', fontSize: '12px',
+              fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
+              background: incompleteOnly ? '#fff5f5' : 'white',
+              borderColor: incompleteOnly ? '#fca5a5' : '#d1d5db',
+              color: incompleteOnly ? '#dc2626' : '#64748b',
+            }}
+          >
+            ⚠ Incompleti{incompleteCount !== null ? ` (${incompleteCount})` : ''}
+          </button>
+        </div>
+
         {/* Action buttons */}
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", marginTop: '12px' }}>
           {/* Clear filters button */}
           {hasActiveFilters && (
             <button
@@ -356,10 +391,7 @@ export function CustomerList() {
 
           {/* New customer button */}
           <button
-            onClick={() => {
-              setEditingCustomer(null);
-              setModalOpen(true);
-            }}
+            onClick={() => navigate('/customers/new')}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
@@ -517,13 +549,17 @@ export function CustomerList() {
               paddingLeft: "4px",
             }}
           >
-            {customers.length} client{customers.length !== 1 ? "i" : "e"} trovat
-            {customers.length !== 1 ? "i" : "o"}
+            {displayedCustomers.length} client{displayedCustomers.length !== 1 ? "i" : "e"} trovat
+            {displayedCustomers.length !== 1 ? "i" : "o"}
           </div>
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isTablet ? 'repeat(2, 1fr)' : '1fr',
+              gap: '16px',
+            }}
           >
-            {customers.map((customer) => {
+            {displayedCustomers.map((customer) => {
               const isExpanded =
                 expandedCustomerId === customer.customerProfile;
 
@@ -533,7 +569,8 @@ export function CustomerList() {
                     customer={customer}
                     expanded={isExpanded}
                     onToggle={() => handleToggle(customer.customerProfile)}
-                    onEdit={handleEdit}
+                    onEdit={() => {}}
+                    onNavigate={handleNavigate}
                     onRetry={handleRetry}
                     isRetrying={retryingProfiles.has(customer.customerProfile)}
                     photoUrl={customerPhotos[customer.customerProfile]}
@@ -546,17 +583,6 @@ export function CustomerList() {
           </div>
         </div>
       )}
-
-      {/* Customer Create/Edit Modal */}
-      <CustomerCreateModal
-        isOpen={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setEditingCustomer(null);
-        }}
-        onSaved={() => fetchCustomers()}
-        editCustomer={editingCustomer}
-      />
     </div>
   );
 }
