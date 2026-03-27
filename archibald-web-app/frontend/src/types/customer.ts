@@ -45,4 +45,5 @@ export interface Customer {
   county?: string | null;
   state?: string | null;
   country?: string | null;
+  agentNotes?: string | null;
 }
