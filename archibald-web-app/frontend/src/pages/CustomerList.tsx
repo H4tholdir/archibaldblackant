@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { CustomerCreateModal } from '../components/CustomerCreateModal';
 import { CustomerCard } from "../components/CustomerCard";
 import { CustomerDetailPage } from "./CustomerDetailPage";
 import { customerService } from "../services/customers.service";
@@ -47,6 +48,7 @@ export function CustomerList() {
   const [customerPhotos, setCustomerPhotos] = useState<
     Record<string, string | null>
   >({});
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -411,7 +413,7 @@ export function CustomerList() {
 
           {/* New customer button */}
           <button
-            onClick={() => navigate('/customers/new')}
+            onClick={() => setCreateModalOpen(true)}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
@@ -636,6 +638,14 @@ export function CustomerList() {
           />
         </div>
       )}
+      <CustomerCreateModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSaved={() => {
+          setCreateModalOpen(false);
+          void fetchCustomers();
+        }}
+      />
     </div>
   );
 }
