@@ -12847,10 +12847,38 @@ export class ArchibaldBot {
       await this.updateCustomerName(customerData.name);
     }
 
+    if (customerData.attentionTo !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
+        customerData.attentionTo ?? '',
+      );
+    }
+
+    if (customerData.fiscalCode !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviFISCALCODE_Edit_I$/,
+        customerData.fiscalCode ?? '',
+      );
+    }
+
+    if (customerData.notes !== undefined) {
+      await this.typeDevExpressField(
+        /xaf_dviCUSTINFO_Edit_I$/,
+        customerData.notes ?? '',
+      );
+    }
+
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
         customerData.deliveryMode,
+      );
+    }
+
+    if (customerData.sector !== undefined && customerData.sector !== null) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        customerData.sector,
       );
     }
 
