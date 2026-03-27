@@ -6352,7 +6352,6 @@ export default function OrderFormSimple() {
           isOpen={true}
           onClose={handleCompletionModalClose}
           onSaved={handleCompletionModalClose}
-          editCustomer={editCustomerForCompleteness}
         />
       )}
 

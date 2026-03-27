@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { customerService } from "../services/customers.service";
-import type { Customer } from "../types/customer";
 import { PAYMENT_TERMS, DEFAULT_PAYMENT_TERM_ID } from "../data/payment-terms";
 import { DELIVERY_MODES, DEFAULT_DELIVERY_MODE } from "../data/delivery-modes";
 import { CAP_BY_CODE } from "../data/cap-list";
@@ -11,12 +10,7 @@ import { waitForJobViaWebSocket } from "../api/operations";
 
 import type { CustomerFormData, AddressEntry } from "../types/customer-form-data";
 import type { VatLookupResult } from "../types/vat-lookup-result";
-import { determineVatEditStep } from "../utils/vat-edit-step";
-import { buildVatDiff, vatCompanyName } from "../utils/vat-diff";
-import type { VatEditStepDecision } from "../utils/vat-edit-step";
-import type { VatDiffField } from "../utils/vat-diff";
-import { getCustomerAddresses } from "../services/customer-addresses";
-import type { CustomerAddress } from "../types/customer-address";
+import { vatCompanyName } from "../utils/vat-diff";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
@@ -24,7 +18,6 @@ interface CustomerCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  editCustomer?: Customer | null;
   contextMode?: "standalone" | "order";
   prefillName?: string;
 }
@@ -99,40 +92,6 @@ const INITIAL_FORM: CustomerFormData = {
   addresses: [],
 };
 
-function customerToFormData(customer: Customer): CustomerFormData {
-  return {
-    name: customer.name || "",
-    deliveryMode: customer.deliveryTerms || DEFAULT_DELIVERY_MODE,
-    vatNumber: customer.vatNumber || "",
-    paymentTerms: customer.paymentTerms || DEFAULT_PAYMENT_TERM_ID,
-    pec: customer.pec || "",
-    sdi: customer.sdi || "",
-    street: customer.street || "",
-    postalCode: customer.postalCode || "",
-    phone: customer.phone
-      ? customer.phone.startsWith("+39")
-        ? customer.phone
-        : `+39 ${customer.phone}`
-      : "+39",
-    mobile: customer.mobile
-      ? customer.mobile.startsWith("+39")
-        ? customer.mobile
-        : `+39 ${customer.mobile}`
-      : "+39",
-    email: customer.email || "",
-    url: customer.url || "",
-    postalCodeCity: "",
-    postalCodeCountry: "",
-    fiscalCode: customer.fiscalCode || "",
-    sector: customer.sector || "",
-    attentionTo: customer.attentionTo || "",
-    notes: customer.notes || "",
-    county: customer.county || "",
-    state: customer.state || "",
-    country: customer.country || "",
-    addresses: [],
-  };
-}
 
 type StepType =
   | { kind: "vat-input" }
@@ -145,9 +104,7 @@ type StepType =
   | { kind: "step-commerciale" }
   | { kind: "addresses" }
   | { kind: "cap-disambiguation"; targetField: "postalCode" }
-  | { kind: "summary" }
-  | { kind: "vat-edit-check" }
-  | { kind: "vat-diff-review" };
+  | { kind: "summary" };
 
 function getPaymentTermDisplay(id: string): string {
   const term = PAYMENT_TERMS.find((t) => t.id === id);
@@ -163,12 +120,9 @@ export function CustomerCreateModal({
   isOpen,
   onClose,
   onSaved,
-  editCustomer,
   contextMode = "standalone",
   prefillName,
 }: CustomerCreateModalProps) {
-  const isEditMode = !!editCustomer;
-  const isEditModeRef = useRef(isEditMode);
   const [currentStep, setCurrentStep] = useState<StepType>({
     kind: "field",
     fieldIndex: 0,
@@ -214,12 +168,6 @@ export function CustomerCreateModal({
   const [earlyVatInput, setEarlyVatInput] = useState("");
   const earlyVatInputRef = useRef("");
   const [vatError, setVatError] = useState<string | null>(null);
-  const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
-  const [autoSubmitVatOnReady, setAutoSubmitVatOnReady] = useState<string | null>(null);
-  const autoSubmitVatOnReadyRef = useRef<string | null>(null);
-  const [vatWasValidated, setVatWasValidated] = useState(false);
-  const [vatDiffFields, setVatDiffFields] = useState<VatDiffField[]>([]);
-  const [vatDiffSelections, setVatDiffSelections] = useState<Record<string, boolean>>({});
   const pollingProfileRef = useRef<string | null>(null);
 
   const { subscribe } = useWebSocketContext();
@@ -245,17 +193,11 @@ export function CustomerCreateModal({
     formDataRef.current = formData;
   }, [formData]);
 
-  useEffect(() => {
-    autoSubmitVatOnReadyRef.current = autoSubmitVatOnReady;
-  }, [autoSubmitVatOnReady]);
-
   const currentStepNumber = (() => {
     switch (currentStep.kind) {
       case "vat-input":
       case "vat-processing":
       case "vat-review":
-      case "vat-edit-check":
-      case "vat-diff-review":
         return 0;
       // New wizard group steps
       case "step-anagrafica": return 1;
@@ -263,7 +205,7 @@ export function CustomerCreateModal({
       case "step-contatti":   return 3;
       case "step-commerciale": return 4;
       case "addresses":       return 5;
-      // Legacy field step (edit mode)
+      // Legacy field step
       case "field":
         return currentStep.fieldIndex + 1;
       case "cap-disambiguation":
@@ -314,82 +256,26 @@ export function CustomerCreateModal({
       setVatResult(null);
       setEarlyVatInput("");
       setVatError(null);
-      setChangedFields(new Set());
-      setAutoSubmitVatOnReady(null);
-      setVatWasValidated(false);
-      setVatDiffFields([]);
-      setVatDiffSelections({});
       pollingProfileRef.current = null;
 
-      if (!isEditMode) {
-        const initial = { ...INITIAL_FORM };
-        if (prefillName) initial.name = prefillName;
-        setFormData(initial);
-        setCurrentStep({ kind: "vat-input" });
+      const initial = { ...INITIAL_FORM };
+      if (prefillName) initial.name = prefillName;
+      setFormData(initial);
+      setCurrentStep({ kind: "vat-input" });
 
-        // In order context, skip interactive session (faster: uses POST/queue directly)
-        if (contextMode !== "order") customerService
-          .startInteractiveSession()
-          .then(({ sessionId }) => {
-            setInteractiveSessionId(sessionId);
-          })
-          .catch((err) => {
-            console.error(
-              "[CustomerCreateModal] Failed to start interactive session:",
-              err,
-            );
-            setCurrentStep({ kind: "field", fieldIndex: 0 });
-          });
-        return;
-      }
-
-      // Edit mode: set form data and route based on vatValidatedAt status
-      setFormData(customerToFormData(editCustomer!));
-      getCustomerAddresses(editCustomer!.customerProfile)
-        .then((addrs: CustomerAddress[]) => {
-          setLocalAddresses(addrs.map((a) => ({
-            tipo: a.tipo,
-            nome: a.nome ?? undefined,
-            via: a.via ?? undefined,
-            cap: a.cap ?? undefined,
-            citta: a.citta ?? undefined,
-            contea: a.contea ?? undefined,
-            stato: a.stato ?? undefined,
-            idRegione: a.idRegione ?? undefined,
-            contra: a.contra ?? undefined,
-          })));
+      // In order context, skip interactive session (faster: uses POST/queue directly)
+      if (contextMode !== "order") customerService
+        .startInteractiveSession()
+        .then(({ sessionId }) => {
+          setInteractiveSessionId(sessionId);
         })
-        .catch((err: unknown) => {
-          console.error('[CustomerCreateModal] Failed to load addresses:', err);
+        .catch((err) => {
+          console.error(
+            "[CustomerCreateModal] Failed to start interactive session:",
+            err,
+          );
+          setCurrentStep({ kind: "field", fieldIndex: 0 });
         });
-      const decision: VatEditStepDecision = determineVatEditStep(editCustomer!);
-
-      if (decision === 'force-vat-input') {
-        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
-          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
-          .catch((err) => {
-            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
-          });
-        setCurrentStep({ kind: "vat-input" });
-      } else if (decision === 'auto-validate') {
-        setAutoSubmitVatOnReady(editCustomer!.vatNumber || '');
-        setCurrentStep({ kind: "vat-processing" });
-        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
-          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
-          .catch((err) => {
-            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
-            setCurrentStep({ kind: "vat-input" });
-          });
-      } else {
-        // show-validated-check: start bot session in background to read ERP fields
-        // (email, mobile, url, etc.) and populate empty form fields via CUSTOMER_INTERACTIVE_READY.
-        setCurrentStep({ kind: "vat-edit-check" });
-        customerService.startEditInteractiveSession(editCustomer!.customerProfile)
-          .then(({ sessionId }) => setInteractiveSessionId(sessionId))
-          .catch((err) => {
-            console.error("[CustomerCreateModal] Failed to start edit interactive session:", err);
-          });
-      }
     } else {
       if (interactiveSessionIdRef.current) {
         customerService
@@ -397,7 +283,7 @@ export function CustomerCreateModal({
           .catch(() => {});
       }
     }
-  }, [isOpen, editCustomer]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!taskId) return;
@@ -442,7 +328,7 @@ export function CustomerCreateModal({
     });
 
     // Secondary fallback: poll botStatus for updates
-    const customerProfile = editCustomer?.customerProfile ?? pollingProfileRef.current;
+    const customerProfile = pollingProfileRef.current;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     if (customerProfile) {
@@ -477,7 +363,7 @@ export function CustomerCreateModal({
       cancelled = true;
       unsubs.forEach((u) => u());
     };
-  }, [taskId, subscribe, onSaved, onClose, editCustomer]);
+  }, [taskId, subscribe, onSaved, onClose]);
 
   useEffect(() => {
     if (!interactiveSessionId) return;
@@ -498,36 +384,6 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
         if (payload.sessionId !== interactiveSessionIdRef.current) return;
         setBotReady(true);
-        // Se il bot ha letto dei campi dal form Archibald, riempiamo i campi vuoti nel modal
-        if (isEditModeRef.current && payload.archibaldFields) {
-          const af = payload.archibaldFields as Record<string, string>;
-          setFormData((prev) => ({
-            ...prev,
-            email:    (af.email     && !prev.email)                              ? af.email     : prev.email,
-            pec:      (af.pec       && !prev.pec)                                ? af.pec       : prev.pec,
-            sdi:      (af.sdi       && !prev.sdi)                                ? af.sdi       : prev.sdi,
-            phone:    (af.phone     && (!prev.phone || prev.phone === "+39"))    ? af.phone     : prev.phone,
-            mobile:   (af.mobile    && (!prev.mobile || prev.mobile === "+39"))  ? af.mobile    : prev.mobile,
-            url:      (af.url       && !prev.url)                                ? af.url       : prev.url,
-            street:   (af.street    && !prev.street)                             ? af.street    : prev.street,
-            vatNumber:(af.vatNumber && !prev.vatNumber)                          ? af.vatNumber : prev.vatNumber,
-          }));
-        }
-        // Auto-advance from vat-edit-check to the field wizard once ERP fields are loaded
-        setCurrentStep((prev) =>
-          prev.kind === "vat-edit-check" ? { kind: "field", fieldIndex: 0 } : prev,
-        );
-        // Auto-submit VAT se siamo in edit mode con P.IVA pre-impostata
-        if (autoSubmitVatOnReadyRef.current) {
-          const vatToSubmit = autoSubmitVatOnReadyRef.current;
-          const sessionIdFromEvent = (payload as { sessionId: string }).sessionId;
-          setAutoSubmitVatOnReady(null);
-          setCurrentStep({ kind: "vat-processing" });
-          customerService.submitVatNumber(sessionIdFromEvent, vatToSubmit).catch((err) => {
-            setCurrentStep({ kind: "vat-input" });
-            setVatError(err.message || 'Errore validazione P.IVA');
-          });
-        }
       }),
     );
 
@@ -537,25 +393,17 @@ export function CustomerCreateModal({
         const result = payload.vatResult as VatLookupResult;
         setVatResult(result);
 
-        if (isEditModeRef.current) {
-          // In edit mode: mostra diff invece di passare direttamente ai campi
-          setVatDiffFields(buildVatDiff(formDataRef.current, result));
-          setVatDiffSelections({});
-          setCurrentStep({ kind: "vat-diff-review" });
-        } else {
-          // Comportamento create esistente: autocompila e vai a vat-review
-          setCurrentStep({ kind: "vat-review" });
-          setFormData((prev) => ({
-            ...prev,
-            vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
-            name: vatCompanyName(result) || prev.name,
-            street: result.parsed?.street || prev.street,
-            postalCode: result.parsed?.postalCode || prev.postalCode,
-            postalCodeCity: result.parsed?.city || prev.postalCodeCity,
-            pec: result.pec || prev.pec,
-            sdi: result.sdi || prev.sdi,
-          }));
-        }
+        setCurrentStep({ kind: "vat-review" });
+        setFormData((prev) => ({
+          ...prev,
+          vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
+          name: vatCompanyName(result) || prev.name,
+          street: result.parsed?.street || prev.street,
+          postalCode: result.parsed?.postalCode || prev.postalCode,
+          postalCodeCity: result.parsed?.city || prev.postalCodeCity,
+          pec: result.pec || prev.pec,
+          sdi: result.sdi || prev.sdi,
+        }));
       }),
     );
 
@@ -695,14 +543,9 @@ export function CustomerCreateModal({
         setCurrentStep({ kind: "step-contatti" });
         break;
       case "addresses":
-        // In create mode go back to commerciale (new wizard); in edit mode go to last legacy field
-        if (isEditMode) {
-          setCurrentStep({ kind: "field", fieldIndex: totalFieldsBefore - 1 });
-        } else {
-          setCurrentStep({ kind: "step-commerciale" });
-        }
+        setCurrentStep({ kind: "step-commerciale" });
         break;
-      // Legacy field step (edit mode)
+      // Legacy field step
       case "field": {
         if (currentStep.fieldIndex > 0) {
           setCurrentStep({
@@ -826,9 +669,6 @@ export function CustomerCreateModal({
       }
       return next;
     });
-    if (isEditMode) {
-      setChangedFields((prev) => new Set(prev).add(key));
-    }
   };
 
   const handleSubmitVat = () => {
@@ -868,7 +708,7 @@ export function CustomerCreateModal({
       let resultTaskId: string | null = null;
 
       if (interactiveSessionId) {
-        // Interactive session active (new or edit): use this path so addresses are handled.
+        // Interactive session active: use this path so addresses are handled.
         const result = await customerService.saveInteractiveCustomer(
           interactiveSessionId,
           dataToSend,
@@ -877,17 +717,6 @@ export function CustomerCreateModal({
         if (result.customer?.id) {
           pollingProfileRef.current = result.customer.id;
         }
-      } else if (isEditMode) {
-        // Edit without interactive session (session expired): fallback to direct update.
-        const payload =
-          changedFields.size > 0
-            ? { ...dataToSend, changedFields: Array.from(changedFields), vatWasValidated }
-            : { ...dataToSend, vatWasValidated };
-        const result = await customerService.updateCustomer(
-          editCustomer!.customerProfile,
-          payload,
-        );
-        resultTaskId = result.taskId;
       } else {
         const result = await customerService.createCustomer(dataToSend);
         resultTaskId = result.taskId;
@@ -912,7 +741,7 @@ export function CustomerCreateModal({
   };
 
   const handleRetry = async () => {
-    if (!editCustomer && !taskId) return;
+    if (!taskId) return;
     setProcessingState("idle");
     setBotError(null);
     setProgress(0);
@@ -932,8 +761,6 @@ export function CustomerCreateModal({
   const isVatInput = currentStep.kind === "vat-input";
   const isVatProcessing = currentStep.kind === "vat-processing";
   const isVatReview = currentStep.kind === "vat-review";
-  const isVatEditCheck = currentStep.kind === "vat-edit-check";
-  const isVatDiffReview = currentStep.kind === "vat-diff-review";
   const isFieldStep = currentStep.kind === "field";
   const isAddressesStep = currentStep.kind === "addresses";
   const isCapDisambiguation = currentStep.kind === "cap-disambiguation";
@@ -945,7 +772,7 @@ export function CustomerCreateModal({
   const isFirstStep =
     currentStep.kind === "field" && currentStep.fieldIndex === 0;
   const isProcessing = processingState !== "idle";
-  const isInteractiveStep = isVatInput || isVatProcessing || isVatReview || isVatEditCheck || isVatDiffReview;
+  const isInteractiveStep = isVatInput || isVatProcessing || isVatReview;
 
   return (
     <div
@@ -1015,19 +842,12 @@ export function CustomerCreateModal({
                 marginBottom: "8px",
               }}
             >
-              {isEditMode ? "Modifica Cliente" : "Nuovo Cliente"}
+              Nuovo Cliente
             </h2>
             {!isSummary && !isCapDisambiguation && (
               <p style={{ fontSize: "14px", color: "#999" }}>
                 Passo {currentStepNumber} di {totalSteps}
                 {!isAddressesStep ? " — Premi Enter per avanzare" : ""}
-              </p>
-            )}
-            {isEditMode && !isSummary && !isCapDisambiguation && (
-              <p
-                style={{ fontSize: "12px", color: "#1976d2", marginTop: "4px" }}
-              >
-                {editCustomer!.customerProfile}
               </p>
             )}
           </div>
@@ -1490,169 +1310,6 @@ export function CustomerCreateModal({
               }}
             >
               Continua
-            </button>
-          </div>
-        )}
-
-        {/* VAT Edit Check step — rendered by Task 12 */}
-        {isVatEditCheck && (
-          <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ fontSize: "16px", color: "#1a1a1a" }}>
-              ✓ P.IVA già validata il{" "}
-              <strong>
-                {editCustomer?.vatValidatedAt
-                  ? new Date(editCustomer.vatValidatedAt).toLocaleDateString("it-IT", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : ""}
-              </strong>
-            </div>
-            <div style={{ color: "#666", fontSize: "14px" }}>
-              Vuoi riconvalidare per aggiornare i dati da Archibald?
-            </div>
-            {!botReady && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#6b7280", fontSize: "13px" }}>
-                <span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid #d1d5db", borderTopColor: "#6b7280", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                Caricamento dati da ERP...
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
-              <button
-                onClick={() => {
-                  setAutoSubmitVatOnReady(editCustomer!.vatNumber || "");
-                  setCurrentStep({ kind: "vat-processing" });
-                  customerService
-                    .startEditInteractiveSession(editCustomer!.customerProfile)
-                    .then(({ sessionId }) => setInteractiveSessionId(sessionId))
-                    .catch((err) => {
-                      setCurrentStep({ kind: "vat-edit-check" });
-                      setVatError(err.message || "Errore avvio sessione");
-                    });
-                }}
-                style={{
-                  padding: "10px 20px",
-                  background: "#2563eb",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                }}
-              >
-                Riconvalida
-              </button>
-              <button
-                onClick={() => setCurrentStep({ kind: "field", fieldIndex: 0 })}
-                style={{
-                  padding: "10px 20px",
-                  background: "#f3f4f6",
-                  color: "#374151",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                }}
-              >
-                Salta
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* VAT Diff Review step — rendered by Task 13 */}
-        {isVatDiffReview && vatDiffFields.length > 0 && (
-          <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div style={{ fontSize: "16px", fontWeight: 600, color: "#1a1a1a" }}>
-              Confronto dati P.IVA
-            </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
-                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Campo
-                  </th>
-                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Valore attuale
-                  </th>
-                  <th style={{ textAlign: "left", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Registro Fiscale
-                  </th>
-                  <th style={{ textAlign: "center", padding: "8px", color: "#6b7280", fontWeight: 500 }}>
-                    Usa
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {vatDiffFields.map((field) => {
-                  const checked = vatDiffSelections[field.key] !== undefined
-                    ? vatDiffSelections[field.key]
-                    : field.preSelected;
-                  const isDiff = field.current !== field.archibald;
-                  return (
-                    <tr key={field.key} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "10px 8px", fontWeight: 500, color: "#374151" }}>
-                        {field.label}
-                      </td>
-                      <td style={{ padding: "10px 8px", color: isDiff ? "#dc2626" : "#374151" }}>
-                        {field.current || (
-                          <span style={{ color: "#9ca3af", fontStyle: "italic" }}>vuoto</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 8px", color: isDiff ? "#059669" : "#374151" }}>
-                        {field.archibald || (
-                          <span style={{ color: "#9ca3af", fontStyle: "italic" }}>vuoto</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                        <input autoComplete="off"
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setVatDiffSelections((prev) => ({
-                              ...prev,
-                              [field.key]: !prev[field.key],
-                            }));
-                          }}
-                          style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <button
-              onClick={() => {
-                const updates: Partial<CustomerFormData> = {};
-                vatDiffFields.forEach((field) => {
-                  const isSelected = vatDiffSelections[field.key] !== undefined
-                    ? vatDiffSelections[field.key]
-                    : field.preSelected;
-                  if (isSelected) {
-                    updates[field.key] = field.archibald as any;
-                  }
-                });
-                setFormData((prev) => ({ ...prev, ...updates }));
-                setVatWasValidated(true);
-                setCurrentStep({ kind: "field", fieldIndex: 0 });
-              }}
-              style={{
-                alignSelf: "flex-end",
-                padding: "10px 24px",
-                background: "#2563eb",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: 500,
-              }}
-            >
-              Applica selezione →
             </button>
           </div>
         )}
@@ -2605,11 +2262,7 @@ export function CustomerCreateModal({
                   cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                {saving
-                  ? "Salvataggio..."
-                  : isEditMode
-                    ? "Salva Modifiche"
-                    : "Salva Cliente"}
+                {saving ? "Salvataggio..." : "Salva Cliente"}
               </button>
               <button
                 onClick={handleEditFields}
@@ -2643,7 +2296,7 @@ export function CustomerCreateModal({
                   cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                {isEditMode ? "Annulla" : "Elimina"}
+                Elimina
               </button>
             </div>
           </div>
@@ -2665,9 +2318,7 @@ export function CustomerCreateModal({
                   ? "Operazione completata"
                   : processingState === "failed"
                     ? "Errore"
-                    : isEditMode
-                      ? "Aggiornamento in corso..."
-                      : "Creazione in corso..."}
+                    : "Creazione in corso..."}
               </h2>
             </div>
 
@@ -2732,9 +2383,7 @@ export function CustomerCreateModal({
                     fontWeight: 600,
                   }}
                 >
-                  {isEditMode
-                    ? "Cliente aggiornato con successo!"
-                    : "Cliente creato con successo!"}
+                  Cliente creato con successo!
                 </p>
                 <p
                   style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}
