@@ -174,7 +174,7 @@ const COLUMNS_WITHOUT_PHOTO = `
   previous_order_count_2, previous_sales_2,
   external_account_number, our_account_number,
   hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at,
-  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country
+  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
