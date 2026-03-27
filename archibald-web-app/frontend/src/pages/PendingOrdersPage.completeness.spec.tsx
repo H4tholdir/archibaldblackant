@@ -184,12 +184,13 @@ describe('PendingOrdersPage — completeness badge', () => {
     await act(async () => {});
   });
 
-  test('renders page without error when orders are present', () => {
+  test('renders page without error when orders are present', async () => {
     render(
       <MemoryRouter>
         <PendingOrdersPage />
       </MemoryRouter>,
     );
+    await act(async () => {});
     expect(screen.getByText('Ordini in Attesa (1)')).toBeTruthy();
   });
 

@@ -207,20 +207,22 @@ describe("PendingOrdersPage", () => {
     await act(async () => {});
   });
 
-  test("renders empty state when no pending orders", () => {
+  test("renders empty state when no pending orders", async () => {
     mockPendingOrders = [];
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     expect(
       screen.getByText(/Nessun ordine in attesa/i),
     ).toBeInTheDocument();
   });
 
-  test("displays list of pending orders with customer names", () => {
+  test("displays list of pending orders with customer names", async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     expect(screen.getByText("Cliente 1")).toBeInTheDocument();
     expect(screen.getByText("Cliente 2")).toBeInTheDocument();
@@ -230,10 +232,11 @@ describe("PendingOrdersPage", () => {
     ).toBeInTheDocument();
   });
 
-  test("shows order items after expanding detail section", () => {
+  test("shows order items after expanding detail section", async () => {
     mockPendingOrders = [testOrders[0]];
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     // Items are collapsed by default — expand by clicking the header
     const expandButton = screen.getByText(/Dettaglio Articoli/i);
@@ -242,29 +245,32 @@ describe("PendingOrdersPage", () => {
     expect(screen.getByText("Prodotto 1")).toBeInTheDocument();
   });
 
-  test("shows status badges correctly", () => {
+  test("shows status badges correctly", async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     const pendingBadges = screen.getAllByText("In Attesa");
     expect(pendingBadges).toHaveLength(2);
     expect(screen.getByText("Errore")).toBeInTheDocument();
   });
 
-  test("shows error message for failed orders", () => {
+  test("shows error message for failed orders", async () => {
     mockPendingOrders = [testOrders[2]];
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     const errorMessages = screen.getAllByText(/Network timeout/i);
     expect(errorMessages.length).toBeGreaterThanOrEqual(1);
   });
 
-  test("checkbox for each order allows selection", () => {
+  test("checkbox for each order allows selection", async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     const checkboxes = screen.getAllByRole("checkbox");
     // 1 "Seleziona Tutti" + 3 order checkboxes
@@ -278,10 +284,11 @@ describe("PendingOrdersPage", () => {
     ).toBeInTheDocument();
   });
 
-  test('"Select All" checkbox selects all orders', () => {
+  test('"Select All" checkbox selects all orders', async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     const selectAllCheckbox = screen.getAllByRole("checkbox")[0];
     fireEvent.click(selectAllCheckbox);
@@ -291,10 +298,11 @@ describe("PendingOrdersPage", () => {
     ).toBeInTheDocument();
   });
 
-  test('"Invia Ordini Selezionati" button disabled when no selection', () => {
+  test('"Invia Ordini Selezionati" button disabled when no selection', async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     const submitButton = screen.getByRole("button", {
       name: /Invia Ordini Selezionati/i,
@@ -479,7 +487,7 @@ describe("PendingOrdersPage", () => {
     });
   });
 
-  test("renders delivery address when deliveryAddressResolved is set", () => {
+  test("renders delivery address when deliveryAddressResolved is set", async () => {
     const via = "Via Francesco Petrarca 10";
     const citta = "Napoli";
     const tipo = "ALT";
@@ -497,11 +505,12 @@ describe("PendingOrdersPage", () => {
     mockPendingOrders = [orderWithAddress];
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     expect(screen.getByText(/📍\s+Via Francesco Petrarca 10\s*—\s*Napoli\s*\(ALT\)/)).toBeInTheDocument();
   });
 
-  test("does not render address line when deliveryAddressResolved is null", () => {
+  test("does not render address line when deliveryAddressResolved is null", async () => {
     const orderWithNullAddress: PendingOrder = {
       ...testOrders[0],
       id: "order-uuid-addr-render-002",
@@ -510,6 +519,7 @@ describe("PendingOrdersPage", () => {
     mockPendingOrders = [orderWithNullAddress];
 
     render(<PendingOrdersPage />);
+    await act(async () => {});
 
     expect(screen.queryByText(/📍/)).not.toBeInTheDocument();
   });

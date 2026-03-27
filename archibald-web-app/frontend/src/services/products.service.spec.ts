@@ -55,10 +55,12 @@ describe("ProductService", () => {
     });
 
     test("returns empty array when API fails", async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockFetchWithRetry.mockRejectedValue(new Error("Network error"));
 
       const results = await service.searchProducts("vite");
 
+      consoleSpy.mockRestore();
       expect(results).toEqual([]);
     });
 
