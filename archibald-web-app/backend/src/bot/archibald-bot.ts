@@ -9190,6 +9190,36 @@ export class ArchibaldBot {
     }
   }
 
+  private async findExportMenuSelector(
+    page: Page,
+  ): Promise<{ buttonSelector: string; containerSelector: string } | null> {
+    return page.evaluate(() => {
+      const items = Array.from(
+        document.querySelectorAll('li[id*="mainMenu_Menu_DXI"]'),
+      );
+      for (const li of items) {
+        const text = (li.textContent || "").trim();
+        if (/^Esportare in\b/i.test(text) || /^Export to\b/i.test(text)) {
+          const id = li.id;
+          if (!id) continue;
+          const textId = `${id}_T`;
+          const textEl = li.querySelector(`#${CSS.escape(textId)}`);
+          if (textEl) {
+            return {
+              buttonSelector: `#${CSS.escape(textId)}`,
+              containerSelector: `#${CSS.escape(id)}`,
+            };
+          }
+          return {
+            buttonSelector: `#${CSS.escape(id)}`,
+            containerSelector: `#${CSS.escape(id)}`,
+          };
+        }
+      }
+      return null;
+    });
+  }
+
   private async downloadPDFExport(options: {
     context: BrowserContext;
     pageUrl: string;
@@ -9203,12 +9233,13 @@ export class ArchibaldBot {
     responsiveMenuButtonSelector?: string;
     responsiveExportButtonSelector?: string;
     retryOnDataStoreError?: boolean;
+    findExportMenu?: (page: Page) => Promise<{ buttonSelector: string; containerSelector: string } | null>;
   }): Promise<string> {
     const {
       context,
       pageUrl,
-      buttonSelector,
-      containerSelector,
+      buttonSelector: hardcodedButtonSelector,
+      containerSelector: hardcodedContainerSelector,
       expectedFileNames,
       filePrefix,
       downloadTimeout = 120000,
@@ -9217,6 +9248,7 @@ export class ArchibaldBot {
       responsiveMenuButtonSelector,
       responsiveExportButtonSelector,
       retryOnDataStoreError = false,
+      findExportMenu,
     } = options;
 
     const page = await context.newPage();
@@ -9241,6 +9273,24 @@ export class ArchibaldBot {
       logger.info(`[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`);
 
       await this.waitForDevExpressReadyOnPage(page);
+
+      let buttonSelector = hardcodedButtonSelector;
+      let containerSelector = hardcodedContainerSelector;
+
+      if (findExportMenu) {
+        const discovered = await findExportMenu(page);
+        if (discovered) {
+          logger.info(
+            `[ArchibaldBot] Discovered export menu: button=${discovered.buttonSelector}, container=${discovered.containerSelector}`,
+          );
+          buttonSelector = discovered.buttonSelector;
+          containerSelector = discovered.containerSelector;
+        } else {
+          logger.warn(
+            `[ArchibaldBot] Export menu discovery failed, falling back to hardcoded selectors: ${hardcodedButtonSelector}`,
+          );
+        }
+      }
 
       if (beforeClick) {
         await beforeClick(page);
@@ -9500,6 +9550,7 @@ export class ArchibaldBot {
       containerSelector: "#Vertical_mainMenu_Menu_DXI6_",
       expectedFileNames: ["Clienti.pdf", "Customers.pdf"],
       filePrefix: "clienti",
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
@@ -9511,6 +9562,7 @@ export class ArchibaldBot {
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
       filePrefix: "prodotti",
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
@@ -9730,6 +9782,7 @@ export class ArchibaldBot {
       clickStrategy: "responsive-fallback",
       responsiveMenuButtonSelector: "#Vertical_mainMenu_Menu_DXI9_T",
       responsiveExportButtonSelector: "#Vertical_mainMenu_Menu_DXI7_T",
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
@@ -9746,6 +9799,7 @@ export class ArchibaldBot {
       ],
       filePrefix: "ddt",
       retryOnDataStoreError: true,
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
@@ -9761,6 +9815,7 @@ export class ArchibaldBot {
         "Customer invoice journal.pdf",
       ],
       filePrefix: "fatture",
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
@@ -9772,6 +9827,7 @@ export class ArchibaldBot {
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Tabella prezzi.pdf", "Price table.pdf"],
       filePrefix: "prezzi",
+      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
