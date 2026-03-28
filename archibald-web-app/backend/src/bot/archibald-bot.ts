@@ -9202,7 +9202,7 @@ export class ArchibaldBot {
         if (/^Esportare in\b/i.test(text) || /^Export to\b/i.test(text)) {
           const id = li.id;
           if (!id) continue;
-          const textId = `${id}_T`;
+          const textId = id.endsWith('_') ? `${id}T` : `${id}_T`;
           const textEl = li.querySelector(`#${CSS.escape(textId)}`);
           if (textEl) {
             return {
