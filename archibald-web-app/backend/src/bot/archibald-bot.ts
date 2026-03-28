@@ -9194,24 +9194,18 @@ export class ArchibaldBot {
     page: Page,
   ): Promise<{ buttonSelector: string; containerSelector: string } | null> {
     return page.evaluate(() => {
-      const items = Array.from(
+      const menuItems = Array.from(
         document.querySelectorAll('li[id*="mainMenu_Menu_DXI"]'),
       );
-      for (const li of items) {
-        const text = (li.textContent || "").trim();
+      for (const li of menuItems) {
+        const id = li.id;
+        if (!id) continue;
+        const anchorId = id.endsWith('_') ? `${id}T` : `${id}_T`;
+        const anchor = li.querySelector(`#${CSS.escape(anchorId)}`);
+        const text = ((anchor || li).textContent || '').trim();
         if (/^Esportare in\b/i.test(text) || /^Export to\b/i.test(text)) {
-          const id = li.id;
-          if (!id) continue;
-          const textId = id.endsWith('_') ? `${id}T` : `${id}_T`;
-          const textEl = li.querySelector(`#${CSS.escape(textId)}`);
-          if (textEl) {
-            return {
-              buttonSelector: `#${CSS.escape(textId)}`,
-              containerSelector: `#${CSS.escape(id)}`,
-            };
-          }
           return {
-            buttonSelector: `#${CSS.escape(id)}`,
+            buttonSelector: `#${CSS.escape(anchor ? anchorId : id)}`,
             containerSelector: `#${CSS.escape(id)}`,
           };
         }
@@ -9782,7 +9776,6 @@ export class ArchibaldBot {
       clickStrategy: "responsive-fallback",
       responsiveMenuButtonSelector: "#Vertical_mainMenu_Menu_DXI9_T",
       responsiveExportButtonSelector: "#Vertical_mainMenu_Menu_DXI7_T",
-      findExportMenu: (page) => this.findExportMenuSelector(page),
     });
   }
 
