@@ -506,7 +506,7 @@ describe("generateVbsScript", () => {
     expect(result.vbs).toContain("WScript.ScriptFullName");
     expect(result.vbs).toContain("REPLACE ESERCIZIO WITH");
     expect(result.vbs).toContain("REPLACE ID_TESTA WITH");
-    expect(result.vbs).toContain("SELECT MAX(ID) FROM doctes");
+    expect(result.vbs).toContain("SELECT MAX(ID) FROM _dt INTO ARRAY aDTId");
   });
 
   test("preserves single quotes in VFP bracket-delimited strings", () => {
@@ -599,9 +599,8 @@ describe("generateVbsScript", () => {
       result.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []
     ).length;
 
-    // Batch: 3 EXECSCRIPT fissi (temp_doctes.prg, temp_docrig.prg, temp_scad.prg)
-    // indipendentemente dal numero di documenti/righe
-    expect(execCount).toBe(3);
+    // Single PRG: 1 EXECSCRIPT (temp_sync.prg), ID calcolati in VFP al momento dell'esecuzione
+    expect(execCount).toBe(1);
   });
 
   test("scrive arca_done.txt alla fine dello script di sync", () => {

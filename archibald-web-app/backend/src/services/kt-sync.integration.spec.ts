@@ -154,7 +154,7 @@ describe('KT sync round-trip', () => {
     expect(vbs.vbs).toContain('REPLACE MAGPARTENZ WITH [00001]');
 
     // Verify SCADENZE record is included
-    expect(vbs.vbs).toContain('USE SCADENZE IN 0 SHARED AGAIN ALIAS _ins');
+    expect(vbs.vbs).toContain('USE SCADENZE IN 0 SHARED AGAIN ALIAS _sc');
     expect(vbs.vbs).toContain('REPLACE TIPOMOD WITH [KT]');
     expect(vbs.vbs).toContain('REPLACE TIPO WITH [A]');
     expect(vbs.vbs).toContain('REPLACE TRANSIT WITH .T.');
@@ -207,9 +207,9 @@ describe('KT sync round-trip', () => {
       { invoiceNumber: 'KT 202/2026', arcaData: order2 },
     ]);
 
-    // batch: 3 EXECSCRIPT totali (doctes + docrig + scadenze), indipendente dal numero di documenti
+    // single PRG: 1 EXECSCRIPT (temp_sync.prg), ID calcolati in VFP
     const execCount = (vbs.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []).length;
-    expect(execCount).toBe(3);
+    expect(execCount).toBe(1);
 
     expect(vbs.vbs).toContain('KT 201/2026');
     expect(vbs.vbs).toContain('KT 202/2026');
