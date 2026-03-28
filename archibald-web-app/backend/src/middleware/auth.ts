@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import { verifyJWT } from "../auth-utils";
 import { logger } from "../logger";
 import type { UserRole } from "../db/repositories/users";
+import type { DbPool } from "../db/pool";
+import { updateLastActivity } from "../db/repositories/users";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -60,3 +62,32 @@ export async function requireAdmin(
 
   next();
 }
+
+function createAuthMiddleware(pool: DbPool) {
+  return async function authenticateJWTWithActivity(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Token non fornito" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const payload = await verifyJWT(token);
+
+    if (!payload) {
+      return res.status(401).json({ error: "Token non valido o scaduto" });
+    }
+
+    req.user = payload;
+
+    updateLastActivity(pool, payload.userId).catch(() => {});
+
+    next();
+  };
+}
+
+export { createAuthMiddleware };

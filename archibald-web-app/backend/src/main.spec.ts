@@ -33,6 +33,11 @@ vi.mock('./db/repositories/users', () => ({
     { id: 'agent-2', username: 'agent2' },
   ]),
   getUserById: vi.fn().mockResolvedValue({ id: 'agent-1', username: 'agent1' }),
+  getAgentIdsByStatus: vi.fn().mockImplementation((_pool: unknown, status: string) => {
+    if (status === 'active') return Promise.resolve(['agent-1', 'agent-2']);
+    if (status === 'idle') return Promise.resolve(['agent-3']);
+    return Promise.resolve([]);
+  }),
 }));
 
 vi.mock('./operations/operation-queue', () => ({
@@ -97,6 +102,17 @@ vi.mock('./sync/sync-scheduler', () => ({
     smartCustomerSync: vi.fn(),
     resumeOtherSyncs: vi.fn(),
     getSessionCount: vi.fn(() => 0),
+  })),
+}));
+
+vi.mock('./sync/circuit-breaker', () => ({
+  createCircuitBreaker: vi.fn(() => ({
+    isPaused: vi.fn().mockResolvedValue(false),
+    recordFailure: vi.fn().mockResolvedValue(undefined),
+    recordSuccess: vi.fn().mockResolvedValue(undefined),
+    resetForUser: vi.fn().mockResolvedValue(undefined),
+    resetDailyCounts: vi.fn().mockResolvedValue(undefined),
+    getState: vi.fn().mockResolvedValue(null),
   })),
 }));
 
@@ -347,14 +363,14 @@ describe('bootstrap', () => {
     expect(handlerKeys).toHaveLength(19);
   });
 
-  test('getActiveAgentIds returns whitelisted user IDs', async () => {
+  test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
     const { bootstrap } = await import('./main');
     const { createSyncScheduler } = await import('./sync/sync-scheduler');
 
     await bootstrap();
 
-    const getActiveAgentIds = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(getActiveAgentIds()).toEqual(['agent-1', 'agent-2']);
+    const getAgentsByActivity = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
   });
 
   test('creates BullMQ worker for operations queue', async () => {

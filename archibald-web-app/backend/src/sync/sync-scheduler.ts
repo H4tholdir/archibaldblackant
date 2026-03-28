@@ -15,6 +15,8 @@ type GetCustomersNeedingAddressSyncFn = (
   limit: number,
 ) => Promise<Array<{ customer_profile: string; name: string }>>;
 
+type GetAgentsByActivityFn = () => { active: string[]; idle: string[] };
+
 type SyncIntervals = {
   agentSyncMs: number;
   sharedSyncMs: number;
@@ -25,13 +27,14 @@ const ARTICLE_SYNC_BATCH_LIMIT = 10;
 const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
 const ADDRESS_SYNC_BATCH_LIMIT = 30;
 const ADDRESS_SYNC_DELAY_MS = 5 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 24 * 60 * 1000;
+const IDLE_AGENT_MULTIPLIER = 4;
 
 type DeleteExpiredFn = () => Promise<number>;
 
 function createSyncScheduler(
   enqueue: EnqueueFn,
-  getActiveAgentIds: () => string[],
+  getAgentsByActivity: GetAgentsByActivityFn,
   getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
   getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn,
   deleteExpiredNotifications?: DeleteExpiredFn,
@@ -44,6 +47,66 @@ function createSyncScheduler(
   let sessionCount = 0;
   let safetyTimeout: NodeJS.Timeout | null = null;
 
+  function enqueueAgentSyncs(agentIds: string[], syncTypes: readonly OperationType[]): void {
+    for (const userId of agentIds) {
+      for (const syncType of syncTypes) {
+        enqueue(syncType, userId, {});
+      }
+    }
+  }
+
+  function scheduleArticleSync(agentIds: string[]): void {
+    if (!getOrdersNeedingArticleSync) return;
+    for (const userId of agentIds) {
+      const agentUserId = userId;
+      pendingTimeouts.push(setTimeout(() => {
+        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
+          for (const orderId of orderIds) {
+            enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
+          }
+        }).catch((error) => {
+          logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
+        });
+      }, ARTICLE_SYNC_DELAY_MS));
+    }
+  }
+
+  function scheduleAddressSync(agentIds: string[]): void {
+    if (!getCustomersNeedingAddressSync) return;
+    for (const userId of agentIds) {
+      if (addressSyncTimeouts.has(userId)) continue;
+      const agentUserId = userId;
+      const tid = setTimeout(() => {
+        addressSyncTimeouts.delete(agentUserId);
+        getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
+          .then((customers) => {
+            if (customers.length === 0) return;
+            enqueue(
+              'sync-customer-addresses',
+              agentUserId,
+              { customers: customers.map((c) => ({ customerProfile: c.customer_profile, customerName: c.name })) },
+            );
+          })
+          .catch((error) => {
+            logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
+          });
+      }, ADDRESS_SYNC_DELAY_MS);
+      addressSyncTimeouts.set(agentUserId, tid);
+    }
+  }
+
+  const ACTIVE_SYNC_TYPES: readonly OperationType[] = [
+    'sync-customers',
+    'sync-orders',
+    'sync-ddt',
+    'sync-invoices',
+  ];
+
+  const IDLE_SYNC_TYPES: readonly OperationType[] = [
+    'sync-customers',
+    'sync-orders',
+  ];
+
   function start(intervals?: SyncIntervals): void {
     if (intervals) {
       currentIntervals = intervals;
@@ -52,44 +115,18 @@ function createSyncScheduler(
 
     timers.push(
       setInterval(() => {
-        const agentIds = getActiveAgentIds();
-        for (const userId of agentIds) {
-          enqueue('sync-customers', userId, {});
-
-          if (getOrdersNeedingArticleSync) {
-            const agentUserId = userId;
-            pendingTimeouts.push(setTimeout(() => {
-              getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
-                for (const orderId of orderIds) {
-                  enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
-                }
-              }).catch((error) => {
-                logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
-              });
-            }, ARTICLE_SYNC_DELAY_MS));
-          }
-
-          if (getCustomersNeedingAddressSync && !addressSyncTimeouts.has(userId)) {
-            const agentUserId = userId;
-            const tid = setTimeout(() => {
-              addressSyncTimeouts.delete(agentUserId);
-              getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
-                .then((customers) => {
-                  if (customers.length === 0) return;
-                  enqueue(
-                    'sync-customer-addresses',
-                    agentUserId,
-                    { customers: customers.map((c) => ({ customerProfile: c.customer_profile, customerName: c.name })) },
-                  );
-                })
-                .catch((error) => {
-                  logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
-                });
-            }, ADDRESS_SYNC_DELAY_MS);
-            addressSyncTimeouts.set(agentUserId, tid);
-          }
-        }
+        const { active } = getAgentsByActivity();
+        enqueueAgentSyncs(active, ACTIVE_SYNC_TYPES);
+        scheduleArticleSync(active);
+        scheduleAddressSync(active);
       }, currentIntervals.agentSyncMs),
+    );
+
+    timers.push(
+      setInterval(() => {
+        const { idle } = getAgentsByActivity();
+        enqueueAgentSyncs(idle, IDLE_SYNC_TYPES);
+      }, currentIntervals.agentSyncMs * IDLE_AGENT_MULTIPLIER),
     );
 
     timers.push(
@@ -161,8 +198,8 @@ function createSyncScheduler(
 
     resetSafetyTimeout();
 
-    const agentIds = getActiveAgentIds();
-    const targetUserId = agentIds.includes(userId) ? userId : agentIds[0] ?? userId;
+    const { active } = getAgentsByActivity();
+    const targetUserId = active.includes(userId) ? userId : active[0] ?? userId;
     await enqueue('sync-customers', targetUserId, {});
   }
 
@@ -216,9 +253,11 @@ export {
   ADDRESS_SYNC_BATCH_LIMIT,
   ADDRESS_SYNC_DELAY_MS,
   CLEANUP_INTERVAL_MS,
+  IDLE_AGENT_MULTIPLIER,
   type SyncScheduler,
   type SyncIntervals,
   type EnqueueFn,
+  type GetAgentsByActivityFn,
   type GetOrdersNeedingArticleSyncFn,
   type GetCustomersNeedingAddressSyncFn,
   type DeleteExpiredFn,

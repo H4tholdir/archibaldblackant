@@ -47,6 +47,7 @@ import { createNotification } from './services/notification-service';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
+import { createCircuitBreaker } from './sync/circuit-breaker';
 import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
@@ -219,19 +220,31 @@ async function bootstrap(): Promise<void> {
   await browserPool.initialize();
   logger.info('Browser pool initialized', { browsers: config.browserPool.maxBrowsers });
 
-  let cachedAgentIds: string[] = [];
-  async function refreshAgentIds(): Promise<void> {
-    const users = await usersRepo.getWhitelistedUsers(pool);
-    cachedAgentIds = users.map(u => u.id);
+  let cachedActiveAgents: string[] = [];
+  let cachedIdleAgents: string[] = [];
+
+  async function refreshAgentActivityCache(): Promise<void> {
+    try {
+      const [active, idle] = await Promise.all([
+        usersRepo.getAgentIdsByStatus(pool, 'active'),
+        usersRepo.getAgentIdsByStatus(pool, 'idle'),
+      ]);
+      cachedActiveAgents = active;
+      cachedIdleAgents = idle;
+    } catch (error) {
+      logger.error('Failed to refresh agent activity cache', { error });
+    }
   }
-  await refreshAgentIds();
-  const agentIdRefreshInterval = setInterval(() => {
-    refreshAgentIds().catch(err => logger.warn('Agent refresh failed', { error: String(err) }));
+  await refreshAgentActivityCache();
+  const agentActivityCacheInterval = setInterval(() => {
+    refreshAgentActivityCache().catch(err => logger.warn('Agent activity cache refresh failed', { error: String(err) }));
   }, 5 * 60 * 1000);
+
+  const circuitBreaker = createCircuitBreaker(pool);
 
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
-    () => cachedAgentIds,
+    () => ({ active: cachedActiveAgents, idle: cachedIdleAgents }),
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
     (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
     () => deleteExpiredNotifications(pool),
@@ -366,6 +379,11 @@ async function bootstrap(): Promise<void> {
     onJobEvent: jobEventBus.onJobEvent,
     createCustomerBot: (userId) => createBotForUser(userId),
     broadcast: (userId, msg) => wsServer.broadcast(userId, msg),
+    onLoginSuccess: (userId) => {
+      circuitBreaker.resetForUser(userId).catch(err =>
+        logger.warn('Failed to reset circuit breaker on login', { userId, error: err }),
+      );
+    },
   });
 
   const server = http.createServer(app);
@@ -985,6 +1003,7 @@ async function bootstrap(): Promise<void> {
     },
     enqueue: queue.enqueue,
     handlers,
+    circuitBreaker,
     onJobStarted: async (type, data, _userId, jobId) => {
       if (type === 'submit-order' && data.pendingOrderId) {
         await updateJobTracking(pool, data.pendingOrderId as string, jobId);
@@ -1024,6 +1043,12 @@ async function bootstrap(): Promise<void> {
     logger.debug('Session cleanup tick');
   }, SESSION_CLEANUP_INTERVAL_MS);
 
+  const dailyResetInterval = setInterval(async () => {
+    await circuitBreaker.resetDailyCounts().catch(err =>
+      logger.error('Failed to reset daily circuit breaker counts', { error: err }),
+    );
+  }, 24 * 60 * 60 * 1000);
+
   logger.info('Startup complete', {
     port: config.server.port,
     services: {
@@ -1037,7 +1062,8 @@ async function bootstrap(): Promise<void> {
   const shutdown = async () => {
     logger.info('Graceful shutdown initiated...');
     clearInterval(cleanupInterval);
-    clearInterval(agentIdRefreshInterval);
+    clearInterval(agentActivityCacheInterval);
+    clearInterval(dailyResetInterval);
     syncScheduler.stop();
     notificationScheduler.stop();
     await worker.close();
