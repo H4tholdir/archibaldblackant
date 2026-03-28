@@ -180,9 +180,89 @@ function createMultiQueueEnqueue(
   };
 }
 
+function createMultiQueueFacade(
+  queues: Record<QueueName, OperationQueue>,
+): OperationQueue {
+  const allQueues = Object.values(queues);
+
+  const enqueue = createMultiQueueEnqueue(queues);
+
+  async function getJobStatus(jobId: string): Promise<JobStatus | null> {
+    for (const q of allQueues) {
+      const status = await q.getJobStatus(jobId);
+      if (status) return status;
+    }
+    return null;
+  }
+
+  async function getAgentJobs(userId: string): Promise<AgentJob[]> {
+    const results = await Promise.all(allQueues.map(q => q.getAgentJobs(userId)));
+    return results.flat();
+  }
+
+  async function getStats(): Promise<QueueStats> {
+    const results = await Promise.all(allQueues.map(q => q.getStats()));
+    return results.reduce<QueueStats>(
+      (acc, s) => ({
+        waiting: acc.waiting + s.waiting,
+        active: acc.active + s.active,
+        completed: acc.completed + s.completed,
+        failed: acc.failed + s.failed,
+        delayed: acc.delayed + s.delayed,
+        prioritized: acc.prioritized + s.prioritized,
+      }),
+      { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, prioritized: 0 },
+    );
+  }
+
+  async function close(): Promise<void> {
+    await Promise.all(allQueues.map(q => q.close()));
+  }
+
+  const multiQueue = {
+    getJob: async (jobId: string) => {
+      for (const q of allQueues) {
+        const job = await q.queue.getJob(jobId);
+        if (job) return job;
+      }
+      return undefined;
+    },
+    getJobs: async (states: string[], start?: number, end?: number) => {
+      const results = await Promise.all(
+        allQueues.map(q => q.queue.getJobs(states as never, start, end)),
+      );
+      return results.flat();
+    },
+    getJobCounts: async (...states: string[]) => {
+      const results = await Promise.all(
+        allQueues.map(q => q.queue.getJobCounts(...(states as never[]))),
+      );
+      const merged: Record<string, number> = {};
+      for (const r of results) {
+        for (const [key, val] of Object.entries(r as Record<string, number>)) {
+          merged[key] = (merged[key] ?? 0) + val;
+        }
+      }
+      return merged;
+    },
+    clean: async (grace: number, limit: number, status: string) => {
+      const results = await Promise.all(
+        allQueues.map(q => q.queue.clean(grace, limit, status as never)),
+      );
+      return results.flat();
+    },
+    close: async () => {
+      await Promise.all(allQueues.map(q => q.queue.close()));
+    },
+  };
+
+  return { enqueue, getJobStatus, getAgentJobs, getStats, close, queue: multiQueue as never };
+}
+
 export {
   createOperationQueue,
   createMultiQueueEnqueue,
+  createMultiQueueFacade,
   type OperationQueue,
   type JobStatus,
   type AgentJob,

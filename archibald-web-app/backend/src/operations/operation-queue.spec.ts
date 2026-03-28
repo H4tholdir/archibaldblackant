@@ -32,7 +32,7 @@ vi.mock('ioredis', () => {
   };
 });
 
-import { createOperationQueue, createMultiQueueEnqueue } from './operation-queue';
+import { createOperationQueue, createMultiQueueEnqueue, createMultiQueueFacade } from './operation-queue';
 import type { QueueName } from './queue-router';
 
 describe('createOperationQueue', () => {
@@ -326,5 +326,157 @@ describe('createMultiQueueEnqueue', () => {
     expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
       'sync-tracking', 'user-a', {}, 'key-track', 5000,
     );
+  });
+});
+
+describe('createMultiQueueFacade', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeFacadeMockQueue(name: string) {
+    return {
+      enqueue: vi.fn().mockResolvedValue(`${name}-job-id`),
+      getJobStatus: vi.fn().mockResolvedValue(null),
+      getAgentJobs: vi.fn().mockResolvedValue([]),
+      getStats: vi.fn().mockResolvedValue({
+        waiting: 1, active: 0, completed: 2, failed: 0, delayed: 0, prioritized: 0,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+      queue: {
+        getJob: vi.fn().mockResolvedValue(undefined),
+        getJobs: vi.fn().mockResolvedValue([]),
+        getJobCounts: vi.fn().mockResolvedValue({ waiting: 1, active: 0 }),
+        clean: vi.fn().mockResolvedValue([]),
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+  }
+
+  function makeQueues() {
+    return {
+      writes: makeFacadeMockQueue('writes'),
+      'agent-sync': makeFacadeMockQueue('agent-sync'),
+      enrichment: makeFacadeMockQueue('enrichment'),
+      'shared-sync': makeFacadeMockQueue('shared-sync'),
+    } as Record<QueueName, ReturnType<typeof makeFacadeMockQueue>>;
+  }
+
+  test('getStats aggregates counts across all 4 queues', async () => {
+    const queues = makeQueues();
+    const facade = createMultiQueueFacade(queues as never);
+
+    const stats = await facade.getStats();
+
+    expect(stats).toEqual({
+      waiting: 4,
+      active: 0,
+      completed: 8,
+      failed: 0,
+      delayed: 0,
+      prioritized: 0,
+    });
+  });
+
+  test('getJobStatus returns first match across queues', async () => {
+    const queues = makeQueues();
+    const expectedStatus = {
+      jobId: 'found-job',
+      type: 'sync-customers' as const,
+      userId: 'user-a',
+      state: 'active',
+      progress: 50,
+      result: null,
+      failedReason: undefined,
+    };
+    queues['agent-sync'].getJobStatus.mockResolvedValue(expectedStatus);
+
+    const facade = createMultiQueueFacade(queues as never);
+    const result = await facade.getJobStatus('found-job');
+
+    expect(result).toEqual(expectedStatus);
+  });
+
+  test('getJobStatus returns null when no queue has the job', async () => {
+    const queues = makeQueues();
+    const facade = createMultiQueueFacade(queues as never);
+
+    const result = await facade.getJobStatus('nonexistent');
+
+    expect(result).toBeNull();
+  });
+
+  test('getAgentJobs merges results from all queues', async () => {
+    const queues = makeQueues();
+    queues.writes.getAgentJobs.mockResolvedValue([
+      { jobId: 'w1', type: 'submit-order', state: 'waiting', progress: 0 },
+    ]);
+    queues.enrichment.getAgentJobs.mockResolvedValue([
+      { jobId: 'e1', type: 'sync-order-articles', state: 'active', progress: 30 },
+    ]);
+
+    const facade = createMultiQueueFacade(queues as never);
+    const jobs = await facade.getAgentJobs('user-a');
+
+    expect(jobs).toEqual([
+      { jobId: 'w1', type: 'submit-order', state: 'waiting', progress: 0 },
+      { jobId: 'e1', type: 'sync-order-articles', state: 'active', progress: 30 },
+    ]);
+  });
+
+  test('close closes all underlying queues', async () => {
+    const queues = makeQueues();
+    const facade = createMultiQueueFacade(queues as never);
+
+    await facade.close();
+
+    for (const q of Object.values(queues)) {
+      expect(q.close).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  test('facade.queue.getJobs merges results from all underlying BullMQ queues', async () => {
+    const queues = makeQueues();
+    const jobA = { id: 'a', data: { type: 'submit-order' } };
+    const jobB = { id: 'b', data: { type: 'sync-products' } };
+    queues.writes.queue.getJobs.mockResolvedValue([jobA]);
+    queues['shared-sync'].queue.getJobs.mockResolvedValue([jobB]);
+
+    const facade = createMultiQueueFacade(queues as never);
+    const jobs = await facade.queue.getJobs(['completed', 'failed'], 0, 99);
+
+    expect(jobs).toEqual(expect.arrayContaining([jobA, jobB]));
+  });
+
+  test('facade.queue.getJob finds job across queues', async () => {
+    const queues = makeQueues();
+    const mockJob = { id: 'target-job', data: { type: 'sync-customers' } };
+    queues['agent-sync'].queue.getJob.mockResolvedValue(mockJob);
+
+    const facade = createMultiQueueFacade(queues as never);
+    const job = await facade.queue.getJob('target-job');
+
+    expect(job).toEqual(mockJob);
+  });
+
+  test('facade.queue.clean calls clean on all queues and merges results', async () => {
+    const queues = makeQueues();
+    queues.writes.queue.clean.mockResolvedValue(['id-1']);
+    queues.enrichment.queue.clean.mockResolvedValue(['id-2', 'id-3']);
+
+    const facade = createMultiQueueFacade(queues as never);
+    const cleaned = await facade.queue.clean(0, 1000, 'completed');
+
+    expect(cleaned).toEqual(['id-1', 'id-2', 'id-3']);
+  });
+
+  test('enqueue routes submit-order to writes queue', async () => {
+    const queues = makeQueues();
+    const facade = createMultiQueueFacade(queues as never);
+
+    const jobId = await facade.enqueue('submit-order', 'user-a', { orderId: '1' });
+
+    expect(jobId).toBe('writes-job-id');
+    expect(queues.writes.enqueue).toHaveBeenCalled();
   });
 });

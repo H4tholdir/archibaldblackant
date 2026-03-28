@@ -18,7 +18,9 @@ import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
-import { createOperationQueue } from './operations/operation-queue';
+import { createOperationQueue, createMultiQueueFacade } from './operations/operation-queue';
+import { QUEUE_NAMES } from './operations/queue-router';
+import type { QueueName } from './operations/queue-router';
 import { createAgentLock } from './operations/agent-lock';
 import { createOperationProcessor } from './operations/operation-processor';
 import {
@@ -83,7 +85,19 @@ async function bootstrap(): Promise<void> {
 
   const agentLock = createAgentLock();
 
-  const queue = createOperationQueue();
+  const redisConfig = {
+    host: process.env.REDIS_HOST ?? 'localhost',
+    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+  };
+
+  const allQueues = Object.fromEntries(
+    QUEUE_NAMES.map(name => [
+      name,
+      createOperationQueue(name, redisConfig, config.queues[name].removeOnComplete),
+    ]),
+  ) as Record<QueueName, ReturnType<typeof createOperationQueue>>;
+
+  const queue = createMultiQueueFacade(allQueues);
 
   const browserPool = createBrowserPool(
     {
@@ -950,24 +964,36 @@ async function bootstrap(): Promise<void> {
     },
   });
 
-  const workerConnection = new Redis({
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-    maxRetriesPerRequest: null,
-  });
+  function createWorkerForQueue(queueName: QueueName) {
+    const queueConfig = config.queues[queueName];
+    const conn = new Redis({
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+      maxRetriesPerRequest: null,
+    });
+    const w = new Worker<OperationJobData, OperationJobResult>(
+      queueName,
+      async (job) => {
+        const result = await processor.processJob({
+          id: job.id!,
+          data: job.data,
+          updateProgress: (progress) => job.updateProgress(progress),
+        });
+        return { success: result.success, data: result.data, duration: result.duration };
+      },
+      {
+        connection: conn as never,
+        concurrency: queueConfig.concurrency,
+        lockDuration: queueConfig.lockDuration,
+        stalledInterval: queueConfig.stalledInterval,
+      },
+    );
+    return { worker: w, connection: conn };
+  }
 
-  const worker = new Worker<OperationJobData, OperationJobResult>(
-    'operations',
-    async (job) => {
-      const result = await processor.processJob({
-        id: job.id!,
-        data: job.data,
-        updateProgress: (progress) => job.updateProgress(progress),
-      });
-      return { success: result.success, data: result.data, duration: result.duration };
-    },
-    { connection: workerConnection as never, concurrency: config.queue.workerConcurrency, lockDuration: 120_000, stalledInterval: 15_000 },
-  );
+  const workers = Object.fromEntries(
+    QUEUE_NAMES.map(name => [name, createWorkerForQueue(name)]),
+  ) as Record<QueueName, { worker: Worker; connection: Redis }>;
 
   const cleanupInterval = setInterval(() => {
     logger.debug('Session cleanup tick');
@@ -996,9 +1022,13 @@ async function bootstrap(): Promise<void> {
     clearInterval(dailyResetInterval);
     syncScheduler.stop();
     notificationScheduler.stop();
-    await worker.close();
+    await Promise.all(
+      Object.values(workers).map(({ worker: w }) => w.close()),
+    );
     await queue.close();
-    workerConnection.disconnect();
+    for (const { connection } of Object.values(workers)) {
+      connection.disconnect();
+    }
     await wsServer.shutdown();
     await browserPool.shutdown();
     await pool.end();
