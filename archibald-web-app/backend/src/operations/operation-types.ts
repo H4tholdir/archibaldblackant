@@ -74,30 +74,6 @@ function isScheduledSync(type: OperationType): boolean {
   return SCHEDULED_SYNCS.has(type);
 }
 
-const AGENT_SYNC_CHAIN: readonly OperationType[] = [
-  'sync-customers',
-  'sync-orders',
-  'sync-ddt',
-  'sync-invoices',
-  'sync-tracking',
-  'sync-order-states',
-];
-
-const SHARED_SYNC_CHAIN: readonly OperationType[] = [
-  'sync-products',
-  'sync-prices',
-];
-
-function getNextSyncInChain(type: OperationType): OperationType | null {
-  for (const chain of [AGENT_SYNC_CHAIN, SHARED_SYNC_CHAIN]) {
-    const idx = chain.indexOf(type);
-    if (idx >= 0 && idx < chain.length - 1) {
-      return chain[idx + 1];
-    }
-  }
-  return null;
-}
-
 type OperationJobData = {
   type: OperationType;
   userId: string;
@@ -117,11 +93,8 @@ export {
   OPERATION_PRIORITIES,
   WRITE_OPERATIONS,
   SCHEDULED_SYNCS,
-  AGENT_SYNC_CHAIN,
-  SHARED_SYNC_CHAIN,
   isWriteOperation,
   isScheduledSync,
-  getNextSyncInChain,
   type OperationType,
   type OperationJobData,
   type OperationJobResult,

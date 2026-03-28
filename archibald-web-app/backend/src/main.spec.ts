@@ -9,6 +9,12 @@ vi.mock('./config', () => ({
     archibald: { url: 'https://example.com/Archibald', username: '', password: '' },
     logging: { level: 'info' },
     queue: { workerConcurrency: 10 },
+    queues: {
+      writes: { concurrency: 5, lockDuration: 420000, stalledInterval: 30000, removeOnComplete: { count: 500 } },
+      'agent-sync': { concurrency: 3, lockDuration: 300000, stalledInterval: 30000, removeOnComplete: true },
+      enrichment: { concurrency: 3, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: true },
+      'shared-sync': { concurrency: 1, lockDuration: 900000, stalledInterval: 60000, removeOnComplete: true },
+    },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000 },
   },
 }));
@@ -40,16 +46,20 @@ vi.mock('./db/repositories/users', () => ({
   }),
 }));
 
-vi.mock('./operations/operation-queue', () => ({
-  createOperationQueue: vi.fn(() => ({
+vi.mock('./operations/operation-queue', () => {
+  const mockQueue = {
     enqueue: vi.fn().mockResolvedValue('job-1'),
     getJobStatus: vi.fn(),
     getAgentJobs: vi.fn(),
     getStats: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
     queue: {},
-  })),
-}));
+  };
+  return {
+    createOperationQueue: vi.fn(() => mockQueue),
+    createMultiQueueFacade: vi.fn(() => mockQueue),
+  };
+});
 
 vi.mock('./operations/agent-lock', () => ({
   createAgentLock: vi.fn(() => ({
@@ -296,7 +306,7 @@ describe('bootstrap', () => {
 
     expect(createPool).toHaveBeenCalledTimes(1);
     expect(runMigrations).toHaveBeenCalledTimes(1);
-    expect(createOperationQueue).toHaveBeenCalledTimes(1);
+    expect(createOperationQueue).toHaveBeenCalledTimes(4);
     expect(createAgentLock).toHaveBeenCalledTimes(1);
     expect(createBrowserPool).toHaveBeenCalledTimes(1);
     expect(createSyncScheduler).toHaveBeenCalledTimes(1);
@@ -373,14 +383,19 @@ describe('bootstrap', () => {
     expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
   });
 
-  test('creates BullMQ worker for operations queue', async () => {
+  test('creates 4 BullMQ workers — one per queue tier', async () => {
     const { bootstrap } = await import('./main');
     const { Worker } = await import('bullmq');
 
     await bootstrap();
 
-    expect(Worker).toHaveBeenCalledTimes(1);
-    expect((Worker as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('operations');
+    expect(Worker).toHaveBeenCalledTimes(4);
+    const workerNames = (Worker as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[0],
+    );
+    expect(workerNames).toEqual(
+      expect.arrayContaining(['writes', 'agent-sync', 'enrichment', 'shared-sync']),
+    );
   });
 
   test('logs startup complete with enabled services', async () => {

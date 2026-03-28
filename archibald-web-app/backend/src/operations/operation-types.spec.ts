@@ -3,7 +3,6 @@ import {
   OPERATION_PRIORITIES,
   isWriteOperation,
   isScheduledSync,
-  getNextSyncInChain,
   type OperationType,
 } from './operation-types';
 
@@ -91,23 +90,3 @@ describe('isScheduledSync', () => {
   });
 });
 
-describe('getNextSyncInChain', () => {
-  test('agent chain: sync-customers → sync-orders → sync-ddt → sync-invoices → sync-tracking → sync-order-states', () => {
-    expect(getNextSyncInChain('sync-customers')).toBe('sync-orders');
-    expect(getNextSyncInChain('sync-orders')).toBe('sync-ddt');
-    expect(getNextSyncInChain('sync-ddt')).toBe('sync-invoices');
-    expect(getNextSyncInChain('sync-invoices')).toBe('sync-tracking');
-    expect(getNextSyncInChain('sync-tracking')).toBe('sync-order-states');
-    expect(getNextSyncInChain('sync-order-states')).toBeNull();
-  });
-
-  test('shared chain: sync-products → sync-prices', () => {
-    expect(getNextSyncInChain('sync-products')).toBe('sync-prices');
-    expect(getNextSyncInChain('sync-prices')).toBeNull();
-  });
-
-  test('returns null for operations not in any chain', () => {
-    expect(getNextSyncInChain('submit-order')).toBeNull();
-    expect(getNextSyncInChain('sync-order-articles')).toBeNull();
-  });
-});

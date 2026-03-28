@@ -8,7 +8,7 @@ function createMockAgentLock(acquireResult = { acquired: true } as any) {
     acquire: vi.fn().mockReturnValue(acquireResult),
     release: vi.fn(),
     setStopCallback: vi.fn(),
-    getActive: vi.fn(),
+    getActive: vi.fn().mockReturnValue({ jobId: 'job-123', type: 'submit-order' }),
     getAllActive: vi.fn().mockReturnValue(new Map()),
   };
 }
@@ -104,9 +104,12 @@ describe('createOperationProcessor', () => {
     expect(agentLock.acquire).toHaveBeenCalledWith('user-a', 'job-123', 'submit-order');
   });
 
-  test('releases agent lock in finally even on handler error', async () => {
+  test('releases agent lock in finally even on handler error when job still holds lock', async () => {
     const failingHandler = vi.fn().mockRejectedValue(new Error('handler failed'));
-    const { processor, agentLock } = createProcessor({
+    const agentLock = createMockAgentLock();
+    agentLock.getActive.mockReturnValue({ jobId: 'job-123', type: 'submit-order' });
+    const { processor } = createProcessor({
+      agentLock,
       handlers: { 'submit-order': failingHandler },
     });
     const job = createMockJob();
@@ -360,16 +363,19 @@ describe('createOperationProcessor', () => {
     );
   });
 
-  test('does not enqueue next sync in chain when handler fails', async () => {
+  test('does not release lock in finally when a different job holds the lock (jobId guard)', async () => {
     const failingHandler = vi.fn().mockRejectedValue(new Error('handler failed'));
-    const { processor, enqueue } = createProcessor({
-      handlers: { 'sync-customers': failingHandler } as any,
+    const agentLock = createMockAgentLock();
+    agentLock.getActive.mockReturnValue({ jobId: 'preemptor-job-456', type: 'submit-order' });
+    const { processor } = createProcessor({
+      agentLock,
+      handlers: { 'submit-order': failingHandler },
     });
-    const job = createMockJob({ type: 'sync-customers' });
+    const job = createMockJob();
 
     await expect(processor.processJob(job as any)).rejects.toThrow('handler failed');
 
-    expect(enqueue).not.toHaveBeenCalled();
+    expect(agentLock.release).not.toHaveBeenCalled();
   });
 
   test('does not fail if onJobStarted throws', async () => {

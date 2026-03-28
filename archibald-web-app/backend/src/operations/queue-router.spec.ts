@@ -1,0 +1,69 @@
+import { describe, expect, test } from 'vitest';
+import { OPERATION_TYPES } from './operation-types';
+import type { OperationType } from './operation-types';
+import { getQueueForOperation, QUEUE_ROUTING, QUEUE_NAMES } from './queue-router';
+import type { QueueName } from './queue-router';
+
+describe('getQueueForOperation', () => {
+  const expectedRouting: Record<OperationType, QueueName> = {
+    'submit-order': 'writes',
+    'create-customer': 'writes',
+    'update-customer': 'writes',
+    'read-vat-status': 'writes',
+    'send-to-verona': 'writes',
+    'edit-order': 'writes',
+    'delete-order': 'writes',
+    'download-ddt-pdf': 'writes',
+    'download-invoice-pdf': 'writes',
+    'sync-customers': 'agent-sync',
+    'sync-orders': 'agent-sync',
+    'sync-ddt': 'agent-sync',
+    'sync-invoices': 'agent-sync',
+    'sync-order-articles': 'enrichment',
+    'sync-order-states': 'enrichment',
+    'sync-tracking': 'enrichment',
+    'sync-customer-addresses': 'enrichment',
+    'sync-products': 'shared-sync',
+    'sync-prices': 'shared-sync',
+  };
+
+  test.each(OPERATION_TYPES.map(type => [type, expectedRouting[type]] as const))(
+    '%s routes to %s',
+    (operationType, expectedQueue) => {
+      expect(getQueueForOperation(operationType)).toBe(expectedQueue);
+    },
+  );
+
+  test('QUEUE_ROUTING covers every OperationType', () => {
+    const routedTypes = Object.keys(QUEUE_ROUTING).sort();
+    const allTypes = [...OPERATION_TYPES].sort();
+    expect(routedTypes).toEqual(allTypes);
+  });
+
+  test('every routed queue name is a known QueueName', () => {
+    const routedQueues = new Set(Object.values(QUEUE_ROUTING));
+    for (const q of routedQueues) {
+      expect(QUEUE_NAMES).toContain(q);
+    }
+  });
+
+  test('writes queue contains 9 operations', () => {
+    const writesOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'writes');
+    expect(writesOps).toHaveLength(9);
+  });
+
+  test('agent-sync queue contains 4 operations', () => {
+    const agentSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'agent-sync');
+    expect(agentSyncOps).toHaveLength(4);
+  });
+
+  test('enrichment queue contains 4 operations', () => {
+    const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
+    expect(enrichmentOps).toHaveLength(4);
+  });
+
+  test('shared-sync queue contains 2 operations', () => {
+    const sharedSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'shared-sync');
+    expect(sharedSyncOps).toHaveLength(2);
+  });
+});
