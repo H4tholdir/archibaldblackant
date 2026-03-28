@@ -398,12 +398,17 @@ Le colonne necessarie per il sync sono definite dalla lista di colonne usate nel
 
 Un'analisi sistematica ha confrontato: (1) lo schema DB PostgreSQL (38 migrazioni), (2) i tipi dei parser PDF Python, (3) i mapping TypeScript nei sync service, (4) le 296 colonne ERP (visibili + nascoste). Risultato: di 144 colonne nascoste, **solo 2 servono**.
 
-**Colonne da abilitare nel Column Chooser (2 totali)**:
+**Colonne da abilitare nel Column Chooser (1 sola)**:
 
 | Pagina | fieldName | Motivazione |
 |--------|-----------|-------------|
-| **Prodotti** | `TAXITEMGROUPID` | Codice gruppo IVA. Oggi l'IVA viene da import manuale Excel (`excel-vat-importer.ts`). Con questa colonna il product sync legge l'IVA dall'ERP. Richiede mapping codice→aliquota (es. "RIDOTTA"→10%). Il DB ha gia' `vat` e `vat_source`. |
 | **Prezzi** | `MODIFIEDDATETIME` | Data ultima modifica prezzo. Il DB ha la colonna `last_modified` in `shared.prices` ma e' sempre null. Utile per `price_history` e debugging. |
+
+**Colonne investigate e scartate**:
+
+| Pagina | fieldName | Perche' scartata |
+|--------|-----------|-----------------|
+| **Prodotti** | `TAXITEMGROUPID` | Contiene un **codice gruppo interno** (0, 1, 5), NON la percentuale IVA. Non appare nella DetailView. Richiederebbe mapping manuale codice→aliquota senza garanzie di correttezza. L'import Excel (`excel-vat-importer.ts`) resta piu' affidabile perche' contiene la percentuale esplicita. Verificato in produzione 2026-03-28. |
 
 **Perche' le altre 142 nascoste NON servono**:
 
