@@ -231,7 +231,7 @@ async function bootstrap(): Promise<void> {
 
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
-    () => cachedAgentIds,
+    () => ({ active: cachedAgentIds, idle: [] as string[] }),
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
     (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
     () => deleteExpiredNotifications(pool),

@@ -347,14 +347,14 @@ describe('bootstrap', () => {
     expect(handlerKeys).toHaveLength(19);
   });
 
-  test('getActiveAgentIds returns whitelisted user IDs', async () => {
+  test('getAgentsByActivity returns whitelisted user IDs as active', async () => {
     const { bootstrap } = await import('./main');
     const { createSyncScheduler } = await import('./sync/sync-scheduler');
 
     await bootstrap();
 
-    const getActiveAgentIds = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(getActiveAgentIds()).toEqual(['agent-1', 'agent-2']);
+    const getAgentsByActivity = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: [] });
   });
 
   test('creates BullMQ worker for operations queue', async () => {

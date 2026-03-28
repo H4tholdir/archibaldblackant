@@ -7,10 +7,11 @@ import {
   ADDRESS_SYNC_BATCH_LIMIT,
   ADDRESS_SYNC_DELAY_MS,
   CLEANUP_INTERVAL_MS,
+  IDLE_AGENT_MULTIPLIER,
   type SyncIntervals,
   type GetCustomersNeedingAddressSyncFn,
+  type GetAgentsByActivityFn,
 } from './sync-scheduler';
-import type { OperationType } from '../operations/operation-types';
 
 function createMockEnqueue(): ReturnType<typeof vi.fn> {
   return vi.fn().mockResolvedValue('job-id');
@@ -20,6 +21,10 @@ const intervals: SyncIntervals = {
   agentSyncMs: 100,
   sharedSyncMs: 200,
 };
+
+function activityProvider(active: string[], idle: string[] = []): GetAgentsByActivityFn {
+  return () => ({ active, idle });
+}
 
 describe('createSyncScheduler', () => {
   beforeEach(() => {
@@ -32,7 +37,7 @@ describe('createSyncScheduler', () => {
 
   test('start() creates intervals for agent and shared syncs', () => {
     const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+    const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
     scheduler.start(intervals);
 
@@ -45,24 +50,73 @@ describe('createSyncScheduler', () => {
     scheduler.stop();
   });
 
-  test('enqueues per-agent syncs for each active agent', () => {
+  test('active agents get all four sync types', () => {
     const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2']);
+    const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']));
 
     scheduler.start(intervals);
     vi.advanceTimersByTime(100);
 
-    // Scheduler now only enqueues the first sync in the chain (sync-customers).
-    // The rest (sync-orders, sync-ddt, sync-invoices) are chained by the operation processor.
     expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'user-1', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-ddt', 'user-1', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-invoices', 'user-1', {});
     expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-2', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'user-2', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-ddt', 'user-2', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-invoices', 'user-2', {});
+
+    scheduler.stop();
+  });
+
+  test('idle agents get only customers and orders', () => {
+    const enqueue = createMockEnqueue();
+    const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']));
+
+    scheduler.start(intervals);
+    vi.advanceTimersByTime(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER);
+
+    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'idle-1', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'idle-1', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-ddt', 'idle-1', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-invoices', 'idle-1', {});
+
+    scheduler.stop();
+  });
+
+  test('idle agents sync at agentSyncMs * IDLE_AGENT_MULTIPLIER interval', () => {
+    const enqueue = createMockEnqueue();
+    const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']));
+
+    scheduler.start(intervals);
+
+    vi.advanceTimersByTime(intervals.agentSyncMs);
+    expect(enqueue).not.toHaveBeenCalledWith('sync-customers', 'idle-1', {});
+
+    vi.advanceTimersByTime(intervals.agentSyncMs * (IDLE_AGENT_MULTIPLIER - 1));
+    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'idle-1', {});
+
+    scheduler.stop();
+  });
+
+  test('offline agents (not in either list) get nothing', () => {
+    const enqueue = createMockEnqueue();
+    const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1'], ['idle-1']));
+
+    scheduler.start(intervals);
+    vi.advanceTimersByTime(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER);
+
+    expect(enqueue).not.toHaveBeenCalledWith('sync-customers', 'offline-agent', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-orders', 'offline-agent', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-ddt', 'offline-agent', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-invoices', 'offline-agent', {});
 
     scheduler.stop();
   });
 
   test('enqueues only sync-products for shared syncs (sync-prices is chained after)', () => {
     const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, () => []);
+    const scheduler = createSyncScheduler(enqueue, activityProvider([]));
 
     scheduler.start(intervals);
     vi.advanceTimersByTime(200);
@@ -75,7 +129,7 @@ describe('createSyncScheduler', () => {
 
   test('stop() clears all intervals', () => {
     const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+    const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
     scheduler.start(intervals);
     scheduler.stop();
@@ -88,7 +142,7 @@ describe('createSyncScheduler', () => {
 
   test('stop() is safe to call multiple times', () => {
     const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, () => []);
+    const scheduler = createSyncScheduler(enqueue, activityProvider([]));
 
     scheduler.start(intervals);
     scheduler.stop();
@@ -96,31 +150,31 @@ describe('createSyncScheduler', () => {
   });
 
   test('isRunning() returns false before start', () => {
-    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
     expect(scheduler.isRunning()).toBe(false);
   });
 
   test('isRunning() returns true after start', () => {
-    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
     scheduler.start(intervals);
     expect(scheduler.isRunning()).toBe(true);
     scheduler.stop();
   });
 
   test('isRunning() returns false after stop', () => {
-    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
     scheduler.start(intervals);
     scheduler.stop();
     expect(scheduler.isRunning()).toBe(false);
   });
 
   test('getIntervals() returns default values before start', () => {
-    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
     expect(scheduler.getIntervals()).toEqual({ agentSyncMs: 0, sharedSyncMs: 0 });
   });
 
   test('getIntervals() returns configured values after start', () => {
-    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
     scheduler.start(intervals);
     expect(scheduler.getIntervals()).toEqual({ agentSyncMs: 100, sharedSyncMs: 200 });
     scheduler.stop();
@@ -129,7 +183,7 @@ describe('createSyncScheduler', () => {
   describe('smartCustomerSync', () => {
     test('stops scheduler and enqueues sync-customers for given user', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       expect(scheduler.isRunning()).toBe(true);
@@ -144,7 +198,7 @@ describe('createSyncScheduler', () => {
 
     test('increments session count on repeated calls without re-enqueuing', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       enqueue.mockClear();
@@ -158,7 +212,7 @@ describe('createSyncScheduler', () => {
 
     test('uses requesting userId when it is an active agent', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']));
 
       await scheduler.smartCustomerSync('user-2');
 
@@ -167,7 +221,7 @@ describe('createSyncScheduler', () => {
 
     test('falls back to first active agent when userId is not active', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['agent-A']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['agent-A']));
 
       await scheduler.smartCustomerSync('unknown-user');
 
@@ -176,7 +230,7 @@ describe('createSyncScheduler', () => {
 
     test('uses provided userId when no active agents exist', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => []);
+      const scheduler = createSyncScheduler(enqueue, activityProvider([]));
 
       await scheduler.smartCustomerSync('user-1');
 
@@ -187,7 +241,7 @@ describe('createSyncScheduler', () => {
   describe('resumeOtherSyncs', () => {
     test('resumes scheduler when session count reaches zero', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
@@ -201,7 +255,7 @@ describe('createSyncScheduler', () => {
 
     test('does not resume when session count is still positive', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
@@ -215,7 +269,7 @@ describe('createSyncScheduler', () => {
     });
 
     test('is safe to call when no smart sync is active', () => {
-      const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+      const scheduler = createSyncScheduler(createMockEnqueue(), activityProvider([]));
 
       scheduler.resumeOtherSyncs();
 
@@ -224,7 +278,7 @@ describe('createSyncScheduler', () => {
 
     test('does not restart if intervals were never configured', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => []);
+      const scheduler = createSyncScheduler(enqueue, activityProvider([]));
 
       await scheduler.smartCustomerSync('user-1');
       scheduler.resumeOtherSyncs();
@@ -234,10 +288,10 @@ describe('createSyncScheduler', () => {
   });
 
   describe('article sync auto-enqueue', () => {
-    test('enqueues sync-order-articles after delay for orders needing article sync', async () => {
+    test('enqueues sync-order-articles after delay for active agents only', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1', 'order-2']);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
@@ -256,7 +310,7 @@ describe('createSyncScheduler', () => {
     test('calls getOrdersNeedingArticleSync for each active agent after delay', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2'], getOrdersNeedingArticleSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']), getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
@@ -267,10 +321,23 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
+    test('does not enqueue article syncs for idle agents', async () => {
+      const enqueue = createMockEnqueue();
+      const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']), getOrdersNeedingArticleSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER + ARTICLE_SYNC_DELAY_MS);
+
+      expect(getOrdersNeedingArticleSync).not.toHaveBeenCalledWith('idle-1', expect.any(Number));
+
+      scheduler.stop();
+    });
+
     test('does not enqueue article syncs when no orders need sync', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue([]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
@@ -282,7 +349,7 @@ describe('createSyncScheduler', () => {
 
     test('does not call getOrdersNeedingArticleSync when not provided', () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       vi.advanceTimersByTime(100 + ARTICLE_SYNC_DELAY_MS);
@@ -295,7 +362,7 @@ describe('createSyncScheduler', () => {
     test('swallows errors from getOrdersNeedingArticleSync gracefully', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockRejectedValue(new Error('db error'));
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ARTICLE_SYNC_DELAY_MS);
@@ -308,7 +375,7 @@ describe('createSyncScheduler', () => {
     test('stop() cancels pending article sync timeouts', async () => {
       const enqueue = createMockEnqueue();
       const getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1']);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], getOrdersNeedingArticleSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), getOrdersNeedingArticleSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
@@ -322,13 +389,13 @@ describe('createSyncScheduler', () => {
   });
 
   describe('address sync auto-enqueue', () => {
-    test('enqueues sync-customer-addresses after ADDRESS_SYNC_DELAY_MS for customers needing address sync', async () => {
+    test('enqueues sync-customer-addresses after ADDRESS_SYNC_DELAY_MS for active agents', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { customer_profile: 'CUST-001', name: 'Rossi Mario' },
         { customer_profile: 'CUST-002', name: 'Verdi Luca' },
       ]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
@@ -357,7 +424,7 @@ describe('createSyncScheduler', () => {
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { customer_profile: 'CUST-001', name: 'Rossi Mario' },
       ]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
@@ -372,7 +439,7 @@ describe('createSyncScheduler', () => {
     test('calls getCustomersNeedingAddressSync for each active agent', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1', 'user-2'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
@@ -383,10 +450,25 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
+    test('does not enqueue address syncs for idle agents', async () => {
+      const enqueue = createMockEnqueue();
+      const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
+        { customer_profile: 'CUST-001', name: 'Rossi' },
+      ]);
+      const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']), undefined, getCustomersNeedingAddressSync);
+
+      scheduler.start(intervals);
+      await vi.advanceTimersByTimeAsync(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER + ADDRESS_SYNC_DELAY_MS);
+
+      expect(getCustomersNeedingAddressSync).not.toHaveBeenCalledWith('idle-1', expect.any(Number));
+
+      scheduler.stop();
+    });
+
     test('does not enqueue address syncs when no customers need sync', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
@@ -398,7 +480,7 @@ describe('createSyncScheduler', () => {
 
     test('does not call getCustomersNeedingAddressSync when not provided', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
@@ -411,7 +493,7 @@ describe('createSyncScheduler', () => {
     test('swallows errors from getCustomersNeedingAddressSync gracefully', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockRejectedValue(new Error('db error'));
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await expect(vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS)).resolves.not.toThrow();
@@ -426,7 +508,7 @@ describe('createSyncScheduler', () => {
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { customer_profile: 'CUST-001', name: 'Rossi' },
       ]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100); // first interval fires, timeout set
@@ -447,7 +529,7 @@ describe('createSyncScheduler', () => {
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { customer_profile: 'CUST-001', name: 'Rossi' },
       ]);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, getCustomersNeedingAddressSync);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100);
@@ -467,7 +549,7 @@ describe('createSyncScheduler', () => {
   describe('safety timeout', () => {
     test('auto-resumes syncs after safety timeout', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
@@ -482,7 +564,7 @@ describe('createSyncScheduler', () => {
     test('calls deleteExpiredNotifications every CLEANUP_INTERVAL_MS when provided', () => {
       const enqueue = createMockEnqueue();
       const deleteExpired = vi.fn().mockResolvedValue(3);
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1'], undefined, undefined, deleteExpired);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, undefined, deleteExpired);
 
       scheduler.start(intervals);
 
@@ -500,12 +582,11 @@ describe('createSyncScheduler', () => {
 
     test('does not call deleteExpiredNotifications when not provided', () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       vi.advanceTimersByTime(CLEANUP_INTERVAL_MS * 2);
 
-      // No error thrown, scheduler works normally
       expect(enqueue).toHaveBeenCalled();
 
       scheduler.stop();
@@ -513,7 +594,7 @@ describe('createSyncScheduler', () => {
 
     test('safety timeout resets on subsequent smartCustomerSync calls', async () => {
       const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, () => ['user-1']);
+      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
