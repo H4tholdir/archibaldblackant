@@ -16,6 +16,7 @@ services:
       dockerfile: ./archibald-web-app/backend/Dockerfile
     container_name: archibald-backend
     restart: unless-stopped
+    stop_grace_period: 120s
     env_file:
       - .env
     environment:

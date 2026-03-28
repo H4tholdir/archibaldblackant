@@ -48,6 +48,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    stop_grace_period: 120s
     volumes:
       - backend-cache:/app/.cache
       - backend-logs:/app/logs

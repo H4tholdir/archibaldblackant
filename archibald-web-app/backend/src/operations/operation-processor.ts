@@ -1,5 +1,5 @@
 import type { OperationType, OperationJobData, OperationJobResult } from './operation-types';
-import { getNextSyncInChain, isWriteOperation, isScheduledSync } from './operation-types';
+import { isWriteOperation, isScheduledSync } from './operation-types';
 import type { AgentLock } from './agent-lock';
 
 type BrowserContext = unknown;
@@ -202,11 +202,6 @@ function createOperationProcessor(deps: ProcessorDeps) {
         result,
       });
 
-      const nextSync = getNextSyncInChain(type);
-      if (nextSync) {
-        await enqueue(nextSync, userId, {});
-      }
-
       return { success: true, data: result, duration: Date.now() - startTime };
     } catch (error) {
       // Invalidate browser context on failure so next operation gets a fresh session
@@ -232,7 +227,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
       throw error;
     } finally {
       if (lockAcquired) {
-        agentLock.release(userId);
+        const active = agentLock.getActive(userId);
+        if (active && active.jobId === job.id) {
+          agentLock.release(userId);
+        }
       }
     }
   }
