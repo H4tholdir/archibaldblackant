@@ -136,50 +136,50 @@ describe('goToNextPage', () => {
 });
 
 describe('ensureFilterValue', () => {
-  test('returns null when filter already has safe value', async () => {
+  test('returns null originalXafValue when filter already has the desired xaf value', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'Tutti gli ordini' }),
+        .mockResolvedValueOnce({ found: true, controlId: 'ctrl1', originalXafValue: null }),
     });
 
-    const result = await ensureFilterValue(page as any, 'Tutti gli ordini');
+    const result = await ensureFilterValue(page as any, 'OrdersAll', 'xaf_xaf_a2ListViewSalesTableOrdersAll');
 
-    expect(result).toEqual({ originalValue: null, comboName: 'combo1' });
+    expect(result).toEqual({ originalXafValue: null, controlId: 'ctrl1' });
   });
 
-  test('returns original value and changes filter when different', async () => {
+  test('returns original xaf value and changes filter when different', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'Ordini aperti' })
+        .mockResolvedValueOnce({ found: true, controlId: 'ctrl1', originalXafValue: 'xaf_xaf_a2OpenOrders' })
         .mockResolvedValueOnce(undefined),
     });
 
-    const result = await ensureFilterValue(page as any, 'Tutti gli ordini');
+    const result = await ensureFilterValue(page as any, 'OrdersAll', 'xaf_xaf_a2ListViewSalesTableOrdersAll');
 
-    expect(result).toEqual({ originalValue: 'Ordini aperti', comboName: 'combo1' });
+    expect(result).toEqual({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
     expect(page.evaluate).toHaveBeenCalledTimes(2);
     expect(page.waitForFunction).toHaveBeenCalled();
   });
 
-  test('checks alt value when primary does not match', async () => {
+  test('returns null when no combo matches the xaf pattern', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'All orders' }),
+        .mockResolvedValueOnce({ found: false }),
     });
 
-    const result = await ensureFilterValue(page as any, 'Tutti gli ordini', 'All orders');
+    const result = await ensureFilterValue(page as any, 'OrdersAll', 'xaf_xaf_a2ListViewSalesTableOrdersAll');
 
-    expect(result).toEqual({ originalValue: null, comboName: 'combo1' });
+    expect(result).toEqual({ originalXafValue: null, controlId: undefined });
   });
 });
 
 describe('restoreFilterValue', () => {
-  test('sets the original filter value and waits for idle', async () => {
+  test('calls SetValue with original xaf value on the identified control', async () => {
     const page = createMockPage();
 
-    await restoreFilterValue(page as any, 'Ordini aperti');
+    await restoreFilterValue(page as any, 'xaf_xaf_a2OpenOrders', 'ctrl1');
 
-    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 'Ordini aperti', undefined);
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 'xaf_xaf_a2OpenOrders', 'ctrl1');
     expect(page.waitForFunction).toHaveBeenCalled();
   });
 });

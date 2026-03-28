@@ -4,8 +4,8 @@ import { parseDate, parseNumber } from './parsers';
 const customersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/',
   filter: {
-    safeValue: 'Tutti i clienti',
-    safeValueAlt: 'All customers',
+    xafValuePattern: 'All_Customers',
+    xafAllValue: 'xaf_xaf_a2All_Customers',
   },
   columns: [
     { fieldName: 'ACCOUNTNUM', targetField: 'customerProfile' },

@@ -4,8 +4,8 @@ import { parseDate, parseCurrency } from './parsers';
 const ordersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/',
   filter: {
-    safeValue: 'Tutti gli ordini',
-    safeValueAlt: 'All orders',
+    xafValuePattern: 'OrdersAll',
+    xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll',
   },
   columns: [
     { fieldName: 'ID', targetField: 'id' },

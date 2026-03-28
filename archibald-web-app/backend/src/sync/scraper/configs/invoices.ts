@@ -4,8 +4,8 @@ import { parseDate, parseNumber, parseBoolean, parseCurrency } from './parsers';
 const invoicesConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/',
   filter: {
-    safeValue: 'Tutti',
-    safeValueAlt: 'All',
+    xafValuePattern: 'All_invoices',
+    xafAllValue: 'xaf_xaf_a2All_invoices',
   },
   columns: [
     { fieldName: 'SALESID', targetField: 'orderNumber' },

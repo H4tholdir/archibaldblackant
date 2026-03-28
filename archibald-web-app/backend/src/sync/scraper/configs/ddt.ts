@@ -4,8 +4,8 @@ import { parseDate, parseCurrency } from './parsers';
 const ddtConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/',
   filter: {
-    safeValue: 'Tutti',
-    safeValueAlt: 'All',
+    xafValuePattern: 'PackingSlipsAll',
+    xafAllValue: 'xaf_xaf_a2ListViewPackingSlipsAll',
   },
   columns: [
     { fieldName: 'SALESID', targetField: 'orderNumber' },

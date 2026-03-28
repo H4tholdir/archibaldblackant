@@ -40,8 +40,8 @@ async function scrapeListView(
   shouldStop?: () => boolean,
 ): Promise<ScrapedRow[]> {
   const pageSize = config.pageSize ?? 200;
-  let originalFilterValue: string | null = null;
-  let filterComboName: string | undefined;
+  let originalXafValue: string | null = null;
+  let filterControlId: string | undefined;
 
   await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await waitForDevExpressIdle(page);
@@ -49,11 +49,11 @@ async function scrapeListView(
   if (config.filter) {
     const filterResult = await ensureFilterValue(
       page,
-      config.filter.safeValue,
-      config.filter.safeValueAlt,
+      config.filter.xafValuePattern,
+      config.filter.xafAllValue,
     );
-    originalFilterValue = filterResult.originalValue;
-    filterComboName = filterResult.comboName;
+    originalXafValue = filterResult.originalXafValue;
+    filterControlId = filterResult.controlId;
   }
 
   try {
@@ -100,8 +100,8 @@ async function scrapeListView(
     logger.info('Scraping complete: %d rows from %d pages', allRows.length, currentPage);
     return allRows;
   } finally {
-    if (originalFilterValue !== null) {
-      await restoreFilterValue(page, originalFilterValue, filterComboName);
+    if (originalXafValue !== null) {
+      await restoreFilterValue(page, originalXafValue, filterControlId);
     }
   }
 }

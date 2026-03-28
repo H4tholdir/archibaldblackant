@@ -7,8 +7,8 @@ type ColumnMapping = {
 };
 
 type FilterConfig = {
-  safeValue: string;
-  safeValueAlt?: string;
+  xafValuePattern: string;
+  xafAllValue: string;
 };
 
 type ScraperConfig = {

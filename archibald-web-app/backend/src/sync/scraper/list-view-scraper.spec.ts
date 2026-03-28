@@ -40,7 +40,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     mockedMapper.buildRowExtractor.mockReturnValue(
       (cells: string[]) => ({ orderNumber: cells[0], customerCode: cells[1] }),
@@ -59,7 +59,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
 
     await scrapeListView(page as any, baseConfig);
@@ -78,7 +78,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(2);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate.mockResolvedValue([
       ['ORD-001', 'C100'],
@@ -104,7 +104,7 @@ describe('scrapeListView', () => {
     mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     mockedUtils.hasNextPage
       .mockResolvedValueOnce(true)
@@ -133,7 +133,7 @@ describe('scrapeListView', () => {
     const page = createMockPage();
     const configWithFilter: ScraperConfig = {
       ...baseConfig,
-      filter: { safeValue: 'Tutti gli ordini', safeValueAlt: 'All orders' },
+      filter: { xafValuePattern: 'OrdersAll', xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll' },
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
@@ -141,7 +141,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: 'Ordini aperti', comboName: 'combo1' });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
     mockedUtils.restoreFilterValue.mockResolvedValue(undefined);
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
 
@@ -149,13 +149,13 @@ describe('scrapeListView', () => {
 
     expect(mockedUtils.ensureFilterValue).toHaveBeenCalledWith(
       page,
-      'Tutti gli ordini',
-      'All orders',
+      'OrdersAll',
+      'xaf_xaf_a2ListViewSalesTableOrdersAll',
     );
     expect(mockedUtils.restoreFilterValue).toHaveBeenCalledWith(
       page,
-      'Ordini aperti',
-      'combo1',
+      'xaf_xaf_a2OpenOrders',
+      'ctrl1',
     );
   });
 
@@ -163,7 +163,7 @@ describe('scrapeListView', () => {
     const page = createMockPage();
     const configWithFilter: ScraperConfig = {
       ...baseConfig,
-      filter: { safeValue: 'Tutti gli ordini' },
+      filter: { xafValuePattern: 'OrdersAll', xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll' },
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
@@ -171,7 +171,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
 
     await scrapeListView(page as any, configWithFilter);
@@ -188,7 +188,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
     mockedUtils.hasNextPage.mockResolvedValue(true);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate.mockResolvedValue([['ORD-001']]);
 
@@ -211,7 +211,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate.mockResolvedValue([['ORD-001']]);
 
@@ -240,7 +240,7 @@ describe('scrapeListView', () => {
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: null, comboName: undefined });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
 
     await scrapeListView(page as any, configWithPageSize);
@@ -252,16 +252,16 @@ describe('scrapeListView', () => {
     const page = createMockPage();
     const configWithFilter: ScraperConfig = {
       ...baseConfig,
-      filter: { safeValue: 'Tutti' },
+      filter: { xafValuePattern: 'OrdersAll', xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll' },
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
     mockedUtils.getGridFieldMap.mockRejectedValue(new Error('Grid not found'));
-    mockedUtils.ensureFilterValue.mockResolvedValue({ originalValue: 'Ordini aperti', comboName: 'combo1' });
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
     mockedUtils.restoreFilterValue.mockResolvedValue(undefined);
 
     await expect(scrapeListView(page as any, configWithFilter)).rejects.toThrow('Grid not found');
 
-    expect(mockedUtils.restoreFilterValue).toHaveBeenCalledWith(page, 'Ordini aperti', 'combo1');
+    expect(mockedUtils.restoreFilterValue).toHaveBeenCalledWith(page, 'xaf_xaf_a2OpenOrders', 'ctrl1');
   });
 });

@@ -4,8 +4,8 @@ import { parseDate, parseNumber, parseCurrency } from './parsers';
 const pricesConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/',
   filter: {
-    safeValue: 'Prezzi attivi',
-    safeValueAlt: 'Active prices',
+    xafValuePattern: 'ActivePrices',
+    xafAllValue: 'xaf_xaf_a2ActivePrices',
   },
   columns: [
     { fieldName: 'ITEMRELATIONID', targetField: 'productId' },

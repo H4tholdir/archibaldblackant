@@ -49,9 +49,15 @@ describe('ScraperConfig', () => {
   describe('filter', () => {
     const configsWithFilter: ConfigEntry[] = allConfigs.filter(({ config }) => config.filter !== undefined);
 
-    test.each(configsWithFilter)('$name filter has safeValue defined', ({ config }) => {
-      expect(config.filter?.safeValue).toBeDefined();
-      expect(config.filter!.safeValue.length).toBeGreaterThan(0);
+    test.each(configsWithFilter)('$name filter has xafValuePattern and xafAllValue defined', ({ config }) => {
+      expect(config.filter?.xafValuePattern).toBeDefined();
+      expect(config.filter!.xafValuePattern.length).toBeGreaterThan(0);
+      expect(config.filter?.xafAllValue).toBeDefined();
+      expect(config.filter!.xafAllValue.length).toBeGreaterThan(0);
+    });
+
+    test.each(configsWithFilter)('$name xafAllValue contains xafValuePattern', ({ config }) => {
+      expect(config.filter!.xafAllValue).toContain(config.filter!.xafValuePattern);
     });
 
     test('productsConfig has no filter', () => {
