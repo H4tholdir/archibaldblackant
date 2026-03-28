@@ -11,7 +11,6 @@ const pricesConfig: ScraperConfig = {
     { fieldName: 'ITEMRELATIONID', targetField: 'productId' },
     { fieldName: 'ITEMRELATIONTXT', targetField: 'productName' },
     { fieldName: 'AMOUNT', targetField: 'unitPrice', parser: parseCurrency },
-    { fieldName: 'ITEMRELATIONID', targetField: 'itemSelection' },
     { fieldName: 'CURRENCY', targetField: 'currency' },
     { fieldName: 'FROMDATE', targetField: 'priceValidFrom', parser: parseDate },
     { fieldName: 'TODATE', targetField: 'priceValidTo', parser: parseDate },
