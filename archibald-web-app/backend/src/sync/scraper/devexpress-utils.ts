@@ -143,76 +143,94 @@ async function goToNextPage(page: Page): Promise<void> {
   await waitForDevExpressIdle(page);
 }
 
+type FilterResult = { originalValue: string | null; comboName: string | undefined };
+
 async function ensureFilterValue(
   page: Page,
   safeValue: string,
   safeValueAlt?: string,
-): Promise<string | null> {
-  const currentText = await page.evaluate(() => {
+): Promise<FilterResult> {
+  // Find the CORRECT combo — the one that contains safeValue in its items.
+  // Pages can have multiple ComboBox controls (e.g. View selector + Data filter).
+  // We must only change the data filter, not the view selector.
+  const result = await page.evaluate((safe: string, safeAlt: string | undefined) => {
     const w = window as any;
     const collection = w.ASPxClientControl?.GetControlCollection?.();
-    if (!collection) return null;
+    if (!collection) return { found: false as const };
 
-    let comboText: string | null = null;
+    let targetComboName: string | null = null;
+    let currentText: string | null = null;
+
     if (typeof collection.ForEachControl === 'function') {
-      collection.ForEachControl((c: any) => {
-        if (typeof c.GetText === 'function' && typeof c.SetText === 'function'
-          && typeof c.ShowDropDown === 'function' && !comboText) {
-          comboText = c.GetText();
+      collection.ForEachControl((c: any, name: string) => {
+        if (targetComboName) return; // already found
+        if (typeof c.GetText !== 'function' || typeof c.ShowDropDown !== 'function') return;
+        if (typeof c.FindItemByText !== 'function') return;
+
+        // Check if this combo contains our safe value as an item
+        const hasSafe = c.FindItemByText(safe);
+        const hasSafeAlt = safeAlt ? c.FindItemByText(safeAlt) : null;
+
+        if (hasSafe || hasSafeAlt) {
+          targetComboName = name;
+          currentText = c.GetText();
         }
       });
     }
-    return comboText;
-  }) as string | null;
 
-  if (currentText === safeValue) return null;
-  if (safeValueAlt && currentText === safeValueAlt) return null;
+    if (!targetComboName) return { found: false as const };
+    return { found: true as const, comboName: targetComboName, currentText };
+  }, safeValue, safeValueAlt) as { found: false } | { found: true; comboName: string; currentText: string | null };
 
-  logger.info('Changing filter from %s to %s', currentText, safeValue);
+  if (!result.found) {
+    logger.warn('[scraper] Filter combo not found — safe value not in any combo items', { safeValue });
+    return { originalValue: null, comboName: undefined };
+  }
 
-  await page.evaluate((targetValue: string) => {
+  if (result.currentText === safeValue) return { originalValue: null, comboName: result.comboName };
+  if (safeValueAlt && result.currentText === safeValueAlt) return { originalValue: null, comboName: result.comboName };
+
+  logger.info('[scraper] Changing filter from %s to %s (combo: %s)', result.currentText, safeValue, result.comboName);
+
+  // Set the value ONLY on the identified combo, not all combos
+  await page.evaluate((comboName: string, targetValue: string) => {
     const w = window as any;
-    const collection = w.ASPxClientControl?.GetControlCollection?.();
-    if (!collection) return;
+    const combo = w[comboName];
+    if (!combo) return;
 
-    if (typeof collection.ForEachControl === 'function') {
-      collection.ForEachControl((c: any) => {
-        if (typeof c.SetText === 'function' && typeof c.ShowDropDown === 'function') {
-          const item = c.FindItemByText?.(targetValue);
-          if (item) {
-            c.SetSelectedItem(item);
-          } else {
-            c.SetText(targetValue);
-          }
-        }
-      });
+    const item = combo.FindItemByText?.(targetValue);
+    if (item) {
+      combo.SetSelectedItem(item);
     }
-  }, safeValue);
+  }, result.comboName, safeValue);
 
   await waitForDevExpressIdle(page);
 
-  return currentText;
+  return { originalValue: result.currentText, comboName: result.comboName };
 }
 
-async function restoreFilterValue(page: Page, originalText: string): Promise<void> {
-  await page.evaluate((targetValue: string) => {
+async function restoreFilterValue(page: Page, originalText: string, comboName?: string): Promise<void> {
+  await page.evaluate((targetValue: string, name: string | undefined) => {
     const w = window as any;
+
+    // If we know the combo name, use it directly
+    if (name && w[name]) {
+      const item = w[name].FindItemByText?.(targetValue);
+      if (item) w[name].SetSelectedItem(item);
+      return;
+    }
+
+    // Fallback: find combo that contains the target value
     const collection = w.ASPxClientControl?.GetControlCollection?.();
     if (!collection) return;
-
     if (typeof collection.ForEachControl === 'function') {
       collection.ForEachControl((c: any) => {
-        if (typeof c.SetText === 'function' && typeof c.ShowDropDown === 'function') {
-          const item = c.FindItemByText?.(targetValue);
-          if (item) {
-            c.SetSelectedItem(item);
-          } else {
-            c.SetText(targetValue);
-          }
-        }
+        if (typeof c.FindItemByText !== 'function') return;
+        const item = c.FindItemByText(targetValue);
+        if (item) c.SetSelectedItem(item);
       });
     }
-  }, originalText);
+  }, originalText, comboName);
 
   await waitForDevExpressIdle(page);
 }

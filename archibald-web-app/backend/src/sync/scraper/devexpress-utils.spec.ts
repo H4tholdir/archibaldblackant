@@ -139,24 +139,24 @@ describe('ensureFilterValue', () => {
   test('returns null when filter already has safe value', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce('Tutti gli ordini'),
+        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'Tutti gli ordini' }),
     });
 
     const result = await ensureFilterValue(page as any, 'Tutti gli ordini');
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ originalValue: null, comboName: 'combo1' });
   });
 
   test('returns original value and changes filter when different', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce('Ordini aperti')
+        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'Ordini aperti' })
         .mockResolvedValueOnce(undefined),
     });
 
     const result = await ensureFilterValue(page as any, 'Tutti gli ordini');
 
-    expect(result).toBe('Ordini aperti');
+    expect(result).toEqual({ originalValue: 'Ordini aperti', comboName: 'combo1' });
     expect(page.evaluate).toHaveBeenCalledTimes(2);
     expect(page.waitForFunction).toHaveBeenCalled();
   });
@@ -164,12 +164,12 @@ describe('ensureFilterValue', () => {
   test('checks alt value when primary does not match', async () => {
     const page = createMockPage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce('All orders'),
+        .mockResolvedValueOnce({ found: true, comboName: 'combo1', currentText: 'All orders' }),
     });
 
     const result = await ensureFilterValue(page as any, 'Tutti gli ordini', 'All orders');
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ originalValue: null, comboName: 'combo1' });
   });
 });
 
@@ -179,7 +179,7 @@ describe('restoreFilterValue', () => {
 
     await restoreFilterValue(page as any, 'Ordini aperti');
 
-    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 'Ordini aperti');
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 'Ordini aperti', undefined);
     expect(page.waitForFunction).toHaveBeenCalled();
   });
 });

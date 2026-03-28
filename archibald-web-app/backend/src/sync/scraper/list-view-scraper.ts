@@ -41,16 +41,19 @@ async function scrapeListView(
 ): Promise<ScrapedRow[]> {
   const pageSize = config.pageSize ?? 200;
   let originalFilterValue: string | null = null;
+  let filterComboName: string | undefined;
 
   await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await waitForDevExpressIdle(page);
 
   if (config.filter) {
-    originalFilterValue = await ensureFilterValue(
+    const filterResult = await ensureFilterValue(
       page,
       config.filter.safeValue,
       config.filter.safeValueAlt,
     );
+    originalFilterValue = filterResult.originalValue;
+    filterComboName = filterResult.comboName;
   }
 
   try {
@@ -98,7 +101,7 @@ async function scrapeListView(
     return allRows;
   } finally {
     if (originalFilterValue !== null) {
-      await restoreFilterValue(page, originalFilterValue);
+      await restoreFilterValue(page, originalFilterValue, filterComboName);
     }
   }
 }
