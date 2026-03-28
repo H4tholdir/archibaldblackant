@@ -78,7 +78,7 @@ Coda unica "operations" (BullMQ, concurrency 10)
 ### 3.2 TIER 1 — WRITES (operazioni utente, immediato)
 
 **Coda**: `Q_WRITES`
-**Operazioni**: submit-order, create-customer, update-customer, edit-order, delete-order, read-vat-status, send-to-verona
+**Operazioni**: submit-order, create-customer, update-customer, edit-order, delete-order, read-vat-status, send-to-verona, download-ddt-pdf, download-invoice-pdf
 **Trigger**: azione utente nel frontend
 **Priorita'**: per tipo (submit-order=1, create-customer=2, ecc.)
 **Timeout**: submit-order: 60s + 30s/articolo, altri: 180s
@@ -110,10 +110,10 @@ Coda unica "operations" (BullMQ, concurrency 10)
 1. Verificare e resettare filtro a valore "sicuro"
 2. Verificare colonne critiche visibili
 
-**Timeout**: 120s per operazione
+**Timeout**: 180s per operazione (margine per ERP lento + pre-scrape + post-scrape filter restore)
 **Retry**: 2 tentativi, backoff 30s
 **Lock**: AgentLock per-utente (TIER 1 puo' preemptare)
-**Concurrency worker**: 5
+**Concurrency worker**: 2
 
 **NO chain**: ogni operazione e' indipendente. `sync-customers` e `sync-orders` NON dipendono l'una dall'altra. Lo scheduler le accoda tutte in parallelo e il worker le processa in ordine FIFO.
 
@@ -180,24 +180,38 @@ Il flusso per leggere tutti i record da una pagina lista:
 6. Restituisci array di record
 ```
 
-**Estrazione dati via `page.evaluate()`**:
+**Estrazione dati via `page.evaluate()` con mappa dinamica header→indice**:
 
 ```javascript
-// Esempio: estrarre tutti i clienti dalla griglia
+// PASSO 1: costruire la mappa campo→indice dagli header della griglia
+const headers = document.querySelectorAll('tr[class*="HeaderRow"] td');
+const fieldMap = {};
+Array.from(headers).forEach((td, index) => {
+  // Usa l'ID del td per estrarre il fieldName
+  // (piu' affidabile del testo, che puo' essere tradotto male)
+  const id = td.id || '';
+  // Oppure usa il testo come fallback
+  const text = td.textContent?.trim();
+  if (text) fieldMap[text] = index;
+});
+
+// PASSO 2: estrarre i dati usando la mappa, NON indici hardcoded
 const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
 return Array.from(rows).map(row => {
   const cells = row.querySelectorAll('td');
   return {
-    id: cells[0]?.textContent?.trim(),         // nth-child(1) = ID
-    accountNum: cells[1]?.textContent?.trim(),  // nth-child(2) = PROFILO CLIENTE
-    name: cells[2]?.textContent?.trim(),        // nth-child(3) = NOME
-    vatNum: cells[3]?.textContent?.trim(),      // nth-child(4) = PARTITA IVA
+    id: cells[fieldMap['ID']]?.textContent?.trim(),
+    accountNum: cells[fieldMap['PROFILO CLIENTE:']]?.textContent?.trim(),
+    name: cells[fieldMap['NOME']]?.textContent?.trim(),
+    vatNum: cells[fieldMap['PARTITA IVA:']]?.textContent?.trim(),
     // ...mappare tutte le colonne necessarie
   };
 });
 ```
 
-**IMPORTANTE**: l'indice `nth-child` e' basato sulla posizione colonna VISIBILE nella griglia, che dipende dalla configurazione Column Chooser dell'utente. Per questo il Setup Wizard (sezione 5.4) deve garantire una configurazione colonne consistente.
+**CRITICO (review 2026-03-28)**: MAI usare indici hardcoded (`cells[0]`, `cells[1]`, ...). Se l'agente riordina le colonne, o se il Setup Wizard le posiziona in ordine diverso, tutti gli indici si spostano e i dati vengono letti dalla colonna sbagliata. La mappa dinamica e' immune al riordinamento.
+
+In implementazione, preferire la **DevExpress JS API client-side** (`ASPxClientGridView.GetColumn(index).fieldName`) per costruire la mappa `fieldName→columnIndex`, essendo piu' affidabile dei testi header (che possono essere tradotti erroneamente dall'ERP).
 
 ### 4.2 DetailView Scraping
 
@@ -229,7 +243,7 @@ Il flusso per leggere i campi di un record specifico:
 
 | Elemento | Selettore | Note |
 |----------|-----------|------|
-| Riga dati griglia | `tr.dxgvDataRow_XafTheme` | Universale per tutte le ListView |
+| Riga dati griglia | `tr.dxgvDataRow_XafTheme` | Primario. Fallback: `tr[class*="dxgvDataRow"]` |
 | Cella dati | `tr.dxgvDataRow_XafTheme td:nth-child(N)` | N basato su ordine colonne visibili |
 | Header griglia | `tr[class*="HeaderRow"] td` | Per verificare ordine colonne |
 | Pager | `[id*="DXPagerBottom"]` | Contiene bottoni pagina |
@@ -255,6 +269,15 @@ Con page size = 200:
 | Prezzi | ~4.960 | 25 | ~50s | ~200s |
 
 **Rilevamento fine pagine**: dopo ogni cambio pagina, contare le righe `tr.dxgvDataRow_XafTheme`. Se il conteggio e' < 200, siamo all'ultima pagina.
+
+**CRITICO — Attesa callback DevExpress (review 2026-03-28)**: dopo OGNI interazione che trigera un callback (cambio pagina, cambio filtro, cambio page size, navigazione URL), il bot DEVE chiamare `waitForDevExpressIdle()` prima di leggere i dati. Questa funzione verifica:
+1. Nessun loading panel visibile (`[id*="LPV"], .dxlp`)
+2. Nessun `ASPxClientControl` in stato di callback attivo
+3. N poll stabili consecutivi
+
+Senza questa attesa: race condition — il bot legge i dati della pagina precedente.
+
+**Cambio page size**: preferire la **DevExpress JS API** (`grid.PerformCallback('PAGESIZE|200')`) rispetto al click sul dropdown (fragile se fuori viewport). Il `gridClientId` e' ottenibile dal DOM con `[id$="_LE_vN"]`.
 
 ### 4.5 Gestione lingua
 
@@ -371,11 +394,24 @@ Dopo aver configurato tutte le pagine:
 **Colonne da abilitare per pagina**:
 
 Le colonne necessarie per il sync sono definite dalla lista di colonne usate nel mapping DB.
-La lista specifica viene determinata durante l'implementazione, basandosi sulle colonne che la PWA gia' utilizza + le colonne nascoste critiche identificate in sezione 5.2.
+**Principio: minimal column footprint** (review 2026-03-28). Abilitare SOLO colonne con mapping DB esplicito, NON tutte le nascoste. Motivi:
+- 200 righe x 63 colonne = 12.600 celle → response ~2-3MB per pagina → server ERP lento
+- L'agente umano vede la griglia con overflow orizzontale se usa l'ERP manualmente
+- Il Setup Wizard impiegherebbe 4+ minuti solo per gli Ordini per abilitare 40 colonne
 
-Come minimo per **Ordini** (pagina con piu' nascoste): VATNUM, TEXTEXTERNAL, TEXTINTERNAL, DLVMODE.TXT, DISCPERCENT, PRICEGROUPID.NAME.
+**Colonne da abilitare per pagina**:
 
-Per **Prodotti**: TAXITEMGROUPID (gruppo IVA — unica nascosta ma essenziale).
+| Pagina | Colonne nascoste da abilitare | Totale da abilitare |
+|--------|------|:-:|
+| **Ordini** | VATNUM, TEXTEXTERNAL, TEXTINTERNAL, DLVMODE.TXT, DISCPERCENT, PRICEGROUPID.NAME | 6 |
+| **DDT** | DLVCITY, DLVSTREET, DLVZIPCODE | 3 |
+| **Fatture** | nessuna (i campi critici sono gia' visibili) | 0 |
+| **Prodotti** | TAXITEMGROUPID (gruppo IVA) | 1 |
+| **Prezzi** | nessuna (14 visibili coprono il mapping attuale) | 0 |
+| **Clienti** | nessuna (tutte 26 gia' visibili) | 0 |
+| **TOTALE** | | **10** |
+
+10 colonne totali, fattibili in <1 minuto di Setup Wizard.
 
 ---
 
@@ -394,10 +430,16 @@ Per **Prodotti**: TAXITEMGROUPID (gruppo IVA — unica nascosta ma essenziale).
 
 | Coda | Concurrency | lockDuration | stalledInterval | removeOnComplete | removeOnFail |
 |------|:-:|:-:|:-:|:-:|:-:|
-| `writes` | 10 | 120.000ms | 15.000ms | { count: 500 } | { count: 100 } |
-| `agent-sync` | 5 | 300.000ms | 30.000ms | { count: 200 } | { count: 50 } |
-| `enrichment` | 5 | 600.000ms | 30.000ms | { count: 200 } | { count: 50 } |
-| `shared-sync` | 2 | 600.000ms | 60.000ms | { count: 100 } | { count: 20 } |
+| `writes` | 3 | 420.000ms | 30.000ms | { count: 500 } | { count: 100 } |
+| `agent-sync` | 2 | 300.000ms | 30.000ms | true | { count: 50 } |
+| `enrichment` | 2 | 900.000ms | 30.000ms | true | { count: 50 } |
+| `shared-sync` | 1 | 900.000ms | 60.000ms | true | { count: 20 } |
+
+**Note configurazione** (review 2026-03-28):
+- **Concurrency totale = 8** (adeguato a VPS Hetzner 2 vCPU / 4 GB RAM). Valori originali 10+5+5+2=22 erano incompatibili con le risorse hardware.
+- **`removeOnComplete: true`** per code sync: rimozione immediata dei job completati, necessaria per evitare il deadlock silenzioso BullMQ con jobId statico. I job completati restano nel set Redis governato da `removeOnComplete: { count: N }` e bloccano nuovi enqueue con lo stesso jobId (cfr. [BullMQ Issue #1799](https://github.com/taskforcesh/bullmq/issues/1799)). Solo `writes` mantiene `{ count: 500 }` per permettere al frontend di consultare lo stato dei job recenti.
+- **lockDuration `writes` = 420s**: copre il worst case submit-order con molti articoli (60s + 30s * 10 = 360s) piu' margine.
+- **lockDuration `enrichment` = 900s**: sync-customer-addresses puo' impiegare fino a 600s; il lockDuration deve essere significativamente superiore al timeout per evitare esecuzioni duplicate da stalled check.
 
 ### 6.3 Formato job
 
@@ -423,7 +465,9 @@ const jobId = `${type}-${userId}`;
 const jobId = `sync-order-articles-${userId}-${orderId}`;
 ```
 
-BullMQ con jobId statico: se un job con lo stesso ID esiste gia' in stato `waiting` o `active`, il nuovo enqueue viene silenziosamente ignorato (dedup naturale). Regola gia' in uso per sync-order-articles, ora estesa a tutti i sync.
+**ATTENZIONE**: BullMQ rifiuta silenziosamente un nuovo job se un job con lo stesso `jobId` esiste in QUALSIASI stato (`waiting`, `active`, `delayed`, o `completed` non ancora rimosso). Per questo le code sync usano `removeOnComplete: true` (rimozione immediata) — cosi' il jobId diventa riutilizzabile subito dopo il completamento.
+
+In alternativa, per code dove serve consultare lo storico job: usare la feature nativa `deduplication` con `mode: 'throttle'` e TTL (BullMQ v5.11+).
 
 ---
 
@@ -499,16 +543,32 @@ setInterval(() => {
 
 // Timer TIER 3 (order enrichment)
 setInterval(async () => {
+  // sync-order-articles: per-agente, per-ordine
   const ordersNeedingArticles = await getOrdersNeedingArticleSync();
   for (const order of ordersNeedingArticles.slice(0, 10)) {
     await enqueueToEnrichment('sync-order-articles', order.userId, { orderId: order.id });
   }
-  await enqueueToEnrichment('sync-order-states', 'all');
-  await enqueueToEnrichment('sync-tracking', 'all');
+
+  // sync-order-states: per-agente (logica DB pura, iterazione su agenti attivi)
+  const activeAgents = await getAgentsByStatus('active');
+  for (const agent of activeAgents) {
+    await enqueueToEnrichment('sync-order-states', agent.userId);
+  }
+
+  // sync-tracking: globale via service-account (FedEx API, batch tutti i tracking)
+  await enqueueToEnrichment('sync-tracking', 'service-account');
 }, 30 * 60 * 1000); // 30 min
 
-// Timer TIER 4 (shared catalog)
-// Eseguito 2x al giorno tramite logic interna o cron-like
+// Timer TIER 4 (shared catalog) — BullMQ Repeat Jobs con cron
+// Configurato una sola volta all'avvio del backend:
+await sharedSyncQueue.add('sync-products', { type: 'sync-products', userId: 'service-account' }, {
+  repeat: { pattern: '0 6,18 * * *' },  // 06:00 e 18:00 UTC
+  jobId: 'sync-products-scheduled',
+});
+await sharedSyncQueue.add('sync-prices', { type: 'sync-prices', userId: 'service-account' }, {
+  repeat: { pattern: '30 6,18 * * *' },  // 06:30 e 18:30 UTC (dopo prodotti)
+  jobId: 'sync-prices-scheduled',
+});
 ```
 
 ---
@@ -582,6 +642,20 @@ Quando il bot rileva una sessione ERP scaduta (redirect a Login.aspx, cookie man
 **Miglioramenti**:
 - Lock timeout safety: se un lock non viene rilasciato entro il timeout del tier (es. 300s per TIER 2), force-release automatico con log di errore
 - Lock state broadcast via WebSocket: il frontend sa quando un sync e' in corso per quell'agente
+
+**CRITICO — Preemption cross-queue (review 2026-03-28)**:
+Con 4 worker separati, il force-release del lock NON ferma il handler del job preemptato — il handler continua a girare nel suo worker. Questo causa: (a) due job che usano lo stesso browser context, (b) il handler orfano che fa release del lock del job TIER 1 nel finally.
+
+**Soluzione (doppio meccanismo)**:
+1. **AbortController**: ogni handler riceve un `AbortController`. Il metodo `requestStop()` chiama `controller.abort()`. L'handler verifica `signal.aborted` tra ogni pagina di scraping e lancia `AbortError` se true.
+2. **Guard nel finally**: prima di rilasciare il lock, verificare che il jobId nel lock corrisponda ancora:
+```typescript
+// Nel finally del processor
+if (agentLock.getActive(userId)?.jobId === job.id) {
+  agentLock.release(userId);
+}
+```
+Questo previene che un handler orfano rilasci il lock del job che l'ha preemptato.
 
 ---
 
@@ -747,7 +821,27 @@ L'AgentLock previene questo caso. Se per errore accade:
 2. Il primo bot rileva la sessione invalidata → errore → circuit breaker conta 1 fail
 3. Il secondo bot prosegue normalmente
 
-### 10.6 Agente con >200 ordini recenti
+### 10.6 Graceful shutdown con 4 worker (review 2026-03-28)
+
+Docker invia SIGTERM e dopo 10s (default) manda SIGKILL. Con 4 worker e lockDuration fino a 900s, i job attivi non completano in 10s.
+
+**Soluzione**:
+1. `docker-compose.yml`: `stop_grace_period: 120s` per il container backend
+2. Shutdown handler: `Promise.all([w1.close(), w2.close(), w3.close(), w4.close()])` — i 4 worker chiudono in parallelo, ognuno aspetta che i suoi job attivi completino
+3. Ogni handler verifica un flag `isShuttingDown` e termina anticipatamente se true
+4. Dopo 110s (safety): force-close browser pool e exit
+
+### 10.7 Backend restart: rischio doppio submit ordine (review 2026-03-28)
+
+Se il backend crasha durante un `submit-order`:
+1. L'ordine potrebbe essere gia' stato inserito nell'ERP
+2. Il processo muore prima di salvare il SALESID nel DB
+3. BullMQ marca il job come stalled e lo ri-esegue
+4. Il nuovo tentativo invia l'ordine una seconda volta
+
+**Soluzione**: flag di idempotenza in DB. Prima di eseguire il submit, creare un record `pending_orders` con un `idempotency_token`. Dopo il submit ERP, aggiornare con `submitted_at`. Al retry, se `submitted_at IS NOT NULL`, il job verifica nell'ERP se l'ordine esiste gia' (cercando per data/cliente) prima di ri-inviare.
+
+### 10.8 Agente con >200 ordini recenti
 
 Con page size = 200, se un agente ha 300+ ordini "aperti", servono 2+ pagine. Il sistema gestisce gia' questo con il loop di paginazione. Non e' un edge case problematico.
 
@@ -800,7 +894,13 @@ Se Komet aggiorna l'ERP:
 - Creare le 4 code BullMQ
 - Creare i 4 worker con configurazione specifica
 - Migrare le operazioni dalla coda unica alle 4 code
-- Rimuovere la chain dependency (ogni sync e' indipendente)
+- Rimuovere la chain dependency:
+  - Eliminare `AGENT_SYNC_CHAIN` e `SHARED_SYNC_CHAIN` da `operation-types.ts`
+  - Eliminare `getNextSyncInChain()` e il relativo blocco in `operation-processor.ts`
+  - Lo scheduler accoda direttamente tutte le operazioni in parallelo (non piu' a catena)
+- Implementare AbortController per preemption cross-queue
+- Aggiungere guard `jobId === lock.jobId` nel finally del processor
+- Configurare `stop_grace_period: 120s` in docker-compose
 
 ### Fase 5 — Cleanup (qualche giorno)
 - Rimuovere tutti i parser PDF
