@@ -394,24 +394,34 @@ Dopo aver configurato tutte le pagine:
 **Colonne da abilitare per pagina**:
 
 Le colonne necessarie per il sync sono definite dalla lista di colonne usate nel mapping DB.
-**Principio: minimal column footprint** (review 2026-03-28). Abilitare SOLO colonne con mapping DB esplicito, NON tutte le nascoste. Motivi:
-- 200 righe x 63 colonne = 12.600 celle → response ~2-3MB per pagina → server ERP lento
-- L'agente umano vede la griglia con overflow orizzontale se usa l'ERP manualmente
-- Il Setup Wizard impiegherebbe 4+ minuti solo per gli Ordini per abilitare 40 colonne
+**Principio: minimal column footprint** (analisi schema DB vs colonne ERP, 2026-03-28).
 
-**Colonne da abilitare per pagina**:
+Un'analisi sistematica ha confrontato: (1) lo schema DB PostgreSQL (38 migrazioni), (2) i tipi dei parser PDF Python, (3) i mapping TypeScript nei sync service, (4) le 296 colonne ERP (visibili + nascoste). Risultato: di 144 colonne nascoste, **solo 2 servono**.
 
-| Pagina | Colonne nascoste da abilitare | Totale da abilitare |
-|--------|------|:-:|
-| **Ordini** | VATNUM, TEXTEXTERNAL, TEXTINTERNAL, DLVMODE.TXT, DISCPERCENT, PRICEGROUPID.NAME | 6 |
-| **DDT** | DLVCITY, DLVSTREET, DLVZIPCODE | 3 |
-| **Fatture** | nessuna (i campi critici sono gia' visibili) | 0 |
-| **Prodotti** | TAXITEMGROUPID (gruppo IVA) | 1 |
-| **Prezzi** | nessuna (14 visibili coprono il mapping attuale) | 0 |
-| **Clienti** | nessuna (tutte 26 gia' visibili) | 0 |
-| **TOTALE** | | **10** |
+**Colonne da abilitare nel Column Chooser (2 totali)**:
 
-10 colonne totali, fattibili in <1 minuto di Setup Wizard.
+| Pagina | fieldName | Motivazione |
+|--------|-----------|-------------|
+| **Prodotti** | `TAXITEMGROUPID` | Codice gruppo IVA. Oggi l'IVA viene da import manuale Excel (`excel-vat-importer.ts`). Con questa colonna il product sync legge l'IVA dall'ERP. Richiede mapping codice→aliquota (es. "RIDOTTA"→10%). Il DB ha gia' `vat` e `vat_source`. |
+| **Prezzi** | `MODIFIEDDATETIME` | Data ultima modifica prezzo. Il DB ha la colonna `last_modified` in `shared.prices` ma e' sempre null. Utile per `price_history` e debugging. |
+
+**Perche' le altre 142 nascoste NON servono**:
+
+- **Ordini (40 nascoste)**: tutti i campi critici sono gia' visibili (SALESID, CUSTACCOUNT, AmountTotal, SALESSTATUS, ecc.). I campi indirizzo consegna strutturati (DLVCITY, DLVSTREET, DLVZIPCODE) sono duplicati di `DLVADDRESS` gia' sincronizzato. TEXTEXTERNAL/TEXTINTERNAL e VATNUM sono accessibili via `xaf_dvi*` nella DetailView ordine (non servono nella ListView).
+- **DDT (16 nascoste)**: tutti i dati necessari sono gia' nelle 17 colonne visibili. DLVCITY viene estratta dal parser PDFperche' il PDF la include posizionalmente (pagina 6, colonna 3) anche se e' nascosta nella griglia.
+- **Fatture (25 nascoste)**: le 22 visibili coprono ogni campo DB. I campi indirizzo fatturazione (INVCITY, INVSTREET, ecc.) non sono usati nel frontend.
+- **Clienti (0 nascoste)**: tutte le 26 colonne sono gia' visibili. I campi estesi (sector, priceGroup, lineDiscount, paymentTerms, nameAlias, county, state, country) vengono letti dal bot direttamente dalla DetailView (`xaf_dvi*` selectors), non dalla ListView.
+- **Sconti Linea (30 nascoste)**: l'intera pagina non ha un sync service dedicato. Le 15 visibili sarebbero sufficienti se si creasse un sync futuro.
+
+**Dati visibili attualmente non completamente sfruttati** (bassa priorita'):
+
+| Pagina | Campo | Problema |
+|--------|-------|---------|
+| Fatture | `SALESBALANCEMST` | Estratto dal parser come `sales_balance` ma non persistito nel DB |
+| Prezzi | `BRASNETPRICE` | Estratto dal parser ma non mappato nel TS adapter |
+| DDT | `DLVEMAIL` | Visibile nella ListView ma non estratto dal parser |
+
+Questi non richiedono azioni nel Column Chooser — sono miglioramenti del mapping da considerare durante l'implementazione.
 
 ---
 
