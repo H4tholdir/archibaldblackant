@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { DbPool } from '../pool';
+import type { AgentStatus } from '../../sync/activity-tracker';
 
 type UserRole = 'agent' | 'admin';
 
@@ -360,6 +361,28 @@ async function clearEncryptedPassword(pool: DbPool, userId: string): Promise<voi
   );
 }
 
+async function updateLastActivity(pool: DbPool, userId: string): Promise<void> {
+  await pool.query(
+    `UPDATE agents.users SET last_activity_at = NOW() WHERE id = $1`,
+    [userId],
+  );
+}
+
+async function getAgentIdsByStatus(pool: DbPool, status: Extract<AgentStatus, 'active' | 'idle'>): Promise<string[]> {
+  const intervalClause = status === 'active'
+    ? `last_activity_at > NOW() - INTERVAL '2 hours'`
+    : `last_activity_at > NOW() - INTERVAL '24 hours' AND last_activity_at <= NOW() - INTERVAL '2 hours'`;
+
+  const result = await pool.query<{ id: string }>(
+    `SELECT id FROM agents.users
+     WHERE whitelisted = TRUE
+       AND last_activity_at IS NOT NULL
+       AND ${intervalClause}`,
+  );
+
+  return result.rows.map(row => row.id);
+}
+
 export {
   createUser,
   getUserById,
@@ -379,6 +402,8 @@ export {
   saveEncryptedPassword,
   getEncryptedPassword,
   clearEncryptedPassword,
+  updateLastActivity,
+  getAgentIdsByStatus,
   mapRowToUser,
   type User,
   type UserRole,

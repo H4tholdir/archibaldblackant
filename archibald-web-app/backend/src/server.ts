@@ -8,7 +8,7 @@ import type { BrowserPool } from './bot/browser-pool';
 import type { SyncScheduler } from './sync/sync-scheduler';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import type { JWTPayload } from './auth-utils';
-import { authenticateJWT, requireAdmin } from './middleware/auth';
+import { requireAdmin, createAuthMiddleware } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
@@ -132,6 +132,8 @@ function createApp(deps: AppDeps): Express {
     passwordCache, pdfStore, generateJWT, verifyToken,
     sendEmail, uploadToDropbox,
   } = deps;
+
+  const authenticate = createAuthMiddleware(pool);
 
   const effectiveCreateTestBot = deps.createTestBot ?? (async () => {
     const bot = new ArchibaldBot();
@@ -289,7 +291,7 @@ function createApp(deps: AppDeps): Express {
     }
   });
 
-  app.get('/api/websocket/health', authenticateJWT, requireAdmin, (_req, res) => {
+  app.get('/api/websocket/health', authenticate, requireAdmin, (_req, res) => {
     try {
       const stats = wsServer.getStats();
       let status: 'healthy' | 'idle' | 'offline' = 'offline';
@@ -304,7 +306,7 @@ function createApp(deps: AppDeps): Express {
     }
   });
 
-  app.use('/api/operations', authenticateJWT, createOperationsRouter({
+  app.use('/api/operations', authenticate, createOperationsRouter({
     queue,
     agentLock,
     browserPool: { getStats: () => browserPool.getStats() },
@@ -329,9 +331,9 @@ function createApp(deps: AppDeps): Express {
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
   }));
 
-  app.use('/api/customers/:customerProfile/addresses', authenticateJWT, createCustomerAddressesRouter(pool));
+  app.use('/api/customers/:customerProfile/addresses', authenticate, createCustomerAddressesRouter(pool));
 
-  app.use('/api/customers', authenticateJWT, createCustomersRouter({
+  app.use('/api/customers', authenticate, createCustomersRouter({
     queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
     getHiddenCustomers: (userId) => customersRepo.getHiddenCustomers(pool, userId),
@@ -416,7 +418,7 @@ function createApp(deps: AppDeps): Express {
     sessionManager.startAutoCleanup();
     const broadcastFn = deps.broadcast ?? (() => {});
 
-    app.use('/api/customers/interactive', authenticateJWT, createCustomerInteractiveRouter({
+    app.use('/api/customers/interactive', authenticate, createCustomerInteractiveRouter({
       sessionManager,
       createBot: deps.createCustomerBot,
       broadcast: broadcastFn,
@@ -451,7 +453,7 @@ function createApp(deps: AppDeps): Express {
     }));
   }
 
-  app.use('/api/products', authenticateJWT, createProductsRouter({
+  app.use('/api/products', authenticate, createProductsRouter({
     queue,
     getProducts: (filters) => productsRepo.getProducts(pool, filters),
     getProductById: (id) => productsRepo.getProductById(pool, id),
@@ -476,7 +478,7 @@ function createApp(deps: AppDeps): Express {
     getProductPricesByNames: (names) => productsRepo.getProductPricesByNames(pool, names),
   }));
 
-  app.use('/api/prices', authenticateJWT, createPricesRouter({
+  app.use('/api/prices', authenticate, createPricesRouter({
     getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
     getPriceHistory: (productId, limit) => pricesHistoryRepo.getProductHistory(pool, productId, limit),
     getRecentPriceChanges: (days) => pricesHistoryRepo.getRecentChanges(pool, days),
@@ -508,7 +510,7 @@ function createApp(deps: AppDeps): Express {
     },
   }));
 
-  app.use('/api/orders', authenticateJWT, createOrdersRouter({
+  app.use('/api/orders', authenticate, createOrdersRouter({
     queue,
     getOrdersByUser: (userId, options) => ordersRepo.getOrdersByUser(pool, userId, options),
     countOrders: (userId, options) => ordersRepo.countOrders(pool, userId, options),
@@ -524,16 +526,16 @@ function createApp(deps: AppDeps): Express {
     isCustomerComplete: customersRepo.isCustomerComplete,
   }));
 
-  app.use('/api/orders', authenticateJWT, createOrderVerificationRouter({ pool }));
+  app.use('/api/orders', authenticate, createOrderVerificationRouter({ pool }));
 
-  app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({
+  app.use('/api/pending-orders', authenticate, createPendingOrdersRouter({
     getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),
     upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
     deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
   }));
 
-  app.use('/api/warehouse', authenticateJWT, createWarehouseRouter({
+  app.use('/api/warehouse', authenticate, createWarehouseRouter({
     pool,
     getBoxes: (userId) => warehouseRepo.getBoxes(pool, userId),
     createBox: (userId, name, desc, color) => warehouseRepo.createBox(pool, userId, name, desc, color),
@@ -578,7 +580,7 @@ function createApp(deps: AppDeps): Express {
     importExcel: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, skipped: 0, errors: [] }),
   }));
 
-  app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
+  app.use('/api/fresis-history', authenticate, createFresisHistoryRouter({
     pool,
     getAll: (userId) => fresisHistoryRepo.getAll(pool, userId),
     searchAll: (userId, search) => fresisHistoryRepo.searchAll(pool, userId, search),
@@ -704,13 +706,13 @@ function createApp(deps: AppDeps): Express {
     broadcast: (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }),
   }));
 
-  app.use('/api/arca-sync', authenticateJWT, createArcaSyncRouter({
+  app.use('/api/arca-sync', authenticate, createArcaSyncRouter({
     pool,
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     enqueueJob: (type, userId, data) => queue.enqueue(type, userId, data),
   }));
 
-  app.use('/api/kt-sync', authenticateJWT, createKtSyncRouter({ pool }));
+  app.use('/api/kt-sync', authenticate, createKtSyncRouter({ pool }));
 
   const syncSchedulerDeps = {
     start: (intervals?: unknown) => syncScheduler.start(intervals as any),
@@ -736,16 +738,16 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
 
-  app.use('/api/sync', authenticateJWT, createSyncStatusRouter(syncStatusDeps));
+  app.use('/api/sync', authenticate, createSyncStatusRouter(syncStatusDeps));
 
-  app.use('/api/sync', authenticateJWT, createSseProgressRouter({
+  app.use('/api/sync', authenticate, createSseProgressRouter({
     verifyToken,
     getActiveJob: (userId) => agentLock.getActive(userId),
     getQueueStats: () => queue.getStats(),
     onJobEvent: deps.onJobEvent ?? ((_userId, _callback) => () => {}),
   }));
 
-  app.use('/api/admin', authenticateJWT, requireAdmin, createAdminRouter({
+  app.use('/api/admin', authenticate, requireAdmin, createAdminRouter({
     pool,
     getAllUsers: () => usersRepo.getAllUsers(pool),
     getUserById: (id) => usersRepo.getUserById(pool, id),
@@ -836,7 +838,7 @@ function createApp(deps: AppDeps): Express {
     }),
   }));
 
-  app.use('/api/widget', authenticateJWT, createWidgetRouter({
+  app.use('/api/widget', authenticate, createWidgetRouter({
     getDashboardData: (userId) => dashboardService.getDashboardData(pool, userId),
     getOrdersForPeriod: (userId, year, month) => dashboardService.getOrdersForPeriod(pool, userId, year, month),
     setOrderExclusion: (userId, orderId, excludeFromYearly, excludeFromMonthly, reason) =>
@@ -844,12 +846,12 @@ function createApp(deps: AppDeps): Express {
     getExcludedOrders: (userId) => dashboardService.getExcludedOrders(pool, userId),
   }));
 
-  app.use('/api/metrics', authenticateJWT, createMetricsRouter({
+  app.use('/api/metrics', authenticate, createMetricsRouter({
     getBudgetMetrics: (userId) => dashboardService.getBudgetMetrics(pool, userId),
     getOrderMetrics: (userId) => dashboardService.getOrderMetrics(pool, userId),
   }));
 
-  app.use('/api/users', authenticateJWT, createUsersRouter({
+  app.use('/api/users', authenticate, createUsersRouter({
     getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
     updateUserTarget: (userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions) =>
       usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
@@ -857,7 +859,7 @@ function createApp(deps: AppDeps): Express {
     setPrivacySettings: (userId, enabled) => usersRepo.setPrivacySettings(pool, userId, enabled),
   }));
 
-  app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
+  app.use('/api/subclients', authenticate, createSubclientsRouter({
     getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
     searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
     getHiddenSubclients: () => subclientsRepo.getHiddenSubclients(pool),
@@ -872,13 +874,13 @@ function createApp(deps: AppDeps): Express {
 
   app.use(
     '/api/history',
-    authenticateJWT,
+    authenticate,
     createCustomerFullHistoryRouter({
       getCustomerFullHistory: (userId, params) => getCustomerFullHistory(pool, userId, params),
     }),
   );
 
-  app.use('/api/sub-client-matches', authenticateJWT, createSubClientMatchesRouter({
+  app.use('/api/sub-client-matches', authenticate, createSubClientMatchesRouter({
     getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, userId, codice),
     getMatchesForCustomer: (userId, profileId) => subClientMatchesRepo.getMatchesForCustomer(pool, userId, profileId),
     addCustomerMatch: (codice, customerProfileId) => subClientMatchesRepo.addCustomerMatch(pool, codice, customerProfileId),
@@ -888,7 +890,7 @@ function createApp(deps: AppDeps): Express {
     upsertSkipModal: (userId, entityType, entityId, skip) => subClientMatchesRepo.upsertSkipModal(pool, userId, entityType, entityId, skip),
   }));
 
-  app.use('/api/order-stacks', authenticateJWT, createOrderStacksRouter({
+  app.use('/api/order-stacks', authenticate, createOrderStacksRouter({
     getStacks: (userId) => orderStacksRepo.getStacks(pool, userId),
     createStack: (userId, stackId, orderIds, reason) => orderStacksRepo.createStack(pool, userId, stackId, orderIds, reason),
     dissolveStack: (userId, stackId) => orderStacksRepo.dissolveStack(pool, userId, stackId),
@@ -897,13 +899,13 @@ function createApp(deps: AppDeps): Express {
     reorderMembers: (userId, stackId, orderIds) => orderStacksRepo.reorderMembers(pool, userId, stackId, orderIds),
   }));
 
-  app.use('/api/hidden-orders', authenticateJWT, createHiddenOrdersRouter({
+  app.use('/api/hidden-orders', authenticate, createHiddenOrdersRouter({
     getHiddenOrderIds: (userId) => hiddenOrdersRepo.getHiddenOrderIds(pool, userId),
     hideOrder: (userId, orderId) => hiddenOrdersRepo.hideOrder(pool, userId, orderId),
     unhideOrder: (userId, orderId) => hiddenOrdersRepo.unhideOrder(pool, userId, orderId),
   }));
 
-  app.use('/api/order-notes', authenticateJWT, createOrderNotesRouter({
+  app.use('/api/order-notes', authenticate, createOrderNotesRouter({
     getNotes: (userId, orderId) => orderNotesRepo.getNotes(pool, userId, orderId),
     getNotesSummary: (userId, orderIds) => orderNotesRepo.getNotesSummary(pool, userId, orderIds),
     getNotesPreviews: (userId, orderIds) => orderNotesRepo.getNotesPreviews(pool, userId, orderIds),
@@ -916,18 +918,18 @@ function createApp(deps: AppDeps): Express {
     if (req.method === 'GET' && req.path.startsWith('/pdf/')) {
       return next();
     }
-    return authenticateJWT(req as any, res, next);
+    return authenticate(req as any, res, next);
   }, createShareRouter({
     pdfStore,
     sendEmail,
     uploadToDropbox,
   }));
 
-  app.use('/api/cache', authenticateJWT, createDeltaSyncRouter({ pool }));
+  app.use('/api/cache', authenticate, createDeltaSyncRouter({ pool }));
 
-  app.use('/api/bonuses', authenticateJWT, createBonusesRouter({ pool, specialBonusesRepo, bonusConditionsRepo }));
+  app.use('/api/bonuses', authenticate, createBonusesRouter({ pool, specialBonusesRepo, bonusConditionsRepo }));
 
-  app.use('/api/notifications', authenticateJWT, createNotificationsRouter({
+  app.use('/api/notifications', authenticate, createNotificationsRouter({
     getNotifications: (userId, filter, limit, offset) =>
       notificationsRepo.getNotifications(pool, userId, filter, limit, offset),
     getUnreadCount: (userId) => notificationsRepo.getUnreadCount(pool, userId),
@@ -938,9 +940,9 @@ function createApp(deps: AppDeps): Express {
     broadcast: deps.broadcast ?? (() => {}),
   }));
 
-  app.use('/api/tracking', authenticateJWT, createTrackingRouter({ pool }));
+  app.use('/api/tracking', authenticate, createTrackingRouter({ pool }));
 
-  app.get('/api/cache/export', authenticateJWT, async (req, res) => {
+  app.get('/api/cache/export', authenticate, async (req, res) => {
     const startTime = Date.now();
     try {
       const userId = (req as AuthRequest).user!.userId;
