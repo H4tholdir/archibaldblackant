@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { createOperationProcessor } from './operation-processor';
+import type { CircuitBreakerLike } from './operation-processor';
 import type { OperationJobData, OperationJobResult } from './operation-types';
 
 function createMockAgentLock(acquireResult = { acquired: true } as any) {
@@ -27,6 +28,15 @@ function createMockEnqueue() {
   return vi.fn().mockResolvedValue('re-enqueued-id');
 }
 
+function createMockCircuitBreaker(overrides: Partial<CircuitBreakerLike> = {}): CircuitBreakerLike {
+  return {
+    isPaused: vi.fn().mockResolvedValue(false),
+    recordFailure: vi.fn().mockResolvedValue(undefined),
+    recordSuccess: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 function createMockJob(overrides: Partial<OperationJobData> = {}) {
   return {
     id: 'job-123',
@@ -52,6 +62,7 @@ describe('createOperationProcessor', () => {
     enqueue?: ReturnType<typeof createMockEnqueue>;
     handlers?: Record<string, any>;
     onJobStarted?: (...args: any[]) => Promise<void>;
+    circuitBreaker?: CircuitBreakerLike;
   } = {}) {
     const agentLock = opts.agentLock ?? createMockAgentLock();
     const browserPool = opts.browserPool ?? createMockBrowserPool();
@@ -59,6 +70,7 @@ describe('createOperationProcessor', () => {
     const enqueue = opts.enqueue ?? createMockEnqueue();
     const handlers = opts.handlers ?? { 'submit-order': dummyHandler };
     const onJobStarted = opts.onJobStarted;
+    const circuitBreaker = opts.circuitBreaker;
 
     return {
       processor: createOperationProcessor({
@@ -68,12 +80,14 @@ describe('createOperationProcessor', () => {
         enqueue,
         handlers,
         onJobStarted,
+        circuitBreaker,
       }),
       agentLock,
       browserPool,
       broadcast,
       enqueue,
       onJobStarted,
+      circuitBreaker,
     };
   }
 
@@ -371,5 +385,138 @@ describe('createOperationProcessor', () => {
 
     expect(result.success).toBe(true);
     expect(onJobStarted).toHaveBeenCalled();
+  });
+
+  describe('circuit breaker integration', () => {
+    test('skips sync job when circuit breaker reports paused', async () => {
+      const circuitBreaker = createMockCircuitBreaker({
+        isPaused: vi.fn().mockResolvedValue(true),
+      });
+      const syncHandler = vi.fn().mockResolvedValue({});
+      const { processor, agentLock } = createProcessor({
+        handlers: { 'sync-customers': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-customers' });
+
+      const result = await processor.processJob(job as any);
+
+      expect(result).toEqual({
+        success: true,
+        data: { circuitBreakerSkipped: true },
+        duration: expect.any(Number),
+      });
+      expect(syncHandler).not.toHaveBeenCalled();
+      expect(agentLock.acquire).not.toHaveBeenCalled();
+    });
+
+    test('records success after sync handler completes', async () => {
+      const circuitBreaker = createMockCircuitBreaker();
+      const syncHandler = vi.fn().mockResolvedValue({ synced: 5 });
+      const { processor } = createProcessor({
+        handlers: { 'sync-orders': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-orders' });
+
+      await processor.processJob(job as any);
+
+      expect(circuitBreaker.recordSuccess).toHaveBeenCalledWith('user-a', 'sync-orders');
+    });
+
+    test('records failure when sync handler throws', async () => {
+      const circuitBreaker = createMockCircuitBreaker();
+      const syncHandler = vi.fn().mockRejectedValue(new Error('ERP unreachable'));
+      const { processor } = createProcessor({
+        handlers: { 'sync-customers': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-customers' });
+
+      await expect(processor.processJob(job as any)).rejects.toThrow('ERP unreachable');
+
+      expect(circuitBreaker.recordFailure).toHaveBeenCalledWith(
+        'user-a',
+        'sync-customers',
+        'ERP unreachable',
+      );
+    });
+
+    test('does not invoke circuit breaker for write operations', async () => {
+      const circuitBreaker = createMockCircuitBreaker();
+      const writeHandler = vi.fn().mockResolvedValue({ orderId: 'ORD-1' });
+      const { processor } = createProcessor({
+        handlers: { 'submit-order': writeHandler },
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'submit-order' });
+
+      await processor.processJob(job as any);
+
+      expect(circuitBreaker.isPaused).not.toHaveBeenCalled();
+      expect(circuitBreaker.recordSuccess).not.toHaveBeenCalled();
+    });
+
+    test('does not invoke circuit breaker for failed write operations', async () => {
+      const circuitBreaker = createMockCircuitBreaker();
+      const writeHandler = vi.fn().mockRejectedValue(new Error('write failed'));
+      const { processor } = createProcessor({
+        handlers: { 'submit-order': writeHandler },
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'submit-order' });
+
+      await expect(processor.processJob(job as any)).rejects.toThrow('write failed');
+
+      expect(circuitBreaker.recordFailure).not.toHaveBeenCalled();
+    });
+
+    test('proceeds normally when circuit breaker is not paused', async () => {
+      const circuitBreaker = createMockCircuitBreaker({
+        isPaused: vi.fn().mockResolvedValue(false),
+      });
+      const syncHandler = vi.fn().mockResolvedValue({ synced: 3 });
+      const { processor } = createProcessor({
+        handlers: { 'sync-ddt': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-ddt' });
+
+      const result = await processor.processJob(job as any);
+
+      expect(result.success).toBe(true);
+      expect(syncHandler).toHaveBeenCalled();
+      expect(circuitBreaker.isPaused).toHaveBeenCalledWith('user-a', 'sync-ddt');
+    });
+
+    test('swallows recordSuccess errors without failing the job', async () => {
+      const circuitBreaker = createMockCircuitBreaker({
+        recordSuccess: vi.fn().mockRejectedValue(new Error('DB down')),
+      });
+      const syncHandler = vi.fn().mockResolvedValue({ synced: 1 });
+      const { processor } = createProcessor({
+        handlers: { 'sync-invoices': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-invoices' });
+
+      const result = await processor.processJob(job as any);
+
+      expect(result.success).toBe(true);
+    });
+
+    test('swallows recordFailure errors without masking handler error', async () => {
+      const circuitBreaker = createMockCircuitBreaker({
+        recordFailure: vi.fn().mockRejectedValue(new Error('DB down')),
+      });
+      const syncHandler = vi.fn().mockRejectedValue(new Error('sync failed'));
+      const { processor } = createProcessor({
+        handlers: { 'sync-tracking': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-tracking' });
+
+      await expect(processor.processJob(job as any)).rejects.toThrow('sync failed');
+    });
   });
 });

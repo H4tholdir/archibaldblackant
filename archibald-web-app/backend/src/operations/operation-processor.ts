@@ -36,6 +36,12 @@ type OnJobFailedFn = (type: OperationType, data: Record<string, unknown>, userId
 
 type OnJobStartedFn = (type: OperationType, data: Record<string, unknown>, userId: string, jobId: string) => Promise<void>;
 
+type CircuitBreakerLike = {
+  isPaused: (userId: string, syncType: string) => Promise<boolean>;
+  recordFailure: (userId: string, syncType: string, error: string) => Promise<void>;
+  recordSuccess: (userId: string, syncType: string) => Promise<void>;
+};
+
 type ProcessorDeps = {
   agentLock: AgentLock;
   browserPool: BrowserPoolLike;
@@ -44,6 +50,7 @@ type ProcessorDeps = {
   handlers: Partial<Record<OperationType, OperationHandler>>;
   onJobFailed?: OnJobFailedFn;
   onJobStarted?: OnJobStartedFn;
+  circuitBreaker?: CircuitBreakerLike;
 };
 
 type ProcessJobResult = {
@@ -89,7 +96,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationType: s
 }
 
 function createOperationProcessor(deps: ProcessorDeps) {
-  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed, onJobStarted } = deps;
+  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed, onJobStarted, circuitBreaker } = deps;
 
   async function processJob(job: JobLike): Promise<ProcessJobResult> {
     const startTime = Date.now();
@@ -98,6 +105,13 @@ function createOperationProcessor(deps: ProcessorDeps) {
     const handler = handlers[type];
     if (!handler) {
       throw new Error(`No handler registered for operation type: ${type}`);
+    }
+
+    if (isScheduledSync(type) && circuitBreaker) {
+      const paused = await circuitBreaker.isPaused(userId, type);
+      if (paused) {
+        return { success: true, data: { circuitBreakerSkipped: true }, duration: Date.now() - startTime };
+      }
     }
 
     let lockAcquired = false;
@@ -177,6 +191,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
         type,
       );
 
+      if (isScheduledSync(type) && circuitBreaker) {
+        await circuitBreaker.recordSuccess(userId, type).catch(() => {});
+      }
+
       broadcast(userId, {
         event: 'JOB_COMPLETED',
         jobId: job.id,
@@ -196,7 +214,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      // Persist error in DB (e.g., update pending_orders.status='error')
+      if (isScheduledSync(type) && circuitBreaker) {
+        await circuitBreaker.recordFailure(userId, type, errorMessage).catch(() => {});
+      }
+
       if (onJobFailed) {
         await onJobFailed(type, data, userId, errorMessage).catch(() => {});
       }
@@ -227,6 +248,7 @@ export {
   type OperationHandler,
   type BrowserPoolLike,
   type BroadcastFn,
+  type CircuitBreakerLike,
   type EnqueueFn,
   type JobLike,
   type ProcessorDeps,
