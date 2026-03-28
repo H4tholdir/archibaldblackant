@@ -728,25 +728,13 @@ async function bootstrap(): Promise<void> {
         });
       },
     ), 'Prezzi'),
-    'sync-customers': withAnomalyNotification(createSyncCustomersHandler(
+    'sync-customers': withAnomalyNotification(createSyncCustomersHandler({
       pool,
-      async (pdfPath) => {
-        const result = await pdfParserService.parsePDF(pdfPath);
-        return result.customers.map(adaptCustomer);
+      browserPool: {
+        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
+        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
       },
-      cleanupFile,
-      (userId) => ({
-        downloadCustomersPdf: async () => {
-          const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          try {
-            return await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
-          }
-        },
-      }),
-      async (deletedInfos) => {
+      onDeletedCustomers: async (deletedInfos) => {
         const uniqueAgentIds = [...new Set(deletedInfos.flatMap((d) => d.affectedAgentIds))];
 
         for (const agentId of uniqueAgentIds) {
@@ -774,7 +762,7 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-      async (restoredInfos) => {
+      onRestoredCustomers: async (restoredInfos) => {
         const uniqueAgentIds = [...new Set(restoredInfos.flatMap((r) => r.affectedAgentIds))];
 
         for (const agentId of uniqueAgentIds) {
@@ -802,7 +790,7 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-    ), 'Clienti'),
+    }), 'Clienti'),
     'sync-orders': createSyncOrdersHandler(
       pool,
       async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),

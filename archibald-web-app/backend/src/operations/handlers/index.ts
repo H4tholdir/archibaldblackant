@@ -1,3 +1,4 @@
+export { createScraperHandler, type BrowserPoolLike as ScraperBrowserPoolLike, type ScraperHandlerDeps, type SyncFn } from './create-scraper-handler';
 export { createCreateCustomerHandler, type CreateCustomerBot } from './create-customer';
 export { createDeleteOrderHandler, type DeleteOrderBot } from './delete-order';
 export { createDownloadDdtPdfHandler, type DownloadDdtPdfBot } from './download-ddt-pdf';
@@ -6,7 +7,7 @@ export { createEditOrderHandler, type EditOrderBot } from './edit-order';
 export { createSendToVeronaHandler, type SendToVeronaBot } from './send-to-verona';
 export { createSubmitOrderHandler, type SubmitOrderBot } from './submit-order';
 export { createSyncOrderArticlesHandler, type SyncOrderArticlesBot } from './sync-order-articles';
-export { createSyncCustomersHandler, type SyncCustomersBot } from './sync-customers';
+export { createSyncCustomersHandler, type SyncCustomersDeps } from './sync-customers';
 export { createSyncDdtHandler, type SyncDdtBot } from './sync-ddt';
 export { createSyncInvoicesHandler, type SyncInvoicesBot } from './sync-invoices';
 export { createSyncOrdersHandler, type SyncOrdersBot } from './sync-orders';
