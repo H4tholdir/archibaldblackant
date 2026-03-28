@@ -60,6 +60,32 @@ export const config = {
   queue: {
     workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || "10", 10),
   },
+  queues: {
+    writes: {
+      concurrency: parseInt(process.env.WRITES_CONCURRENCY || "5", 10),
+      lockDuration: 420_000,
+      stalledInterval: 30_000,
+      removeOnComplete: { count: 500 } as const,
+    },
+    'agent-sync': {
+      concurrency: parseInt(process.env.AGENT_SYNC_CONCURRENCY || "3", 10),
+      lockDuration: 300_000,
+      stalledInterval: 30_000,
+      removeOnComplete: true as const,
+    },
+    enrichment: {
+      concurrency: parseInt(process.env.ENRICHMENT_CONCURRENCY || "3", 10),
+      lockDuration: 900_000,
+      stalledInterval: 30_000,
+      removeOnComplete: true as const,
+    },
+    'shared-sync': {
+      concurrency: parseInt(process.env.SHARED_SYNC_CONCURRENCY || "1", 10),
+      lockDuration: 900_000,
+      stalledInterval: 60_000,
+      removeOnComplete: true as const,
+    },
+  },
   browserPool: {
     maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
     maxContextsPerBrowser: parseInt(process.env.BROWSER_POOL_MAX_CONTEXTS || "8", 10),

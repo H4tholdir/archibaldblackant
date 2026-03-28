@@ -2,12 +2,13 @@ import { Queue, type JobsOptions } from 'bullmq';
 import { Redis } from 'ioredis';
 import {
   OPERATION_PRIORITIES,
-  isWriteOperation,
   isScheduledSync,
   type OperationType,
   type OperationJobData,
   type OperationJobResult,
 } from './operation-types';
+import { getQueueForOperation } from './queue-router';
+import type { QueueName } from './queue-router';
 
 type JobStatus = {
   jobId: string;
@@ -36,21 +37,27 @@ type QueueStats = {
   prioritized: number;
 };
 
-function createOperationQueue(redisConfig?: { host: string; port: number }) {
+type RemoveOnComplete = { count: number } | boolean;
+
+function createOperationQueue(
+  queueName: string = 'operations',
+  redisConfig?: { host: string; port: number },
+  removeOnComplete?: RemoveOnComplete,
+) {
   const connection = new Redis({
     host: redisConfig?.host ?? process.env.REDIS_HOST ?? 'localhost',
     port: redisConfig?.port ?? parseInt(process.env.REDIS_PORT ?? '6379', 10),
     maxRetriesPerRequest: null,
   });
 
-  const queue = new Queue<OperationJobData, OperationJobResult>('operations', {
+  const queue = new Queue<OperationJobData, OperationJobResult>(queueName, {
     connection: connection as never,
   });
 
   function getJobOptions(type: OperationType): JobsOptions {
     const base: JobsOptions = {
       priority: OPERATION_PRIORITIES[type],
-      removeOnComplete: { count: 500 },
+      removeOnComplete: removeOnComplete ?? { count: 500 },
       removeOnFail: { count: 100 },
     };
 
@@ -158,10 +165,27 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
 
 type OperationQueue = ReturnType<typeof createOperationQueue>;
 
+function createMultiQueueEnqueue(
+  queues: Record<QueueName, OperationQueue>,
+) {
+  return async (
+    type: OperationType,
+    userId: string,
+    data: Record<string, unknown>,
+    idempotencyKey?: string,
+    delayMs?: number,
+  ): Promise<string> => {
+    const queueName = getQueueForOperation(type);
+    return queues[queueName].enqueue(type, userId, data, idempotencyKey, delayMs);
+  };
+}
+
 export {
   createOperationQueue,
+  createMultiQueueEnqueue,
   type OperationQueue,
   type JobStatus,
   type AgentJob,
   type QueueStats,
+  type RemoveOnComplete,
 };

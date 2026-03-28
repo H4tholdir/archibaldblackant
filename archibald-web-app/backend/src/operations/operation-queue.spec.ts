@@ -6,17 +6,21 @@ const mockGetJob = vi.fn();
 const mockGetJobs = vi.fn();
 const mockGetJobCounts = vi.fn();
 const mockObliterate = vi.fn();
+let lastQueueName: string | undefined;
 
 vi.mock('bullmq', () => {
   return {
-    Queue: vi.fn(() => ({
-      add: mockAdd,
-      getJob: mockGetJob,
-      getJobs: mockGetJobs,
-      getJobCounts: mockGetJobCounts,
-      obliterate: mockObliterate,
-      close: vi.fn().mockResolvedValue(undefined),
-    })),
+    Queue: vi.fn((name: string) => {
+      lastQueueName = name;
+      return {
+        add: mockAdd,
+        getJob: mockGetJob,
+        getJobs: mockGetJobs,
+        getJobCounts: mockGetJobCounts,
+        obliterate: mockObliterate,
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+    }),
   };
 });
 
@@ -28,11 +32,23 @@ vi.mock('ioredis', () => {
   };
 });
 
-import { createOperationQueue } from './operation-queue';
+import { createOperationQueue, createMultiQueueEnqueue } from './operation-queue';
+import type { QueueName } from './queue-router';
 
 describe('createOperationQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lastQueueName = undefined;
+  });
+
+  test('defaults to queue name "operations" when no name provided', () => {
+    createOperationQueue();
+    expect(lastQueueName).toBe('operations');
+  });
+
+  test('uses provided queue name', () => {
+    createOperationQueue('writes');
+    expect(lastQueueName).toBe('writes');
   });
 
   test('enqueue adds job with correct priority and returns jobId', async () => {
@@ -97,6 +113,32 @@ describe('createOperationQueue', () => {
       expect.objectContaining({
         attempts: 1,
       }),
+    );
+  });
+
+  test('uses removeOnComplete: true when configured', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-sync' });
+
+    const queue = createOperationQueue('agent-sync', undefined, true);
+    await queue.enqueue('sync-customers', 'user-a', {});
+
+    expect(mockAdd).toHaveBeenCalledWith(
+      'sync-customers',
+      expect.anything(),
+      expect.objectContaining({ removeOnComplete: true }),
+    );
+  });
+
+  test('uses removeOnComplete: { count: 500 } by default', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-default' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('submit-order', 'user-a', { orderId: '1' });
+
+    expect(mockAdd).toHaveBeenCalledWith(
+      'submit-order',
+      expect.anything(),
+      expect.objectContaining({ removeOnComplete: { count: 500 } }),
     );
   });
 
@@ -182,5 +224,107 @@ describe('createOperationQueue', () => {
       delayed: 1,
       prioritized: 4,
     });
+  });
+});
+
+describe('createMultiQueueEnqueue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeMockQueue(name: string) {
+    return {
+      enqueue: vi.fn().mockResolvedValue(`${name}-job-id`),
+      getJobStatus: vi.fn(),
+      getAgentJobs: vi.fn(),
+      getStats: vi.fn(),
+      close: vi.fn(),
+      queue: {} as never,
+    };
+  }
+
+  test('routes write operation to writes queue', async () => {
+    const queues = {
+      writes: makeMockQueue('writes'),
+      'agent-sync': makeMockQueue('agent-sync'),
+      enrichment: makeMockQueue('enrichment'),
+      'shared-sync': makeMockQueue('shared-sync'),
+    } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
+
+    const enqueue = createMultiQueueEnqueue(queues);
+    const jobId = await enqueue('submit-order', 'user-a', { orderId: '1' }, 'key-1');
+
+    expect(jobId).toBe('writes-job-id');
+    expect(queues.writes.enqueue).toHaveBeenCalledWith(
+      'submit-order', 'user-a', { orderId: '1' }, 'key-1', undefined,
+    );
+    expect(queues['agent-sync'].enqueue).not.toHaveBeenCalled();
+  });
+
+  test('routes agent-sync operation to agent-sync queue', async () => {
+    const queues = {
+      writes: makeMockQueue('writes'),
+      'agent-sync': makeMockQueue('agent-sync'),
+      enrichment: makeMockQueue('enrichment'),
+      'shared-sync': makeMockQueue('shared-sync'),
+    } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
+
+    const enqueue = createMultiQueueEnqueue(queues);
+    const jobId = await enqueue('sync-customers', 'user-a', {});
+
+    expect(jobId).toBe('agent-sync-job-id');
+    expect(queues['agent-sync'].enqueue).toHaveBeenCalledWith(
+      'sync-customers', 'user-a', {}, undefined, undefined,
+    );
+  });
+
+  test('routes enrichment operation to enrichment queue', async () => {
+    const queues = {
+      writes: makeMockQueue('writes'),
+      'agent-sync': makeMockQueue('agent-sync'),
+      enrichment: makeMockQueue('enrichment'),
+      'shared-sync': makeMockQueue('shared-sync'),
+    } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
+
+    const enqueue = createMultiQueueEnqueue(queues);
+    const jobId = await enqueue('sync-order-articles', 'user-a', {});
+
+    expect(jobId).toBe('enrichment-job-id');
+    expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
+      'sync-order-articles', 'user-a', {}, undefined, undefined,
+    );
+  });
+
+  test('routes shared-sync operation to shared-sync queue', async () => {
+    const queues = {
+      writes: makeMockQueue('writes'),
+      'agent-sync': makeMockQueue('agent-sync'),
+      enrichment: makeMockQueue('enrichment'),
+      'shared-sync': makeMockQueue('shared-sync'),
+    } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
+
+    const enqueue = createMultiQueueEnqueue(queues);
+    const jobId = await enqueue('sync-products', 'service-account', {});
+
+    expect(jobId).toBe('shared-sync-job-id');
+    expect(queues['shared-sync'].enqueue).toHaveBeenCalledWith(
+      'sync-products', 'service-account', {}, undefined, undefined,
+    );
+  });
+
+  test('forwards delayMs parameter', async () => {
+    const queues = {
+      writes: makeMockQueue('writes'),
+      'agent-sync': makeMockQueue('agent-sync'),
+      enrichment: makeMockQueue('enrichment'),
+      'shared-sync': makeMockQueue('shared-sync'),
+    } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
+
+    const enqueue = createMultiQueueEnqueue(queues);
+    await enqueue('sync-tracking', 'user-a', {}, 'key-track', 5000);
+
+    expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
+      'sync-tracking', 'user-a', {}, 'key-track', 5000,
+    );
   });
 });
