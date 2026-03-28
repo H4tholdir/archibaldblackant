@@ -124,6 +124,7 @@ type AppDeps = {
   broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
   createTestBot?: () => Promise<{ initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> }>;
   onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
+  onLoginSuccess?: (userId: string) => void;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -329,6 +330,7 @@ function createApp(deps: AppDeps): Express {
     },
     registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
+    onLoginSuccess: deps.onLoginSuccess,
   }));
 
   app.use('/api/customers/:customerProfile/addresses', authenticate, createCustomerAddressesRouter(pool));

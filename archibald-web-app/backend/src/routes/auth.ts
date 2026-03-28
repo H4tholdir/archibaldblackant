@@ -28,6 +28,7 @@ type AuthRouterDeps = {
   generateJWT: (payload: JWTPayload) => Promise<string>;
   encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
+  onLoginSuccess?: (userId: string) => void;
 };
 
 const loginSchema = z.object({
@@ -81,6 +82,10 @@ function createAuthRouter(deps: AuthRouterDeps) {
       }
 
       updateLastLogin(user.id).catch(() => {});
+
+      if (deps.onLoginSuccess) {
+        Promise.resolve(deps.onLoginSuccess(user.id)).catch(() => {});
+      }
 
       const token = await generateJWT({
         userId: user.id,
