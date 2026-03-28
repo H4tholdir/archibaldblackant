@@ -430,13 +430,15 @@ Le colonne necessarie per il sync sono definite dalla lista di colonne usate nel
 
 | Coda | Concurrency | lockDuration | stalledInterval | removeOnComplete | removeOnFail |
 |------|:-:|:-:|:-:|:-:|:-:|
-| `writes` | 3 | 420.000ms | 30.000ms | { count: 500 } | { count: 100 } |
-| `agent-sync` | 2 | 300.000ms | 30.000ms | true | { count: 50 } |
-| `enrichment` | 2 | 900.000ms | 30.000ms | true | { count: 50 } |
+| `writes` | 5 | 420.000ms | 30.000ms | { count: 500 } | { count: 100 } |
+| `agent-sync` | 3 | 300.000ms | 30.000ms | true | { count: 50 } |
+| `enrichment` | 3 | 900.000ms | 30.000ms | true | { count: 50 } |
 | `shared-sync` | 1 | 900.000ms | 60.000ms | true | { count: 20 } |
 
-**Note configurazione** (review 2026-03-28):
-- **Concurrency totale = 8** (adeguato a VPS Hetzner 2 vCPU / 4 GB RAM). Valori originali 10+5+5+2=22 erano incompatibili con le risorse hardware.
+**Note configurazione** (review 2026-03-28, aggiornato con upgrade VPS):
+- **VPS**: Hetzner CPX32 — **4 vCPU, 8 GB RAM, 160 GB disk** (upgrade da CPX22 2vCPU/4GB/75GB)
+- **Concurrency totale = 12** (adeguato a CPX32). Ogni browser context Puppeteer usa ~50-150MB; con 12 job simultanei e max 24 browser context, il worst case e' ~3-4GB per browser + ~2GB per Node/PG/Redis = ~6GB su 8GB disponibili.
+- **Prometheus e Grafana da rimuovere**: non utilizzati. La loro rimozione libera ~500MB RAM aggiuntivi. Task di cleanup separato.
 - **`removeOnComplete: true`** per code sync: rimozione immediata dei job completati, necessaria per evitare il deadlock silenzioso BullMQ con jobId statico. I job completati restano nel set Redis governato da `removeOnComplete: { count: N }` e bloccano nuovi enqueue con lo stesso jobId (cfr. [BullMQ Issue #1799](https://github.com/taskforcesh/bullmq/issues/1799)). Solo `writes` mantiene `{ count: 500 }` per permettere al frontend di consultare lo stato dei job recenti.
 - **lockDuration `writes` = 420s**: copre il worst case submit-order con molti articoli (60s + 30s * 10 = 360s) piu' margine.
 - **lockDuration `enrichment` = 900s**: sync-customer-addresses puo' impiegare fino a 600s; il lockDuration deve essere significativamente superiore al timeout per evitare esecuzioni duplicate da stalled check.
@@ -908,6 +910,7 @@ Se Komet aggiorna l'ERP:
 - Rimuovere i file debug-*.pdf dalla produzione
 - Rimuovere il parametro `context` vestigiale dagli handler
 - Aggiornare la dashboard admin per mostrare le 4 code
+- Rimuovere Prometheus e Grafana dal docker-compose (non utilizzati, libera ~500MB RAM)
 
 ---
 
