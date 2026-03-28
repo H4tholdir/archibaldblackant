@@ -481,21 +481,17 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push('mainPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_dr])"');
   lines.push('mainPrg.WriteLine "USE SCADENZE IN 0 SHARED AGAIN ALIAS _sc"');
   lines.push('mainPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_sc])"');
-  // FLOCK all 3 tables before reading MAX(ID) — prevents ArcaPro from inserting
-  // a record with the same ID between our MAX() read and our TABLEUPDATE.
-  lines.push('mainPrg.WriteLine "IF !FLOCK([_dt]) OR !FLOCK([_dr]) OR !FLOCK([_sc])"');
-  lines.push('mainPrg.WriteLine "  UNLOCK IN [_dt]"');
-  lines.push('mainPrg.WriteLine "  UNLOCK IN [_dr]"');
-  lines.push('mainPrg.WriteLine "  UNLOCK IN [_sc]"');
-  lines.push('mainPrg.WriteLine "  ERROR 9001"');
-  lines.push('mainPrg.WriteLine "ENDIF"');
+  // Use IDs >= 100,000,000 to avoid collisions with ArcaPro's sequential IDs (1..N).
+  // Two VFP runtimes (OLE DB + awext.FXP) don't share the lock manager, so FLOCK
+  // cannot prevent ArcaPro from inserting between our MAX(ID) read and TABLEUPDATE.
+  // Partitioning the ID space is the only reliable solution.
   lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _dt INTO ARRAY aDTId"');
   lines.push('mainPrg.WriteLine "LOCAL nDTId, nDRId, nSCId, nCurDTId"');
-  lines.push('mainPrg.WriteLine "nDTId = IIF(ISNULL(aDTId[1]), 1, aDTId[1] + 1)"');
+  lines.push('mainPrg.WriteLine "nDTId = IIF(ISNULL(aDTId[1]) .OR. aDTId[1] < 100000000, 100000000, aDTId[1] + 1)"');
   lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _dr INTO ARRAY aDRId"');
-  lines.push('mainPrg.WriteLine "nDRId = IIF(ISNULL(aDRId[1]), 1, aDRId[1] + 1)"');
+  lines.push('mainPrg.WriteLine "nDRId = IIF(ISNULL(aDRId[1]) .OR. aDRId[1] < 100000000, 100000000, aDRId[1] + 1)"');
   lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _sc INTO ARRAY aSCId"');
-  lines.push('mainPrg.WriteLine "nSCId = IIF(ISNULL(aSCId[1]), 1, aSCId[1] + 1)"');
+  lines.push('mainPrg.WriteLine "nSCId = IIF(ISNULL(aSCId[1]) .OR. aSCId[1] < 100000000, 100000000, aSCId[1] + 1)"');
   lines.push("");
 
   for (const record of records) {
@@ -537,9 +533,6 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   }
 
   // === Chiudi PRG ed esegui 1 EXECSCRIPT ===
-  lines.push('mainPrg.WriteLine "UNLOCK IN [_dt]"');
-  lines.push('mainPrg.WriteLine "UNLOCK IN [_dr]"');
-  lines.push('mainPrg.WriteLine "UNLOCK IN [_sc]"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_dt])"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_dr])"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_sc])"');

@@ -507,8 +507,7 @@ describe("generateVbsScript", () => {
     expect(result.vbs).toContain("REPLACE ESERCIZIO WITH");
     expect(result.vbs).toContain("REPLACE ID_TESTA WITH");
     expect(result.vbs).toContain("SELECT MAX(ID) FROM _dt INTO ARRAY aDTId");
-    expect(result.vbs).toContain("FLOCK([_dt])");
-    expect(result.vbs).toContain("UNLOCK IN [_dt]");
+    expect(result.vbs).toContain("nDTId = IIF(ISNULL(aDTId[1]) .OR. aDTId[1] < 100000000");
   });
 
   test("preserves single quotes in VFP bracket-delimited strings", () => {
