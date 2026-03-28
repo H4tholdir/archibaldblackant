@@ -398,17 +398,29 @@ Le colonne necessarie per il sync sono definite dalla lista di colonne usate nel
 
 Un'analisi sistematica ha confrontato: (1) lo schema DB PostgreSQL (38 migrazioni), (2) i tipi dei parser PDF Python, (3) i mapping TypeScript nei sync service, (4) le 296 colonne ERP (visibili + nascoste). Risultato: di 144 colonne nascoste, **solo 2 servono**.
 
-**Colonne da abilitare nel Column Chooser (1 sola)**:
+**Colonne da abilitare nel Column Chooser (2 totali)**:
 
 | Pagina | fieldName | Motivazione |
 |--------|-----------|-------------|
+| **Prodotti** | `TAXITEMGROUPID` | FK al gruppo IVA. Valori: ID 5 → codice "22" → IVA 22% (4.416 prodotti), ID 1 → codice "04" → IVA 4% (121 prodotti). Mapping diretto tramite tabella lookup TAXITEMGROUPHEADING (30 righe nell'ERP). Sostituisce l'import manuale Excel per l'IVA. |
 | **Prezzi** | `MODIFIEDDATETIME` | Data ultima modifica prezzo. Il DB ha la colonna `last_modified` in `shared.prices` ma e' sempre null. Utile per `price_history` e debugging. |
 
-**Colonne investigate e scartate**:
+**Dettaglio TAXITEMGROUPID** (verificato in produzione 2026-03-28):
 
-| Pagina | fieldName | Perche' scartata |
-|--------|-----------|-----------------|
-| **Prodotti** | `TAXITEMGROUPID` | Contiene un **codice gruppo interno** (0, 1, 5), NON la percentuale IVA. Non appare nella DetailView. Richiederebbe mapping manuale codice→aliquota senza garanzie di correttezza. L'import Excel (`excel-vat-importer.ts`) resta piu' affidabile perche' contiene la percentuale esplicita. Verificato in produzione 2026-03-28. |
+Il campo contiene un ID numerico (FK) che punta alla tabella `TAXITEMGROUPHEADING`. Il codice stringa del gruppo corrisponde alla percentuale IVA:
+
+| TAXITEMGROUPID | Codice ERP | Percentuale | Prodotti |
+|:-:|:-:|:-:|:-:|
+| 5 | `22` | 22% | 4.416 (97.3%) |
+| 1 | `04` | 4% | 121 (2.7%) |
+| 0 | — | nessun gruppo | 1 (corso formazione) |
+
+Tabella lookup completa con 30 righe (incluse esenzioni, fuori campo, aliquote estero).
+Per clienti italiani (Fresis) il mapping diretto codice→percentuale e' sufficiente.
+
+**Nota importante**: il campo **non appare nella DetailView** del prodotto. E' accessibile solo dalla ListView via `GetRowValues()` (API DevExpress client-side) anche se la colonna e' nascosta. Abilitandola nel Column Chooser, diventa leggibile anche dal DOM HTML.
+
+**Colonne investigate e scartate (142 totali)**:
 
 **Perche' le altre 142 nascoste NON servono**:
 
