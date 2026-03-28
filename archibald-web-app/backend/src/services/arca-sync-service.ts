@@ -481,6 +481,14 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push('mainPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_dr])"');
   lines.push('mainPrg.WriteLine "USE SCADENZE IN 0 SHARED AGAIN ALIAS _sc"');
   lines.push('mainPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_sc])"');
+  // FLOCK all 3 tables before reading MAX(ID) — prevents ArcaPro from inserting
+  // a record with the same ID between our MAX() read and our TABLEUPDATE.
+  lines.push('mainPrg.WriteLine "IF !FLOCK([_dt]) OR !FLOCK([_dr]) OR !FLOCK([_sc])"');
+  lines.push('mainPrg.WriteLine "  UNLOCK IN [_dt]"');
+  lines.push('mainPrg.WriteLine "  UNLOCK IN [_dr]"');
+  lines.push('mainPrg.WriteLine "  UNLOCK IN [_sc]"');
+  lines.push('mainPrg.WriteLine "  ERROR 9001"');
+  lines.push('mainPrg.WriteLine "ENDIF"');
   lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _dt INTO ARRAY aDTId"');
   lines.push('mainPrg.WriteLine "LOCAL nDTId, nDRId, nSCId, nCurDTId"');
   lines.push('mainPrg.WriteLine "nDTId = IIF(ISNULL(aDTId[1]), 1, aDTId[1] + 1)"');
@@ -529,6 +537,9 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   }
 
   // === Chiudi PRG ed esegui 1 EXECSCRIPT ===
+  lines.push('mainPrg.WriteLine "UNLOCK IN [_dt]"');
+  lines.push('mainPrg.WriteLine "UNLOCK IN [_dr]"');
+  lines.push('mainPrg.WriteLine "UNLOCK IN [_sc]"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_dt])"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_dr])"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_sc])"');
