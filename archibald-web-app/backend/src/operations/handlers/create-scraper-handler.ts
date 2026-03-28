@@ -1,10 +1,8 @@
 import type { Page } from 'puppeteer';
-import type { DbPool } from '../../db/pool';
-import type { ParsedInvoice, InvoiceSyncResult } from '../../sync/services/invoice-sync';
-import { syncInvoices } from '../../sync/services/invoice-sync';
-import { scrapeListView } from '../../sync/scraper/list-view-scraper';
-import { invoicesConfig } from '../../sync/scraper/configs/invoices';
+import type { ScraperConfig, ScrapedRow } from '../../sync/scraper/types';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
+import { scrapeListView } from '../../sync/scraper/list-view-scraper';
+import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 
 type BrowserPoolLike = {
@@ -12,16 +10,25 @@ type BrowserPoolLike = {
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
-type SyncInvoicesDeps = {
+type ScraperHandlerDeps = {
   pool: DbPool;
   browserPool: BrowserPoolLike;
 };
 
-function createSyncInvoicesHandler(deps: SyncInvoicesDeps): OperationHandler {
-  const { pool, browserPool } = deps;
+type SyncFn<TResult> = (
+  scrapedRows: ScrapedRow[],
+  userId: string,
+  onProgress: (progress: number, label?: string) => void,
+  shouldStop: () => boolean,
+) => Promise<TResult>;
 
+function createScraperHandler<TResult extends Record<string, unknown>>(
+  deps: ScraperHandlerDeps,
+  config: ScraperConfig,
+  syncFn: SyncFn<TResult>,
+): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
-    const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+    const ctx = await deps.browserPool.acquireContext(userId, { fromQueue: true });
     let page: Page | null = null;
     let success = false;
 
@@ -36,28 +43,18 @@ function createSyncInvoicesHandler(deps: SyncInvoicesDeps): OperationHandler {
       };
       const shouldStop = (): boolean => false;
 
-      const rows = await scrapeListView(page, invoicesConfig, progressCb, shouldStop);
+      const rows = await scrapeListView(page, config, progressCb, shouldStop);
 
-      const result: InvoiceSyncResult = await syncInvoices(
-        {
-          pool,
-          downloadPdf: async () => 'html-scrape',
-          parsePdf: async () => rows as ParsedInvoice[],
-          cleanupFile: async () => {},
-        },
-        userId,
-        onProgress,
-        shouldStop,
-      );
+      const result = await syncFn(rows, userId, onProgress, shouldStop);
 
       success = true;
       return result as unknown as Record<string, unknown>;
     } finally {
       if (page) await page.close().catch(() => {});
-      await browserPool.releaseContext(userId, ctx, success);
+      await deps.browserPool.releaseContext(userId, ctx, success);
     }
   };
 }
 
-export { createSyncInvoicesHandler };
-export type { BrowserPoolLike, SyncInvoicesDeps };
+export { createScraperHandler };
+export type { BrowserPoolLike, ScraperHandlerDeps, SyncFn };
