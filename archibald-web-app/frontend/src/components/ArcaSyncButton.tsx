@@ -28,6 +28,7 @@ type SyncPhase =
   | 'matching'        // user matching unmatched subclients
   | 'waiting-articles' // polling for article sync
   | 'finalizing-kt'   // generating KT VBS
+  | 'waiting-arca'    // VBS scritto — ArcaPro sta elaborando
   | 'done';
 
 const STAGE_MESSAGES: Record<string, string> = {
@@ -464,6 +465,9 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
 
       if (result.vbsScript && dirHandleRef.current) {
         await writeVbsToDirectory(dirHandleRef.current, result.vbsScript);
+        setPhase('waiting-arca');
+        // onSyncComplete verrà chiamato dal polling arca_done.txt
+        return;
       }
 
       setPhase('done');
@@ -473,6 +477,29 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
       setPhase('done');
     }
   }, [onSyncComplete]);
+
+  // Polling arca_done.txt: ArcaPro scrive questo file al termine dell'elaborazione
+  useEffect(() => {
+    if (phase !== 'waiting-arca') return;
+    const handle = dirHandleRef.current;
+    if (!handle) {
+      setPhase('done');
+      onSyncComplete?.(deletionWarningsRef.current);
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        await handle.getFileHandle('arca_done.txt');
+        clearInterval(interval);
+        try { await handle.removeEntry('arca_done.txt'); } catch {}
+        setPhase('done');
+        onSyncComplete?.(deletionWarningsRef.current);
+      } catch {
+        // arca_done.txt non ancora presente — continua polling
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [phase, onSyncComplete]);
 
   if (!isFileSystemAccessSupported()) return null;
 
@@ -485,6 +512,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
       case 'matching': return 'Matching sottoclienti...';
       case 'waiting-articles': return `Sync articoli (${ktStatus?.articlesPending ?? '?'} in attesa)...`;
       case 'finalizing-kt': return 'Export KT verso Arca...';
+      case 'waiting-arca': return 'ArcaPro sta elaborando...';
       default: return 'Sincronizza con Arca';
     }
   })();
@@ -542,6 +570,23 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
               {phase === 'finalizing-kt' && (
                 <div style={{ marginTop: 4, color: '#6d28d9', fontWeight: 600 }}>
                   Generazione KT in corso...
+                </div>
+              )}
+              {phase === 'waiting-arca' && (
+                <div style={{ marginTop: 8, padding: '8px', background: '#fffbeb', borderRadius: 4, border: '1px solid #fde68a' }}>
+                  <div style={{ color: '#92400e', fontWeight: 600, marginBottom: 4 }}>
+                    File generato — ArcaPro sta scrivendo i dati
+                  </div>
+                  <div style={{ color: '#78350f', fontSize: 11, marginBottom: 8 }}>
+                    Attendi il popup di conferma prima di aprire ArcaPro.
+                    La pagina si aggiornerà automaticamente al termine.
+                  </div>
+                  <button
+                    onClick={() => { setPhase('done'); onSyncComplete?.(deletionWarningsRef.current); }}
+                    style={{ fontSize: 11, padding: '3px 8px', cursor: 'pointer', border: '1px solid #d97706', borderRadius: 4, background: '#fef3c7', color: '#92400e' }}
+                  >
+                    Ho visto il popup, prosegui
+                  </button>
                 </div>
               )}
               {phase1Result.errors.length > 0 && (

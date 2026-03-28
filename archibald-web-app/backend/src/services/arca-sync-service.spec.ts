@@ -577,7 +577,7 @@ describe("generateVbsScript", () => {
     expect(result.vbs).toContain("{^2026-01-15}");
   });
 
-  test("handles multiple records generating sequential AddNew calls", () => {
+  test("batch optimization: usa esattamente 3 EXECSCRIPT per N documenti (doctes+docrig+scadenze)", () => {
     const arcaData1 = makeArcaData({
       testata: { NUMERODOC: "     1", CODICECF: "C00100" },
     });
@@ -599,7 +599,30 @@ describe("generateVbsScript", () => {
       result.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []
     ).length;
 
-    expect(execCount).toBe(7);
+    // Batch: 3 EXECSCRIPT fissi (temp_doctes.prg, temp_docrig.prg, temp_scad.prg)
+    // indipendentemente dal numero di documenti/righe
+    expect(execCount).toBe(3);
+  });
+
+  test("scrive arca_done.txt alla fine dello script di sync", () => {
+    const records: VbsExportRecord[] = [
+      { invoiceNumber: "FT 1/2026", arcaData: makeArcaData() },
+    ];
+    const result = generateVbsScript(records);
+    expect(result.vbs).toContain("arca_done.txt");
+  });
+
+  test("idempotency check per documento ancora presente nel VBS batch", () => {
+    const arcaData1 = makeArcaData({ testata: { NUMERODOC: "     1", TIPODOC: "FT", ESERCIZIO: "2026" } });
+    const arcaData2 = makeArcaData({ testata: { NUMERODOC: "     2", TIPODOC: "FT", ESERCIZIO: "2026" } });
+    const records: VbsExportRecord[] = [
+      { invoiceNumber: "FT 1/2026", arcaData: arcaData1 },
+      { invoiceNumber: "FT 2/2026", arcaData: arcaData2 },
+    ];
+    const result = generateVbsScript(records);
+    // Un SELECT COUNT per documento per il controllo di duplicati
+    const idempotencyChecks = (result.vbs.match(/SELECT COUNT\(\*\) FROM doctes/g) ?? []).length;
+    expect(idempotencyChecks).toBe(2);
   });
 
   test("pads NUMERODOC to 6 chars right-aligned", () => {

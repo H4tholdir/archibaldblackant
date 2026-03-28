@@ -181,15 +181,8 @@ function buildExecScriptDoctes(
   testata: ArcaData["testata"],
 ): string[] {
   const lines: string[] = [];
-  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
-  lines.push('prgFile.WriteLine "IF USED([_ins])"');
-  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
-  lines.push('prgFile.WriteLine "ENDIF"');
-  lines.push('prgFile.WriteLine "USE doctes IN 0 SHARED AGAIN ALIAS _ins"');
-  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
-  lines.push('prgFile.WriteLine "SELECT _ins"');
-  lines.push('prgFile.WriteLine "APPEND BLANK"');
-  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
+  lines.push('doctesPrg.WriteLine "APPEND BLANK"');
+  lines.push('doctesPrg.WriteLine "REPLACE ID WITH " & CStr(doctesNextId)');
   const DOCTES_DEFAULTS: Record<string, string | number> = {
     CODCNT: "001", CODCAUMAG: "99", MAGPARTENZ: "00001", MAGARRIVO: "00001",
     PAG: "0001", LISTINO: "1", TIPOMODULO: "F", CODBANCA: "1",
@@ -206,17 +199,13 @@ function buildExecScriptDoctes(
     }
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
-      lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
+      lines.push(`doctesPrg.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
     } else {
       const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
-      lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
+      lines.push(`doctesPrg.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
-  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
-  lines.push("prgFile.Close");
-  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
-  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
+  lines.push('doctesPrg.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
   return lines;
 }
 
@@ -224,16 +213,9 @@ function buildExecScriptDocrig(
   riga: ArcaData["righe"][number],
 ): string[] {
   const lines: string[] = [];
-  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
-  lines.push('prgFile.WriteLine "IF USED([_ins])"');
-  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
-  lines.push('prgFile.WriteLine "ENDIF"');
-  lines.push('prgFile.WriteLine "USE docrig IN 0 SHARED AGAIN ALIAS _ins"');
-  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
-  lines.push('prgFile.WriteLine "SELECT _ins"');
-  lines.push('prgFile.WriteLine "APPEND BLANK"');
-  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
-  lines.push('prgFile.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
+  lines.push('docrigPrg.WriteLine "APPEND BLANK"');
+  lines.push('docrigPrg.WriteLine "REPLACE ID WITH " & CStr(docrigNextId)');
+  lines.push('docrigPrg.WriteLine "REPLACE ID_TESTA WITH " & CStr(doctesNextId)');
   const DOCRIG_DEFAULTS: Record<string, string | number> = {
     CONTOSCARI: "01", CODCAUMAG: "99", MAGPARTENZ: "00001", MAGARRIVO: "00001",
     GRUPPO: "00001",
@@ -253,17 +235,13 @@ function buildExecScriptDocrig(
     }
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
-      lines.push(`prgFile.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
+      lines.push(`docrigPrg.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
     } else {
       const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
-      lines.push(`prgFile.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
+      lines.push(`docrigPrg.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
     }
   }
-  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
-  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
-  lines.push("prgFile.Close");
-  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
-  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
+  lines.push('docrigPrg.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
   return lines;
 }
 
@@ -297,48 +275,37 @@ function buildExecScriptScadenza(
   const totNetto = testata.TOTNETTO ?? 0;
   const esercizio = testata.ESERCIZIO ?? "";
 
-  lines.push('Set prgFile = fso.CreateTextFile(scriptDir & "\\temp_ins.prg", True)');
-  lines.push('prgFile.WriteLine "IF USED([_ins])"');
-  lines.push('prgFile.WriteLine "  USE IN SELECT([_ins])"');
-  lines.push('prgFile.WriteLine "ENDIF"');
-  lines.push('prgFile.WriteLine "USE SCADENZE IN 0 SHARED AGAIN ALIAS _ins"');
-  lines.push('prgFile.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
-  lines.push('prgFile.WriteLine "SELECT _ins"');
-  lines.push('prgFile.WriteLine "APPEND BLANK"');
-  lines.push('prgFile.WriteLine "REPLACE ID WITH " & CStr(scadNextId)');
-  lines.push('prgFile.WriteLine "REPLACE ID_DOC WITH " & CStr(doctesNextId)');
-  lines.push('prgFile.WriteLine "REPLACE ID_PNOTA WITH 0"');
-  lines.push('prgFile.WriteLine "REPLACE ID_SCAORIG WITH 0"');
-  lines.push('prgFile.WriteLine "REPLACE TRANSIT WITH .T."');
-  lines.push(`prgFile.WriteLine "REPLACE CODPAG WITH [${codpag}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE DATAFATT WITH {^${datadoc}}"`);
-  lines.push(`prgFile.WriteLine "REPLACE NUMFATT WITH [${numfatt}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE DATASCAD WITH {^${datascad}}"`);
-  lines.push(`prgFile.WriteLine "REPLACE CODBANCA WITH [1]"`);
-  lines.push(`prgFile.WriteLine "REPLACE CODCF WITH [${codcf}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE TIPO WITH [A]"`);
-  lines.push(`prgFile.WriteLine "REPLACE TIPOMOD WITH [${tipomod}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPEFF WITH ${totDoc}"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPEFFVAL WITH ${totDoc}"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPTOTFATT WITH ${totDoc}"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPTOTFATV WITH ${totDoc}"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPONIBILE WITH ${totNetto}"`);
-  lines.push(`prgFile.WriteLine "REPLACE IMPORTOPAG WITH 0"`);
-  lines.push(`prgFile.WriteLine "REPLACE NUMEFF WITH 1"`);
-  lines.push(`prgFile.WriteLine "REPLACE TOTEFF WITH 1"`);
-  lines.push(`prgFile.WriteLine "REPLACE CODCAMBIO WITH [EUR]"`);
-  lines.push(`prgFile.WriteLine "REPLACE VALCAMBIO WITH 1"`);
-  lines.push(`prgFile.WriteLine "REPLACE EUROCAMBIO WITH 1"`);
-  lines.push(`prgFile.WriteLine "REPLACE CB_NAZIONE WITH [IT]"`);
-  lines.push(`prgFile.WriteLine "REPLACE PARTANNO WITH ${esercizio}"`);
-  lines.push(`prgFile.WriteLine "REPLACE PARTNUM WITH [${partnum}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE PROTOCOLLO WITH [${protocollo}]"`);
-  lines.push(`prgFile.WriteLine "REPLACE DATAVALUTA WITH {^${datascad}}"`);
-  lines.push('prgFile.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
-  lines.push('prgFile.WriteLine "USE IN SELECT([_ins])"');
-  lines.push("prgFile.Close");
-  lines.push('conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_ins.prg]))"');
-  lines.push('fso.DeleteFile scriptDir & "\\temp_ins.prg", True');
+  lines.push('scadPrg.WriteLine "APPEND BLANK"');
+  lines.push('scadPrg.WriteLine "REPLACE ID WITH " & CStr(scadNextId)');
+  lines.push('scadPrg.WriteLine "REPLACE ID_DOC WITH " & CStr(doctesNextId)');
+  lines.push('scadPrg.WriteLine "REPLACE ID_PNOTA WITH 0"');
+  lines.push('scadPrg.WriteLine "REPLACE ID_SCAORIG WITH 0"');
+  lines.push('scadPrg.WriteLine "REPLACE TRANSIT WITH .T."');
+  lines.push(`scadPrg.WriteLine "REPLACE CODPAG WITH [${codpag}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE DATAFATT WITH {^${datadoc}}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE NUMFATT WITH [${numfatt}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE DATASCAD WITH {^${datascad}}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE CODBANCA WITH [1]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE CODCF WITH [${codcf}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE TIPO WITH [A]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE TIPOMOD WITH [${tipomod}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPEFF WITH ${totDoc}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPEFFVAL WITH ${totDoc}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPTOTFATT WITH ${totDoc}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPTOTFATV WITH ${totDoc}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPONIBILE WITH ${totNetto}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE IMPORTOPAG WITH 0"`);
+  lines.push(`scadPrg.WriteLine "REPLACE NUMEFF WITH 1"`);
+  lines.push(`scadPrg.WriteLine "REPLACE TOTEFF WITH 1"`);
+  lines.push(`scadPrg.WriteLine "REPLACE CODCAMBIO WITH [EUR]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE VALCAMBIO WITH 1"`);
+  lines.push(`scadPrg.WriteLine "REPLACE EUROCAMBIO WITH 1"`);
+  lines.push(`scadPrg.WriteLine "REPLACE CB_NAZIONE WITH [IT]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE PARTANNO WITH ${esercizio}"`);
+  lines.push(`scadPrg.WriteLine "REPLACE PARTNUM WITH [${partnum}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE PROTOCOLLO WITH [${protocollo}]"`);
+  lines.push(`scadPrg.WriteLine "REPLACE DATAVALUTA WITH {^${datascad}}"`);
+  lines.push('scadPrg.WriteLine "=TABLEUPDATE(.T., .F., [_ins])"');
   return lines;
 }
 
@@ -432,8 +399,9 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
 
   lines.push("On Error Resume Next");
   lines.push("");
-  lines.push("Dim fso, logFile, conn, rs, prgFile, errCount, okCount");
+  lines.push("Dim fso, logFile, conn, rs, errCount, okCount");
   lines.push("Dim doctesNextId, docrigNextId, scadNextId, docAlreadyExists");
+  lines.push("Dim doctesPrg, docrigPrg, scadPrg, doneFile, batchCount, batchAborted");
   lines.push('Set fso = CreateObject("Scripting.FileSystemObject")');
   lines.push("");
   lines.push(
@@ -507,6 +475,32 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
     }
   }
 
+  // === Open batch files (3 EXECSCRIPT totali indipendentemente da N documenti) ===
+  lines.push("batchCount = 0");
+  lines.push("batchAborted = False");
+  lines.push('Set doctesPrg = fso.CreateTextFile(scriptDir & "\\temp_doctes.prg", True)');
+  lines.push('doctesPrg.WriteLine "IF USED([_ins])"');
+  lines.push('doctesPrg.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('doctesPrg.WriteLine "ENDIF"');
+  lines.push('doctesPrg.WriteLine "USE doctes IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('doctesPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
+  lines.push('doctesPrg.WriteLine "SELECT _ins"');
+  lines.push('Set docrigPrg = fso.CreateTextFile(scriptDir & "\\temp_docrig.prg", True)');
+  lines.push('docrigPrg.WriteLine "IF USED([_ins])"');
+  lines.push('docrigPrg.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('docrigPrg.WriteLine "ENDIF"');
+  lines.push('docrigPrg.WriteLine "USE docrig IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('docrigPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
+  lines.push('docrigPrg.WriteLine "SELECT _ins"');
+  lines.push('Set scadPrg = fso.CreateTextFile(scriptDir & "\\temp_scad.prg", True)');
+  lines.push('scadPrg.WriteLine "IF USED([_ins])"');
+  lines.push('scadPrg.WriteLine "  USE IN SELECT([_ins])"');
+  lines.push('scadPrg.WriteLine "ENDIF"');
+  lines.push('scadPrg.WriteLine "USE SCADENZE IN 0 SHARED AGAIN ALIAS _ins"');
+  lines.push('scadPrg.WriteLine "=CURSORSETPROP([Buffering], 3, [_ins])"');
+  lines.push('scadPrg.WriteLine "SELECT _ins"');
+  lines.push("");
+
   for (const record of records) {
     const { arcaData, invoiceNumber } = record;
     const { testata, righe } = arcaData;
@@ -533,48 +527,65 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
     for (const l of buildExecScriptDoctes(testata)) {
       lines.push("  " + l);
     }
-    lines.push("  ");
-    lines.push("  If Err.Number <> 0 Then");
-    lines.push(
-      `    logFile.WriteLine "ERROR doctes ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
-    );
-    lines.push("    errCount = errCount + 1");
-    lines.push("    Err.Clear");
-    lines.push("  Else");
-
     for (const riga of righe) {
-      lines.push("    docrigNextId = docrigNextId + 1");
+      lines.push("  docrigNextId = docrigNextId + 1");
       for (const l of buildExecScriptDocrig(riga)) {
-        lines.push("    " + l);
+        lines.push("  " + l);
       }
-      lines.push("    If Err.Number <> 0 Then");
-      lines.push(
-        `      logFile.WriteLine "ERROR docrig ${sanitizeVbsComment(invoiceNumber)} riga ${riga.NUMERORIGA}: " & Err.Description`,
-      );
-      lines.push("      errCount = errCount + 1");
-      lines.push("      Err.Clear");
-      lines.push("    End If");
-      lines.push("    ");
     }
-
-    lines.push("    ' Insert scadenza (payment schedule)");
-    lines.push("    scadNextId = scadNextId + 1");
+    lines.push("  scadNextId = scadNextId + 1");
     for (const l of buildExecScriptScadenza(testata)) {
-      lines.push("    " + l);
+      lines.push("  " + l);
     }
-    lines.push("    If Err.Number <> 0 Then");
-    lines.push(
-      `      logFile.WriteLine "ERROR scadenza ${sanitizeVbsComment(invoiceNumber)}: " & Err.Description`,
-    );
-    lines.push("      errCount = errCount + 1");
-    lines.push("      Err.Clear");
-    lines.push("    End If");
-    lines.push("    ");
-    lines.push("    okCount = okCount + 1");
-    lines.push("  End If");
+    lines.push("  batchCount = batchCount + 1");
     lines.push("End If");
     lines.push("");
   }
+
+  // === Chiudi batch file ed esegui 3 EXECSCRIPT ===
+  lines.push('doctesPrg.WriteLine "USE IN SELECT([_ins])"');
+  lines.push("doctesPrg.Close");
+  lines.push('docrigPrg.WriteLine "USE IN SELECT([_ins])"');
+  lines.push("docrigPrg.Close");
+  lines.push('scadPrg.WriteLine "USE IN SELECT([_ins])"');
+  lines.push("scadPrg.Close");
+  lines.push("");
+  lines.push("If batchCount > 0 Then");
+  lines.push("  Err.Clear");
+  lines.push('  conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_doctes.prg]))"');
+  lines.push("  If Err.Number <> 0 Then");
+  lines.push('    logFile.WriteLine "ERROR batch doctes: " & Err.Description');
+  lines.push("    errCount = errCount + 1 : Err.Clear");
+  lines.push("    batchAborted = True");
+  lines.push("  Else");
+  lines.push("    okCount = okCount + batchCount");
+  lines.push("  End If");
+  lines.push('  fso.DeleteFile scriptDir & "\\temp_doctes.prg", True');
+  lines.push("  If Not batchAborted Then");
+  lines.push("    Err.Clear");
+  lines.push('    conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_docrig.prg]))"');
+  lines.push("    If Err.Number <> 0 Then");
+  lines.push('      logFile.WriteLine "ERROR batch docrig: " & Err.Description');
+  lines.push("      errCount = errCount + 1 : Err.Clear");
+  lines.push("    End If");
+  lines.push('    fso.DeleteFile scriptDir & "\\temp_docrig.prg", True');
+  lines.push("    Err.Clear");
+  lines.push('    conn.Execute "EXECSCRIPT(FILETOSTR([" & scriptDir & "\\temp_scad.prg]))"');
+  lines.push("    If Err.Number <> 0 Then");
+  lines.push('      logFile.WriteLine "ERROR batch scad: " & Err.Description');
+  lines.push("      errCount = errCount + 1 : Err.Clear");
+  lines.push("    End If");
+  lines.push('    fso.DeleteFile scriptDir & "\\temp_scad.prg", True');
+  lines.push("  Else");
+  lines.push('    fso.DeleteFile scriptDir & "\\temp_docrig.prg", True');
+  lines.push('    fso.DeleteFile scriptDir & "\\temp_scad.prg", True');
+  lines.push("  End If");
+  lines.push("Else");
+  lines.push('  fso.DeleteFile scriptDir & "\\temp_doctes.prg", True');
+  lines.push('  fso.DeleteFile scriptDir & "\\temp_docrig.prg", True');
+  lines.push('  fso.DeleteFile scriptDir & "\\temp_scad.prg", True');
+  lines.push("End If");
+  lines.push("");
 
   lines.push("conn.Close");
   lines.push(
@@ -585,6 +596,11 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push(
     'MsgBox "Sync completato: " & okCount & " documenti OK, " & errCount & " errori." & vbCrLf & "Dettagli in sync_log.txt", vbInformation, "Arca Sync"',
   );
+  lines.push("");
+  lines.push("' Segnala al browser che ArcaPro ha terminato l'elaborazione");
+  lines.push('Set doneFile = fso.CreateTextFile(scriptDir & "\\arca_done.txt", True)');
+  lines.push('doneFile.WriteLine "done"');
+  lines.push("doneFile.Close");
   lines.push("");
   lines.push("' Self-delete after successful execution");
   lines.push("If errCount = 0 Then");
@@ -1360,7 +1376,21 @@ export async function performArcaSync(
     }
   }
 
-  // 9. KT status: calcola cosa manca (export avviene tutto in finalize)
+  // 9. Backfill customer_profile_id per ordini KT dove manca ma esiste già il match subclient
+  await pool.query(
+    `UPDATE agents.order_records o
+     SET customer_profile_id = sc.matched_customer_profile_id
+     FROM shared.sub_clients sc
+     JOIN agents.customers c
+       ON c.customer_profile = sc.matched_customer_profile_id AND c.user_id = $1
+     WHERE o.user_id = $1
+       AND (o.customer_profile_id IS NULL OR o.customer_profile_id = '')
+       AND lower(o.customer_name) = lower(c.name)
+       AND sc.matched_customer_profile_id IS NOT NULL`,
+    [userId],
+  );
+
+  // 10. KT status: calcola cosa manca (export avviene tutto in finalize)
   const ktNeedingMatch: Array<{ orderId: string; customerName: string }> = [];
   const ktMissingArticles: string[] = [];
 

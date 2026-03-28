@@ -207,9 +207,9 @@ describe('KT sync round-trip', () => {
       { invoiceNumber: 'KT 202/2026', arcaData: order2 },
     ]);
 
-    // 2 doctes + (1 + 2) docrig + 2 scadenze = 7 EXECSCRIPT blocks
+    // batch: 3 EXECSCRIPT totali (doctes + docrig + scadenze), indipendente dal numero di documenti
     const execCount = (vbs.vbs.match(/EXECSCRIPT\(FILETOSTR\(\[/g) || []).length;
-    expect(execCount).toBe(7);
+    expect(execCount).toBe(3);
 
     expect(vbs.vbs).toContain('KT 201/2026');
     expect(vbs.vbs).toContain('KT 202/2026');
