@@ -1,13 +1,87 @@
 import { describe, expect, test, vi } from 'vitest';
 import { detectOrderState, createSyncOrderStatesHandler } from './sync-order-states';
 import type { Order } from '../../db/repositories/orders';
+import type { DdtEntry } from '../../db/repositories/order-ddts';
+import type { InvoiceEntry } from '../../db/repositories/order-invoices';
+
+function makeDdt(overrides: Partial<DdtEntry> = {}): DdtEntry {
+  return {
+    id: 'ddt-id',
+    orderId: 'ORD-001',
+    position: 0,
+    ddtNumber: 'DDT-0',
+    ddtId: null,
+    ddtDeliveryDate: null,
+    ddtCustomerAccount: null,
+    ddtSalesName: null,
+    ddtDeliveryName: null,
+    deliveryTerms: null,
+    deliveryMethod: null,
+    deliveryCity: null,
+    attentionTo: null,
+    ddtDeliveryAddress: null,
+    ddtQuantity: null,
+    ddtCustomerReference: null,
+    ddtDescription: null,
+    trackingNumber: null,
+    trackingUrl: null,
+    trackingCourier: null,
+    trackingStatus: null,
+    trackingKeyStatusCd: null,
+    trackingStatusBarCd: null,
+    trackingEstimatedDelivery: null,
+    trackingLastLocation: null,
+    trackingLastEvent: null,
+    trackingLastEventAt: null,
+    trackingOrigin: null,
+    trackingDestination: null,
+    trackingServiceDesc: null,
+    trackingLastSyncedAt: null,
+    trackingSyncFailures: null,
+    trackingEvents: null,
+    trackingDelayReason: null,
+    trackingDeliveryAttempts: null,
+    trackingAttemptedDeliveryAt: null,
+    deliveryConfirmedAt: null,
+    deliverySignedBy: null,
+    ...overrides,
+  };
+}
+
+function makeInvoice(overrides: Partial<InvoiceEntry> = {}): InvoiceEntry {
+  return {
+    id: 'inv-id',
+    orderId: 'ORD-001',
+    position: 0,
+    invoiceNumber: 'INV-0',
+    invoiceDate: null,
+    invoiceAmount: null,
+    invoiceCustomerAccount: null,
+    invoiceBillingName: null,
+    invoiceQuantity: null,
+    invoiceRemainingAmount: null,
+    invoiceTaxAmount: null,
+    invoiceLineDiscount: null,
+    invoiceTotalDiscount: null,
+    invoiceDueDate: null,
+    invoicePaymentTermsId: null,
+    invoicePurchaseOrder: null,
+    invoiceClosed: null,
+    invoiceDaysPastDue: null,
+    invoiceSettledAmount: null,
+    invoiceLastPaymentId: null,
+    invoiceLastSettlementDate: null,
+    invoiceClosedDate: null,
+    ...overrides,
+  };
+}
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
     id: 'ORD-001',
     userId: 'user-1',
     orderNumber: 'SO-100',
-    customerProfileId: null,
+    customerAccountNum: null,
     customerName: 'Test Customer',
     deliveryName: null,
     deliveryAddress: null,
@@ -30,43 +104,6 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     hash: 'abc123',
     lastSync: 0,
     createdAt: '2026-02-01T00:00:00Z',
-    ddtNumber: null,
-    ddtDeliveryDate: null,
-    ddtId: null,
-    ddtCustomerAccount: null,
-    ddtSalesName: null,
-    ddtDeliveryName: null,
-    deliveryTerms: null,
-    deliveryMethod: null,
-    deliveryCity: null,
-    attentionTo: null,
-    ddtDeliveryAddress: null,
-    ddtQuantity: null,
-    ddtCustomerReference: null,
-    ddtDescription: null,
-    trackingNumber: null,
-    trackingUrl: null,
-    trackingCourier: null,
-    deliveryCompletedDate: null,
-    invoiceNumber: null,
-    invoiceDate: null,
-    invoiceAmount: null,
-    invoiceCustomerAccount: null,
-    invoiceBillingName: null,
-    invoiceQuantity: null,
-    invoiceRemainingAmount: null,
-    invoiceTaxAmount: null,
-    invoiceLineDiscount: null,
-    invoiceTotalDiscount: null,
-    invoiceDueDate: null,
-    invoicePaymentTermsId: null,
-    invoicePurchaseOrder: null,
-    invoiceClosed: null,
-    invoiceDaysPastDue: null,
-    invoiceSettledAmount: null,
-    invoiceLastPaymentId: null,
-    invoiceLastSettlementDate: null,
-    invoiceClosedDate: null,
     state: null,
     sentToMilanoAt: null,
     archibaldOrderId: null,
@@ -75,13 +112,20 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     articlesSyncedAt: null,
     shippingCost: null,
     shippingTax: null,
+    articleSearchText: null,
+    verificationStatus: null,
+    verificationNotes: null,
+    notes: undefined,
+    arcaKtSyncedAt: null,
+    ddts: [],
+    invoices: [],
     ...overrides,
   };
 }
 
 describe('detectOrderState', () => {
   test('paid invoice → pagato', () => {
-    const order = makeOrder({ invoiceNumber: 'INV-1', invoiceClosed: true });
+    const order = makeOrder({ invoices: [makeInvoice({ invoiceNumber: 'INV-1', invoiceClosed: true })] });
     expect(detectOrderState(order)).toEqual({
       state: 'pagato',
       confidence: 'high',
@@ -91,7 +135,7 @@ describe('detectOrderState', () => {
   });
 
   test('zero remaining amount → pagato', () => {
-    const order = makeOrder({ invoiceNumber: 'INV-2', invoiceRemainingAmount: '0.00' });
+    const order = makeOrder({ invoices: [makeInvoice({ invoiceNumber: 'INV-2', invoiceRemainingAmount: '0.00' })] });
     expect(detectOrderState(order)).toEqual({
       state: 'pagato',
       confidence: 'high',
@@ -102,39 +146,35 @@ describe('detectOrderState', () => {
 
   test('overdue invoice → pagamento_scaduto', () => {
     const order = makeOrder({
-      invoiceNumber: 'INV-3',
-      invoiceDueDate: '2020-01-01',
-      invoiceRemainingAmount: '500.00',
+      invoices: [makeInvoice({ invoiceNumber: 'INV-3', invoiceDueDate: '2020-01-01', invoiceRemainingAmount: '500.00' })],
     });
     expect(detectOrderState(order).state).toBe('pagamento_scaduto');
   });
 
   test('invoice present but not due → fatturato', () => {
     const order = makeOrder({
-      invoiceNumber: 'INV-4',
-      invoiceDueDate: '2030-12-31',
-      invoiceRemainingAmount: '100.00',
+      invoices: [makeInvoice({ invoiceNumber: 'INV-4', invoiceDueDate: '2030-12-31', invoiceRemainingAmount: '100.00' })],
     });
     expect(detectOrderState(order).state).toBe('fatturato');
   });
 
   test('invoice without due date → fatturato', () => {
-    const order = makeOrder({ invoiceNumber: 'INV-5' });
+    const order = makeOrder({ invoices: [makeInvoice({ invoiceNumber: 'INV-5' })] });
     expect(detectOrderState(order).state).toBe('fatturato');
   });
 
   test('DDT with past delivery date → consegnato', () => {
-    const order = makeOrder({ ddtNumber: 'DDT-1', ddtDeliveryDate: '2020-01-01' });
+    const order = makeOrder({ ddts: [makeDdt({ ddtNumber: 'DDT-1', ddtDeliveryDate: '2020-01-01' })] });
     expect(detectOrderState(order).state).toBe('consegnato');
   });
 
   test('DDT with future delivery date → spedito', () => {
-    const order = makeOrder({ ddtNumber: 'DDT-2', ddtDeliveryDate: '2030-12-31' });
+    const order = makeOrder({ ddts: [makeDdt({ ddtNumber: 'DDT-2', ddtDeliveryDate: '2030-12-31' })] });
     expect(detectOrderState(order).state).toBe('spedito');
   });
 
   test('DDT without delivery date → spedito (medium confidence)', () => {
-    const order = makeOrder({ ddtNumber: 'DDT-3' });
+    const order = makeOrder({ ddts: [makeDdt({ ddtNumber: 'DDT-3' })] });
     const result = detectOrderState(order);
     expect(result.state).toBe('spedito');
     expect(result.confidence).toBe('medium');
@@ -198,43 +238,53 @@ describe('detectOrderState', () => {
   });
 });
 
+const BASE_ORDER_ROW = {
+  user_id: 'u1', delivery_name: null, delivery_address: null,
+  delivery_date: null, order_description: null,
+  customer_reference: null, order_type: null,
+  document_status: null, sales_origin: null,
+  transfer_date: null, completion_date: null, discount_percent: null,
+  gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
+  last_sync: 0,
+  sent_to_verona_at: null, archibald_order_id: null,
+  total_vat_amount: null, total_with_vat: null,
+  articles_synced_at: null, shipping_cost: null, shipping_tax: null,
+  article_search_text: null, notes: null, arca_kt_synced_at: null,
+  verification_status: null, verification_notes: null,
+  customer_account_num: null,
+  ddts_json: [],
+  invoices_json: [],
+};
+
 describe('createSyncOrderStatesHandler', () => {
   test('updates orders whose state changed', async () => {
     const mockPool = {
       query: vi.fn()
         .mockResolvedValueOnce({
-          rows: [
-            {
-              id: 'ORD-1', user_id: 'u1', order_number: 'SO-1', customer_name: 'C1',
-              customer_profile_id: null, delivery_name: null, delivery_address: null,
-              creation_date: '2026-02-20', delivery_date: null, order_description: null,
-              customer_reference: null, sales_status: null, order_type: null,
-              document_status: null, sales_origin: null, transfer_status: null,
-              transfer_date: null, completion_date: null, discount_percent: null,
-              gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
-              hash: 'h1', last_sync: 0, created_at: '2026-02-20',
+          rows: [{
+            ...BASE_ORDER_ROW,
+            id: 'ORD-1', order_number: 'SO-1', customer_name: 'C1',
+            sales_status: null, transfer_status: null,
+            hash: 'h1', created_at: '2026-02-20', creation_date: '2026-02-20',
+            current_state: 'piazzato',
+            archibald_order_id: 'ARC-1',
+            ddts_json: [{ id: 'ddt-1', order_id: 'ORD-1', user_id: 'u1', position: 0,
               ddt_number: 'DDT-1', ddt_delivery_date: '2020-01-01', ddt_id: null,
               ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
               delivery_terms: null, delivery_method: null, delivery_city: null,
               attention_to: null, ddt_delivery_address: null, ddt_quantity: null,
               ddt_customer_reference: null, ddt_description: null,
               tracking_number: null, tracking_url: null, tracking_courier: null,
-              delivery_completed_date: null,
-              invoice_number: null, invoice_date: null, invoice_amount: null,
-              invoice_customer_account: null, invoice_billing_name: null,
-              invoice_quantity: null, invoice_remaining_amount: null,
-              invoice_tax_amount: null, invoice_line_discount: null,
-              invoice_total_discount: null, invoice_due_date: null,
-              invoice_payment_terms_id: null, invoice_purchase_order: null,
-              invoice_closed: null, invoice_days_past_due: null,
-              invoice_settled_amount: null, invoice_last_payment_id: null,
-              invoice_last_settlement_date: null, invoice_closed_date: null,
-              current_state: 'piazzato',
-              sent_to_milano_at: null, archibald_order_id: 'ARC-1',
-              total_vat_amount: null, total_with_vat: null,
-              articles_synced_at: null, shipping_cost: null, shipping_tax: null,
-            },
-          ],
+              tracking_status: null, tracking_key_status_cd: null, tracking_status_bar_cd: null,
+              tracking_estimated_delivery: null, tracking_last_location: null,
+              tracking_last_event: null, tracking_last_event_at: null,
+              tracking_origin: null, tracking_destination: null, tracking_service_desc: null,
+              tracking_last_synced_at: null, tracking_sync_failures: null, tracking_events: null,
+              tracking_delay_reason: null, tracking_delivery_attempts: null,
+              tracking_attempted_delivery_at: null, delivery_confirmed_at: null,
+              delivery_signed_by: null,
+            }],
+          }],
         })
         .mockResolvedValueOnce({ rows: [{ current_state: 'piazzato' }] })
         .mockResolvedValue({ rows: [], rowCount: 1 }),
@@ -260,34 +310,13 @@ describe('createSyncOrderStatesHandler', () => {
       query: vi.fn()
         .mockResolvedValueOnce({
           rows: [{
-            id: 'ORD-3', user_id: 'u1', order_number: 'SO-3', customer_name: 'C3',
-            customer_profile_id: null, delivery_name: null, delivery_address: null,
-            creation_date: '2026-02-20', delivery_date: null, order_description: null,
-            customer_reference: null, sales_status: 'Ordine Aperto', order_type: null,
-            document_status: null, sales_origin: null, transfer_status: 'sent',
-            transfer_date: '2026-02-20', completion_date: null, discount_percent: null,
-            gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
-            hash: 'h3', last_sync: 0, created_at: '2026-02-20',
-            ddt_number: null, ddt_delivery_date: null, ddt_id: null,
-            ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
-            delivery_terms: null, delivery_method: null, delivery_city: null,
-            attention_to: null, ddt_delivery_address: null, ddt_quantity: null,
-            ddt_customer_reference: null, ddt_description: null,
-            tracking_number: null, tracking_url: null, tracking_courier: null,
-            delivery_completed_date: null,
-            invoice_number: null, invoice_date: null, invoice_amount: null,
-            invoice_customer_account: null, invoice_billing_name: null,
-            invoice_quantity: null, invoice_remaining_amount: null,
-            invoice_tax_amount: null, invoice_line_discount: null,
-            invoice_total_discount: null, invoice_due_date: null,
-            invoice_payment_terms_id: null, invoice_purchase_order: null,
-            invoice_closed: null, invoice_days_past_due: null,
-            invoice_settled_amount: null, invoice_last_payment_id: null,
-            invoice_last_settlement_date: null, invoice_closed_date: null,
+            ...BASE_ORDER_ROW,
+            id: 'ORD-3', order_number: 'SO-3', customer_name: 'C3',
+            sales_status: 'Ordine Aperto', transfer_status: 'sent',
+            hash: 'h3', created_at: '2026-02-20', creation_date: '2026-02-20',
             current_state: 'piazzato',
             sent_to_verona_at: '2026-02-20', archibald_order_id: 'ARC-3',
-            total_vat_amount: null, total_with_vat: null,
-            articles_synced_at: '2026-02-15T00:00:00Z', shipping_cost: null, shipping_tax: null,
+            articles_synced_at: '2026-02-15T00:00:00Z',
           }],
         })
         .mockResolvedValueOnce({ rows: [{ current_state: 'piazzato' }] })
@@ -308,34 +337,29 @@ describe('createSyncOrderStatesHandler', () => {
       query: vi.fn()
         .mockResolvedValueOnce({
           rows: [{
-            id: 'ORD-4', user_id: 'u1', order_number: 'SO-4', customer_name: 'C4',
-            customer_profile_id: null, delivery_name: null, delivery_address: null,
-            creation_date: '2026-02-20', delivery_date: null, order_description: null,
-            customer_reference: null, sales_status: null, order_type: null,
-            document_status: null, sales_origin: null, transfer_status: null,
-            transfer_date: null, completion_date: null, discount_percent: null,
-            gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
-            hash: 'h4', last_sync: 0, created_at: '2026-02-20',
-            ddt_number: 'DDT-4', ddt_delivery_date: '2020-01-01', ddt_id: null,
-            ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
-            delivery_terms: null, delivery_method: null, delivery_city: null,
-            attention_to: null, ddt_delivery_address: null, ddt_quantity: null,
-            ddt_customer_reference: null, ddt_description: null,
-            tracking_number: null, tracking_url: null, tracking_courier: null,
-            delivery_completed_date: null,
-            invoice_number: null, invoice_date: null, invoice_amount: null,
-            invoice_customer_account: null, invoice_billing_name: null,
-            invoice_quantity: null, invoice_remaining_amount: null,
-            invoice_tax_amount: null, invoice_line_discount: null,
-            invoice_total_discount: null, invoice_due_date: null,
-            invoice_payment_terms_id: null, invoice_purchase_order: null,
-            invoice_closed: null, invoice_days_past_due: null,
-            invoice_settled_amount: null, invoice_last_payment_id: null,
-            invoice_last_settlement_date: null, invoice_closed_date: null,
+            ...BASE_ORDER_ROW,
+            id: 'ORD-4', order_number: 'SO-4', customer_name: 'C4',
+            sales_status: null, transfer_status: null,
+            hash: 'h4', created_at: '2026-02-20', creation_date: '2026-02-20',
             current_state: 'spedito',
-            sent_to_milano_at: '2026-02-10', archibald_order_id: 'ARC-4',
-            total_vat_amount: null, total_with_vat: null,
-            articles_synced_at: '2026-02-15T00:00:00Z', shipping_cost: null, shipping_tax: null,
+            sent_to_verona_at: '2026-02-10', archibald_order_id: 'ARC-4',
+            articles_synced_at: '2026-02-15T00:00:00Z',
+            ddts_json: [{ id: 'ddt-4', order_id: 'ORD-4', user_id: 'u1', position: 0,
+              ddt_number: 'DDT-4', ddt_delivery_date: '2020-01-01', ddt_id: null,
+              ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
+              delivery_terms: null, delivery_method: null, delivery_city: null,
+              attention_to: null, ddt_delivery_address: null, ddt_quantity: null,
+              ddt_customer_reference: null, ddt_description: null,
+              tracking_number: null, tracking_url: null, tracking_courier: null,
+              tracking_status: null, tracking_key_status_cd: null, tracking_status_bar_cd: null,
+              tracking_estimated_delivery: null, tracking_last_location: null,
+              tracking_last_event: null, tracking_last_event_at: null,
+              tracking_origin: null, tracking_destination: null, tracking_service_desc: null,
+              tracking_last_synced_at: null, tracking_sync_failures: null, tracking_events: null,
+              tracking_delay_reason: null, tracking_delivery_attempts: null,
+              tracking_attempted_delivery_at: null, delivery_confirmed_at: null,
+              delivery_signed_by: null,
+            }],
           }],
         })
         .mockResolvedValueOnce({ rows: [{ current_state: 'spedito' }] })
@@ -355,34 +379,11 @@ describe('createSyncOrderStatesHandler', () => {
     const mockPool = {
       query: vi.fn().mockResolvedValueOnce({
         rows: [{
-          id: 'ORD-2', user_id: 'u1', order_number: 'SO-2', customer_name: 'C2',
-          customer_profile_id: null, delivery_name: null, delivery_address: null,
-          creation_date: '2026-02-20', delivery_date: null, order_description: null,
-          customer_reference: null, sales_status: null, order_type: null,
-          document_status: null, sales_origin: null, transfer_status: null,
-          transfer_date: null, completion_date: null, discount_percent: null,
-          gross_amount: null, total_amount: null, is_quote: null, is_gift_order: null,
-          hash: 'h2', last_sync: 0, created_at: '2026-02-20',
-          ddt_number: null, ddt_delivery_date: null, ddt_id: null,
-          ddt_customer_account: null, ddt_sales_name: null, ddt_delivery_name: null,
-          delivery_terms: null, delivery_method: null, delivery_city: null,
-          attention_to: null, ddt_delivery_address: null, ddt_quantity: null,
-          ddt_customer_reference: null, ddt_description: null,
-          tracking_number: null, tracking_url: null, tracking_courier: null,
-          delivery_completed_date: null,
-          invoice_number: null, invoice_date: null, invoice_amount: null,
-          invoice_customer_account: null, invoice_billing_name: null,
-          invoice_quantity: null, invoice_remaining_amount: null,
-          invoice_tax_amount: null, invoice_line_discount: null,
-          invoice_total_discount: null, invoice_due_date: null,
-          invoice_payment_terms_id: null, invoice_purchase_order: null,
-          invoice_closed: null, invoice_days_past_due: null,
-          invoice_settled_amount: null, invoice_last_payment_id: null,
-          invoice_last_settlement_date: null, invoice_closed_date: null,
+          ...BASE_ORDER_ROW,
+          id: 'ORD-2', order_number: 'SO-2', customer_name: 'C2',
+          sales_status: null, transfer_status: null,
+          hash: 'h2', created_at: '2026-02-20', creation_date: '2026-02-20',
           current_state: 'creato',
-          sent_to_milano_at: null, archibald_order_id: null,
-          total_vat_amount: null, total_with_vat: null,
-          articles_synced_at: null, shipping_cost: null, shipping_tax: null,
         }],
       }),
     };

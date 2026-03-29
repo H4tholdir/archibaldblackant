@@ -50,12 +50,13 @@ function parseAmount(value: string): number {
 }
 
 function detectOrderState(order: Order): StateDetection {
-  if (order.invoiceNumber) {
-    const remainingAmount = order.invoiceRemainingAmount
-      ? parseAmount(order.invoiceRemainingAmount)
+  const firstInvoice = order.invoices[0];
+  if (firstInvoice) {
+    const remainingAmount = firstInvoice.invoiceRemainingAmount
+      ? parseAmount(firstInvoice.invoiceRemainingAmount)
       : null;
     const isPaid =
-      order.invoiceClosed === true ||
+      firstInvoice.invoiceClosed === true ||
       (remainingAmount !== null && remainingAmount <= 0);
 
     if (isPaid) {
@@ -63,18 +64,18 @@ function detectOrderState(order: Order): StateDetection {
         state: 'pagato',
         confidence: 'high',
         source: 'database',
-        notes: `Invoice ${order.invoiceNumber} paid`,
+        notes: `Invoice ${firstInvoice.invoiceNumber} paid`,
       };
     }
 
-    if (order.invoiceDueDate) {
-      const dueDate = new Date(order.invoiceDueDate);
+    if (firstInvoice.invoiceDueDate) {
+      const dueDate = new Date(firstInvoice.invoiceDueDate);
       if (dueDate < new Date()) {
         return {
           state: 'pagamento_scaduto',
           confidence: 'high',
           source: 'database',
-          notes: `Invoice ${order.invoiceNumber} overdue since ${order.invoiceDueDate}`,
+          notes: `Invoice ${firstInvoice.invoiceNumber} overdue since ${firstInvoice.invoiceDueDate}`,
         };
       }
     }
@@ -83,12 +84,13 @@ function detectOrderState(order: Order): StateDetection {
       state: 'fatturato',
       confidence: 'high',
       source: 'database',
-      notes: `Invoice ${order.invoiceNumber} found`,
+      notes: `Invoice ${firstInvoice.invoiceNumber} found`,
     };
   }
 
-  if (order.ddtNumber) {
-    const deliveryDateStr = order.ddtDeliveryDate || order.deliveryDate;
+  const firstDdt = order.ddts[0];
+  if (firstDdt) {
+    const deliveryDateStr = firstDdt.ddtDeliveryDate || order.deliveryDate;
     if (deliveryDateStr) {
       const deliveryDate = new Date(deliveryDateStr);
       if (deliveryDate <= new Date()) {
@@ -96,21 +98,21 @@ function detectOrderState(order: Order): StateDetection {
           state: 'consegnato',
           confidence: 'high',
           source: 'database',
-          notes: `DDT ${order.ddtNumber}, delivery date ${deliveryDateStr} has passed`,
+          notes: `DDT ${firstDdt.ddtNumber}, delivery date ${deliveryDateStr} has passed`,
         };
       }
       return {
         state: 'spedito',
         confidence: 'high',
         source: 'database',
-        notes: `DDT ${order.ddtNumber}, delivery expected ${deliveryDateStr}`,
+        notes: `DDT ${firstDdt.ddtNumber}, delivery expected ${deliveryDateStr}`,
       };
     }
     return {
       state: 'spedito',
       confidence: 'medium',
       source: 'database',
-      notes: `DDT ${order.ddtNumber} found, no delivery date`,
+      notes: `DDT ${firstDdt.ddtNumber} found, no delivery date`,
     };
   }
 

@@ -67,44 +67,9 @@ const SAMPLE_ORDER_ROW = {
   hash: 'abc123',
   last_sync: 1737370000,
   created_at: '2026-01-20T12:04:22Z',
-  ddt_number: null,
-  ddt_delivery_date: null,
-  ddt_id: null,
-  ddt_customer_account: null,
-  ddt_sales_name: null,
-  ddt_delivery_name: null,
-  delivery_terms: null,
-  delivery_method: null,
-  delivery_city: null,
-  attention_to: null,
-  ddt_delivery_address: null,
-  ddt_quantity: null,
-  ddt_customer_reference: null,
-  ddt_description: null,
-  tracking_number: null,
-  tracking_url: null,
-  tracking_courier: null,
-  delivery_completed_date: null,
-  invoice_number: null,
-  invoice_date: null,
-  invoice_amount: null,
-  invoice_customer_account: null,
-  invoice_billing_name: null,
-  invoice_quantity: null,
-  invoice_remaining_amount: null,
-  invoice_tax_amount: null,
-  invoice_line_discount: null,
-  invoice_total_discount: null,
-  invoice_due_date: null,
-  invoice_payment_terms_id: null,
-  invoice_purchase_order: null,
-  invoice_closed: null,
-  invoice_days_past_due: null,
-  invoice_settled_amount: null,
-  invoice_last_payment_id: null,
-  invoice_last_settlement_date: null,
-  invoice_closed_date: null,
   current_state: null,
+  ddts_json: [],
+  invoices_json: [],
   sent_to_verona_at: null,
   archibald_order_id: null,
   total_vat_amount: null,
@@ -603,53 +568,6 @@ describe('deleteOrderArticles', () => {
   });
 });
 
-describe('updateOrderDDT', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  test('updates DDT fields and returns affected rows', async () => {
-    const pool = createMockPool(async () => ({ rows: [], rowCount: 1 }) as any);
-
-    const { updateOrderDDT } = await import('./orders');
-    const result = await updateOrderDDT(pool, 'user-1', '70.962', {
-      ddtNumber: 'DDT/001',
-      ddtDeliveryDate: '2026-01-25',
-      trackingNumber: 'TRK123',
-    });
-
-    expect(result).toBe(1);
-    const call = pool.queryCalls[0];
-    expect(call.text).toContain('UPDATE agents.order_records');
-    expect(call.params).toContain('DDT/001');
-    expect(call.params).toContain('2026-01-25');
-    expect(call.params).toContain('TRK123');
-  });
-});
-
-describe('updateInvoiceData', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  test('updates invoice fields and returns affected rows', async () => {
-    const pool = createMockPool(async () => ({ rows: [], rowCount: 1 }) as any);
-
-    const { updateInvoiceData } = await import('./orders');
-    const result = await updateInvoiceData(pool, 'user-1', '70.962', {
-      invoiceNumber: 'INV/001',
-      invoiceAmount: '82,91 \u20ac',
-      invoiceClosed: false,
-    });
-
-    expect(result).toBe(1);
-    const call = pool.queryCalls[0];
-    expect(call.text).toContain('UPDATE agents.order_records');
-    expect(call.params).toContain('INV/001');
-    expect(call.params).toContain('82,91 \u20ac');
-    expect(call.params).toContain(false);
-  });
-});
 
 describe('deleteOrdersNotInList', () => {
   beforeEach(() => {
@@ -761,7 +679,7 @@ describe('getOrderByNumber', () => {
       orderNumber: 'ORD/26000887',
     }));
     expect(pool.query).toHaveBeenCalledWith(
-      'SELECT * FROM agents.order_records WHERE order_number = $1 AND user_id = $2',
+      expect.stringContaining('WHERE o.order_number = $1 AND o.user_id = $2'),
       ['ORD/26000887', 'user-1'],
     );
   });

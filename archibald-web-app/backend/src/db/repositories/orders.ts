@@ -1,5 +1,9 @@
 import crypto from 'crypto';
 import type { DbPool } from '../pool';
+import type { DdtEntry, DdtRow } from './order-ddts';
+import { mapRowToDdtEntry } from './order-ddts';
+import type { InvoiceEntry, InvoiceRow } from './order-invoices';
+import { mapRowToInvoiceEntry } from './order-invoices';
 
 type OrderRow = {
   id: string;
@@ -93,33 +97,10 @@ type OrderRow = {
   notes: string | null;
   tracking_events: unknown;
   arca_kt_synced_at: string | null;
+  ddts_json: unknown;
+  invoices_json: unknown;
 };
 
-type DdtInfo = {
-  ddtId: string | null;
-  ddtNumber: string | null;
-  ddtDeliveryDate: string | null;
-  ddtCustomerAccount: string | null;
-  ddtSalesName: string | null;
-  ddtDeliveryName: string | null;
-  ddtDeliveryAddress: string | null;
-  ddtQuantity: string | null;
-  ddtCustomerReference: string | null;
-  ddtDescription: string | null;
-  deliveryTerms: string | null;
-  deliveryMethod: string | null;
-  deliveryCity: string | null;
-  attentionTo: string | null;
-  trackingNumber: string | null;
-  trackingUrl: string | null;
-  trackingCourier: string | null;
-};
-
-type TrackingInfo = {
-  trackingNumber: string | null;
-  trackingUrl: string | null;
-  trackingCourier: string | null;
-};
 
 type Order = {
   id: string;
@@ -148,43 +129,6 @@ type Order = {
   hash: string;
   lastSync: number;
   createdAt: string;
-  ddtNumber: string | null;
-  ddtDeliveryDate: string | null;
-  ddtId: string | null;
-  ddtCustomerAccount: string | null;
-  ddtSalesName: string | null;
-  ddtDeliveryName: string | null;
-  deliveryTerms: string | null;
-  deliveryMethod: string | null;
-  deliveryCity: string | null;
-  attentionTo: string | null;
-  ddtDeliveryAddress: string | null;
-  ddtQuantity: string | null;
-  ddtCustomerReference: string | null;
-  ddtDescription: string | null;
-  trackingNumber: string | null;
-  trackingUrl: string | null;
-  trackingCourier: string | null;
-  deliveryCompletedDate: string | null;
-  invoiceNumber: string | null;
-  invoiceDate: string | null;
-  invoiceAmount: string | null;
-  invoiceCustomerAccount: string | null;
-  invoiceBillingName: string | null;
-  invoiceQuantity: number | null;
-  invoiceRemainingAmount: string | null;
-  invoiceTaxAmount: string | null;
-  invoiceLineDiscount: string | null;
-  invoiceTotalDiscount: string | null;
-  invoiceDueDate: string | null;
-  invoicePaymentTermsId: string | null;
-  invoicePurchaseOrder: string | null;
-  invoiceClosed: boolean | null;
-  invoiceDaysPastDue: string | null;
-  invoiceSettledAmount: string | null;
-  invoiceLastPaymentId: string | null;
-  invoiceLastSettlementDate: string | null;
-  invoiceClosedDate: string | null;
   state: string | null;
   sentToMilanoAt: string | null;
   archibaldOrderId: string | null;
@@ -196,34 +140,10 @@ type Order = {
   articleSearchText: string | null;
   verificationStatus: string | null;
   verificationNotes: string | null;
-  trackingStatus: string | null;
-  trackingKeyStatusCd: string | null;
-  trackingStatusBarCd: string | null;
-  trackingEstimatedDelivery: string | null;
-  trackingLastLocation: string | null;
-  trackingLastEvent: string | null;
-  trackingLastEventAt: string | null;
-  trackingLastSyncedAt: string | null;
-  trackingSyncFailures: number | null;
-  trackingOrigin: string | null;
-  trackingDestination: string | null;
-  trackingServiceDesc: string | null;
-  deliveryConfirmedAt: string | null;
-  deliverySignedBy: string | null;
   notes: string | undefined;
-  trackingEvents: Array<{
-    date: string;
-    time: string;
-    gmtOffset: string;
-    status: string;
-    statusCD: string;
-    scanLocation: string;
-    delivered: boolean;
-    exception: boolean;
-  }> | undefined;
   arcaKtSyncedAt: string | null;
-  ddt: DdtInfo | undefined;
-  tracking: TrackingInfo | undefined;
+  ddts: DdtEntry[];
+  invoices: InvoiceEntry[];
 };
 
 type OrderInput = {
@@ -347,47 +267,6 @@ type StateHistory = {
   createdAt: string;
 };
 
-type DDTData = {
-  ddtNumber: string;
-  ddtDeliveryDate?: string | null;
-  ddtId?: string | null;
-  ddtCustomerAccount?: string | null;
-  ddtSalesName?: string | null;
-  ddtDeliveryName?: string | null;
-  deliveryTerms?: string | null;
-  deliveryMethod?: string | null;
-  deliveryCity?: string | null;
-  attentionTo?: string | null;
-  ddtDeliveryAddress?: string | null;
-  ddtQuantity?: string | null;
-  ddtCustomerReference?: string | null;
-  ddtDescription?: string | null;
-  trackingNumber?: string | null;
-  trackingUrl?: string | null;
-  trackingCourier?: string | null;
-};
-
-type InvoiceData = {
-  invoiceNumber: string;
-  invoiceDate?: string | null;
-  invoiceAmount?: string | null;
-  invoiceCustomerAccount?: string | null;
-  invoiceBillingName?: string | null;
-  invoiceQuantity?: number | null;
-  invoiceRemainingAmount?: string | null;
-  invoiceTaxAmount?: string | null;
-  invoiceLineDiscount?: string | null;
-  invoiceTotalDiscount?: string | null;
-  invoiceDueDate?: string | null;
-  invoicePaymentTermsId?: string | null;
-  invoicePurchaseOrder?: string | null;
-  invoiceClosed?: boolean | null;
-  invoiceDaysPastDue?: string | null;
-  invoiceSettledAmount?: string | null;
-  invoiceLastPaymentId?: string | null;
-  invoiceLastSettlementDate?: string | null;
-  invoiceClosedDate?: string | null;
-};
 
 function mapRowToOrder(row: OrderRow): Order {
   return {
@@ -417,43 +296,6 @@ function mapRowToOrder(row: OrderRow): Order {
     hash: row.hash,
     lastSync: row.last_sync,
     createdAt: row.created_at,
-    ddtNumber: row.ddt_number,
-    ddtDeliveryDate: row.ddt_delivery_date,
-    ddtId: row.ddt_id,
-    ddtCustomerAccount: row.ddt_customer_account,
-    ddtSalesName: row.ddt_sales_name,
-    ddtDeliveryName: row.ddt_delivery_name,
-    deliveryTerms: row.delivery_terms,
-    deliveryMethod: row.delivery_method,
-    deliveryCity: row.delivery_city,
-    attentionTo: row.attention_to,
-    ddtDeliveryAddress: row.ddt_delivery_address,
-    ddtQuantity: row.ddt_quantity,
-    ddtCustomerReference: row.ddt_customer_reference,
-    ddtDescription: row.ddt_description,
-    trackingNumber: row.tracking_number,
-    trackingUrl: row.tracking_url,
-    trackingCourier: row.tracking_courier,
-    deliveryCompletedDate: row.delivery_completed_date,
-    invoiceNumber: row.invoice_number,
-    invoiceDate: row.invoice_date,
-    invoiceAmount: row.invoice_amount,
-    invoiceCustomerAccount: row.invoice_customer_account,
-    invoiceBillingName: row.invoice_billing_name,
-    invoiceQuantity: row.invoice_quantity,
-    invoiceRemainingAmount: row.invoice_remaining_amount,
-    invoiceTaxAmount: row.invoice_tax_amount,
-    invoiceLineDiscount: row.invoice_line_discount,
-    invoiceTotalDiscount: row.invoice_total_discount,
-    invoiceDueDate: row.invoice_due_date,
-    invoicePaymentTermsId: row.invoice_payment_terms_id,
-    invoicePurchaseOrder: row.invoice_purchase_order,
-    invoiceClosed: row.invoice_closed ?? null,
-    invoiceDaysPastDue: row.invoice_days_past_due,
-    invoiceSettledAmount: row.invoice_settled_amount,
-    invoiceLastPaymentId: row.invoice_last_payment_id,
-    invoiceLastSettlementDate: row.invoice_last_settlement_date,
-    invoiceClosedDate: row.invoice_closed_date,
     state: row.current_state,
     sentToMilanoAt: row.sent_to_verona_at,
     archibaldOrderId: row.archibald_order_id,
@@ -469,56 +311,10 @@ function mapRowToOrder(row: OrderRow): Order {
     verificationNotes: row.verification_status === 'correction_failed' || row.verification_status === 'mismatch_detected'
       ? row.verification_notes
       : null,
-    trackingStatus: row.tracking_status,
-    trackingKeyStatusCd: row.tracking_key_status_cd,
-    trackingStatusBarCd: row.tracking_status_bar_cd,
-    trackingEstimatedDelivery: row.tracking_estimated_delivery,
-    trackingLastLocation: row.tracking_last_location,
-    trackingLastEvent: row.tracking_last_event,
-    trackingLastEventAt: row.tracking_last_event_at,
-    trackingLastSyncedAt: row.tracking_last_synced_at,
-    trackingSyncFailures: row.tracking_sync_failures,
-    trackingOrigin: row.tracking_origin,
-    trackingDestination: row.tracking_destination,
-    trackingServiceDesc: row.tracking_service_desc,
-    deliveryConfirmedAt: row.delivery_confirmed_at,
-    deliverySignedBy: row.delivery_signed_by,
     notes: row.notes ?? undefined,
     arcaKtSyncedAt: row.arca_kt_synced_at,
-    trackingEvents: row.tracking_events as Array<{
-      date: string;
-      time: string;
-      gmtOffset: string;
-      status: string;
-      statusCD: string;
-      scanLocation: string;
-      delivered: boolean;
-      exception: boolean;
-    }> | undefined,
-    ddt: row.ddt_number ? {
-      ddtId: row.ddt_id,
-      ddtNumber: row.ddt_number,
-      ddtDeliveryDate: row.ddt_delivery_date,
-      ddtCustomerAccount: row.ddt_customer_account,
-      ddtSalesName: row.ddt_sales_name,
-      ddtDeliveryName: row.ddt_delivery_name,
-      ddtDeliveryAddress: row.ddt_delivery_address,
-      ddtQuantity: row.ddt_quantity,
-      ddtCustomerReference: row.ddt_customer_reference,
-      ddtDescription: row.ddt_description,
-      deliveryTerms: row.delivery_terms,
-      deliveryMethod: row.delivery_method,
-      deliveryCity: row.delivery_city,
-      attentionTo: row.attention_to,
-      trackingNumber: row.tracking_number,
-      trackingUrl: row.tracking_url,
-      trackingCourier: row.tracking_courier,
-    } : undefined,
-    tracking: row.tracking_number ? {
-      trackingNumber: row.tracking_number,
-      trackingUrl: row.tracking_url,
-      trackingCourier: row.tracking_courier,
-    } : undefined,
+    ddts: Array.isArray(row.ddts_json) ? (row.ddts_json as DdtRow[]).map(mapRowToDdtEntry) : [],
+    invoices: Array.isArray(row.invoices_json) ? (row.invoices_json as InvoiceRow[]).map(mapRowToInvoiceEntry) : [],
   };
 }
 
@@ -572,7 +368,13 @@ function computeHash(order: OrderInput): string {
 
 async function getOrderById(pool: DbPool, userId: string, orderId: string): Promise<Order | null> {
   const { rows: [order] } = await pool.query<OrderRow>(
-    `SELECT o.*, ovs.verification_status, ovs.verification_notes
+    `SELECT o.*, ovs.verification_status, ovs.verification_notes,
+      (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
+      ) AS ddts_json,
+      (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
+       FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
+      ) AS invoices_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
     WHERE o.id = $1 AND o.user_id = $2`,
@@ -583,7 +385,15 @@ async function getOrderById(pool: DbPool, userId: string, orderId: string): Prom
 
 async function getOrderByNumber(pool: DbPool, userId: string, orderNumber: string): Promise<Order | null> {
   const { rows: [order] } = await pool.query<OrderRow>(
-    'SELECT * FROM agents.order_records WHERE order_number = $1 AND user_id = $2',
+    `SELECT o.*,
+      (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
+      ) AS ddts_json,
+      (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
+       FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
+      ) AS invoices_json
+    FROM agents.order_records o
+    WHERE o.order_number = $1 AND o.user_id = $2`,
     [orderNumber, userId],
   );
   return order ? mapRowToOrder(order) : null;
@@ -597,44 +407,44 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
   if (options?.search) {
     const searchParam = `%${options.search}%`;
     conditions.push(`(
-      order_number ILIKE $${paramIndex} OR
-      customer_name ILIKE $${paramIndex} OR
-      total_amount ILIKE $${paramIndex} OR
-      gross_amount ILIKE $${paramIndex} OR
-      tracking_number ILIKE $${paramIndex} OR
-      ddt_number ILIKE $${paramIndex} OR
-      invoice_number ILIKE $${paramIndex} OR
-      delivery_address ILIKE $${paramIndex} OR
-      customer_reference ILIKE $${paramIndex}
+      o.order_number ILIKE $${paramIndex} OR
+      o.customer_name ILIKE $${paramIndex} OR
+      o.total_amount ILIKE $${paramIndex} OR
+      o.gross_amount ILIKE $${paramIndex} OR
+      o.delivery_address ILIKE $${paramIndex} OR
+      o.customer_reference ILIKE $${paramIndex} OR
+      EXISTS (SELECT 1 FROM agents.order_ddts d WHERE d.order_id = o.id AND d.ddt_number ILIKE $${paramIndex}) OR
+      EXISTS (SELECT 1 FROM agents.order_ddts d WHERE d.order_id = o.id AND d.tracking_number ILIKE $${paramIndex}) OR
+      EXISTS (SELECT 1 FROM agents.order_invoices i WHERE i.order_id = o.id AND i.invoice_number ILIKE $${paramIndex})
     )`);
     params.push(searchParam);
     paramIndex++;
   }
 
   if (options?.customerAccountNum) {
-    conditions.push(`customer_account_num = (SELECT account_num FROM agents.customers WHERE erp_id = $${paramIndex} AND user_id = $1)`);
+    conditions.push(`o.customer_account_num = (SELECT account_num FROM agents.customers WHERE erp_id = $${paramIndex} AND user_id = $1)`);
     params.push(options.customerAccountNum);
     paramIndex++;
   } else if (options?.customer) {
-    conditions.push(`translate(customer_name, E'\\n\\r\\t', '   ') ILIKE $${paramIndex}`);
+    conditions.push(`translate(o.customer_name, E'\\n\\r\\t', '   ') ILIKE $${paramIndex}`);
     params.push(`%${options.customer.replace(/[\n\r\t]+/g, ' ').trim()}%`);
     paramIndex++;
   }
 
   if (options?.status) {
-    conditions.push(`sales_status = $${paramIndex}`);
+    conditions.push(`o.sales_status = $${paramIndex}`);
     params.push(options.status);
     paramIndex++;
   }
 
   if (options?.dateFrom) {
-    conditions.push(`creation_date >= $${paramIndex}`);
+    conditions.push(`o.creation_date >= $${paramIndex}`);
     params.push(options.dateFrom);
     paramIndex++;
   }
 
   if (options?.dateTo) {
-    conditions.push(`creation_date <= $${paramIndex}`);
+    conditions.push(`o.creation_date <= $${paramIndex}`);
     params.push(options.dateTo);
     paramIndex++;
   }
@@ -657,7 +467,13 @@ async function getOrdersByUser(
   const offsetParamIndex = allParams.length;
 
   const { rows } = await pool.query<OrderRow>(
-    `SELECT o.*, ovs.verification_status, ovs.verification_notes
+    `SELECT o.*, ovs.verification_status, ovs.verification_notes,
+      (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.position = 0
+      ) AS ddts_json,
+      (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
+       FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id AND i.position = 0
+      ) AS invoices_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
     WHERE o.user_id = $1${clause} ORDER BY o.creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
@@ -676,7 +492,7 @@ async function countOrders(
   const allParams = [userId, ...filterParams];
 
   const { rows: [row] } = await pool.query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM agents.order_records WHERE user_id = $1${clause}`,
+    `SELECT COUNT(*) as count FROM agents.order_records o WHERE o.user_id = $1${clause}`,
     allParams,
   );
 
@@ -871,177 +687,6 @@ async function getStateHistory(pool: DbPool, userId: string, orderId: string): P
   return rows.map(mapRowToStateHistory);
 }
 
-async function updateOrderDDT(
-  pool: DbPool,
-  userId: string,
-  orderId: string,
-  ddtData: DDTData,
-): Promise<number> {
-  const now = Math.floor(Date.now() / 1000);
-
-  const { rowCount } = await pool.query(
-    `UPDATE agents.order_records SET
-      ddt_number = $1, ddt_delivery_date = $2, ddt_id = $3, ddt_customer_account = $4,
-      ddt_sales_name = $5, ddt_delivery_name = $6, delivery_terms = $7, delivery_method = $8,
-      delivery_city = $9, attention_to = $10, ddt_delivery_address = $11, ddt_quantity = $12,
-      ddt_customer_reference = $13, ddt_description = $14, tracking_number = $15,
-      tracking_url = $16, tracking_courier = $17, last_sync = $18
-    WHERE id = $19 AND user_id = $20`,
-    [
-      ddtData.ddtNumber, ddtData.ddtDeliveryDate ?? null, ddtData.ddtId ?? null,
-      ddtData.ddtCustomerAccount ?? null, ddtData.ddtSalesName ?? null,
-      ddtData.ddtDeliveryName ?? null, ddtData.deliveryTerms ?? null,
-      ddtData.deliveryMethod ?? null, ddtData.deliveryCity ?? null,
-      ddtData.attentionTo ?? null, ddtData.ddtDeliveryAddress ?? null,
-      ddtData.ddtQuantity ?? null, ddtData.ddtCustomerReference ?? null,
-      ddtData.ddtDescription ?? null, ddtData.trackingNumber ?? null,
-      ddtData.trackingUrl ?? null, ddtData.trackingCourier ?? null,
-      now, orderId, userId,
-    ],
-  );
-
-  return rowCount ?? 0;
-}
-
-async function updateInvoiceData(
-  pool: DbPool,
-  userId: string,
-  orderId: string,
-  invoiceData: InvoiceData,
-): Promise<number> {
-  const now = Math.floor(Date.now() / 1000);
-
-  const { rowCount } = await pool.query(
-    `UPDATE agents.order_records SET
-      invoice_number = $1, invoice_date = $2, invoice_amount = $3,
-      invoice_customer_account = $4, invoice_billing_name = $5, invoice_quantity = $6,
-      invoice_remaining_amount = $7, invoice_tax_amount = $8, invoice_line_discount = $9,
-      invoice_total_discount = $10, invoice_due_date = $11, invoice_payment_terms_id = $12,
-      invoice_purchase_order = $13, invoice_closed = $14, invoice_days_past_due = $15,
-      invoice_settled_amount = $16, invoice_last_payment_id = $17,
-      invoice_last_settlement_date = $18, invoice_closed_date = $19, last_sync = $20
-    WHERE id = $21 AND user_id = $22`,
-    [
-      invoiceData.invoiceNumber, invoiceData.invoiceDate ?? null,
-      invoiceData.invoiceAmount ?? null, invoiceData.invoiceCustomerAccount ?? null,
-      invoiceData.invoiceBillingName ?? null, invoiceData.invoiceQuantity ?? null,
-      invoiceData.invoiceRemainingAmount ?? null, invoiceData.invoiceTaxAmount ?? null,
-      invoiceData.invoiceLineDiscount ?? null, invoiceData.invoiceTotalDiscount ?? null,
-      invoiceData.invoiceDueDate ?? null, invoiceData.invoicePaymentTermsId ?? null,
-      invoiceData.invoicePurchaseOrder ?? null, invoiceData.invoiceClosed ?? null,
-      invoiceData.invoiceDaysPastDue ?? null, invoiceData.invoiceSettledAmount ?? null,
-      invoiceData.invoiceLastPaymentId ?? null, invoiceData.invoiceLastSettlementDate ?? null,
-      invoiceData.invoiceClosedDate ?? null, now,
-      orderId, userId,
-    ],
-  );
-
-  return rowCount ?? 0;
-}
-
-async function updateTrackingData(
-  pool: DbPool,
-  userId: string,
-  orderNumber: string,
-  data: {
-    trackingStatus: string;
-    trackingKeyStatusCd: string;
-    trackingStatusBarCd: string;
-    trackingEstimatedDelivery: string;
-    trackingLastLocation: string;
-    trackingLastEvent: string;
-    trackingLastEventAt: string;
-    trackingOrigin: string;
-    trackingDestination: string;
-    trackingServiceDesc: string;
-    deliveryConfirmedAt: string | null;
-    deliverySignedBy: string | null;
-    trackingEvents: unknown;
-    trackingSyncFailures: number;
-    trackingDelayReason: string | null;
-    trackingDeliveryAttempts: number | null;
-    trackingAttemptedDeliveryAt: string | null;
-  },
-): Promise<void> {
-  await pool.query(
-    `UPDATE agents.order_records SET
-      tracking_status = $3,
-      tracking_key_status_cd = $4,
-      tracking_status_bar_cd = $5,
-      tracking_estimated_delivery = $6,
-      tracking_last_location = $7,
-      tracking_last_event = $8,
-      tracking_last_event_at = $9,
-      tracking_origin = $10,
-      tracking_destination = $11,
-      tracking_service_desc = $12,
-      delivery_confirmed_at = $13,
-      delivery_signed_by = $14,
-      tracking_events = $15,
-      tracking_sync_failures = $16,
-      tracking_delay_reason = $17,
-      tracking_delivery_attempts = $18,
-      tracking_attempted_delivery_at = $19,
-      tracking_last_synced_at = NOW()
-    WHERE user_id = $1 AND order_number = $2`,
-    [
-      userId,
-      orderNumber,
-      data.trackingStatus,
-      data.trackingKeyStatusCd,
-      data.trackingStatusBarCd,
-      data.trackingEstimatedDelivery,
-      data.trackingLastLocation,
-      data.trackingLastEvent,
-      data.trackingLastEventAt,
-      data.trackingOrigin,
-      data.trackingDestination,
-      data.trackingServiceDesc,
-      data.deliveryConfirmedAt,
-      data.deliverySignedBy,
-      JSON.stringify(data.trackingEvents),
-      data.trackingSyncFailures,
-      data.trackingDelayReason,
-      data.trackingDeliveryAttempts,
-      data.trackingAttemptedDeliveryAt,
-    ],
-  );
-}
-
-async function incrementTrackingSyncFailures(
-  pool: DbPool,
-  userId: string,
-  orderNumber: string,
-): Promise<void> {
-  await pool.query(
-    `UPDATE agents.order_records SET
-      tracking_sync_failures = COALESCE(tracking_sync_failures, 0) + 1,
-      tracking_last_synced_at = NOW()
-    WHERE user_id = $1 AND order_number = $2`,
-    [userId, orderNumber],
-  );
-}
-
-async function getOrdersNeedingTrackingSync(
-  pool: DbPool,
-  userId: string,
-): Promise<Array<{ orderNumber: string; trackingNumber: string }>> {
-  const result = await pool.query<{ order_number: string; tracking_number: string }>(
-    `SELECT order_number, tracking_number
-    FROM agents.order_records
-    WHERE user_id = $1
-      AND tracking_number IS NOT NULL
-      AND delivery_confirmed_at IS NULL
-      AND COALESCE(tracking_sync_failures, 0) < 3
-      AND creation_date::date >= (NOW() - INTERVAL '180 days')::date
-    ORDER BY tracking_last_synced_at ASC NULLS FIRST, creation_date DESC`,
-    [userId],
-  );
-  return result.rows.map((r) => ({
-    orderNumber: r.order_number,
-    trackingNumber: r.tracking_number,
-  }));
-}
 
 type LastSaleEntry = {
   orderId: string;
@@ -1447,11 +1092,6 @@ export {
   deleteOrderArticles,
   updateOrderState,
   getStateHistory,
-  updateOrderDDT,
-  updateInvoiceData,
-  updateTrackingData,
-  incrementTrackingSyncFailures,
-  getOrdersNeedingTrackingSync,
   deleteOrdersNotInList,
   getLastSalesForArticle,
   getOrderNumbersByIds,
@@ -1474,8 +1114,6 @@ export {
   type OrderArticleInput,
   type StateHistoryRow,
   type StateHistory,
-  type DDTData,
-  type InvoiceData,
   type LastSaleEntry,
   type OrderNumberMapping,
   type CustomerHistoryOrder,
