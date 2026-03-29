@@ -89,6 +89,7 @@ describe('scrapeListView', () => {
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate
+      .mockResolvedValueOnce(true) // API probe: GetRowValues is available
       .mockResolvedValueOnce([
         ['ORD-001', 'C100'],
         ['ORD-002', 'C200'],
@@ -123,6 +124,7 @@ describe('scrapeListView', () => {
     mockedUtils.goToNextPage.mockResolvedValue(undefined);
 
     page.evaluate
+      .mockResolvedValueOnce(true) // API probe: GetRowValues is available
       .mockResolvedValueOnce([['ORD-001']])
       .mockResolvedValueOnce([['ORD-002']]);
 
@@ -208,6 +210,7 @@ describe('scrapeListView', () => {
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate
+      .mockResolvedValueOnce(true) // API probe: GetRowValues is available
       .mockResolvedValueOnce([['ORD-001']]);
 
     mockedMapper.buildRowExtractor.mockReturnValue(
@@ -233,6 +236,7 @@ describe('scrapeListView', () => {
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
     page.evaluate
+      .mockResolvedValueOnce(true) // API probe: GetRowValues is available
       .mockResolvedValueOnce([['ORD-001']]);
 
     mockedMapper.buildRowExtractor.mockReturnValue(

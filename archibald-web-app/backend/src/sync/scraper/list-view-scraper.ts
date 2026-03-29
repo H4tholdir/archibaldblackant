@@ -104,20 +104,73 @@ async function scrapeListView(
       logger.warn('Missing columns in grid: %s', missingColumns.map((c) => c.fieldName).join(', '));
     }
 
-    // Build the list of fieldNames to request via GetRowValues API
-    // Use the fieldMap to get ONLY fields that exist in the grid
+    // Build the list of fieldNames sorted by visibleIndex
     const apiFieldNames = Object.keys(fieldMap).sort((a, b) => fieldMap[a] - fieldMap[b]);
-    logger.info('[scraper] Extracting via GetRowValues API with %d fields', apiFieldNames.length);
+
+    // Try API extraction first (reliable, no DOM offset issues).
+    // Some pages (DDT, Invoices) don't support GetRowValues — detect and fall back to DOM.
+    const useApiExtraction = await page.evaluate((fields: string) => {
+      return new Promise<boolean>((resolve) => {
+        const w = window as any;
+        const gn = Object.keys(w).find((k) => {
+          try { return w[k]?.GetRowValues && typeof w[k].GetRowValues === 'function' && w[k]?.GetColumn; }
+          catch { return false; }
+        });
+        if (!gn || w[gn].GetVisibleRowsOnPage() === 0) return resolve(false);
+        let answered = false;
+        w[gn].GetRowValues(0, fields, (values: unknown[]) => {
+          if (!answered) { answered = true; resolve(values[0] != null); }
+        });
+        setTimeout(() => { if (!answered) { answered = true; resolve(false); } }, 5000);
+      });
+    }, apiFieldNames.join(';'));
+
+    if (useApiExtraction) {
+      logger.info('[scraper] Using GetRowValues API extraction (%d fields)', apiFieldNames.length);
+    } else {
+      logger.info('[scraper] GetRowValues not available — falling back to DOM extraction');
+    }
 
     const extractor = buildRowExtractor(config.columns, fieldMap);
     const allRows: ScrapedRow[] = [];
     let currentPage = 1;
 
+    // For DOM fallback: calculate offset = totalDomCells - visibleApiColumns
+    let domOffset = 0;
+    if (!useApiExtraction) {
+      const { systemColumnCount } = await getGridFieldMap(page);
+      domOffset = systemColumnCount;
+      // Also check DOM for extra cells beyond what API reports
+      const domCellCount = await page.evaluate(() => {
+        const row = document.querySelector('tr.dxgvDataRow_XafTheme, tr[class*="dxgvDataRow"]');
+        return row ? row.querySelectorAll('td').length : 0;
+      });
+      const totalApiVisible = apiFieldNames.length + systemColumnCount;
+      if (domCellCount > totalApiVisible) {
+        // DDT/Invoices have extra cells — offset = domCells - dataColumns
+        domOffset = domCellCount - apiFieldNames.length;
+      }
+      logger.info('[scraper] DOM offset: %d (domCells=%d, apiFields=%d)', domOffset, domCellCount, apiFieldNames.length);
+    }
+
     while (true) {
       const rowCount = await getVisibleRowCount(page);
 
       if (rowCount > 0) {
-        const cellRows = await extractPageRowsViaApi(page, apiFieldNames);
+        let cellRows: string[][];
+        if (useApiExtraction) {
+          cellRows = await extractPageRowsViaApi(page, apiFieldNames);
+        } else {
+          // DOM fallback: extract cells and skip the offset
+          cellRows = await page.evaluate((offset: number) => {
+            const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
+            const target = rows.length > 0 ? rows : document.querySelectorAll('tr[class*="dxgvDataRow"]');
+            return Array.from(target).map((row) => {
+              const cells = row.querySelectorAll('td');
+              return Array.from(cells).slice(offset).map((c) => c.textContent?.trim() ?? '');
+            });
+          }, domOffset);
+        }
         const extracted = cellRows.map(extractor);
         allRows.push(...extracted);
 
