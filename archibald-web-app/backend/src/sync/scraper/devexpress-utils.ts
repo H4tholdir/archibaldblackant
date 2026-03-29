@@ -6,6 +6,11 @@ const POLL_INTERVAL = 200;
 const STABLE_COUNT_REQUIRED = 3;
 
 async function waitForDevExpressIdle(page: Page, timeout = DEFAULT_IDLE_TIMEOUT): Promise<void> {
+  // Reset the stable-count tracker so every call genuinely waits for 3 consecutive
+  // idle polls — without this, a leftover high count from a previous call would cause
+  // the very first poll to pass immediately, masking in-flight server callbacks.
+  await page.evaluate(() => { (window as any).__dxIdleCount = 0; });
+
   await page.waitForFunction(
     (stableRequired: number) => {
       const w = window as any;

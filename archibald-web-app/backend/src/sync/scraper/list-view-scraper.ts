@@ -35,10 +35,11 @@ type ScrapeProgress = {
 async function extractPageRowsViaApi(
   page: Page,
   fieldNames: string[],
+  domRowCount: number,
 ): Promise<string[][]> {
   const fieldStr = fieldNames.join(';');
 
-  return page.evaluate((fields: string, fNames: string[]) => {
+  return page.evaluate((fields: string, fNames: string[], hint: number) => {
     return new Promise<string[][]>((resolve) => {
       const w = window as any;
       const gn = Object.keys(w).find((k) => {
@@ -49,7 +50,11 @@ async function extractPageRowsViaApi(
       if (!gn) return resolve([]);
 
       const grid = w[gn];
-      const visibleRows = grid.GetVisibleRowsOnPage();
+      // Prefer the DevExpress API count; fall back to the DOM-observed row count.
+      // GetVisibleRowsOnPage() can return 0 on certain pages (DDT, Invoices) even when
+      // the grid has data — use the DOM hint in that case to avoid skipping all rows.
+      const apiRows = grid.GetVisibleRowsOnPage();
+      const visibleRows = apiRows > 0 ? apiRows : hint;
       if (visibleRows === 0) return resolve([]);
 
       const results: string[][] = [];
@@ -67,7 +72,7 @@ async function extractPageRowsViaApi(
       // Safety timeout: if some callbacks never fire
       setTimeout(() => resolve(results.filter(Boolean)), 30000);
     });
-  }, fieldStr, fieldNames);
+  }, fieldStr, fieldNames, domRowCount);
 }
 
 async function scrapeListView(
@@ -130,8 +135,9 @@ async function scrapeListView(
     }
 
     // Try API extraction (reliable, no DOM offset issues).
-    // For DDT/Invoices: GetVisibleRowsOnPage() was 0 before the filter toggle above,
-    // which caused the API check to fail. Now that rows are visible, retry.
+    // Note: on DDT/Invoices, GetVisibleRowsOnPage() can return 0 even when data is present
+    // (virtual rendering). We bypass that gate and probe GetRowValues(0,...) directly —
+    // if the callback fires with any non-null value within 5 s, the API is usable.
     const useApiExtraction = await page.evaluate((fields: string) => {
       return new Promise<boolean>((resolve) => {
         const w = window as any;
@@ -139,10 +145,10 @@ async function scrapeListView(
           try { return w[k]?.GetRowValues && typeof w[k].GetRowValues === 'function' && w[k]?.GetColumn; }
           catch { return false; }
         });
-        if (!gn || w[gn].GetVisibleRowsOnPage() === 0) return resolve(false);
+        if (!gn) return resolve(false);
         let answered = false;
         w[gn].GetRowValues(0, fields, (values: unknown[]) => {
-          if (!answered) { answered = true; resolve(values[0] != null); }
+          if (!answered) { answered = true; resolve(values.some((v: unknown) => v != null)); }
         });
         setTimeout(() => { if (!answered) { answered = true; resolve(false); } }, 5000);
       });
@@ -182,7 +188,7 @@ async function scrapeListView(
       if (rowCount > 0) {
         let cellRows: string[][];
         if (useApiExtraction) {
-          cellRows = await extractPageRowsViaApi(page, apiFieldNames);
+          cellRows = await extractPageRowsViaApi(page, apiFieldNames, rowCount);
         } else {
           // DOM fallback: extract cells and skip the offset
           cellRows = await page.evaluate((offset: number) => {
