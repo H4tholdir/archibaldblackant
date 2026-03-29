@@ -7,7 +7,6 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { pricesConfig } from '../../sync/scraper/configs/prices';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import type { OperationHandler } from '../operation-processor';
-import { logger } from '../../logger';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -43,16 +42,6 @@ function createSyncPricesHandler(deps: SyncPricesDeps): OperationHandler {
       const shouldStop = (): boolean => false;
 
       const rows = await scrapeListView(page, pricesConfig, progressCb, shouldStop);
-
-      // DEBUG: verify first rows have real data
-      logger.info('[sync-prices] DEBUG first 3 rows', {
-        sample: rows.slice(0, 3).map(r => ({
-          productId: r.productId,
-          productName: r.productName,
-          unitPrice: r.unitPrice,
-          accountCode: r.accountCode,
-        })),
-      });
 
       const result: PriceSyncResult = await syncPrices(
         {
