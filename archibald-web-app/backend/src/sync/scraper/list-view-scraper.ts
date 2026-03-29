@@ -135,9 +135,10 @@ async function scrapeListView(
     }
 
     // Try API extraction (reliable, no DOM offset issues).
-    // Note: on DDT/Invoices, GetVisibleRowsOnPage() can return 0 even when data is present
-    // (virtual rendering). We bypass that gate and probe GetRowValues(0,...) directly —
-    // if the callback fires with any non-null value within 5 s, the API is usable.
+    // Requires GetVisibleRowsOnPage() > 0 to ensure data is in the client-side cache.
+    // If it's 0 (DDT/Invoices), GetRowValues would trigger 200 slow server requests per
+    // page and block goToNextPage's waitForDevExpressIdle. In that case fall back to DOM,
+    // which is populated correctly after the filterToggleWorkaround above.
     const useApiExtraction = await page.evaluate((fields: string) => {
       return new Promise<boolean>((resolve) => {
         const w = window as any;
@@ -146,6 +147,8 @@ async function scrapeListView(
           catch { return false; }
         });
         if (!gn) return resolve(false);
+        // Only use API if data is already in client cache (GetVisibleRowsOnPage > 0)
+        if (w[gn].GetVisibleRowsOnPage() === 0) return resolve(false);
         let answered = false;
         w[gn].GetRowValues(0, fields, (values: unknown[]) => {
           if (!answered) { answered = true; resolve(values.some((v: unknown) => v != null)); }
