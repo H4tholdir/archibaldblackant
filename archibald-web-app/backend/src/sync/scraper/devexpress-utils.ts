@@ -299,12 +299,16 @@ async function restoreFilterValue(page: Page, originalXafValue: string, controlI
 
 /**
  * Workaround for DDT/Invoices pages where the grid DOM is empty on first load.
- * Toggles the filter (e.g. "Tutti" → "Oggi" → "Tutti") via the DevExpress
- * SetValue API to force the server to send cell data.
+ * Toggles the filter (e.g. "Tutti" → "Oggi" → "Tutti") to force the server to
+ * send cell data. SetValue/SetSelectedIndex do NOT trigger a server callback on
+ * these pages — only real mouse events on the listbox items do.
  *
- * Finds the combo control via window[input.name.replace(/\$/g, '_')], reads
- * all items with GetItem(i) to map display text → internal XAF value, then
- * calls SetValue(tempValue) and SetValue(allValue) in sequence.
+ * Strategy:
+ *   1. Open dropdown via ctrl.ShowDropDown() (no stale element reference)
+ *   2. Find the target listbox <td> by display text
+ *   3. Puppeteer elementHandle.click() → fires full mousedown+mouseup+click sequence
+ *   4. Wait for DevExpress idle (the click triggers a real server callback)
+ *   5. Repeat for the second selection ("Tutti")
  */
 async function forceGridRefreshViaFilterToggle(
   page: Page,
@@ -312,81 +316,58 @@ async function forceGridRefreshViaFilterToggle(
   tempItemTexts: string[],
   finalItemTexts: string[],
 ): Promise<boolean> {
-  type ScanResult =
-    | { ok: false; error: string }
-    | { ok: true; ctrlId: string; currentValue: string; tempValue: string; allValue: string };
+  // Resolve the control ID from the input's name attribute
+  const ctrlId = await page.evaluate((inputSel: string) => {
+    const input = document.querySelector<HTMLInputElement>(inputSel);
+    if (!input) return null;
+    const id = input.name.replace(/\$/g, '_');
+    const w = window as any;
+    return w[id]?.GetItemCount ? id : null;
+  }, filterInputSelector);
 
-  const scan = await page.evaluate(
-    (inputSel: string, tempTexts: string[], finalTexts: string[]): ScanResult => {
-      const input = document.querySelector<HTMLInputElement>(inputSel);
-      if (!input) return { ok: false, error: 'no-input' };
-
-      const ctrlId = input.name.replace(/\$/g, '_');
-      const w = window as any;
-      const ctrl = w[ctrlId];
-      if (!ctrl || typeof ctrl.GetValue !== 'function') {
-        return { ok: false, error: `no-ctrl:${ctrlId}` };
-      }
-
-      const count: number = ctrl.GetItemCount();
-      if (!count) return { ok: false, error: 'no-items' };
-
-      const currentValue = String(ctrl.GetValue() ?? '');
-
-      let allValue: string | null = null;
-      let tempValue: string | null = null;
-
-      for (let i = 0; i < count; i++) {
-        const item = ctrl.GetItem(i);
-        const text = String(item.text ?? '');
-        const val = String(item.value ?? '');
-
-        if (finalTexts.includes(text)) {
-          allValue = val;
-        } else if (tempTexts.includes(text) && val !== currentValue && !tempValue) {
-          tempValue = val;
-        }
-      }
-
-      // If no preferred temp found, pick any item ≠ current and ≠ all
-      if (!tempValue) {
-        for (let i = 0; i < count; i++) {
-          const item = ctrl.GetItem(i);
-          const val = String(item.value ?? '');
-          if (val !== currentValue && val !== allValue) {
-            tempValue = val;
-            break;
-          }
-        }
-      }
-
-      if (!allValue) return { ok: false, error: 'no-all-value' };
-      if (!tempValue) return { ok: false, error: 'no-temp-value' };
-
-      return { ok: true, ctrlId, currentValue, tempValue, allValue };
-    },
-    filterInputSelector,
-    tempItemTexts,
-    finalItemTexts,
-  );
-
-  if (!scan.ok) {
-    logger.warn('[scraper] forceGridRefresh: %s', scan.error);
+  if (!ctrlId) {
+    logger.warn('[scraper] forceGridRefresh: filter combo not found (%s)', filterInputSelector);
     return false;
   }
 
-  const { ctrlId, currentValue, tempValue, allValue } = scan;
-  logger.info('[scraper] forceGridRefresh: %s → %s → %s (ctrl: %s)', currentValue, tempValue, allValue, ctrlId);
+  // Listbox items are td elements inside #{ctrlId}_DDD_L
+  const listboxSel = `#${ctrlId}_DDD_L td`;
 
-  await page.evaluate((id: string, val: string) => {
-    (window as any)[id].SetValue(val);
-  }, ctrlId, tempValue);
-  await waitForDevExpressIdle(page);
+  const clickDropdownItem = async (targetTexts: string[], label: string): Promise<boolean> => {
+    // Open the dropdown via the DevExpress API
+    await page.evaluate((id: string) => { (window as any)[id].ShowDropDown(); }, ctrlId);
+    await new Promise(r => setTimeout(r, 600));
 
-  await page.evaluate((id: string, val: string) => {
-    (window as any)[id].SetValue(val);
-  }, ctrlId, allValue);
-  await waitForDevExpressIdle(page);
+    // Locate the target td by display text — Puppeteer evaluateHandle returns a live DOM node
+    const handle = await page.evaluateHandle(
+      (sel: string, texts: string[]) => {
+        const tds = Array.from(document.querySelectorAll<HTMLElement>(sel));
+        return tds.find(td => texts.includes((td.textContent ?? '').trim())) ?? null;
+      },
+      listboxSel,
+      targetTexts,
+    );
+
+    const el = handle.asElement() as import('puppeteer').ElementHandle<Element> | null;
+    if (!el) {
+      logger.warn('[scraper] forceGridRefresh: "%s" item not found in listbox', label);
+      return false;
+    }
+
+    // Real Puppeteer click fires mousedown + mouseup + click — exactly what DevExpress needs
+    await el.click();
+    logger.info('[scraper] forceGridRefresh: clicked "%s"', label);
+    await waitForDevExpressIdle(page);
+    return true;
+  };
+
+  logger.info('[scraper] forceGridRefresh: opening filter dropdown (ctrl: %s)', ctrlId);
+
+  const tempOk = await clickDropdownItem(tempItemTexts, tempItemTexts[0]);
+  if (!tempOk) return false;
+
+  const allOk = await clickDropdownItem(finalItemTexts, finalItemTexts[0]);
+  if (!allOk) return false;
 
   logger.info('[scraper] forceGridRefresh: done');
   return true;
