@@ -6,6 +6,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ddtConfig } from '../../sync/scraper/configs/ddt';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import type { OperationHandler } from '../operation-processor';
+import { logger } from '../../logger';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -37,6 +38,15 @@ function createSyncDdtHandler(deps: SyncDdtDeps): OperationHandler {
       const shouldStop = (): boolean => false;
 
       const rows = await scrapeListView(page, ddtConfig, progressCb, shouldStop);
+
+      // DEBUG: log first 5 rows to verify SALESID format
+      logger.info('[sync-ddt] DEBUG first 5 rows', {
+        sample: rows.slice(0, 5).map(r => ({
+          orderNumber: r.orderNumber,
+          ddtNumber: r.ddtNumber,
+          ddtId: r.ddtId,
+        })),
+      });
 
       const result: DdtSyncResult = await syncDdt(
         {
