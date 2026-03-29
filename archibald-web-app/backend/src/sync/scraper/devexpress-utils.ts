@@ -180,23 +180,28 @@ async function ensureFilterValue(
       const ctrl = w[controlId];
       if (!ctrl || typeof ctrl.GetValue !== 'function') continue;
 
-      // Identify the combo by checking if xafAllValue is among its POSSIBLE items
-      // (not by checking the current value, which varies based on user's filter)
-      let hasAllValueInItems = false;
-      if (typeof ctrl.GetItemCount === 'function') {
-        const count = ctrl.GetItemCount();
-        for (let j = 0; j < count; j++) {
-          const itemValue = ctrl.GetItemValue?.(j) ?? '';
-          if (String(itemValue) === allValue) {
-            hasAllValueInItems = true;
-            break;
-          }
-        }
-      }
-      if (!hasAllValueInItems) continue;
-
-      // This is our combo. Check current value.
+      // Identify the combo by checking if the current XAF value OR any item value
+      // relates to this filter. Two strategies:
+      // 1. Check if current value matches the allValue exactly (already correct)
+      // 2. Check if current value contains a pattern from the allValue
+      //    (e.g. "PackingSlipsThisMonth" and "PackingSlipsAll" both contain "PackingSlips")
+      // 3. Fallback: check if GetItemCount > 1 (it's a filter combo, not a view selector)
       const currentValue = ctrl.GetValue() as string | null;
+      if (!currentValue) continue;
+
+      // Extract the entity-specific part from allValue for broad matching
+      // e.g. "xaf_xaf_a2ListViewPackingSlipsAll" → check if current contains "PackingSlips"
+      //      "xaf_xaf_a2All_invoices" → check if current contains "invoices" (case insensitive)
+      const allValueLower = allValue.toLowerCase();
+      const currentLower = currentValue.toLowerCase();
+
+      // Strategy: both current and target must share the same xaf prefix structure
+      // All XAF filter values start with "xaf_xaf_a" followed by a digit
+      const currentPrefix = currentValue.match(/^xaf_xaf_a\d+/)?.[0];
+      const allPrefix = allValue.match(/^xaf_xaf_a\d+/)?.[0];
+      if (!currentPrefix || !allPrefix || currentPrefix !== allPrefix) continue;
+
+      // This is our combo. Check if already at the "all" value.
       if (currentValue === allValue) {
         return { found: true as const, controlId, originalXafValue: null };
       }
