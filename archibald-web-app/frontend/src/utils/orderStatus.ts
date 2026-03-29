@@ -10,6 +10,7 @@ export type OrderStatusCategory =
   | "blocked"
   | "backorder"
   | "in-transit"
+  | "partially-delivered"
   | "delivered"
   | "invoiced"
   | "overdue"
@@ -92,6 +93,15 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     icon: "🚚",
     sidebarLabel: "In transito",
   },
+  "partially-delivered": {
+    category: "partially-delivered",
+    label: "Parz. consegnato",
+    description: "Consegna parziale — backorder in transito",
+    borderColor: "#FF9800",
+    backgroundColor: "#FFF3E0",
+    icon: "📦",
+    sidebarLabel: "Parz. consegnato",
+  },
   delivered: {
     category: "delivered",
     label: "Consegnato",
@@ -171,9 +181,10 @@ function parseItalianAmount(value: string): number {
 }
 
 export function isInvoicePaid(order: Order): boolean {
-  if (order.invoiceClosed === true) return true;
-  if (order.invoiceRemainingAmount) {
-    const remaining = parseItalianAmount(order.invoiceRemainingAmount);
+  const invoice = order.invoices[0];
+  if (invoice?.invoiceClosed === true) return true;
+  if (invoice?.invoiceRemainingAmount) {
+    const remaining = parseItalianAmount(invoice.invoiceRemainingAmount);
     return !isNaN(remaining) && remaining <= 0;
   }
   return false;
@@ -181,7 +192,7 @@ export function isInvoicePaid(order: Order): boolean {
 
 function hasTrackingData(order: Order): boolean {
   return !!(
-    order.ddt?.trackingNumber?.trim() || order.tracking?.trackingNumber?.trim()
+    order.ddts[0]?.trackingNumber?.trim() || order.tracking?.trackingNumber?.trim()
   );
 }
 
@@ -189,10 +200,10 @@ export function isLikelyDelivered(order: Order): boolean {
   const isStatusConsegnato = order.status?.toUpperCase() === "CONSEGNATO";
   if (!hasTrackingData(order) && !isStatusConsegnato) return false;
 
-  if (order.invoiceNumber) return true;
-  if (order.deliveryCompletedDate) return true;
+  if (order.invoices[0]?.invoiceNumber) return true;
+  if (order.ddts[0]?.deliveryConfirmedAt) return true;
 
-  const shippedDate = order.ddt?.ddtDeliveryDate;
+  const shippedDate = order.ddts[0]?.ddtDeliveryDate;
   if (!shippedDate) return false;
   const daysSinceShipped =
     (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
@@ -212,12 +223,13 @@ export function isNotSentToVerona(order: Order): boolean {
 }
 
 export function isOverdue(order: Order): boolean {
-  if (!order.invoiceNumber) return false;
+  const invoice = order.invoices[0];
+  if (!invoice?.invoiceNumber) return false;
   if (isInvoicePaid(order)) return false;
-  if (!order.invoiceDueDate) return false;
+  if (!invoice.invoiceDueDate) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return new Date(order.invoiceDueDate) < today;
+  return new Date(invoice.invoiceDueDate) < today;
 }
 
 /**
@@ -242,7 +254,10 @@ export function isOverdue(order: Order): boolean {
  * 13. Su Archibald - Default/fallback
  */
 export function getOrderStatus(order: Order): OrderStatusStyle {
-  if (order.invoiceNumber && isInvoicePaid(order)) {
+  const invoice = order.invoices[0];
+  const ddt = order.ddts[0];
+
+  if (invoice?.invoiceNumber && isInvoicePaid(order)) {
     return ORDER_STATUS_STYLES.paid;
   }
 
@@ -250,31 +265,35 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.overdue;
   }
 
-  if (order.trackingStatus === 'exception') {
+  if (ddt?.trackingStatus === 'exception') {
     return ORDER_STATUS_STYLES.exception;
   }
 
-  if (order.trackingStatus === 'held') {
+  if (ddt?.trackingStatus === 'held') {
     return ORDER_STATUS_STYLES.held;
   }
 
-  if (order.trackingStatus === 'returning') {
+  if (ddt?.trackingStatus === 'returning') {
     return ORDER_STATUS_STYLES.returning;
   }
 
-  if (order.trackingStatus === 'canceled') {
+  if (ddt?.trackingStatus === 'canceled') {
     return ORDER_STATUS_STYLES.canceled;
   }
 
-  if (order.trackingStatus === 'out_for_delivery' || order.trackingStatus === 'in_transit') {
+  if (ddt?.trackingStatus === 'out_for_delivery' || ddt?.trackingStatus === 'in_transit') {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  if (order.deliveryConfirmedAt) {
+  if (order.currentState === 'parzialmente_consegnato') {
+    return ORDER_STATUS_STYLES["partially-delivered"];
+  }
+
+  if (ddt?.deliveryConfirmedAt) {
     return ORDER_STATUS_STYLES.delivered;
   }
 
-  if (order.invoiceNumber) {
+  if (invoice?.invoiceNumber) {
     return ORDER_STATUS_STYLES.invoiced;
   }
 

@@ -17,8 +17,9 @@ describe("getOrderStatus", () => {
         date: "2026-01-15",
         total: "1000.00",
         status: "FATTURATO",
-        invoiceNumber: "FAT/2026/001",
         documentState: "FATTURA",
+        ddts: [],
+        invoices: [{ invoiceNumber: "FAT/2026/001" } as any],
       };
 
       const result = getOrderStatus(order as Order);
@@ -36,7 +37,8 @@ describe("getOrderStatus", () => {
         date: "2025-12-01",
         total: "500.00",
         status: "Completato",
-        invoiceNumber: "FAT/2025/999",
+        ddts: [],
+        invoices: [{ invoiceNumber: "FAT/2025/999" } as any],
       };
 
       const result = getOrderStatus(order as Order);
@@ -46,7 +48,7 @@ describe("getOrderStatus", () => {
   });
 
   describe("delivered status", () => {
-    test("returns delivered when order has delivery completed date", () => {
+    test("returns delivered when order has delivery confirmed date in first DDT", () => {
       const order = {
         id: "delivered-order",
         customerName: "Delivered Customer",
@@ -59,7 +61,8 @@ describe("getOrderStatus", () => {
           trackingUrl: "https://fedex.com/track/123456789",
           trackingCourier: "FedEx",
         },
-        deliveryCompletedDate: "2026-01-25T14:30:00Z",
+        ddts: [{ deliveryConfirmedAt: "2026-01-25T14:30:00Z" } as any],
+        invoices: [],
       } as Order;
 
       const result = getOrderStatus(order);
@@ -88,6 +91,8 @@ describe("getOrderStatus", () => {
           trackingUrl: "https://fedex.com/track/987654321",
           trackingCourier: "FedEx",
         },
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -98,7 +103,7 @@ describe("getOrderStatus", () => {
       expect(result.backgroundColor).toBe("#e8f0ff");
     });
 
-    test("returns in-transit when tracking is in DDT field (recent)", () => {
+    test("returns in-transit when tracking is in ddts[0] (recent)", () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const order: Partial<Order> = {
@@ -107,11 +112,8 @@ describe("getOrderStatus", () => {
         date: yesterday.toISOString().slice(0, 10),
         total: "600.00",
         status: "CONSEGNATO",
-        ddt: {
-          trackingNumber: "FEDEX123",
-          trackingUrl: "https://fedex.com/track/FEDEX123",
-          trackingCourier: "FedEx",
-        },
+        ddts: [{ trackingNumber: "FEDEX123", trackingUrl: "https://fedex.com/track/FEDEX123", trackingCourier: "FedEx" } as any],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -131,6 +133,8 @@ describe("getOrderStatus", () => {
         tracking: {
           trackingNumber: "LEG999",
         },
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -138,7 +142,7 @@ describe("getOrderStatus", () => {
       expect(result.category).toBe("in-transit");
     });
 
-    test("returns delivered for old orders with tracking and ddtDeliveryDate (3+ days)", () => {
+    test("returns delivered for old orders with tracking and ddtDeliveryDate in ddts[0] (3+ days)", () => {
       const order: Partial<Order> = {
         id: "old-tracking",
         customerName: "Old Tracking",
@@ -148,9 +152,8 @@ describe("getOrderStatus", () => {
         tracking: {
           trackingNumber: "LEG999",
         },
-        ddt: {
-          ddtDeliveryDate: "2025-11-15",
-        },
+        ddts: [{ ddtDeliveryDate: "2025-11-15" } as any],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -158,7 +161,7 @@ describe("getOrderStatus", () => {
       expect(result.category).toBe("delivered");
     });
 
-    test("returns in-transit for old orders with tracking but no ddtDeliveryDate", () => {
+    test("returns in-transit for old orders with tracking but no ddtDeliveryDate in ddts", () => {
       const order: Partial<Order> = {
         id: "old-tracking-no-ddt",
         customerName: "Old Tracking No DDT",
@@ -168,6 +171,8 @@ describe("getOrderStatus", () => {
         tracking: {
           trackingNumber: "LEG999",
         },
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -186,6 +191,8 @@ describe("getOrderStatus", () => {
         status: "ORDINE APERTO",
         state: "TRANSFER ERROR",
         orderType: "GIORNALE",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -205,6 +212,8 @@ describe("getOrderStatus", () => {
         status: "ORDINE APERTO",
         transferStatus: "Transfer Error",
         orderType: "GIORNALE",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -221,6 +230,8 @@ describe("getOrderStatus", () => {
         status: "ORDINE APERTO",
         transferStatus: "Transfer_error",
         orderType: "GIORNALE",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -241,6 +252,8 @@ describe("getOrderStatus", () => {
         state: "IN ATTESA DI APPROVAZIONE",
         orderType: "GIORNALE",
         documentState: "NESSUNO",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -262,6 +275,8 @@ describe("getOrderStatus", () => {
         transferStatus: "In attesa di approvazione",
         orderType: "GIORNALE",
         documentState: "NESSUNO",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -284,6 +299,8 @@ describe("getOrderStatus", () => {
         orderType: "Ordine di vendita",
         transferStatus: "Trasferito",
         documentState: "Nessuno",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -305,6 +322,8 @@ describe("getOrderStatus", () => {
         transferStatus: "Completato",
         orderType: "Giornale",
         documentState: "Nessuno",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -322,6 +341,8 @@ describe("getOrderStatus", () => {
         status: "Ordine aperto",
         orderNumber: "PENDING-72.938",
         transferStatus: "Modifica",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -341,6 +362,8 @@ describe("getOrderStatus", () => {
         state: "MODIFICA",
         orderType: "GIORNALE",
         documentState: "NESSUNO",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -358,6 +381,8 @@ describe("getOrderStatus", () => {
         date: "2026-01-01",
         total: "100.00",
         status: "Unknown Status",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -367,17 +392,17 @@ describe("getOrderStatus", () => {
   });
 
   describe("priority order", () => {
-    test("invoiced takes priority over delivered", () => {
+    test("invoiced takes priority over heuristic delivered", () => {
       const order: Partial<Order> = {
         id: "priority-test-1",
         customerName: "Priority Customer",
         date: "2026-01-15",
         total: "1000.00",
         status: "CONSEGNATO",
-        invoiceNumber: "FAT/2026/100",
         documentState: "FATTURA",
         tracking: { trackingNumber: "TRACK123" },
-        deliveryCompletedDate: "2026-01-20T10:00:00Z",
+        ddts: [{ ddtDeliveryDate: "2026-01-16" } as any],
+        invoices: [{ invoiceNumber: "FAT/2026/100" } as any],
       } as any;
 
       const result = getOrderStatus(order as Order);
@@ -393,7 +418,8 @@ describe("getOrderStatus", () => {
         total: "800.00",
         status: "CONSEGNATO",
         tracking: { trackingNumber: "TRACK456" },
-        deliveryCompletedDate: "2026-01-22T15:30:00Z",
+        ddts: [{ deliveryConfirmedAt: "2026-01-22T15:30:00Z" } as any],
+        invoices: [],
       } as any;
 
       const result = getOrderStatus(order as Order);
@@ -410,6 +436,8 @@ describe("getOrderStatus", () => {
         status: "ORDINE APERTO",
         state: "TRANSFER ERROR",
         orderType: "GIORNALE",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -426,6 +454,8 @@ describe("getOrderStatus", () => {
         status: "Ordine aperto",
         orderNumber: "ORD/26002613",
         transferStatus: "Trasferito",
+        ddts: [],
+        invoices: [],
       };
 
       const result = getOrderStatus(order as Order);
@@ -436,10 +466,10 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all status styles including held/returning/canceled", () => {
+  test("returns all status styles including held/returning/canceled/partially-delivered", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(14);
+    expect(allStyles).toHaveLength(15);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
@@ -448,6 +478,7 @@ describe("getAllStatusStyles", () => {
     expect(categories).toContain("blocked");
     expect(categories).toContain("backorder");
     expect(categories).toContain("in-transit");
+    expect(categories).toContain("partially-delivered");
     expect(categories).toContain("delivered");
     expect(categories).toContain("invoiced");
     expect(categories).toContain("overdue");
@@ -522,61 +553,65 @@ describe("getStatusStyleByCategory", () => {
 });
 
 describe("tracking-based status", () => {
-  test("returns delivered when deliveryConfirmedAt is set", () => {
+  test("returns delivered when deliveryConfirmedAt is set in ddts[0]", () => {
     const order: Partial<Order> = {
       id: "tracking-delivered",
       customerName: "Tracking Delivered",
       date: "2026-03-07",
       total: "500.00",
       status: "CONSEGNATO",
-      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+      ddts: [{ deliveryConfirmedAt: "2026-03-10T10:30:00Z" } as any],
+      invoices: [],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("delivered");
   });
 
-  test("returns exception when trackingStatus is exception", () => {
+  test("returns exception when trackingStatus in ddts[0] is exception", () => {
     const order: Partial<Order> = {
       id: "tracking-exception",
       customerName: "Tracking Exception",
       date: "2026-03-07",
       total: "500.00",
       status: "ORDINE APERTO",
-      trackingStatus: "exception",
       tracking: { trackingNumber: "123" },
+      ddts: [{ trackingStatus: "exception" } as any],
+      invoices: [],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("exception");
     expect(result.label).toBe("Eccezione corriere");
   });
 
-  test("returns in-transit when trackingStatus is in_transit", () => {
+  test("returns in-transit when trackingStatus in ddts[0] is in_transit", () => {
     const order: Partial<Order> = {
       id: "tracking-transit",
       customerName: "Tracking Transit",
       date: "2026-03-07",
       total: "500.00",
       status: "ORDINE APERTO",
-      trackingStatus: "in_transit",
+      ddts: [{ trackingStatus: "in_transit" } as any],
+      invoices: [],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("in-transit");
   });
 
-  test("returns in-transit when trackingStatus is out_for_delivery", () => {
+  test("returns in-transit when trackingStatus in ddts[0] is out_for_delivery", () => {
     const order: Partial<Order> = {
       id: "tracking-ofd",
       customerName: "Tracking OFD",
       date: "2026-03-07",
       total: "500.00",
       status: "ORDINE APERTO",
-      trackingStatus: "out_for_delivery",
+      ddts: [{ trackingStatus: "out_for_delivery" } as any],
+      invoices: [],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("in-transit");
   });
 
-  test("falls back to euristic when trackingStatus is null", () => {
+  test("falls back to euristic when ddts is empty and no trackingStatus", () => {
     const order: Partial<Order> = {
       id: "no-tracking-sync",
       customerName: "No Tracking Sync",
@@ -584,64 +619,65 @@ describe("tracking-based status", () => {
       total: "500.00",
       status: "ORDINE APERTO",
       state: "MODIFICA",
+      ddts: [],
+      invoices: [],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("on-archibald");
   });
 
-  test("paid takes priority over deliveryConfirmedAt", () => {
+  test("paid takes priority over deliveryConfirmedAt in ddts[0]", () => {
     const order: Partial<Order> = {
       id: "paid-with-tracking",
       customerName: "Paid With Tracking",
       date: "2026-03-07",
       total: "500.00",
       status: "FATTURATO",
-      invoiceNumber: "FAT/2026/100",
-      invoiceClosed: true,
-      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+      ddts: [{ deliveryConfirmedAt: "2026-03-10T10:30:00Z" } as any],
+      invoices: [{ invoiceNumber: "FAT/2026/100", invoiceClosed: true } as any],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("paid");
   });
 
-  test("returns in-transit when order is invoiced but tracking says in_transit", () => {
+  test("returns in-transit when order is invoiced but ddts[0] trackingStatus says in_transit", () => {
     const order: Partial<Order> = {
       id: "invoiced-but-transit",
       customerName: "Invoiced But Transit",
       date: "2026-03-07",
       total: "500.00",
       status: "FATTURATO",
-      invoiceNumber: "FAT/2026/100",
-      trackingStatus: "in_transit",
+      ddts: [{ trackingStatus: "in_transit" } as any],
+      invoices: [{ invoiceNumber: "FAT/2026/100" } as any],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("in-transit");
   });
 
-  test("returns delivered when order is invoiced but tracking confirms delivery", () => {
+  test("returns delivered when order is invoiced but ddts[0] confirms delivery", () => {
     const order: Partial<Order> = {
       id: "invoiced-but-delivered",
       customerName: "Invoiced But Delivered",
       date: "2026-03-07",
       total: "500.00",
       status: "FATTURATO",
-      invoiceNumber: "FAT/2026/100",
-      deliveryConfirmedAt: "2026-03-10T10:30:00Z",
+      ddts: [{ deliveryConfirmedAt: "2026-03-10T10:30:00Z" } as any],
+      invoices: [{ invoiceNumber: "FAT/2026/100" } as any],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("delivered");
   });
 
-  test("returns exception when order is invoiced but tracking has exception", () => {
+  test("returns exception when order is invoiced but ddts[0] tracking has exception", () => {
     const order: Partial<Order> = {
       id: "invoiced-but-exception",
       customerName: "Invoiced But Exception",
       date: "2026-03-07",
       total: "500.00",
       status: "FATTURATO",
-      invoiceNumber: "FAT/2026/100",
-      trackingStatus: "exception",
       tracking: { trackingNumber: "123" },
+      ddts: [{ trackingStatus: "exception" } as any],
+      invoices: [{ invoiceNumber: "FAT/2026/100" } as any],
     };
     const result = getOrderStatus(order as Order);
     expect(result.category).toBe("exception");
