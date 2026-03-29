@@ -134,13 +134,11 @@ async function scrapeListView(
       }
     }
 
-    // Pages that need filterToggleWorkaround (DDT, Invoices) must use DOM extraction.
-    // After the Puppeteer click filter toggle, GetVisibleRowsOnPage() returns a non-zero
-    // value (page size), but GetRowValues triggers server requests (rows are not in the
-    // JS cache even though DOM cells are populated). Using GetRowValues on these pages
-    // blocks goToNextPage's waitForDevExpressIdle with hundreds of in-flight callbacks.
-    // DOM cells are reliably populated by the filter toggle, so DOM extraction is correct.
-    const useApiExtraction = config.filterToggleWorkaround
+    // Some pages (DDT, Invoices via filterToggleWorkaround; Prices via domExtraction flag)
+    // must use DOM extraction. On these pages GetVisibleRowsOnPage() returns the page size
+    // but GetRowValues triggers server requests per row (data is not in JS cache). This
+    // keeps InCallback=true long after extraction, causing waitForDevExpressIdle to timeout.
+    const useApiExtraction = (config.filterToggleWorkaround || config.domExtraction)
       ? false
       : await page.evaluate((fields: string) => {
           return new Promise<boolean>((resolve) => {

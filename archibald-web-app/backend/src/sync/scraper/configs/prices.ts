@@ -7,6 +7,7 @@ const pricesConfig: ScraperConfig = {
     xafValuePattern: 'ActivePrices',
     xafAllValue: 'xaf_xaf_a2ActivePrices',
   },
+  domExtraction: true,
   columns: [
     { fieldName: 'ITEMRELATIONID', targetField: 'productId' },
     { fieldName: 'ITEMRELATIONTXT', targetField: 'productName' },

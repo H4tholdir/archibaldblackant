@@ -23,6 +23,9 @@ type ScraperConfig = {
   filter?: FilterConfig;
   pageSize?: number;
   filterToggleWorkaround?: FilterToggleWorkaround;
+  /** Force DOM extraction instead of GetRowValues API, for pages where
+   *  GetRowValues triggers slow server requests per row. */
+  domExtraction?: true;
 };
 
 type ScrapedRow = Record<string, unknown>;

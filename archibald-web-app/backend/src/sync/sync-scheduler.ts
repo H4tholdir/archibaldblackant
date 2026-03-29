@@ -132,6 +132,7 @@ function createSyncScheduler(
     timers.push(
       setInterval(() => {
         enqueue('sync-products', 'service-account', {});
+        enqueue('sync-prices', 'service-account', {});
       }, currentIntervals.sharedSyncMs),
     );
 
