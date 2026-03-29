@@ -170,13 +170,14 @@ describe('ensureFilterValue', () => {
     const page = createMockPage({
       evaluate: vi.fn()
         .mockResolvedValueOnce({ found: true, controlId: 'ctrl1', originalXafValue: 'xaf_xaf_a2OpenOrders' })
-        .mockResolvedValueOnce(undefined),
+        .mockResolvedValueOnce(undefined) // SetValue
+        .mockResolvedValueOnce(undefined), // waitForDevExpressIdle resets __dxIdleCount
     });
 
     const result = await ensureFilterValue(page as any, 'OrdersAll', 'xaf_xaf_a2ListViewSalesTableOrdersAll');
 
     expect(result).toEqual({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
-    expect(page.evaluate).toHaveBeenCalledTimes(2);
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
     expect(page.waitForFunction).toHaveBeenCalled();
   });
 

@@ -39,15 +39,6 @@ function createSyncDdtHandler(deps: SyncDdtDeps): OperationHandler {
 
       const rows = await scrapeListView(page, ddtConfig, progressCb, shouldStop);
 
-      // DEBUG: log first 5 rows to verify SALESID format
-      logger.info('[sync-ddt] DEBUG first 5 rows', {
-        sample: rows.slice(0, 5).map(r => ({
-          orderNumber: r.orderNumber,
-          ddtNumber: r.ddtNumber,
-          ddtId: r.ddtId,
-        })),
-      });
-
       const result: DdtSyncResult = await syncDdt(
         {
           pool,
