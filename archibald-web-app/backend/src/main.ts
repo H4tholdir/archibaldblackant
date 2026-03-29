@@ -58,6 +58,9 @@ import { PasswordCache } from './password-cache';
 import { passwordEncryption } from './services/password-encryption-service';
 import { getEncryptedPassword } from './db/repositories/users';
 import { PDFParserSaleslinesService } from './pdf-parser-saleslines-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
+import { adaptDdt, adaptInvoice } from './parser-adapters';
 import { createApp } from './server';
 import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
@@ -457,6 +460,8 @@ async function bootstrap(): Promise<void> {
   };
 
   const saleslinesParser = PDFParserSaleslinesService.getInstance();
+  const ddtParser = PDFParserDDTService.getInstance();
+  const invoicesParser = PDFParserInvoicesService.getInstance();
 
   const broadcastEvent = (userId: string, event: Record<string, unknown>) => {
     wsServer.broadcast(userId, {
@@ -791,20 +796,38 @@ async function bootstrap(): Promise<void> {
         releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
       },
     }),
-    'sync-ddt': createSyncDdtHandler({
+    'sync-ddt': createSyncDdtHandler(
       pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
-      },
-    }),
-    'sync-invoices': createSyncInvoicesHandler({
+      async (pdfPath) => (await ddtParser.parseDDTPDF(pdfPath)).map(adaptDdt),
+      cleanupFile,
+      (userId) => ({
+        downloadDdtPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadDDTPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
+    'sync-invoices': createSyncInvoicesHandler(
       pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
-      },
-    }),
+      async (pdfPath) => (await invoicesParser.parseInvoicesPDF(pdfPath)).map(adaptInvoice),
+      cleanupFile,
+      (userId) => ({
+        downloadInvoicesPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadInvoicesPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
     'sync-products': withAnomalyNotification(createSyncProductsHandler({
       pool,
       browserPool: {

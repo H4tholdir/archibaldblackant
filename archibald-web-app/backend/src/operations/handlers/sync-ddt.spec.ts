@@ -1,22 +1,15 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
-import type { DdtSyncResult } from '../../sync/services/ddt-sync';
-import type { BrowserPoolLike } from './sync-ddt';
+import type { ParsedDdt, DdtSyncResult } from '../../sync/services/ddt-sync';
 
 vi.mock('../../sync/services/ddt-sync', () => ({
   syncDdt: vi.fn(),
 }));
 
-vi.mock('../../sync/scraper/list-view-scraper', () => ({
-  scrapeListView: vi.fn(),
-}));
-
 import { syncDdt } from '../../sync/services/ddt-sync';
-import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { createSyncDdtHandler } from './sync-ddt';
 
 const syncDdtMock = vi.mocked(syncDdt);
-const scrapeListViewMock = vi.mocked(scrapeListView);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,26 +24,7 @@ function createMockPool(): DbPool {
   };
 }
 
-function createMockPage() {
-  return {
-    close: vi.fn().mockResolvedValue(undefined),
-  };
-}
-
-function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
-  const mockCtx = {
-    newPage: vi.fn().mockResolvedValue(mockPage),
-  };
-  return {
-    browserPool: {
-      acquireContext: vi.fn().mockResolvedValue(mockCtx),
-      releaseContext: vi.fn().mockResolvedValue(undefined),
-    },
-    mockCtx,
-  };
-}
-
-const sampleScrapedRows = [
+const sampleParsedDdts: ParsedDdt[] = [
   { orderNumber: 'SO-001', ddtNumber: 'DDT-001', ddtDeliveryDate: '2026-01-15' },
   { orderNumber: 'SO-002', ddtNumber: 'DDT-002', ddtDeliveryDate: '2026-01-16' },
 ];
@@ -64,115 +38,54 @@ const sampleResult: DdtSyncResult = {
 };
 
 describe('createSyncDdtHandler', () => {
-  test('scrapes DDTs and passes them to syncDdt via adapter', async () => {
+  test('calls createBot with userId and passes deps to syncDdt', async () => {
     const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const mockBot = { downloadDdtPdf: vi.fn().mockResolvedValue('/tmp/ddt.pdf') };
+    const createBot = vi.fn().mockReturnValue(mockBot);
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
     syncDdtMock.mockResolvedValue(sampleResult);
 
-    const handler = createSyncDdtHandler({ pool, browserPool });
+    const handler = createSyncDdtHandler(pool, parsePdf, cleanupFile, createBot);
     const onProgress = vi.fn();
     const result = await handler(null, {}, 'user-1', onProgress);
 
-    expect(browserPool.acquireContext).toHaveBeenCalledWith('user-1', { fromQueue: true });
-    expect(mockCtx.newPage).toHaveBeenCalled();
-    expect(scrapeListViewMock).toHaveBeenCalledWith(
-      mockPage,
-      expect.objectContaining({ url: expect.any(String), columns: expect.any(Array) }),
-      expect.any(Function),
-      expect.any(Function),
-    );
+    expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncDdtMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pool,
-        downloadPdf: expect.any(Function),
-        parsePdf: expect.any(Function),
-        cleanupFile: expect.any(Function),
-      }),
+      expect.objectContaining({ pool, parsePdf, cleanupFile }),
       'user-1',
       onProgress,
       expect.any(Function),
     );
     expect(result).toEqual(sampleResult);
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, true);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
-  test('adapter downloadPdf returns dummy path, parsePdf returns scraped rows', async () => {
+  test('downloadPdf in deps delegates to bot.downloadDdtPdf', async () => {
     const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const expectedPath = '/tmp/ddt-download.pdf';
+    const mockBot = { downloadDdtPdf: vi.fn().mockResolvedValue(expectedPath) };
+    const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncDdtMock.mockImplementation(async (deps) => {
-      const pdfPath = await deps.downloadPdf('user-1');
-      const parsed = await deps.parsePdf(pdfPath);
-      return {
-        ...sampleResult,
-        ddtProcessed: parsed.length,
-      };
+      const path = await deps.downloadPdf('user-1');
+      return { ...sampleResult, ddtProcessed: path === expectedPath ? 1 : 0 };
     });
 
-    const handler = createSyncDdtHandler({ pool, browserPool });
+    const handler = createSyncDdtHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
-    expect(result).toEqual(expect.objectContaining({ ddtProcessed: 2 }));
-  });
-
-  test('adapter cleanupFile is a no-op', async () => {
-    const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
-
-    syncDdtMock.mockImplementation(async (deps) => {
-      await deps.cleanupFile('/some/path');
-      return sampleResult;
-    });
-
-    const handler = createSyncDdtHandler({ pool, browserPool });
-    await expect(handler(null, {}, 'user-1', vi.fn())).resolves.toEqual(sampleResult);
-  });
-
-  test('error during scraping: releaseContext(success=false), syncDdt not called', async () => {
-    const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
-
-    scrapeListViewMock.mockRejectedValue(new Error('Navigation timeout'));
-
-    const handler = createSyncDdtHandler({ pool, browserPool });
-
-    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('Navigation timeout');
-
-    expect(syncDdtMock).not.toHaveBeenCalled();
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
-  });
-
-  test('error during sync: releaseContext(success=false), page closed', async () => {
-    const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
-    syncDdtMock.mockRejectedValue(new Error('DB error'));
-
-    const handler = createSyncDdtHandler({ pool, browserPool });
-
-    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB error');
-
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
+    expect(mockBot.downloadDdtPdf).toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ ddtProcessed: 1 }));
   });
 
   test('shouldStop always returns false', async () => {
     const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadDdtPdf: vi.fn() });
 
     let capturedShouldStop: (() => boolean) | undefined;
     syncDdtMock.mockImplementation(async (_deps, _userId, _onProgress, shouldStop) => {
@@ -180,10 +93,23 @@ describe('createSyncDdtHandler', () => {
       return sampleResult;
     });
 
-    const handler = createSyncDdtHandler({ pool, browserPool });
+    const handler = createSyncDdtHandler(pool, parsePdf, cleanupFile, createBot);
     await handler(null, {}, 'user-1', vi.fn());
 
     expect(capturedShouldStop).toBeDefined();
     expect(capturedShouldStop!()).toBe(false);
+  });
+
+  test('propagates syncDdt error', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadDdtPdf: vi.fn() });
+
+    syncDdtMock.mockRejectedValue(new Error('DB error'));
+
+    const handler = createSyncDdtHandler(pool, parsePdf, cleanupFile, createBot);
+
+    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB error');
   });
 });

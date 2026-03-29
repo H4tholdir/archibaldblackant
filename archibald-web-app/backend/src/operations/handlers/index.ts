@@ -8,8 +8,8 @@ export { createSendToVeronaHandler, type SendToVeronaBot } from './send-to-veron
 export { createSubmitOrderHandler, type SubmitOrderBot } from './submit-order';
 export { createSyncOrderArticlesHandler, type SyncOrderArticlesBot } from './sync-order-articles';
 export { createSyncCustomersHandler, type SyncCustomersDeps } from './sync-customers';
-export { createSyncDdtHandler, type SyncDdtDeps } from './sync-ddt';
-export { createSyncInvoicesHandler, type SyncInvoicesDeps } from './sync-invoices';
+export { createSyncDdtHandler, type SyncDdtBot } from './sync-ddt';
+export { createSyncInvoicesHandler, type SyncInvoicesBot } from './sync-invoices';
 export { createSyncOrdersHandler, type SyncOrdersDeps } from './sync-orders';
 export { createSyncPricesHandler, type SyncPricesDeps, type MatchPricesFn } from './sync-prices';
 export { createSyncProductsHandler, type SyncProductsDeps } from './sync-products';
