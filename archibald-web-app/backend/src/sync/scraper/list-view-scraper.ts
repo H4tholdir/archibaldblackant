@@ -134,28 +134,29 @@ async function scrapeListView(
       }
     }
 
-    // Try API extraction (reliable, no DOM offset issues).
-    // Requires GetVisibleRowsOnPage() > 0 to ensure data is in the client-side cache.
-    // If it's 0 (DDT/Invoices), GetRowValues would trigger 200 slow server requests per
-    // page and block goToNextPage's waitForDevExpressIdle. In that case fall back to DOM,
-    // which is populated correctly after the filterToggleWorkaround above.
-    const useApiExtraction = await page.evaluate((fields: string) => {
-      return new Promise<boolean>((resolve) => {
-        const w = window as any;
-        const gn = Object.keys(w).find((k) => {
-          try { return w[k]?.GetRowValues && typeof w[k].GetRowValues === 'function' && w[k]?.GetColumn; }
-          catch { return false; }
-        });
-        if (!gn) return resolve(false);
-        // Only use API if data is already in client cache (GetVisibleRowsOnPage > 0)
-        if (w[gn].GetVisibleRowsOnPage() === 0) return resolve(false);
-        let answered = false;
-        w[gn].GetRowValues(0, fields, (values: unknown[]) => {
-          if (!answered) { answered = true; resolve(values.some((v: unknown) => v != null)); }
-        });
-        setTimeout(() => { if (!answered) { answered = true; resolve(false); } }, 5000);
-      });
-    }, apiFieldNames.join(';'));
+    // Pages that need filterToggleWorkaround (DDT, Invoices) must use DOM extraction.
+    // After the Puppeteer click filter toggle, GetVisibleRowsOnPage() returns a non-zero
+    // value (page size), but GetRowValues triggers server requests (rows are not in the
+    // JS cache even though DOM cells are populated). Using GetRowValues on these pages
+    // blocks goToNextPage's waitForDevExpressIdle with hundreds of in-flight callbacks.
+    // DOM cells are reliably populated by the filter toggle, so DOM extraction is correct.
+    const useApiExtraction = config.filterToggleWorkaround
+      ? false
+      : await page.evaluate((fields: string) => {
+          return new Promise<boolean>((resolve) => {
+            const w = window as any;
+            const gn = Object.keys(w).find((k) => {
+              try { return w[k]?.GetRowValues && typeof w[k].GetRowValues === 'function' && w[k]?.GetColumn; }
+              catch { return false; }
+            });
+            if (!gn) return resolve(false);
+            let answered = false;
+            w[gn].GetRowValues(0, fields, (values: unknown[]) => {
+              if (!answered) { answered = true; resolve(values.some((v: unknown) => v != null)); }
+            });
+            setTimeout(() => { if (!answered) { answered = true; resolve(false); } }, 5000);
+          });
+        }, apiFieldNames.join(';'));
 
     if (useApiExtraction) {
       logger.info('[scraper] Using GetRowValues API extraction (%d fields)', apiFieldNames.length);
