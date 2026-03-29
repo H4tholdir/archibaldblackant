@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
+import { upsertOrderDdt, repositionOrderDdts } from '../../db/repositories/order-ddts';
 
 type ParsedDdt = {
   orderNumber: string;
@@ -39,6 +40,27 @@ type DdtSyncResult = {
   error?: string;
 };
 
+function groupByOrderNumber(ddts: ParsedDdt[]): Map<string, ParsedDdt[]> {
+  const groups = new Map<string, ParsedDdt[]>();
+  for (const ddt of ddts) {
+    const existing = groups.get(ddt.orderNumber);
+    if (existing) {
+      existing.push(ddt);
+    } else {
+      groups.set(ddt.orderNumber, [ddt]);
+    }
+  }
+  return groups;
+}
+
+function sortByDdtIdAsc(ddts: ParsedDdt[]): ParsedDdt[] {
+  return [...ddts].sort((a, b) => {
+    const aId = a.ddtId ? parseInt(a.ddtId, 10) : 0;
+    const bId = b.ddtId ? parseInt(b.ddtId, 10) : 0;
+    return aId - bId;
+  });
+}
+
 async function syncDdt(
   deps: DdtSyncDeps,
   userId: string,
@@ -67,48 +89,56 @@ async function syncDdt(
 
     let ddtUpdated = 0;
     let ddtSkipped = 0;
-    const now = Math.floor(Date.now() / 1000);
 
-    for (const ddt of parsedDdts) {
+    const groups = groupByOrderNumber(parsedDdts);
+
+    for (const [orderNumber, ddts] of groups) {
       const { rows: [order] } = await pool.query<{ id: string }>(
         'SELECT id FROM agents.order_records WHERE order_number = $1 AND user_id = $2',
-        [ddt.orderNumber, userId],
+        [orderNumber, userId],
       );
 
       if (!order) {
-        ddtSkipped++;
+        ddtSkipped += ddts.length;
         continue;
       }
 
-      await pool.query(
-        `UPDATE agents.order_records SET
-          ddt_number=$1, ddt_delivery_date=$2, ddt_id=$3, ddt_customer_account=$4,
-          ddt_sales_name=$5, ddt_delivery_name=$6, delivery_terms=$7, delivery_method=$8,
-          delivery_city=$9, attention_to=$10, ddt_delivery_address=$11, ddt_quantity=$12,
-          ddt_customer_reference=$13, ddt_description=$14,
-          tracking_number=COALESCE($15, tracking_number),
-          tracking_url=COALESCE($16, tracking_url),
-          tracking_courier=COALESCE($17, tracking_courier),
-          last_sync=$18
-        WHERE id=$19 AND user_id=$20`,
-        [
-          ddt.ddtNumber, ddt.ddtDeliveryDate ?? null, ddt.ddtId ?? null, ddt.ddtCustomerAccount ?? null,
-          ddt.ddtSalesName ?? null, ddt.ddtDeliveryName ?? null, ddt.deliveryTerms ?? null, ddt.deliveryMethod ?? null,
-          ddt.deliveryCity ?? null, ddt.attentionTo ?? null, ddt.ddtDeliveryAddress ?? null, ddt.ddtQuantity ?? null,
-          ddt.ddtCustomerReference ?? null, ddt.ddtDescription ?? null, ddt.trackingNumber ?? null,
-          ddt.trackingUrl ?? null, ddt.trackingCourier ?? null, now,
-          order.id, userId,
-        ],
-      );
-      ddtUpdated++;
+      const sorted = sortByDdtIdAsc(ddts);
+
+      for (const ddt of sorted) {
+        await upsertOrderDdt(pool, {
+          orderId: order.id,
+          userId,
+          ddtNumber: ddt.ddtNumber,
+          ddtId: ddt.ddtId ?? null,
+          ddtDeliveryDate: ddt.ddtDeliveryDate ?? null,
+          ddtCustomerAccount: ddt.ddtCustomerAccount ?? null,
+          ddtSalesName: ddt.ddtSalesName ?? null,
+          ddtDeliveryName: ddt.ddtDeliveryName ?? null,
+          deliveryTerms: ddt.deliveryTerms ?? null,
+          deliveryMethod: ddt.deliveryMethod ?? null,
+          deliveryCity: ddt.deliveryCity ?? null,
+          attentionTo: ddt.attentionTo ?? null,
+          ddtDeliveryAddress: ddt.ddtDeliveryAddress ?? null,
+          ddtQuantity: ddt.ddtQuantity ?? null,
+          ddtCustomerReference: ddt.ddtCustomerReference ?? null,
+          ddtDescription: ddt.ddtDescription ?? null,
+          trackingNumber: ddt.trackingNumber ?? null,
+          trackingUrl: ddt.trackingUrl ?? null,
+          trackingCourier: ddt.trackingCourier ?? null,
+        });
+        ddtUpdated++;
+      }
     }
+
+    await repositionOrderDdts(pool, userId);
 
     onProgress(100, 'Sincronizzazione DDT completata');
 
     return { success: true, ddtProcessed: parsedDdts.length, ddtUpdated, ddtSkipped, duration: Date.now() - startTime };
   } catch (error) {
     return {
-      success: error instanceof SyncStoppedError ? false : false,
+      success: false,
       ddtProcessed: 0, ddtUpdated: 0, ddtSkipped: 0,
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
