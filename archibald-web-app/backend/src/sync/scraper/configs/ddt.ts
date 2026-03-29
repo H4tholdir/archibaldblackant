@@ -1,5 +1,5 @@
 import type { ScraperConfig } from '../types';
-import { parseDate, parseCurrency } from './parsers';
+import { parseDate, parseNumber, parseCurrency } from './parsers';
 
 const ddtConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/',
@@ -11,7 +11,7 @@ const ddtConfig: ScraperConfig = {
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'PACKINGSLIPID', targetField: 'ddtNumber' },
     { fieldName: 'DELIVERYDATE', targetField: 'ddtDeliveryDate', parser: parseDate },
-    { fieldName: 'ID', targetField: 'ddtId' },
+    { fieldName: 'ID', targetField: 'ddtId', parser: parseNumber },
     { fieldName: 'ORDERACCOUNT', targetField: 'ddtCustomerAccount' },
     { fieldName: 'SALESTABLE.SALESNAME', targetField: 'ddtSalesName' },
     { fieldName: 'DELIVERYNAME', targetField: 'ddtDeliveryName' },

@@ -33,7 +33,7 @@ const customersConfig: ScraperConfig = {
     { fieldName: 'SALESPREV2', targetField: 'previousSales2', parser: parseNumber },
     { fieldName: 'EXTERNALACCOUNTNUM', targetField: 'externalAccountNumber' },
     { fieldName: 'OURACCOUNTNUM', targetField: 'ourAccountNumber' },
-    { fieldName: 'ID', targetField: 'internalId' },
+    { fieldName: 'ID', targetField: 'internalId', parser: parseNumber },
   ],
 };
 

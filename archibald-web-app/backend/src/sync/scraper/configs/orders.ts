@@ -1,5 +1,5 @@
 import type { ScraperConfig } from '../types';
-import { parseDate, parseCurrency } from './parsers';
+import { parseDate, parseNumber, parseCurrency } from './parsers';
 
 const ordersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/',
@@ -8,7 +8,7 @@ const ordersConfig: ScraperConfig = {
     xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll',
   },
   columns: [
-    { fieldName: 'ID', targetField: 'id' },
+    { fieldName: 'ID', targetField: 'id', parser: parseNumber },
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'CUSTACCOUNT', targetField: 'customerProfileId' },
     { fieldName: 'SALESNAME', targetField: 'customerName' },
