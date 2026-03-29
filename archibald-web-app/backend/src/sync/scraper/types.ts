@@ -11,11 +11,19 @@ type FilterConfig = {
   xafAllValue: string;
 };
 
+type FilterToggleWorkaround = {
+  filterInputSelector: string;
+  listboxSelector: string;
+  tempItemTexts: string[];   // e.g. ["Oggi", "Today"]
+  finalItemTexts: string[];  // e.g. ["Tutti", "All"]
+};
+
 type ScraperConfig = {
   url: string;
   columns: ColumnMapping[];
   filter?: FilterConfig;
   pageSize?: number;
+  filterToggleWorkaround?: FilterToggleWorkaround;
 };
 
 type ScrapedRow = Record<string, unknown>;
@@ -26,6 +34,7 @@ export type {
   FieldParser,
   ColumnMapping,
   FilterConfig,
+  FilterToggleWorkaround,
   ScraperConfig,
   ScrapedRow,
   RowExtractor,

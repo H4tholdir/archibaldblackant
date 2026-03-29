@@ -11,6 +11,7 @@ import {
   goToNextPage,
   ensureFilterValue,
   restoreFilterValue,
+  forceGridRefreshViaFilterToggle,
 } from './devexpress-utils';
 import { buildRowExtractor } from './header-mapper';
 
@@ -129,6 +130,26 @@ async function scrapeListView(
       logger.info('[scraper] Using GetRowValues API extraction (%d fields)', apiFieldNames.length);
     } else {
       logger.info('[scraper] GetRowValues not available — falling back to DOM extraction');
+
+      // Workaround: some pages (DDT, Invoices) have empty DOM on first load.
+      // Toggle the filter to force the server to send cell data.
+      if (config.filterToggleWorkaround) {
+        const hasData = await page.evaluate(() => {
+          const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
+          return Array.from(rows).some(r =>
+            Array.from(r.querySelectorAll('td')).some(c => {
+              const t = (c.textContent || '').trim();
+              return t && t !== 'N/A' && !t.startsWith('<!--') && t.length > 1;
+            }),
+          );
+        });
+
+        if (!hasData) {
+          logger.info('[scraper] DOM is empty — applying filter toggle workaround');
+          const { filterInputSelector, listboxSelector, tempItemTexts, finalItemTexts } = config.filterToggleWorkaround;
+          await forceGridRefreshViaFilterToggle(page, filterInputSelector, listboxSelector, tempItemTexts, finalItemTexts);
+        }
+      }
     }
 
     const extractor = buildRowExtractor(config.columns, fieldMap);

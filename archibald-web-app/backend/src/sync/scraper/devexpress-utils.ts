@@ -292,6 +292,85 @@ async function restoreFilterValue(page: Page, originalXafValue: string, controlI
   await waitForDevExpressIdle(page);
 }
 
+/**
+ * Workaround for DDT/Invoices pages where the grid DOM is empty on first load.
+ * Toggles the filter (e.g. "Tutti" → "Oggi" → "Tutti") via real listbox clicks
+ * to force the server to send cell data. SetSelectedIndex/SetValue don't trigger
+ * the server callback — only real clicks on the listbox <td> items work.
+ *
+ * @param filterInputSelector — CSS selector for the filter input (e.g. 'input[name="Vertical$mainMenu$Menu$ITCNT4$xaf_a2$Cb"]')
+ * @param listboxSelector — CSS selector for the listbox items container
+ * @param tempItemText — text of the temporary filter value (e.g. "Oggi" or "Today")
+ * @param finalItemText — text of the final filter value (e.g. "Tutti" or "All")
+ */
+async function forceGridRefreshViaFilterToggle(
+  page: Page,
+  filterInputSelector: string,
+  listboxSelector: string,
+  tempItemTexts: string[],
+  finalItemTexts: string[],
+): Promise<boolean> {
+  // Step 1: Click the filter input to open dropdown
+  const filterInput = await (page as any).$(filterInputSelector);
+  if (!filterInput) {
+    logger.warn('[scraper] forceGridRefresh: filter input not found', { filterInputSelector });
+    return false;
+  }
+
+  await filterInput.click();
+  await new Promise(r => setTimeout(r, 1500));
+
+  // Step 2: Click the temporary item (e.g. "Oggi")
+  const clickedTemp = await page.evaluate((selector: string, texts: string[]) => {
+    const items = document.querySelectorAll(selector);
+    for (const item of Array.from(items)) {
+      const t = (item as HTMLElement).textContent?.trim();
+      if (t && texts.includes(t) && (item as HTMLElement).offsetParent !== null) {
+        (item as HTMLElement).click();
+        return t;
+      }
+    }
+    return null;
+  }, listboxSelector, tempItemTexts);
+
+  if (!clickedTemp) {
+    logger.warn('[scraper] forceGridRefresh: temp item not found in dropdown');
+    return false;
+  }
+
+  logger.info('[scraper] forceGridRefresh: toggled to "%s", waiting for callback...', clickedTemp);
+  await waitForDevExpressIdle(page).catch(() => {});
+  await new Promise(r => setTimeout(r, 3000));
+
+  // Step 3: Click the filter input again to reopen dropdown
+  await filterInput.click();
+  await new Promise(r => setTimeout(r, 1500));
+
+  // Step 4: Click the final item (e.g. "Tutti")
+  const clickedFinal = await page.evaluate((selector: string, texts: string[]) => {
+    const items = document.querySelectorAll(selector);
+    for (const item of Array.from(items)) {
+      const t = (item as HTMLElement).textContent?.trim();
+      if (t && texts.includes(t) && (item as HTMLElement).offsetParent !== null) {
+        (item as HTMLElement).click();
+        return t;
+      }
+    }
+    return null;
+  }, listboxSelector, finalItemTexts);
+
+  if (!clickedFinal) {
+    logger.warn('[scraper] forceGridRefresh: final item not found in dropdown');
+    return false;
+  }
+
+  logger.info('[scraper] forceGridRefresh: toggled back to "%s", waiting for callback...', clickedFinal);
+  await waitForDevExpressIdle(page).catch(() => {});
+  await new Promise(r => setTimeout(r, 3000));
+
+  return true;
+}
+
 export {
   waitForDevExpressIdle,
   getGridFieldMap,
@@ -302,5 +381,6 @@ export {
   goToNextPage,
   ensureFilterValue,
   restoreFilterValue,
+  forceGridRefreshViaFilterToggle,
 };
 export type { GridFieldMapResult };

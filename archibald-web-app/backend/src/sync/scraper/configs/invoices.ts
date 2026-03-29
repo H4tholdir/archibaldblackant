@@ -7,6 +7,12 @@ const invoicesConfig: ScraperConfig = {
     xafValuePattern: 'All_invoices',
     xafAllValue: 'xaf_xaf_a2All_invoices',
   },
+  filterToggleWorkaround: {
+    filterInputSelector: 'input[name*="ITCNT4"][name*="xaf_a2"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
+    listboxSelector: '[id*="ITCNT4"][id*="xaf_a2"][id*="Cb_DDD_L"] td',
+    tempItemTexts: ['Ultimi 3 mesi', 'Last 3 Month'],
+    finalItemTexts: ['Tutti', 'All'],
+  },
   columns: [
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'INVOICEID', targetField: 'invoiceNumber' },
