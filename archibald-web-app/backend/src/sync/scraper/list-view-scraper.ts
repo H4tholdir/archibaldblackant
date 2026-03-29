@@ -20,73 +20,53 @@ type ScrapeProgress = {
   totalRowsSoFar: number;
 };
 
-async function detectSystemColumnOffset(page: Page): Promise<number> {
-  // Use the grid API to count system columns (fieldName === "")
-  // This is MORE RELIABLE than DOM inspection because empty data cells
-  // can be mistaken for system cells.
-  const apiCount = await page.evaluate(() => {
-    const w = window as any;
-    const gn = Object.keys(w).find((k) => {
-      try { return w[k]?.GetColumn && typeof w[k].GetColumn === 'function'; }
-      catch { return false; }
+/**
+ * Extract ALL rows from the current grid page using the DevExpress GetRowValues API.
+ * This completely bypasses DOM scraping — no offset issues, no phantom cells,
+ * no JavaScript markup in cells, no rendering differences between pages.
+ *
+ * GetRowValues(rowIndex, fieldNames, callback) returns values for the requested
+ * fields from the grid's data source. For rows ON the current page, this is
+ * instantaneous (cached client-side). For rows OFF the current page, it would
+ * trigger a server callback (slow) — but since we paginate, we only request
+ * rows on the current page.
+ */
+async function extractPageRowsViaApi(
+  page: Page,
+  fieldNames: string[],
+): Promise<string[][]> {
+  const fieldStr = fieldNames.join(';');
+
+  return page.evaluate((fields: string, fNames: string[]) => {
+    return new Promise<string[][]>((resolve) => {
+      const w = window as any;
+      const gn = Object.keys(w).find((k) => {
+        try {
+          return w[k]?.GetRowValues && typeof w[k].GetRowValues === 'function' && w[k]?.GetColumn;
+        } catch { return false; }
+      });
+      if (!gn) return resolve([]);
+
+      const grid = w[gn];
+      const visibleRows = grid.GetVisibleRowsOnPage();
+      if (visibleRows === 0) return resolve([]);
+
+      const results: string[][] = [];
+      let completed = 0;
+
+      for (let r = 0; r < visibleRows; r++) {
+        grid.GetRowValues(r, fields, (values: any[]) => {
+          // Convert all values to strings (matching the old DOM extraction behavior)
+          results[r] = values.map((v: any) => v == null ? '' : String(v));
+          completed++;
+          if (completed >= visibleRows) resolve(results);
+        });
+      }
+
+      // Safety timeout: if some callbacks never fire
+      setTimeout(() => resolve(results.filter(Boolean)), 30000);
     });
-    if (!gn) return 0;
-    const grid = w[gn];
-    let systemCols = 0;
-    let i = 0;
-    while (true) {
-      try {
-        const col = grid.GetColumn(i);
-        if (!col) break;
-        if (col.visible !== false && (!col.fieldName || col.fieldName === '')) {
-          systemCols++;
-        }
-        i++;
-      } catch { break; }
-    }
-    return systemCols;
-  });
-
-  // The DOM may have MORE cells than the API reports as visible columns
-  // (e.g., DDT has 22 cells but 17+1 visible columns).
-  // Use the API count as a baseline, but verify against DOM.
-  // The actual offset = max(apiCount, dom-detected-markup-cells)
-  const domOffset = await page.evaluate(() => {
-    const row = document.querySelector('tr.dxgvDataRow_XafTheme') ||
-                document.querySelector('tr[class*="dxgvDataRow"]');
-    if (!row) return 0;
-    const cells = row.querySelectorAll('td');
-    let offset = 0;
-    for (let i = 0; i < Math.min(cells.length, 5); i++) {
-      const html = cells[i].innerHTML;
-      // ONLY detect by positive markup indicators — NOT by empty text
-      const isDefinitelySystem =
-        html.includes('<!--') ||
-        html.includes('dxICheckBox') ||
-        html.includes('type="checkbox"') ||
-        html.includes('AddDisabledItems');
-      if (isDefinitelySystem) offset++;
-      else break;
-    }
-    return offset;
-  });
-
-  return Math.max(apiCount, domOffset);
-}
-
-async function extractPageRows(page: Page, systemColumnOffset: number): Promise<string[][]> {
-  return page.evaluate((offset: number) => {
-    const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
-    const target = rows.length > 0
-      ? rows
-      : document.querySelectorAll('tr[class*="dxgvDataRow"]');
-
-    return Array.from(target).map((row) => {
-      const cells = row.querySelectorAll('td');
-      const dataCells = Array.from(cells).slice(offset);
-      return dataCells.map((cell) => cell.textContent?.trim() ?? '');
-    });
-  }, systemColumnOffset);
+  }, fieldStr, fieldNames);
 }
 
 async function scrapeListView(
@@ -124,8 +104,10 @@ async function scrapeListView(
       logger.warn('Missing columns in grid: %s', missingColumns.map((c) => c.fieldName).join(', '));
     }
 
-    const systemColumnOffset = await detectSystemColumnOffset(page);
-    logger.info('[scraper] Detected %d system column(s) to skip', systemColumnOffset);
+    // Build the list of fieldNames to request via GetRowValues API
+    // Use the fieldMap to get ONLY fields that exist in the grid
+    const apiFieldNames = Object.keys(fieldMap).sort((a, b) => fieldMap[a] - fieldMap[b]);
+    logger.info('[scraper] Extracting via GetRowValues API with %d fields', apiFieldNames.length);
 
     const extractor = buildRowExtractor(config.columns, fieldMap);
     const allRows: ScrapedRow[] = [];
@@ -135,7 +117,7 @@ async function scrapeListView(
       const rowCount = await getVisibleRowCount(page);
 
       if (rowCount > 0) {
-        const cellRows = await extractPageRows(page, systemColumnOffset);
+        const cellRows = await extractPageRowsViaApi(page, apiFieldNames);
         const extracted = cellRows.map(extractor);
         allRows.push(...extracted);
 
