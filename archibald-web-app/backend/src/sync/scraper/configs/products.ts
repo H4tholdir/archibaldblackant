@@ -28,7 +28,7 @@ const productsConfig: ScraperConfig = {
     { fieldName: 'DEFAULTSALESQTY', targetField: 'defaultQty' },
     { fieldName: 'DISPLAYPRODUCTNUMBER', targetField: 'displayProductNumber' },
     { fieldName: 'ENDDISC', targetField: 'totalAbsoluteDiscount' },
-    { fieldName: 'ID', targetField: 'productIdExt', parser: parseNumber },
+    { fieldName: 'ID', targetField: 'productIdExt', parser: (raw) => String(parseNumber(raw) ?? raw) },
     { fieldName: 'LINEDISC.ID', targetField: 'lineDiscount' },
     { fieldName: 'MODIFIEDBY', targetField: 'modifiedBy' },
     { fieldName: 'MODIFIEDDATETIME', targetField: 'modifiedDatetime', parser: parseDate },

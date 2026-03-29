@@ -11,7 +11,7 @@ const ddtConfig: ScraperConfig = {
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'PACKINGSLIPID', targetField: 'ddtNumber' },
     { fieldName: 'DELIVERYDATE', targetField: 'ddtDeliveryDate', parser: parseDate },
-    { fieldName: 'ID', targetField: 'ddtId', parser: parseNumber },
+    { fieldName: 'ID', targetField: 'ddtId', parser: (raw) => String(parseNumber(raw) ?? raw) },
     { fieldName: 'ORDERACCOUNT', targetField: 'ddtCustomerAccount' },
     { fieldName: 'SALESTABLE.SALESNAME', targetField: 'ddtSalesName' },
     { fieldName: 'DELIVERYNAME', targetField: 'ddtDeliveryName' },

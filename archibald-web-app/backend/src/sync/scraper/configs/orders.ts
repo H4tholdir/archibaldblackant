@@ -8,7 +8,7 @@ const ordersConfig: ScraperConfig = {
     xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll',
   },
   columns: [
-    { fieldName: 'ID', targetField: 'id', parser: parseNumber },
+    { fieldName: 'ID', targetField: 'id', parser: (raw) => String(parseNumber(raw) ?? raw) },
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'CUSTACCOUNT', targetField: 'customerProfileId' },
     { fieldName: 'SALESNAME', targetField: 'customerName' },
