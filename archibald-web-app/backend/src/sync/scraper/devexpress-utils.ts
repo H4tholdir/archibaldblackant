@@ -81,22 +81,38 @@ async function getGridFieldMap(page: Page): Promise<Record<string, number>> {
 }
 
 async function setGridPageSize(page: Page, size: number): Promise<void> {
-  await page.evaluate((pageSize: number) => {
+  const changed = await page.evaluate((pageSize: number) => {
     const w = window as any;
-    const gridName = Object.keys(w).find((k) => {
-      try {
-        return w[k]?.PerformCallback && typeof w[k].PerformCallback === 'function'
-          && w[k]?.GetColumn && typeof w[k].GetColumn === 'function';
-      } catch {
-        return false;
-      }
-    });
-    if (gridName) {
-      w[gridName].PerformCallback(`PAGESIZE|${pageSize}`);
+
+    // Find the pager's PSI input element
+    const psi = document.querySelector('input[id*="DXPagerBottom_PSI"]') as HTMLInputElement | null;
+    if (!psi) return false;
+
+    // Check if already the right size
+    if (psi.value === String(pageSize)) return false;
+
+    // Derive the pager ID: "...DXPagerBottom_PSI" → "...DXPagerBottom"
+    const pagerId = psi.id.replace('_PSI', '');
+
+    // Set the input value
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(psi, String(pageSize));
+    else psi.value = String(pageSize);
+
+    // Trigger ASPx.POnPageSizeBlur — the DevExpress internal handler that
+    // submits the page size change to the server via callback
+    if (typeof w.ASPx?.POnPageSizeBlur === 'function') {
+      w.ASPx.POnPageSizeBlur(pagerId, new Event('blur'));
+      return true;
     }
+
+    return false;
   }, size);
 
-  await waitForDevExpressIdle(page);
+  if (changed) {
+    await waitForDevExpressIdle(page);
+    logger.info('[scraper] Page size set to %d', size);
+  }
 }
 
 async function getVisibleRowCount(page: Page): Promise<number> {

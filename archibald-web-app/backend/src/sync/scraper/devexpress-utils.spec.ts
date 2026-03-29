@@ -70,13 +70,26 @@ describe('getGridFieldMap', () => {
 });
 
 describe('setGridPageSize', () => {
-  test('calls evaluate with page size then waits for idle', async () => {
-    const page = createMockPage();
+  test('calls evaluate with page size and waits for idle when changed', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(true),
+    });
 
     await setGridPageSize(page as any, 200);
 
     expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 200);
     expect(page.waitForFunction).toHaveBeenCalled();
+  });
+
+  test('skips idle wait when page size already correct', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(false),
+    });
+
+    await setGridPageSize(page as any, 200);
+
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 200);
+    expect(page.waitForFunction).not.toHaveBeenCalled();
   });
 });
 
