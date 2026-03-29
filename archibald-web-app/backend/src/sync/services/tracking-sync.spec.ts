@@ -13,15 +13,18 @@ import { syncTracking } from './tracking-sync';
 const mockTrackViaFedExApi = vi.mocked(trackViaFedExApi);
 
 function makeMockPool(
-  mockOrders: Array<{ order_number: string; tracking_number: string }>,
+  mockDdts: Array<{ id: string; order_id: string; order_number: string; tracking_number: string }>,
   insertRowCount = 1,
 ): { pool: DbPool; queries: Array<{ text: string; values: unknown[] }> } {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const pool = {
     query: async (text: string, values?: unknown[]) => {
       queries.push({ text, values: values ?? [] });
-      if (text.includes('tracking_number IS NOT NULL')) {
-        return { rows: mockOrders, rowCount: mockOrders.length };
+      if (text.includes('od.tracking_number IS NOT NULL')) {
+        return { rows: mockDdts, rowCount: mockDdts.length };
+      }
+      if (text.includes('COUNT(delivery_confirmed_at)')) {
+        return { rows: [{ total: '1', delivered: '0' }], rowCount: 1 };
       }
       if (text.trim().toUpperCase().startsWith('INSERT')) {
         return { rows: [], rowCount: insertRowCount };
@@ -98,15 +101,15 @@ describe('syncTracking', () => {
   });
 
   test('all successful in-transit updates both orders', async () => {
-    const mockOrders = [
-      { order_number: 'ORD/001', tracking_number: 'TRK111' },
-      { order_number: 'ORD/002', tracking_number: 'TRK222' },
+    const mockDdts = [
+      { id: 'ddt-1', order_id: 'ord-1', order_number: 'ORD/001', tracking_number: 'TRK111' },
+      { id: 'ddt-2', order_id: 'ord-2', order_number: 'ORD/002', tracking_number: 'TRK222' },
     ];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111'),
       makeResult('TRK222'),
     ]);
-    const { pool, queries } = makeMockPool(mockOrders);
+    const { pool, queries } = makeMockPool(mockDdts);
 
     const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
@@ -122,15 +125,15 @@ describe('syncTracking', () => {
   });
 
   test('mix of success and failure', async () => {
-    const mockOrders = [
-      { order_number: 'ORD/001', tracking_number: 'TRK111' },
-      { order_number: 'ORD/002', tracking_number: 'TRK222' },
+    const mockDdts = [
+      { id: 'ddt-1', order_id: 'ord-1', order_number: 'ORD/001', tracking_number: 'TRK111' },
+      { id: 'ddt-2', order_id: 'ord-2', order_number: 'ORD/002', tracking_number: 'TRK222' },
     ];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111'),
       { trackingNumber: 'TRK222', success: false, error: 'Not found' },
     ]);
-    const { pool, queries } = makeMockPool(mockOrders);
+    const { pool, queries } = makeMockPool(mockDdts);
 
     const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
@@ -144,8 +147,8 @@ describe('syncTracking', () => {
   });
 
   test('delivery detected increments newDeliveries', async () => {
-    const mockOrders = [
-      { order_number: 'ORD/001', tracking_number: 'TRK111' },
+    const mockDdts = [
+      { id: 'ddt-1', order_id: 'ord-1', order_number: 'ORD/001', tracking_number: 'TRK111' },
     ];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111', {
@@ -155,7 +158,7 @@ describe('syncTracking', () => {
         receivedByName: 'Mario Rossi',
       }),
     ]);
-    const { pool } = makeMockPool(mockOrders);
+    const { pool } = makeMockPool(mockDdts);
 
     const result = await syncTracking(pool, 'user-1', noProgress, neverStop);
 
@@ -193,11 +196,11 @@ describe('syncTracking', () => {
   });
 
   test('calls onTrackingEvent with "delivered" when status is delivered', async () => {
-    const mockOrders = [{ order_number: 'ORD/001', tracking_number: 'TRK111' }];
+    const mockDdts = [{ id: 'ddt-1', order_id: 'ord-1', order_number: 'ORD/001', tracking_number: 'TRK111' }];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK111', { statusBarCD: 'DL', keyStatusCD: 'DL', actualDelivery: '2026-03-26 12:00:00' }),
     ]);
-    const { pool } = makeMockPool(mockOrders);
+    const { pool } = makeMockPool(mockDdts);
     const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
 
     await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
@@ -207,7 +210,7 @@ describe('syncTracking', () => {
   });
 
   test('calls onTrackingEvent with "exception" when status is exception and is new', async () => {
-    const mockOrders = [{ order_number: 'ORD/002', tracking_number: 'TRK222' }];
+    const mockDdts = [{ id: 'ddt-2', order_id: 'ord-2', order_number: 'ORD/002', tracking_number: 'TRK222' }];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK222', {
         statusBarCD: 'DE', keyStatusCD: 'DE',
@@ -215,7 +218,7 @@ describe('syncTracking', () => {
           exceptionDescription: 'Recipient not in', date: '2026-03-26', time: '10:00:00', status: 'Delivery exception' }],
       }),
     ]);
-    const { pool } = makeMockPool(mockOrders, 1);
+    const { pool } = makeMockPool(mockDdts, 1);
     const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
 
     await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
@@ -225,7 +228,7 @@ describe('syncTracking', () => {
   });
 
   test('does not call onTrackingEvent for duplicate exception (ON CONFLICT DO NOTHING)', async () => {
-    const mockOrders = [{ order_number: 'ORD/DEDUP', tracking_number: 'TRK_DEDUP' }];
+    const mockDdts = [{ id: 'ddt-dedup', order_id: 'ord-dedup', order_number: 'ORD/DEDUP', tracking_number: 'TRK_DEDUP' }];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK_DEDUP', {
         statusBarCD: 'DE', keyStatusCD: 'DE',
@@ -234,7 +237,7 @@ describe('syncTracking', () => {
       }),
     ]);
     // insertRowCount = 0 simula ON CONFLICT DO NOTHING (nessuna riga inserita)
-    const { pool } = makeMockPool(mockOrders, 0);
+    const { pool } = makeMockPool(mockDdts, 0);
     const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
 
     await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
@@ -243,11 +246,11 @@ describe('syncTracking', () => {
   });
 
   test('does not call onTrackingEvent for in_transit status', async () => {
-    const mockOrders = [{ order_number: 'ORD/003', tracking_number: 'TRK333' }];
+    const mockDdts = [{ id: 'ddt-3', order_id: 'ord-3', order_number: 'ORD/003', tracking_number: 'TRK333' }];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK333', { statusBarCD: 'OW', keyStatusCD: 'IT' }),
     ]);
-    const { pool } = makeMockPool(mockOrders);
+    const { pool } = makeMockPool(mockDdts);
     const onTrackingEvent = vi.fn().mockResolvedValue(undefined);
 
     await syncTracking(pool, 'user-1', vi.fn(), () => false, onTrackingEvent);
@@ -256,11 +259,11 @@ describe('syncTracking', () => {
   });
 
   test('does not throw when onTrackingEvent is not defined', async () => {
-    const mockOrders = [{ order_number: 'ORD/004', tracking_number: 'TRK444' }];
+    const mockDdts = [{ id: 'ddt-4', order_id: 'ord-4', order_number: 'ORD/004', tracking_number: 'TRK444' }];
     mockTrackViaFedExApi.mockResolvedValue([
       makeResult('TRK444', { statusBarCD: 'DL', keyStatusCD: 'DL', actualDelivery: '2026-03-26 12:00:00' }),
     ]);
-    const { pool } = makeMockPool(mockOrders);
+    const { pool } = makeMockPool(mockDdts);
 
     await expect(
       syncTracking(pool, 'user-1', vi.fn(), () => false),

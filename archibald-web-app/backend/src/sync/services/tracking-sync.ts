@@ -2,10 +2,11 @@ import type { DbPool } from '../../db/pool';
 import type { FedExTrackingResult } from './fedex-api-tracker';
 import { trackViaFedExApi } from './fedex-api-tracker';
 import {
-  getOrdersNeedingTrackingSync,
-  updateTrackingData,
-  incrementTrackingSyncFailures,
-} from '../../db/repositories/orders';
+  getDdtsNeedingTracking,
+  updateDdtTracking,
+  incrementDdtTrackingFailures,
+  computeAndUpdateOrderDeliveryState,
+} from '../../db/repositories/order-ddts';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
 import {
@@ -52,10 +53,10 @@ async function syncTracking(
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    const orders = await getOrdersNeedingTrackingSync(pool, userId);
-    logger.info('Tracking sync started', { userId, ordersToSync: orders.length });
+    const ddts = await getDdtsNeedingTracking(pool, userId);
+    logger.info('Tracking sync started', { userId, ddtsToSync: ddts.length });
 
-    if (orders.length === 0) {
+    if (ddts.length === 0) {
       return {
         success: true,
         trackingProcessed: 0,
@@ -68,11 +69,11 @@ async function syncTracking(
 
     onProgress(5, 'Avvio sync tracking FedEx');
 
-    const trackingToOrder = new Map<string, string>();
+    const trackingToDdt = new Map<string, { ddtId: string; orderId: string; orderNumber: string }>();
     const trackingNumbers: string[] = [];
-    for (const order of orders) {
-      trackingToOrder.set(order.trackingNumber, order.orderNumber);
-      trackingNumbers.push(order.trackingNumber);
+    for (const ddt of ddts) {
+      trackingToDdt.set(ddt.trackingNumber, ddt);
+      trackingNumbers.push(ddt.trackingNumber);
     }
 
     const results = await trackViaFedExApi(trackingNumbers, (processed, total) => {
@@ -87,13 +88,14 @@ async function syncTracking(
     let newDeliveries = 0;
 
     for (const result of results) {
-      const orderNumber = trackingToOrder.get(result.trackingNumber);
-      if (!orderNumber) continue;
+      const ddt = trackingToDdt.get(result.trackingNumber);
+      if (!ddt) continue;
+      const { ddtId, orderId, orderNumber } = ddt;
 
       if (result.success) {
         const status = mapTrackingStatus(result.statusBarCD ?? '', result.keyStatusCD ?? '');
 
-        await updateTrackingData(pool, userId, orderNumber, {
+        await updateDdtTracking(pool, ddtId, {
           trackingStatus: status,
           trackingKeyStatusCd: result.keyStatusCD ?? '',
           trackingStatusBarCd: result.statusBarCD ?? '',
@@ -112,6 +114,7 @@ async function syncTracking(
           trackingDeliveryAttempts: result.deliveryAttempts ?? null,
           trackingAttemptedDeliveryAt: result.attemptedDeliveryAt ?? null,
         });
+        await computeAndUpdateOrderDeliveryState(pool, orderId);
 
         logger.info(`Tracking: ${result.trackingNumber} → ${status}`, {
           orderNumber, trackingNumber: result.trackingNumber, status,
@@ -164,7 +167,7 @@ async function syncTracking(
         trackingUpdated++;
       } else {
         logger.warn('Tracking: API lookup failed', { orderNumber, trackingNumber: result.trackingNumber, error: result.error });
-        await incrementTrackingSyncFailures(pool, userId, orderNumber);
+        await incrementDdtTrackingFailures(pool, ddtId);
         trackingFailed++;
       }
     }
