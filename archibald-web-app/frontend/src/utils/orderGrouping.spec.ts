@@ -83,6 +83,7 @@ describe("groupOrdersByPeriod", () => {
 
   test("groups order from last month into Più vecchi", () => {
     const lastMonth = new Date();
+    lastMonth.setDate(1);
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const orders = [createOrder("1", lastMonth.toISOString())];
 
@@ -118,6 +119,7 @@ describe("groupOrdersByPeriod", () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const lastMonth = new Date();
+    lastMonth.setDate(1);
     lastMonth.setMonth(lastMonth.getMonth() - 1);
 
     const orders = [

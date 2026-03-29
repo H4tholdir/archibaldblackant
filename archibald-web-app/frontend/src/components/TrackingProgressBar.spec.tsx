@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ScanEvent, TrackingInfo } from "./TrackingProgressBar";
 import { getTrackingInfo, TrackingDotBar } from "./TrackingProgressBar";
-import type { Order } from "../types/order";
+import type { DdtEntry, Order } from "../types/order";
 
 function makeScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
   return {
@@ -19,14 +19,59 @@ function makeScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
   };
 }
 
+function makeDdt(overrides: Partial<DdtEntry> = {}): DdtEntry {
+  return {
+    id: "ddt-1",
+    position: 0,
+    ddtNumber: "DDT/001",
+    ddtId: null,
+    ddtDeliveryDate: null,
+    ddtCustomerAccount: null,
+    ddtSalesName: null,
+    ddtDeliveryName: null,
+    deliveryTerms: null,
+    deliveryMethod: null,
+    deliveryCity: null,
+    attentionTo: null,
+    ddtDeliveryAddress: null,
+    ddtQuantity: null,
+    ddtCustomerReference: null,
+    ddtDescription: null,
+    trackingNumber: null,
+    trackingUrl: null,
+    trackingCourier: null,
+    trackingStatus: null,
+    trackingKeyStatusCd: null,
+    trackingStatusBarCd: null,
+    trackingEstimatedDelivery: null,
+    trackingLastLocation: null,
+    trackingLastEvent: null,
+    trackingLastEventAt: null,
+    trackingOrigin: "VERONA, IT",
+    trackingDestination: "NAPOLI, IT",
+    trackingServiceDesc: null,
+    trackingLastSyncedAt: null,
+    trackingSyncFailures: null,
+    trackingEvents: null,
+    trackingDelayReason: null,
+    trackingDeliveryAttempts: null,
+    trackingAttemptedDeliveryAt: null,
+    deliveryConfirmedAt: null,
+    deliverySignedBy: null,
+    ...overrides,
+  };
+}
+
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
     id: "test-1",
     date: "2026-03-03",
     customerName: "Test Customer",
     grossAmount: "100,00 \u20AC",
-    trackingOrigin: "VERONA, IT",
-    trackingDestination: "NAPOLI, IT",
+    total: "100,00 \u20AC",
+    status: "open",
+    ddts: [],
+    invoices: [],
     ...overrides,
   } as Order;
 }
@@ -40,8 +85,7 @@ describe("getTrackingInfo", () => {
     ];
 
     const order = makeOrder({
-      trackingEvents: events,
-      trackingEstimatedDelivery: "2026-03-07",
+      ddts: [makeDdt({ trackingEvents: events, trackingEstimatedDelivery: "2026-03-07" })],
     });
 
     const info = getTrackingInfo(order);
@@ -71,8 +115,7 @@ describe("getTrackingInfo", () => {
     ];
 
     const order = makeOrder({
-      trackingEvents: events,
-      deliverySignedBy: "M.ROSSI",
+      ddts: [makeDdt({ trackingEvents: events, deliverySignedBy: "M.ROSSI" })],
     });
 
     const info = getTrackingInfo(order);
@@ -101,8 +144,7 @@ describe("getTrackingInfo", () => {
     ];
 
     const order = makeOrder({
-      trackingEvents: events,
-      trackingDestination: "NAPOLI, IT",
+      ddts: [makeDdt({ trackingEvents: events })],
     });
 
     const info = getTrackingInfo(order);
@@ -112,7 +154,7 @@ describe("getTrackingInfo", () => {
   });
 
   test("empty events returns dotsCompleted=0", () => {
-    const order = makeOrder({ trackingEvents: [] });
+    const order = makeOrder({ ddts: [makeDdt({ trackingEvents: [] })] });
 
     const info = getTrackingInfo(order);
 
@@ -137,7 +179,7 @@ describe("getTrackingInfo", () => {
       makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
     ];
 
-    const order = makeOrder({ trackingEvents: events });
+    const order = makeOrder({ ddts: [makeDdt({ trackingEvents: events })] });
 
     const info = getTrackingInfo(order);
 
@@ -161,7 +203,7 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
         exceptionCode: "",
       }),
     ];
-    const info = getTrackingInfo(makeOrder({ trackingStatus: "held", trackingEvents: events }));
+    const info = getTrackingInfo(makeOrder({ ddts: [makeDdt({ trackingStatus: "held", trackingEvents: events })] }));
     expect(info.label.toLowerCase()).toContain("giacenza");
   });
 
@@ -179,7 +221,7 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
         exceptionCode: "",
       }),
     ];
-    const info = getTrackingInfo(makeOrder({ trackingStatus: "returning", trackingEvents: events }));
+    const info = getTrackingInfo(makeOrder({ ddts: [makeDdt({ trackingStatus: "returning", trackingEvents: events })] }));
     expect(info.label.toLowerCase()).toContain("ritorno");
   });
 
@@ -197,7 +239,7 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
         exceptionCode: "",
       }),
     ];
-    const info = getTrackingInfo(makeOrder({ trackingStatus: "canceled", trackingEvents: events }));
+    const info = getTrackingInfo(makeOrder({ ddts: [makeDdt({ trackingStatus: "canceled", trackingEvents: events })] }));
     expect(info.label.toLowerCase()).toContain("annullato");
   });
 
@@ -218,7 +260,7 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
         exceptionDescription,
       }),
     ];
-    const info = getTrackingInfo(makeOrder({ trackingStatus: "exception", trackingEvents: events }));
+    const info = getTrackingInfo(makeOrder({ ddts: [makeDdt({ trackingStatus: "exception", trackingEvents: events })] }));
     expect(info.exceptionReason).toContain(exceptionCode);
     expect(info.exceptionReason).toContain(exceptionDescription);
   });
@@ -239,7 +281,7 @@ describe("getTrackingInfo — held/returning/canceled states and exceptionCode",
         exceptionDescription,
       }),
     ];
-    const info = getTrackingInfo(makeOrder({ trackingStatus: "exception", trackingEvents: events }));
+    const info = getTrackingInfo(makeOrder({ ddts: [makeDdt({ trackingStatus: "exception", trackingEvents: events })] }));
     expect(info.exceptionReason).toBe(exceptionDescription);
   });
 });
@@ -252,8 +294,7 @@ describe("TrackingDotBar", () => {
     ];
 
     const order = makeOrder({
-      trackingEvents: events,
-      trackingEstimatedDelivery: "2026-03-07",
+      ddts: [makeDdt({ trackingEvents: events, trackingEstimatedDelivery: "2026-03-07" })],
     });
 
     render(<TrackingDotBar order={order} borderColor="#4A90D9" />);
@@ -267,7 +308,7 @@ describe("TrackingDotBar", () => {
   });
 
   test("returns null for empty events", () => {
-    const order = makeOrder({ trackingEvents: [] });
+    const order = makeOrder({ ddts: [makeDdt({ trackingEvents: [] })] });
 
     const { container } = render(<TrackingDotBar order={order} borderColor="#4A90D9" />);
 
@@ -280,7 +321,7 @@ describe("TrackingDotBar", () => {
       makeScanEvent({ statusCD: "PU", scanLocation: "VERONA IT", date: "2026-03-03", time: "07:00:00", status: "Picked up" }),
     ];
 
-    const order = makeOrder({ trackingEvents: events });
+    const order = makeOrder({ ddts: [makeDdt({ trackingEvents: events })] });
 
     render(<TrackingDotBar order={order} borderColor="#4A90D9" />);
 
@@ -294,8 +335,7 @@ describe("TrackingDotBar", () => {
     ];
 
     const order = makeOrder({
-      trackingEvents: events,
-      deliverySignedBy: "M.ROSSI",
+      ddts: [makeDdt({ trackingEvents: events, deliverySignedBy: "M.ROSSI" })],
     });
 
     render(<TrackingDotBar order={order} borderColor="#4A90D9" />);
