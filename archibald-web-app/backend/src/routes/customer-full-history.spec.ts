@@ -34,23 +34,23 @@ describe('GET /api/history/customer-full-history', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns orders for single customerProfileIds[]', async () => {
+  it('returns orders for single customerErpIds[]', async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get('/api/history/customer-full-history')
-      .query({ 'customerProfileIds[]': 'C10181' });
+      .query({ 'customerErpIds[]': 'C10181' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ orders: MOCK_ORDERS });
   });
 
-  it('passes customerProfileIds array to handler', async () => {
+  it('passes customerErpIds array to handler', async () => {
     const { app, getHistory } = buildApp();
     await request(app)
       .get('/api/history/customer-full-history')
-      .query({ 'customerProfileIds[]': ['C10181', 'C10182'] });
+      .query({ 'customerErpIds[]': ['C10181', 'C10182'] });
     expect(getHistory).toHaveBeenCalledWith(
       'user-1',
-      expect.objectContaining({ customerProfileIds: ['C10181', 'C10182'] }),
+      expect.objectContaining({ customerErpIds: ['C10181', 'C10182'] }),
     );
   });
 
@@ -64,7 +64,7 @@ describe('GET /api/history/customer-full-history', () => {
     const { app } = buildApp(vi.fn().mockRejectedValue(new Error('DB error')));
     const res = await request(app)
       .get('/api/history/customer-full-history')
-      .query({ 'customerProfileIds[]': 'C10181' });
+      .query({ 'customerErpIds[]': 'C10181' });
     expect(res.status).toBe(500);
   });
 });

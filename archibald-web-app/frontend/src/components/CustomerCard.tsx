@@ -11,12 +11,12 @@ interface CustomerCardProps {
   expanded: boolean;
   onToggle: () => void;
   onEdit: (customerId: string) => void;
-  onRetry: (customerProfile: string) => void;
+  onRetry: (erpId: string) => void;
   isRetrying?: boolean;
   photoUrl?: string | null;
-  onPhotoUpload?: (customerProfile: string, file: File) => void;
-  onPhotoDelete?: (customerProfile: string) => void;
-  onNavigate?: (customerProfile: string) => void;
+  onPhotoUpload?: (erpId: string, file: File) => void;
+  onPhotoDelete?: (erpId: string) => void;
+  onNavigate?: (erpId: string) => void;
 }
 
 export function CustomerCard({
@@ -43,13 +43,13 @@ export function CustomerCard({
 
   useEffect(() => {
     if (!expanded) return;
-    getCustomerAddresses(customer.customerProfile)
+    getCustomerAddresses(customer.erpId)
       .then(setAltAddresses)
       .catch((err) => {
         console.error('[CustomerCard] Failed to load alt addresses:', err);
         setAltAddresses([]);
       });
-  }, [expanded, customer.customerProfile]);
+  }, [expanded, customer.erpId]);
 
   const handleFileSelected = (file: File) => {
     const reader = new FileReader();
@@ -63,7 +63,7 @@ export function CustomerCard({
     setCropImageSrc(null);
     if (onPhotoUpload) {
       const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
-      onPhotoUpload(customer.customerProfile, file);
+      onPhotoUpload(customer.erpId, file);
     }
   };
 
@@ -180,7 +180,7 @@ export function CustomerCard({
             onClick={() => {
               if (isRetrying) return;
               setSwipeX(0);
-              onRetry(customer.customerProfile);
+              onRetry(customer.erpId);
             }}
             disabled={isRetrying}
             style={{
@@ -228,7 +228,7 @@ export function CustomerCard({
         <div
           onClick={() => {
             if (onNavigate) {
-              onNavigate(customer.customerProfile);
+              onNavigate(customer.erpId);
             } else {
               onToggle();
             }
@@ -326,9 +326,9 @@ export function CustomerCard({
                     flexWrap: "wrap",
                   }}
                 >
-                  {customer.customerProfile && (
+                  {customer.erpId && (
                     <span>
-                      <strong>Profilo:</strong> {customer.customerProfile}
+                      <strong>Profilo:</strong> {customer.erpId}
                     </span>
                   )}
                   {customer.city && (
@@ -538,7 +538,7 @@ export function CustomerCard({
                 </label>
                 {photoUrl && onPhotoDelete && (
                   <button
-                    onClick={() => onPhotoDelete(customer.customerProfile)}
+                    onClick={() => onPhotoDelete(customer.erpId)}
                     style={{
                       padding: "8px 16px",
                       fontSize: "13px",
@@ -934,7 +934,7 @@ export function CustomerCard({
               }}
             >
               <button
-                onClick={() => onEdit(customer.customerProfile)}
+                onClick={() => onEdit(customer.erpId)}
                 style={{
                   padding: "10px 20px",
                   fontSize: "14px",
@@ -957,7 +957,7 @@ export function CustomerCard({
               </button>
               {hasSwipeAction && (
                 <button
-                  onClick={() => !isRetrying && onRetry(customer.customerProfile)}
+                  onClick={() => !isRetrying && onRetry(customer.erpId)}
                   disabled={isRetrying}
                   style={{
                     padding: "10px 20px",

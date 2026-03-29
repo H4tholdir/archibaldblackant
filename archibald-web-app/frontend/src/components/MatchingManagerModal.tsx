@@ -5,7 +5,7 @@ import { customerService } from '../services/customers.service';
 import type { Customer } from '../types/local-customer';
 import type { Subclient } from '../services/subclients.service';
 
-type MatchIds = { customerProfileIds: string[]; subClientCodices: string[] };
+type MatchIds = { customerErpIds: string[]; subClientCodices: string[] };
 
 type Props =
   | {
@@ -19,7 +19,7 @@ type Props =
     }
   | {
       mode: 'customer';
-      customerProfileId: string;
+      erpId: string;
       entityName: string;
       forceShow?: boolean;
       onConfirm: (ids: MatchIds) => void;
@@ -28,7 +28,7 @@ type Props =
     };
 
 type MatchState = {
-  customerProfileIds: string[];
+  customerErpIds: string[];
   subClientCodices: string[];
 };
 
@@ -36,8 +36,8 @@ export function MatchingManagerModal(props: Props) {
   const { mode, entityName, onConfirm, onSkip, onClose } = props;
   const forceShow = props.forceShow ?? false;
 
-  const [initialMatch, setInitialMatch] = useState<MatchState>({ customerProfileIds: [], subClientCodices: [] });
-  const [currentMatch, setCurrentMatch] = useState<MatchState>({ customerProfileIds: [], subClientCodices: [] });
+  const [initialMatch, setInitialMatch] = useState<MatchState>({ customerErpIds: [], subClientCodices: [] });
+  const [currentMatch, setCurrentMatch] = useState<MatchState>({ customerErpIds: [], subClientCodices: [] });
   const [skipModal, setSkipModal] = useState(false);
   const [initialSkipModal, setInitialSkipModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,7 @@ export function MatchingManagerModal(props: Props) {
   // City+name of already-matched customer IDs, resolved at load time for chip labels
   const [resolvedCustomers, setResolvedCustomers] = useState<Map<string, { name: string; city: string }>>(new Map());
 
-  const entityId = mode === 'subclient' ? props.subClientCodice : props.customerProfileId;
+  const entityId = mode === 'subclient' ? props.subClientCodice : props.erpId;
   const onSkipRef = useRef(onSkip);
   onSkipRef.current = onSkip;
 
@@ -66,7 +66,7 @@ export function MatchingManagerModal(props: Props) {
         const result = mode === 'subclient'
           ? await getMatchesForSubClient(entityId)
           : await getMatchesForCustomer(entityId);
-        const state = { customerProfileIds: result.customerProfileIds, subClientCodices: result.subClientCodices };
+        const state = { customerErpIds: result.customerProfileIds, subClientCodices: result.subClientCodices };
         setInitialMatch(state);
         setCurrentMatch(state);
         setSkipModal(result.skipModal);
@@ -78,10 +78,10 @@ export function MatchingManagerModal(props: Props) {
         }
 
         // Resolve city+name for already-matched customer IDs so chips show "ID · city"
-        if (state.customerProfileIds.length > 0) {
+        if (state.customerErpIds.length > 0) {
           const resolved = new Map<string, { name: string; city: string }>();
           await Promise.all(
-            state.customerProfileIds.map(async (id) => {
+            state.customerErpIds.map(async (id) => {
               try {
                 const results = await customerService.searchCustomers(id);
                 const match = results.find((c) => c.id === id);
@@ -130,14 +130,14 @@ export function MatchingManagerModal(props: Props) {
   }, [subclientQuery]);
 
   const addCustomer = useCallback((profileId: string) => {
-    if (currentMatch.customerProfileIds.includes(profileId)) return;
-    setCurrentMatch((prev) => ({ ...prev, customerProfileIds: [...prev.customerProfileIds, profileId] }));
+    if (currentMatch.customerErpIds.includes(profileId)) return;
+    setCurrentMatch((prev) => ({ ...prev, customerErpIds: [...prev.customerErpIds, profileId] }));
     setCustomerQuery('');
     setShowCustomerSearch(false);
-  }, [currentMatch.customerProfileIds]);
+  }, [currentMatch.customerErpIds]);
 
   const removeCustomer = useCallback((profileId: string) => {
-    setCurrentMatch((prev) => ({ ...prev, customerProfileIds: prev.customerProfileIds.filter((id) => id !== profileId) }));
+    setCurrentMatch((prev) => ({ ...prev, customerErpIds: prev.customerErpIds.filter((id) => id !== profileId) }));
   }, []);
 
   const addSubclient = useCallback((codice: string) => {
@@ -156,8 +156,8 @@ export function MatchingManagerModal(props: Props) {
     setSaving(true);
     setError(null);
     try {
-      const addedCustomers = currentMatch.customerProfileIds.filter((id) => !initialMatch.customerProfileIds.includes(id));
-      const removedCustomers = initialMatch.customerProfileIds.filter((id) => !currentMatch.customerProfileIds.includes(id));
+      const addedCustomers = currentMatch.customerErpIds.filter((id) => !initialMatch.customerErpIds.includes(id));
+      const removedCustomers = initialMatch.customerErpIds.filter((id) => !currentMatch.customerErpIds.includes(id));
       const addedSubs = currentMatch.subClientCodices.filter((c) => !initialMatch.subClientCodices.includes(c));
       const removedSubs = initialMatch.subClientCodices.filter((c) => !currentMatch.subClientCodices.includes(c));
 
@@ -170,7 +170,7 @@ export function MatchingManagerModal(props: Props) {
         for (const c of addedSubs) ops.push(addSubClientMatch(codice, c));
         for (const c of removedSubs) ops.push(removeSubClientMatch(codice, c));
       } else {
-        const profileId = (props as { mode: 'customer'; customerProfileId: string }).customerProfileId;
+        const profileId = (props as { mode: 'customer'; erpId: string }).erpId;
         for (const c of addedSubs) ops.push(addCustomerMatch(c, profileId));
         for (const c of removedSubs) ops.push(removeCustomerMatch(c, profileId));
         // mode=customer non gestisce subclient-subclient match
@@ -179,7 +179,7 @@ export function MatchingManagerModal(props: Props) {
       if (skipModal !== initialSkipModal) ops.push(upsertSkipModal(mode, entityId, skipModal));
 
       await Promise.all(ops);
-      onConfirm({ customerProfileIds: currentMatch.customerProfileIds, subClientCodices: currentMatch.subClientCodices });
+      onConfirm({ customerErpIds: currentMatch.customerErpIds, subClientCodices: currentMatch.subClientCodices });
     } catch {
       setError('Errore nel salvataggio dei match. Riprova.');
       setSaving(false);
@@ -211,7 +211,7 @@ export function MatchingManagerModal(props: Props) {
             {mode === 'subclient' && (
               <Section
                 title="Clienti Archibald collegati"
-                chips={currentMatch.customerProfileIds.map((id) => {
+                chips={currentMatch.customerErpIds.map((id) => {
                   const fromSearch = customerResults.find((c) => c.id === id);
                   const city = fromSearch?.city ?? resolvedCustomers.get(id)?.city;
                   return { id, label: city ? `${id} · ${city}` : id };

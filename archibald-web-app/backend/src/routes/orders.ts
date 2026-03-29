@@ -44,7 +44,7 @@ type OrdersRouterDeps = {
   getOrderHistoryByCustomer: (userId: string, customerName: string) => Promise<CustomerHistoryOrder[]>;
   getVerificationSnapshot?: (orderId: string, userId: string) => Promise<OrderVerificationSnapshot | null>;
   getWarehousePickupsByDate?: (userId: string, date: string) => Promise<WarehousePickupOrder[]>;
-  getCustomerByProfile?: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
+  getCustomerByProfile?: (userId: string, erpId: string) => Promise<Customer | undefined>;
   isCustomerComplete?: (customer: Customer) => boolean;
 };
 
@@ -62,7 +62,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       const userId = req.user!.userId;
       const options: OrderFilterOptions = {
         customer: req.query.customer as string | undefined,
-        customerProfileId: req.query.customerProfileId as string | undefined,
+        customerAccountNum: req.query.customerAccountNum as string | undefined,
         status: req.query.status as string | undefined,
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
@@ -282,8 +282,8 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         });
       }
 
-      if (deps.getCustomerByProfile && deps.isCustomerComplete && order.customerProfileId) {
-        const customer = await deps.getCustomerByProfile(userId, order.customerProfileId);
+      if (deps.getCustomerByProfile && deps.isCustomerComplete && order.customerAccountNum) {
+        const customer = await deps.getCustomerByProfile(userId, order.customerAccountNum);
         if (customer && !deps.isCustomerComplete(customer)) {
           const missingFields: string[] = [];
           if (!customer.name) missingFields.push('name');
@@ -298,7 +298,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
             error: 'customer_incomplete',
             message: "Scheda cliente incompleta — completare i dati obbligatori prima di piazzare l'ordine",
             missingFields,
-            customerProfile: order.customerProfileId,
+            erpId: order.customerAccountNum,
           });
         }
       }

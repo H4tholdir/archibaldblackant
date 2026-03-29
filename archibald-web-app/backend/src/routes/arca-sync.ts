@@ -139,12 +139,12 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
   });
 
   router.post('/import-customer', async (req: AuthRequest, res) => {
-    const { customerProfileId, codice } = req.body ?? {};
-    if (!customerProfileId || !codice) {
-      return void res.status(400).json({ error: 'customerProfileId e codice sono obbligatori' });
+    const { erpId, codice } = req.body ?? {};
+    if (!erpId || !codice) {
+      return void res.status(400).json({ error: 'erpId e codice sono obbligatori' });
     }
     try {
-      await importCustomerAsSubclient(deps.pool, req.user!.userId, customerProfileId, codice);
+      await importCustomerAsSubclient(deps.pool, req.user!.userId, erpId, codice);
       res.json({ success: true, codice });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to import customer';

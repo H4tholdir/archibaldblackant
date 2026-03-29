@@ -51,8 +51,8 @@ function createMockBrowserPool(mockPage = createMockPage()): { browserPool: Brow
 }
 
 const sampleScrapedRows = [
-  { customerProfile: '10001', name: 'Acme Corp', vatNumber: 'IT12345678901' },
-  { customerProfile: '10002', name: 'Beta Inc', vatNumber: 'IT98765432109' },
+  { erpId: '10001', name: 'Acme Corp', vatNumber: 'IT12345678901' },
+  { erpId: '10002', name: 'Beta Inc', vatNumber: 'IT98765432109' },
 ];
 
 const sampleResult: CustomerSyncResult = {

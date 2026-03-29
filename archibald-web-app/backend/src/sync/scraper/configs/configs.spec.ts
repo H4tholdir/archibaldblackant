@@ -70,12 +70,12 @@ describe('ScraperConfig', () => {
 // Each set contains exactly the keys declared in the corresponding type.
 
 const parsedCustomerFields = new Set<string>([
-  'customerProfile', 'name', 'vatNumber', 'fiscalCode', 'sdi', 'pec',
+  'erpId', 'name', 'vatNumber', 'fiscalCode', 'sdi', 'pec',
   'phone', 'mobile', 'email', 'url', 'attentionTo', 'street',
   'logisticsAddress', 'postalCode', 'city', 'customerType', 'type',
   'deliveryTerms', 'description', 'lastOrderDate', 'actualOrderCount',
   'previousOrderCount1', 'previousSales1', 'previousOrderCount2',
-  'previousSales2', 'externalAccountNumber', 'ourAccountNumber', 'internalId',
+  'previousSales2', 'externalAccountNumber', 'ourAccountNumber', 'accountNum',
 ]);
 
 const parsedOrderFields = new Set<string>([
@@ -83,7 +83,7 @@ const parsedOrderFields = new Set<string>([
   'deliveryDate', 'status', 'orderType', 'documentState', 'salesOrigin',
   'transferStatus', 'transferDate', 'completionDate', 'isQuote',
   'discountPercent', 'grossAmount', 'total', 'isGiftOrder',
-  'deliveryName', 'deliveryAddress', 'remainingSalesFinancial',
+  'deliveryName', 'deliveryAddress', 'orderDescription',
   'customerReference', 'email',
 ]);
 
@@ -91,7 +91,7 @@ const parsedDdtFields = new Set<string>([
   'orderNumber', 'ddtNumber', 'ddtDeliveryDate', 'ddtId',
   'ddtCustomerAccount', 'ddtSalesName', 'ddtDeliveryName',
   'deliveryTerms', 'deliveryMethod', 'deliveryCity', 'attentionTo',
-  'ddtDeliveryAddress', 'ddtTotal', 'ddtCustomerReference',
+  'ddtDeliveryAddress', 'ddtQuantity', 'ddtCustomerReference',
   'ddtDescription', 'trackingNumber', 'trackingUrl', 'trackingCourier',
 ]);
 

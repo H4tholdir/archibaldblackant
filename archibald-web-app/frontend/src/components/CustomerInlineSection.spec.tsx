@@ -19,7 +19,7 @@ const sdiField: SectionField = { key: 'sdi', label: 'SDI', value: null };
 const baseProps = {
   title: 'Dati Fiscali',
   fields: [pecField, sdiField],
-  customerProfile: '55.261',
+  erpId: '55.261',
   customerName: 'Mario Rossi S.r.l.',
   onSaved: vi.fn(),
 };
@@ -66,7 +66,7 @@ describe('CustomerInlineSection', () => {
     await waitFor(() => {
       expect(enqueueOperation).toHaveBeenCalledWith(
         'update-customer',
-        expect.objectContaining({ customerProfile: '55.261', pec: 'nuovo@pec.it' }),
+        expect.objectContaining({ erpId: '55.261', pec: 'nuovo@pec.it' }),
       );
     });
   });

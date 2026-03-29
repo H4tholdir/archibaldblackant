@@ -13,7 +13,7 @@ export interface ParsedOrder {
   delivery_address: string | null;
   creation_date: string; // ISO 8601
   delivery_date: string | null;
-  remaining_sales_financial: string | null;
+  order_description: string | null;
   customer_reference: string | null;
   sales_status: string | null;
   order_type: string | null;

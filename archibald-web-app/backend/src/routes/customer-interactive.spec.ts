@@ -5,9 +5,9 @@ import { createCustomerInteractiveRouter, type CustomerInteractiveRouterDeps } f
 import { createInteractiveSessionManager, type InteractiveSessionManager } from '../interactive-session-manager';
 
 const mockCustomer = {
-  customerProfile: 'TEMP-1708300000',
+  erpId: 'TEMP-1708300000',
   userId: 'user-1',
-  internalId: null,
+  accountNum: null,
   name: 'Test Customer',
   vatNumber: 'IT12345678901',
   fiscalCode: null,
@@ -244,7 +244,7 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
-    test('calls updateVatValidatedAt when session has customerProfile and vatValidated is "Si"', async () => {
+    test('calls updateVatValidatedAt when session has erpId and vatValidated is "Si"', async () => {
       const mockBot = createMockBot();
       (mockBot.submitVatAndReadAutofill as ReturnType<typeof vi.fn>).mockResolvedValue({
         lastVatCheck: '2026-03-17',
@@ -292,7 +292,7 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
-    test('does not call updateVatValidatedAt when session has no customerProfile', async () => {
+    test('does not call updateVatValidatedAt when session has no erpId', async () => {
       await request(app)
         .post(`/api/customers/interactive/${sessionId}/vat`)
         .send({ vatNumber: 'IT12345678901' });
@@ -350,7 +350,7 @@ describe('createCustomerInteractiveRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.customer).toBeDefined();
-      expect(res.body.data.customer.id).toBe(mockCustomer.customerProfile);
+      expect(res.body.data.customer.id).toBe(mockCustomer.erpId);
       expect(res.body.data.taskId).toEqual(expect.any(String));
       expect(res.body.message).toBe('Salvataggio in corso...');
     });
@@ -486,7 +486,7 @@ describe('createCustomerInteractiveRouter', () => {
             payload: expect.objectContaining({
               jobId: expect.any(String),
               result: expect.objectContaining({
-                customerProfile: expect.any(String),
+                erpId: expect.any(String),
               }),
             }),
           }),
@@ -535,7 +535,7 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
-    test('uses session customerProfile (not completeCustomerCreation result) for upsertAddressesForCustomer', async () => {
+    test('uses session erpId (not completeCustomerCreation result) for upsertAddressesForCustomer', async () => {
       const editProfile = '55.192';
       sessionManager.setCustomerProfile(sessionId, editProfile);
       const mockBot = createMockBot();
@@ -590,7 +590,7 @@ describe('createCustomerInteractiveRouter', () => {
       expect(upsertAddresses).not.toHaveBeenCalled();
     });
 
-    test('uses existing customerProfile from session when editing (not TEMP)', async () => {
+    test('uses existing erpId from session when editing (not TEMP)', async () => {
       const existingProfile = '55.192';
       sessionManager.setCustomerProfile(sessionId, existingProfile);
 

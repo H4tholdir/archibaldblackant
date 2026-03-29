@@ -24,9 +24,9 @@ function parseIntSafe(s: string | null | undefined): number | undefined {
 
 function adaptCustomer(p: ParserCustomer): ParsedCustomer {
   return {
-    customerProfile: p.customer_profile,
+    erpId: p.customer_profile,
     name: p.name,
-    internalId: n(p.internal_id),
+    accountNum: n(p.internal_id),
     vatNumber: n(p.vat_number),
     fiscalCode: n(p.fiscal_code),
     sdi: n(p.sdi),
@@ -58,7 +58,7 @@ function adaptOrder(p: ParserOrder): ParsedOrder {
   return {
     id: p.id,
     orderNumber: n(p.order_number) ?? p.id,
-    customerProfileId: n(p.customer_profile_id),
+    customerAccountNum: n(p.customer_profile_id),
     customerName: n(p.customer_name) ?? '',
     date: p.creation_date,
     deliveryDate: n(p.delivery_date),
@@ -76,7 +76,7 @@ function adaptOrder(p: ParserOrder): ParsedOrder {
     isGiftOrder: n(p.is_gift_order),
     deliveryName: n(p.delivery_name),
     deliveryAddress: n(p.delivery_address),
-    remainingSalesFinancial: n(p.remaining_sales_financial),
+    orderDescription: n(p.order_description),
     customerReference: n(p.customer_reference),
     email: n(p.email),
   };
@@ -92,7 +92,7 @@ function adaptDdt(p: ParserDDT): ParsedDdt {
     ddtSalesName: n(p.sales_name),
     ddtDeliveryName: n(p.delivery_name),
     ddtDeliveryAddress: n(p.delivery_address),
-    ddtTotal: n(p.ddt_total),
+    ddtQuantity: n(p.ddt_quantity),
     ddtCustomerReference: n(p.customer_reference),
     ddtDescription: n(p.description),
     deliveryTerms: n(p.delivery_terms),

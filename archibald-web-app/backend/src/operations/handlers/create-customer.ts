@@ -4,7 +4,7 @@ import type { CustomerSnapshot } from '../../types';
 import { logger } from '../../logger';
 
 type CreateCustomerData = {
-  customerProfile?: string;
+  erpId?: string;
   name: string;
   vatNumber?: string;
   pec?: string;
@@ -33,7 +33,7 @@ type CreateCustomerData = {
 
 type CreateCustomerBot = {
   createCustomer: (customerData: CreateCustomerData) => Promise<string>;
-  buildCustomerSnapshot: (customerProfile: string) => Promise<CustomerSnapshot>;
+  buildCustomerSnapshot: (erpId: string) => Promise<CustomerSnapshot>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -45,20 +45,20 @@ async function handleCreateCustomer(
   data: CreateCustomerData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ customerProfile: string }> {
-  const tempProfile = data.customerProfile ?? `TEMP-${Date.now()}`;
+): Promise<{ erpId: string }> {
+  const tempProfile = data.erpId ?? `TEMP-${Date.now()}`;
 
   onProgress(5, 'Salvataggio cliente locale');
 
   await pool.query(
     `INSERT INTO agents.customers (
-      customer_profile, user_id, name, vat_number, fiscal_code, pec, sdi,
+      erp_id, user_id, name, vat_number, fiscal_code, pec, sdi,
       street, postal_code, phone, mobile, email, url, attention_to,
       delivery_terms, payment_terms, sector, notes, county, state, country,
       price_group, line_discount,
       hash, last_sync, bot_status
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
-    ON CONFLICT (customer_profile, user_id) DO UPDATE SET
+    ON CONFLICT (erp_id, user_id) DO UPDATE SET
       name = EXCLUDED.name, bot_status = EXCLUDED.bot_status, last_sync = EXCLUDED.last_sync`,
     [
       tempProfile, userId, data.name,
@@ -98,7 +98,7 @@ async function handleCreateCustomer(
   // Update with ERP-authoritative values from snapshot (what was actually committed)
   await pool.query(
     `UPDATE agents.customers SET
-      customer_profile = $1,
+      erp_id = $1,
       bot_status = $2,
       name_alias = $3,
       city = $4,
@@ -114,7 +114,7 @@ async function handleCreateCustomer(
       attention_to = COALESCE($14, attention_to),
       notes = COALESCE($15, notes),
       updated_at = NOW()
-     WHERE customer_profile = $16 AND user_id = $17`,
+     WHERE erp_id = $16 AND user_id = $17`,
     [
       realProfile,
       'snapshot',
@@ -138,7 +138,7 @@ async function handleCreateCustomer(
 
   onProgress(100, 'Cliente creato');
 
-  return { customerProfile: realProfile };
+  return { erpId: realProfile };
 }
 
 function createCreateCustomerHandler(pool: DbPool, createBot: (userId: string) => CreateCustomerBot): OperationHandler {

@@ -12614,7 +12614,7 @@ export class ArchibaldBot {
    * Returns a structured snapshot for immediate use in the PWA (optimistic state).
    * Returns null if the page cannot be navigated or fields cannot be read.
    */
-  async buildCustomerSnapshot(customerProfile: string): Promise<{
+  async buildCustomerSnapshot(erpId: string): Promise<{
     internalId: string | null;
     name: string | null;
     nameAlias: string | null;
@@ -12644,7 +12644,7 @@ export class ArchibaldBot {
     if (!this.page) return null;
     try {
       await this.page.goto(
-        `${config.archibald.url}/CUSTTABLE_DetailView/${customerProfile}/`,
+        `${config.archibald.url}/CUSTTABLE_DetailView/${erpId}/`,
         { waitUntil: "domcontentloaded", timeout: 30000 },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
@@ -12729,11 +12729,11 @@ export class ArchibaldBot {
         };
       });
 
-      logger.debug("buildCustomerSnapshot completed", { customerProfile });
+      logger.debug("buildCustomerSnapshot completed", { erpId });
       return { ...mainFields, ...prezziFields };
     } catch (err) {
       logger.warn("buildCustomerSnapshot failed", {
-        customerProfile,
+        erpId,
         error: String(err),
       });
       return null;
@@ -12741,7 +12741,7 @@ export class ArchibaldBot {
   }
 
   async readCustomerVatStatus(
-    customerProfile: string,
+    erpId: string,
   ): Promise<{ vatValidated: string; lastChecked: string } | null> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -12752,9 +12752,9 @@ export class ArchibaldBot {
     await this.waitForDevExpressReady({ timeout: 10000 });
 
     try {
-      await this.searchAndOpenCustomer(customerProfile);
+      await this.searchAndOpenCustomer(erpId);
     } catch {
-      logger.warn("readCustomerVatStatus: customer not found", { customerProfile });
+      logger.warn("readCustomerVatStatus: customer not found", { erpId });
       return null;
     }
 
@@ -12825,7 +12825,7 @@ export class ArchibaldBot {
   }
 
   async updateCustomer(
-    customerProfile: string,
+    erpId: string,
     customerData: import("../types").CustomerFormData,
     originalName?: string,
   ): Promise<void> {
@@ -12839,7 +12839,7 @@ export class ArchibaldBot {
         ? sanitize(customerData.name)
         : null;
     logger.info("Updating customer", {
-      customerProfile,
+      erpId,
       searchName,
       fallbackName,
       newName: customerData.name,
@@ -12887,17 +12887,17 @@ export class ArchibaldBot {
         searchError = null;
       } catch (err) {
         searchError = err as Error;
-        logger.info("Fallback name search failed, retrying with customerProfile", {
+        logger.info("Fallback name search failed, retrying with erpId", {
           fallbackName,
           error: String(err),
         });
       }
     }
 
-    // Fallback 2: search by customerProfile code
+    // Fallback 2: search by erpId code
     if (searchError) {
-      logger.info("Name searches failed, retrying with customerProfile", {
-        customerProfile,
+      logger.info("Name searches failed, retrying with erpId", {
+        erpId,
       });
       await this.page.goto(
         `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
@@ -12908,8 +12908,8 @@ export class ArchibaldBot {
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
       try {
-        await this.searchAndOpenCustomer(customerProfile);
-        logger.info("Customer edit selection (fallback profile)", { customerProfile });
+        await this.searchAndOpenCustomer(erpId);
+        logger.info("Customer edit selection (fallback profile)", { erpId });
         searchError = null;
       } catch (err) {
         searchError = err as Error;
@@ -12920,7 +12920,7 @@ export class ArchibaldBot {
 
     if (searchError) {
       throw new Error(
-        `Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati`,
+        `Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${erpId}" non trovato nei risultati`,
       );
     }
 
@@ -13077,7 +13077,7 @@ export class ArchibaldBot {
     await this.saveAndCloseCustomer();
 
     logger.info("Customer updated successfully", {
-      customerProfile,
+      erpId,
       name: customerData.name,
     });
 

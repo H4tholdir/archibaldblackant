@@ -100,13 +100,13 @@ const masterEndpoints: EndpointEntry[] = [
   { method: 'GET', masterPath: '/api/customers', branchPath: '/api/customers', auth: 'auth' },
   { method: 'GET', masterPath: '/api/customers/search', branchPath: '/api/customers', auth: 'auth', note: 'search consolidated into GET /customers?q=' },
   { method: 'POST', masterPath: '/api/customers', branchPath: '/api/customers', auth: 'auth' },
-  { method: 'PUT', masterPath: '/api/customers/:customerProfile', branchPath: '/api/customers/:customerProfile', auth: 'auth' },
-  { method: 'GET', masterPath: '/api/customers/:customerProfile', branchPath: '/api/customers/:customerProfile', auth: 'auth' },
-  { method: 'GET', masterPath: '/api/customers/:customerProfile/status', branchPath: '/api/customers/:customerProfile/status', auth: 'auth' },
-  { method: 'POST', masterPath: '/api/customers/:customerProfile/retry', branchPath: '/api/customers/:customerProfile/retry', auth: 'auth' },
-  { method: 'GET', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
-  { method: 'POST', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
-  { method: 'DELETE', masterPath: '/api/customers/:customerProfile/photo', branchPath: '/api/customers/:customerProfile/photo', auth: 'auth' },
+  { method: 'PUT', masterPath: '/api/customers/:erpId', branchPath: '/api/customers/:erpId', auth: 'auth' },
+  { method: 'GET', masterPath: '/api/customers/:erpId', branchPath: '/api/customers/:erpId', auth: 'auth' },
+  { method: 'GET', masterPath: '/api/customers/:erpId/status', branchPath: '/api/customers/:erpId/status', auth: 'auth' },
+  { method: 'POST', masterPath: '/api/customers/:erpId/retry', branchPath: '/api/customers/:erpId/retry', auth: 'auth' },
+  { method: 'GET', masterPath: '/api/customers/:erpId/photo', branchPath: '/api/customers/:erpId/photo', auth: 'auth' },
+  { method: 'POST', masterPath: '/api/customers/:erpId/photo', branchPath: '/api/customers/:erpId/photo', auth: 'auth' },
+  { method: 'DELETE', masterPath: '/api/customers/:erpId/photo', branchPath: '/api/customers/:erpId/photo', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/sync', branchPath: '/api/customers/sync', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/smart-sync', branchPath: '/api/customers/smart-sync', auth: 'auth' },
   { method: 'POST', masterPath: '/api/customers/resume-syncs', branchPath: '/api/customers/resume-syncs', auth: 'auth' },
@@ -271,7 +271,7 @@ const masterEndpoints: EndpointEntry[] = [
 
 function resolvePath(path: string): string {
   return path
-    .replace(':customerProfile', 'test-profile')
+    .replace(':erpId', 'test-profile')
     .replace(':sessionId', 'sess-1')
     .replace(':productId', 'test-id')
     .replace(':name', 'test-name')

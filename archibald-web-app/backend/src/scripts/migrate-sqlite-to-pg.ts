@@ -161,7 +161,7 @@ async function migrateCustomers(pool: Pool): Promise<MigrationStats> {
     return await migrateTable(
       pool, db, 'customers', 'agents.customers',
       [
-        'customer_profile', 'user_id', 'internal_id', 'name', 'vat_number', 'fiscal_code',
+        'erp_id', 'user_id', 'account_num', 'name', 'vat_number', 'fiscal_code',
         'sdi', 'pec', 'phone', 'mobile', 'email', 'url', 'attention_to',
         'street', 'logistics_address', 'postal_code', 'city',
         'customer_type', 'type', 'delivery_terms', 'description',
@@ -172,7 +172,7 @@ async function migrateCustomers(pool: Pool): Promise<MigrationStats> {
         'hash', 'last_sync', 'bot_status', 'archibald_name', 'photo',
       ],
       (row: any) => [
-        row.customerProfile, defaultUserId, row.internalId || null, row.name,
+        row.erpId, defaultUserId, row.accountNum || null, row.name,
         row.vatNumber || null, row.fiscalCode || null, row.sdi || null, row.pec || null,
         row.phone || null, row.mobile || null, row.email || null, row.url || null,
         row.attentionTo || null, row.street || null, row.logisticsAddress || null,
@@ -198,15 +198,15 @@ async function migrateOrders(pool: Pool): Promise<MigrationStats> {
     return await migrateTable(
       pool, db, 'orders', 'agents.order_records',
       [
-        'id', 'user_id', 'order_number', 'customer_profile_id', 'customer_name',
+        'id', 'user_id', 'order_number', 'customer_account_num', 'customer_name',
         'delivery_name', 'delivery_address', 'creation_date', 'delivery_date',
-        'remaining_sales_financial', 'customer_reference', 'sales_status',
+        'order_description', 'customer_reference', 'sales_status',
         'order_type', 'document_status', 'sales_origin', 'transfer_status',
         'transfer_date', 'completion_date', 'discount_percent', 'gross_amount',
         'total_amount', 'is_quote', 'is_gift_order', 'hash', 'last_sync', 'created_at',
         'ddt_number', 'ddt_delivery_date', 'ddt_id', 'ddt_customer_account',
         'ddt_sales_name', 'ddt_delivery_name', 'delivery_terms', 'delivery_method',
-        'delivery_city', 'attention_to', 'ddt_delivery_address', 'ddt_total',
+        'delivery_city', 'attention_to', 'ddt_delivery_address', 'ddt_quantity',
         'ddt_customer_reference', 'ddt_description',
         'tracking_number', 'tracking_url', 'tracking_courier', 'delivery_completed_date',
         'invoice_number', 'invoice_date', 'invoice_amount', 'invoice_customer_account',
@@ -221,14 +221,14 @@ async function migrateOrders(pool: Pool): Promise<MigrationStats> {
       (row: any) => [
         row.id, row.user_id, row.order_number, row.customer_profile_id, row.customer_name,
         row.delivery_name, row.delivery_address, row.creation_date, row.delivery_date,
-        row.remaining_sales_financial, row.customer_reference, row.sales_status,
+        row.order_description, row.customer_reference, row.sales_status,
         row.order_type, row.document_status, row.sales_origin, row.transfer_status,
         row.transfer_date, row.completion_date, row.discount_percent, row.gross_amount,
         row.total_amount, row.is_quote, row.is_gift_order, row.hash, row.last_sync,
         row.created_at || new Date().toISOString(),
         row.ddt_number, row.ddt_delivery_date, row.ddt_id, row.ddt_customer_account,
         row.ddt_sales_name, row.ddt_delivery_name, row.delivery_terms, row.delivery_method,
-        row.delivery_city, row.attention_to, row.ddt_delivery_address, row.ddt_total,
+        row.delivery_city, row.attention_to, row.ddt_delivery_address, row.ddt_quantity,
         row.ddt_customer_reference, row.ddt_description,
         row.tracking_number, row.tracking_url, row.tracking_courier, row.delivery_completed_date,
         row.invoice_number, row.invoice_date, row.invoice_amount, row.invoice_customer_account,

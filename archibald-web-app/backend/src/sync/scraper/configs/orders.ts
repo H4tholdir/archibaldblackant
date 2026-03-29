@@ -28,7 +28,7 @@ const ordersConfig: ScraperConfig = {
     { fieldName: 'SAMPLEORDER', targetField: 'isGiftOrder' },
     { fieldName: 'DELIVERYNAME', targetField: 'deliveryName' },
     { fieldName: 'DLVADDRESS', targetField: 'deliveryAddress' },
-    { fieldName: 'PURCHORDERFORMNUM', targetField: 'remainingSalesFinancial' },
+    { fieldName: 'PURCHORDERFORMNUM', targetField: 'orderDescription' },
     { fieldName: 'CUSTOMERREF', targetField: 'customerReference' },
     { fieldName: 'EMAIL', targetField: 'email' },
   ],

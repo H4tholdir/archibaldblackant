@@ -96,13 +96,13 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
     order.orderNumber,
     order.customerName,
     order.total,
-    order.remainingSalesFinancial,
+    order.orderDescription,
   ];
   if (anyFieldMatches(headerFields, lower)) return true;
 
   // Panoramica tab fields
   const panoramicaFields: (string | undefined | null)[] = [
-    order.customerProfileId,
+    order.customerAccountNum,
     order.orderDate,
     order.date,
     order.deliveryDate,
@@ -143,7 +143,7 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
       order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
       order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
       order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
-      order.ddt.deliveryAddress, order.ddt.ddtTotal, order.ddt.customerReference,
+      order.ddt.deliveryAddress, order.ddt.ddtQuantity, order.ddt.customerReference,
       order.ddt.description,
     ];
     if (anyFieldMatches(ddtFields, lower)) return true;
@@ -175,13 +175,13 @@ function getMatchingTab(order: Order, query: string): TabId | null {
 
   // Header fields — no tab switch needed
   const headerFields: (string | undefined | null)[] = [
-    order.orderNumber, order.customerName, order.total, order.remainingSalesFinancial,
+    order.orderNumber, order.customerName, order.total, order.orderDescription,
   ];
   if (anyFieldMatches(headerFields, lower)) return null;
 
   // Panoramica
   const panoramicaFields: (string | undefined | null)[] = [
-    order.customerProfileId, order.orderDate, order.date, order.deliveryDate,
+    order.customerAccountNum, order.orderDate, order.date, order.deliveryDate,
     order.orderType, order.salesOrigin, order.grossAmount, order.discountPercent,
     order.deliveryName, order.deliveryAddress, order.customerReference,
     order.state, order.status, order.documentState, order.transferStatus,
@@ -207,7 +207,7 @@ function getMatchingTab(order: Order, query: string): TabId | null {
       order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
       order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
       order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
-      order.ddt.deliveryAddress, order.ddt.ddtTotal, order.ddt.customerReference,
+      order.ddt.deliveryAddress, order.ddt.ddtQuantity, order.ddt.customerReference,
       order.ddt.description,
     ];
     if (anyFieldMatches(ddtFields, lower)) return "logistica";

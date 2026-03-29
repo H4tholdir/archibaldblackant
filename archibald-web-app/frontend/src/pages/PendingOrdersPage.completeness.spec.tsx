@@ -128,8 +128,8 @@ vi.mock('../components/JobProgressBar', () => ({
 }));
 
 const mockCustomer = {
-  customerProfile: 'CUST-001',
-  internalId: null,
+  erpId: 'CUST-001',
+  accountNum: null,
   name: 'Rossi Mario',
   vatNumber: null,
   fiscalCode: null,

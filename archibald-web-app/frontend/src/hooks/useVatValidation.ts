@@ -5,7 +5,7 @@ import { customerService } from '../services/customers.service';
 export type VatValidationStatus = 'idle' | 'validating' | 'done' | 'error';
 
 type UseVatValidationReturn = {
-  validate: (customerProfile: string, vatNumber: string) => Promise<void>;
+  validate: (erpId: string, vatNumber: string) => Promise<void>;
   status: VatValidationStatus;
   errorMessage: string | null;
   reset: () => void;
@@ -17,13 +17,13 @@ export function useVatValidation(): UseVatValidationReturn {
   const { subscribe } = useWebSocketContext();
   const sessionIdRef = useRef<string | null>(null);
 
-  const validate = useCallback(async (customerProfile: string, vatNumber: string) => {
+  const validate = useCallback(async (erpId: string, vatNumber: string) => {
     setStatus('validating');
     setErrorMessage(null);
 
     let sessionId: string;
     try {
-      ({ sessionId } = await customerService.startEditInteractiveSession(customerProfile));
+      ({ sessionId } = await customerService.startEditInteractiveSession(erpId));
       sessionIdRef.current = sessionId;
     } catch (err) {
       setStatus('error');

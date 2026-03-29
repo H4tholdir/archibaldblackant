@@ -10,7 +10,7 @@ import {
 } from './customer-addresses';
 
 const userId = 'user-1';
-const customerProfile = 'CUST-001';
+const erpId = 'CUST-001';
 
 const altAddr1: AltAddress = {
   tipo: 'Consegna',
@@ -55,19 +55,19 @@ function createMockPool(queryResults: Array<{ rows: unknown[]; rowCount: number 
 describe('getAddressesByCustomer', () => {
   it('returns mapped addresses for given user and customer', async () => {
     const row = {
-      id: 1, user_id: userId, customer_profile: customerProfile,
+      id: 1, user_id: userId, erp_id: erpId,
       tipo: 'Consegna', nome: null, via: 'Via Roma 1',
       cap: '80100', citta: 'Napoli', contea: null, stato: null,
       id_regione: null, contra: null,
     };
     const pool = createMockPool([{ rows: [row], rowCount: 1 }]);
 
-    const result = await getAddressesByCustomer(pool, userId, customerProfile);
+    const result = await getAddressesByCustomer(pool, userId, erpId);
 
     expect(result).toEqual([{
       id: 1,
       userId,
-      customerProfile,
+      erpId,
       tipo: 'Consegna',
       nome: null,
       via: 'Via Roma 1',
@@ -82,7 +82,7 @@ describe('getAddressesByCustomer', () => {
 
   it('returns empty array when no addresses found', async () => {
     const pool = createMockPool([{ rows: [], rowCount: 0 }]);
-    const result = await getAddressesByCustomer(pool, userId, customerProfile);
+    const result = await getAddressesByCustomer(pool, userId, erpId);
     expect(result).toEqual([]);
   });
 });
@@ -95,7 +95,7 @@ describe('upsertAddressesForCustomer', () => {
       { rows: [], rowCount: 1 }, // INSERT addr2
     ]);
 
-    await upsertAddressesForCustomer(pool, userId, customerProfile, [altAddr1, altAddr2]);
+    await upsertAddressesForCustomer(pool, userId, erpId, [altAddr1, altAddr2]);
 
     expect(pool.withTransaction).toHaveBeenCalledOnce();
     const txQuery = (pool as any).query as ReturnType<typeof vi.fn>;
@@ -108,7 +108,7 @@ describe('upsertAddressesForCustomer', () => {
   it('calls DELETE only (no INSERT) when addresses array is empty', async () => {
     const pool = createMockPool([{ rows: [], rowCount: 0 }]);
 
-    await upsertAddressesForCustomer(pool, userId, customerProfile, []);
+    await upsertAddressesForCustomer(pool, userId, erpId, []);
 
     expect(pool.withTransaction).toHaveBeenCalledOnce();
     const txQuery = (pool as any).query as ReturnType<typeof vi.fn>;
@@ -126,14 +126,14 @@ describe('getAddressById', () => {
 
   it('returns mapped address when found', async () => {
     const row = {
-      id: 42, user_id: userId, customer_profile: customerProfile,
+      id: 42, user_id: userId, erp_id: erpId,
       tipo: 'Fattura', nome: null, via: null, cap: null,
       citta: null, contea: null, stato: null, id_regione: null, contra: null,
     };
     const pool = createMockPool([{ rows: [row], rowCount: 1 }]);
     const result = await getAddressById(pool, userId, 42);
     expect(result).toEqual({
-      id: 42, userId, customerProfile, tipo: 'Fattura',
+      id: 42, userId, erpId, tipo: 'Fattura',
       nome: null, via: null, cap: null, citta: null,
       contea: null, stato: null, idRegione: null, contra: null,
     });
@@ -141,11 +141,11 @@ describe('getAddressById', () => {
 });
 
 describe('getCustomersNeedingAddressSync', () => {
-  it('returns customer_profile and name for customers with null addresses_synced_at', async () => {
+  it('returns erp_id and name for customers with null addresses_synced_at', async () => {
     const pool = createMockPool([{
       rows: [
-        { customer_profile: 'CUST-001', name: 'Aaa' },
-        { customer_profile: 'CUST-002', name: 'Bbb' },
+        { erp_id: 'CUST-001', name: 'Aaa' },
+        { erp_id: 'CUST-002', name: 'Bbb' },
       ],
       rowCount: 2,
     }]);
@@ -153,8 +153,8 @@ describe('getCustomersNeedingAddressSync', () => {
     const result = await getCustomersNeedingAddressSync(pool, userId, 10);
 
     expect(result).toEqual([
-      { customer_profile: 'CUST-001', name: 'Aaa' },
-      { customer_profile: 'CUST-002', name: 'Bbb' },
+      { erp_id: 'CUST-001', name: 'Aaa' },
+      { erp_id: 'CUST-002', name: 'Bbb' },
     ]);
     const sql = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(sql).toContain('addresses_synced_at IS NULL');
@@ -173,7 +173,7 @@ describe('getCustomersNeedingAddressSync', () => {
 describe('setAddressesSyncedAt', () => {
   it('updates addresses_synced_at to NOW() for given customer and user', async () => {
     const pool = createMockPool([{ rows: [], rowCount: 1 }]);
-    await setAddressesSyncedAt(pool, userId, customerProfile);
+    await setAddressesSyncedAt(pool, userId, erpId);
     const q = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(q).toContain('addresses_synced_at = NOW()');
   });

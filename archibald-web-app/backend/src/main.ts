@@ -502,7 +502,7 @@ async function bootstrap(): Promise<void> {
     if (orphans.length === 0) return;
     logger.info(`Startup reconciliation: found ${orphans.length} orphaned customer(s) — generating notifications`);
     for (const orphan of orphans) {
-      const profileText = `${orphan.customerName} (${orphan.internalId})`;
+      const profileText = `${orphan.customerName} (${orphan.accountNum})`;
       for (const agentId of orphan.affectedAgentIds) {
         await createNotification(notificationDeps, {
           target: 'user',
@@ -511,7 +511,7 @@ async function bootstrap(): Promise<void> {
           severity: 'error',
           title: 'Cliente eliminato da ERP',
           body: `Il cliente ${profileText} non è più presente su Archibald ERP`,
-          data: { internalId: orphan.internalId, customerName: orphan.customerName, deletedProfiles: [{ internalId: orphan.internalId, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
+          data: { accountNum: orphan.accountNum, customerName: orphan.customerName, deletedProfiles: [{ accountNum: orphan.accountNum, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
         });
       }
       await createNotification(notificationDeps, {
@@ -520,7 +520,7 @@ async function bootstrap(): Promise<void> {
         severity: 'error',
         title: 'Cliente eliminato da ERP',
         body: `Il cliente ${profileText} non è più presente su Archibald ERP`,
-        data: { internalId: orphan.internalId, customerName: orphan.customerName, deletedProfiles: [{ internalId: orphan.internalId, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
+        data: { accountNum: orphan.accountNum, customerName: orphan.customerName, deletedProfiles: [{ accountNum: orphan.accountNum, name: orphan.customerName, affectedAgentIds: orphan.affectedAgentIds }] },
         excludeUserIds: orphan.affectedAgentIds,
       });
     }
@@ -581,7 +581,7 @@ async function bootstrap(): Promise<void> {
         if (!initialized) { await bot.initialize(); initialized = true; }
       };
       return {
-        updateCustomer: async (customerProfile, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(customerProfile, customerData as never, originalName); },
+        updateCustomer: async (erpId, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(erpId, customerData as never, originalName); },
         buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
@@ -593,7 +593,7 @@ async function bootstrap(): Promise<void> {
         if (!initialized) { await bot.initialize(); initialized = true; }
       };
       return {
-        readCustomerVatStatus: async (customerProfile) => { await ensureInit(); return bot.readCustomerVatStatus(customerProfile); },
+        readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),

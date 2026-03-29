@@ -13,7 +13,7 @@ type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<
 type GetCustomersNeedingAddressSyncFn = (
   userId: string,
   limit: number,
-) => Promise<Array<{ customer_profile: string; name: string }>>;
+) => Promise<Array<{ erp_id: string; name: string }>>;
 
 type GetAgentsByActivityFn = () => { active: string[]; idle: string[] };
 
@@ -84,7 +84,7 @@ function createSyncScheduler(
             enqueue(
               'sync-customer-addresses',
               agentUserId,
-              { customers: customers.map((c) => ({ customerProfile: c.customer_profile, customerName: c.name })) },
+              { customers: customers.map((c) => ({ erpId: c.erp_id, customerName: c.name })) },
             );
           })
           .catch((error) => {

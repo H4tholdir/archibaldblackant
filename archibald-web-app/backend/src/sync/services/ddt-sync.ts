@@ -15,7 +15,7 @@ type ParsedDdt = {
   deliveryCity?: string;
   attentionTo?: string;
   ddtDeliveryAddress?: string;
-  ddtTotal?: string;
+  ddtQuantity?: string;
   ddtCustomerReference?: string;
   ddtDescription?: string;
   trackingNumber?: string;
@@ -84,7 +84,7 @@ async function syncDdt(
         `UPDATE agents.order_records SET
           ddt_number=$1, ddt_delivery_date=$2, ddt_id=$3, ddt_customer_account=$4,
           ddt_sales_name=$5, ddt_delivery_name=$6, delivery_terms=$7, delivery_method=$8,
-          delivery_city=$9, attention_to=$10, ddt_delivery_address=$11, ddt_total=$12,
+          delivery_city=$9, attention_to=$10, ddt_delivery_address=$11, ddt_quantity=$12,
           ddt_customer_reference=$13, ddt_description=$14,
           tracking_number=COALESCE($15, tracking_number),
           tracking_url=COALESCE($16, tracking_url),
@@ -94,7 +94,7 @@ async function syncDdt(
         [
           ddt.ddtNumber, ddt.ddtDeliveryDate ?? null, ddt.ddtId ?? null, ddt.ddtCustomerAccount ?? null,
           ddt.ddtSalesName ?? null, ddt.ddtDeliveryName ?? null, ddt.deliveryTerms ?? null, ddt.deliveryMethod ?? null,
-          ddt.deliveryCity ?? null, ddt.attentionTo ?? null, ddt.ddtDeliveryAddress ?? null, ddt.ddtTotal ?? null,
+          ddt.deliveryCity ?? null, ddt.attentionTo ?? null, ddt.ddtDeliveryAddress ?? null, ddt.ddtQuantity ?? null,
           ddt.ddtCustomerReference ?? null, ddt.ddtDescription ?? null, ddt.trackingNumber ?? null,
           ddt.trackingUrl ?? null, ddt.trackingCourier ?? null, now,
           order.id, userId,

@@ -83,7 +83,7 @@ export function PendingOrdersPage() {
 
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
   const [quickFixCustomer, setQuickFixCustomer] = useState<{
-    customerProfile: string;
+    erpId: string;
     customerName: string;
     missingFields: MissingFieldKey[];
   } | null>(null);
@@ -98,15 +98,15 @@ export function PendingOrdersPage() {
   } = useVatValidation();
   void vatValidationError;
 
-  const refreshCustomer = useCallback(async (customerProfile: string) => {
+  const refreshCustomer = useCallback(async (erpId: string) => {
     const token = localStorage.getItem('archibald_jwt') ?? '';
     try {
-      const res = await fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+      const res = await fetch(`/api/customers/${encodeURIComponent(erpId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
       const body: { success: boolean; data: RichCustomer } = await res.json();
-      setCustomersMap((prev) => new Map(prev).set(customerProfile, body.data));
+      setCustomersMap((prev) => new Map(prev).set(erpId, body.data));
     } catch (err) {
       console.warn('Failed to refresh customer completeness', err);
     }
@@ -138,7 +138,7 @@ export function PendingOrdersPage() {
         const customers = (data.data?.customers ?? []) as unknown as RichCustomer[];
         const map = new Map<string, RichCustomer>();
         for (const c of customers) {
-          map.set(c.customerProfile, c);
+          map.set(c.erpId, c);
         }
         setCustomersMap(map);
       })
@@ -183,7 +183,7 @@ export function PendingOrdersPage() {
         const c = customersMap.get(o.customerId)!;
         return {
           orderId: o.id!,
-          customerProfile: o.customerId,
+          erpId: o.customerId,
           customerName: o.customerName,
           missingFields: checkCustomerCompleteness(c).missingFields,
         };
@@ -1336,7 +1336,7 @@ export function PendingOrdersPage() {
                               onClick={() => {
                                 if (validatingCustomerProfile !== null) return;
                                 setValidatingCustomerProfile(order.customerId);
-                                validateVat(richCustomer.customerProfile, richCustomer.vatNumber!);
+                                validateVat(richCustomer.erpId, richCustomer.vatNumber!);
                               }}
                               disabled={validatingCustomerProfile !== null}
                               style={{
@@ -1358,7 +1358,7 @@ export function PendingOrdersPage() {
                               onClick={() => {
                                 const completeness = checkCustomerCompleteness(richCustomer);
                                 setQuickFixCustomer({
-                                  customerProfile: richCustomer.customerProfile,
+                                  erpId: richCustomer.erpId,
                                   customerName: richCustomer.name,
                                   missingFields: completeness.missingFields,
                                 });
@@ -1575,7 +1575,7 @@ export function PendingOrdersPage() {
                             if (!c) return;
                             const completeness = checkCustomerCompleteness(c);
                             setQuickFixCustomer({
-                              customerProfile: c.customerProfile,
+                              erpId: c.erpId,
                               customerName: c.name,
                               missingFields: completeness.missingFields,
                             });
@@ -1644,7 +1644,7 @@ export function PendingOrdersPage() {
                               if (!c) return;
                               const completeness = checkCustomerCompleteness(c);
                               setQuickFixCustomer({
-                                customerProfile: c.customerProfile,
+                                erpId: c.erpId,
                                 customerName: c.name,
                                 missingFields: completeness.missingFields,
                               });
@@ -2412,11 +2412,11 @@ export function PendingOrdersPage() {
       />
       {quickFixCustomer && (
         <CustomerQuickFix
-          customerProfile={quickFixCustomer.customerProfile}
+          erpId={quickFixCustomer.erpId}
           customerName={quickFixCustomer.customerName}
           missingFields={quickFixCustomer.missingFields}
           onSaved={() => {
-            void refreshCustomer(quickFixCustomer.customerProfile);
+            void refreshCustomer(quickFixCustomer.erpId);
             setQuickFixCustomer(null);
           }}
           onDismiss={() => setQuickFixCustomer(null)}

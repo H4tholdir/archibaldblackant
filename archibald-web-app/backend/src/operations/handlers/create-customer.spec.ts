@@ -19,7 +19,7 @@ function createMockBot(): CreateCustomerBot {
 }
 
 const sampleData: CreateCustomerData = {
-  customerProfile: 'TEMP-1700000000',
+  erpId: 'TEMP-1700000000',
   name: 'New Corp S.r.l.',
   vatNumber: 'IT01234567890',
   pec: 'newcorp@pec.it',
@@ -63,17 +63,17 @@ describe('handleCreateCustomer', () => {
     expect(updateCalls[0][1]).toContain('snapshot');
   });
 
-  test('returns customerProfile in result', async () => {
+  test('returns erpId in result', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     const result = await handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
 
-    expect(result.customerProfile).toBeDefined();
-    expect(typeof result.customerProfile).toBe('string');
+    expect(result.erpId).toBeDefined();
+    expect(typeof result.erpId).toBe('string');
   });
 
-  test('uses customerProfile from data when provided', async () => {
+  test('uses erpId from data when provided', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -84,10 +84,10 @@ describe('handleCreateCustomer', () => {
     expect(params[0]).toBe('TEMP-1700000000');
   });
 
-  test('generates TEMP profile when customerProfile not provided', async () => {
+  test('generates TEMP profile when erpId not provided', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
-    const { customerProfile: _, ...dataWithoutProfile } = sampleData;
+    const { erpId: _, ...dataWithoutProfile } = sampleData;
 
     await handleCreateCustomer(pool, bot, dataWithoutProfile, 'user-1', vi.fn());
 

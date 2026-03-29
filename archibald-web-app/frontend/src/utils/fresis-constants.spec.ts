@@ -67,12 +67,12 @@ describe("fresis-constants", () => {
   });
 
   describe("constants", () => {
-    test("FRESIS_CUSTOMER_PROFILE is 55.261", () => {
-      expect(FRESIS_CUSTOMER_PROFILE).toBe("55.261");
+    test("FRESIS_CUSTOMER_PROFILE is 55261", () => {
+      expect(FRESIS_CUSTOMER_PROFILE).toBe("55261");
     });
 
-    test("FRESIS_CUSTOMER_PROFILE_LEGACY is 57.213", () => {
-      expect(FRESIS_CUSTOMER_PROFILE_LEGACY).toBe("57.213");
+    test("FRESIS_CUSTOMER_PROFILE_LEGACY is 57213", () => {
+      expect(FRESIS_CUSTOMER_PROFILE_LEGACY).toBe("57213");
     });
 
     test("FRESIS_DEFAULT_DISCOUNT is 63", () => {

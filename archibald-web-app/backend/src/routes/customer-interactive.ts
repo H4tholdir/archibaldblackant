@@ -28,14 +28,14 @@ type CustomerInteractiveRouterDeps = {
   sessionManager: InteractiveSessionManager;
   createBot: (userId: string) => CustomerBotLike;
   broadcast: BroadcastFn;
-  upsertSingleCustomer: (userId: string, formData: CustomerFormInput, customerProfile: string, botStatus: string) => Promise<Customer>;
-  updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
-  updateVatValidatedAt: (userId: string, customerProfile: string) => Promise<void>;
-  getCustomerByProfile: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
+  upsertSingleCustomer: (userId: string, formData: CustomerFormInput, erpId: string, botStatus: string) => Promise<Customer>;
+  updateCustomerBotStatus: (userId: string, erpId: string, status: string) => Promise<void>;
+  updateVatValidatedAt: (userId: string, erpId: string) => Promise<void>;
+  getCustomerByProfile: (userId: string, erpId: string) => Promise<Customer | undefined>;
   pauseSyncs: () => Promise<void>;
   resumeSyncs: () => void;
-  upsertAddressesForCustomer: (userId: string, customerProfile: string, addresses: AltAddress[]) => Promise<void>;
-  setAddressesSyncedAt: (userId: string, customerProfile: string) => Promise<void>;
+  upsertAddressesForCustomer: (userId: string, erpId: string, addresses: AltAddress[]) => Promise<void>;
+  setAddressesSyncedAt: (userId: string, erpId: string) => Promise<void>;
   smartCustomerSync?: () => Promise<void>;
   getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
 };
@@ -74,7 +74,7 @@ const saveSchema = z.object({
 });
 
 const startEditSchema = z.object({
-  customerProfile: z.string().min(1, 'customerProfile obbligatorio'),
+  erpId: z.string().min(1, 'erpId obbligatorio'),
 });
 
 function now(): string {
@@ -189,7 +189,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
       }
 
-      const customer = await getCustomerByProfile(userId, parsed.data.customerProfile);
+      const customer = await getCustomerByProfile(userId, parsed.data.erpId);
       if (!customer) {
         return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       }
@@ -203,7 +203,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       }
 
       const sessionId = sessionManager.createSession(userId);
-      sessionManager.setCustomerProfile(sessionId, customer.customerProfile);
+      sessionManager.setCustomerProfile(sessionId, customer.erpId);
 
       res.json({
         success: true,
@@ -227,8 +227,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           try {
             const altAddresses = await bot.readAltAddresses();
-            await upsertAddressesForCustomer(userId, customer.customerProfile, altAddresses);
-            await setAddressesSyncedAt(userId, customer.customerProfile);
+            await upsertAddressesForCustomer(userId, customer.erpId, altAddresses);
+            await setAddressesSyncedAt(userId, customer.erpId);
           } catch (addressErr) {
             logger.warn('start-edit: address refresh failed (non-fatal)', { error: addressErr, userId });
           }
@@ -300,10 +300,10 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           sessionManager.setVatResult(sessionId, vatResult);
 
           const editSession = sessionManager.getSession(sessionId, userId);
-          if (editSession?.customerProfile && vatResult.vatValidated) {
+          if (editSession?.erpId && vatResult.vatValidated) {
             const v = vatResult.vatValidated.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
             if (v.includes('SI') || v.includes('YES') || v === 'TRUE' || v === '1') {
-              await updateVatValidatedAt(userId, editSession.customerProfile).catch((err) => {
+              await updateVatValidatedAt(userId, editSession.erpId).catch((err) => {
                 logger.warn('Failed to mark vat_validated_at after VAT check', { err });
               });
             }
@@ -374,7 +374,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         sessionManager.updateState(sessionId, 'saving');
       }
 
-      const tempProfile = session?.customerProfile ?? `TEMP-${Date.now()}`;
+      const tempProfile = session?.erpId ?? `TEMP-${Date.now()}`;
       const taskId = randomUUID();
       const formInput: CustomerFormInput = {
         name: customerData.name,
@@ -395,7 +395,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       res.json({
         success: true,
-        data: { customer: { ...customer, id: customer.customerProfile }, taskId },
+        data: { customer: { ...customer, id: customer.erpId }, taskId },
         message: 'Salvataggio in corso...',
       });
 
@@ -430,11 +430,11 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             }
           };
 
-          let customerProfileId: string;
+          let newErpId: string;
 
           if (useInteractiveBot) {
             setupProgressCallback(existingBot!);
-            customerProfileId = await existingBot!.completeCustomerCreation(customerData);
+            newErpId = await existingBot!.completeCustomerCreation(customerData);
             const altAddresses: AltAddress[] = (customerData.addresses ?? []).map(a => ({
               tipo: a.tipo,
               nome: a.nome ?? null,
@@ -457,14 +457,14 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             setupProgressCallback(freshBot);
             await freshBot.createCustomer(customerData);
             await freshBot.close();
-            customerProfileId = tempProfile;
+            newErpId = tempProfile;
             if (effectiveSession) {
               sessionManager.updateState(sessionId, 'completed');
             }
           }
 
           await updateCustomerBotStatus(userId, tempProfile, 'placed');
-          await updateVatValidatedAt(userId, customerProfileId);
+          await updateVatValidatedAt(userId, newErpId);
 
           if (smartCustomerSync) {
             smartCustomerSync().catch((err) =>
@@ -474,7 +474,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           broadcast(userId, {
             type: 'JOB_COMPLETED',
-            payload: { jobId: taskId, result: { customerProfile: customerProfileId } },
+            payload: { jobId: taskId, result: { erpId: newErpId } },
             timestamp: now(),
           });
         } catch (error) {

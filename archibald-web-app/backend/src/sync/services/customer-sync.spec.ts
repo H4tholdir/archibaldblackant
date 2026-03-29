@@ -15,8 +15,8 @@ function createMockDeps(pool?: DbPool): CustomerSyncDeps {
     pool: pool ?? createMockPool(),
     downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
     parsePdf: vi.fn().mockResolvedValue([
-      { customerProfile: 'CUST-001', name: 'Acme Corp', vatNumber: 'IT123', phone: '+39123' },
-      { customerProfile: 'CUST-002', name: 'Beta Ltd', vatNumber: 'IT456', phone: '+39456' },
+      { erpId: 'CUST-001', name: 'Acme Corp', vatNumber: 'IT123', phone: '+39123' },
+      { erpId: 'CUST-002', name: 'Beta Ltd', vatNumber: 'IT456', phone: '+39456' },
     ]),
     cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
@@ -49,8 +49,8 @@ describe('syncCustomers', () => {
   test('soft-deletes customers not in parsed PDF', async () => {
     const pool = createMockPool();
     (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string) => {
-      if (sql.includes('customer_profile NOT IN')) {
-        return Promise.resolve({ rows: [{ customer_profile: 'CUST-OLD', internal_id: null, name: 'Old Corp' }], rowCount: 1 });
+      if (sql.includes('erp_id NOT IN')) {
+        return Promise.resolve({ rows: [{ erp_id: 'CUST-OLD', account_num: null, name: 'Old Corp' }], rowCount: 1 });
       }
       if (sql.includes('SET deleted_at = NOW()')) {
         return Promise.resolve({ rows: [], rowCount: 1 });
@@ -117,16 +117,16 @@ describe('syncCustomers', () => {
     const pool = createMockPool();
     (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string, params?: unknown[]) => {
       // SELECT for toDelete: returns TEMP profile as stale
-      if (sql.includes('customer_profile NOT IN')) {
-        return Promise.resolve({ rows: [{ customer_profile: tempProfile }], rowCount: 1 });
+      if (sql.includes('erp_id NOT IN')) {
+        return Promise.resolve({ rows: [{ erp_id: tempProfile }], rowCount: 1 });
       }
       // SELECT vat_number for the TEMP profile
       if (sql.includes('SELECT vat_number') && Array.isArray(params) && params[0] === tempProfile) {
         return Promise.resolve({ rows: [{ vat_number: vatNumber }], rowCount: 1 });
       }
       // SELECT real profile by VAT number
-      if (sql.includes('SELECT customer_profile') && Array.isArray(params) && params[1] === vatNumber) {
-        return Promise.resolve({ rows: [{ customer_profile: realProfile }], rowCount: 1 });
+      if (sql.includes('SELECT erp_id') && Array.isArray(params) && params[1] === vatNumber) {
+        return Promise.resolve({ rows: [{ erp_id: realProfile }], rowCount: 1 });
       }
       // UPDATE pending_orders
       if (sql.includes('UPDATE agents.pending_orders')) {
@@ -153,8 +153,8 @@ describe('syncCustomers', () => {
 
     const pool = createMockPool();
     (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string, params?: unknown[]) => {
-      if (sql.includes('customer_profile NOT IN')) {
-        return Promise.resolve({ rows: [{ customer_profile: tempProfile }], rowCount: 1 });
+      if (sql.includes('erp_id NOT IN')) {
+        return Promise.resolve({ rows: [{ erp_id: tempProfile }], rowCount: 1 });
       }
       if (sql.includes('SELECT vat_number') && Array.isArray(params) && params[0] === tempProfile) {
         return Promise.resolve({ rows: [{ vat_number: null }], rowCount: 1 });
@@ -184,8 +184,8 @@ describe('syncCustomers - onDeletedCustomers', () => {
   }
 
   const TWO_PARSED = [
-    { customerProfile: 'CUST-001', name: 'Acme Corp' },
-    { customerProfile: 'CUST-002', name: 'Beta Ltd' },
+    { erpId: 'CUST-001', name: 'Acme Corp' },
+    { erpId: 'CUST-002', name: 'Beta Ltd' },
   ];
 
   test('calls onDeletedCustomers with profiles that have orders', async () => {
@@ -195,8 +195,8 @@ describe('syncCustomers - onDeletedCustomers', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-001
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-002 → new
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-002
-      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
-      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-1', customer_profile_id: 'INT-OLD' }], rowCount: 1 })  // SELECT DISTINCT order users
+      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
+      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-1', customer_account_num: 'INT-OLD' }], rowCount: 1 })  // SELECT DISTINCT order users
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // UPDATE SET deleted_at = NOW()
 
     const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
@@ -212,7 +212,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
 
     expect(onDeletedCustomers).toHaveBeenCalledOnce();
     expect(onDeletedCustomers).toHaveBeenCalledWith([
-      { profile: 'CUST-OLD', internalId: 'INT-OLD', name: 'Old Corp', affectedAgentIds: ['agent-1'] },
+      { profile: 'CUST-OLD', accountNum: 'INT-OLD', name: 'Old Corp', affectedAgentIds: ['agent-1'] },
     ]);
   });
 
@@ -223,7 +223,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
+      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT DISTINCT order users → none
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // UPDATE SET deleted_at = NOW()
 
@@ -248,7 +248,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ customer_profile: 'CUST-OLD', internal_id: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // UPDATE SET deleted_at (no SELECT DISTINCT query)
 
     const deps: CustomerSyncDeps = {
@@ -277,7 +277,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     } as unknown as DbPool;
   }
 
-  const RESTORED_CUSTOMER = { customerProfile: 'CUST-001', name: 'Acme Corp', internalId: 'INT-001' };
+  const RESTORED_CUSTOMER = { erpId: 'CUST-001', name: 'Acme Corp', accountNum: 'INT-001' };
 
   test('calls onRestoredCustomers when a soft-deleted customer reappears in ERP', async () => {
     const pool = createPool();
@@ -290,8 +290,8 @@ describe('syncCustomers - onRestoredCustomers', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       // SELECT toDelete → nothing to delete
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      // SELECT DISTINCT order_records for restored internalId
-      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-2', customer_profile_id: 'INT-001' }], rowCount: 1 });
+      // SELECT DISTINCT order_records for restored accountNum
+      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-2', customer_account_num: 'INT-001' }], rowCount: 1 });
 
     const onRestoredCustomers = vi.fn<[RestoredProfileInfo[]], Promise<void>>().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
@@ -311,7 +311,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     expect(infos).toHaveLength(1);
     expect(infos[0]).toMatchObject({
       profile: 'CUST-001',
-      internalId: 'INT-001',
+      accountNum: 'INT-001',
       name: 'Acme Corp',
     });
     // Must include both the syncing agent (user-1) and the agent from order_records (agent-2)
@@ -330,10 +330,10 @@ describe('syncCustomers - onRestoredCustomers', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       // SELECT toDelete → nothing to delete
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      // SELECT DISTINCT customer_profile_id for newWithInternalId check → has orders
-      .mockResolvedValueOnce({ rows: [{ customer_profile_id: 'INT-001' }], rowCount: 1 })
-      // SELECT DISTINCT user_id, customer_profile_id for restoredWithAgents
-      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-2', customer_profile_id: 'INT-001' }], rowCount: 1 });
+      // SELECT DISTINCT customer_account_num for newWithInternalId check → has orders
+      .mockResolvedValueOnce({ rows: [{ customer_account_num: 'INT-001' }], rowCount: 1 })
+      // SELECT DISTINCT user_id, customer_account_num for restoredWithAgents
+      .mockResolvedValueOnce({ rows: [{ user_id: 'agent-2', customer_account_num: 'INT-001' }], rowCount: 1 });
 
     const onRestoredCustomers = vi.fn<[RestoredProfileInfo[]], Promise<void>>().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
@@ -353,7 +353,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     expect(infos).toHaveLength(1);
     expect(infos[0]).toMatchObject({
       profile: 'CUST-001',
-      internalId: 'INT-001',
+      accountNum: 'INT-001',
       name: 'Acme Corp',
     });
     expect(infos[0].affectedAgentIds).toContain('user-1');

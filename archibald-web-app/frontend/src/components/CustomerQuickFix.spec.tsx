@@ -24,7 +24,7 @@ vi.mock('../hooks/useKeyboardScroll', () => ({
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 
 const baseProps = {
-  customerProfile: '55.261',
+  erpId: '55.261',
   customerName: 'Mario Rossi S.r.l.',
   missingFields: ['pec_or_sdi'] as const,
   onSaved: vi.fn(),
@@ -85,7 +85,7 @@ describe('CustomerQuickFix', () => {
     await waitFor(() => {
       expect(enqueueOperation).toHaveBeenCalledWith(
         'update-customer',
-        expect.objectContaining({ customerProfile: '55.261', pec: 'mario@pec.it' }),
+        expect.objectContaining({ erpId: '55.261', pec: 'mario@pec.it' }),
       );
     });
   });

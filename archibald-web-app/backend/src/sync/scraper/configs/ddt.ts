@@ -26,7 +26,7 @@ const ddtConfig: ScraperConfig = {
     { fieldName: 'DLVCITY', targetField: 'deliveryCity' },
     { fieldName: 'BRASCRMATTENTIONTO', targetField: 'attentionTo' },
     { fieldName: 'DLVADDRESS', targetField: 'ddtDeliveryAddress' },
-    { fieldName: 'QTY', targetField: 'ddtTotal', parser: parseCurrency },
+    { fieldName: 'QTY', targetField: 'ddtQuantity', parser: parseCurrency },
     { fieldName: 'CUSTOMERREF', targetField: 'ddtCustomerReference' },
     { fieldName: 'PURCHASEORDER', targetField: 'ddtDescription' },
     { fieldName: 'BRASTRACKINGNUMBER', targetField: 'trackingNumber' },

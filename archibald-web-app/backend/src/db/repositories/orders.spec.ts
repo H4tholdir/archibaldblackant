@@ -20,13 +20,13 @@ function createMockPool(queryImpl?: DbPool['query']): DbPool & { queryCalls: Arr
 const SAMPLE_ORDER: OrderInput = {
   id: '70.962',
   orderNumber: 'ORD/26000887',
-  customerProfileId: '1002241',
+  customerAccountNum: '1002241',
   customerName: 'Carrazza Giovanni',
   deliveryName: 'Carrazza Giovanni',
   deliveryAddress: 'Via Mezzacapo, 121 84036 Sala Consilina Sa',
   date: '2026-01-20T12:04:22',
   deliveryDate: '2026-01-21',
-  remainingSalesFinancial: null,
+  orderDescription: null,
   customerReference: null,
   status: 'Ordine aperto',
   orderType: 'Ordine di vendita',
@@ -44,13 +44,13 @@ const SAMPLE_ORDER_ROW = {
   id: '70.962',
   user_id: 'user-1',
   order_number: 'ORD/26000887',
-  customer_profile_id: '1002241',
+  customer_account_num: '1002241',
   customer_name: 'Carrazza Giovanni',
   delivery_name: 'Carrazza Giovanni',
   delivery_address: 'Via Mezzacapo, 121 84036 Sala Consilina Sa',
   creation_date: '2026-01-20T12:04:22',
   delivery_date: '2026-01-21',
-  remaining_sales_financial: null,
+  order_description: null,
   customer_reference: null,
   sales_status: 'Ordine aperto',
   order_type: 'Ordine di vendita',
@@ -78,7 +78,7 @@ const SAMPLE_ORDER_ROW = {
   delivery_city: null,
   attention_to: null,
   ddt_delivery_address: null,
-  ddt_total: null,
+  ddt_quantity: null,
   ddt_customer_reference: null,
   ddt_description: null,
   tracking_number: null,
@@ -210,7 +210,7 @@ describe('upsertOrder', () => {
     const result = await upsertOrder(pool, 'user-1', SAMPLE_ORDER);
 
     expect(result.action).toBe('updated');
-    const updateCall = pool.queryCalls.find((c) => c.text.includes('UPDATE') && c.text.includes('customer_profile_id'));
+    const updateCall = pool.queryCalls.find((c) => c.text.includes('UPDATE') && c.text.includes('customer_account_num'));
     expect(updateCall).toBeDefined();
   });
 
@@ -733,7 +733,7 @@ describe('mapRowToOrder', () => {
     expect(order.id).toBe(SAMPLE_ORDER_ROW.id);
     expect(order.userId).toBe(SAMPLE_ORDER_ROW.user_id);
     expect(order.orderNumber).toBe(SAMPLE_ORDER_ROW.order_number);
-    expect(order.customerProfileId).toBe(SAMPLE_ORDER_ROW.customer_profile_id);
+    expect(order.customerAccountNum).toBe(SAMPLE_ORDER_ROW.customer_account_num);
     expect(order.customerName).toBe(SAMPLE_ORDER_ROW.customer_name);
     expect(order.deliveryName).toBe(SAMPLE_ORDER_ROW.delivery_name);
     expect(order.date).toBe(SAMPLE_ORDER_ROW.creation_date);

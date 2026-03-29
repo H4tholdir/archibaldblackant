@@ -15,7 +15,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   customerName: string;
-  customerProfileIds: string[];
+  customerErpIds: string[];
   subClientCodices: string[];
   isFresisClient: boolean;
   onAddArticle: (item: PendingOrderItem, replace: boolean) => void;
@@ -43,7 +43,7 @@ function formatEur(n: number): string {
 }
 
 export function CustomerHistoryModal({
-  isOpen, onClose, customerName, customerProfileIds, subClientCodices,
+  isOpen, onClose, customerName, customerErpIds, subClientCodices,
   isFresisClient, onAddArticle, onAddOrder, onEditMatching,
 }: Props) {
   const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
@@ -75,7 +75,7 @@ export function CustomerHistoryModal({
   const [pendingCopyDialog, setPendingCopyDialog] = useState<PendingCopyDialog | null>(null);
 
   // Serializzato per evitare re-render infiniti con array come dipendenze
-  const profileIdsKey = customerProfileIds.join(',');
+  const profileIdsKey = customerErpIds.join(',');
   const subClientCodicesKey = subClientCodices.join(',');
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export function CustomerHistoryModal({
     setLoading(true);
     setError(null);
     getCustomerFullHistory({
-      customerProfileIds: customerProfileIds.length > 0 ? customerProfileIds : undefined,
+      customerErpIds: customerErpIds.length > 0 ? customerErpIds : undefined,
       customerName: customerName || undefined,
       subClientCodices: subClientCodices.length > 0 ? subClientCodices : undefined,
     })
@@ -151,8 +151,8 @@ export function CustomerHistoryModal({
     const customers = new Map<string, string>();
     const subClients = new Map<string, string>();
     orders.forEach((o) => {
-      if (o.customerProfileId)
-        customers.set(o.customerProfileId, o.customerRagioneSociale ?? o.customerProfileId);
+      if (o.customerAccountNum)
+        customers.set(o.customerAccountNum, o.customerRagioneSociale ?? o.customerAccountNum);
       if (o.subClientCodice)
         subClients.set(o.subClientCodice, o.subClientRagioneSociale ?? o.subClientCodice);
     });
@@ -176,7 +176,7 @@ export function CustomerHistoryModal({
         const matchesClient =
           selectedClientFilter === '' ||
           (selectedClientFilter.startsWith('customer:') &&
-            order.customerProfileId === selectedClientFilter.slice('customer:'.length)) ||
+            order.customerAccountNum === selectedClientFilter.slice('customer:'.length)) ||
           (selectedClientFilter.startsWith('subclient:') &&
             order.subClientCodice === selectedClientFilter.slice('subclient:'.length));
         if (!matchesClient) return null;
@@ -723,9 +723,9 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
             {' '}
             <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>{new Date(order.orderDate).toLocaleDateString('it-IT')}</span>
           </span>
-          {(order.customerProfileId || order.customerCity || order.customerRagioneSociale) && (
+          {(order.customerAccountNum || order.customerCity || order.customerRagioneSociale) && (
             <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              Cliente: {[order.customerProfileId, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
+              Cliente: {[order.customerAccountNum, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
             </div>
           )}
           {isFresis && order.subClientCodice && (

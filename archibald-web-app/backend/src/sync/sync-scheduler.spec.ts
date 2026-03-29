@@ -392,8 +392,8 @@ describe('createSyncScheduler', () => {
     test('enqueues sync-customer-addresses after ADDRESS_SYNC_DELAY_MS for active agents', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
-        { customer_profile: 'CUST-001', name: 'Rossi Mario' },
-        { customer_profile: 'CUST-002', name: 'Verdi Luca' },
+        { erp_id: 'CUST-001', name: 'Rossi Mario' },
+        { erp_id: 'CUST-002', name: 'Verdi Luca' },
       ]);
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
@@ -410,8 +410,8 @@ describe('createSyncScheduler', () => {
         'user-1',
         {
           customers: [
-            { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
-            { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
+            { erpId: 'CUST-001', customerName: 'Rossi Mario' },
+            { erpId: 'CUST-002', customerName: 'Verdi Luca' },
           ],
         },
       );
@@ -422,7 +422,7 @@ describe('createSyncScheduler', () => {
     test('enqueues sync-customer-addresses without idempotency key to allow re-enqueue each cycle', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
-        { customer_profile: 'CUST-001', name: 'Rossi Mario' },
+        { erp_id: 'CUST-001', name: 'Rossi Mario' },
       ]);
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
@@ -453,7 +453,7 @@ describe('createSyncScheduler', () => {
     test('does not enqueue address syncs for idle agents', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
-        { customer_profile: 'CUST-001', name: 'Rossi' },
+        { erp_id: 'CUST-001', name: 'Rossi' },
       ]);
       const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']), undefined, getCustomersNeedingAddressSync);
 
@@ -506,7 +506,7 @@ describe('createSyncScheduler', () => {
     test('does not create duplicate address sync timeout when interval fires multiple times before delay expires', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
-        { customer_profile: 'CUST-001', name: 'Rossi' },
+        { erp_id: 'CUST-001', name: 'Rossi' },
       ]);
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
@@ -527,7 +527,7 @@ describe('createSyncScheduler', () => {
     test('stop() does not cancel pending address sync timeouts (survives session stops)', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
-        { customer_profile: 'CUST-001', name: 'Rossi' },
+        { erp_id: 'CUST-001', name: 'Rossi' },
       ]);
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 

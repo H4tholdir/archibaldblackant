@@ -3,13 +3,13 @@ import { getSubclients, setSubclientMatch, type Subclient } from '../services/su
 import { normalizeSubClientCode } from '../utils/fresisHistoryFilters';
 
 type Props = {
-  customerProfileId: string;
+  erpId: string;
   customerName: string;
   onMatched: (subClient: Subclient) => void;
   onClose: () => void;
 };
 
-export function SubClientPickerModal({ customerProfileId, customerName, onMatched, onClose }: Props) {
+export function SubClientPickerModal({ erpId, customerName, onMatched, onClose }: Props) {
   const [subclients, setSubclientsList] = useState<Subclient[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -44,14 +44,14 @@ export function SubClientPickerModal({ customerProfileId, customerName, onMatche
       setSaving(true);
       setError(null);
       try {
-        await setSubclientMatch(sub.codice, customerProfileId);
-        onMatched({ ...sub, matchedCustomerProfileId: customerProfileId, matchConfidence: 'manual' });
+        await setSubclientMatch(sub.codice, erpId);
+        onMatched({ ...sub, matchedCustomerProfileId: erpId, matchConfidence: 'manual' });
       } catch {
         setError('Errore nel salvataggio del collegamento');
         setSaving(false);
       }
     },
-    [customerProfileId, onMatched],
+    [erpId, onMatched],
   );
 
   return (

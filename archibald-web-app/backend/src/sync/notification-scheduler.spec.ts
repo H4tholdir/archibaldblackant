@@ -18,7 +18,7 @@ function makeDeps(pool: DbPool): NotificationServiceDeps {
 
 describe('checkCustomerInactivity', () => {
   test('creates a warning notification for each inactive customer returned by the query', async () => {
-    const customer = { customer_profile: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' };
+    const customer = { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' };
     const pool = makePool([customer]);
     const deps = makeDeps(pool);
 
@@ -31,7 +31,7 @@ describe('checkCustomerInactivity', () => {
         userId: 'U1',
         type: 'customer_inactive',
         severity: 'warning',
-        data: expect.objectContaining({ customerProfile: 'CP001', customerName: 'Mario Rossi' }),
+        data: expect.objectContaining({ erpId: 'CP001', customerName: 'Mario Rossi' }),
       }),
     );
     expect(deps.broadcast).toHaveBeenCalledWith('U1', expect.objectContaining({ type: 'NOTIFICATION_NEW' }));
@@ -39,8 +39,8 @@ describe('checkCustomerInactivity', () => {
 
   test('creates one notification per inactive customer', async () => {
     const customers = [
-      { customer_profile: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' },
-      { customer_profile: 'CP002', user_id: 'U2', name: 'Luigi Bianchi', last_order_date: '2025-05-15' },
+      { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' },
+      { erp_id: 'CP002', user_id: 'U2', name: 'Luigi Bianchi', last_order_date: '2025-05-15' },
     ];
     const pool = makePool(customers);
     const deps = makeDeps(pool);

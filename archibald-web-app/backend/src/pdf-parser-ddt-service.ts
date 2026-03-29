@@ -13,7 +13,7 @@ export interface ParsedDDT {
   sales_name: string | null;
   delivery_name: string | null;
   delivery_address: string | null;
-  ddt_total: string | null;
+  ddt_quantity: string | null;
   customer_reference: string | null;
   description: string | null;
   tracking_number: string | null;

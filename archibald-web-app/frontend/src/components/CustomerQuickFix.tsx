@@ -5,7 +5,7 @@ import { toastService } from '../services/toast.service';
 import type { MissingFieldKey } from '../utils/customer-completeness';
 
 interface CustomerQuickFixProps {
-  customerProfile: string;
+  erpId: string;
   customerName: string;
   missingFields: readonly MissingFieldKey[];
   onSaved: () => void;
@@ -43,7 +43,7 @@ function buildInputKeys(missingFields: readonly MissingFieldKey[]): FieldKey[] {
 }
 
 export function CustomerQuickFix({
-  customerProfile,
+  erpId,
   customerName,
   missingFields,
   onSaved,
@@ -95,7 +95,7 @@ export function CustomerQuickFix({
 
     try {
       const data: Record<string, unknown> = {
-        customerProfile,
+        erpId,
         name: values.name || customerName,
       };
       if (inputKeys.includes('vatNumber') && values.vatNumber)

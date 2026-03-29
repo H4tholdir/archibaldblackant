@@ -152,7 +152,7 @@ function KtSyncDialog({ orders, onClose, onComplete }: KtSyncDialogProps) {
         if (sc.matchedCustomerProfileId) profileSet.add(sc.matchedCustomerProfileId);
       }
       const unmatched = orders.filter((o) => {
-        const pid = (o as any).customerProfileId ?? (o as any).customer_profile_id;
+        const pid = (o as any).customerAccountNum ?? (o as any).customer_account_num;
         return !pid || !profileSet.has(pid);
       });
       setUnmatchedOrders(unmatched);

@@ -13,7 +13,7 @@ export type SectionField = {
 interface CustomerInlineSectionProps {
   title: string;
   fields: SectionField[];
-  customerProfile: string;
+  erpId: string;
   customerName: string;
   hasError?: boolean;
   onSaved?: () => void;
@@ -23,7 +23,7 @@ interface CustomerInlineSectionProps {
 export function CustomerInlineSection({
   title,
   fields,
-  customerProfile,
+  erpId,
   customerName,
   hasError = false,
   onSaved,
@@ -58,7 +58,7 @@ export function CustomerInlineSection({
     setError(null);
     try {
       const data: Record<string, unknown> = {
-        customerProfile,
+        erpId,
         name: customerName,
       };
       for (const field of fields) {

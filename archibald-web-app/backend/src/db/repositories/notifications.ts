@@ -135,7 +135,7 @@ async function deleteExpired(pool: DbPool): Promise<number> {
 }
 
 type OrphanedCustomer = {
-  internalId: string;
+  accountNum: string;
   customerName: string;
   affectedAgentIds: string[];
 };
@@ -143,36 +143,36 @@ type OrphanedCustomer = {
 // Returns customers with orders in order_records that no longer exist in agents.customers
 // (neither active nor soft-deleted), skipping those that already have a recent notification.
 async function findOrphanedCustomerOrders(pool: DbPool): Promise<OrphanedCustomer[]> {
-  const { rows } = await pool.query<{ customer_profile_id: string; customer_name: string; user_id: string }>(
-    `SELECT DISTINCT o.customer_profile_id, o.customer_name, o.user_id
+  const { rows } = await pool.query<{ customer_account_num: string; customer_name: string; user_id: string }>(
+    `SELECT DISTINCT o.customer_account_num, o.customer_name, o.user_id
      FROM agents.order_records o
-     WHERE o.customer_profile_id IS NOT NULL
+     WHERE o.customer_account_num IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM agents.customers c
-         WHERE c.internal_id = o.customer_profile_id
+         WHERE c.account_num = o.customer_account_num
        )
        AND NOT EXISTS (
          SELECT 1 FROM agents.notifications n
          WHERE n.user_id = o.user_id
            AND n.type = 'erp_customer_deleted'
            AND n.expires_at > NOW()
-           AND n.data::text LIKE '%' || o.customer_profile_id || '%'
+           AND n.data::text LIKE '%' || o.customer_account_num || '%'
        )
-     ORDER BY o.customer_profile_id, o.user_id`,
+     ORDER BY o.customer_account_num, o.user_id`,
   );
 
   const map = new Map<string, { name: string; agentIds: string[] }>();
   for (const row of rows) {
-    const entry = map.get(row.customer_profile_id);
+    const entry = map.get(row.customer_account_num);
     if (entry) {
       if (!entry.agentIds.includes(row.user_id)) entry.agentIds.push(row.user_id);
     } else {
-      map.set(row.customer_profile_id, { name: row.customer_name, agentIds: [row.user_id] });
+      map.set(row.customer_account_num, { name: row.customer_name, agentIds: [row.user_id] });
     }
   }
 
-  return [...map.entries()].map(([internalId, { name, agentIds }]) => ({
-    internalId,
+  return [...map.entries()].map(([accountNum, { name, agentIds }]) => ({
+    accountNum,
     customerName: name,
     affectedAgentIds: agentIds,
   }));

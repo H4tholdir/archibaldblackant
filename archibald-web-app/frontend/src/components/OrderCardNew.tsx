@@ -15,7 +15,7 @@ import {
   formatCurrency,
   formatPriceFromString,
 } from "../utils/format-currency";
-import { FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { FRESIS_DEFAULT_DISCOUNT, FRESIS_ACCOUNT_NUM } from "../utils/fresis-constants";
 import { archibaldLineAmount, calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
 import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
@@ -452,7 +452,7 @@ function TabPanoramica({
             <div style={fieldLabelStyle}>Profilo</div>
             <div style={fieldValueStyle}>
               <HighlightText
-                text={order.customerProfileId || "N/A"}
+                text={order.customerAccountNum || "N/A"}
                 query={searchQuery}
               />
             </div>
@@ -493,10 +493,10 @@ function TabPanoramica({
               </div>
             </div>
           )}
-          {order.remainingSalesFinancial && (
+          {order.orderDescription && (
             <div>
               <div style={fieldLabelStyle}>Residuo Finanziario</div>
-              <div style={fieldValueStyle}>{order.remainingSalesFinancial}</div>
+              <div style={fieldValueStyle}>{order.orderDescription}</div>
             </div>
           )}
         </div>
@@ -3301,8 +3301,8 @@ function TabLogistica({
               value={ddt.ddtSalesName}
               searchQuery={searchQuery}
             />
-            {ddt.ddtTotal && (
-              <InfoField label="Totale DDT" value={ddt.ddtTotal} />
+            {ddt.ddtQuantity && (
+              <InfoField label="Quantità DDT" value={ddt.ddtQuantity} />
             )}
             {ddt.customerReference && (
               <InfoField
@@ -3962,9 +3962,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
   const [ftLoading, setFtLoading] = useState(false);
   const [ftError, setFtError] = useState<string | null>(null);
 
-  const isFresisOrder =
-    order.customerProfileId === "55.261" ||
-    order.customerProfileId === "57.213";
+  const isFresisOrder = order.customerAccountNum === FRESIS_ACCOUNT_NUM;
 
   useEffect(() => {
     if (!isFresisOrder || !token) return;
@@ -4706,7 +4704,7 @@ export function OrderCardNew({
             )}
 
             {/* Residuo Finanziario (used as order notes) */}
-            {order.remainingSalesFinancial && (
+            {order.orderDescription && (
               <div
                 style={{
                   fontSize: "12px",
@@ -4720,7 +4718,7 @@ export function OrderCardNew({
                 }}
               >
                 <HighlightText
-                  text={order.remainingSalesFinancial}
+                  text={order.orderDescription}
                   query={searchQuery}
                 />
               </div>

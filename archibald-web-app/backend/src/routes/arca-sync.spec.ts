@@ -110,7 +110,7 @@ describe('POST /api/arca-sync/import-customer', () => {
 
     const res = await request(createApp(deps))
       .post('/api/arca-sync/import-customer')
-      .send({ customerProfileId: 'C01273', codice: 'C00042' });
+      .send({ erpId: 'C01273', codice: 'C00042' });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, codice: 'C00042' });
@@ -124,7 +124,7 @@ describe('POST /api/arca-sync/import-customer', () => {
 
     const res = await request(createApp(deps))
       .post('/api/arca-sync/import-customer')
-      .send({ customerProfileId: 'C01273', codice: 'C00042' });
+      .send({ erpId: 'C01273', codice: 'C00042' });
 
     expect(res.status).toBe(409);
   });
@@ -134,7 +134,7 @@ describe('POST /api/arca-sync/import-customer', () => {
 
     const res = await request(createApp(deps))
       .post('/api/arca-sync/import-customer')
-      .send({ customerProfileId: 'C01273', codice: 'P00001' });
+      .send({ erpId: 'C01273', codice: 'P00001' });
 
     expect(res.status).toBe(422);
   });

@@ -7,7 +7,7 @@ type CustomerFullHistoryRouterDeps = {
   getCustomerFullHistory: (
     userId: string,
     params: {
-      customerProfileIds?: string[];
+      customerErpIds?: string[];
       customerName?: string;
       subClientCodices?: string[];
     },
@@ -20,19 +20,19 @@ function createCustomerFullHistoryRouter(deps: CustomerFullHistoryRouterDeps) {
   router.get('/customer-full-history', async (req: AuthRequest, res) => {
     const query = req.query as Record<string, string | string[] | undefined>;
 
-    // Express parses repeated params as arrays: ?customerProfileIds[]=X&customerProfileIds[]=Y
-    const customerProfileIds = normalizeArray(query['customerProfileIds[]'] ?? query['customerProfileIds']);
+    // Express parses repeated params as arrays: ?customerErpIds[]=X&customerErpIds[]=Y
+    const customerErpIds = normalizeArray(query['customerErpIds[]'] ?? query['customerErpIds']);
     const subClientCodices = normalizeArray(query['subClientCodices[]'] ?? query['subClientCodices']);
     const customerName = typeof query['customerName'] === 'string' ? query['customerName'] : undefined;
 
-    if (customerProfileIds.length === 0 && !customerName && subClientCodices.length === 0) {
-      res.status(400).json({ error: 'Almeno uno tra customerProfileIds, customerName e subClientCodices è richiesto' });
+    if (customerErpIds.length === 0 && !customerName && subClientCodices.length === 0) {
+      res.status(400).json({ error: 'Almeno uno tra customerErpIds, customerName e subClientCodices è richiesto' });
       return;
     }
 
     try {
       const userId = req.user!.userId;
-      const orders = await deps.getCustomerFullHistory(userId, { customerProfileIds, customerName, subClientCodices });
+      const orders = await deps.getCustomerFullHistory(userId, { customerErpIds, customerName, subClientCodices });
       res.json({ orders });
     } catch (err) {
       logger.error('Error fetching customer full history', { error: err instanceof Error ? err.message : err });

@@ -3,7 +3,7 @@ import type { DbPool, TxClient } from './pool';
 const DDT_COLUMNS = [
   'ddt_number', 'ddt_delivery_date', 'ddt_id', 'ddt_customer_account',
   'ddt_sales_name', 'ddt_delivery_name', 'delivery_terms', 'delivery_method',
-  'delivery_city', 'attention_to', 'ddt_delivery_address', 'ddt_total',
+  'delivery_city', 'attention_to', 'ddt_delivery_address', 'ddt_quantity',
   'ddt_customer_reference', 'ddt_description', 'tracking_number',
   'tracking_url', 'tracking_courier', 'delivery_completed_date',
 ] as const;

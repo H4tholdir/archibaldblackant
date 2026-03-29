@@ -68,7 +68,7 @@ const CUSTOMER = {
 
 const DELIVERY_ADDRESS_1 = {
   id: 10,
-  customerProfile: 'CUST-ADDR-001',
+  erpId: 'CUST-ADDR-001',
   tipo: 'Consegna',
   nome: null,
   via: 'Via Roma 1',
@@ -82,7 +82,7 @@ const DELIVERY_ADDRESS_1 = {
 
 const DELIVERY_ADDRESS_2 = {
   id: 11,
-  customerProfile: 'CUST-ADDR-001',
+  erpId: 'CUST-ADDR-001',
   tipo: 'Indir. cons. alt.',
   nome: null,
   via: 'Via Milano 5',

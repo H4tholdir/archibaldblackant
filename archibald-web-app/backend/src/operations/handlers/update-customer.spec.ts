@@ -34,7 +34,7 @@ const makeBot = (snap: CustomerSnapshot = snapshot): UpdateCustomerBot => ({
 });
 
 const baseData: UpdateCustomerData = {
-  customerProfile: '55.261',
+  erpId: '55.261',
   name: 'Mario Rossi S.r.l.',
   vatNumber: 'IT08246131216',
   pec: 'mario@pec.it',
@@ -45,7 +45,7 @@ const baseData: UpdateCustomerData = {
 };
 
 describe('handleUpdateCustomer', () => {
-  test('calls bot.updateCustomer with correct customerProfile and data', async () => {
+  test('calls bot.updateCustomer with correct erpId and data', async () => {
     const pool = makePool();
     const bot = makeBot();
     await handleUpdateCustomer(pool as never, bot, baseData, 'user1', vi.fn());

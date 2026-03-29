@@ -18,8 +18,8 @@ vi.mock('../utils/customer-completeness', () => ({
 }));
 
 const mockCustomer = {
-  customerProfile: '55.261',
-  internalId: null,
+  erpId: '55.261',
+  accountNum: null,
   name: 'Mario Rossi S.r.l.',
   vatNumber: 'IT08246131216',
   vatValidatedAt: '2026-01-01T00:00:00Z',
@@ -45,7 +45,7 @@ const renderPage = (profile = '55.261') =>
   render(
     <MemoryRouter initialEntries={[`/customers/${profile}`]}>
       <Routes>
-        <Route path="/customers/:customerProfile" element={<CustomerDetailPage />} />
+        <Route path="/customers/:erpId" element={<CustomerDetailPage />} />
       </Routes>
     </MemoryRouter>,
   );

@@ -318,7 +318,7 @@ function AppRouter() {
 
             {/* Customer Detail route - must come BEFORE generic /customers */}
             <Route
-              path="/customers/:customerProfile"
+              path="/customers/:erpId"
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>

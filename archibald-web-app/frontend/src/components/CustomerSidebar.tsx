@@ -42,7 +42,7 @@ export function CustomerSidebar({ customer, onNewOrder, photoUrl, onPhotoChange 
     e.target.value = '';
     setPhotoUploading(true);
     try {
-      await customerService.uploadPhoto(customer.customerProfile, file);
+      await customerService.uploadPhoto(customer.erpId, file);
       onPhotoChange?.();
     } catch {
       // silenzioso
@@ -55,7 +55,7 @@ export function CustomerSidebar({ customer, onNewOrder, photoUrl, onPhotoChange 
     if (!window.confirm('Rimuovere la foto del cliente?')) return;
     setPhotoUploading(true);
     try {
-      await customerService.deletePhoto(customer.customerProfile);
+      await customerService.deletePhoto(customer.erpId);
       onPhotoChange?.();
     } catch {
       // silenzioso
@@ -174,7 +174,7 @@ export function CustomerSidebar({ customer, onNewOrder, photoUrl, onPhotoChange 
           </button>
         )}
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#f1f5f9' }}>{customer.name}</div>
-        <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{customer.customerProfile}</div>
+        <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{customer.erpId}</div>
         {customer.sector && (
           <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>{customer.sector}</div>
         )}

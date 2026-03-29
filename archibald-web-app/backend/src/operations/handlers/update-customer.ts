@@ -7,7 +7,7 @@ import { upsertAddressesForCustomer } from '../../db/repositories/customer-addre
 import { logger } from '../../logger';
 
 type UpdateCustomerData = {
-  customerProfile: string;
+  erpId: string;
   originalName?: string;
   name: string;
   vatNumber?: string;
@@ -33,8 +33,8 @@ type UpdateCustomerData = {
 };
 
 type UpdateCustomerBot = {
-  updateCustomer: (customerProfile: string, customerData: UpdateCustomerData, originalName: string) => Promise<void>;
-  buildCustomerSnapshot: (customerProfile: string) => Promise<CustomerSnapshot>;
+  updateCustomer: (erpId: string, customerData: UpdateCustomerData, originalName: string) => Promise<void>;
+  buildCustomerSnapshot: (erpId: string) => Promise<CustomerSnapshot>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -54,8 +54,8 @@ async function handleUpdateCustomer(
   if (!originalName) {
     const { rows: [existing] } = await pool.query<{ name: string; archibald_name: string | null }>(
       `SELECT name, archibald_name FROM agents.customers
-       WHERE customer_profile = $1 AND user_id = $2`,
-      [data.customerProfile, userId],
+       WHERE erp_id = $1 AND user_id = $2`,
+      [data.erpId, userId],
     );
     originalName = existing?.archibald_name ?? existing?.name ?? data.name;
   }
@@ -72,7 +72,7 @@ async function handleUpdateCustomer(
       attention_to = COALESCE($14, attention_to),
       notes = COALESCE($15, notes),
       bot_status = 'pending', archibald_name = $16, last_sync = $17, updated_at = NOW()
-    WHERE customer_profile = $18 AND user_id = $19`,
+    WHERE erp_id = $18 AND user_id = $19`,
     [
       data.name, data.vatNumber ?? null, data.pec ?? null, data.sdi ?? null,
       data.street ?? null, data.postalCode ?? null, data.phone ?? null, data.mobile ?? null,
@@ -80,7 +80,7 @@ async function handleUpdateCustomer(
       data.sector ?? null, data.fiscalCode ?? null,
       data.attentionTo ?? null, data.notes ?? null,
       originalName, Date.now(),
-      data.customerProfile, userId,
+      data.erpId, userId,
     ],
   );
 
@@ -99,24 +99,24 @@ async function handleUpdateCustomer(
   });
 
   onProgress(20, 'Aggiornamento su Archibald');
-  await bot.updateCustomer(data.customerProfile, data, originalName);
+  await bot.updateCustomer(data.erpId, data, originalName);
 
   const addressesForUpsert = (data.addresses ?? []).map((a) => ({
     tipo: a.tipo, nome: a.nome ?? null, via: a.via ?? null,
     cap: a.cap ?? null, citta: a.citta ?? null, contea: a.contea ?? null,
     stato: a.stato ?? null, idRegione: a.idRegione ?? null, contra: a.contra ?? null,
   }));
-  await upsertAddressesForCustomer(pool, userId, data.customerProfile, addressesForUpsert);
+  await upsertAddressesForCustomer(pool, userId, data.erpId, addressesForUpsert);
 
   if (data.vatWasValidated) {
-    await updateVatValidatedAt(pool, userId, data.customerProfile);
+    await updateVatValidatedAt(pool, userId, data.erpId);
   }
 
   onProgress(78, 'Lettura snapshot da Archibald');
 
   let snapshot: CustomerSnapshot = null;
   try {
-    snapshot = await bot.buildCustomerSnapshot(data.customerProfile);
+    snapshot = await bot.buildCustomerSnapshot(data.erpId);
   } catch (err) {
     logger.warn('handleUpdateCustomer: snapshot fallito, procedo senza', { error: String(err) });
   }
@@ -145,7 +145,7 @@ async function handleUpdateCustomer(
         ELSE vat_validated_at
       END,
       updated_at = NOW()
-     WHERE customer_profile = $16 AND user_id = $17`,
+     WHERE erp_id = $16 AND user_id = $17`,
     [
       data.name,
       snapshot?.nameAlias ?? null,
@@ -162,7 +162,7 @@ async function handleUpdateCustomer(
       snapshot?.attentionTo ?? null,
       snapshot?.notes ?? null,
       snapshot?.vatValidated ?? null,
-      data.customerProfile, userId,
+      data.erpId, userId,
     ],
   );
 

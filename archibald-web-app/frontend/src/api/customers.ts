@@ -4,7 +4,7 @@ const API_BASE = ""; // Vite proxy handles /api
 
 export interface Customer {
   id: string;
-  customerProfile: string;
+  erpId: string;
   name: string;
   vatNumber: string | null;
   pec: string | null;

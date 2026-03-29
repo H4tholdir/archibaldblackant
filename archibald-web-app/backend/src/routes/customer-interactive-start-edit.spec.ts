@@ -30,9 +30,9 @@ function makeDeps(overrides: Partial<CustomerInteractiveRouterDeps> = {}): Custo
     updateCustomerBotStatus: vi.fn().mockResolvedValue(undefined),
     updateVatValidatedAt: vi.fn().mockResolvedValue(undefined),
     getCustomerByProfile: vi.fn().mockResolvedValue({
-      customerProfile: 'TEST-001',
+      erpId: 'TEST-001',
       name: 'Test Cliente',
-      internalId: '55.123',
+      accountNum: '55.123',
     }),
     pauseSyncs: vi.fn().mockResolvedValue(undefined),
     resumeSyncs: vi.fn(),
@@ -53,7 +53,7 @@ describe('POST /api/customers/interactive/start-edit', () => {
     const app = makeApp(makeDeps());
     const res = await request(app)
       .post('/api/customers/interactive/start-edit')
-      .send({ customerProfile: 'TEST-001' });
+      .send({ erpId: 'TEST-001' });
     expect(res.status).toBe(200);
     expect(res.body.data.sessionId).toBe('session-123');
   });
@@ -64,11 +64,11 @@ describe('POST /api/customers/interactive/start-edit', () => {
     }));
     const res = await request(app)
       .post('/api/customers/interactive/start-edit')
-      .send({ customerProfile: 'NON-ESISTE' });
+      .send({ erpId: 'NON-ESISTE' });
     expect(res.status).toBe(404);
   });
 
-  test('body senza customerProfile → 400', async () => {
+  test('body senza erpId → 400', async () => {
     const app = makeApp(makeDeps());
     const res = await request(app)
       .post('/api/customers/interactive/start-edit')
@@ -76,11 +76,11 @@ describe('POST /api/customers/interactive/start-edit', () => {
     expect(res.status).toBe(400);
   });
 
-  test('customerProfile stringa vuota → 400', async () => {
+  test('erpId stringa vuota → 400', async () => {
     const app = makeApp(makeDeps());
     const res = await request(app)
       .post('/api/customers/interactive/start-edit')
-      .send({ customerProfile: '' });
+      .send({ erpId: '' });
     expect(res.status).toBe(400);
   });
 
@@ -104,7 +104,7 @@ describe('POST /api/customers/interactive/start-edit', () => {
     const app = makeApp(deps);
     await request(app)
       .post('/api/customers/interactive/start-edit')
-      .send({ customerProfile: 'TEST-001' });
+      .send({ erpId: 'TEST-001' });
     expect(deps.sessionManager.destroySession).toHaveBeenCalledWith('old-session');
   });
 });

@@ -209,7 +209,7 @@ export type KtSyncStatus = {
   articlesReady: number;
   articlesPending: number;
   matched: number;
-  unmatched: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  unmatched: Array<{ orderId: string; customerName: string; erpId: string | null }>;
   readyToExport: number;
 };
 

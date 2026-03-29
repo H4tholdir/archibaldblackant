@@ -19,9 +19,9 @@ import type { AddressEntry } from '../types/customer-form-data';
 
 type Tab = 'dati' | 'ordini' | 'note' | 'indirizzi';
 
-async function fetchCustomer(customerProfile: string): Promise<Customer> {
+async function fetchCustomer(erpId: string): Promise<Customer> {
   const jwt = localStorage.getItem('archibald_jwt') ?? '';
-  const res = await fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+  const res = await fetch(`/api/customers/${encodeURIComponent(erpId)}`, {
     headers: { Authorization: `Bearer ${jwt}` },
   });
   if (!res.ok) throw new Error('Errore nel caricamento del cliente');
@@ -30,16 +30,16 @@ async function fetchCustomer(customerProfile: string): Promise<Customer> {
 }
 
 interface CustomerDetailPageProps {
-  customerProfileOverride?: string;
+  erpIdOverride?: string;
   embedded?: boolean;
 }
 
 export function CustomerDetailPage({
-  customerProfileOverride,
+  erpIdOverride,
   embedded = false,
 }: CustomerDetailPageProps = {}) {
-  const params = useParams<{ customerProfile: string }>();
-  const customerProfile = customerProfileOverride ?? params.customerProfile;
+  const params = useParams<{ erpId: string }>();
+  const customerProfile = erpIdOverride ?? params.erpId;
   const navigate = useNavigate();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -98,7 +98,7 @@ export function CustomerDetailPage({
     if (activeTab !== 'ordini' || !customer || ordersLoaded) return;
     setOrdersLoading(true);
     setOrdersError(null);
-    getCustomerFullHistory({ customerProfileIds: [customer.customerProfile] })
+    getCustomerFullHistory({ customerErpIds: [customer.erpId] })
       .then((data) => {
         setOrders(data.slice(0, 20));
         setOrdersLoaded(true);
@@ -112,7 +112,7 @@ export function CustomerDetailPage({
 
   useEffect(() => {
     if (activeTab !== 'indirizzi' || !customer || addressesLoaded) return;
-    getCustomerAddresses(customer.customerProfile)
+    getCustomerAddresses(customer.erpId)
       .then((data) => { setAddresses(data); setAddressesLoaded(true); })
       .catch(() => setAddressesLoaded(true));
   }, [activeTab, customer, addressesLoaded]);
@@ -132,7 +132,7 @@ export function CustomerDetailPage({
     try {
       const jwt = localStorage.getItem('archibald_jwt') ?? '';
       const res = await fetch(
-        `/api/customers/${encodeURIComponent(customer.customerProfile)}/agent-notes`,
+        `/api/customers/${encodeURIComponent(customer.erpId)}/agent-notes`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
@@ -242,10 +242,10 @@ export function CustomerDetailPage({
         contra: addrForm.contra || undefined,
       };
       if (addrForm.id !== undefined) {
-        const updated = await updateCustomerAddress(customer.customerProfile, addrForm.id, entry);
+        const updated = await updateCustomerAddress(customer.erpId, addrForm.id, entry);
         setAddresses((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
       } else {
-        const created = await addCustomerAddress(customer.customerProfile, entry);
+        const created = await addCustomerAddress(customer.erpId, entry);
         setAddresses((prev) => [...prev, created]);
       }
       setAddrForm(null);
@@ -260,7 +260,7 @@ export function CustomerDetailPage({
     if (!customer) return;
     if (!window.confirm('Eliminare questo indirizzo?')) return;
     try {
-      await deleteCustomerAddress(customer.customerProfile, id);
+      await deleteCustomerAddress(customer.erpId, id);
       setAddresses((prev) => prev.filter((a) => a.id !== id));
     } catch (e: unknown) {
       setAddrError(e instanceof Error ? e.message : 'Errore eliminazione');
@@ -303,7 +303,7 @@ export function CustomerDetailPage({
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{customer.name}</div>
-          <div style={{ fontSize: '10px', color: '#64748b' }}>{customer.customerProfile}</div>
+          <div style={{ fontSize: '10px', color: '#64748b' }}>{customer.erpId}</div>
         </div>
         <button
           onClick={() => navigate('/')}
@@ -368,12 +368,12 @@ export function CustomerDetailPage({
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
             {activeTab === 'dati' && (
               <>
-                <CustomerInlineSection title="Anagrafica"         fields={anagraficaFields}   customerProfile={customer.customerProfile} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
-                <CustomerInlineSection title="Dati Fiscali"       fields={fiscaleFields}       customerProfile={customer.customerProfile} customerName={customer.name} columns={2} hasError={isFiscaleError} onSaved={loadCustomer} />
-                <CustomerInlineSection title="Contatti"           fields={contattiFields}      customerProfile={customer.customerProfile} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
-                <CustomerInlineSection title="Indirizzo principale" fields={indirizzoFields}   customerProfile={customer.customerProfile} customerName={customer.name} columns={3} hasError={isIndirizzoError} onSaved={loadCustomer} />
-                <CustomerInlineSection title="Commerciale"        fields={commercialeFields}   customerProfile={customer.customerProfile} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
-                <CustomerInlineSection title="Note ERP"           fields={noteFields}          customerProfile={customer.customerProfile} customerName={customer.name} columns={1}       onSaved={loadCustomer} />
+                <CustomerInlineSection title="Anagrafica"         fields={anagraficaFields}   erpId={customer.erpId} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
+                <CustomerInlineSection title="Dati Fiscali"       fields={fiscaleFields}       erpId={customer.erpId} customerName={customer.name} columns={2} hasError={isFiscaleError} onSaved={loadCustomer} />
+                <CustomerInlineSection title="Contatti"           fields={contattiFields}      erpId={customer.erpId} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
+                <CustomerInlineSection title="Indirizzo principale" fields={indirizzoFields}   erpId={customer.erpId} customerName={customer.name} columns={3} hasError={isIndirizzoError} onSaved={loadCustomer} />
+                <CustomerInlineSection title="Commerciale"        fields={commercialeFields}   erpId={customer.erpId} customerName={customer.name} columns={2}       onSaved={loadCustomer} />
+                <CustomerInlineSection title="Note ERP"           fields={noteFields}          erpId={customer.erpId} customerName={customer.name} columns={1}       onSaved={loadCustomer} />
               </>
             )}
             {activeTab === 'ordini' && (

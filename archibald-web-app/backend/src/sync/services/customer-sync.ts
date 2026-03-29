@@ -3,7 +3,7 @@ import { copyFile } from 'node:fs/promises';
 import { logger } from '../../logger';
 
 type ParsedCustomer = {
-  customerProfile: string;
+  erpId: string;
   name: string;
   vatNumber?: string;
   fiscalCode?: string;
@@ -30,19 +30,19 @@ type ParsedCustomer = {
   previousSales2?: number;
   externalAccountNumber?: string;
   ourAccountNumber?: string;
-  internalId?: string;
+  accountNum?: string;
 };
 
 type DeletedProfileInfo = {
   profile: string;
-  internalId: string;
+  accountNum: string;
   name: string;
   affectedAgentIds: string[];
 };
 
 type RestoredProfileInfo = {
   profile: string;
-  internalId: string;
+  accountNum: string;
   name: string;
   affectedAgentIds: string[];
 };
@@ -103,20 +103,20 @@ async function syncCustomers(
     let newCustomers = 0;
     let updatedCustomers = 0;
     let restoredCustomers = 0;
-    const restored: Array<{ profile: string; internalId: string; name: string }> = [];
-    const newWithInternalId: Array<{ profile: string; internalId: string; name: string }> = [];
+    const restored: Array<{ profile: string; accountNum: string; name: string }> = [];
+    const newWithAccountNum: Array<{ profile: string; accountNum: string; name: string }> = [];
 
     const now = Date.now();
     for (const customer of parsedCustomers) {
       const hash = computeSimpleHash(customer);
 
       const { rows: [existing] } = await pool.query<{ hash: string; deleted_at: Date | null }>(
-        'SELECT hash, deleted_at FROM agents.customers WHERE customer_profile = $1 AND user_id = $2',
-        [customer.customerProfile, userId],
+        'SELECT hash, deleted_at FROM agents.customers WHERE erp_id = $1 AND user_id = $2',
+        [customer.erpId, userId],
       );
 
       const customerParams = [
-        customer.customerProfile, userId, customer.internalId ?? null, customer.name,
+        customer.erpId, userId, customer.accountNum ?? null, customer.name,
         customer.vatNumber ?? null, customer.fiscalCode ?? null, customer.sdi ?? null, customer.pec ?? null,
         customer.phone ?? null, customer.mobile ?? null, customer.email ?? null, customer.url ?? null, customer.attentionTo ?? null,
         customer.street ?? null, customer.logisticsAddress ?? null, customer.postalCode ?? null, customer.city ?? null,
@@ -131,7 +131,7 @@ async function syncCustomers(
       if (!existing) {
         await pool.query(
           `INSERT INTO agents.customers (
-            customer_profile, user_id, internal_id, name,
+            erp_id, user_id, account_num, name,
             vat_number, fiscal_code, sdi, pec,
             phone, mobile, email, url, attention_to,
             street, logistics_address, postal_code, city,
@@ -145,14 +145,14 @@ async function syncCustomers(
           customerParams,
         );
         newCustomers++;
-        if (customer.internalId) {
-          newWithInternalId.push({ profile: customer.customerProfile, internalId: customer.internalId, name: customer.name });
+        if (customer.accountNum) {
+          newWithAccountNum.push({ profile: customer.erpId, accountNum: customer.accountNum, name: customer.name });
         }
       } else if (existing.deleted_at !== null) {
         // Customer was soft-deleted but reappeared in ERP — restore it
         await pool.query(
           `UPDATE agents.customers SET
-            deleted_at=NULL, internal_id=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
+            deleted_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
             phone=$9, mobile=$10, email=$11, url=$12, attention_to=$13,
             street=$14, logistics_address=$15, postal_code=$16, city=$17,
             customer_type=$18, type=$19, delivery_terms=$20, description=$21,
@@ -161,15 +161,15 @@ async function syncCustomers(
             previous_order_count_2=$26, previous_sales_2=$27,
             external_account_number=$28, our_account_number=$29,
             hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
-          WHERE customer_profile=$1 AND user_id=$2`,
+          WHERE erp_id=$1 AND user_id=$2`,
           customerParams,
         );
-        restored.push({ profile: customer.customerProfile, internalId: customer.internalId ?? '', name: customer.name });
+        restored.push({ profile: customer.erpId, accountNum: customer.accountNum ?? '', name: customer.name });
         restoredCustomers++;
       } else if (existing.hash !== hash) {
         await pool.query(
           `UPDATE agents.customers SET
-            internal_id=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
+            account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
             phone=$9, mobile=$10, email=$11, url=$12, attention_to=$13,
             street=$14, logistics_address=$15, postal_code=$16, city=$17,
             customer_type=$18, type=$19, delivery_terms=$20, description=$21,
@@ -178,7 +178,7 @@ async function syncCustomers(
             previous_order_count_2=$26, previous_sales_2=$27,
             external_account_number=$28, our_account_number=$29,
             hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
-          WHERE customer_profile=$1 AND user_id=$2`,
+          WHERE erp_id=$1 AND user_id=$2`,
           customerParams,
         );
         updatedCustomers++;
@@ -187,65 +187,65 @@ async function syncCustomers(
 
     onProgress(80, 'Pulizia clienti rimossi');
 
-    const parsedIds = parsedCustomers.map((c) => c.customerProfile);
+    const parsedIds = parsedCustomers.map((c) => c.erpId);
     let deletedCustomers = 0;
     if (parsedIds.length > 0) {
       const placeholders = parsedIds.map((_, i) => `$${i + 2}`).join(', ');
-      const { rows: toDelete } = await pool.query<{ customer_profile: string; internal_id: string | null; name: string }>(
-        `SELECT customer_profile, internal_id, name FROM agents.customers
-         WHERE user_id = $1 AND customer_profile NOT IN (${placeholders}) AND deleted_at IS NULL`,
+      const { rows: toDelete } = await pool.query<{ erp_id: string; account_num: string | null; name: string }>(
+        `SELECT erp_id, account_num, name FROM agents.customers
+         WHERE user_id = $1 AND erp_id NOT IN (${placeholders}) AND deleted_at IS NULL`,
         [userId, ...parsedIds],
       );
       if (toDelete.length > 0) {
         // Before deleting TEMP profiles, migrate any pending orders that reference them
         // to the corresponding real profile (matched by VAT number).
-        const tempProfiles = toDelete.filter(r => r.customer_profile.startsWith('TEMP-'));
-        for (const { customer_profile: tempProfile } of tempProfiles) {
+        const tempProfiles = toDelete.filter(r => r.erp_id.startsWith('TEMP-'));
+        for (const { erp_id: tempProfile } of tempProfiles) {
           const { rows: [tempRow] } = await pool.query<{ vat_number: string | null }>(
-            `SELECT vat_number FROM agents.customers WHERE customer_profile = $1 AND user_id = $2`,
+            `SELECT vat_number FROM agents.customers WHERE erp_id = $1 AND user_id = $2`,
             [tempProfile, userId],
           );
           if (tempRow?.vat_number) {
-            const { rows: [realRow] } = await pool.query<{ customer_profile: string }>(
-              `SELECT customer_profile FROM agents.customers
-               WHERE user_id = $1 AND vat_number = $2 AND customer_profile NOT LIKE 'TEMP-%' LIMIT 1`,
+            const { rows: [realRow] } = await pool.query<{ erp_id: string }>(
+              `SELECT erp_id FROM agents.customers
+               WHERE user_id = $1 AND vat_number = $2 AND erp_id NOT LIKE 'TEMP-%' LIMIT 1`,
               [userId, tempRow.vat_number],
             );
             if (realRow) {
               await pool.query(
                 `UPDATE agents.pending_orders SET customer_id = $1 WHERE customer_id = $2 AND user_id = $3`,
-                [realRow.customer_profile, tempProfile, userId],
+                [realRow.erp_id, tempProfile, userId],
               );
             }
           }
         }
 
         if (deps.onDeletedCustomers) {
-          const internalIds = toDelete
-            .map((r) => r.internal_id)
+          const accountNums = toDelete
+            .map((r) => r.account_num)
             .filter((id): id is string => id !== null);
 
-          if (internalIds.length > 0) {
-              const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
-              `SELECT DISTINCT o.user_id, o.customer_profile_id
+          if (accountNums.length > 0) {
+              const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
+              `SELECT DISTINCT o.user_id, o.customer_account_num
                FROM agents.order_records o
-               WHERE o.customer_profile_id = ANY($1::text[])`,
-              [internalIds],
+               WHERE o.customer_account_num = ANY($1::text[])`,
+              [accountNums],
             );
 
             if (orderUsers.length > 0) {
               const profilesWithOrders = toDelete.filter((r) =>
-                r.internal_id !== null && orderUsers.some((ou) => ou.customer_profile_id === r.internal_id),
+                r.account_num !== null && orderUsers.some((ou) => ou.customer_account_num === r.account_num),
               );
               if (profilesWithOrders.length > 0) {
                 try {
                   await deps.onDeletedCustomers(
                     profilesWithOrders.map((r) => ({
-                      profile: r.customer_profile,
-                      internalId: r.internal_id!,
+                      profile: r.erp_id,
+                      accountNum: r.account_num!,
                       name: r.name,
                       affectedAgentIds: orderUsers
-                        .filter((ou) => ou.customer_profile_id === r.internal_id)
+                        .filter((ou) => ou.customer_account_num === r.account_num)
                         .map((ou) => ou.user_id),
                     })),
                   );
@@ -257,11 +257,11 @@ async function syncCustomers(
           }
         }
 
-        const deleteIds = toDelete.map((r) => r.customer_profile);
+        const deleteIds = toDelete.map((r) => r.erp_id);
         const delPlaceholders = deleteIds.map((_, i) => `$${i + 2}`).join(', ');
         const { rowCount } = await pool.query(
           `UPDATE agents.customers SET deleted_at = NOW()
-           WHERE user_id = $1 AND customer_profile IN (${delPlaceholders}) AND deleted_at IS NULL`,
+           WHERE user_id = $1 AND erp_id IN (${delPlaceholders}) AND deleted_at IS NULL`,
           [userId, ...deleteIds],
         );
         deletedCustomers = rowCount ?? 0;
@@ -272,31 +272,31 @@ async function syncCustomers(
       // Combine soft-delete restores with hard-delete restores (customers that had no DB row
       // but reappeared in ERP and have existing orders — i.e. previously orphaned customers).
       let allRestored = [...restored];
-      if (newWithInternalId.length > 0) {
-        const newIds = newWithInternalId.map((c) => c.internalId);
-        const { rows: hasOrders } = await pool.query<{ customer_profile_id: string }>(
-          `SELECT DISTINCT customer_profile_id FROM agents.order_records WHERE customer_profile_id = ANY($1::text[])`,
+      if (newWithAccountNum.length > 0) {
+        const newIds = newWithAccountNum.map((c) => c.accountNum);
+        const { rows: hasOrders } = await pool.query<{ customer_account_num: string }>(
+          `SELECT DISTINCT customer_account_num FROM agents.order_records WHERE customer_account_num = ANY($1::text[])`,
           [newIds],
         );
-        const hasOrdersSet = new Set(hasOrders.map((r) => r.customer_profile_id));
-        allRestored = [...allRestored, ...newWithInternalId.filter((c) => hasOrdersSet.has(c.internalId))];
+        const hasOrdersSet = new Set(hasOrders.map((r) => r.customer_account_num));
+        allRestored = [...allRestored, ...newWithAccountNum.filter((c) => hasOrdersSet.has(c.accountNum))];
       }
 
-      const restoredIds = allRestored.map((r) => r.internalId).filter(Boolean);
+      const restoredIds = allRestored.map((r) => r.accountNum).filter(Boolean);
       if (restoredIds.length > 0) {
-        const { rows: orderUsers } = await pool.query<{ user_id: string; customer_profile_id: string }>(
-          `SELECT DISTINCT o.user_id, o.customer_profile_id
+        const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
+          `SELECT DISTINCT o.user_id, o.customer_account_num
            FROM agents.order_records o
-           WHERE o.customer_profile_id = ANY($1::text[])`,
+           WHERE o.customer_account_num = ANY($1::text[])`,
           [restoredIds],
         );
         const restoredWithAgents: RestoredProfileInfo[] = allRestored
-          .filter((r) => r.internalId)
+          .filter((r) => r.accountNum)
           .map((r) => ({
             ...r,
             affectedAgentIds: [...new Set([
               userId,
-              ...orderUsers.filter((ou) => ou.customer_profile_id === r.internalId).map((ou) => ou.user_id),
+              ...orderUsers.filter((ou) => ou.customer_account_num === r.accountNum).map((ou) => ou.user_id),
             ])],
           }));
         try {
@@ -350,7 +350,7 @@ async function syncCustomers(
 
 function computeSimpleHash(customer: ParsedCustomer): string {
   const data = [
-    customer.customerProfile, customer.internalId, customer.name, customer.vatNumber,
+    customer.erpId, customer.accountNum, customer.name, customer.vatNumber,
     customer.fiscalCode, customer.phone, customer.email,
     customer.street, customer.postalCode, customer.city,
   ].map((v) => String(v ?? '')).join('|');

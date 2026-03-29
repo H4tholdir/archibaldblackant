@@ -1340,15 +1340,15 @@ export async function performArcaSync(
     }
   }
 
-  // 9. Backfill customer_profile_id per ordini KT dove manca ma esiste già il match subclient
+  // 9. Backfill customer_account_num per ordini KT dove manca ma esiste già il match subclient
   await pool.query(
     `UPDATE agents.order_records o
-     SET customer_profile_id = sc.matched_customer_profile_id
+     SET customer_account_num = sc.matched_customer_profile_id
      FROM shared.sub_clients sc
      JOIN agents.customers c
-       ON c.customer_profile = sc.matched_customer_profile_id AND c.user_id = $1
+       ON c.erp_id = sc.matched_customer_profile_id AND c.user_id = $1
      WHERE o.user_id = $1
-       AND (o.customer_profile_id IS NULL OR o.customer_profile_id = '')
+       AND (o.customer_account_num IS NULL OR o.customer_account_num = '')
        AND lower(o.customer_name) = lower(c.name)
        AND sc.matched_customer_profile_id IS NOT NULL`,
     [userId],
@@ -1371,7 +1371,7 @@ export async function performArcaSync(
     for (const order of ktOrders) {
       if (!order.articlesSyncedAt) {
         ktMissingArticles.push(order.id);
-      } else if (!order.customerProfileId || !subByProfile.get(order.customerProfileId)) {
+      } else if (!order.customerAccountNum || !subByProfile.get(order.customerAccountNum)) {
         ktNeedingMatch.push({ orderId: order.id, customerName: order.customerName });
       }
       // ordini pronti vengono esportati in finalize, non qui
@@ -1506,7 +1506,7 @@ export type KtSyncStatus = {
   articlesReady: number;
   articlesPending: number;
   matched: number;
-  unmatched: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  unmatched: Array<{ orderId: string; customerName: string; customerAccountNum: string | null }>;
   readyToExport: number;
 };
 
@@ -1527,13 +1527,13 @@ export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtS
   const unmatched: KtSyncStatus['unmatched'] = [];
 
   for (const order of ktOrders) {
-    const hasMatch = order.customerProfileId ? subByProfile.has(order.customerProfileId) : false;
+    const hasMatch = order.customerAccountNum ? subByProfile.has(order.customerAccountNum) : false;
     if (hasMatch) {
       matched++;
       if (order.articlesSyncedAt) { articlesReady++; readyToExport++; }
       else { articlesPending++; }
     } else {
-      unmatched.push({ orderId: order.id, customerName: order.customerName, customerProfileId: order.customerProfileId });
+      unmatched.push({ orderId: order.id, customerName: order.customerName, customerAccountNum: order.customerAccountNum });
     }
   }
 
@@ -1610,7 +1610,7 @@ export async function generateKtExportVbs(
 
   for (const order of ktOrders) {
     if (!order.articlesSyncedAt) continue;
-    const subclient = order.customerProfileId ? subByProfile.get(order.customerProfileId) : undefined;
+    const subclient = order.customerAccountNum ? subByProfile.get(order.customerAccountNum) : undefined;
     if (!subclient) continue;
 
     const articles = await getOrderArticles(pool, order.id, userId);
@@ -1687,7 +1687,7 @@ export async function generateKtExportVbs(
           `FT ${ftNum}/${esercizio}`,
           subclient.codice,
           subclient.ragioneSociale,
-          order.customerProfileId ?? '',
+          order.customerAccountNum ?? '',
           order.customerName,
           arcaDataFt.testata.TOTDOC ?? 0,
           order.discountPercent ?? 0,
@@ -1806,7 +1806,7 @@ export async function suggestNextCodice(pool: DbPool): Promise<string> {
 export async function importCustomerAsSubclient(
   pool: DbPool,
   userId: string,
-  customerProfileId: string,
+  erpId: string,
   codice: string,
 ): Promise<void> {
   if (!/^C[0-9]{5}$/.test(codice)) {
@@ -1822,8 +1822,8 @@ export async function importCustomerAsSubclient(
     `SELECT name, vat_number, fiscal_code, phone, mobile, email, pec, url,
             street, postal_code, city, attention_to
      FROM agents.customers
-     WHERE internal_id = $1 AND user_id = $2`,
-    [customerProfileId, userId],
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
   );
 
   if (rows.length === 0) throw new Error('Cliente non trovato');
@@ -1854,7 +1854,7 @@ export async function importCustomerAsSubclient(
         c.attention_to,
         'I',  // cod_nazione — ArcaPro uses 'I', not 'IT'
         'I',  // cb_nazione
-        customerProfileId,
+        erpId,
       ],
     );
   } catch (err: unknown) {

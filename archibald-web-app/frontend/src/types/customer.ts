@@ -1,6 +1,6 @@
 export interface Customer {
-  customerProfile: string;
-  internalId: string | null;
+  erpId: string;
+  accountNum: string | null;
   name: string;
   vatNumber: string | null;
   fiscalCode: string | null;

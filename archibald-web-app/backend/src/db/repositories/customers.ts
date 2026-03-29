@@ -2,9 +2,9 @@ import { createHash } from 'crypto';
 import type { DbPool } from '../pool';
 
 type CustomerRow = {
-  customer_profile: string;
+  erp_id: string;
   user_id: string;
-  internal_id: string | null;
+  account_num: string | null;
   name: string;
   vat_number: string | null;
   fiscal_code: string | null;
@@ -53,9 +53,9 @@ type CustomerRow = {
 };
 
 type Customer = {
-  customerProfile: string;
+  erpId: string;
   userId: string;
-  internalId: string | null;
+  accountNum: string | null;
   name: string;
   vatNumber: string | null;
   fiscalCode: string | null;
@@ -104,8 +104,8 @@ type Customer = {
 };
 
 type CustomerInput = {
-  customerProfile: string;
-  internalId?: string;
+  erpId: string;
+  accountNum?: string;
   name: string;
   vatNumber?: string;
   fiscalCode?: string;
@@ -164,7 +164,7 @@ type UpsertResult = {
 };
 
 const COLUMNS_WITHOUT_PHOTO = `
-  customer_profile, user_id, internal_id, name,
+  erp_id, user_id, account_num, name,
   vat_number, fiscal_code, sdi, pec,
   phone, mobile, email, url, attention_to,
   street, logistics_address, postal_code, city,
@@ -179,9 +179,9 @@ const COLUMNS_WITHOUT_PHOTO = `
 
 function mapRowToCustomer(row: CustomerRow): Customer {
   return {
-    customerProfile: row.customer_profile,
+    erpId: row.erp_id,
     userId: row.user_id,
-    internalId: row.internal_id,
+    accountNum: row.account_num,
     name: row.name,
     vatNumber: row.vat_number,
     fiscalCode: row.fiscal_code,
@@ -232,8 +232,8 @@ function mapRowToCustomer(row: CustomerRow): Customer {
 
 function calculateHash(customer: CustomerInput): string {
   const data = [
-    customer.customerProfile,
-    customer.internalId,
+    customer.erpId,
+    customer.accountNum,
     customer.name,
     customer.vatNumber,
     customer.fiscalCode,
@@ -277,7 +277,7 @@ async function getCustomers(
     const words = searchQuery.trim().split(/\s+/).filter(w => w.length > 0);
     const patterns = words.map(w => `%${w}%`);
     const searchFields = [
-      'name', 'customer_profile', 'vat_number', 'city', 'fiscal_code',
+      'name', 'erp_id', 'vat_number', 'city', 'fiscal_code',
       'street', 'postal_code', 'phone', 'mobile', 'email', 'pec', 'sdi',
     ];
     const wordConditions = words
@@ -321,13 +321,13 @@ async function getHiddenCustomers(pool: DbPool, userId: string): Promise<Custome
 async function setCustomerHidden(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   hidden: boolean,
 ): Promise<boolean> {
   const result = await pool.query(
     `UPDATE agents.customers SET hidden = $3, updated_at = NOW()
-     WHERE user_id = $1 AND customer_profile = $2`,
-    [userId, customerProfile, hidden],
+     WHERE user_id = $1 AND erp_id = $2`,
+    [userId, erpId, hidden],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -335,12 +335,12 @@ async function setCustomerHidden(
 async function getCustomerByProfile(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<Customer | undefined> {
   const { rows } = await pool.query<CustomerRow>(
     `SELECT * FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2 AND deleted_at IS NULL`,
-    [customerProfile, userId],
+     WHERE erp_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    [erpId, userId],
   );
   return rows.length > 0 ? mapRowToCustomer(rows[0]) : undefined;
 }
@@ -387,17 +387,17 @@ async function upsertCustomers(
   }
 
   const now = Date.now();
-  const profiles = customers.map((c) => c.customerProfile);
+  const profiles = customers.map((c) => c.erpId);
 
   const placeholders = profiles.map((_, i) => `$${i + 1}`).join(', ');
-  const { rows: existingRows } = await pool.query<{ customer_profile: string; hash: string }>(
-    `SELECT customer_profile, hash FROM agents.customers
+  const { rows: existingRows } = await pool.query<{ erp_id: string; hash: string }>(
+    `SELECT erp_id, hash FROM agents.customers
      WHERE user_id = $${profiles.length + 1}
-       AND customer_profile IN (${placeholders})`,
+       AND erp_id IN (${placeholders})`,
     [...profiles, userId],
   );
 
-  const existingMap = new Map(existingRows.map((r) => [r.customer_profile, r.hash]));
+  const existingMap = new Map(existingRows.map((r) => [r.erp_id, r.hash]));
 
   let inserted = 0;
   let updated = 0;
@@ -405,12 +405,12 @@ async function upsertCustomers(
 
   for (const customer of customers) {
     const hash = calculateHash(customer);
-    const existingHash = existingMap.get(customer.customerProfile);
+    const existingHash = existingMap.get(customer.erpId);
 
     if (existingHash === undefined) {
       await pool.query(
         `INSERT INTO agents.customers (
-          customer_profile, user_id, internal_id, name,
+          erp_id, user_id, account_num, name,
           vat_number, fiscal_code, sdi, pec,
           phone, mobile, email, url, attention_to,
           street, logistics_address, postal_code, city,
@@ -433,7 +433,7 @@ async function upsertCustomers(
           $31, $32
         )`,
         [
-          customer.customerProfile, userId, customer.internalId ?? null, customer.name,
+          customer.erpId, userId, customer.accountNum ?? null, customer.name,
           customer.vatNumber ?? null, customer.fiscalCode ?? null, customer.sdi ?? null, customer.pec ?? null,
           customer.phone ?? null, customer.mobile ?? null, customer.email ?? null, customer.url ?? null, customer.attentionTo ?? null,
           customer.street ?? null, customer.logisticsAddress ?? null, customer.postalCode ?? null, customer.city ?? null,
@@ -449,7 +449,7 @@ async function upsertCustomers(
     } else if (existingHash !== hash) {
       await pool.query(
         `UPDATE agents.customers SET
-          internal_id = $3, name = $4,
+          account_num = $3, name = $4,
           vat_number = $5, fiscal_code = $6, sdi = $7, pec = $8,
           phone = $9, mobile = $10, email = $11, url = $12, attention_to = $13,
           street = $14, logistics_address = $15, postal_code = $16, city = $17,
@@ -459,9 +459,9 @@ async function upsertCustomers(
           previous_order_count_2 = $27, previous_sales_2 = $28,
           external_account_number = $29, our_account_number = $30,
           hash = $31, last_sync = $32, updated_at = NOW()
-        WHERE customer_profile = $1 AND user_id = $2`,
+        WHERE erp_id = $1 AND user_id = $2`,
         [
-          customer.customerProfile, userId, customer.internalId ?? null, customer.name,
+          customer.erpId, userId, customer.accountNum ?? null, customer.name,
           customer.vatNumber ?? null, customer.fiscalCode ?? null, customer.sdi ?? null, customer.pec ?? null,
           customer.phone ?? null, customer.mobile ?? null, customer.email ?? null, customer.url ?? null, customer.attentionTo ?? null,
           customer.street ?? null, customer.logisticsAddress ?? null, customer.postalCode ?? null, customer.city ?? null,
@@ -492,14 +492,14 @@ async function findDeletedCustomers(
   }
 
   const placeholders = currentIds.map((_, i) => `$${i + 1}`).join(', ');
-  const { rows } = await pool.query<{ customer_profile: string }>(
-    `SELECT customer_profile FROM agents.customers
+  const { rows } = await pool.query<{ erp_id: string }>(
+    `SELECT erp_id FROM agents.customers
      WHERE user_id = $${currentIds.length + 1}
        AND deleted_at IS NULL
-       AND customer_profile NOT IN (${placeholders})`,
+       AND erp_id NOT IN (${placeholders})`,
     [...currentIds, userId],
   );
-  return rows.map((r) => r.customer_profile);
+  return rows.map((r) => r.erp_id);
 }
 
 async function deleteCustomers(
@@ -514,7 +514,7 @@ async function deleteCustomers(
   const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
   const result = await pool.query(
     `UPDATE agents.customers SET deleted_at = NOW()
-     WHERE customer_profile IN (${placeholders})
+     WHERE erp_id IN (${placeholders})
        AND user_id = $${ids.length + 1}
        AND deleted_at IS NULL`,
     [...ids, userId],
@@ -526,12 +526,12 @@ async function upsertSingleCustomer(
   pool: DbPool,
   userId: string,
   formData: CustomerFormInput,
-  customerProfile: string,
+  erpId: string,
   botStatus: string,
 ): Promise<Customer> {
   const now = Date.now();
   const customerData: CustomerInput = {
-    customerProfile,
+    erpId: erpId,
     name: formData.name,
     vatNumber: formData.vatNumber,
     pec: formData.pec,
@@ -546,13 +546,13 @@ async function upsertSingleCustomer(
 
   await pool.query(
     `INSERT INTO agents.customers (
-      customer_profile, user_id, name, vat_number, fiscal_code, pec, sdi,
+      erp_id, user_id, name, vat_number, fiscal_code, pec, sdi,
       street, postal_code, phone, mobile, email, url, attention_to,
       delivery_terms, payment_terms, sector, notes, county, state, country,
       price_group, line_discount,
       hash, last_sync, bot_status
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
-    ON CONFLICT (customer_profile, user_id) DO UPDATE SET
+    ON CONFLICT (erp_id, user_id) DO UPDATE SET
       name = EXCLUDED.name,
       vat_number = EXCLUDED.vat_number,
       fiscal_code = EXCLUDED.fiscal_code,
@@ -579,7 +579,7 @@ async function upsertSingleCustomer(
       bot_status = EXCLUDED.bot_status,
       updated_at = NOW()`,
     [
-      customerProfile, userId, formData.name,
+      erpId, userId, formData.name,
       formData.vatNumber ?? null, formData.fiscalCode ?? null,
       formData.pec ?? null, formData.sdi ?? null,
       formData.street ?? null, formData.postalCode ?? null,
@@ -596,8 +596,8 @@ async function upsertSingleCustomer(
 
   const { rows } = await pool.query<CustomerRow>(
     `SELECT * FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
-    [customerProfile, userId],
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
   );
   return mapRowToCustomer(rows[0]);
 }
@@ -605,51 +605,51 @@ async function upsertSingleCustomer(
 async function updateCustomerBotStatus(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   status: string,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers SET bot_status = $1, updated_at = NOW()
-     WHERE customer_profile = $2 AND user_id = $3`,
-    [status, customerProfile, userId],
+     WHERE erp_id = $2 AND user_id = $3`,
+    [status, erpId, userId],
   );
 }
 
 async function updateArchibaldName(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   name: string,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers SET archibald_name = $1, updated_at = NOW()
-     WHERE customer_profile = $2 AND user_id = $3`,
-    [name, customerProfile, userId],
+     WHERE erp_id = $2 AND user_id = $3`,
+    [name, erpId, userId],
   );
 }
 
 async function updateVatValidatedAt(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers
      SET vat_validated_at = NOW()
-     WHERE customer_profile = $1 AND user_id = $2`,
-    [customerProfile, userId],
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
   );
 }
 
 async function getCustomerPhoto(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<string | undefined> {
   const { rows } = await pool.query<{ photo: string | null }>(
     `SELECT photo FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
-    [customerProfile, userId],
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
   );
   return rows.length > 0 ? (rows[0].photo ?? undefined) : undefined;
 }
@@ -657,25 +657,25 @@ async function getCustomerPhoto(
 async function setCustomerPhoto(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   photo: string,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers SET photo = $1, updated_at = NOW()
-     WHERE customer_profile = $2 AND user_id = $3`,
-    [photo, customerProfile, userId],
+     WHERE erp_id = $2 AND user_id = $3`,
+    [photo, erpId, userId],
   );
 }
 
 async function deleteCustomerPhoto(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers SET photo = NULL, updated_at = NOW()
-     WHERE customer_profile = $1 AND user_id = $2`,
-    [customerProfile, userId],
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
   );
 }
 
@@ -713,13 +713,13 @@ async function getIncompleteCustomersCount(pool: DbPool, userId: string): Promis
 async function updateAgentNotes(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   notes: string | null,
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers SET agent_notes = $1, updated_at = NOW()
-     WHERE customer_profile = $2 AND user_id = $3`,
-    [notes, customerProfile, userId],
+     WHERE erp_id = $2 AND user_id = $3`,
+    [notes, erpId, userId],
   );
 }
 

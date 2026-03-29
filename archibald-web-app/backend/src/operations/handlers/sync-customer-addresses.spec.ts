@@ -25,7 +25,7 @@ const mockAltAddresses: AltAddress[] = [
 ];
 
 const data: SyncCustomerAddressesData = {
-  customerProfile: 'CUST-001',
+  erpId: 'CUST-001',
   customerName: 'Rossi Mario',
 };
 
@@ -103,8 +103,8 @@ describe('handleSyncCustomerAddresses', () => {
 
   describe('batch mode', () => {
     const batchCustomers: CustomerAddressEntry[] = [
-      { customerProfile: 'CUST-001', customerName: 'Rossi Mario' },
-      { customerProfile: 'CUST-002', customerName: 'Verdi Luca' },
+      { erpId: 'CUST-001', customerName: 'Rossi Mario' },
+      { erpId: 'CUST-002', customerName: 'Verdi Luca' },
     ];
     const batchData: SyncCustomerAddressesData = { customers: batchCustomers };
 

@@ -34,23 +34,23 @@ type CustomersRouterDeps = {
   queue: QueueLike;
   getCustomers: (userId: string, searchQuery?: string) => Promise<Customer[]>;
   getHiddenCustomers: (userId: string) => Promise<Customer[]>;
-  setCustomerHidden: (userId: string, customerProfile: string, hidden: boolean) => Promise<boolean>;
-  getCustomerByProfile: (userId: string, customerProfile: string) => Promise<Customer | undefined>;
+  setCustomerHidden: (userId: string, erpId: string, hidden: boolean) => Promise<boolean>;
+  getCustomerByProfile: (userId: string, erpId: string) => Promise<Customer | undefined>;
   getCustomerCount: (userId: string) => Promise<number>;
   getLastSyncTime: (userId: string) => Promise<number | null>;
-  getCustomerPhoto: (userId: string, customerProfile: string) => Promise<string | undefined>;
-  setCustomerPhoto: (userId: string, customerProfile: string, photo: string) => Promise<void>;
-  deleteCustomerPhoto: (userId: string, customerProfile: string) => Promise<void>;
-  upsertSingleCustomer: (userId: string, formData: CustomerFormInput, customerProfile: string, botStatus: string) => Promise<Customer>;
-  getCustomerAddresses: (userId: string, customerProfile: string) => Promise<CustomerAddress[]>;
-  updateCustomerBotStatus: (userId: string, customerProfile: string, status: string) => Promise<void>;
-  updateArchibaldName: (userId: string, customerProfile: string, name: string) => Promise<void>;
+  getCustomerPhoto: (userId: string, erpId: string) => Promise<string | undefined>;
+  setCustomerPhoto: (userId: string, erpId: string, photo: string) => Promise<void>;
+  deleteCustomerPhoto: (userId: string, erpId: string) => Promise<void>;
+  upsertSingleCustomer: (userId: string, formData: CustomerFormInput, erpId: string, botStatus: string) => Promise<Customer>;
+  getCustomerAddresses: (userId: string, erpId: string) => Promise<CustomerAddress[]>;
+  updateCustomerBotStatus: (userId: string, erpId: string, status: string) => Promise<void>;
+  updateArchibaldName: (userId: string, erpId: string, name: string) => Promise<void>;
   smartCustomerSync: (userId: string) => Promise<void>;
   resumeOtherSyncs: () => void;
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
-  enqueueReadVatStatus?: (userId: string, customerProfile: string) => Promise<string>;
-  updateAgentNotes?: (userId: string, customerProfile: string, notes: string | null) => Promise<void>;
+  enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
+  updateAgentNotes?: (userId: string, erpId: string, notes: string | null) => Promise<void>;
 };
 
 const createCustomerSchema = z.object({
@@ -124,7 +124,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       const customer = await upsertSingleCustomer(userId, formData, tempProfile, 'pending');
 
       const jobId = await queue.enqueue('create-customer', userId, {
-        customerProfile: tempProfile,
+        erpId: tempProfile,
         ...formData,
       });
 
@@ -161,11 +161,11 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.patch('/:customerProfile/hidden', async (req: AuthRequest, res) => {
+  router.patch('/:erpId/hidden', async (req: AuthRequest, res) => {
     try {
-      const { customerProfile } = req.params;
+      const { erpId } = req.params;
       const hidden = Boolean(req.body?.hidden);
-      const updated = await setCustomerHidden(req.user!.userId, customerProfile, hidden);
+      const updated = await setCustomerHidden(req.user!.userId, erpId, hidden);
       if (!updated) return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       res.json({ success: true });
     } catch (error) {
@@ -256,28 +256,28 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.put('/:customerProfile', async (req: AuthRequest, res) => {
+  router.put('/:erpId', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
+      const { erpId } = req.params;
       const parsed = createCustomerSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
       }
 
       const formData: CustomerFormInput = parsed.data;
-      const existing = await getCustomerByProfile(userId, customerProfile);
+      const existing = await getCustomerByProfile(userId, erpId);
       if (!existing) {
         return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       }
 
       const originalName = existing.archibaldName || existing.name;
 
-      await upsertSingleCustomer(userId, formData, customerProfile, 'pending');
-      await updateArchibaldName(userId, customerProfile, originalName);
+      await upsertSingleCustomer(userId, formData, erpId, 'pending');
+      await updateArchibaldName(userId, erpId, originalName);
 
       const jobId = await queue.enqueue('update-customer', userId, {
-        customerProfile,
+        erpId,
         originalName,
         ...formData,
       });
@@ -285,7 +285,7 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       res.json({
         success: true,
         data: { jobId },
-        message: `Cliente ${customerProfile} aggiornato. Sincronizzazione con Archibald in corso...`,
+        message: `Cliente ${erpId} aggiornato. Sincronizzazione con Archibald in corso...`,
       });
     } catch (error) {
       logger.error('Error updating customer', { error });
@@ -293,40 +293,40 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.post('/:customerProfile/vat-status', async (req: AuthRequest, res) => {
+  router.post('/:erpId/vat-status', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
+      const { erpId } = req.params;
       if (!deps.enqueueReadVatStatus) {
         return res.status(503).json({ error: 'VAT status enrichment not available' });
       }
-      const jobId = await deps.enqueueReadVatStatus(userId, customerProfile);
+      const jobId = await deps.enqueueReadVatStatus(userId, erpId);
       res.json({ jobId, message: 'VAT status read queued' });
     } catch (err) {
-      logger.error('POST /customers/:customerProfile/vat-status error', { error: String(err) });
+      logger.error('POST /customers/:erpId/vat-status error', { error: String(err) });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
 
-  router.patch('/:customerProfile/agent-notes', async (req: AuthRequest, res) => {
+  router.patch('/:erpId/agent-notes', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
+      const { erpId } = req.params;
       if (!deps.updateAgentNotes) {
         return res.status(503).json({ error: 'Agent notes not available' });
       }
       const body = req.body as { notes?: string | null };
-      await deps.updateAgentNotes(userId, customerProfile, body.notes ?? null);
+      await deps.updateAgentNotes(userId, erpId, body.notes ?? null);
       res.json({ success: true });
     } catch (err) {
-      logger.error('PATCH /customers/:customerProfile/agent-notes error', { error: String(err) });
+      logger.error('PATCH /customers/:erpId/agent-notes error', { error: String(err) });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
 
-  router.get('/:customerProfile', async (req: AuthRequest, res) => {
+  router.get('/:erpId', async (req: AuthRequest, res) => {
     try {
-      const customer = await getCustomerByProfile(req.user!.userId, req.params.customerProfile);
+      const customer = await getCustomerByProfile(req.user!.userId, req.params.erpId);
       if (!customer) {
         return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       }
@@ -337,9 +337,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.get('/:customerProfile/status', async (req: AuthRequest, res) => {
+  router.get('/:erpId/status', async (req: AuthRequest, res) => {
     try {
-      const customer = await getCustomerByProfile(req.user!.userId, req.params.customerProfile);
+      const customer = await getCustomerByProfile(req.user!.userId, req.params.erpId);
       if (!customer) {
         return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       }
@@ -350,23 +350,23 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.post('/:customerProfile/retry', async (req: AuthRequest, res) => {
+  router.post('/:erpId/retry', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
-      const customer = await getCustomerByProfile(userId, customerProfile);
+      const { erpId } = req.params;
+      const customer = await getCustomerByProfile(userId, erpId);
 
       if (!customer) {
         return res.status(404).json({ success: false, error: 'Cliente non trovato' });
       }
 
-      await updateCustomerBotStatus(userId, customerProfile, 'pending');
+      await updateCustomerBotStatus(userId, erpId, 'pending');
 
-      const isCreate = customerProfile.startsWith('TEMP-');
+      const isCreate = erpId.startsWith('TEMP-');
       const operationType = isCreate ? 'create-customer' : 'update-customer';
-      const addresses = await getCustomerAddresses(userId, customerProfile);
+      const addresses = await getCustomerAddresses(userId, erpId);
       const data: Record<string, unknown> = {
-        customerProfile,
+        erpId,
         name: customer.name,
         vatNumber: customer.vatNumber ?? undefined,
         pec: customer.pec ?? undefined,
@@ -396,9 +396,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.get('/:customerProfile/photo', async (req: AuthRequest, res) => {
+  router.get('/:erpId/photo', async (req: AuthRequest, res) => {
     try {
-      const photo = await getCustomerPhoto(req.user!.userId, req.params.customerProfile);
+      const photo = await getCustomerPhoto(req.user!.userId, req.params.erpId);
       if (!photo) {
         return res.status(204).end();
       }
@@ -418,14 +418,14 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.post('/:customerProfile/photo', upload.single('photo'), async (req: AuthRequest, res) => {
+  router.post('/:erpId/photo', upload.single('photo'), async (req: AuthRequest, res) => {
     try {
       const file = req.file;
       if (!file) {
         return res.status(400).json({ success: false, error: 'Foto richiesta' });
       }
       const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      await setCustomerPhoto(req.user!.userId, req.params.customerProfile, base64);
+      await setCustomerPhoto(req.user!.userId, req.params.erpId, base64);
       res.json({ success: true });
     } catch (error) {
       logger.error('Error saving customer photo', { error });
@@ -433,9 +433,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.delete('/:customerProfile/photo', async (req: AuthRequest, res) => {
+  router.delete('/:erpId/photo', async (req: AuthRequest, res) => {
     try {
-      await deleteCustomerPhoto(req.user!.userId, req.params.customerProfile);
+      await deleteCustomerPhoto(req.user!.userId, req.params.erpId);
       res.json({ success: true });
     } catch (error) {
       logger.error('Error deleting customer photo', { error });

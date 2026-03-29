@@ -5,9 +5,9 @@ import { createCustomersRouter, type CustomersRouterDeps } from './customers';
 
 const mockCustomers = [
   {
-    customerProfile: 'CUST-001',
+    erpId: 'CUST-001',
     userId: 'user-1',
-    internalId: null,
+    accountNum: null,
     name: 'Rossi Mario',
     vatNumber: 'IT12345678901',
     fiscalCode: null,
@@ -206,7 +206,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('PUT /api/customers/:customerProfile (update)', () => {
+  describe('PUT /api/customers/:erpId (update)', () => {
     const updateData = { name: 'Rossi Mario Updated', vatNumber: 'IT12345678901' };
 
     test('updates customer with write-through and enqueues update-customer', async () => {
@@ -231,7 +231,7 @@ describe('createCustomersRouter', () => {
         'update-customer',
         'user-1',
         expect.objectContaining({
-          customerProfile: 'CUST-001',
+          erpId: 'CUST-001',
           originalName: 'Rossi Mario',
           name: 'Rossi Mario Updated',
         }),
@@ -274,7 +274,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('GET /api/customers/:customerProfile/status', () => {
+  describe('GET /api/customers/:erpId/status', () => {
     test('returns botStatus for customer', async () => {
       (deps.getCustomerByProfile as ReturnType<typeof vi.fn>).mockResolvedValue({
         ...mockCustomers[0],
@@ -302,7 +302,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('POST /api/customers/:customerProfile/retry', () => {
+  describe('POST /api/customers/:erpId/retry', () => {
     test('enqueues update-customer for non-TEMP profile', async () => {
       (deps.getCustomerByProfile as ReturnType<typeof vi.fn>).mockResolvedValue({
         ...mockCustomers[0],
@@ -321,7 +321,7 @@ describe('createCustomersRouter', () => {
         'update-customer',
         'user-1',
         expect.objectContaining({
-          customerProfile: 'CUST-001',
+          erpId: 'CUST-001',
           name: 'Rossi Mario',
           originalName: 'Rossi Mario',
         }),
@@ -331,7 +331,7 @@ describe('createCustomersRouter', () => {
     test('enqueues create-customer for TEMP profile', async () => {
       (deps.getCustomerByProfile as ReturnType<typeof vi.fn>).mockResolvedValue({
         ...mockCustomers[0],
-        customerProfile: 'TEMP-1708300000',
+        erpId: 'TEMP-1708300000',
         botStatus: 'failed',
       });
 
@@ -341,7 +341,7 @@ describe('createCustomersRouter', () => {
       expect(deps.queue.enqueue).toHaveBeenCalledWith(
         'create-customer',
         'user-1',
-        expect.objectContaining({ customerProfile: 'TEMP-1708300000' }),
+        expect.objectContaining({ erpId: 'TEMP-1708300000' }),
       );
     });
 
@@ -423,13 +423,13 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('GET /api/customers/:customerProfile', () => {
-    test('returns customer by profile', async () => {
+  describe('GET /api/customers/:erpId', () => {
+    test('returns customer by erpId', async () => {
       const res = await request(app).get('/api/customers/CUST-001');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.customerProfile).toBe('CUST-001');
+      expect(res.body.data.erpId).toBe('CUST-001');
     });
 
     test('returns 404 for unknown customer', async () => {
@@ -495,7 +495,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('GET /api/customers/:customerProfile/photo', () => {
+  describe('GET /api/customers/:erpId/photo', () => {
     test('returns binary image data with Content-Type from data URI', async () => {
       const base64Content = Buffer.from('fake-png-bytes').toString('base64');
       (deps.getCustomerPhoto as ReturnType<typeof vi.fn>).mockResolvedValue(`data:image/png;base64,${base64Content}`);
@@ -523,7 +523,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('POST /api/customers/:customerProfile/photo', () => {
+  describe('POST /api/customers/:erpId/photo', () => {
     test('saves uploaded photo as base64 data URI', async () => {
       const fileContent = Buffer.from('fake-image-data');
       const res = await request(app)
@@ -544,7 +544,7 @@ describe('createCustomersRouter', () => {
     });
   });
 
-  describe('DELETE /api/customers/:customerProfile/photo', () => {
+  describe('DELETE /api/customers/:erpId/photo', () => {
     test('deletes photo', async () => {
       const res = await request(app).delete('/api/customers/CUST-001/photo');
 

@@ -15,7 +15,7 @@ export type FullHistoryOrder = {
   orderDate: string;
   totalAmount: number;
   orderDiscountPercent: number;
-  customerProfileId?: string;
+  customerErpId?: string;
   customerCity?: string;
   customerRagioneSociale?: string;
   subClientCodice?: string;

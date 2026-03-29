@@ -37,8 +37,8 @@ describe('getNotificationRoute', () => {
       .toBe('/orders');
   });
 
-  test('customer_inactive con customerProfile e customerName → /customers?highlight=...&search=...', () => {
-    expect(getNotificationRoute(makeNotif('customer_inactive', { customerProfile: '55.261', customerName: 'Acme Srl' })))
+  test('customer_inactive con erpId e customerName → /customers?highlight=...&search=...', () => {
+    expect(getNotificationRoute(makeNotif('customer_inactive', { erpId: '55.261', customerName: 'Acme Srl' })))
       .toBe('/customers?highlight=55.261&search=Acme%20Srl');
   });
 

@@ -9,13 +9,13 @@ const mockOrder = {
   id: 'ORD-001',
   userId: 'user-1',
   orderNumber: 'SO-12345',
-  customerProfileId: 'CUST-001',
+  customerAccountNum: 'CUST-001',
   customerName: 'Rossi Mario',
   deliveryName: null,
   deliveryAddress: null,
   date: '2026-01-15',
   deliveryDate: null,
-  remainingSalesFinancial: null,
+  orderDescription: null,
   customerReference: null,
   status: 'Aperto',
   orderType: null,
@@ -43,7 +43,7 @@ const mockOrder = {
   deliveryCity: null,
   attentionTo: null,
   ddtDeliveryAddress: null,
-  ddtTotal: null,
+  ddtQuantity: null,
   ddtCustomerReference: null,
   ddtDescription: null,
   trackingNumber: null,
@@ -124,9 +124,9 @@ const mockLastSale = {
 };
 
 const mockCompleteCustomer: Customer = {
-  customerProfile: 'CUST-001',
+  erpId: 'CUST-001',
   userId: 'user-1',
-  internalId: null,
+  accountNum: null,
   name: 'Rossi Mario',
   vatNumber: 'IT12345678901',
   fiscalCode: null,
@@ -374,7 +374,7 @@ describe('createOrdersRouter', () => {
 
     test('returns 400 with customer_incomplete error when customer is missing required fields', async () => {
       const incompleteCustomer: Customer = { ...mockCompleteCustomer, vatNumber: null, vatValidatedAt: null };
-      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerProfileId: 'CUST-001' };
+      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerAccountNum: 'CUST-001' };
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(incompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(false);
@@ -387,13 +387,13 @@ describe('createOrdersRouter', () => {
         error: 'customer_incomplete',
         message: expect.stringContaining('Scheda cliente incompleta'),
         missingFields: expect.arrayContaining(['vatNumber', 'vatValidatedAt']),
-        customerProfile: 'CUST-001',
+        erpId: 'CUST-001',
       });
       expect(deps.queue.enqueue).not.toHaveBeenCalled();
     });
 
     test('proceeds with enqueue when customer is complete', async () => {
-      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerProfileId: 'CUST-001' };
+      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerAccountNum: 'CUST-001' };
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(mockCompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(true);

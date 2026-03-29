@@ -149,7 +149,7 @@ async function handleSubmitOrder(
   let { rows: [completenessRow] } = await pool.query<CompletenessRow>(
     `SELECT vat_validated_at, pec, sdi, street, postal_code, name, archibald_name
      FROM agents.customers
-     WHERE customer_profile = $1 AND user_id = $2`,
+     WHERE erp_id = $1 AND user_id = $2`,
     [data.customerId, userId],
   );
 
@@ -160,7 +160,7 @@ async function handleSubmitOrder(
       `SELECT vat_validated_at, pec, sdi, street, postal_code, name, archibald_name
        FROM agents.customers
        WHERE user_id = $1
-         AND customer_profile NOT LIKE 'TEMP-%'
+         AND erp_id NOT LIKE 'TEMP-%'
          AND (name ILIKE '%' || $2 || '%' OR archibald_name ILIKE '%' || $2 || '%')
        LIMIT 1`,
       [userId, data.customerName],
@@ -249,14 +249,14 @@ async function handleSubmitOrder(
 
     onProgress(4, 'Creazione ordine su Archibald');
 
-    // Enrich data with internal_id (PROFILO CLIENTE in Archibald) for customer disambiguation
+    // Enrich data with account_num (PROFILO CLIENTE in Archibald) for customer disambiguation
     if (!data.customerInternalId) {
-      const { rows: [customerRow] } = await pool.query<{ internal_id: string | null }>(
-        'SELECT internal_id FROM agents.customers WHERE customer_profile = $1 AND user_id = $2',
+      const { rows: [customerRow] } = await pool.query<{ account_num: string | null }>(
+        'SELECT account_num FROM agents.customers WHERE erp_id = $1 AND user_id = $2',
         [data.customerId, userId],
       );
-      if (customerRow?.internal_id) {
-        data = { ...data, customerInternalId: customerRow.internal_id };
+      if (customerRow?.account_num) {
+        data = { ...data, customerInternalId: customerRow.account_num };
       }
     }
 
@@ -280,9 +280,9 @@ async function handleSubmitOrder(
   await pool.withTransaction(async (tx) => {
     await tx.query(
       `INSERT INTO agents.order_records (
-        id, user_id, order_number, customer_profile_id, customer_name,
+        id, user_id, order_number, customer_account_num, customer_name,
         delivery_name, delivery_address, creation_date, delivery_date,
-        remaining_sales_financial, customer_reference, sales_status,
+        order_description, customer_reference, sales_status,
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
         total_amount, hash, last_sync, created_at, articles_synced_at,
@@ -304,7 +304,7 @@ async function handleSubmitOrder(
         null, // deliveryAddress
         now,  // creationDate
         null, // deliveryDate
-        null, // remainingSalesFinancial
+        null, // orderDescription
         null, // customerReference
         isWarehouseOnly ? 'WAREHOUSE_FULFILLED' : null,
         isWarehouseOnly ? 'Warehouse' : 'Giornale',

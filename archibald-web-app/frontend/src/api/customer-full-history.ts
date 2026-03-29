@@ -17,7 +17,7 @@ export type CustomerFullHistoryOrder = {
   orderDate: string;
   totalAmount: number;
   orderDiscountPercent: number;
-  customerProfileId?: string;
+  customerAccountNum?: string;
   customerCity?: string;
   customerRagioneSociale?: string;
   subClientCodice?: string;
@@ -27,14 +27,14 @@ export type CustomerFullHistoryOrder = {
 };
 
 export async function getCustomerFullHistory(params: {
-  customerProfileIds?: string[];
+  customerErpIds?: string[];
   customerName?: string;
   subClientCodices?: string[];
 }): Promise<CustomerFullHistoryOrder[]> {
   const query = new URLSearchParams();
   if (params.customerName) query.set('customerName', params.customerName);
-  for (const id of params.customerProfileIds ?? []) {
-    query.append('customerProfileIds[]', id);
+  for (const id of params.customerErpIds ?? []) {
+    query.append('customerErpIds[]', id);
   }
   for (const c of params.subClientCodices ?? []) {
     query.append('subClientCodices[]', c);

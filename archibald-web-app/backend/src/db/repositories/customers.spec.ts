@@ -19,9 +19,9 @@ function createMockPool(): DbPool & { queryCalls: Array<{ text: string; params?:
 const TEST_USER_ID = 'user-abc-123';
 
 const sampleRow: CustomerRow = {
-  customer_profile: 'CUST001',
+  erp_id: 'CUST001',
   user_id: TEST_USER_ID,
-  internal_id: 'INT-1',
+  account_num: 'INT-1',
   name: 'Acme Corporation',
   vat_number: 'IT12345678901',
   fiscal_code: 'RSSMRA80A01H501Z',
@@ -104,14 +104,14 @@ describe('getCustomerByProfile', () => {
     expect(result).toBeUndefined();
   });
 
-  test('query includes both customer_profile and user_id in WHERE', async () => {
+  test('query includes both erp_id and user_id in WHERE', async () => {
     const pool = createMockPool();
 
     const { getCustomerByProfile } = await import('./customers');
     await getCustomerByProfile(pool, TEST_USER_ID, 'CUST001');
 
     const call = pool.queryCalls[0];
-    expect(call.text).toContain('customer_profile = $1');
+    expect(call.text).toContain('erp_id = $1');
     expect(call.text).toContain('user_id = $2');
     expect(call.params).toEqual(['CUST001', TEST_USER_ID]);
   });
@@ -130,8 +130,8 @@ describe('upsertCustomers', () => {
 
     const { upsertCustomers } = await import('./customers');
     const customers = [
-      { customerProfile: 'CUST001', name: 'Acme Corp' },
-      { customerProfile: 'CUST002', name: 'Beta Inc' },
+      { erpId: 'CUST001', name: 'Acme Corp' },
+      { erpId: 'CUST002', name: 'Beta Inc' },
     ];
 
     const result = await upsertCustomers(pool, TEST_USER_ID, customers);
@@ -142,17 +142,17 @@ describe('upsertCustomers', () => {
   test('marks unchanged when hash matches', async () => {
     const pool = createMockPool();
     const { calculateHash } = await import('./customers');
-    const existingHash = calculateHash({ customerProfile: 'CUST001', name: 'Acme Corp' });
+    const existingHash = calculateHash({ erpId: 'CUST001', name: 'Acme Corp' });
 
     const queryMock = pool.query as ReturnType<typeof vi.fn>;
     queryMock.mockResolvedValueOnce({
-      rows: [{ customer_profile: 'CUST001', hash: existingHash }],
+      rows: [{ erp_id: 'CUST001', hash: existingHash }],
       rowCount: 1,
     });
 
     const { upsertCustomers } = await import('./customers');
     const result = await upsertCustomers(pool, TEST_USER_ID, [
-      { customerProfile: 'CUST001', name: 'Acme Corp' },
+      { erpId: 'CUST001', name: 'Acme Corp' },
     ]);
 
     expect(result).toEqual({ inserted: 0, updated: 0, unchanged: 1 });
@@ -162,14 +162,14 @@ describe('upsertCustomers', () => {
     const pool = createMockPool();
     const queryMock = pool.query as ReturnType<typeof vi.fn>;
     queryMock.mockResolvedValueOnce({
-      rows: [{ customer_profile: 'CUST001', hash: 'old-different-hash' }],
+      rows: [{ erp_id: 'CUST001', hash: 'old-different-hash' }],
       rowCount: 1,
     });
     queryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
     const { upsertCustomers } = await import('./customers');
     const result = await upsertCustomers(pool, TEST_USER_ID, [
-      { customerProfile: 'CUST001', name: 'Acme Corp Updated' },
+      { erpId: 'CUST001', name: 'Acme Corp Updated' },
     ]);
 
     expect(result).toEqual({ inserted: 0, updated: 1, unchanged: 0 });
@@ -178,13 +178,13 @@ describe('upsertCustomers', () => {
   test('handles mix of insert, update, and unchanged', async () => {
     const pool = createMockPool();
     const { calculateHash } = await import('./customers');
-    const unchangedHash = calculateHash({ customerProfile: 'CUST002', name: 'Beta Inc' });
+    const unchangedHash = calculateHash({ erpId: 'CUST002', name: 'Beta Inc' });
 
     const queryMock = pool.query as ReturnType<typeof vi.fn>;
     queryMock.mockResolvedValueOnce({
       rows: [
-        { customer_profile: 'CUST001', hash: 'old-hash' },
-        { customer_profile: 'CUST002', hash: unchangedHash },
+        { erp_id: 'CUST001', hash: 'old-hash' },
+        { erp_id: 'CUST002', hash: unchangedHash },
       ],
       rowCount: 2,
     });
@@ -193,9 +193,9 @@ describe('upsertCustomers', () => {
 
     const { upsertCustomers } = await import('./customers');
     const result = await upsertCustomers(pool, TEST_USER_ID, [
-      { customerProfile: 'CUST001', name: 'Acme Updated' },
-      { customerProfile: 'CUST002', name: 'Beta Inc' },
-      { customerProfile: 'CUST003', name: 'Gamma New' },
+      { erpId: 'CUST001', name: 'Acme Updated' },
+      { erpId: 'CUST002', name: 'Beta Inc' },
+      { erpId: 'CUST003', name: 'Gamma New' },
     ]);
 
     expect(result).toEqual({ inserted: 1, updated: 1, unchanged: 1 });
@@ -218,7 +218,7 @@ describe('upsertCustomers', () => {
 
     const { upsertCustomers } = await import('./customers');
     await upsertCustomers(pool, TEST_USER_ID, [
-      { customerProfile: 'CUST001', name: 'Acme' },
+      { erpId: 'CUST001', name: 'Acme' },
     ]);
 
     for (const call of pool.queryCalls) {
@@ -261,7 +261,7 @@ describe('getCustomers', () => {
     const call = pool.queryCalls[0];
     expect(call.text).toContain('ILIKE');
     expect(call.text).toContain('name');
-    expect(call.text).toContain('customer_profile');
+    expect(call.text).toContain('erp_id');
     expect(call.text).toContain('vat_number');
     expect(call.text).toContain('city');
     expect(call.params).toContain('%acme%');
@@ -358,18 +358,18 @@ describe('updateVatValidatedAt', () => {
     vi.restoreAllMocks();
   });
 
-  const TEST_CUSTOMER_PROFILE = 'CUST001';
+  const TEST_ERP_ID = 'CUST001';
 
   test('issues UPDATE on agents.customers setting vat_validated_at', async () => {
     const pool = createMockPool();
 
     const { updateVatValidatedAt } = await import('./customers');
-    await updateVatValidatedAt(pool, TEST_USER_ID, TEST_CUSTOMER_PROFILE);
+    await updateVatValidatedAt(pool, TEST_USER_ID, TEST_ERP_ID);
 
     const call = pool.queryCalls[0];
     expect(call.text).toContain('UPDATE agents.customers');
     expect(call.text).toContain('SET vat_validated_at = NOW()');
-    expect(call.params).toEqual([TEST_CUSTOMER_PROFILE, TEST_USER_ID]);
+    expect(call.params).toEqual([TEST_ERP_ID, TEST_USER_ID]);
   });
 });
 
@@ -379,9 +379,9 @@ describe('mapRowToCustomer', () => {
     const result = mapRowToCustomer(sampleRow);
 
     expect(result).toEqual({
-      customerProfile: 'CUST001',
+      erpId: 'CUST001',
       userId: TEST_USER_ID,
-      internalId: 'INT-1',
+      accountNum: 'INT-1',
       name: 'Acme Corporation',
       vatNumber: 'IT12345678901',
       fiscalCode: 'RSSMRA80A01H501Z',
@@ -433,9 +433,9 @@ describe('mapRowToCustomer', () => {
   test('handles null optional fields', async () => {
     const { mapRowToCustomer } = await import('./customers');
     const minimalRow: CustomerRow = {
-      customer_profile: 'CUST002',
+      erp_id: 'CUST002',
       user_id: TEST_USER_ID,
-      internal_id: null,
+      account_num: null,
       name: 'Minimal',
       vat_number: null,
       fiscal_code: null,
@@ -485,18 +485,18 @@ describe('mapRowToCustomer', () => {
 
     const result = mapRowToCustomer(minimalRow);
 
-    expect(result.customerProfile).toBe('CUST002');
+    expect(result.erpId).toBe('CUST002');
     expect(result.name).toBe('Minimal');
-    expect(result.internalId).toBeNull();
+    expect(result.accountNum).toBeNull();
     expect(result.vatNumber).toBeNull();
     expect(result.createdAt).toBeNull();
   });
 });
 
 const completeCustomer: Customer = {
-  customerProfile: 'C001',
+  erpId: 'C001',
   userId: 'user-1',
-  internalId: null,
+  accountNum: null,
   name: 'Acme Srl',
   vatNumber: 'IT12345678901',
   fiscalCode: null,

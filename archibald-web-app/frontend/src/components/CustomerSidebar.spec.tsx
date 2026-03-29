@@ -4,8 +4,8 @@ import { CustomerSidebar } from './CustomerSidebar';
 import type { Customer } from '../types/customer';
 
 const baseCustomer: Customer = {
-  customerProfile: '55.261',
-  internalId: null,
+  erpId: '55.261',
+  accountNum: null,
   name: 'Mario Rossi S.r.l.',
   vatNumber: 'IT08246131216',
   vatValidatedAt: '2026-01-01T00:00:00Z',

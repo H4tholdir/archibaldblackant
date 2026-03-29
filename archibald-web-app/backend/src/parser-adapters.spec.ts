@@ -42,7 +42,7 @@ describe('adaptCustomer', () => {
     const result = adaptCustomer(parsed);
 
     expect(result).toEqual({
-      customerProfile: 'CUST001',
+      erpId: 'CUST001',
       name: 'Acme Corp',
       vatNumber: 'IT123456',
       fiscalCode: 'ABCDEF',
@@ -99,7 +99,7 @@ describe('adaptOrder', () => {
       delivery_name: null,
       delivery_address: null,
       delivery_date: null,
-      remaining_sales_financial: null,
+      order_description: null,
       customer_reference: null,
       order_type: null,
       document_status: null,
@@ -115,7 +115,7 @@ describe('adaptOrder', () => {
 
     expect(result.id).toBe('ORD001');
     expect(result.orderNumber).toBe('ORD/26000001');
-    expect(result.customerProfileId).toBe('CUST001');
+    expect(result.customerAccountNum).toBe('CUST001');
     expect(result.customerName).toBe('Acme Corp');
     expect(result.date).toBe('2025-06-01');
     expect(result.status).toBe('Open');

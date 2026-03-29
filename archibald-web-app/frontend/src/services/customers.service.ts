@@ -13,9 +13,9 @@ function parseLastOrderDate(raw: string | undefined | null): string {
 
 function mapBackendCustomer(c: any): Customer {
   return {
-    id: c.customerProfile || c.internalId || c.id || "",
+    id: c.erpId || c.accountNum || c.id || "",
     name: c.name || "",
-    code: c.customerProfile || c.code || "",
+    code: c.erpId || c.code || "",
     taxCode: c.fiscalCode || c.vatNumber || c.taxCode || "",
     address: c.street || c.logisticsAddress || c.address || "",
     city: c.city || "",
@@ -84,9 +84,9 @@ export class CustomerService {
     }
   }
 
-  async setCustomerHidden(customerProfile: string, hidden: boolean): Promise<void> {
+  async setCustomerHidden(erpId: string, hidden: boolean): Promise<void> {
     const response = await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}/hidden`,
+      `/api/customers/${encodeURIComponent(erpId)}/hidden`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +144,7 @@ export class CustomerService {
   }
 
   async updateCustomer(
-    customerProfile: string,
+    erpId: string,
     formData: {
       name: string;
       vatNumber?: string;
@@ -162,7 +162,7 @@ export class CustomerService {
     },
   ): Promise<{ taskId: string | null }> {
     const response = await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}`,
+      `/api/customers/${encodeURIComponent(erpId)}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -179,9 +179,9 @@ export class CustomerService {
     return { taskId: taskId ?? null };
   }
 
-  async getCustomerBotStatus(customerProfile: string): Promise<string> {
+  async getCustomerBotStatus(erpId: string): Promise<string> {
     const response = await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}/status`,
+      `/api/customers/${encodeURIComponent(erpId)}/status`,
     );
 
     if (!response.ok) {
@@ -194,9 +194,9 @@ export class CustomerService {
     return status === "snapshot" ? "placed" : status;
   }
 
-  async retryBotPlacement(customerProfile: string): Promise<void> {
+  async retryBotPlacement(erpId: string): Promise<void> {
     const response = await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}/retry`,
+      `/api/customers/${encodeURIComponent(erpId)}/retry`,
       { method: "POST" },
     );
 
@@ -219,11 +219,11 @@ export class CustomerService {
     return { sessionId: data.data?.sessionId || "" };
   }
 
-  async startEditInteractiveSession(customerProfile: string): Promise<{ sessionId: string }> {
+  async startEditInteractiveSession(erpId: string): Promise<{ sessionId: string }> {
     const response = await fetchWithRetry("/api/customers/interactive/start-edit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customerProfile }),
+      body: JSON.stringify({ erpId }),
     });
 
     if (!response.ok) {
@@ -309,29 +309,29 @@ export class CustomerService {
     }
   }
 
-  async uploadPhoto(customerProfile: string, file: File): Promise<void> {
+  async uploadPhoto(erpId: string, file: File): Promise<void> {
     const compressed = await this.compressImage(file, 800, 0.7);
 
     const formData = new FormData();
     formData.append("photo", compressed, "photo.jpg");
 
     await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+      `/api/customers/${encodeURIComponent(erpId)}/photo`,
       { method: "POST", body: formData },
     );
   }
 
-  async deletePhoto(customerProfile: string): Promise<void> {
+  async deletePhoto(erpId: string): Promise<void> {
     await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+      `/api/customers/${encodeURIComponent(erpId)}/photo`,
       { method: "DELETE" },
     );
   }
 
-  async getPhotoUrl(customerProfile: string): Promise<string | null> {
+  async getPhotoUrl(erpId: string): Promise<string | null> {
     try {
       const response = await fetchWithRetry(
-        `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+        `/api/customers/${encodeURIComponent(erpId)}/photo`,
       );
       if (!response.ok || response.status === 204) return null;
 

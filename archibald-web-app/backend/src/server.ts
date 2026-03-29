@@ -333,7 +333,7 @@ function createApp(deps: AppDeps): Express {
     onLoginSuccess: deps.onLoginSuccess,
   }));
 
-  app.use('/api/customers/:customerProfile/addresses', authenticate, createCustomerAddressesRouter(pool));
+  app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
 
   app.use('/api/customers', authenticate, createCustomersRouter({
     queue,
@@ -353,9 +353,9 @@ function createApp(deps: AppDeps): Express {
     smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
     resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
-    enqueueReadVatStatus: (userId, customerProfile) => queue.enqueue('read-vat-status', userId, { customerProfile }),
-    updateAgentNotes: (userId, customerProfile, notes) =>
-      customersRepo.updateAgentNotes(pool, userId, customerProfile, notes),
+    enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
+    updateAgentNotes: (userId, erpId, notes) =>
+      customersRepo.updateAgentNotes(pool, userId, erpId, notes),
     getCustomerSyncMetrics: async () => {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
       const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
@@ -428,12 +428,12 @@ function createApp(deps: AppDeps): Express {
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
       updateVatValidatedAt: (userId, profile) => customersRepo.updateVatValidatedAt(pool, userId, profile),
       getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
-      upsertAddressesForCustomer: (userId, customerProfile, addresses) =>
-        upsertAddressesForCustomerRepo(pool, userId, customerProfile, addresses),
-      setAddressesSyncedAt: (userId, customerProfile) =>
+      upsertAddressesForCustomer: (userId, erpId, addresses) =>
+        upsertAddressesForCustomerRepo(pool, userId, erpId, addresses),
+      setAddressesSyncedAt: (userId, erpId) =>
         pool.query(
-          'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE customer_profile = $1 AND user_id = $2',
-          [customerProfile, userId],
+          'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE erp_id = $1 AND user_id = $2',
+          [erpId, userId],
         ).then(() => undefined),
       pauseSyncs: async () => { syncScheduler.stop(); },
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },

@@ -135,7 +135,7 @@ export function CustomerList() {
   // Scroll+flash al cliente evidenziato da notifica (?highlight=<customerProfile>)
   useEffect(() => {
     if (!highlightProfile || customers.length === 0) return;
-    const target = customers.find((c) => c.customerProfile === highlightProfile);
+    const target = customers.find((c) => c.erpId === highlightProfile);
     if (!target) return;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -161,20 +161,20 @@ export function CustomerList() {
     const loadPhotos = async () => {
       for (const c of customers) {
         if (cancelled) break;
-        if (customerPhotos[c.customerProfile] !== undefined) continue;
+        if (customerPhotos[c.erpId] !== undefined) continue;
         try {
-          const url = await customerService.getPhotoUrl(c.customerProfile);
+          const url = await customerService.getPhotoUrl(c.erpId);
           if (!cancelled) {
             setCustomerPhotos((prev) => ({
               ...prev,
-              [c.customerProfile]: url,
+              [c.erpId]: url,
             }));
           }
         } catch {
           if (!cancelled) {
             setCustomerPhotos((prev) => ({
               ...prev,
-              [c.customerProfile]: null,
+              [c.erpId]: null,
             }));
           }
         }
@@ -186,21 +186,21 @@ export function CustomerList() {
     };
   }, [customers]);
 
-  const handlePhotoUpload = async (customerProfile: string, file: File) => {
+  const handlePhotoUpload = async (erpId: string, file: File) => {
     try {
-      await customerService.uploadPhoto(customerProfile, file);
-      const url = await customerService.getPhotoUrl(customerProfile);
-      setCustomerPhotos((prev) => ({ ...prev, [customerProfile]: url }));
+      await customerService.uploadPhoto(erpId, file);
+      const url = await customerService.getPhotoUrl(erpId);
+      setCustomerPhotos((prev) => ({ ...prev, [erpId]: url }));
     } catch (err) {
       console.error("Photo upload failed:", err);
       setError("Errore durante il caricamento della foto");
     }
   };
 
-  const handlePhotoDelete = async (customerProfile: string) => {
+  const handlePhotoDelete = async (erpId: string) => {
     try {
-      await customerService.deletePhoto(customerProfile);
-      setCustomerPhotos((prev) => ({ ...prev, [customerProfile]: null }));
+      await customerService.deletePhoto(erpId);
+      setCustomerPhotos((prev) => ({ ...prev, [erpId]: null }));
     } catch (err) {
       console.error("Photo delete failed:", err);
       setError("Errore durante l'eliminazione della foto");
@@ -223,10 +223,10 @@ export function CustomerList() {
     });
   };
 
-  const handleRetry = async (customerProfile: string) => {
-    setRetryingProfiles((prev) => new Set(prev).add(customerProfile));
+  const handleRetry = async (erpId: string) => {
+    setRetryingProfiles((prev) => new Set(prev).add(erpId));
     try {
-      await customerService.retryBotPlacement(customerProfile);
+      await customerService.retryBotPlacement(erpId);
       await fetchCustomers();
       toastService.success("Sincronizzazione avviata — il bot aggiornerà il cliente a breve");
     } catch (err) {
@@ -235,7 +235,7 @@ export function CustomerList() {
     } finally {
       setRetryingProfiles((prev) => {
         const next = new Set(prev);
-        next.delete(customerProfile);
+        next.delete(erpId);
         return next;
       });
     }
@@ -244,11 +244,11 @@ export function CustomerList() {
   const isDesktop = window.innerWidth > 1024;
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
 
-  const handleNavigate = (customerProfile: string) => {
+  const handleNavigate = (erpId: string) => {
     if (isDesktop) {
-      setSelectedProfile((prev) => prev === customerProfile ? null : customerProfile);
+      setSelectedProfile((prev) => prev === erpId ? null : erpId);
     } else {
-      navigate(`/customers/${encodeURIComponent(customerProfile)}`);
+      navigate(`/customers/${encodeURIComponent(erpId)}`);
     }
   };
 
@@ -580,14 +580,14 @@ export function CustomerList() {
           >
             {displayedCustomers.map((customer) => {
               const isExpanded =
-                expandedCustomerId === customer.customerProfile;
+                expandedCustomerId === customer.erpId;
 
               return (
                 <div
-                  key={customer.customerProfile}
-                  data-customer-profile={customer.customerProfile}
+                  key={customer.erpId}
+                  data-customer-profile={customer.erpId}
                   style={{
-                    outline: isDesktop && selectedProfile === customer.customerProfile
+                    outline: isDesktop && selectedProfile === customer.erpId
                       ? '2px solid #2563eb'
                       : 'none',
                     borderRadius: '12px',
@@ -597,12 +597,12 @@ export function CustomerList() {
                   <CustomerCard
                     customer={customer}
                     expanded={isExpanded}
-                    onToggle={() => handleToggle(customer.customerProfile)}
+                    onToggle={() => handleToggle(customer.erpId)}
                     onEdit={() => {}}
                     onNavigate={handleNavigate}
                     onRetry={handleRetry}
-                    isRetrying={retryingProfiles.has(customer.customerProfile)}
-                    photoUrl={customerPhotos[customer.customerProfile]}
+                    isRetrying={retryingProfiles.has(customer.erpId)}
+                    photoUrl={customerPhotos[customer.erpId]}
                     onPhotoUpload={handlePhotoUpload}
                     onPhotoDelete={handlePhotoDelete}
                   />
@@ -630,7 +630,7 @@ export function CustomerList() {
             ✕
           </button>
           <CustomerDetailPage
-            customerProfileOverride={selectedProfile}
+            erpIdOverride={selectedProfile}
             embedded
           />
         </div>

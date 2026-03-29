@@ -603,7 +603,7 @@ function SubclientsTab() {
           onConfirm={(ids) => {
             const codice = linkingSubclient.codice;
             setMatchCounts((prev) => new Map([...prev, [codice, {
-              customerCount: ids.customerProfileIds.length,
+              customerCount: ids.customerErpIds.length,
               subClientCount: ids.subClientCodices.length,
             }]]));
             setLinkingSubclient(null);

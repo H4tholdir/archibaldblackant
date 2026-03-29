@@ -14,7 +14,7 @@ type InteractiveSession = {
   vatResult: VatLookupResult | null;
   error: string | null;
   syncsPaused: boolean;
-  customerProfile: string | null;
+  erpId: string | null;
 };
 
 const SESSION_TTL_MS = 10 * 60 * 1000;
@@ -35,7 +35,7 @@ function createInteractiveSessionManager() {
       vatResult: null,
       error: null,
       syncsPaused: false,
-      customerProfile: null,
+      erpId: null,
     });
     return sessionId;
   }
@@ -63,10 +63,10 @@ function createInteractiveSessionManager() {
     }
   }
 
-  function setCustomerProfile(sessionId: string, customerProfile: string): void {
+  function setCustomerProfile(sessionId: string, erpId: string): void {
     const session = sessions.get(sessionId);
     if (session) {
-      session.customerProfile = customerProfile;
+      session.erpId = erpId;
     }
   }
 

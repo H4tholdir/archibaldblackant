@@ -9,7 +9,7 @@ const makeBot = (result: { vatValidated: string; lastChecked: string } | null): 
   setProgressCallback: vi.fn(),
 });
 
-const data: ReadVatStatusData = { customerProfile: '55.261' };
+const data: ReadVatStatusData = { erpId: '55.261' };
 
 describe('handleReadVatStatus', () => {
   test('returns vatValidated from bot result', async () => {

@@ -27,8 +27,8 @@ function createCustomerAddressesRouter(pool: DbPool): Router {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
-      const addresses = await getAddressesByCustomer(pool, userId, customerProfile);
+      const { erpId } = req.params;
+      const addresses = await getAddressesByCustomer(pool, userId, erpId);
       res.json(addresses);
     } catch (error) {
       res.status(500).json({ success: false, error: 'Errore recupero indirizzi' });
@@ -38,12 +38,12 @@ function createCustomerAddressesRouter(pool: DbPool): Router {
   router.post('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { customerProfile } = req.params;
+      const { erpId } = req.params;
       const parsed = addressBodySchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
       }
-      const address = await addAddress(pool, userId, customerProfile, {
+      const address = await addAddress(pool, userId, erpId, {
         tipo: parsed.data.tipo,
         nome: parsed.data.nome ?? null,
         via: parsed.data.via ?? null,

@@ -3,7 +3,7 @@ import type { DbPool } from '../pool';
 type CustomerAddress = {
   id: number;
   userId: string;
-  customerProfile: string;
+  erpId: string;
   tipo: string;
   nome: string | null;
   via: string | null;
@@ -30,7 +30,7 @@ type AltAddress = {
 type CustomerAddressRow = {
   id: number;
   user_id: string;
-  customer_profile: string;
+  erp_id: string;
   tipo: string;
   nome: string | null;
   via: string | null;
@@ -46,7 +46,7 @@ function mapRowToCustomerAddress(row: CustomerAddressRow): CustomerAddress {
   return {
     id: row.id,
     userId: row.user_id,
-    customerProfile: row.customer_profile,
+    erpId: row.erp_id,
     tipo: row.tipo,
     nome: row.nome,
     via: row.via,
@@ -62,14 +62,14 @@ function mapRowToCustomerAddress(row: CustomerAddressRow): CustomerAddress {
 async function getAddressesByCustomer(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<CustomerAddress[]> {
   const { rows } = await pool.query<CustomerAddressRow>(
-    `SELECT id, user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra
+    `SELECT id, user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra
      FROM agents.customer_addresses
-     WHERE user_id = $1 AND customer_profile = $2
+     WHERE user_id = $1 AND erp_id = $2
      ORDER BY id ASC`,
-    [userId, customerProfile],
+    [userId, erpId],
   );
   return rows.map(mapRowToCustomerAddress);
 }
@@ -77,21 +77,21 @@ async function getAddressesByCustomer(
 async function upsertAddressesForCustomer(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   addresses: AltAddress[],
 ): Promise<void> {
   await pool.withTransaction(async (tx) => {
     await tx.query(
-      'DELETE FROM agents.customer_addresses WHERE user_id = $1 AND customer_profile = $2',
-      [userId, customerProfile],
+      'DELETE FROM agents.customer_addresses WHERE user_id = $1 AND erp_id = $2',
+      [userId, erpId],
     );
     for (const addr of addresses) {
       await tx.query(
         `INSERT INTO agents.customer_addresses
-           (user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra)
+           (user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
-          userId, customerProfile,
+          userId, erpId,
           addr.tipo, addr.nome, addr.via, addr.cap, addr.citta,
           addr.contea, addr.stato, addr.idRegione, addr.contra,
         ],
@@ -106,7 +106,7 @@ async function getAddressById(
   id: number,
 ): Promise<CustomerAddress | null> {
   const { rows } = await pool.query<CustomerAddressRow>(
-    `SELECT id, user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra
+    `SELECT id, user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra
      FROM agents.customer_addresses
      WHERE id = $1 AND user_id = $2`,
     [id, userId],
@@ -118,9 +118,9 @@ async function getCustomersNeedingAddressSync(
   pool: DbPool,
   userId: string,
   limit: number,
-): Promise<Array<{ customer_profile: string; name: string }>> {
-  const { rows } = await pool.query<{ customer_profile: string; name: string }>(
-    `SELECT customer_profile, name
+): Promise<Array<{ erp_id: string; name: string }>> {
+  const { rows } = await pool.query<{ erp_id: string; name: string }>(
+    `SELECT erp_id, name
      FROM agents.customers
      WHERE user_id = $1
        AND (addresses_synced_at IS NULL
@@ -135,27 +135,27 @@ async function getCustomersNeedingAddressSync(
 async function setAddressesSyncedAt(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
 ): Promise<void> {
   await pool.query(
-    'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE customer_profile = $1 AND user_id = $2',
-    [customerProfile, userId],
+    'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE erp_id = $1 AND user_id = $2',
+    [erpId, userId],
   );
 }
 
 async function addAddress(
   pool: DbPool,
   userId: string,
-  customerProfile: string,
+  erpId: string,
   address: AltAddress,
 ): Promise<CustomerAddress> {
   const { rows } = await pool.query<CustomerAddressRow>(
     `INSERT INTO agents.customer_addresses
-       (user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra)
+       (user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING id, user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra`,
+     RETURNING id, user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra`,
     [
-      userId, customerProfile,
+      userId, erpId,
       address.tipo, address.nome, address.via, address.cap, address.citta,
       address.contea, address.stato, address.idRegione, address.contra,
     ],
@@ -175,7 +175,7 @@ async function updateAddress(
          contea = $8, stato = $9, id_regione = $10, contra = $11,
          updated_at = NOW()
      WHERE id = $1 AND user_id = $2
-     RETURNING id, user_id, customer_profile, tipo, nome, via, cap, citta, contea, stato, id_regione, contra`,
+     RETURNING id, user_id, erp_id, tipo, nome, via, cap, citta, contea, stato, id_regione, contra`,
     [
       id, userId,
       address.tipo, address.nome, address.via, address.cap, address.citta,

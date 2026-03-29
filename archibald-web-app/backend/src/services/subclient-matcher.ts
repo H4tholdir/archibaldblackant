@@ -79,7 +79,7 @@ async function matchSubclients(pool: DbPool, userId: string): Promise<MatchResul
       const normalizedVat = normalizeForComparison(sub.partitaIva);
       const vatMatch = vatIndex.get(normalizedVat);
       if (vatMatch) {
-        await setSubclientMatch(pool, sub.codice, vatMatch.customerProfile, 'vat');
+        await setSubclientMatch(pool, sub.codice, vatMatch.erpId, 'vat');
         matched++;
         continue;
       }
@@ -96,7 +96,7 @@ async function matchSubclients(pool: DbPool, userId: string): Promise<MatchResul
     }
 
     if (bestScore >= MULTI_FIELD_THRESHOLD && bestCustomer) {
-      await setSubclientMatch(pool, sub.codice, bestCustomer.customerProfile, 'multi-field');
+      await setSubclientMatch(pool, sub.codice, bestCustomer.erpId, 'multi-field');
       matched++;
     }
   }

@@ -46,7 +46,7 @@ const defaultProps = {
   isOpen: true,
   onClose: vi.fn(),
   customerName: 'Cliente Test',
-  customerProfileIds: ['PROF-1'],
+  customerErpIds: ['PROF-1'],
   subClientCodices: [],
   isFresisClient: false,
   onAddArticle: vi.fn(),
@@ -71,13 +71,13 @@ describe('CustomerHistoryModal', () => {
     render(
       <CustomerHistoryModal
         {...defaultProps}
-        customerProfileIds={profileIds}
+        customerErpIds={profileIds}
         subClientCodices={codices}
       />,
     );
     await waitFor(() =>
       expect(getCustomerFullHistory).toHaveBeenCalledWith({
-        customerProfileIds: profileIds,
+        customerErpIds: profileIds,
         customerName: 'Cliente Test',
         subClientCodices: codices,
       }),
@@ -247,8 +247,8 @@ describe('CustomerHistoryModal', () => {
   });
 
   it('filters orders by customerProfileId when client dropdown is changed', async () => {
-    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
-    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerProfileId: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
+    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerAccountNum: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
+    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerAccountNum: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
     vi.mocked(getCustomerFullHistory).mockResolvedValue([orderA, orderB]);
 
     render(<CustomerHistoryModal {...defaultProps} />);
@@ -311,9 +311,9 @@ describe('CustomerHistoryModal', () => {
   });
 
   it('applies client and city filters with AND logic', async () => {
-    const orderAMi = mockOrder({ orderId: '1', orderNumber: 'OF-A-MI', customerProfileId: 'PROF-A', customerCity: 'Milano' });
-    const orderARo = mockOrder({ orderId: '2', orderNumber: 'OF-A-RO', customerProfileId: 'PROF-A', customerCity: 'Roma' });
-    const orderBMi = mockOrder({ orderId: '3', orderNumber: 'OF-B-MI', customerProfileId: 'PROF-B', customerCity: 'Milano' });
+    const orderAMi = mockOrder({ orderId: '1', orderNumber: 'OF-A-MI', customerAccountNum: 'PROF-A', customerCity: 'Milano' });
+    const orderARo = mockOrder({ orderId: '2', orderNumber: 'OF-A-RO', customerAccountNum: 'PROF-A', customerCity: 'Roma' });
+    const orderBMi = mockOrder({ orderId: '3', orderNumber: 'OF-B-MI', customerAccountNum: 'PROF-B', customerCity: 'Milano' });
     vi.mocked(getCustomerFullHistory).mockResolvedValue([orderAMi, orderARo, orderBMi]);
 
     render(<CustomerHistoryModal {...defaultProps} />);
@@ -330,8 +330,8 @@ describe('CustomerHistoryModal', () => {
   });
 
   it('resets client and city filters when modal is closed and reopened', async () => {
-    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
-    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerProfileId: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
+    const orderA = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerAccountNum: 'PROF-A', customerRagioneSociale: 'Rossi SRL' });
+    const orderB = mockOrder({ orderId: 'B', orderNumber: 'OF-B', customerAccountNum: 'PROF-B', customerRagioneSociale: 'Bianchi SPA' });
     vi.mocked(getCustomerFullHistory).mockResolvedValue([orderA, orderB]);
 
     const { rerender } = render(<CustomerHistoryModal {...defaultProps} />);
@@ -350,7 +350,7 @@ describe('CustomerHistoryModal', () => {
   });
 
   it('shows order with no customerProfileId and no subClientCodice only when client filter is empty', async () => {
-    const orderWithClient = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerProfileId: 'PROF-A' });
+    const orderWithClient = mockOrder({ orderId: 'A', orderNumber: 'OF-A', customerAccountNum: 'PROF-A' });
     const orderNoClient = mockOrder({ orderId: 'B', orderNumber: 'OF-B' });
     vi.mocked(getCustomerFullHistory).mockResolvedValue([orderWithClient, orderNoClient]);
 

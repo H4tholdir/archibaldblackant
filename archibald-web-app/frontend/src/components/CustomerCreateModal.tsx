@@ -313,10 +313,10 @@ export function CustomerCreateModal({
     });
 
     // Secondary fallback: poll botStatus for updates
-    const customerProfile = pollingProfileRef.current;
+    const erpId = pollingProfileRef.current;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-    if (customerProfile) {
+    if (erpId) {
       const pollTimeout = setTimeout(() => {
         if (resolved) return;
         pollInterval = setInterval(async () => {
@@ -326,7 +326,7 @@ export function CustomerCreateModal({
           }
           try {
             const status =
-              await customerService.getCustomerBotStatus(customerProfile);
+              await customerService.getCustomerBotStatus(erpId);
             if (status === "placed") markCompleted();
             else if (status === "failed")
               markFailed("Operazione fallita su Archibald");

@@ -4,11 +4,11 @@ import { updateVatValidatedAt } from '../../db/repositories/customers';
 import { logger } from '../../logger';
 
 type ReadVatStatusData = {
-  customerProfile: string;
+  erpId: string;
 };
 
 type ReadVatStatusBot = {
-  readCustomerVatStatus: (customerProfile: string) => Promise<{ vatValidated: string; lastChecked: string } | null>;
+  readCustomerVatStatus: (erpId: string) => Promise<{ vatValidated: string; lastChecked: string } | null>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -26,15 +26,15 @@ async function handleReadVatStatus(
 
   let vatValidated: string | null = null;
   try {
-    const result = await bot.readCustomerVatStatus(data.customerProfile);
+    const result = await bot.readCustomerVatStatus(data.erpId);
     vatValidated = result?.vatValidated ?? null;
 
     if (vatValidated === 'Sì' || vatValidated === 'Si') {
-      await updateVatValidatedAt(pool, userId, data.customerProfile);
-      logger.info('readVatStatus: IVA validata persistita', { customerProfile: data.customerProfile });
+      await updateVatValidatedAt(pool, userId, data.erpId);
+      logger.info('readVatStatus: IVA validata persistita', { erpId: data.erpId });
     }
   } catch (err) {
-    logger.warn('readVatStatus: lettura fallita', { error: String(err), customerProfile: data.customerProfile });
+    logger.warn('readVatStatus: lettura fallita', { error: String(err), erpId: data.erpId });
   }
 
   onProgress(100, 'Stato IVA aggiornato');

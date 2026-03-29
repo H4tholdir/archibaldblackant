@@ -669,9 +669,9 @@ export default function OrderFormSimple() {
     }
   };
 
-  const fetchAndSetCustomerCompleteness = (customerProfile: string) => {
+  const fetchAndSetCustomerCompleteness = (erpId: string) => {
     const jwt = localStorage.getItem('archibald_jwt') ?? '';
-    fetch(`/api/customers/${encodeURIComponent(customerProfile)}`, {
+    fetch(`/api/customers/${encodeURIComponent(erpId)}`, {
       headers: { Authorization: `Bearer ${jwt}` },
     })
       .then((res) => {
@@ -878,18 +878,18 @@ export default function OrderFormSimple() {
   }, [selectedCustomer, selectedSubClient]);
 
   const aggregateAndShowTopSold = useCallback(async (profileIds: string[], subClientCodices: string[]) => {
-    const orders = await getCustomerFullHistory({ customerProfileIds: profileIds, subClientCodices });
+    const orders = await getCustomerFullHistory({ customerErpIds: profileIds, subClientCodices });
     const sorted = aggregateTopSold(orders);
     setTopSoldItems(sorted);
     setShowTopSoldModal(true);
   }, []);
 
-  const dispatchMatchingResult = useCallback((ids: { customerProfileIds: string[]; subClientCodices: string[] } | undefined) => {
+  const dispatchMatchingResult = useCallback((ids: { customerErpIds: string[]; subClientCodices: string[] } | undefined) => {
     if (!selectedCustomer) return;
     let profileIds = historyCustomerProfileIds;
     let subClientCodices = historySubClientCodices;
     if (ids) {
-      profileIds = ids.customerProfileIds;
+      profileIds = ids.customerErpIds;
       subClientCodices = isFresis(selectedCustomer) && selectedSubClient
         ? [selectedSubClient.codice, ...ids.subClientCodices]
         : ids.subClientCodices;
@@ -959,7 +959,7 @@ export default function OrderFormSimple() {
   // After silent VAT validation: refresh customer completeness and show toast
   useEffect(() => {
     if (vatValidationStatus === 'done' && selectedCustomerFull) {
-      fetchAndSetCustomerCompleteness(selectedCustomerFull.customerProfile);
+      fetchAndSetCustomerCompleteness(selectedCustomerFull.erpId);
       toastService.success('P.IVA validata');
       resetVatValidation();
     }
@@ -3240,7 +3240,7 @@ export default function OrderFormSimple() {
                 <button
                   onClick={() => {
                     if (!isValidating && selectedCustomerFull?.vatNumber) {
-                      validateVat(selectedCustomerFull.customerProfile, selectedCustomerFull.vatNumber);
+                      validateVat(selectedCustomerFull.erpId, selectedCustomerFull.vatNumber);
                     }
                   }}
                   disabled={isValidating}
@@ -5293,7 +5293,7 @@ export default function OrderFormSimple() {
           isOpen={showCustomerHistoryModal}
           onClose={() => setShowCustomerHistoryModal(false)}
           customerName={isFresis(selectedCustomer) ? (selectedSubClient?.ragioneSociale ?? selectedCustomer.name) : selectedCustomer.name}
-          customerProfileIds={historyCustomerProfileIds}
+          customerErpIds={historyCustomerProfileIds}
           subClientCodices={historySubClientCodices}
           isFresisClient={isFresis(selectedCustomer)}
           onAddArticle={(newItem, replace) => {
@@ -5419,7 +5419,7 @@ export default function OrderFormSimple() {
             return (
               <MatchingManagerModal
                 mode="customer"
-                customerProfileId={selectedCustomer.id}
+                erpId={selectedCustomer.id}
                 entityName={selectedCustomer.name}
                 forceShow={matchingForceShow}
                 onConfirm={(ids) => dispatchMatchingResult(ids)}
@@ -6350,12 +6350,12 @@ export default function OrderFormSimple() {
 
       {editCustomerForCompleteness && (
         <CustomerQuickFix
-          customerProfile={editCustomerForCompleteness.customerProfile}
+          erpId={editCustomerForCompleteness.erpId}
           customerName={editCustomerForCompleteness.name}
           missingFields={customerCompleteness?.missingFields ?? []}
           onSaved={() => {
             handleCompletionModalClose();
-            fetchAndSetCustomerCompleteness(editCustomerForCompleteness.customerProfile);
+            fetchAndSetCustomerCompleteness(editCustomerForCompleteness.erpId);
           }}
           onDismiss={handleCompletionModalClose}
         />

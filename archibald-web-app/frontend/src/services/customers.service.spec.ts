@@ -23,7 +23,7 @@ describe("CustomerService", () => {
           success: true,
           data: {
             customers: [
-              { customerProfile: "C001", name: "Mario Rossi", city: "Milano", hash: "hash1" },
+              { erpId: "C001", name: "Mario Rossi", city: "Milano", hash: "hash1" },
             ],
             total: 1,
           },
@@ -72,7 +72,7 @@ describe("CustomerService", () => {
           success: true,
           data: {
             customers: [
-              { customerProfile: "C001", name: "Mario Rossi", city: "Milano", hash: "hash1" },
+              { erpId: "C001", name: "Mario Rossi", city: "Milano", hash: "hash1" },
             ],
             total: 1,
           },

@@ -46,7 +46,7 @@ function InlineMatcher({
   onMatchComplete,
   onSkip,
 }: {
-  items: Array<{ orderId: string; customerName: string; customerProfileId: string | null }>;
+  items: Array<{ orderId: string; customerName: string; erpId: string | null }>;
   onMatchComplete: () => void;
   onSkip: () => void;
 }) {
@@ -118,10 +118,10 @@ function InlineMatcher({
   if (!current) { onMatchComplete(); return null; }
 
   const handleSelect = async (subclient: Subclient) => {
-    if (!current.customerProfileId) { moveNext(); return; }
+    if (!current.erpId) { moveNext(); return; }
     setMatching(true);
     try {
-      await setSubclientMatch(subclient.codice, current.customerProfileId);
+      await setSubclientMatch(subclient.codice, current.erpId);
     } catch {
       // continue anyway
     }
@@ -144,14 +144,14 @@ function InlineMatcher({
   };
 
   const handleImportConfirm = async () => {
-    if (!current.customerProfileId) { moveNext(); return; }
+    if (!current.erpId) { moveNext(); return; }
     setImporting(true);
     setImportError(null);
     try {
       const res = await fetch('/api/arca-sync/import-customer', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerProfileId: current.customerProfileId, codice: importCodice }),
+        body: JSON.stringify({ erpId: current.erpId, codice: importCodice }),
       });
       if (res.status === 409) {
         setImportExists(true);

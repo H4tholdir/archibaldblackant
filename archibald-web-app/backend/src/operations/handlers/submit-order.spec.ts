@@ -329,7 +329,7 @@ function createMockPoolWithCustomer(
 const deliveryAddress = {
   id: 42,
   userId: 'user-1',
-  customerProfile: 'CUST-001',
+  erpId: 'CUST-001',
   tipo: 'Consegna',
   nome: null,
   via: 'Via Roma 1',

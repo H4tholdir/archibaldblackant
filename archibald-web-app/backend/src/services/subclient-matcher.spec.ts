@@ -55,7 +55,7 @@ function makeSubclient(overrides: Partial<Subclient> = {}): Subclient {
 
 function makeCustomer(overrides: Partial<Customer> = {}): Customer {
   return {
-    customerProfile: 'CUST-001',
+    erpId: 'CUST-001',
     userId: 'user-1',
     name: 'Test S.r.l.',
     phone: null,
@@ -197,7 +197,7 @@ describe('matchSubclients', () => {
     const matcherMod = await import('./subclient-matcher');
 
     const sub = makeSubclient({ codice: 'C001', partitaIva: 'IT12345678901' });
-    const cust = makeCustomer({ customerProfile: 'PROF-1', vatNumber: 'IT12345678901' });
+    const cust = makeCustomer({ erpId: 'PROF-1', vatNumber: 'IT12345678901' });
 
     vi.spyOn(subclientsMod, 'getUnmatchedSubclients').mockResolvedValue([sub]);
     vi.spyOn(customersMod, 'getCustomers').mockResolvedValue([cust]);
@@ -220,7 +220,7 @@ describe('matchSubclients', () => {
       telefono: '021234567',
     });
     const cust = makeCustomer({
-      customerProfile: 'PROF-2',
+      erpId: 'PROF-2',
       name: 'Rossi Mario S.r.l.',
       phone: '021234567',
     });
@@ -241,7 +241,7 @@ describe('matchSubclients', () => {
     const matcherMod = await import('./subclient-matcher');
 
     const sub = makeSubclient({ codice: 'C003', ragioneSociale: 'Alpha' });
-    const cust = makeCustomer({ customerProfile: 'PROF-3', name: 'Beta' });
+    const cust = makeCustomer({ erpId: 'PROF-3', name: 'Beta' });
 
     vi.spyOn(subclientsMod, 'getUnmatchedSubclients').mockResolvedValue([sub]);
     vi.spyOn(customersMod, 'getCustomers').mockResolvedValue([cust]);

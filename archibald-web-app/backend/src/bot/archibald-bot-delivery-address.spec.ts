@@ -27,7 +27,7 @@ function makeBot(pageMock: ReturnType<typeof makePageMock>): ArchibaldBot {
 const addressLioni: CustomerAddress = {
   id: 1,
   userId: 'u1',
-  customerProfile: '55.227',
+  erpId: '55.227',
   tipo: 'Indir. cons. alt.',
   nome: null,
   via: 'Via Francesco Petrarca, 26',

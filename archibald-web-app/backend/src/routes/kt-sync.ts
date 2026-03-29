@@ -37,13 +37,13 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
         id: string;
         order_number: string;
         customer_name: string;
-        customer_profile_id: string | null;
+        customer_account_num: string | null;
         creation_date: string;
         discount_percent: string | null;
-        remaining_sales_financial: string | null;
+        order_description: string | null;
       }>(
-        `SELECT id, order_number, customer_name, customer_profile_id,
-                creation_date, discount_percent, remaining_sales_financial
+        `SELECT id, order_number, customer_name, customer_account_num,
+                creation_date, discount_percent, order_description
          FROM agents.order_records
          WHERE user_id = $1 AND id = ANY($2::text[])`,
         [userId, orderIds],
@@ -73,8 +73,8 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
         const overrideCodice = matchOverrides?.[order.id];
         let subclient = overrideCodice
           ? subByCodice.get(overrideCodice)
-          : order.customer_profile_id
-            ? subByProfile.get(order.customer_profile_id)
+          : order.customer_account_num
+            ? subByProfile.get(order.customer_account_num)
             : undefined;
 
         if (!subclient) {
@@ -97,7 +97,7 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
             creationDate: order.creation_date,
             customerName: order.customer_name,
             discountPercent: order.discount_percent != null ? parseFloat(order.discount_percent) : null,
-            notes: order.remaining_sales_financial,
+            notes: order.order_description,
           },
           articles.map((a) => ({
             articleCode: a.articleCode,

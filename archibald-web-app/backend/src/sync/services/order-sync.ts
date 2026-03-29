@@ -7,7 +7,7 @@ import { copyFile } from 'node:fs/promises';
 type ParsedOrder = {
   id: string;
   orderNumber: string;
-  customerProfileId?: string;
+  customerAccountNum?: string;
   customerName: string;
   date: string;
   deliveryDate?: string;
@@ -25,7 +25,7 @@ type ParsedOrder = {
   isGiftOrder?: string;
   deliveryName?: string;
   deliveryAddress?: string;
-  remainingSalesFinancial?: string;
+  orderDescription?: string;
   customerReference?: string;
   email?: string;
 };
@@ -81,12 +81,12 @@ async function syncOrders(
 
     const computeHash = (o: ParsedOrder) =>
       [
-        o.id, o.orderNumber, o.customerProfileId, o.customerName,
+        o.id, o.orderNumber, o.customerAccountNum, o.customerName,
         o.date, o.deliveryDate, o.status, o.orderType, o.documentState,
         o.salesOrigin, o.transferStatus, o.transferDate, o.completionDate,
         o.isQuote, o.discountPercent, o.grossAmount, o.total,
         o.isGiftOrder, o.deliveryName, o.deliveryAddress,
-        o.remainingSalesFinancial, o.customerReference, o.email,
+        o.orderDescription, o.customerReference, o.email,
       ].join('|');
 
     for (const order of parsedOrders) {
@@ -100,17 +100,17 @@ async function syncOrders(
       if (!existing) {
         await pool.query(
           `INSERT INTO agents.order_records (
-            id, user_id, order_number, customer_profile_id, customer_name,
+            id, user_id, order_number, customer_account_num, customer_name,
             delivery_name, delivery_address, creation_date, delivery_date,
-            remaining_sales_financial, customer_reference, sales_status,
+            order_description, customer_reference, sales_status,
             order_type, document_status, sales_origin, transfer_status,
             transfer_date, completion_date, is_quote, discount_percent, gross_amount,
             total_amount, is_gift_order, hash, last_sync, created_at
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
           [
-            order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
+            order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
-            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
+            order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
             order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
             order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
             order.total ?? null, order.isGiftOrder ?? null, hash, now, new Date().toISOString(),
@@ -123,17 +123,17 @@ async function syncOrders(
 
         await pool.query(
           `UPDATE agents.order_records SET
-            order_number=$3, customer_profile_id=$4, customer_name=$5,
+            order_number=$3, customer_account_num=$4, customer_name=$5,
             delivery_name=$6, delivery_address=$7, creation_date=$8, delivery_date=$9,
-            remaining_sales_financial=$10, customer_reference=$11, sales_status=$12,
+            order_description=$10, customer_reference=$11, sales_status=$12,
             order_type=$13, document_status=$14, sales_origin=$15, transfer_status=$16,
             transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20, gross_amount=$21,
             total_amount=$22, is_gift_order=$23, hash=$24, last_sync=$25
           WHERE id=$1 AND user_id=$2`,
           [
-            order.id, userId, order.orderNumber, order.customerProfileId ?? null, order.customerName,
+            order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
-            order.remainingSalesFinancial ?? null, order.customerReference ?? null, order.status ?? null,
+            order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
             order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, newTransferStatus,
             order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
             order.total ?? null, order.isGiftOrder ?? null, hash, now,
@@ -167,16 +167,16 @@ async function syncOrders(
     }
 
     // Propagate emails from orders to customers
-    // Match by internal_id (PROFILO CLIENTE) first, fallback to name
+    // Match by account_num (PROFILO CLIENTE) first, fallback to name
     const emailEntries: Array<{ profileId?: string; name: string; email: string }> = [];
     const seen = new Set<string>();
     for (const order of parsedOrders) {
       if (!order.email || !order.customerName) continue;
-      const key = order.customerProfileId ?? order.customerName;
+      const key = order.customerAccountNum ?? order.customerName;
       if (seen.has(key)) continue;
       seen.add(key);
       emailEntries.push({
-        profileId: order.customerProfileId ?? undefined,
+        profileId: order.customerAccountNum ?? undefined,
         name: order.customerName,
         email: order.email,
       });
@@ -186,7 +186,7 @@ async function syncOrders(
       if (entry.profileId) {
         const res = await pool.query(
           `UPDATE agents.customers SET email = $1
-           WHERE user_id = $2 AND internal_id = $3
+           WHERE user_id = $2 AND account_num = $3
            AND (email IS NULL OR email = '' OR email != $1)`,
           [entry.email, userId, entry.profileId],
         );

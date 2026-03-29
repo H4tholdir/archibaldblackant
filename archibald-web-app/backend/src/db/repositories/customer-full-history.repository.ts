@@ -42,7 +42,7 @@ type FresisHistoryRow = {
 };
 
 type HistoryParams = {
-  customerProfileIds?: string[];
+  customerErpIds?: string[];
   customerName?: string;
   subClientCodices?: string[];
 };
@@ -59,7 +59,7 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
         orderDate: row.order_date,
         totalAmount: 0,
         orderDiscountPercent: 0,
-        customerProfileId: row.customer_profile_id ?? undefined,
+        customerErpId: row.customer_profile_id ?? undefined,
         customerCity: row.customer_city ?? undefined,
         customerRagioneSociale: row.customer_rag_sociale ?? undefined,
         articles: [],
@@ -144,12 +144,12 @@ async function getCustomerFullHistory(
   params: HistoryParams,
 ): Promise<FullHistoryOrder[]> {
   const {
-    customerProfileIds = [],
+    customerErpIds = [],
     customerName,
     subClientCodices = [],
   } = params;
 
-  const hasCustomerIds = customerProfileIds.length > 0;
+  const hasCustomerIds = customerErpIds.length > 0;
   const hasCustomerName = !!(customerName?.trim());
   const hasSubClients = subClientCodices.length > 0;
 
@@ -164,7 +164,7 @@ async function getCustomerFullHistory(
              o.id AS order_id,
              o.order_number,
              o.creation_date AS order_date,
-             c2.customer_profile AS customer_profile_id,
+             c2.erp_id AS customer_profile_id,
              c2.city AS customer_city,
              c2.name AS customer_rag_sociale,
              a.article_code,
@@ -176,12 +176,12 @@ async function getCustomerFullHistory(
              a.line_total_with_vat
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
-           LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.internal_id = o.customer_profile_id
+           LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num
            WHERE o.user_id = $1
              AND (
-               ($2::text[] != '{}' AND o.customer_profile_id IN (
-                 SELECT c.internal_id FROM agents.customers c
-                 WHERE c.user_id = $1 AND c.customer_profile = ANY($2::text[]) AND c.internal_id IS NOT NULL
+               ($2::text[] != '{}' AND o.customer_account_num IN (
+                 SELECT c.account_num FROM agents.customers c
+                 WHERE c.user_id = $1 AND c.erp_id = ANY($2::text[]) AND c.account_num IS NOT NULL
                ))
                OR ($3 != '' AND LOWER(o.customer_name) = LOWER($3))
              )
@@ -203,7 +203,7 @@ async function getCustomerFullHistory(
                  AND cn.creation_date >= o.creation_date
              )
            ORDER BY o.creation_date DESC, a.article_code ASC`,
-          [userId, customerProfileIds, customerName ?? ''],
+          [userId, customerErpIds, customerName ?? ''],
         )
       : Promise.resolve({ rows: [] as OrderArticleRow[] }),
 

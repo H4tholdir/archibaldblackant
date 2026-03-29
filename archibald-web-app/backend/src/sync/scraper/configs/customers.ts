@@ -8,7 +8,7 @@ const customersConfig: ScraperConfig = {
     xafAllValue: 'xaf_xaf_a2All_Customers',
   },
   columns: [
-    { fieldName: 'ACCOUNTNUM', targetField: 'internalId' },
+    { fieldName: 'ACCOUNTNUM', targetField: 'accountNum' },
     { fieldName: 'NAME', targetField: 'name' },
     { fieldName: 'VATNUM', targetField: 'vatNumber' },
     { fieldName: 'FISCALCODE', targetField: 'fiscalCode' },
@@ -33,7 +33,7 @@ const customersConfig: ScraperConfig = {
     { fieldName: 'SALESPREV2', targetField: 'previousSales2', parser: parseNumber },
     { fieldName: 'EXTERNALACCOUNTNUM', targetField: 'externalAccountNumber' },
     { fieldName: 'OURACCOUNTNUM', targetField: 'ourAccountNumber' },
-    { fieldName: 'ID', targetField: 'customerProfile', parser: (raw) => String(parseNumber(raw) ?? raw) },
+    { fieldName: 'ID', targetField: 'erpId', parser: (raw) => String(parseNumber(raw) ?? raw) },
   ],
 };
 

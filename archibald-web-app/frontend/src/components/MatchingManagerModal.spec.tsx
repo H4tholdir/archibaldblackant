@@ -91,7 +91,7 @@ describe('MatchingManagerModal', () => {
 
     fireEvent.click(screen.getByText(/Salta/i));
 
-    expect(subClientProps.onSkip).toHaveBeenCalledWith({ customerProfileIds: [], subClientCodices: [] });
+    expect(subClientProps.onSkip).toHaveBeenCalledWith({ customerErpIds: [], subClientCodices: [] });
   });
 
   it('filters out the entity own codice from subclient search results (prevents self-match)', async () => {

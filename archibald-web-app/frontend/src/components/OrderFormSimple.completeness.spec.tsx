@@ -57,8 +57,8 @@ vi.mock('../contexts/WebSocketContext', () => ({
 }));
 
 const INCOMPLETE_RICH_CUSTOMER = {
-  customerProfile: 'CUST-001',
-  internalId: null,
+  erpId: 'CUST-001',
+  accountNum: null,
   name: 'Rossi Mario',
   vatNumber: '12345678901',
   fiscalCode: null,

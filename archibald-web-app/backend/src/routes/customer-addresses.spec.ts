@@ -5,12 +5,12 @@ import type { DbPool } from '../db/pool';
 import { createCustomerAddressesRouter } from './customer-addresses';
 
 const userId = 'user-1';
-const customerProfile = 'CUST-001';
+const erpId = 'CUST-001';
 
 const mockAddress = {
   id: 1,
   userId,
-  customerProfile,
+  erpId,
   tipo: 'Consegna',
   nome: null,
   via: 'Via Roma 1',
@@ -38,7 +38,7 @@ function createApp(pool: DbPool) {
     (req as any).user = { userId, username: 'agent1', role: 'agent' };
     next();
   });
-  app.use('/api/customers/:customerProfile/addresses', createCustomerAddressesRouter(pool));
+  app.use('/api/customers/:erpId/addresses', createCustomerAddressesRouter(pool));
   return app;
 }
 
@@ -52,14 +52,14 @@ describe('createCustomerAddressesRouter', () => {
   describe('GET /', () => {
     it('returns 200 with addresses array', async () => {
       const row = {
-        id: 1, user_id: userId, customer_profile: customerProfile,
+        id: 1, user_id: userId, erp_id: erpId,
         tipo: 'Consegna', nome: null, via: 'Via Roma 1', cap: '80100',
         citta: 'Napoli', contea: null, stato: null, id_regione: null, contra: null,
       };
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [row], rowCount: 1 });
 
       const res = await request(createApp(pool))
-        .get(`/api/customers/${customerProfile}/addresses`);
+        .get(`/api/customers/${erpId}/addresses`);
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual([mockAddress]);
@@ -69,14 +69,14 @@ describe('createCustomerAddressesRouter', () => {
   describe('POST /', () => {
     it('returns 201 with created address when tipo is provided', async () => {
       const row = {
-        id: 1, user_id: userId, customer_profile: customerProfile,
+        id: 1, user_id: userId, erp_id: erpId,
         tipo: 'Ufficio', nome: null, via: 'Via X', cap: '10100',
         citta: 'Torino', contea: null, stato: null, id_regione: null, contra: null,
       };
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [row], rowCount: 1 });
 
       const res = await request(createApp(pool))
-        .post(`/api/customers/${customerProfile}/addresses`)
+        .post(`/api/customers/${erpId}/addresses`)
         .send({ tipo: 'Ufficio', via: 'Via X', cap: '10100', citta: 'Torino' });
 
       expect(res.status).toBe(201);
@@ -85,7 +85,7 @@ describe('createCustomerAddressesRouter', () => {
 
     it('returns 400 when tipo is missing', async () => {
       const res = await request(createApp(pool))
-        .post(`/api/customers/${customerProfile}/addresses`)
+        .post(`/api/customers/${erpId}/addresses`)
         .send({ via: 'Via X' });
 
       expect(res.status).toBe(400);
@@ -95,14 +95,14 @@ describe('createCustomerAddressesRouter', () => {
   describe('PUT /:id', () => {
     it('returns 200 with updated address', async () => {
       const row = {
-        id: 1, user_id: userId, customer_profile: customerProfile,
+        id: 1, user_id: userId, erp_id: erpId,
         tipo: 'Fattura', nome: null, via: 'Via Y', cap: '00100',
         citta: 'Roma', contea: null, stato: null, id_regione: null, contra: null,
       };
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [row], rowCount: 1 });
 
       const res = await request(createApp(pool))
-        .put(`/api/customers/${customerProfile}/addresses/1`)
+        .put(`/api/customers/${erpId}/addresses/1`)
         .send({ tipo: 'Fattura', via: 'Via Y', cap: '00100', citta: 'Roma' });
 
       expect(res.status).toBe(200);
@@ -113,7 +113,7 @@ describe('createCustomerAddressesRouter', () => {
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const res = await request(createApp(pool))
-        .put(`/api/customers/${customerProfile}/addresses/999`)
+        .put(`/api/customers/${erpId}/addresses/999`)
         .send({ tipo: 'Ufficio' });
 
       expect(res.status).toBe(404);
@@ -125,7 +125,7 @@ describe('createCustomerAddressesRouter', () => {
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
       const res = await request(createApp(pool))
-        .delete(`/api/customers/${customerProfile}/addresses/1`);
+        .delete(`/api/customers/${erpId}/addresses/1`);
 
       expect(res.status).toBe(204);
     });
@@ -134,7 +134,7 @@ describe('createCustomerAddressesRouter', () => {
       (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const res = await request(createApp(pool))
-        .delete(`/api/customers/${customerProfile}/addresses/999`);
+        .delete(`/api/customers/${erpId}/addresses/999`);
 
       expect(res.status).toBe(404);
     });

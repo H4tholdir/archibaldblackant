@@ -62,11 +62,11 @@ describe('getCustomerFullHistory', () => {
     expect(result).toEqual([]);
   });
 
-  it('returns orders from order_records when customerProfileIds provided', async () => {
+  it('returns orders from order_records when customerErpIds provided', async () => {
     const pool = makePool([ORDER_ROW], []);
 
     const result = await getCustomerFullHistory(pool, 'user-1', {
-      customerProfileIds: ['C10181'],
+      customerErpIds: ['C10181'],
     });
 
     const expected: FullHistoryOrder[] = [
@@ -77,7 +77,7 @@ describe('getCustomerFullHistory', () => {
         orderDate: '2024-02-23T00:00:00.000Z',
         totalAmount: 44.47,
         orderDiscountPercent: 0,
-        customerProfileId: 'C10181',
+        customerErpId: 'C10181',
         customerCity: 'Roma',
         customerRagioneSociale: 'Mario Srl',
         articles: [
@@ -136,7 +136,7 @@ describe('getCustomerFullHistory', () => {
     const pool = makePool([ORDER_ROW], [FRESIS_ROW]);
 
     const result = await getCustomerFullHistory(pool, 'user-1', {
-      customerProfileIds: ['C10181'],
+      customerErpIds: ['C10181'],
       subClientCodices: ['C00042'],
     });
 
@@ -144,7 +144,7 @@ describe('getCustomerFullHistory', () => {
     expect(result[1].source).toBe('orders');  // più vecchio: 2024-02-23
   });
 
-  it('aggregates orders from multiple customerProfileIds', async () => {
+  it('aggregates orders from multiple customerErpIds', async () => {
     const twoOrderRows = [
       {
         order_id: 'ord-1', order_number: 'FT 100', order_date: '2024-01-01',
@@ -160,7 +160,7 @@ describe('getCustomerFullHistory', () => {
       },
     ];
     const pool = makePool(twoOrderRows, []);
-    const result = await getCustomerFullHistory(pool, 'user-1', { customerProfileIds: ['C001', 'C002'] });
+    const result = await getCustomerFullHistory(pool, 'user-1', { customerErpIds: ['C001', 'C002'] });
     expect(result).toHaveLength(2);
     expect(result.map((o) => o.orderId)).toEqual(expect.arrayContaining(['ord-1', 'ord-2']));
   });
@@ -173,7 +173,7 @@ describe('getCustomerFullHistory', () => {
       unit_price: 10, discount_percent: 0, vat_percent: 22, line_total_with_vat: 12.2,
     }];
     const pool = makePool(rows, []);
-    const result = await getCustomerFullHistory(pool, 'user-1', { customerProfileIds: ['C001'] });
+    const result = await getCustomerFullHistory(pool, 'user-1', { customerErpIds: ['C001'] });
     expect(result[0].customerCity).toBe('Napoli');
     expect(result[0].customerRagioneSociale).toBe('Test Srl');
   });
@@ -182,7 +182,7 @@ describe('getCustomerFullHistory', () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const pool = { query } as unknown as DbPool;
 
-    await getCustomerFullHistory(pool, 'user-1', { customerProfileIds: ['C10181'] });
+    await getCustomerFullHistory(pool, 'user-1', { customerErpIds: ['C10181'] });
 
     const sql: string = query.mock.calls[0][0];
     expect(sql).toContain('articles_synced_at IS NOT NULL');
@@ -192,7 +192,7 @@ describe('getCustomerFullHistory', () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const pool = { query } as unknown as DbPool;
 
-    await getCustomerFullHistory(pool, 'user-1', { customerProfileIds: ['C10181'] });
+    await getCustomerFullHistory(pool, 'user-1', { customerErpIds: ['C10181'] });
 
     const sql: string = query.mock.calls[0][0];
     expect(sql).toContain('NOT EXISTS');

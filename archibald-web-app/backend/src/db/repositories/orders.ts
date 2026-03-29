@@ -5,13 +5,13 @@ type OrderRow = {
   id: string;
   user_id: string;
   order_number: string;
-  customer_profile_id: string | null;
+  customer_account_num: string | null;
   customer_name: string;
   delivery_name: string | null;
   delivery_address: string | null;
   creation_date: string;
   delivery_date: string | null;
-  remaining_sales_financial: string | null;
+  order_description: string | null;
   customer_reference: string | null;
   sales_status: string | null;
   order_type: string | null;
@@ -39,7 +39,7 @@ type OrderRow = {
   delivery_city: string | null;
   attention_to: string | null;
   ddt_delivery_address: string | null;
-  ddt_total: string | null;
+  ddt_quantity: string | null;
   ddt_customer_reference: string | null;
   ddt_description: string | null;
   tracking_number: string | null;
@@ -103,7 +103,7 @@ type DdtInfo = {
   ddtSalesName: string | null;
   ddtDeliveryName: string | null;
   ddtDeliveryAddress: string | null;
-  ddtTotal: string | null;
+  ddtQuantity: string | null;
   ddtCustomerReference: string | null;
   ddtDescription: string | null;
   deliveryTerms: string | null;
@@ -125,13 +125,13 @@ type Order = {
   id: string;
   userId: string;
   orderNumber: string;
-  customerProfileId: string | null;
+  customerAccountNum: string | null;
   customerName: string;
   deliveryName: string | null;
   deliveryAddress: string | null;
   date: string;
   deliveryDate: string | null;
-  remainingSalesFinancial: string | null;
+  orderDescription: string | null;
   customerReference: string | null;
   status: string | null;
   orderType: string | null;
@@ -159,7 +159,7 @@ type Order = {
   deliveryCity: string | null;
   attentionTo: string | null;
   ddtDeliveryAddress: string | null;
-  ddtTotal: string | null;
+  ddtQuantity: string | null;
   ddtCustomerReference: string | null;
   ddtDescription: string | null;
   trackingNumber: string | null;
@@ -229,13 +229,13 @@ type Order = {
 type OrderInput = {
   id: string;
   orderNumber: string;
-  customerProfileId: string | null;
+  customerAccountNum: string | null;
   customerName: string;
   deliveryName: string | null;
   deliveryAddress: string | null;
   date: string;
   deliveryDate: string | null;
-  remainingSalesFinancial: string | null;
+  orderDescription: string | null;
   customerReference: string | null;
   status: string | null;
   orderType: string | null;
@@ -261,7 +261,7 @@ type OrderFilterOptions = {
   offset?: number;
   status?: string;
   customer?: string;
-  customerProfileId?: string;
+  customerAccountNum?: string;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -359,7 +359,7 @@ type DDTData = {
   deliveryCity?: string | null;
   attentionTo?: string | null;
   ddtDeliveryAddress?: string | null;
-  ddtTotal?: string | null;
+  ddtQuantity?: string | null;
   ddtCustomerReference?: string | null;
   ddtDescription?: string | null;
   trackingNumber?: string | null;
@@ -394,13 +394,13 @@ function mapRowToOrder(row: OrderRow): Order {
     id: row.id,
     userId: row.user_id,
     orderNumber: row.order_number,
-    customerProfileId: row.customer_profile_id,
+    customerAccountNum: row.customer_account_num,
     customerName: row.customer_name,
     deliveryName: row.delivery_name,
     deliveryAddress: row.delivery_address,
     date: row.creation_date,
     deliveryDate: row.delivery_date,
-    remainingSalesFinancial: row.remaining_sales_financial,
+    orderDescription: row.order_description,
     customerReference: row.customer_reference,
     status: row.sales_status,
     orderType: row.order_type,
@@ -428,7 +428,7 @@ function mapRowToOrder(row: OrderRow): Order {
     deliveryCity: row.delivery_city,
     attentionTo: row.attention_to,
     ddtDeliveryAddress: row.ddt_delivery_address,
-    ddtTotal: row.ddt_total,
+    ddtQuantity: row.ddt_quantity,
     ddtCustomerReference: row.ddt_customer_reference,
     ddtDescription: row.ddt_description,
     trackingNumber: row.tracking_number,
@@ -503,7 +503,7 @@ function mapRowToOrder(row: OrderRow): Order {
       ddtSalesName: row.ddt_sales_name,
       ddtDeliveryName: row.ddt_delivery_name,
       ddtDeliveryAddress: row.ddt_delivery_address,
-      ddtTotal: row.ddt_total,
+      ddtQuantity: row.ddt_quantity,
       ddtCustomerReference: row.ddt_customer_reference,
       ddtDescription: row.ddt_description,
       deliveryTerms: row.delivery_terms,
@@ -611,9 +611,9 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
     paramIndex++;
   }
 
-  if (options?.customerProfileId) {
-    conditions.push(`customer_profile_id = (SELECT internal_id FROM agents.customers WHERE customer_profile = $${paramIndex} AND user_id = $1)`);
-    params.push(options.customerProfileId);
+  if (options?.customerAccountNum) {
+    conditions.push(`customer_account_num = (SELECT account_num FROM agents.customers WHERE erp_id = $${paramIndex} AND user_id = $1)`);
+    params.push(options.customerAccountNum);
     paramIndex++;
   } else if (options?.customer) {
     conditions.push(`translate(customer_name, E'\\n\\r\\t', '   ') ILIKE $${paramIndex}`);
@@ -703,17 +703,17 @@ async function upsertOrder(
   if (!existing) {
     await pool.query(
       `INSERT INTO agents.order_records (
-        id, user_id, order_number, customer_profile_id, customer_name,
+        id, user_id, order_number, customer_account_num, customer_name,
         delivery_name, delivery_address, creation_date, delivery_date,
-        remaining_sales_financial, customer_reference, sales_status,
+        order_description, customer_reference, sales_status,
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
         total_amount, is_quote, is_gift_order, hash, last_sync, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
       [
-        order.id, userId, order.orderNumber, order.customerProfileId, order.customerName,
+        order.id, userId, order.orderNumber, order.customerAccountNum, order.customerName,
         order.deliveryName, order.deliveryAddress, order.date, order.deliveryDate,
-        order.remainingSalesFinancial, order.customerReference, order.status,
+        order.orderDescription, order.customerReference, order.status,
         order.orderType, order.documentState, order.salesOrigin, order.transferStatus,
         order.transferDate, order.completionDate, order.discountPercent, order.grossAmount,
         order.total, order.isQuote ?? null, order.isGiftOrder ?? null,
@@ -733,18 +733,18 @@ async function upsertOrder(
 
   await pool.query(
     `UPDATE agents.order_records SET
-      order_number = $1, customer_profile_id = $2, customer_name = $3, delivery_name = $4,
+      order_number = $1, customer_account_num = $2, customer_name = $3, delivery_name = $4,
       delivery_address = $5, creation_date = $6, delivery_date = $7,
-      remaining_sales_financial = $8, customer_reference = $9, sales_status = $10,
+      order_description = $8, customer_reference = $9, sales_status = $10,
       order_type = $11, document_status = $12, sales_origin = $13, transfer_status = $14,
       transfer_date = $15, completion_date = $16, discount_percent = $17,
       gross_amount = $18, total_amount = $19, is_quote = $20, is_gift_order = $21,
       hash = $22, last_sync = $23, articles_synced_at = NULL
     WHERE id = $24 AND user_id = $25`,
     [
-      order.orderNumber, order.customerProfileId, order.customerName, order.deliveryName,
+      order.orderNumber, order.customerAccountNum, order.customerName, order.deliveryName,
       order.deliveryAddress, order.date, order.deliveryDate,
-      order.remainingSalesFinancial, order.customerReference, order.status,
+      order.orderDescription, order.customerReference, order.status,
       order.orderType, order.documentState, order.salesOrigin, order.transferStatus,
       order.transferDate, order.completionDate, order.discountPercent,
       order.grossAmount, order.total, order.isQuote ?? null, order.isGiftOrder ?? null,
@@ -883,7 +883,7 @@ async function updateOrderDDT(
     `UPDATE agents.order_records SET
       ddt_number = $1, ddt_delivery_date = $2, ddt_id = $3, ddt_customer_account = $4,
       ddt_sales_name = $5, ddt_delivery_name = $6, delivery_terms = $7, delivery_method = $8,
-      delivery_city = $9, attention_to = $10, ddt_delivery_address = $11, ddt_total = $12,
+      delivery_city = $9, attention_to = $10, ddt_delivery_address = $11, ddt_quantity = $12,
       ddt_customer_reference = $13, ddt_description = $14, tracking_number = $15,
       tracking_url = $16, tracking_courier = $17, last_sync = $18
     WHERE id = $19 AND user_id = $20`,
@@ -893,7 +893,7 @@ async function updateOrderDDT(
       ddtData.ddtDeliveryName ?? null, ddtData.deliveryTerms ?? null,
       ddtData.deliveryMethod ?? null, ddtData.deliveryCity ?? null,
       ddtData.attentionTo ?? null, ddtData.ddtDeliveryAddress ?? null,
-      ddtData.ddtTotal ?? null, ddtData.ddtCustomerReference ?? null,
+      ddtData.ddtQuantity ?? null, ddtData.ddtCustomerReference ?? null,
       ddtData.ddtDescription ?? null, ddtData.trackingNumber ?? null,
       ddtData.trackingUrl ?? null, ddtData.trackingCourier ?? null,
       now, orderId, userId,
@@ -1393,7 +1393,7 @@ type KtEligibleOrder = {
   id: string;
   orderNumber: string;
   customerName: string;
-  customerProfileId: string | null;
+  customerAccountNum: string | null;
   creationDate: string;
   discountPercent: number | null;
   notes: string | null;
@@ -1405,14 +1405,14 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
     id: string;
     order_number: string;
     customer_name: string;
-    customer_profile_id: string | null;
+    customer_account_num: string | null;
     creation_date: string;
     discount_percent: string | null;
-    remaining_sales_financial: string | null;
+    order_description: string | null;
     articles_synced_at: string | null;
   }>(
-    `SELECT o.id, o.order_number, o.customer_name, o.customer_profile_id,
-            o.creation_date, o.discount_percent, o.remaining_sales_financial,
+    `SELECT o.id, o.order_number, o.customer_name, o.customer_account_num,
+            o.creation_date, o.discount_percent, o.order_description,
             o.articles_synced_at
      FROM agents.order_records o
      WHERE o.user_id = $1
@@ -1427,10 +1427,10 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
     id: r.id,
     orderNumber: r.order_number,
     customerName: r.customer_name,
-    customerProfileId: r.customer_profile_id,
+    customerAccountNum: r.customer_account_num,
     creationDate: r.creation_date,
     discountPercent: r.discount_percent != null ? parseFloat(r.discount_percent) : null,
-    notes: r.remaining_sales_financial,
+    notes: r.order_description,
     articlesSyncedAt: r.articles_synced_at,
   }));
 }

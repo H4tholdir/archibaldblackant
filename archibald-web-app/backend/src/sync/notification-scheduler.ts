@@ -7,7 +7,7 @@ import { logger } from '../logger';
 const DAILY_CHECK_MS = 24 * 60 * 60 * 1000;
 
 type InactiveCustomerRow = {
-  customer_profile: string;
+  erp_id: string;
   user_id: string;
   name: string;
   last_order_date: string;
@@ -39,7 +39,7 @@ type MarkAchievedFn = (pool: DbPool, id: number, userId: string) => Promise<unkn
 
 async function checkCustomerInactivity(pool: DbPool, deps: NotificationServiceDeps): Promise<number> {
   const { rows } = await pool.query<InactiveCustomerRow>(
-    `SELECT c.customer_profile, c.user_id, c.name, c.last_order_date
+    `SELECT c.erp_id, c.user_id, c.name, c.last_order_date
      FROM agents.customers c
      WHERE c.deleted_at IS NULL
        AND c.last_order_date IS NOT NULL
@@ -49,7 +49,7 @@ async function checkCustomerInactivity(pool: DbPool, deps: NotificationServiceDe
          SELECT 1 FROM agents.notifications n
          WHERE n.user_id = c.user_id
            AND n.type = 'customer_inactive'
-           AND (n.data->>'customerProfile') = c.customer_profile
+           AND (n.data->>'erpId') = c.erp_id
            AND n.created_at > NOW() - INTERVAL '30 days'
        )`,
   );
@@ -67,7 +67,7 @@ async function checkCustomerInactivity(pool: DbPool, deps: NotificationServiceDe
       severity: 'warning',
       title: 'Cliente a rischio esclusività',
       body: `${row.name} non ha effettuato ordini da oltre 8 mesi. Hai circa ${monthsLeft} ${monthsLabel} per mantenere l'esclusività Komet.`,
-      data: { customerProfile: row.customer_profile, customerName: row.name, lastOrderDate: row.last_order_date },
+      data: { erpId: row.erp_id, customerName: row.name, lastOrderDate: row.last_order_date },
     });
   }
 

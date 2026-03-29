@@ -70,7 +70,7 @@ export interface DDTInfo {
   deliveryCity?: string;
   attentionTo?: string;
   deliveryAddress?: string;
-  ddtTotal?: string;
+  ddtQuantity?: string;
   customerReference?: string;
   description?: string;
   // Tracking fields (also nested in DDT)
@@ -84,7 +84,7 @@ export interface Order {
   // Order List (20 columns)
   id: string;
   orderNumber?: string;
-  customerProfileId?: string;
+  customerAccountNum?: string;
   customerName: string;
   agentPersonName?: string;
   orderDate?: string;
@@ -109,7 +109,7 @@ export interface Order {
   deliveryName?: string;
   deliveryAddress?: string;
   grossAmount?: string;
-  remainingSalesFinancial?: string;
+  orderDescription?: string;
   customerReference?: string;
   isQuote?: boolean;
   isGiftOrder?: boolean;

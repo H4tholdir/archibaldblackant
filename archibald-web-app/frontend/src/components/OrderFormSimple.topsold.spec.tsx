@@ -73,8 +73,8 @@ const DIRECT_CUSTOMER_SEARCH = {
 };
 
 const DIRECT_CUSTOMER_FULL = {
-  customerProfile: 'CUST-001',
-  internalId: null,
+  erpId: 'CUST-001',
+  accountNum: null,
   name: 'Indelli Enrico',
   vatNumber: '12345678901',
   fiscalCode: null,
@@ -119,7 +119,7 @@ const HISTORY_ORDERS: CustomerFullHistoryOrder[] = [
     orderDate: '2026-01-01',
     totalAmount: 100,
     orderDiscountPercent: 0,
-    customerProfileId: 'CUST-001',
+    customerAccountNum: 'CUST-001',
     articles: [
       { articleCode: 'A001', articleDescription: 'Serei DIA', quantity: 5, unitPrice: 10, discountPercent: 0, vatPercent: 22, lineTotalWithVat: 61 },
       { articleCode: 'B002', articleDescription: 'Cemento', quantity: 2, unitPrice: 5, discountPercent: 0, vatPercent: 22, lineTotalWithVat: 12.2 },
@@ -195,7 +195,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
 
     await waitFor(() => {
       expect(getCustomerFullHistory).toHaveBeenCalledWith(
-        expect.objectContaining({ customerProfileIds: ['CUST-001'] })
+        expect.objectContaining({ customerErpIds: ['CUST-001'] })
       );
       expect(screen.getByText('A001')).toBeInTheDocument();
       expect(screen.getByText('B002')).toBeInTheDocument();

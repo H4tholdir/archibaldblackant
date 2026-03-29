@@ -1,6 +1,6 @@
 type CustomerAddress = {
   id: number;
-  customerProfile: string;
+  erpId: string;
   tipo: string;
   nome: string | null;
   via: string | null;

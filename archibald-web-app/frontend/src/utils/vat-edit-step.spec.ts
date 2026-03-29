@@ -3,8 +3,8 @@ import { determineVatEditStep } from './vat-edit-step';
 import type { Customer } from '../types/customer';
 
 const base: Customer = {
-  customerProfile: 'TEST-001',
-  internalId: '55.123',
+  erpId: 'TEST-001',
+  accountNum: '55.123',
   name: 'Test Cliente',
   vatNumber: null,
   fiscalCode: null,

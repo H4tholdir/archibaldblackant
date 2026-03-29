@@ -731,10 +731,10 @@ function createMockPool(overrides?: {
     id: string;
     order_number: string;
     customer_name: string;
-    customer_profile_id: string | null;
+    customer_account_num: string | null;
     creation_date: string;
     discount_percent: string | null;
-    remaining_sales_financial: string | null;
+    order_description: string | null;
     articles_synced_at: string | null;
   }>;
   arcaImportRows?: Array<{
@@ -1205,10 +1205,10 @@ function createMockPool(overrides?: {
             id: orderId,
             order_number: "ORD-2026-001",
             customer_name: "Cliente Test",
-            customer_profile_id: "profile-123",
+            customer_account_num: "profile-123",
             creation_date: "2026-03-13T08:00:00Z",
             discount_percent: null,
-            remaining_sales_financial: null,
+            order_description: null,
             articles_synced_at: null,  // articoli non ancora sincronizzati
           },
         ],
@@ -1491,10 +1491,10 @@ describe('splitArticlesByWarehouse', () => {
             id: "kt-order-ready",
             order_number: "ORD-001",
             customer_name: "Cliente KT",
-            customer_profile_id: "profile-kt",
+            customer_account_num: "profile-kt",
             creation_date: "2026-03-13T08:00:00Z",
             discount_percent: null,
-            remaining_sales_financial: null,
+            order_description: null,
             articles_synced_at: "2026-03-13T09:00:00Z",
           },
         ],
@@ -1551,10 +1551,10 @@ describe('splitArticlesByWarehouse', () => {
     id: GAP_ORDER_ID,
     order_number: "ORD-WH-GAP-001",
     customer_name: "Cliente WH Gap",
-    customer_profile_id: GAP_PROFILE_ID,
+    customer_account_num: GAP_PROFILE_ID,
     creation_date: `${GAP_ESERCIZIO}-03-01T00:00:00Z`,
     discount_percent: null,
-    remaining_sales_financial: null,
+    order_description: null,
     articles_synced_at: `${GAP_ESERCIZIO}-03-01T01:00:00Z`,
   };
 
@@ -1752,10 +1752,10 @@ describe("getKtSyncStatus", () => {
         id: "o1",
         order_number: "KT 1/2026",
         customer_name: "Alfa",
-        customer_profile_id: matchedProfileId,
+        customer_account_num: matchedProfileId,
         creation_date: "2026-01-01",
         discount_percent: null,
-        remaining_sales_financial: null,
+        order_description: null,
         articles_synced_at: "2026-01-02T00:00:00Z",
       },
       // matched, articles pending
@@ -1763,10 +1763,10 @@ describe("getKtSyncStatus", () => {
         id: "o2",
         order_number: "KT 2/2026",
         customer_name: "Alfa",
-        customer_profile_id: matchedProfileId,
+        customer_account_num: matchedProfileId,
         creation_date: "2026-01-01",
         discount_percent: null,
-        remaining_sales_financial: null,
+        order_description: null,
         articles_synced_at: null,
       },
       // unmatched, articles also null — must NOT count in pending
@@ -1774,10 +1774,10 @@ describe("getKtSyncStatus", () => {
         id: "o3",
         order_number: "KT 3/2026",
         customer_name: "Beta",
-        customer_profile_id: unmatchedProfileId,
+        customer_account_num: unmatchedProfileId,
         creation_date: "2026-01-01",
         discount_percent: null,
-        remaining_sales_financial: null,
+        order_description: null,
         articles_synced_at: null,
       },
     ];
@@ -1796,7 +1796,7 @@ describe("getKtSyncStatus", () => {
       articlesPending: 1,
       matched: 2,
       readyToExport: 1,
-      unmatched: [{ orderId: "o3", customerName: "Beta", customerProfileId: unmatchedProfileId }],
+      unmatched: [{ orderId: "o3", customerName: "Beta", customerAccountNum: unmatchedProfileId }],
     });
   });
 });
@@ -1842,7 +1842,7 @@ describe("suggestNextCodice", () => {
 
 describe("importCustomerAsSubclient", () => {
   const baseCustomer = {
-    customer_profile: "C01273",
+    erp_id: "C01273",
     user_id: "user-1",
     name: "LAB. ODONTOIATRICO ROSSI SRL",
     vat_number: "12345678901",
@@ -1862,7 +1862,7 @@ describe("importCustomerAsSubclient", () => {
     const insertedParams: unknown[][] = [];
     const pool = {
       query: vi.fn().mockImplementation((sql: string, params: unknown[]) => {
-        if (sql.includes("internal_id") && sql.includes("agents.customers")) {
+        if (sql.includes("erp_id") && sql.includes("agents.customers")) {
           return Promise.resolve({ rows: [baseCustomer] });
         }
         if (sql.includes("INSERT INTO shared.sub_clients")) {
