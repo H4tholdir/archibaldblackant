@@ -94,28 +94,22 @@ describe('clearSyncData', () => {
     ]);
   });
 
-  test('ddt nullifies ddt columns and clears sync state', async () => {
+  test('ddt truncates order_ddts and clears sync state', async () => {
     const { pool, getQueries } = createMockPool();
     await clearSyncData(pool, 'ddt');
-    const queries = getQueries();
-    expect(queries).toHaveLength(2);
-    expect(queries[0]).toMatch(/^UPDATE agents\.order_records SET ddt_number = NULL/);
-    expect(queries[0]).toContain('tracking_number = NULL');
-    expect(queries[1]).toBe(
+    expect(getQueries()).toEqual([
+      'TRUNCATE TABLE agents.order_ddts',
       `DELETE FROM agents.agent_sync_state WHERE sync_type = 'ddt'`,
-    );
+    ]);
   });
 
-  test('invoices nullifies invoice columns and clears sync state', async () => {
+  test('invoices truncates order_invoices and clears sync state', async () => {
     const { pool, getQueries } = createMockPool();
     await clearSyncData(pool, 'invoices');
-    const queries = getQueries();
-    expect(queries).toHaveLength(2);
-    expect(queries[0]).toMatch(/^UPDATE agents\.order_records SET invoice_number = NULL/);
-    expect(queries[0]).toContain('invoice_closed = NULL');
-    expect(queries[1]).toBe(
+    expect(getQueries()).toEqual([
+      'TRUNCATE TABLE agents.order_invoices',
       `DELETE FROM agents.agent_sync_state WHERE sync_type = 'invoices'`,
-    );
+    ]);
   });
 
   test('wraps all operations in a transaction', async () => {

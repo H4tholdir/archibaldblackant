@@ -1,21 +1,5 @@
 import type { DbPool, TxClient } from './pool';
 
-const DDT_COLUMNS = [
-  'ddt_number', 'ddt_delivery_date', 'ddt_id', 'ddt_customer_account',
-  'ddt_sales_name', 'ddt_delivery_name', 'delivery_terms', 'delivery_method',
-  'delivery_city', 'attention_to', 'ddt_delivery_address', 'ddt_quantity',
-  'ddt_customer_reference', 'ddt_description', 'tracking_number',
-  'tracking_url', 'tracking_courier', 'delivery_completed_date',
-] as const;
-
-const INVOICE_COLUMNS = [
-  'invoice_number', 'invoice_date', 'invoice_amount', 'invoice_customer_account',
-  'invoice_billing_name', 'invoice_quantity', 'invoice_remaining_amount',
-  'invoice_tax_amount', 'invoice_line_discount', 'invoice_total_discount',
-  'invoice_due_date', 'invoice_payment_terms_id', 'invoice_purchase_order',
-  'invoice_closed', 'invoice_days_past_due', 'invoice_settled_amount',
-  'invoice_last_payment_id', 'invoice_last_settlement_date', 'invoice_closed_date',
-] as const;
 
 type SyncType = 'customers' | 'products' | 'prices' | 'orders' | 'ddt' | 'invoices';
 
@@ -62,16 +46,14 @@ async function clearOrders(tx: TxClient): Promise<void> {
 }
 
 async function clearDdt(tx: TxClient): Promise<void> {
-  const setNullClauses = DDT_COLUMNS.map((col) => `${col} = NULL`).join(', ');
-  await tx.query(`UPDATE agents.order_records SET ${setNullClauses}`);
+  await tx.query('TRUNCATE TABLE agents.order_ddts');
   await tx.query(
     `DELETE FROM agents.agent_sync_state WHERE sync_type = 'ddt'`,
   );
 }
 
 async function clearInvoices(tx: TxClient): Promise<void> {
-  const setNullClauses = INVOICE_COLUMNS.map((col) => `${col} = NULL`).join(', ');
-  await tx.query(`UPDATE agents.order_records SET ${setNullClauses}`);
+  await tx.query('TRUNCATE TABLE agents.order_invoices');
   await tx.query(
     `DELETE FROM agents.agent_sync_state WHERE sync_type = 'invoices'`,
   );
