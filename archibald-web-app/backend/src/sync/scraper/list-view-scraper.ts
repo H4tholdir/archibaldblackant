@@ -21,40 +21,57 @@ type ScrapeProgress = {
 };
 
 async function detectSystemColumnOffset(page: Page): Promise<number> {
-  return page.evaluate(() => {
-    const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
-    const target = rows.length > 0
-      ? rows
-      : document.querySelectorAll('tr[class*="dxgvDataRow"]');
+  // Use the grid API to count system columns (fieldName === "")
+  // This is MORE RELIABLE than DOM inspection because empty data cells
+  // can be mistaken for system cells.
+  const apiCount = await page.evaluate(() => {
+    const w = window as any;
+    const gn = Object.keys(w).find((k) => {
+      try { return w[k]?.GetColumn && typeof w[k].GetColumn === 'function'; }
+      catch { return false; }
+    });
+    if (!gn) return 0;
+    const grid = w[gn];
+    let systemCols = 0;
+    let i = 0;
+    while (true) {
+      try {
+        const col = grid.GetColumn(i);
+        if (!col) break;
+        if (col.visible !== false && (!col.fieldName || col.fieldName === '')) {
+          systemCols++;
+        }
+        i++;
+      } catch { break; }
+    }
+    return systemCols;
+  });
 
-    if (target.length === 0) return 0;
-
-    const firstRow = target[0];
-    const cells = firstRow.querySelectorAll('td');
+  // The DOM may have MORE cells than the API reports as visible columns
+  // (e.g., DDT has 22 cells but 17+1 visible columns).
+  // Use the API count as a baseline, but verify against DOM.
+  // The actual offset = max(apiCount, dom-detected-markup-cells)
+  const domOffset = await page.evaluate(() => {
+    const row = document.querySelector('tr.dxgvDataRow_XafTheme') ||
+                document.querySelector('tr[class*="dxgvDataRow"]');
+    if (!row) return 0;
+    const cells = row.querySelectorAll('td');
     let offset = 0;
-
-    for (let i = 0; i < cells.length; i++) {
-      const cell = cells[i];
-      const html = cell.innerHTML;
-      const text = cell.textContent?.trim() ?? '';
-
-      const isSystemCell =
-        text === '' ||
+    for (let i = 0; i < Math.min(cells.length, 5); i++) {
+      const html = cells[i].innerHTML;
+      // ONLY detect by positive markup indicators — NOT by empty text
+      const isDefinitelySystem =
         html.includes('<!--') ||
-        html.includes('ASPx') ||
         html.includes('dxICheckBox') ||
         html.includes('type="checkbox"') ||
-        cell.querySelector('img[id*="Img"]') !== null;
-
-      if (isSystemCell) {
-        offset++;
-      } else {
-        break;
-      }
+        html.includes('AddDisabledItems');
+      if (isDefinitelySystem) offset++;
+      else break;
     }
-
     return offset;
   });
+
+  return Math.max(apiCount, domOffset);
 }
 
 async function extractPageRows(page: Page, systemColumnOffset: number): Promise<string[][]> {
