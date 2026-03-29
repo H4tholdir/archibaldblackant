@@ -28,7 +28,7 @@ describe('waitForDevExpressIdle', () => {
 
     expect(page.waitForFunction).toHaveBeenCalledWith(
       expect.any(Function),
-      { timeout: 15000, polling: 200 },
+      { timeout: 45000, polling: 200 },
       3,
     );
   });

@@ -1,7 +1,7 @@
 import type { Page } from 'puppeteer';
 import { logger } from '../../logger';
 
-const DEFAULT_IDLE_TIMEOUT = 15000;
+const DEFAULT_IDLE_TIMEOUT = 45000;
 const POLL_INTERVAL = 200;
 const STABLE_COUNT_REQUIRED = 3;
 

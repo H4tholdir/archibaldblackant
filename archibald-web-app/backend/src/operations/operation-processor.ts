@@ -64,6 +64,8 @@ const PREEMPTION_WAIT_MS = 2000;
 const REQUEUE_DELAY_MS = 5000;
 const ADDRESS_SYNC_REQUEUE_DELAY_MS = 60_000;
 const MAX_REQUEUE_COUNT = 3;
+const SCHEDULED_SYNC_RESCHEDULE_DELAY_MS = 3 * 60 * 1000;
+const MAX_SCHEDULED_RESCHEDULE_COUNT = 2;
 
 const SUBMIT_ORDER_BASE_TIMEOUT_MS = 60_000;
 const SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS = 30_000;
@@ -135,8 +137,15 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       if (!acquireResult.acquired) {
         // When a scheduled sync can't acquire because another scheduled sync is running,
-        // skip silently — the scheduler will re-enqueue at the next cycle.
+        // reschedule with a short delay so it retries after the active sync finishes.
+        // If the max reschedule count is reached, skip silently for this cycle.
         if (isScheduledSync(type) && isScheduledSync(acquireResult.activeJob.type)) {
+          const rescheduleCount = (idempotencyKey.match(/-s\d+/g) ?? []).length;
+          if (rescheduleCount < MAX_SCHEDULED_RESCHEDULE_COUNT) {
+            const rescheduleKey = `${idempotencyKey}-s${Date.now()}`;
+            await enqueue(type, userId, data, rescheduleKey, SCHEDULED_SYNC_RESCHEDULE_DELAY_MS);
+            return { success: true, data: { rescheduled: true }, duration: Date.now() - startTime };
+          }
           return { success: true, data: { skipped: true }, duration: Date.now() - startTime };
         }
 

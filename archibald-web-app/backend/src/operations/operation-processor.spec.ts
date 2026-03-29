@@ -163,7 +163,7 @@ describe('createOperationProcessor', () => {
     );
   });
 
-  test('skips gracefully when a scheduled sync finds another scheduled sync running', async () => {
+  test('reschedules when a scheduled sync finds another scheduled sync running', async () => {
     const busyLock = createMockAgentLock({
       acquired: false,
       activeJob: { jobId: 'chain-job', type: 'sync-orders' },
@@ -174,6 +174,31 @@ describe('createOperationProcessor', () => {
       handlers: { 'sync-customers': vi.fn().mockResolvedValue({}) } as any,
     });
     const job = createMockJob({ type: 'sync-customers' });
+
+    const result = await processor.processJob(job as any);
+
+    expect(result).toEqual({ success: true, data: { rescheduled: true }, duration: expect.any(Number) });
+    expect(enqueue).toHaveBeenCalledWith(
+      'sync-customers',
+      'user-a',
+      { orderId: '1' },
+      expect.stringMatching(/^key-1-s\d+$/),
+      3 * 60 * 1000,
+    );
+  });
+
+  test('skips (does not reschedule) when a scheduled sync exceeds max reschedule count', async () => {
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'chain-job', type: 'sync-orders' },
+      preemptable: false,
+    });
+    const { processor, enqueue } = createProcessor({
+      agentLock: busyLock,
+      handlers: { 'sync-customers': vi.fn().mockResolvedValue({}) } as any,
+    });
+    const idempotencyKey = 'key-1-s1000-s2000'; // 2 reschedules = MAX_SCHEDULED_RESCHEDULE_COUNT
+    const job = createMockJob({ type: 'sync-customers', idempotencyKey });
 
     const result = await processor.processJob(job as any);
 
