@@ -38,6 +38,12 @@ function createSyncOrdersHandler(deps: SyncOrdersDeps): OperationHandler {
 
       const rows = await scrapeListView(page, ordersConfig, progressCb, shouldStop);
 
+      // Post-process: if orderNumber (SALESID) is empty, use id as fallback
+      // (matches old PDF parser behavior: adaptOrder used `n(p.order_number) ?? p.id`)
+      for (const row of rows) {
+        if (!row.orderNumber) row.orderNumber = row.id;
+      }
+
       const result: OrderSyncResult = await syncOrders(
         {
           pool,
