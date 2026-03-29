@@ -275,6 +275,74 @@ describe('scrapeListView', () => {
     expect(mockedUtils.setGridPageSize).toHaveBeenCalledWith(page, 100);
   });
 
+  test('extends fieldMap with hidden configured fields for API extraction', async () => {
+    const page = createMockPage();
+    const configWithHiddenField: ScraperConfig = {
+      url: 'https://erp.example.com/INVENTTABLE_ListView/',
+      columns: [
+        { fieldName: 'SALESID', targetField: 'orderNumber' },
+        { fieldName: 'HIDDEN_FIELD', targetField: 'hiddenValue' },
+      ],
+    };
+
+    mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    // HIDDEN_FIELD is NOT in the fieldMap (column is hidden in the grid)
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
+    mockedUtils.setGridPageSize.mockResolvedValue(undefined);
+    mockedUtils.getVisibleRowCount.mockResolvedValue(1);
+    mockedUtils.hasNextPage.mockResolvedValue(false);
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
+
+    page.evaluate
+      .mockResolvedValueOnce(true) // API probe returns true
+      .mockResolvedValueOnce([['ORD-001', '22']]); // row data includes hidden field value
+
+    mockedMapper.buildRowExtractor.mockReturnValue(
+      (cells: string[]) => ({ orderNumber: cells[0], hiddenValue: cells[1] }),
+    );
+
+    const rows = await scrapeListView(page as any, configWithHiddenField);
+
+    // extractor built with extended map: HIDDEN_FIELD appended at index 1
+    expect(mockedMapper.buildRowExtractor).toHaveBeenCalledWith(
+      configWithHiddenField.columns,
+      { SALESID: 0, HIDDEN_FIELD: 1 },
+    );
+    expect(rows).toEqual([{ orderNumber: 'ORD-001', hiddenValue: '22' }]);
+  });
+
+  test('does not extend fieldMap for DOM extraction pages', async () => {
+    const page = createMockPage();
+    const domConfig: ScraperConfig = {
+      url: 'https://erp.example.com/CUSTPACKINGSLIPJOUR_ListView/',
+      columns: [
+        { fieldName: 'SALESID', targetField: 'salesId' },
+        { fieldName: 'HIDDEN_FIELD', targetField: 'hiddenValue' },
+      ],
+      domExtraction: true,
+    };
+
+    mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 2 });
+    mockedUtils.setGridPageSize.mockResolvedValue(undefined);
+    mockedUtils.getVisibleRowCount.mockResolvedValue(0);
+    mockedUtils.hasNextPage.mockResolvedValue(false);
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
+    mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(2); // domCellCount
+
+    await scrapeListView(page as any, domConfig);
+
+    // DOM extraction: extractor built with original fieldMap only (no hidden field extension)
+    expect(mockedMapper.buildRowExtractor).toHaveBeenCalledWith(
+      domConfig.columns,
+      { SALESID: 0 },
+    );
+  });
+
   test('restores filter even when scraping throws', async () => {
     const page = createMockPage();
     const configWithFilter: ScraperConfig = {

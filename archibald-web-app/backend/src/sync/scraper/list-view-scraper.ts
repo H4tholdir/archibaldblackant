@@ -105,12 +105,17 @@ async function scrapeListView(
 
     const { fieldMap } = await getGridFieldMap(page);
 
-    const missingColumns = config.columns.filter((col) => !(col.fieldName in fieldMap));
-    if (missingColumns.length > 0) {
-      logger.warn('Missing columns in grid: %s', missingColumns.map((c) => c.fieldName).join(', '));
+    // Separate configured fields into visible (in fieldMap) and hidden (not in fieldMap).
+    // Hidden fields may still be readable via GetRowValues even when not visible in the grid.
+    const hiddenConfigFields = config.columns
+      .map((col) => col.fieldName)
+      .filter((fn) => !(fn in fieldMap));
+
+    if (hiddenConfigFields.length > 0) {
+      logger.warn('Columns not visible in grid: %s', hiddenConfigFields.join(', '));
     }
 
-    // Build the list of fieldNames sorted by visibleIndex
+    // Build the list of fieldNames sorted by visibleIndex (visible columns only)
     const apiFieldNames = Object.keys(fieldMap).sort((a, b) => fieldMap[a] - fieldMap[b]);
 
     // For pages that need a filter toggle to populate the grid (DDT, Invoices):
@@ -156,13 +161,27 @@ async function scrapeListView(
           });
         }, apiFieldNames.join(';'));
 
-    if (useApiExtraction) {
+    // For API extraction: append hidden configured fields to the request so GetRowValues
+    // fetches them from the server data source alongside visible ones.
+    // DOM-extraction pages (filterToggleWorkaround / domExtraction) cannot use this path.
+    let effectiveApiFieldNames = apiFieldNames;
+    let effectiveFieldMap = fieldMap;
+    if (useApiExtraction && hiddenConfigFields.length > 0) {
+      effectiveFieldMap = { ...fieldMap };
+      effectiveApiFieldNames = [...apiFieldNames];
+      for (const fn of hiddenConfigFields) {
+        effectiveFieldMap[fn] = effectiveApiFieldNames.length;
+        effectiveApiFieldNames.push(fn);
+      }
+      logger.info('[scraper] Using GetRowValues API extraction (%d fields, %d hidden: %s)',
+        effectiveApiFieldNames.length, hiddenConfigFields.length, hiddenConfigFields.join(', '));
+    } else if (useApiExtraction) {
       logger.info('[scraper] Using GetRowValues API extraction (%d fields)', apiFieldNames.length);
     } else {
       logger.info('[scraper] GetRowValues not available — falling back to DOM extraction');
     }
 
-    const extractor = buildRowExtractor(config.columns, fieldMap);
+    const extractor = buildRowExtractor(config.columns, effectiveFieldMap);
     const allRows: ScrapedRow[] = [];
     let currentPage = 1;
 
@@ -190,7 +209,7 @@ async function scrapeListView(
       if (rowCount > 0) {
         let cellRows: string[][];
         if (useApiExtraction) {
-          cellRows = await extractPageRowsViaApi(page, apiFieldNames, rowCount);
+          cellRows = await extractPageRowsViaApi(page, effectiveApiFieldNames, rowCount);
         } else {
           // DOM fallback: extract cells and skip the offset
           cellRows = await page.evaluate((offset: number) => {
