@@ -166,7 +166,7 @@ async function ensureFilterValue(
   xafValuePattern: string,
   xafAllValue: string,
 ): Promise<FilterResult> {
-  const result = await page.evaluate((pattern: string, allValue: string) => {
+  const result = await page.evaluate((_pattern: string, allValue: string) => {
     const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(
       'input[name*="mainMenu"][name*="Cb"]',
     ));
@@ -180,9 +180,23 @@ async function ensureFilterValue(
       const ctrl = w[controlId];
       if (!ctrl || typeof ctrl.GetValue !== 'function') continue;
 
-      const currentValue = ctrl.GetValue() as string | null;
-      if (!currentValue || !currentValue.includes(pattern)) continue;
+      // Identify the combo by checking if xafAllValue is among its POSSIBLE items
+      // (not by checking the current value, which varies based on user's filter)
+      let hasAllValueInItems = false;
+      if (typeof ctrl.GetItemCount === 'function') {
+        const count = ctrl.GetItemCount();
+        for (let j = 0; j < count; j++) {
+          const itemValue = ctrl.GetItemValue?.(j) ?? '';
+          if (String(itemValue) === allValue) {
+            hasAllValueInItems = true;
+            break;
+          }
+        }
+      }
+      if (!hasAllValueInItems) continue;
 
+      // This is our combo. Check current value.
+      const currentValue = ctrl.GetValue() as string | null;
       if (currentValue === allValue) {
         return { found: true as const, controlId, originalXafValue: null };
       }
