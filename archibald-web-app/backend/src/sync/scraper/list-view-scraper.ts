@@ -194,6 +194,23 @@ async function scrapeListView(
           cellRows = await extractPageRowsViaApi(page, apiFieldNames, rowCount);
         } else {
           // DOM fallback: extract cells and skip the offset
+          if (currentPage === 1) {
+            const diag = await page.evaluate((offset: number) => {
+              const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme, tr[class*="dxgvDataRow"]');
+              if (rows.length === 0) return null;
+              const cells = Array.from((rows[0] as HTMLElement).querySelectorAll('td'));
+              return {
+                totalCells: cells.length,
+                offsetApplied: offset,
+                cells: cells.slice(0, 8).map((c, i) => ({
+                  i,
+                  text: (c.textContent ?? '').trim().slice(0, 40),
+                  html: c.innerHTML.trim().slice(0, 80),
+                })),
+              };
+            }, domOffset);
+            logger.info('[scraper] DOM cell diagnostic (page 1, first row)', { diag });
+          }
           cellRows = await page.evaluate((offset: number) => {
             const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
             const target = rows.length > 0 ? rows : document.querySelectorAll('tr[class*="dxgvDataRow"]');
