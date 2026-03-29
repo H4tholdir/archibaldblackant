@@ -51,6 +51,75 @@ export interface DocumentInfo {
   uploadedAt?: string;
 }
 
+export type DdtEntry = {
+  id: string;
+  position: number;
+  ddtNumber: string;
+  ddtId: string | null;
+  ddtDeliveryDate: string | null;
+  ddtCustomerAccount: string | null;
+  ddtSalesName: string | null;
+  ddtDeliveryName: string | null;
+  deliveryTerms: string | null;
+  deliveryMethod: string | null;
+  deliveryCity: string | null;
+  attentionTo: string | null;
+  ddtDeliveryAddress: string | null;
+  ddtQuantity: string | null;
+  ddtCustomerReference: string | null;
+  ddtDescription: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  trackingCourier: string | null;
+  trackingStatus: string | null;
+  trackingKeyStatusCd: string | null;
+  trackingStatusBarCd: string | null;
+  trackingEstimatedDelivery: string | null;
+  trackingLastLocation: string | null;
+  trackingLastEvent: string | null;
+  trackingLastEventAt: string | null;
+  trackingOrigin: string | null;
+  trackingDestination: string | null;
+  trackingServiceDesc: string | null;
+  trackingLastSyncedAt: string | null;
+  trackingSyncFailures: number | null;
+  trackingEvents: Array<{
+    date: string; time: string; gmtOffset: string;
+    status: string; statusCD: string; scanLocation: string;
+    delivered: boolean; exception: boolean;
+    exceptionCode: string; exceptionDescription?: string;
+  }> | null;
+  trackingDelayReason: string | null;
+  trackingDeliveryAttempts: number | null;
+  trackingAttemptedDeliveryAt: string | null;
+  deliveryConfirmedAt: string | null;
+  deliverySignedBy: string | null;
+};
+
+export type InvoiceEntry = {
+  id: string;
+  position: number;
+  invoiceNumber: string;
+  invoiceDate: string | null;
+  invoiceAmount: string | null;
+  invoiceCustomerAccount: string | null;
+  invoiceBillingName: string | null;
+  invoiceQuantity: number | null;
+  invoiceRemainingAmount: string | null;
+  invoiceTaxAmount: string | null;
+  invoiceLineDiscount: string | null;
+  invoiceTotalDiscount: string | null;
+  invoiceDueDate: string | null;
+  invoicePaymentTermsId: string | null;
+  invoicePurchaseOrder: string | null;
+  invoiceClosed: boolean | null;
+  invoiceDaysPastDue: string | null;
+  invoiceSettledAmount: string | null;
+  invoiceLastPaymentId: string | null;
+  invoiceLastSettlementDate: string | null;
+  invoiceClosedDate: string | null;
+};
+
 export interface TrackingInfo {
   trackingNumber?: string;
   trackingUrl?: string;
@@ -123,11 +192,9 @@ export interface Order {
   // Tracking (3 columns - can be standalone or in DDT)
   tracking?: TrackingInfo;
 
-  // Additional DDT fields stored directly in order
-  deliveryMethod?: string;
-  deliveryCity?: string;
-  attentionTo?: string;
-  deliveryCompletedDate?: string; // ISO timestamp when delivery was completed
+  // Multi-document collections
+  ddts: DdtEntry[];
+  invoices: InvoiceEntry[];
 
   // Metadata (12 columns)
   botUserId?: string;
@@ -145,27 +212,6 @@ export interface Order {
   statusTimeline?: StatusUpdate[]; // Alias for stateTimeline
   documents?: DocumentInfo[]; // JSON field
 
-  // Invoice (from invoices table) - all fields
-  invoiceNumber?: string;
-  invoiceDate?: string;
-  invoiceAmount?: string;
-  invoiceCustomerAccount?: string;
-  invoiceBillingName?: string;
-  invoiceQuantity?: number;
-  invoiceRemainingAmount?: string;
-  invoiceTaxAmount?: string;
-  invoiceLineDiscount?: string;
-  invoiceTotalDiscount?: string;
-  invoiceDueDate?: string;
-  invoicePaymentTermsId?: string;
-  invoicePurchaseOrder?: string;
-  invoiceClosed?: boolean;
-  invoiceDaysPastDue?: string;
-  invoiceSettledAmount?: string;
-  invoiceLastPaymentId?: string;
-  invoiceLastSettlementDate?: string;
-  invoiceClosedDate?: string;
-
   // Article search text (concatenated codes + descriptions for global search)
   articleSearchText?: string;
 
@@ -175,33 +221,6 @@ export interface Order {
   // Verification status
   verificationStatus?: string;
   verificationNotes?: string;
-
-  // Tracking sync fields
-  trackingStatus?: string;
-  trackingKeyStatusCd?: string;
-  trackingStatusBarCd?: string;
-  trackingEstimatedDelivery?: string;
-  trackingLastLocation?: string;
-  trackingLastEvent?: string;
-  trackingLastEventAt?: string;
-  trackingOrigin?: string;
-  trackingDestination?: string;
-  trackingServiceDesc?: string;
-  trackingSyncFailures?: number;
-  deliveryConfirmedAt?: string;
-  deliverySignedBy?: string;
-  trackingEvents?: Array<{
-    date: string;
-    time: string;
-    gmtOffset: string;
-    status: string;
-    statusCD: string;
-    scanLocation: string;
-    delivered: boolean;
-    exception: boolean;
-    exceptionCode: string;
-    exceptionDescription?: string;
-  }>;
 
   arcaKtSyncedAt?: string;
 }
