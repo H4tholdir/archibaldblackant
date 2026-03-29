@@ -356,7 +356,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
         `SELECT
            COUNT(*) FILTER (WHERE tracking_status IS NOT NULL)::int AS total_with_tracking,
            COUNT(*) FILTER (WHERE tracking_status = 'delivered')::int AS delivered
-         FROM agents.order_records
+         FROM agents.order_ddts
          ${userId ? 'WHERE user_id = $1' : ''}`,
         userId ? [userId] : [],
       );

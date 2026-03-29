@@ -930,8 +930,10 @@ async function bootstrap(): Promise<void> {
         } else {
           // type === 'exception' | 'canceled'
           const orderData = await pool.query(
-            `SELECT tracking_events FROM agents.order_records
-             WHERE user_id = $1 AND order_number = $2`,
+            `SELECT d.tracking_events FROM agents.order_ddts d
+             JOIN agents.order_records r ON r.id = d.order_id AND r.user_id = d.user_id
+             WHERE r.user_id = $1 AND r.order_number = $2
+             LIMIT 1`,
             [agentId, orderNumber],
           );
           const events = (orderData.rows[0]?.tracking_events ?? []) as Array<{ exception: boolean; exceptionDescription?: string; exceptionCode?: string }>;
