@@ -152,7 +152,7 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
   const dt = order.documentState?.toUpperCase() || "";
   const ot = order.orderType?.toUpperCase() || "";
 
-  if (ss === "FATTURATO" || dt.includes("FATTURA") || order.invoiceNumber)
+  if (ss === "FATTURATO" || dt.includes("FATTURA") || order.invoices?.[0]?.invoiceNumber)
     return { index: 3, isError: false };
   if (
     ss === "CONSEGNATO" ||
@@ -3003,8 +3003,10 @@ function TabLogistica({
   }>({ active: false, percent: 0, stage: "" });
   const [ddtError, setDdtError] = useState<string | null>(null);
 
-  const ddt = order.ddt;
-  const tracking = order.tracking || {
+  const ddt = order.ddts?.[0] ?? null;
+  const backorderDdts = (order.ddts ?? []).slice(1);
+  const [showBackorders, setShowBackorders] = useState(false);
+  const tracking = {
     trackingNumber: ddt?.trackingNumber,
     trackingUrl: ddt?.trackingUrl,
     trackingCourier: ddt?.trackingCourier,
@@ -3048,12 +3050,12 @@ function TabLogistica({
 
   const hasDestinatario =
     ddt?.ddtDeliveryName ||
-    ddt?.deliveryAddress ||
+    ddt?.ddtDeliveryAddress ||
     ddt?.deliveryCity ||
     ddt?.attentionTo;
 
   const hasDettagliSpedizione =
-    ddt?.deliveryTerms || ddt?.deliveryMethod || order.deliveryCompletedDate;
+    ddt?.deliveryTerms || ddt?.deliveryMethod || (order.deliveryCompletedDate as string | undefined);
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: "#fff",
@@ -3074,7 +3076,7 @@ function TabLogistica({
   return (
     <div style={{ padding: "16px" }}>
       {/* 0. Full tracking timeline */}
-      {order.trackingEvents && order.trackingEvents.length > 0 && (
+      {ddt?.trackingEvents && ddt.trackingEvents.length > 0 && (
         <TrackingTimeline order={order} borderColor={borderColor} />
       )}
 
@@ -3096,7 +3098,7 @@ function TabLogistica({
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "22px" }}>
-              {getCourierLogo(tracking.trackingCourier)}
+              {getCourierLogo(tracking.trackingCourier ?? undefined)}
             </span>
             <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
               {tracking.trackingCourier?.toUpperCase() || "Corriere"}
@@ -3130,7 +3132,7 @@ function TabLogistica({
           </div>
           {tracking.trackingUrl && (
             <button
-              onClick={() => window.open(tracking.trackingUrl, "_blank")}
+              onClick={() => window.open(tracking.trackingUrl ?? undefined, "_blank")}
               style={{
                 padding: "8px 20px",
                 backgroundColor: "#1976d2",
@@ -3171,7 +3173,7 @@ function TabLogistica({
               >
                 <InfoField
                   label="Nome Consegna"
-                  value={ddt.ddtDeliveryName}
+                  value={ddt.ddtDeliveryName ?? undefined}
                   bold
                   searchQuery={searchQuery}
                 />
@@ -3182,11 +3184,11 @@ function TabLogistica({
                     searchQuery={searchQuery}
                   />
                 )}
-                {ddt.deliveryAddress && (
+                {ddt.ddtDeliveryAddress && (
                   <div style={{ gridColumn: "1 / -1" }}>
                     <InfoField
                       label="Indirizzo Consegna"
-                      value={ddt.deliveryAddress}
+                      value={ddt.ddtDeliveryAddress}
                       searchQuery={searchQuery}
                     />
                   </div>
@@ -3224,10 +3226,10 @@ function TabLogistica({
                     value={ddt.deliveryTerms}
                   />
                 )}
-                {order.deliveryCompletedDate && (
+                {(order.deliveryCompletedDate as string | undefined) && (
                   <InfoField
                     label="Consegna Completata"
-                    value={formatDate(order.deliveryCompletedDate)}
+                    value={formatDate(order.deliveryCompletedDate as string | undefined)}
                   />
                 )}
               </div>
@@ -3292,29 +3294,28 @@ function TabLogistica({
             />
             <InfoField
               label="Data Consegna"
-              value={formatDate(ddt.ddtDeliveryDate)}
+              value={formatDate(ddt.ddtDeliveryDate ?? undefined)}
             />
-            <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
-            <InfoField label="ID DDT" value={ddt.ddtId} small />
+            <InfoField label="ID DDT" value={ddt.ddtId ?? undefined} small />
             <InfoField
               label="Nome Vendite"
-              value={ddt.ddtSalesName}
+              value={ddt.ddtSalesName ?? undefined}
               searchQuery={searchQuery}
             />
             {ddt.ddtQuantity && (
               <InfoField label="Quantità DDT" value={ddt.ddtQuantity} />
             )}
-            {ddt.customerReference && (
+            {ddt.ddtCustomerReference && (
               <InfoField
                 label="Riferimento Cliente"
-                value={ddt.customerReference}
+                value={ddt.ddtCustomerReference}
                 searchQuery={searchQuery}
               />
             )}
-            {ddt.description && (
+            {ddt.ddtDescription && (
               <InfoField
                 label="Descrizione"
-                value={ddt.description}
+                value={ddt.ddtDescription}
                 searchQuery={searchQuery}
               />
             )}
@@ -3401,6 +3402,27 @@ function TabLogistica({
         </div>
       )}
 
+      {backorderDdts.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            onClick={() => setShowBackorders(b => !b)}
+            style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', fontSize: 13, padding: 0 }}
+          >
+            {showBackorders ? '▼' : '▶'} {backorderDdts.length} consegna{backorderDdts.length > 1 ? ' aggiuntive' : ' aggiuntiva'} (backorder)
+          </button>
+          {showBackorders && backorderDdts.map((bd) => (
+            <div key={bd.id} style={{ marginLeft: 16, marginTop: 6, padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, borderLeft: '3px solid #FF9800' }}>
+              <div style={{ fontWeight: 500, fontSize: 13 }}>{bd.ddtNumber}{bd.ddtDeliveryDate ? ` — ${bd.ddtDeliveryDate}` : ''}</div>
+              {bd.trackingNumber && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Tracking: {bd.trackingNumber} {bd.trackingCourier ? `(${bd.trackingCourier})` : ''}</div>}
+              {bd.deliveryConfirmedAt && <div style={{ fontSize: 12, color: '#4caf50', marginTop: 2 }}>✓ Consegnato</div>}
+              {!bd.deliveryConfirmedAt && bd.trackingStatus && bd.trackingStatus !== 'pending' && (
+                <div style={{ fontSize: 12, color: '#FF9800', marginTop: 2 }}>In transito: {bd.trackingStatus}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {!ddt && !tracking.trackingNumber && (
         <div style={{ padding: "16px", textAlign: "center", color: "#999" }}>
           Nessuna informazione di logistica disponibile
@@ -3427,6 +3449,7 @@ function TabFinanziario({
     stage: string;
   }>({ active: false, percent: 0, stage: "" });
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const inv = order.invoices?.[0] ?? null;
 
   const handleDownloadInvoice = () => {
     if (!token) {
@@ -3434,7 +3457,7 @@ function TabFinanziario({
       return;
     }
 
-    if (!order.invoiceNumber) {
+    if (!inv?.invoiceNumber) {
       setInvoiceError("Nessuna fattura disponibile per questo ordine");
       return;
     }
@@ -3442,7 +3465,7 @@ function TabFinanziario({
     setInvoiceProgress({ active: true, percent: 0, stage: "Avvio..." });
     setInvoiceError(null);
 
-    const isNC = order.invoiceNumber?.startsWith("NC/");
+    const isNC = inv?.invoiceNumber?.startsWith("NC/");
     downloadPdfWithProgress(
       order.orderNumber || order.id,
       "invoice",
@@ -3620,7 +3643,7 @@ function TabFinanziario({
       </div>
 
       {/* Fattura */}
-      {order.invoiceNumber ? (
+      {inv?.invoiceNumber ? (
         <div
           style={{
             border: "1px solid #e0e0e0",
@@ -3655,12 +3678,12 @@ function TabFinanziario({
                 }}
               >
                 <HighlightText
-                  text={order.invoiceNumber || ""}
+                  text={inv?.invoiceNumber || ""}
                   query={searchQuery}
                 />
               </span>
               <span style={{ fontSize: "13px", color: "#666" }}>
-                {formatDate(order.invoiceDate)}
+                {formatDate(inv?.invoiceDate ?? undefined)}
               </span>
             </div>
             <span
@@ -3669,12 +3692,12 @@ function TabFinanziario({
                 borderRadius: "12px",
                 fontSize: "12px",
                 fontWeight: 600,
-                backgroundColor: order.invoiceClosed ? "#e8f5e9" : "#fff3e0",
-                color: order.invoiceClosed ? "#2e7d32" : "#e65100",
+                backgroundColor: inv?.invoiceClosed ? "#e8f5e9" : "#fff3e0",
+                color: inv?.invoiceClosed ? "#2e7d32" : "#e65100",
                 whiteSpace: "nowrap" as const,
               }}
             >
-              {order.invoiceClosed ? "Chiusa" : "Aperta"}
+              {inv?.invoiceClosed ? "Chiusa" : "Aperta"}
             </span>
           </div>
 
@@ -3690,65 +3713,65 @@ function TabFinanziario({
             <InfoField
               label="Importo"
               value={
-                order.invoiceAmount ? `\u20ac${order.invoiceAmount}` : undefined
+                inv?.invoiceAmount ? `\u20ac${inv.invoiceAmount}` : undefined
               }
               bold
               searchQuery={searchQuery}
             />
             <InfoField
               label="Conto Cliente"
-              value={order.invoiceCustomerAccount}
+              value={inv?.invoiceCustomerAccount ?? undefined}
               searchQuery={searchQuery}
             />
             <InfoField
               label="Nome Fatturazione"
-              value={order.invoiceBillingName}
+              value={inv?.invoiceBillingName ?? undefined}
               searchQuery={searchQuery}
             />
             <InfoField
               label="Quantità"
-              value={order.invoiceQuantity?.toString()}
+              value={inv?.invoiceQuantity?.toString()}
             />
             <InfoField
               label="Importo Residuo"
               value={
-                order.invoiceRemainingAmount
-                  ? formatPriceFromString(order.invoiceRemainingAmount)
+                inv?.invoiceRemainingAmount
+                  ? formatPriceFromString(inv.invoiceRemainingAmount)
                   : undefined
               }
             />
             <InfoField
               label="Importo Fiscale"
               value={
-                order.invoiceTaxAmount
-                  ? formatPriceFromString(order.invoiceTaxAmount)
+                inv?.invoiceTaxAmount
+                  ? formatPriceFromString(inv.invoiceTaxAmount)
                   : undefined
               }
             />
             <InfoField
               label="Sconto Linea"
               value={
-                order.invoiceLineDiscount
-                  ? formatPriceFromString(order.invoiceLineDiscount)
+                inv?.invoiceLineDiscount
+                  ? formatPriceFromString(inv.invoiceLineDiscount)
                   : undefined
               }
             />
             <InfoField
               label="Sconto Totale"
               value={
-                order.invoiceTotalDiscount
-                  ? formatPriceFromString(order.invoiceTotalDiscount)
+                inv?.invoiceTotalDiscount
+                  ? formatPriceFromString(inv.invoiceTotalDiscount)
                   : undefined
               }
             />
             <InfoField
               label="Ordine Acquisto"
-              value={order.invoicePurchaseOrder}
+              value={inv?.invoicePurchaseOrder ?? undefined}
             />
           </div>
 
-          {order.invoiceDueDate && (() => {
-            const dueDaysInfo = computeDueDaysInfo(order.invoiceDueDate);
+          {inv?.invoiceDueDate && (() => {
+            const dueDaysInfo = computeDueDaysInfo(inv.invoiceDueDate!);
             return (
             <div
               style={{
@@ -3764,7 +3787,7 @@ function TabFinanziario({
             >
               <div style={{ fontSize: "13px", color: "#555" }}>
                 <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
-                {formatDate(order.invoiceDueDate)}
+                {formatDate(inv?.invoiceDueDate ?? undefined)}
               </div>
               {dueDaysInfo !== null && (
                 <div
@@ -3793,11 +3816,11 @@ function TabFinanziario({
             );
           })()}
 
-          {(order.invoiceSettledAmount ||
-            order.invoiceLastPaymentId ||
-            order.invoiceLastSettlementDate ||
-            (order.invoiceClosedDate &&
-              order.invoiceClosedDate.toLowerCase() !== "no")) && (
+          {(inv?.invoiceSettledAmount ||
+            inv?.invoiceLastPaymentId ||
+            inv?.invoiceLastSettlementDate ||
+            (inv?.invoiceClosedDate &&
+              inv.invoiceClosedDate.toLowerCase() !== "no")) && (
             <div
               style={{
                 padding: "14px 16px",
@@ -3824,29 +3847,29 @@ function TabFinanziario({
                   gap: "12px",
                 }}
               >
-                {order.invoiceSettledAmount && (
+                {inv?.invoiceSettledAmount && (
                   <InfoField
                     label="Importo liquidato"
-                    value={formatPriceFromString(order.invoiceSettledAmount)}
+                    value={formatPriceFromString(inv.invoiceSettledAmount)}
                   />
                 )}
-                {order.invoiceLastPaymentId && (
+                {inv?.invoiceLastPaymentId && (
                   <InfoField
                     label="Ultimo pagamento"
-                    value={order.invoiceLastPaymentId}
+                    value={inv.invoiceLastPaymentId}
                   />
                 )}
-                {order.invoiceLastSettlementDate && (
+                {inv?.invoiceLastSettlementDate && (
                   <InfoField
                     label="Data liquidazione"
-                    value={formatDate(order.invoiceLastSettlementDate)}
+                    value={formatDate(inv?.invoiceLastSettlementDate ?? undefined)}
                   />
                 )}
-                {order.invoiceClosedDate &&
-                  order.invoiceClosedDate.toLowerCase() !== "no" && (
+                {inv?.invoiceClosedDate &&
+                  inv.invoiceClosedDate.toLowerCase() !== "no" && (
                     <InfoField
                       label="Data chiusura"
-                      value={formatDate(order.invoiceClosedDate)}
+                      value={formatDate(inv.invoiceClosedDate)}
                     />
                   )}
               </div>
@@ -3872,19 +3895,19 @@ function TabFinanziario({
 
       <button
         onClick={handleDownloadInvoice}
-        disabled={invoiceProgress.active || !order.invoiceNumber}
+        disabled={invoiceProgress.active || !inv?.invoiceNumber}
         style={{
           width: "100%",
           padding: "12px",
           backgroundColor:
-            invoiceProgress.active || !order.invoiceNumber ? "#ccc" : "#4caf50",
+            invoiceProgress.active || !inv?.invoiceNumber ? "#ccc" : "#4caf50",
           color: "#fff",
           border: "none",
           borderRadius: "8px",
           fontSize: "14px",
           fontWeight: 600,
           cursor:
-            invoiceProgress.active || !order.invoiceNumber
+            invoiceProgress.active || !inv?.invoiceNumber
               ? "not-allowed"
               : "pointer",
           display: "flex",
@@ -3894,12 +3917,12 @@ function TabFinanziario({
           transition: "background-color 0.2s",
         }}
         onMouseEnter={(e) => {
-          if (!invoiceProgress.active && order.invoiceNumber) {
+          if (!invoiceProgress.active && inv?.invoiceNumber) {
             e.currentTarget.style.backgroundColor = "#388e3c";
           }
         }}
         onMouseLeave={(e) => {
-          if (!invoiceProgress.active && order.invoiceNumber) {
+          if (!invoiceProgress.active && inv?.invoiceNumber) {
             e.currentTarget.style.backgroundColor = "#4caf50";
           }
         }}
@@ -3909,7 +3932,7 @@ function TabFinanziario({
             <span>⏳</span>
             <span>{invoiceProgress.stage || "Download in corso..."}</span>
           </>
-        ) : !order.invoiceNumber ? (
+        ) : !inv?.invoiceNumber ? (
           <>
             <span>📄</span>
             <span>Nessuna fattura disponibile</span>
@@ -3917,7 +3940,7 @@ function TabFinanziario({
         ) : (
           <>
             <span>📄</span>
-            <span>Scarica {order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"} {order.invoiceNumber}</span>
+            <span>Scarica {inv?.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"} {inv?.invoiceNumber}</span>
           </>
         )}
       </button>
@@ -4451,6 +4474,8 @@ export function OrderCardNew({
     }
   }, [order.totalWithVat, order.totalVatAmount]);
 
+  const inv = order.invoices?.[0] ?? null;
+
   const canSendToVerona = isNotSentToVerona(order) && !justSentToVerona;
 
   const tabs = [
@@ -4581,8 +4606,8 @@ export function OrderCardNew({
                 >
                   {orderStatusStyle.label}
                 </span>
-                {order.trackingStatus === 'delivered' && (() => {
-                  const events = order.trackingEvents ?? [];
+                {order.ddts?.[0]?.trackingStatus === 'delivered' && (() => {
+                  const events = order.ddts?.[0]?.trackingEvents ?? [];
                   const exceptionsCount = events.filter((ev) => ev.exception).length;
                   return exceptionsCount > 0 ? (
                     <div style={{
@@ -4699,7 +4724,7 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
-            {order.trackingStatus && order.trackingEvents && order.trackingEvents.length > 0 && !expanded && (
+            {order.ddts?.[0]?.trackingStatus && order.ddts?.[0]?.trackingEvents && order.ddts[0].trackingEvents.length > 0 && !expanded && (
               <TrackingDotBar order={order} borderColor={orderStatusStyle.borderColor} />
             )}
 
@@ -4726,17 +4751,17 @@ export function OrderCardNew({
 
             <div style={{ marginBottom: "8px" }}>
               {(() => {
-                const isPaid = order.invoiceNumber && (order.invoiceClosed === true ||
-                  parseFloat((order.invoiceRemainingAmount || "0").replace(/\./g, "").replace(",", ".")) <= 0);
+                const isPaid = inv?.invoiceNumber && (inv.invoiceClosed === true ||
+                  parseFloat((inv.invoiceRemainingAmount || "0").replace(/\./g, "").replace(",", ".")) <= 0);
 
                 if (isPaid) {
                   return (
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: 600, color: "#2e7d32" }}>
-                        ✅ Pagato{order.invoiceLastSettlementDate ? `: ${formatDate(order.invoiceLastSettlementDate)}` : order.invoiceClosedDate ? `: ${formatDate(order.invoiceClosedDate)}` : ""}
+                        ✅ Pagato{inv?.invoiceLastSettlementDate ? `: ${formatDate(inv.invoiceLastSettlementDate ?? undefined)}` : inv?.invoiceClosedDate ? `: ${formatDate(inv.invoiceClosedDate ?? undefined)}` : ""}
                       </div>
                       <div style={{ fontSize: "13px", color: "#666", marginTop: "2px" }}>
-                        {order.invoiceNumber} • {order.invoiceAmount ? `€${order.invoiceAmount}` : ""}
+                        {inv?.invoiceNumber} • {inv?.invoiceAmount ? `€${inv.invoiceAmount}` : ""}
                       </div>
                     </div>
                   );
@@ -4751,7 +4776,7 @@ export function OrderCardNew({
                     ? parsedTotalWithVat
                     : undefined);
 
-                const dueDaysInfo = order.invoiceDueDate ? computeDueDaysInfo(order.invoiceDueDate) : null;
+                const dueDaysInfo = inv?.invoiceDueDate ? computeDueDaysInfo(inv.invoiceDueDate) : null;
 
                 return (
                   <div>
@@ -4759,9 +4784,9 @@ export function OrderCardNew({
                       <span style={{ fontSize: "18px", fontWeight: 700, color: "#333" }}>
                         {totalWithVat ? `${formatCurrency(totalWithVat)} (IVA incl.)` : (order.total || "")}
                       </span>
-                      {order.invoiceNumber && order.invoiceDueDate && (
+                      {inv?.invoiceNumber && inv?.invoiceDueDate && (
                         <span style={{ fontSize: "12px", color: "#666" }}>
-                          Scad: {formatDate(order.invoiceDueDate)}
+                          Scad: {formatDate(inv.invoiceDueDate ?? undefined)}
                           {dueDaysInfo !== null && (
                             <span style={{ marginLeft: "6px", fontWeight: 600, color: dueDaysInfo.color }}>
                               {dueDaysInfo.summaryLabel}
@@ -4801,7 +4826,7 @@ export function OrderCardNew({
                 }}
               >
                 {/* DDT Download Button */}
-                {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
+                {order.ddts?.[0]?.ddtNumber && order.ddts?.[0]?.trackingNumber && (
                   <div
                     style={{
                       display: "inline-flex",
@@ -4895,7 +4920,7 @@ export function OrderCardNew({
                 )}
 
                 {/* Invoice Download Button */}
-                {order.invoiceNumber && (
+                {inv?.invoiceNumber && (
                   <div
                     style={{
                       display: "inline-flex",
@@ -4915,7 +4940,7 @@ export function OrderCardNew({
                           percent: 0,
                           stage: "Avvio...",
                         });
-                        const isNC = order.invoiceNumber?.startsWith("NC/");
+                        const isNC = inv?.invoiceNumber?.startsWith("NC/");
                         downloadPdfWithProgress(
                           order.orderNumber || order.id,
                           "invoice",
@@ -4985,7 +5010,7 @@ export function OrderCardNew({
                     >
                       {invoiceQuickProgress.active
                         ? `⏳ Scaricando...`
-                        : `📑 Scarica ${order.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
+                        : `📑 Scarica ${inv?.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
                     </button>
                     {invoiceQuickProgress.active && (
                       <ProgressBar

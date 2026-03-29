@@ -8,6 +8,8 @@ const createOrder = (id: string, date: string): Order => ({
   customerName: "Test Customer",
   total: "0.00",
   status: "test",
+  ddts: [],
+  invoices: [],
 });
 
 describe("groupOrdersByPeriod", () => {
@@ -157,12 +159,14 @@ describe("groupOrdersByPeriod", () => {
 
   test("preserves order properties when grouping", () => {
     const today = new Date();
-    const orderWithExtraProps = {
+    const orderWithExtraProps: Order = {
       id: "1",
       date: today.toISOString(),
       customerName: "Test Customer",
       total: "100.00 €",
       status: "Evaso",
+      ddts: [],
+      invoices: [],
     };
 
     const result = groupOrdersByPeriod([orderWithExtraProps]);

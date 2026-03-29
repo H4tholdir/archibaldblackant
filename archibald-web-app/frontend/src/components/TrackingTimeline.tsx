@@ -134,10 +134,11 @@ export function TrackingTimeline({
   order: Order;
   borderColor: string;
 }) {
-  const events = order.trackingEvents ?? [];
-  const groups = groupEventsByDay(events);
+  const primaryDdt = order.ddts?.[0] ?? null;
+  const events = primaryDdt?.trackingEvents ?? [];
+  const groups = groupEventsByDay(events as ScanEvent[]);
   const trackingUrl =
-    order.tracking?.trackingUrl || order.ddt?.trackingUrl || undefined;
+    order.tracking?.trackingUrl || primaryDdt?.trackingUrl || undefined;
 
   return (
     <div
@@ -151,7 +152,7 @@ export function TrackingTimeline({
     >
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
-        {order.deliveryConfirmedAt ? (
+        {primaryDdt?.deliveryConfirmedAt ? (
           <div>
             <div
               style={{
@@ -160,15 +161,15 @@ export function TrackingTimeline({
                 color: "#2e7d32",
               }}
             >
-              Consegnato il {formatDeliveryDate(order.deliveryConfirmedAt)}
+              Consegnato il {formatDeliveryDate(primaryDdt.deliveryConfirmedAt)}
             </div>
-            {order.deliverySignedBy && (
+            {primaryDdt.deliverySignedBy && (
               <div style={{ fontSize: "13px", color: "#555", marginTop: "4px" }}>
-                Firmato da: {order.deliverySignedBy}
+                Firmato da: {primaryDdt.deliverySignedBy}
               </div>
             )}
           </div>
-        ) : order.trackingEstimatedDelivery ? (
+        ) : primaryDdt?.trackingEstimatedDelivery ? (
           <div
             style={{
               fontSize: "15px",
@@ -176,11 +177,11 @@ export function TrackingTimeline({
               color: "#333",
             }}
           >
-            Consegna prevista: {formatDeliveryDate(order.trackingEstimatedDelivery)}
+            Consegna prevista: {formatDeliveryDate(primaryDdt.trackingEstimatedDelivery)}
           </div>
         ) : null}
 
-        {(order.trackingOrigin || order.trackingDestination) && (
+        {(primaryDdt?.trackingOrigin || primaryDdt?.trackingDestination) && (
           <div
             style={{
               fontSize: "12px",
@@ -188,7 +189,7 @@ export function TrackingTimeline({
               marginTop: "4px",
             }}
           >
-            {order.trackingOrigin || "?"} {"->"} {order.trackingDestination || "?"}
+            {primaryDdt?.trackingOrigin || "?"} {"->"} {primaryDdt?.trackingDestination || "?"}
           </div>
         )}
       </div>

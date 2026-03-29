@@ -119,7 +119,7 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
     order.transferStatus,
     order.transferDate,
     order.completionDate,
-    order.deliveryCompletedDate,
+    order.deliveryCompletedDate as string | undefined,
     order.notes,
     order.customerNotes,
   ];
@@ -137,14 +137,14 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
   }
 
   // DDT + tracking (logistica tab)
-  if (order.ddt) {
+  for (const ddt of order.ddts) {
     const ddtFields: (string | undefined | null)[] = [
-      order.ddt.trackingNumber, order.ddt.trackingCourier, order.ddt.ddtNumber,
-      order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
-      order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
-      order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
-      order.ddt.deliveryAddress, order.ddt.ddtQuantity, order.ddt.customerReference,
-      order.ddt.description,
+      ddt.trackingNumber, ddt.trackingCourier, ddt.ddtNumber,
+      ddt.ddtDeliveryDate, ddt.ddtCustomerAccount, ddt.ddtId,
+      ddt.ddtSalesName, ddt.ddtDeliveryName, ddt.deliveryMethod,
+      ddt.deliveryTerms, ddt.deliveryCity, ddt.attentionTo,
+      ddt.ddtDeliveryAddress, ddt.ddtQuantity, ddt.ddtCustomerReference,
+      ddt.ddtDescription,
     ];
     if (anyFieldMatches(ddtFields, lower)) return true;
   }
@@ -155,14 +155,15 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
   }
 
   // Invoice (finanziario tab)
+  const inv = order.invoices?.[0] ?? null;
   const invoiceFields: (string | undefined | null)[] = [
-    order.invoiceNumber, order.invoiceDate, order.invoiceAmount,
-    order.invoiceCustomerAccount, order.invoiceBillingName,
-    order.invoiceRemainingAmount, order.invoiceTaxAmount,
-    order.invoiceLineDiscount, order.invoiceTotalDiscount,
-    order.invoicePurchaseOrder, order.invoiceDueDate,
-    order.invoiceSettledAmount, order.invoiceLastPaymentId,
-    order.invoiceLastSettlementDate,
+    inv?.invoiceNumber, inv?.invoiceDate, inv?.invoiceAmount,
+    inv?.invoiceCustomerAccount, inv?.invoiceBillingName,
+    inv?.invoiceRemainingAmount, inv?.invoiceTaxAmount,
+    inv?.invoiceLineDiscount, inv?.invoiceTotalDiscount,
+    inv?.invoicePurchaseOrder, inv?.invoiceDueDate,
+    inv?.invoiceSettledAmount, inv?.invoiceLastPaymentId,
+    inv?.invoiceLastSettlementDate,
   ];
   if (anyFieldMatches(invoiceFields, lower)) return true;
 
@@ -185,7 +186,7 @@ function getMatchingTab(order: Order, query: string): TabId | null {
     order.orderType, order.salesOrigin, order.grossAmount, order.discountPercent,
     order.deliveryName, order.deliveryAddress, order.customerReference,
     order.state, order.status, order.documentState, order.transferStatus,
-    order.transferDate, order.completionDate, order.deliveryCompletedDate,
+    order.transferDate, order.completionDate, order.deliveryCompletedDate as string | undefined,
     order.notes, order.customerNotes,
   ];
   if (anyFieldMatches(panoramicaFields, lower)) return "panoramica";
@@ -201,14 +202,14 @@ function getMatchingTab(order: Order, query: string): TabId | null {
   }
 
   // DDT + tracking → logistica
-  if (order.ddt) {
+  for (const ddt of order.ddts) {
     const ddtFields: (string | undefined | null)[] = [
-      order.ddt.trackingNumber, order.ddt.trackingCourier, order.ddt.ddtNumber,
-      order.ddt.ddtDeliveryDate, order.ddt.ddtCustomerAccount, order.ddt.orderId,
-      order.ddt.ddtSalesName, order.ddt.ddtDeliveryName, order.ddt.deliveryMethod,
-      order.ddt.deliveryTerms, order.ddt.deliveryCity, order.ddt.attentionTo,
-      order.ddt.deliveryAddress, order.ddt.ddtQuantity, order.ddt.customerReference,
-      order.ddt.description,
+      ddt.trackingNumber, ddt.trackingCourier, ddt.ddtNumber,
+      ddt.ddtDeliveryDate, ddt.ddtCustomerAccount, ddt.ddtId,
+      ddt.ddtSalesName, ddt.ddtDeliveryName, ddt.deliveryMethod,
+      ddt.deliveryTerms, ddt.deliveryCity, ddt.attentionTo,
+      ddt.ddtDeliveryAddress, ddt.ddtQuantity, ddt.ddtCustomerReference,
+      ddt.ddtDescription,
     ];
     if (anyFieldMatches(ddtFields, lower)) return "logistica";
   }
@@ -216,14 +217,15 @@ function getMatchingTab(order: Order, query: string): TabId | null {
   if (order.tracking?.trackingCourier?.toLowerCase().includes(lower)) return "logistica";
 
   // Invoice → finanziario
+  const inv = order.invoices?.[0] ?? null;
   const invoiceFields: (string | undefined | null)[] = [
-    order.invoiceNumber, order.invoiceDate, order.invoiceAmount,
-    order.invoiceCustomerAccount, order.invoiceBillingName,
-    order.invoiceRemainingAmount, order.invoiceTaxAmount,
-    order.invoiceLineDiscount, order.invoiceTotalDiscount,
-    order.invoicePurchaseOrder, order.invoiceDueDate,
-    order.invoiceSettledAmount, order.invoiceLastPaymentId,
-    order.invoiceLastSettlementDate,
+    inv?.invoiceNumber, inv?.invoiceDate, inv?.invoiceAmount,
+    inv?.invoiceCustomerAccount, inv?.invoiceBillingName,
+    inv?.invoiceRemainingAmount, inv?.invoiceTaxAmount,
+    inv?.invoiceLineDiscount, inv?.invoiceTotalDiscount,
+    inv?.invoicePurchaseOrder, inv?.invoiceDueDate,
+    inv?.invoiceSettledAmount, inv?.invoiceLastPaymentId,
+    inv?.invoiceLastSettlementDate,
   ];
   if (anyFieldMatches(invoiceFields, lower)) return "finanziario";
 

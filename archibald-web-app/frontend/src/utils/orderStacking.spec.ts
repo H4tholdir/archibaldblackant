@@ -23,6 +23,8 @@ function makeOrder(overrides: Partial<Order> & { id: string }): Order {
     total: "100,00 €",
     status: "Fatturato",
     grossAmount: "150,00 €",
+    ddts: [],
+    invoices: [],
     ...overrides,
   };
 }

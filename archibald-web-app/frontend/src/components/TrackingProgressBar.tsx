@@ -88,10 +88,11 @@ const STEP_ICONS = ["\u{1F4E6}", "\u{1F69A}", "\u{1F69A}", "\u{1F69B}", "\u2705"
 const STEP_LABELS = ["Ritirato", "In viaggio", "Hub locale", "In consegna", "Consegnato"];
 
 export function getTrackingInfo(order: Order): TrackingInfo {
-  const events = (order.trackingEvents || []) as ScanEvent[];
-  const destCountry = (order.trackingDestination || "").split(", ").pop() || "IT";
-  const origin = order.trackingOrigin || "";
-  const destination = order.trackingDestination || "";
+  const primaryDdt = order.ddts?.[0] ?? null;
+  const events = (primaryDdt?.trackingEvents || []) as ScanEvent[];
+  const destCountry = (primaryDdt?.trackingDestination || "").split(", ").pop() || "IT";
+  const origin = primaryDdt?.trackingOrigin || "";
+  const destination = primaryDdt?.trackingDestination || "";
 
   if (events.length === 0) {
     return {
@@ -118,7 +119,7 @@ export function getTrackingInfo(order: Order): TrackingInfo {
   const dotsCompleted = highestCompleted + 1;
   const activeEvent = highestCompleted >= 0 ? matchedEvents[highestCompleted] : undefined;
 
-  const trackingStatus = order.trackingStatus;
+  const trackingStatus = primaryDdt?.trackingStatus;
 
   const labelOverride: Record<string, { icon: string; label: string }> = {
     held:      { icon: "🏪", label: "🏪 In giacenza" },
@@ -137,14 +138,14 @@ export function getTrackingInfo(order: Order): TrackingInfo {
   const exceptionEvent = events.find((e) => e.exception);
 
   let rightInfo = "";
-  if (isDelivered && order.deliverySignedBy) {
-    rightInfo = `Firmato: ${order.deliverySignedBy}`;
+  if (isDelivered && primaryDdt?.deliverySignedBy) {
+    rightInfo = `Firmato: ${primaryDdt.deliverySignedBy}`;
   } else if (hasException) {
     rightInfo = "";
   } else if (highestCompleted === 3) {
     rightInfo = "arr. oggi";
-  } else if (order.trackingEstimatedDelivery) {
-    rightInfo = `arr. ~${formatShortDate(order.trackingEstimatedDelivery)}`;
+  } else if (primaryDdt?.trackingEstimatedDelivery) {
+    rightInfo = `arr. ~${formatShortDate(primaryDdt.trackingEstimatedDelivery)}`;
   }
 
   const exceptionReason = exceptionEvent
