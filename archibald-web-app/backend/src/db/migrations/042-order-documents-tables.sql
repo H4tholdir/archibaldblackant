@@ -6,7 +6,7 @@ BEGIN;
 -- ── order_ddts ──
 CREATE TABLE IF NOT EXISTS agents.order_ddts (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id      TEXT NOT NULL REFERENCES agents.order_records(id) ON DELETE CASCADE,
+  order_id      TEXT NOT NULL,
   user_id       TEXT NOT NULL,
   position      SMALLINT NOT NULL DEFAULT 0,
   ddt_number    TEXT NOT NULL,
@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS agents.order_ddts (
   delivery_signed_by    TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (order_id, ddt_number)
+  UNIQUE (order_id, user_id, ddt_number),
+  FOREIGN KEY (order_id, user_id) REFERENCES agents.order_records(id, user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_order_ddts_user_order ON agents.order_ddts (user_id, order_id);
@@ -57,7 +58,7 @@ CREATE INDEX idx_order_ddts_tracking   ON agents.order_ddts (user_id, tracking_n
 -- ── order_invoices ──
 CREATE TABLE IF NOT EXISTS agents.order_invoices (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id      TEXT NOT NULL REFERENCES agents.order_records(id) ON DELETE CASCADE,
+  order_id      TEXT NOT NULL,
   user_id       TEXT NOT NULL,
   position      SMALLINT NOT NULL DEFAULT 0,
   invoice_number TEXT NOT NULL,
@@ -81,7 +82,8 @@ CREATE TABLE IF NOT EXISTS agents.order_invoices (
   invoice_closed_date    TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (order_id, invoice_number)
+  UNIQUE (order_id, user_id, invoice_number),
+  FOREIGN KEY (order_id, user_id) REFERENCES agents.order_records(id, user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_order_invoices_user_order ON agents.order_invoices (user_id, order_id);
