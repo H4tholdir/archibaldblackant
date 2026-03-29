@@ -1,0 +1,5983 @@
+{
+  "session": {
+    "loginUrl": "https://4.231.124.90/Archibald/Default.aspx",
+    "cookies": [
+      {
+        "name": "Login",
+        "value": "01696BFA188AD823F31033E52AB804865FEFDFDD3459DBD5E3485E13C41F034E5F7C1A9463ABF5EB51B7CA82ADA6DEFAB16F114ED4BEF93C4C9C2FF3A148D227141737F7454BF39A377CED424BE26E9AB86515311360190C83A0389FE1C54C1326F98C3DA77C3E854BC5797616B878593E7909C8BFD76F69A530C77A03E3230BA3AB26359B417C5A436F79F2A00E54B9BF135459A4C25A4416705D540D35A220A06B8D4FB948DE3A032FA1A45091F35E",
+        "domain": "4.231.124.90",
+        "path": "/",
+        "expires": -1,
+        "size": 357,
+        "httpOnly": true,
+        "secure": false,
+        "session": true,
+        "sameSite": "Lax",
+        "priority": "Medium",
+        "sameParty": false,
+        "sourceScheme": "Secure"
+      },
+      {
+        "name": "xafkidemovbUserName",
+        "value": "ikiA0930",
+        "domain": "4.231.124.90",
+        "path": "/",
+        "expires": 1777438640.802402,
+        "size": 27,
+        "httpOnly": true,
+        "secure": false,
+        "session": false,
+        "priority": "Medium",
+        "sameParty": false,
+        "sourceScheme": "Secure"
+      },
+      {
+        "name": "ASP.NET_SessionId",
+        "value": "2qrwnnwoqgwra33sw0ekzs3n",
+        "domain": "4.231.124.90",
+        "path": "/",
+        "expires": -1,
+        "size": 41,
+        "httpOnly": true,
+        "secure": false,
+        "session": true,
+        "sameSite": "Lax",
+        "priority": "Medium",
+        "sameParty": false,
+        "sourceScheme": "Secure"
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/124.0.0.0 Safari/537.36",
+    "timestamp": "2026-03-29T04:57:21.122Z"
+  },
+  "pages": {
+    "Customers": {
+      "name": "Customers",
+      "url": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/",
+      "entity": "CUSTTABLE",
+      "timestamp": "2026-03-29T04:57:21.123Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v2_2386588_LE_v2",
+        "suffix": "_LE_v2",
+        "pageIndex": 6,
+        "pageCount": 7,
+        "visibleRowsOnPage": 118,
+        "dataItemCount": 118
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v2_2386588_LE_v2_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v2_2386588_LE_v2_DXPagerBottom",
+        "currentValue": "200",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT4_xaf_a1_Cb",
+          "currentXafValue": "xaf_xaf_a1CustomerListViewAgent",
+          "displayText": "Customers",
+          "items": [
+            {
+              "text": "Customers",
+              "value": "undefined"
+            },
+            {
+              "text": "Customers-Roadmap",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "Customers",
+              "xafValue": "xaf_xaf_a1CustomerListViewAgent"
+            },
+            {
+              "text": "Customers-Roadmap",
+              "xafValue": "xaf_xaf_a1CustomersRoadmapAgent"
+            }
+          ],
+          "isFilterCombo": true
+        },
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT7_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2All_Customers",
+          "displayText": "All Customers",
+          "items": [
+            {
+              "text": "All Customers",
+              "value": "undefined"
+            },
+            {
+              "text": "Exclusiv customers",
+              "value": "undefined"
+            },
+            {
+              "text": "Free customers",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "All Customers",
+              "xafValue": "xaf_xaf_a2All_Customers"
+            },
+            {
+              "text": "Exclusiv customers",
+              "xafValue": "xaf_xaf_a2Exclusiv_customers"
+            },
+            {
+              "text": "Free customers",
+              "xafValue": "xaf_xaf_a2Free_customers"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "ACCOUNTNUM",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "BRASCRMATTENTIONTO",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "BUSRELTYPEID.TYPEDESCRIPTION",
+          "visible": true,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "BUSRELTYPEID.TYPEID",
+          "visible": true,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "CELLULARPHONE",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "CITY",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "DLVMODE.TXT",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "EXTERNALACCOUNTNUM",
+          "visible": true,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "FISCALCODE",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "LASTORDERDATE",
+          "visible": true,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "LEGALAUTHORITY",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "LEGALEMAIL",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "LOGISTICSADDRESSZIPCODE.ZIPCODE",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "NAME",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "ORDERCOUNTACT",
+          "visible": true,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "ORDERCOUNTPREV",
+          "visible": true,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "ORDERCOUNTPREV2",
+          "visible": true,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "OURACCOUNTNUM",
+          "visible": true,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "PHONE",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "SALESACT",
+          "visible": true,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "SALESPREV",
+          "visible": true,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "SALESPREV2",
+          "visible": true,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "STREET",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "URL",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "VATNUM",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": true
+        },
+        {
+          "index": 27,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 118,
+        "cellCount": 28,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "<!--\nASPx.AddDisabledItems('Vertical_v2_2386588_LE_v2_DXCBtn",
+            "length": 120,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": true,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "55,080",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "Dr. Esposito Antonio",
+            "length": 20,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "FedEx",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "Via Vald'angri 113",
+            "length": 18,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "84030",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "Sanza",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "+393286124885",
+            "length": 13,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 16,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 17,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 18,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 19,
+            "textPreview": "$0.00",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 20,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 21,
+            "textPreview": "$0.00",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 22,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 23,
+            "textPreview": "$0.00",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 24,
+            "textPreview": "Potential customer from Concessionario",
+            "length": 38,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 25,
+            "textPreview": "PotFromCon",
+            "length": 10,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 26,
+            "textPreview": "287",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 27,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 118
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 28,
+          "dataCellCount": 26,
+          "firstDataCells": [
+            "55,080",
+            "",
+            "Dr. Esposito Antonio",
+            "",
+            "",
+            "",
+            "",
+            "FedEx",
+            "Via Vald'angri 113",
+            "84030",
+            "Sanza",
+            "+393286124885",
+            "",
+            "",
+            ""
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 28,
+          "dataCellCount": 26,
+          "firstDataCells": [
+            "46,856",
+            "",
+            "Caporale Dr. Pietro",
+            "",
+            "",
+            "",
+            "",
+            "FedEx",
+            "Via Valle",
+            "84020",
+            "Palomonte",
+            "",
+            "",
+            "",
+            ""
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 28,
+          "dataCellCount": 26,
+          "firstDataCells": [
+            "55,270",
+            "1002441",
+            "Centro Odont. Cupo S.A.S Di Cupo Antonio & C. Sas",
+            "04547510653",
+            "",
+            "KRRH6B9",
+            "",
+            "FedEx",
+            "Via Valle 17",
+            "84020",
+            "Palomonte",
+            "+390828994081",
+            "",
+            "",
+            ""
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell0": {
+          "type": "decimal_dot_thousands",
+          "value": "55,080"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v2_2386588_LE_v2_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "4",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "5",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "6",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "7",
+            "isCurrent": true,
+            "tag": "B"
+          }
+        ],
+        "hasEllipsis": false,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "NewNew",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Edit",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Send Message",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI8_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI8_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI8_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI6_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI6_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI6_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI7_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI7_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "Orders": {
+      "name": "Orders",
+      "url": "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
+      "entity": "SALESTABLE",
+      "timestamp": "2026-03-29T04:57:29.694Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v3_20508786_LE_v3",
+        "suffix": "_LE_v3",
+        "pageIndex": 0,
+        "pageCount": 5,
+        "visibleRowsOnPage": 200,
+        "dataItemCount": 200
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v3_20508786_LE_v3_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v3_20508786_LE_v3_DXPagerBottom",
+        "currentValue": "200",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT8_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2ListViewSalesTableOrdersAll",
+          "displayText": "All Orders ",
+          "items": [
+            {
+              "text": "All Orders ",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders from today",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders from this week",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders from this month",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders entered",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders completed",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders Approval Regional Manager",
+              "value": "undefined"
+            },
+            {
+              "text": "Orders transferred",
+              "value": "undefined"
+            },
+            {
+              "text": "Quote",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "All Orders ",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersAll"
+            },
+            {
+              "text": "Orders from today",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersToday"
+            },
+            {
+              "text": "Orders from this week",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersThisWeek"
+            },
+            {
+              "text": "Orders from this month",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersThisMonth"
+            },
+            {
+              "text": "Orders entered",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersEntered"
+            },
+            {
+              "text": "Orders completed",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersCompleted"
+            },
+            {
+              "text": "Orders Approval Regional Manager",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersApprovalRM"
+            },
+            {
+              "text": "Orders transferred",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableOrdersTransferred"
+            },
+            {
+              "text": "Quote",
+              "xafValue": "xaf_xaf_a2ListViewSalesTableQuote"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "AmountTotal",
+          "visible": true,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "BRASCRMATTENTIONTO",
+          "visible": false,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "BRASCRMOPENSUNDAY",
+          "visible": false,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "COMPLETEDDATE",
+          "visible": true,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "CREATEDBY",
+          "visible": false,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "CREATEDDATETIME",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "CUSTACCOUNT",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "CUSTOMERREF",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "CUSTTABLE.NAME",
+          "visible": false,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "CUSTTABLE.EXTERNALACCOUNTNUM",
+          "visible": false,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "DATAAREAID",
+          "visible": false,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "DELIVERYDATE",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "DELIVERYNAME",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "DISCPERCENT",
+          "visible": false,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "DISCPERCENTCUS",
+          "visible": false,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "DLVADDRESS",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "DLVCITY",
+          "visible": false,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "DLVCOUNTRYREGIONID",
+          "visible": false,
+          "visibleIndex": 34,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "DLVCOUNTY",
+          "visible": false,
+          "visibleIndex": 35,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "DLVEMAIL",
+          "visible": false,
+          "visibleIndex": 36,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "DLVLOGISTICSADDRESSZIPCODE.ZIPCODE",
+          "visible": false,
+          "visibleIndex": 37,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "DLVMODE.TXT",
+          "visible": false,
+          "visibleIndex": 38,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "DLVSTATE",
+          "visible": false,
+          "visibleIndex": 39,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "DLVSTREET",
+          "visible": false,
+          "visibleIndex": 40,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "DLVTERM.TXT",
+          "visible": false,
+          "visibleIndex": 41,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "DLVZIPCODE",
+          "visible": false,
+          "visibleIndex": 42,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "DOCUMENTSTATUS",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "EMAIL",
+          "visible": true,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "ENDDISC.NAME",
+          "visible": false,
+          "visibleIndex": 43,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "ENDDISCCUS.NAME",
+          "visible": false,
+          "visibleIndex": 44,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "ENDDISCPERCENTCUS",
+          "visible": false,
+          "visibleIndex": 45,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "GROSSAMOUNT",
+          "visible": true,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "LANGUAGEID",
+          "visible": false,
+          "visibleIndex": 46,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 34,
+          "fieldName": "LINEDISC.NAME",
+          "visible": false,
+          "visibleIndex": 47,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 35,
+          "fieldName": "LINEDISCCUS.NAME",
+          "visible": false,
+          "visibleIndex": 48,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 36,
+          "fieldName": "MANUALDISCOUNT",
+          "visible": true,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 37,
+          "fieldName": "MODIFIEDBY",
+          "visible": false,
+          "visibleIndex": 49,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 38,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": false,
+          "visibleIndex": 50,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 39,
+          "fieldName": "MULTILINEDISC.ID",
+          "visible": false,
+          "visibleIndex": 51,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 40,
+          "fieldName": "MULTILINEDISCCUS.NAME",
+          "visible": false,
+          "visibleIndex": 52,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 41,
+          "fieldName": "PHONE",
+          "visible": false,
+          "visibleIndex": 53,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 42,
+          "fieldName": "PRICEGROUPID.NAME",
+          "visible": false,
+          "visibleIndex": 54,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 43,
+          "fieldName": "PRICEGROUPIDCUS.NAME",
+          "visible": false,
+          "visibleIndex": 55,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 44,
+          "fieldName": "PURCHORDERFORMNUM",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 45,
+          "fieldName": "QUOTE",
+          "visible": true,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 46,
+          "fieldName": "REFID",
+          "visible": false,
+          "visibleIndex": 56,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 47,
+          "fieldName": "SALESGROUP.NAME",
+          "visible": false,
+          "visibleIndex": 57,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 48,
+          "fieldName": "SALESID",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 49,
+          "fieldName": "SALESNAME",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 50,
+          "fieldName": "SALESORIGINID.DESCRIPTION",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 51,
+          "fieldName": "SALESPOOLID.NAME",
+          "visible": false,
+          "visibleIndex": 58,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 52,
+          "fieldName": "SALESSTATUS",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 53,
+          "fieldName": "SALESTYPE",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 54,
+          "fieldName": "SAMPLEORDER",
+          "visible": true,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 55,
+          "fieldName": "TAXGROUP.ID",
+          "visible": false,
+          "visibleIndex": 59,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 56,
+          "fieldName": "TEXTEXTERNAL",
+          "visible": false,
+          "visibleIndex": 60,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 57,
+          "fieldName": "TEXTINTERNAL",
+          "visible": false,
+          "visibleIndex": 61,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 58,
+          "fieldName": "TRANSFERREDDATE",
+          "visible": true,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 59,
+          "fieldName": "TRANSFERSTATUS",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 60,
+          "fieldName": "URL",
+          "visible": false,
+          "visibleIndex": 62,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 61,
+          "fieldName": "VATNUM",
+          "visible": false,
+          "visibleIndex": 63,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 62,
+          "fieldName": "WORKERSALESTAKER",
+          "visible": false,
+          "visibleIndex": 64,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 63,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": true
+        },
+        {
+          "index": 64,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 200,
+        "cellCount": 25,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "<!--\nASPx.AddDisabledItems('Vertical_v3_20508786_LE_v3_DXCBt",
+            "length": 121,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": true,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "51,847",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "1002328",
+            "length": 7,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "Fresis Soc Cooperativa",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "Fresis Soc Cooperativa",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "Via San Vito, 43\n80056 Ercolano NA",
+            "length": 34,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "3/28/2026 6:24:57 AM",
+            "length": 20,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "3/30/2026",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "Open order",
+            "length": 10,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "Journal",
+            "length": 7,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "None",
+            "length": 4,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "Agent",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 16,
+            "textPreview": "Approvel_regionalmanager",
+            "length": 24,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 17,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 18,
+            "textPreview": "3/28/2026",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 19,
+            "textPreview": "No",
+            "length": 2,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 20,
+            "textPreview": "0.00 %",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 21,
+            "textPreview": "$592.90",
+            "length": 7,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 22,
+            "textPreview": "$219.36",
+            "length": 7,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 23,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 24,
+            "textPreview": "fresisas@live.it",
+            "length": 16,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 200
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 25,
+          "dataCellCount": 23,
+          "firstDataCells": [
+            "51,847",
+            "",
+            "1002328",
+            "Fresis Soc Cooperativa",
+            "Fresis Soc Cooperativa",
+            "Via San Vito, 43\n80056 Ercolano NA",
+            "3/28/2026 6:24:57 AM",
+            "3/30/2026",
+            "",
+            "",
+            "Open order",
+            "Journal",
+            "None",
+            "Agent",
+            "Approvel_regionalmanager"
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 25,
+          "dataCellCount": 23,
+          "firstDataCells": [
+            "51,846",
+            "",
+            "1002613",
+            "Dr. Grimaldi Michele",
+            "Dr. Grimaldi Michele",
+            "Via Murelle, 24\n84012 Angri SA",
+            "3/28/2026 6:09:17 AM",
+            "3/30/2026",
+            "NO SPESE DI SPEDIZIONE",
+            "",
+            "Open order",
+            "Journal",
+            "None",
+            "Agent",
+            "Approvel_regionalmanager"
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 25,
+          "dataCellCount": 23,
+          "firstDataCells": [
+            "51,844",
+            "",
+            "",
+            "Dr. Tedesco Mario",
+            "C/O STUDIO PROF. GIUSEPPE COLELLA",
+            "Piazza Vargas, 16\n80041 Boscoreale NA",
+            "3/28/2026 5:57:41 AM",
+            "3/30/2026",
+            "",
+            "",
+            "Open order",
+            "Journal",
+            "None",
+            "Agent",
+            "Approvel_regionalmanager"
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell0": {
+          "type": "decimal_dot_thousands",
+          "value": "51,847"
+        },
+        "cell6": {
+          "type": "MM/DD/YYYY",
+          "value": "3/28/2026 6:24:57 AM"
+        },
+        "cell6_time": {
+          "type": "12h_AMPM",
+          "value": "3/28/2026 6:24:57 AM"
+        },
+        "cell7": {
+          "type": "MM/DD/YYYY",
+          "value": "3/30/2026"
+        },
+        "cell16": {
+          "type": "MM/DD/YYYY",
+          "value": "3/28/2026"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v3_20508786_LE_v3_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": true,
+            "tag": "B"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "4",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "5",
+            "isCurrent": false,
+            "tag": "A"
+          }
+        ],
+        "hasEllipsis": false,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "NewNew",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Delete",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Edit",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Clone OrderClone Order",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "Send Order(s)Send Order(s)",
+          "anchorId": "Vertical_mainMenu_Menu_DXI4_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI6_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI6_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI6_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI9_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI9_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI9_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI7_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI7_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI7_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI8_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI8_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "DDT": {
+      "name": "DDT",
+      "url": "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      "entity": "CUSTPACKINGSLIPJOUR",
+      "timestamp": "2026-03-29T04:57:39.051Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v5_66109532_LE_v5",
+        "suffix": "_LE_v5",
+        "pageIndex": 5,
+        "pageCount": 6,
+        "visibleRowsOnPage": 36,
+        "dataItemCount": 36
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v5_66109532_LE_v5_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v5_66109532_LE_v5_DXPagerBottom",
+        "currentValue": "200",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT4_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2ListViewPackingSlipsAll",
+          "displayText": "All",
+          "items": [
+            {
+              "text": "Today",
+              "value": "undefined"
+            },
+            {
+              "text": "This week",
+              "value": "undefined"
+            },
+            {
+              "text": "This month",
+              "value": "undefined"
+            },
+            {
+              "text": "Last 3 month",
+              "value": "undefined"
+            },
+            {
+              "text": "All",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "Today",
+              "xafValue": "xaf_xaf_a2ListViewPackingSlipsPackingSlipsToday"
+            },
+            {
+              "text": "This week",
+              "xafValue": "xaf_xaf_a2ListViewPackingSlipsThisWeek"
+            },
+            {
+              "text": "This month",
+              "xafValue": "xaf_xaf_a2ListViewPackingSlipsThisMonth"
+            },
+            {
+              "text": "Last 3 month",
+              "xafValue": "xaf_xaf_a2ListViewPackingSlipsLast3Month"
+            },
+            {
+              "text": "All",
+              "xafValue": "xaf_xaf_a2ListViewPackingSlipsAll"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "BRASCRMATTENTIONTO",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "BRASTRACKINGNUMBER",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "CREATEDBY",
+          "visible": false,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "CREATEDDATETIME",
+          "visible": false,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "CUSTOMERREF",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "DATAAREAID",
+          "visible": false,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "DELIVERYDATE",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "DELIVERYNAME",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "DLVADDRESS",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "DLVCITY",
+          "visible": false,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "DLVCOUNTRYREGIONID",
+          "visible": false,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "DLVCOUNTY",
+          "visible": false,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "DLVEMAIL",
+          "visible": true,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "DLVLOGISTICSADDRESSZIPCODE.ID",
+          "visible": false,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "DLVMODE.TXT",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "DLVSTATE",
+          "visible": false,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "DLVSTREET",
+          "visible": false,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "DLVTERM.TXT",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "DLVZIPCODE",
+          "visible": false,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "IMAGEID.ID",
+          "visible": false,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "InvoicePDF.FileName",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "LANGUAGEID",
+          "visible": false,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "MODIFIEDBY",
+          "visible": false,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": false,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "ORDERACCOUNT",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "ORDERACCOUNTID.NAME",
+          "visible": false,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "PACKINGSLIPID",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "PURCHASEORDER",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "QTY",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "SALESID",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "SALESTABLE.ID",
+          "visible": false,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "SALESTABLE.SALESNAME",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 36,
+        "cellCount": 22,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "N/A\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\t\n\t\t",
+            "length": 442,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "N/A",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v5_66109",
+            "length": 348,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "2,127",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "DDT/23002544",
+            "length": 12,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "2/17/2023",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "ORD/23002330",
+            "length": 12,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "049421",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "Fresis Soc Cooperativa",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "Fresis Soc Cooperativa",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "Via San Vito, 43                                            ",
+            "length": 80,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "231",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 16,
+            "textPreview": "4177",
+            "length": 4,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 17,
+            "textPreview": "Ups 1Z4V26Y86872730928",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": true,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 18,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 19,
+            "textPreview": "UPS Italia",
+            "length": 10,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 20,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 21,
+            "textPreview": "fresisas@live.it",
+            "length": 16,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 36
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 22,
+          "dataCellCount": 20,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v5_66109",
+            "",
+            "2,127",
+            "DDT/23002544",
+            "2/17/2023",
+            "ORD/23002330",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "Fresis Soc Cooperativa",
+            "Via San Vito, 43                                            ",
+            "231",
+            "",
+            "4177"
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 22,
+          "dataCellCount": 20,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v5_66109",
+            "",
+            "2,091",
+            "DDT/23002469",
+            "2/17/2023",
+            "ORD/23002247",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "Fresis Soc Cooperativa",
+            "Via San Vito, 43                                            ",
+            "276",
+            "",
+            "4176"
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 22,
+          "dataCellCount": 20,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v5_66109",
+            "",
+            "1,833",
+            "DDT/23002058",
+            "2/13/2023",
+            "ORD/23002012",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "Fresis Soc Cooperativa",
+            "Via San Vito, 43                                            ",
+            "253",
+            "",
+            "4175"
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell4": {
+          "type": "decimal_dot_thousands",
+          "value": "2,127"
+        },
+        "cell6": {
+          "type": "MM/DD/YYYY",
+          "value": "2/17/2023"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v5_66109532_LE_v5_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "4",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "5",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "6",
+            "isCurrent": true,
+            "tag": "B"
+          }
+        ],
+        "hasEllipsis": false,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "Get PDF",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "Invoices": {
+      "name": "Invoices",
+      "url": "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/",
+      "entity": "CUSTINVOICEJOUR",
+      "timestamp": "2026-03-29T04:57:47.304Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v6_2651204_LE_v6",
+        "suffix": "_LE_v6",
+        "pageIndex": 13,
+        "pageCount": 14,
+        "visibleRowsOnPage": 6,
+        "dataItemCount": 6
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v6_2651204_LE_v6_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v6_2651204_LE_v6_DXPagerBottom",
+        "currentValue": "20",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT4_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2All_invoices",
+          "displayText": "All",
+          "items": [
+            {
+              "text": "Last 3 Month",
+              "value": "undefined"
+            },
+            {
+              "text": "open invoices",
+              "value": "undefined"
+            },
+            {
+              "text": "Overdued invoices",
+              "value": "undefined"
+            },
+            {
+              "text": "All",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "Last 3 Month",
+              "xafValue": "xaf_xaf_a2InvoicesLast3Month"
+            },
+            {
+              "text": "open invoices",
+              "xafValue": "xaf_xaf_a2open_invoices"
+            },
+            {
+              "text": "Overdued invoices",
+              "xafValue": "xaf_xaf_a2OverDued"
+            },
+            {
+              "text": "All",
+              "xafValue": "xaf_xaf_a2All_invoices"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "BRASCRMATTENTIONTO",
+          "visible": false,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "CLOSED",
+          "visible": true,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "CREATEDBY",
+          "visible": false,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "CREATEDDATETIME",
+          "visible": false,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "CUSTOMERREF",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "DATAAREAID",
+          "visible": false,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "DELIVERYNAME",
+          "visible": false,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "DLVMODE.TXT",
+          "visible": false,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "DLVTERM.TXT",
+          "visible": false,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "DUEDATE",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "ENDDISCMST",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "ID",
+          "visible": false,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "IMAGEID.ID",
+          "visible": false,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "INVADDRESS",
+          "visible": false,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "INVCITY",
+          "visible": false,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "INVCOUNTRYREGIONID",
+          "visible": false,
+          "visibleIndex": 34,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "INVCOUNTY",
+          "visible": false,
+          "visibleIndex": 35,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "INVLOGISTICSADDRESSZIPCODE",
+          "visible": false,
+          "visibleIndex": 36,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "INVOICEACCOUNT",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "INVOICEACCOUNTID",
+          "visible": false,
+          "visibleIndex": 37,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "INVOICEAMOUNTMST",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "INVOICEDATE",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "INVOICEID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "InvoicePDF.FileName",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "INVOICINGNAME",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "INVSTATE",
+          "visible": false,
+          "visibleIndex": 38,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "INVSTREET",
+          "visible": false,
+          "visibleIndex": 39,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "INVZIPCODE",
+          "visible": false,
+          "visibleIndex": 40,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "LASTSETTLEDATE",
+          "visible": true,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "LASTSETTLEVOUCHER",
+          "visible": true,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "MODIFIEDBY",
+          "visible": false,
+          "visibleIndex": 41,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": false,
+          "visibleIndex": 42,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "ORDERACCOUNT",
+          "visible": false,
+          "visibleIndex": 43,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "ORDERACCOUNTID.NAME",
+          "visible": false,
+          "visibleIndex": 44,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 34,
+          "fieldName": "OVERDUEDAYS",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 35,
+          "fieldName": "PAYMTERMID.DESCRIPTION",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 36,
+          "fieldName": "PURCHASEORDER",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 37,
+          "fieldName": "QTY",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 38,
+          "fieldName": "REMAINAMOUNTMST",
+          "visible": true,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 39,
+          "fieldName": "SALESBALANCEMST",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 40,
+          "fieldName": "SALESID",
+          "visible": true,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 41,
+          "fieldName": "SALESORIGINID",
+          "visible": false,
+          "visibleIndex": 45,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 42,
+          "fieldName": "SALESTABLE",
+          "visible": false,
+          "visibleIndex": 46,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 43,
+          "fieldName": "SETTLEAMOUNTMST",
+          "visible": true,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 44,
+          "fieldName": "SUMLINEDISCMST",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 45,
+          "fieldName": "SUMTAXMST",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 46,
+          "fieldName": "WORKERSALESTAKER",
+          "visible": false,
+          "visibleIndex": 47,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 47,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 6,
+        "cellCount": 27,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "N/A\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t\t\t\n\t\t",
+            "length": 438,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "N/A",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v6_26512",
+            "length": 344,
+            "hasScript": true,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "CF1/23000407",
+            "length": 12,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "4/28/2023",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "049421",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "Fresis Soc Cooperativa",
+            "length": 22,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "2,466",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "16,691.51",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "1,117.69",
+            "length": 8,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "3,653.68",
+            "length": 8,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "20,345.19",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 16,
+            "textPreview": "Aggiornamento campionario DIAO",
+            "length": 30,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 17,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 18,
+            "textPreview": "6/30/2023",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 19,
+            "textPreview": "201 BONIF. BANC. 60 GG.DFFM Iban IT21J0200811796000106970061",
+            "length": 60,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 20,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 21,
+            "textPreview": "20,345.19",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 22,
+            "textPreview": "INC/23000393",
+            "length": 12,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 23,
+            "textPreview": "6/30/2023",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 24,
+            "textPreview": "6/30/2023",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 25,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 26,
+            "textPreview": "ORD/23004810",
+            "length": 12,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 6
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 27,
+          "dataCellCount": 25,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v6_26512",
+            "",
+            "CF1/23000407",
+            "4/28/2023",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "2,466",
+            "16,691.51",
+            "1,117.69",
+            "0",
+            "3,653.68",
+            "20,345.19",
+            "Aggiornamento campionario DIAO"
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 27,
+          "dataCellCount": 25,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v6_26512",
+            "",
+            "CF1/23000288",
+            "3/31/2023",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "2,219",
+            "14,880.15",
+            "185.91",
+            "0",
+            "3,273.63",
+            "18,153.78",
+            "4186"
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 27,
+          "dataCellCount": 25,
+          "firstDataCells": [
+            "N/A",
+            "",
+            "<!--\nASPx.createControl(ASPxClientTextBox,'Vertical_v6_26512",
+            "",
+            "CF1/23000183",
+            "2/28/2023",
+            "049421",
+            "Fresis Soc Cooperativa",
+            "2,655",
+            "21,615.62",
+            "130.31",
+            "0",
+            "4,701.55",
+            "26,317.17",
+            "4169"
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell5": {
+          "type": "MM/DD/YYYY",
+          "value": "4/28/2023"
+        },
+        "cell8": {
+          "type": "decimal_dot_thousands",
+          "value": "2,466"
+        },
+        "cell9": {
+          "type": "decimal_comma_thousands",
+          "value": "16,691.51"
+        },
+        "cell10": {
+          "type": "decimal_comma_thousands",
+          "value": "1,117.69"
+        },
+        "cell12": {
+          "type": "decimal_comma_thousands",
+          "value": "3,653.68"
+        },
+        "cell13": {
+          "type": "decimal_comma_thousands",
+          "value": "20,345.19"
+        },
+        "cell16": {
+          "type": "MM/DD/YYYY",
+          "value": "6/30/2023"
+        },
+        "cell19": {
+          "type": "decimal_comma_thousands",
+          "value": "20,345.19"
+        },
+        "cell21": {
+          "type": "MM/DD/YYYY",
+          "value": "6/30/2023"
+        },
+        "cell22": {
+          "type": "MM/DD/YYYY",
+          "value": "6/30/2023"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v6_2651204_LE_v6_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "8",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "9",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "10",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "11",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "12",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "13",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "14",
+            "isCurrent": true,
+            "tag": "B"
+          }
+        ],
+        "hasEllipsis": true,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "Get PDF",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "Products": {
+      "name": "Products",
+      "url": "https://4.231.124.90/Archibald/INVENTTABLE_ListView/",
+      "entity": "INVENTTABLE",
+      "timestamp": "2026-03-29T04:57:55.228Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v4_58916633_LE_v4",
+        "suffix": "_LE_v4",
+        "pageIndex": 0,
+        "pageCount": 1,
+        "visibleRowsOnPage": 3,
+        "dataItemCount": 0
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v4_58916633_LE_v4_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v4_58916633_LE_v4_DXPagerBottom",
+        "currentValue": "200",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "BRASFIGURE",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "BRASITEMIDBULK",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "BRASPACKAGEEXPERTS",
+          "visible": true,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "BRASPACKINGCONTENTS",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "BRASSHANK",
+          "visible": true,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "BRASSIZE",
+          "visible": true,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "CONFIGID",
+          "visible": true,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "CREATEDBY",
+          "visible": true,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "CREATEDDATETIME",
+          "visible": true,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "DATAAREAID",
+          "visible": true,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "DEFAULTSALESQTY",
+          "visible": true,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "DESCRIPTION",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "DISPLAYPRODUCTNUMBER",
+          "visible": true,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "ENDDISC",
+          "visible": true,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "HIGHESTQTY",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "ImageCalc",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "ITEMID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "LINEDISC.ID",
+          "visible": true,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "LOWESTQTY",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "MODIFIEDBY",
+          "visible": true,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": true,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "MULTIPLEQTY",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "NAME",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "ORDERITEM",
+          "visible": true,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "PRICEUNIT",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "PRODUCTGROUPID.ID",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "PURCHPRICEPCS",
+          "visible": true,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "SEARCHNAME",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "STANDARDCONFIGID",
+          "visible": true,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "STANDARDQTY",
+          "visible": true,
+          "visibleIndex": 34,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "STOPPED",
+          "visible": true,
+          "visibleIndex": 35,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 34,
+          "fieldName": "TAXITEMGROUPID",
+          "visible": false,
+          "visibleIndex": 37,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 35,
+          "fieldName": "UNITID",
+          "visible": true,
+          "visibleIndex": 36,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 36,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": true
+        },
+        {
+          "index": 37,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": false,
+        "totalDomRows": 0
+      },
+      "sampleRows": [],
+      "formatDetection": {
+        "noData": true
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v4_58916633_LE_v4_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": true,
+            "tag": "B"
+          }
+        ],
+        "hasEllipsis": false,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "Edit",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI4_T",
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "Prices": {
+      "name": "Prices",
+      "url": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
+      "entity": "PRICEDISCTABLE_Prices",
+      "timestamp": "2026-03-29T04:58:06.201Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v7_41665569_LE_v7",
+        "suffix": "_LE_v7",
+        "pageIndex": 24,
+        "pageCount": 25,
+        "visibleRowsOnPage": 155,
+        "dataItemCount": 155
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v7_41665569_LE_v7_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v7_41665569_LE_v7_DXPagerBottom",
+        "currentValue": "200",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT4_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2ActivePrices",
+          "displayText": "Active prices",
+          "items": [
+            {
+              "text": "Active prices",
+              "value": "undefined"
+            },
+            {
+              "text": "Closed prices",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "Active prices",
+              "xafValue": "xaf_xaf_a2ActivePrices"
+            },
+            {
+              "text": "Closed prices",
+              "xafValue": "xaf_xaf_a2ClosedPrices"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "ACCOUNTCODE",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "ACCOUNTRELATION",
+          "visible": false,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "ACCOUNTRELATIONID",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "ACCOUNTRELATIONTXT",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "AGREEMENT",
+          "visible": false,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "AGREEMENTHEADEREXT_RU",
+          "visible": false,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "ALLOCATEMARKUP",
+          "visible": false,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "AMOUNT",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "BRASNETPRICE",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "CALENDARDAYS",
+          "visible": false,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "CREATEDBY",
+          "visible": false,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "CREATEDDATETIME",
+          "visible": false,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "CURRENCY",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "DATAAREAID",
+          "visible": false,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "DELIVERYTIME",
+          "visible": false,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "DISREGARDLEADTIME",
+          "visible": false,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "FROMDATE",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "GENERICCURRENCY",
+          "visible": false,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "INVENTBAILEEFREEDAYS_RU",
+          "visible": false,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "INVENTDIMID",
+          "visible": false,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "ITEMCODE",
+          "visible": false,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "ITEMRELATION",
+          "visible": false,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "ITEMRELATIONID",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "ITEMRELATIONTXT",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "MARKUP",
+          "visible": false,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "MAXIMUMRETAILPRICE_IN",
+          "visible": false,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "MCRFIXEDAMOUNTCUR",
+          "visible": false,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "MCRMERCHANDISINGEVENTID",
+          "visible": false,
+          "visibleIndex": 34,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "MCRPRICEDISCGROUPTYPE",
+          "visible": false,
+          "visibleIndex": 35,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "MODIFIEDBY",
+          "visible": false,
+          "visibleIndex": 36,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": false,
+          "visibleIndex": 37,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "MODULE1",
+          "visible": false,
+          "visibleIndex": 38,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "ORIGINALPRICEDISCADMTRANSRECID",
+          "visible": false,
+          "visibleIndex": 39,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 34,
+          "fieldName": "PDSCALCULATIONID",
+          "visible": false,
+          "visibleIndex": 40,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 35,
+          "fieldName": "PERCENT1",
+          "visible": false,
+          "visibleIndex": 41,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 36,
+          "fieldName": "PERCENT2",
+          "visible": false,
+          "visibleIndex": 42,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 37,
+          "fieldName": "PRICEUNIT",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 38,
+          "fieldName": "QUANTITYAMOUNTFROM",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 39,
+          "fieldName": "QUANTITYAMOUNTTO",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 40,
+          "fieldName": "RECID",
+          "visible": false,
+          "visibleIndex": 43,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 41,
+          "fieldName": "RECVERSION",
+          "visible": false,
+          "visibleIndex": 44,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 42,
+          "fieldName": "RELATION",
+          "visible": false,
+          "visibleIndex": 45,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 43,
+          "fieldName": "SEARCHAGAIN",
+          "visible": false,
+          "visibleIndex": 46,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 44,
+          "fieldName": "TODATE",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 45,
+          "fieldName": "UNITID",
+          "visible": false,
+          "visibleIndex": 47,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 46,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": true
+        },
+        {
+          "index": 47,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 155,
+        "cellCount": 16,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": true,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "6,497",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "Group",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "002",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "DETTAGLIO (consigliato)",
+            "length": 23,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "046713R0",
+            "length": 8,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "F06L25.204.020",
+            "length": 14,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "1/16/2026",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "12/31/2154",
+            "length": 10,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "1",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "100,000,000",
+            "length": 11,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "$14.34",
+            "length": 6,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "EUR",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "No",
+            "length": 2,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 155
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 16,
+          "dataCellCount": 14,
+          "firstDataCells": [
+            "6,497",
+            "Group",
+            "002",
+            "DETTAGLIO (consigliato)",
+            "046713R0",
+            "F06L25.204.020",
+            "1/16/2026",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "0",
+            "$14.34",
+            "EUR",
+            "No"
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 16,
+          "dataCellCount": 14,
+          "firstDataCells": [
+            "6,498",
+            "Group",
+            "002",
+            "DETTAGLIO (consigliato)",
+            "046714R0",
+            "F06L25.204.025",
+            "1/16/2026",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "0",
+            "$14.34",
+            "EUR",
+            "No"
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 16,
+          "dataCellCount": 14,
+          "firstDataCells": [
+            "6,499",
+            "Group",
+            "002",
+            "DETTAGLIO (consigliato)",
+            "046715R0",
+            "F06L25.204.030",
+            "1/16/2026",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "0",
+            "$14.34",
+            "EUR",
+            "No"
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell0": {
+          "type": "decimal_dot_thousands",
+          "value": "6,497"
+        },
+        "cell6": {
+          "type": "MM/DD/YYYY",
+          "value": "1/16/2026"
+        },
+        "cell7": {
+          "type": "MM/DD/YYYY",
+          "value": "12/31/2154"
+        },
+        "cell9": {
+          "type": "integer_comma_thousands",
+          "value": "100,000,000"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v7_41665569_LE_v7_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "19",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "20",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "21",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "22",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "23",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "24",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "25",
+            "isCurrent": true,
+            "tag": "B"
+          }
+        ],
+        "hasEllipsis": true,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "Edit",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    },
+    "LineDiscounts": {
+      "name": "LineDiscounts",
+      "url": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListViewLineDisc/",
+      "entity": "PRICEDISCTABLE_LineDisc",
+      "timestamp": "2026-03-29T04:58:14.709Z",
+      "grid": {
+        "found": true,
+        "clientName": "Vertical_v8_30855708_LE_v8",
+        "suffix": "_LE_v8",
+        "pageIndex": 0,
+        "pageCount": 89,
+        "visibleRowsOnPage": 20,
+        "dataItemCount": 20
+      },
+      "pageSize": {
+        "found": true,
+        "inputId": "Vertical_v8_30855708_LE_v8_DXPagerBottom_PSI",
+        "pagerId": "Vertical_v8_30855708_LE_v8_DXPagerBottom",
+        "currentValue": "20",
+        "hasBlurHandler": true,
+        "hasKeyDownHandler": true
+      },
+      "filterCombos": [
+        {
+          "ctrlId": "Vertical_mainMenu_Menu_ITCNT4_xaf_a2_Cb",
+          "currentXafValue": "xaf_xaf_a2ActiveLineDiscounts",
+          "displayText": "Active line discounts",
+          "items": [
+            {
+              "text": "Active line discounts",
+              "value": "undefined"
+            },
+            {
+              "text": "Closed line discounts",
+              "value": "undefined"
+            }
+          ],
+          "xafItems": [
+            {
+              "text": "Active line discounts",
+              "xafValue": "xaf_xaf_a2ActiveLineDiscounts"
+            },
+            {
+              "text": "Closed line discounts",
+              "xafValue": "xaf_xaf_a2ClosedLineDiscounts"
+            }
+          ],
+          "isFilterCombo": true
+        }
+      ],
+      "columns": [
+        {
+          "index": 0,
+          "fieldName": "ACCOUNTCODE",
+          "visible": true,
+          "visibleIndex": 3,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 1,
+          "fieldName": "ACCOUNTRELATION",
+          "visible": false,
+          "visibleIndex": 17,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 2,
+          "fieldName": "ACCOUNTRELATIONID",
+          "visible": true,
+          "visibleIndex": 4,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 3,
+          "fieldName": "ACCOUNTRELATIONTXT",
+          "visible": true,
+          "visibleIndex": 5,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 4,
+          "fieldName": "AGREEMENT",
+          "visible": false,
+          "visibleIndex": 18,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 5,
+          "fieldName": "AGREEMENTHEADEREXT_RU",
+          "visible": false,
+          "visibleIndex": 19,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 6,
+          "fieldName": "ALLOCATEMARKUP",
+          "visible": false,
+          "visibleIndex": 20,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 7,
+          "fieldName": "AMOUNT",
+          "visible": true,
+          "visibleIndex": 16,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 8,
+          "fieldName": "BRASNETPRICE",
+          "visible": false,
+          "visibleIndex": 21,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 9,
+          "fieldName": "CALENDARDAYS",
+          "visible": false,
+          "visibleIndex": 22,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 10,
+          "fieldName": "CREATEDBY",
+          "visible": false,
+          "visibleIndex": 23,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 11,
+          "fieldName": "CREATEDDATETIME",
+          "visible": false,
+          "visibleIndex": 24,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 12,
+          "fieldName": "DATAAREAID",
+          "visible": false,
+          "visibleIndex": 25,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 13,
+          "fieldName": "DELIVERYTIME",
+          "visible": false,
+          "visibleIndex": 26,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 14,
+          "fieldName": "DISREGARDLEADTIME",
+          "visible": false,
+          "visibleIndex": 27,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 15,
+          "fieldName": "FROMDATE",
+          "visible": true,
+          "visibleIndex": 9,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 16,
+          "fieldName": "GENERICCURRENCY",
+          "visible": false,
+          "visibleIndex": 28,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 17,
+          "fieldName": "ID",
+          "visible": true,
+          "visibleIndex": 2,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 18,
+          "fieldName": "INVENTBAILEEFREEDAYS_RU",
+          "visible": false,
+          "visibleIndex": 29,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 19,
+          "fieldName": "INVENTDIMID",
+          "visible": false,
+          "visibleIndex": 30,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 20,
+          "fieldName": "ITEMCODE",
+          "visible": true,
+          "visibleIndex": 6,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 21,
+          "fieldName": "ITEMRELATION",
+          "visible": false,
+          "visibleIndex": 31,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 22,
+          "fieldName": "ITEMRELATIONID",
+          "visible": true,
+          "visibleIndex": 7,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 23,
+          "fieldName": "ITEMRELATIONTXT",
+          "visible": true,
+          "visibleIndex": 8,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 24,
+          "fieldName": "MARKUP",
+          "visible": false,
+          "visibleIndex": 32,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 25,
+          "fieldName": "MAXIMUMRETAILPRICE_IN",
+          "visible": false,
+          "visibleIndex": 33,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 26,
+          "fieldName": "MCRFIXEDAMOUNTCUR",
+          "visible": false,
+          "visibleIndex": 34,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 27,
+          "fieldName": "MCRMERCHANDISINGEVENTID",
+          "visible": false,
+          "visibleIndex": 35,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 28,
+          "fieldName": "MCRPRICEDISCGROUPTYPE",
+          "visible": false,
+          "visibleIndex": 36,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 29,
+          "fieldName": "MODIFIEDBY",
+          "visible": false,
+          "visibleIndex": 37,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 30,
+          "fieldName": "MODIFIEDDATETIME",
+          "visible": false,
+          "visibleIndex": 38,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 31,
+          "fieldName": "MODULE1",
+          "visible": false,
+          "visibleIndex": 39,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 32,
+          "fieldName": "ORIGINALPRICEDISCADMTRANSRECID",
+          "visible": false,
+          "visibleIndex": 40,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 33,
+          "fieldName": "PDSCALCULATIONID",
+          "visible": false,
+          "visibleIndex": 41,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 34,
+          "fieldName": "PERCENT1",
+          "visible": true,
+          "visibleIndex": 13,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 35,
+          "fieldName": "PERCENT2",
+          "visible": true,
+          "visibleIndex": 14,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 36,
+          "fieldName": "PRICEUNIT",
+          "visible": true,
+          "visibleIndex": 15,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 37,
+          "fieldName": "QUANTITYAMOUNTFROM",
+          "visible": true,
+          "visibleIndex": 11,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 38,
+          "fieldName": "QUANTITYAMOUNTTO",
+          "visible": true,
+          "visibleIndex": 12,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 39,
+          "fieldName": "RECID",
+          "visible": false,
+          "visibleIndex": 42,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 40,
+          "fieldName": "RECVERSION",
+          "visible": false,
+          "visibleIndex": 43,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 41,
+          "fieldName": "RELATION",
+          "visible": false,
+          "visibleIndex": 44,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 42,
+          "fieldName": "SEARCHAGAIN",
+          "visible": false,
+          "visibleIndex": 45,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 43,
+          "fieldName": "TODATE",
+          "visible": true,
+          "visibleIndex": 10,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 44,
+          "fieldName": "UNITID",
+          "visible": false,
+          "visibleIndex": 46,
+          "caption": null,
+          "isSystemColumn": false
+        },
+        {
+          "index": 45,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 1,
+          "caption": null,
+          "isSystemColumn": true
+        },
+        {
+          "index": 46,
+          "fieldName": "",
+          "visible": true,
+          "visibleIndex": 0,
+          "caption": null,
+          "isSystemColumn": true
+        }
+      ],
+      "domStructure": {
+        "found": true,
+        "totalDomRows": 20,
+        "cellCount": 17,
+        "cellAnalysis": [
+          {
+            "cellIndex": 0,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 1,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": true,
+            "hasEditBtn": false,
+            "isSystemCell": true
+          },
+          {
+            "cellIndex": 2,
+            "textPreview": "4",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 3,
+            "textPreview": "All",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 4,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 5,
+            "textPreview": "",
+            "length": 0,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 6,
+            "textPreview": "Group",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 7,
+            "textPreview": "11370",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 8,
+            "textPreview": "DSB",
+            "length": 3,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 9,
+            "textPreview": "5/23/2022",
+            "length": 9,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 10,
+            "textPreview": "12/31/2154",
+            "length": 10,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 11,
+            "textPreview": "1",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 12,
+            "textPreview": "100,000,000",
+            "length": 11,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 13,
+            "textPreview": "10",
+            "length": 2,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 14,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 15,
+            "textPreview": "0",
+            "length": 1,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          },
+          {
+            "cellIndex": 16,
+            "textPreview": "$0.00",
+            "length": 5,
+            "hasScript": false,
+            "hasCheckbox": false,
+            "hasLink": false,
+            "hasEditBtn": false,
+            "isSystemCell": false
+          }
+        ],
+        "systemCellOffset": 2,
+        "fallbackRowSelector": 20
+      },
+      "sampleRows": [
+        {
+          "rowIndex": 0,
+          "totalCells": 17,
+          "dataCellCount": 15,
+          "firstDataCells": [
+            "4",
+            "All",
+            "",
+            "",
+            "Group",
+            "11370",
+            "DSB",
+            "5/23/2022",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "10",
+            "0",
+            "0",
+            "$0.00"
+          ]
+        },
+        {
+          "rowIndex": 1,
+          "totalCells": 17,
+          "dataCellCount": 15,
+          "firstDataCells": [
+            "166",
+            "Group",
+            "SCLA",
+            "Discount to get price 002A",
+            "Group",
+            "11110",
+            "STAHLBOHRER F. KAVITÄTEN / FI",
+            "1/1/2024",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "63",
+            "0",
+            "0",
+            "$0.00"
+          ]
+        },
+        {
+          "rowIndex": 2,
+          "totalCells": 17,
+          "dataCellCount": 15,
+          "firstDataCells": [
+            "167",
+            "Group",
+            "SCLA",
+            "Discount to get price 002A",
+            "Group",
+            "11120",
+            "STAHLFINIERER",
+            "1/1/2024",
+            "12/31/2154",
+            "1",
+            "100,000,000",
+            "63",
+            "0",
+            "0",
+            "$0.00"
+          ]
+        }
+      ],
+      "formatDetection": {
+        "cell7": {
+          "type": "MM/DD/YYYY",
+          "value": "5/23/2022"
+        },
+        "cell8": {
+          "type": "MM/DD/YYYY",
+          "value": "12/31/2154"
+        },
+        "cell10": {
+          "type": "integer_comma_thousands",
+          "value": "100,000,000"
+        }
+      },
+      "pagerStructure": {
+        "found": true,
+        "pagerId": "Vertical_v8_30855708_LE_v8_DXPagerBottom",
+        "pageButtons": [
+          {
+            "text": "1",
+            "isCurrent": true,
+            "tag": "B"
+          },
+          {
+            "text": "2",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "3",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "4",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "5",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "6",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "7",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "87",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "88",
+            "isCurrent": false,
+            "tag": "A"
+          },
+          {
+            "text": "89",
+            "isCurrent": false,
+            "tag": "A"
+          }
+        ],
+        "hasEllipsis": true,
+        "hasPageSizePicker": true,
+        "hasNextButton": true,
+        "hasPrevButton": true
+      },
+      "toolbarButtons": [
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI0_",
+          "text": "Edit",
+          "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+          "disabled": true,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI1_",
+          "text": "Refresh",
+          "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI2_",
+          "text": "Reset View Settings",
+          "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI3_",
+          "text": "Export toExport to",
+          "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_IS",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI4_",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_II",
+          "text": "",
+          "anchorId": null,
+          "disabled": false,
+          "hasSubmenu": false
+        },
+        {
+          "liId": "Vertical_mainMenu_Menu_DXI5_",
+          "text": "Show hidden items",
+          "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+          "disabled": false,
+          "hasSubmenu": false
+        }
+      ],
+      "headerRow": {
+        "found": false
+      },
+      "emptyState": {
+        "hasEmptyDataRow": false,
+        "noDataText": null
+      },
+      "searchBar": {
+        "found": false,
+        "id": null,
+        "placeholder": null
+      }
+    }
+  },
+  "crossPageTests": {
+    "pageSizePersistence": {
+      "customersBeforeNav": "200",
+      "ordersPageSize": "200",
+      "customersAfterNav": "200",
+      "persists": true
+    },
+    "pageIndexPersistence": {
+      "setToPage": 2,
+      "pageIndexBefore": 2,
+      "pageIndexAfterNav": 2,
+      "persists": true,
+      "WARNING": "PAGE INDEX PERSISTS! Scraper MUST call GotoPage(0) before reading."
+    },
+    "filterPersistence": {
+      "note": "Filters use XAF values stored server-side in user profile. They persist across sessions, logins, and browsers. Confirmed by user (2026-03-28)."
+    },
+    "gridIdStability": {
+      "customersFirst": "Vertical_v2_59963226_LE_v2",
+      "ordersPage": "Vertical_v3_48219536_LE_v3",
+      "customersSecond": "Vertical_v2_16506337_LE_v2",
+      "sameAcrossVisits": false,
+      "note": "The numeric part changes per session but the suffix (_LE_vN) is stable per page type."
+    }
+  }
+}
