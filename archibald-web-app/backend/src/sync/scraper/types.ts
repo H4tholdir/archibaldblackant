@@ -13,7 +13,6 @@ type FilterConfig = {
 
 type FilterToggleWorkaround = {
   filterInputSelector: string;
-  listboxSelector: string;
   tempItemTexts: string[];   // e.g. ["Oggi", "Today"]
   finalItemTexts: string[];  // e.g. ["Tutti", "All"]
 };

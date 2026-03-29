@@ -9,7 +9,6 @@ const ddtConfig: ScraperConfig = {
   },
   filterToggleWorkaround: {
     filterInputSelector: 'input[name*="ITCNT4"][name*="xaf_a2"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
-    listboxSelector: '[id*="ITCNT4"][id*="xaf_a2"][id*="Cb_DDD_L"] td',
     tempItemTexts: ['Oggi', 'Today'],
     finalItemTexts: ['Tutti', 'All'],
   },

@@ -294,80 +294,96 @@ async function restoreFilterValue(page: Page, originalXafValue: string, controlI
 
 /**
  * Workaround for DDT/Invoices pages where the grid DOM is empty on first load.
- * Toggles the filter (e.g. "Tutti" → "Oggi" → "Tutti") via real listbox clicks
- * to force the server to send cell data. SetSelectedIndex/SetValue don't trigger
- * the server callback — only real clicks on the listbox <td> items work.
+ * Toggles the filter (e.g. "Tutti" → "Oggi" → "Tutti") via the DevExpress
+ * SetValue API to force the server to send cell data.
  *
- * @param filterInputSelector — CSS selector for the filter input (e.g. 'input[name="Vertical$mainMenu$Menu$ITCNT4$xaf_a2$Cb"]')
- * @param listboxSelector — CSS selector for the listbox items container
- * @param tempItemText — text of the temporary filter value (e.g. "Oggi" or "Today")
- * @param finalItemText — text of the final filter value (e.g. "Tutti" or "All")
+ * Finds the combo control via window[input.name.replace(/\$/g, '_')], reads
+ * all items with GetItem(i) to map display text → internal XAF value, then
+ * calls SetValue(tempValue) and SetValue(allValue) in sequence.
  */
 async function forceGridRefreshViaFilterToggle(
   page: Page,
   filterInputSelector: string,
-  listboxSelector: string,
   tempItemTexts: string[],
   finalItemTexts: string[],
 ): Promise<boolean> {
-  // Step 1: Click the filter input to open dropdown
-  const filterInput = await (page as any).$(filterInputSelector);
-  if (!filterInput) {
-    logger.warn('[scraper] forceGridRefresh: filter input not found', { filterInputSelector });
-    return false;
-  }
+  type ScanResult =
+    | { ok: false; error: string }
+    | { ok: true; ctrlId: string; currentValue: string; tempValue: string; allValue: string };
 
-  await filterInput.click();
-  await new Promise(r => setTimeout(r, 1500));
+  const scan = await page.evaluate(
+    (inputSel: string, tempTexts: string[], finalTexts: string[]): ScanResult => {
+      const input = document.querySelector<HTMLInputElement>(inputSel);
+      if (!input) return { ok: false, error: 'no-input' };
 
-  // Step 2: Click the temporary item (e.g. "Oggi")
-  const clickedTemp = await page.evaluate((selector: string, texts: string[]) => {
-    const items = document.querySelectorAll(selector);
-    for (const item of Array.from(items)) {
-      const t = (item as HTMLElement).textContent?.trim();
-      if (t && texts.includes(t) && (item as HTMLElement).offsetParent !== null) {
-        (item as HTMLElement).click();
-        return t;
+      const ctrlId = input.name.replace(/\$/g, '_');
+      const w = window as any;
+      const ctrl = w[ctrlId];
+      if (!ctrl || typeof ctrl.GetValue !== 'function') {
+        return { ok: false, error: `no-ctrl:${ctrlId}` };
       }
-    }
-    return null;
-  }, listboxSelector, tempItemTexts);
 
-  if (!clickedTemp) {
-    logger.warn('[scraper] forceGridRefresh: temp item not found in dropdown');
-    return false;
-  }
+      const count: number = ctrl.GetItemCount();
+      if (!count) return { ok: false, error: 'no-items' };
 
-  logger.info('[scraper] forceGridRefresh: toggled to "%s", waiting for callback...', clickedTemp);
-  await waitForDevExpressIdle(page).catch(() => {});
-  await new Promise(r => setTimeout(r, 3000));
+      const currentValue = String(ctrl.GetValue() ?? '');
 
-  // Step 3: Click the filter input again to reopen dropdown
-  await filterInput.click();
-  await new Promise(r => setTimeout(r, 1500));
+      let allValue: string | null = null;
+      let tempValue: string | null = null;
 
-  // Step 4: Click the final item (e.g. "Tutti")
-  const clickedFinal = await page.evaluate((selector: string, texts: string[]) => {
-    const items = document.querySelectorAll(selector);
-    for (const item of Array.from(items)) {
-      const t = (item as HTMLElement).textContent?.trim();
-      if (t && texts.includes(t) && (item as HTMLElement).offsetParent !== null) {
-        (item as HTMLElement).click();
-        return t;
+      for (let i = 0; i < count; i++) {
+        const item = ctrl.GetItem(i);
+        const text = String(item.text ?? '');
+        const val = String(item.value ?? '');
+
+        if (finalTexts.includes(text)) {
+          allValue = val;
+        } else if (tempTexts.includes(text) && val !== currentValue && !tempValue) {
+          tempValue = val;
+        }
       }
-    }
-    return null;
-  }, listboxSelector, finalItemTexts);
 
-  if (!clickedFinal) {
-    logger.warn('[scraper] forceGridRefresh: final item not found in dropdown');
+      // If no preferred temp found, pick any item ≠ current and ≠ all
+      if (!tempValue) {
+        for (let i = 0; i < count; i++) {
+          const item = ctrl.GetItem(i);
+          const val = String(item.value ?? '');
+          if (val !== currentValue && val !== allValue) {
+            tempValue = val;
+            break;
+          }
+        }
+      }
+
+      if (!allValue) return { ok: false, error: 'no-all-value' };
+      if (!tempValue) return { ok: false, error: 'no-temp-value' };
+
+      return { ok: true, ctrlId, currentValue, tempValue, allValue };
+    },
+    filterInputSelector,
+    tempItemTexts,
+    finalItemTexts,
+  );
+
+  if (!scan.ok) {
+    logger.warn('[scraper] forceGridRefresh: %s', scan.error);
     return false;
   }
 
-  logger.info('[scraper] forceGridRefresh: toggled back to "%s", waiting for callback...', clickedFinal);
-  await waitForDevExpressIdle(page).catch(() => {});
-  await new Promise(r => setTimeout(r, 3000));
+  const { ctrlId, currentValue, tempValue, allValue } = scan;
+  logger.info('[scraper] forceGridRefresh: %s → %s → %s (ctrl: %s)', currentValue, tempValue, allValue, ctrlId);
 
+  await page.evaluate((id: string, val: string) => {
+    (window as any)[id].SetValue(val);
+  }, ctrlId, tempValue);
+  await waitForDevExpressIdle(page);
+
+  await page.evaluate((id: string, val: string) => {
+    (window as any)[id].SetValue(val);
+  }, ctrlId, allValue);
+  await waitForDevExpressIdle(page);
+
+  logger.info('[scraper] forceGridRefresh: done');
   return true;
 }
 

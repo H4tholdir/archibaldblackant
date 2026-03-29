@@ -108,8 +108,30 @@ async function scrapeListView(
     // Build the list of fieldNames sorted by visibleIndex
     const apiFieldNames = Object.keys(fieldMap).sort((a, b) => fieldMap[a] - fieldMap[b]);
 
-    // Try API extraction first (reliable, no DOM offset issues).
-    // Some pages (DDT, Invoices) don't support GetRowValues — detect and fall back to DOM.
+    // For pages that need a filter toggle to populate the grid (DDT, Invoices):
+    // apply the workaround BEFORE checking API support, because GetRowValues returns
+    // nothing when GetVisibleRowsOnPage() === 0 (grid not yet populated).
+    if (config.filterToggleWorkaround) {
+      const hasData = await page.evaluate(() => {
+        const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
+        return Array.from(rows).some(r =>
+          Array.from(r.querySelectorAll('td')).some(c => {
+            const t = (c.textContent || '').trim();
+            return t && t !== 'N/A' && !t.startsWith('<!--') && t.length > 1;
+          }),
+        );
+      });
+
+      if (!hasData) {
+        logger.info('[scraper] DOM is empty — applying filter toggle workaround before API detection');
+        const { filterInputSelector, tempItemTexts, finalItemTexts } = config.filterToggleWorkaround;
+        await forceGridRefreshViaFilterToggle(page, filterInputSelector, tempItemTexts, finalItemTexts);
+      }
+    }
+
+    // Try API extraction (reliable, no DOM offset issues).
+    // For DDT/Invoices: GetVisibleRowsOnPage() was 0 before the filter toggle above,
+    // which caused the API check to fail. Now that rows are visible, retry.
     const useApiExtraction = await page.evaluate((fields: string) => {
       return new Promise<boolean>((resolve) => {
         const w = window as any;
@@ -130,26 +152,6 @@ async function scrapeListView(
       logger.info('[scraper] Using GetRowValues API extraction (%d fields)', apiFieldNames.length);
     } else {
       logger.info('[scraper] GetRowValues not available — falling back to DOM extraction');
-
-      // Workaround: some pages (DDT, Invoices) have empty DOM on first load.
-      // Toggle the filter to force the server to send cell data.
-      if (config.filterToggleWorkaround) {
-        const hasData = await page.evaluate(() => {
-          const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
-          return Array.from(rows).some(r =>
-            Array.from(r.querySelectorAll('td')).some(c => {
-              const t = (c.textContent || '').trim();
-              return t && t !== 'N/A' && !t.startsWith('<!--') && t.length > 1;
-            }),
-          );
-        });
-
-        if (!hasData) {
-          logger.info('[scraper] DOM is empty — applying filter toggle workaround');
-          const { filterInputSelector, listboxSelector, tempItemTexts, finalItemTexts } = config.filterToggleWorkaround;
-          await forceGridRefreshViaFilterToggle(page, filterInputSelector, listboxSelector, tempItemTexts, finalItemTexts);
-        }
-      }
     }
 
     const extractor = buildRowExtractor(config.columns, fieldMap);
