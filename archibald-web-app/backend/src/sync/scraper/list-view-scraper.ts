@@ -4,6 +4,7 @@ import { logger } from '../../logger';
 import {
   waitForDevExpressIdle,
   getGridFieldMap,
+  gotoFirstPage,
   setGridPageSize,
   getVisibleRowCount,
   hasNextPage,
@@ -19,8 +20,45 @@ type ScrapeProgress = {
   totalRowsSoFar: number;
 };
 
-async function extractPageRows(page: Page): Promise<string[][]> {
+async function detectSystemColumnOffset(page: Page): Promise<number> {
   return page.evaluate(() => {
+    const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
+    const target = rows.length > 0
+      ? rows
+      : document.querySelectorAll('tr[class*="dxgvDataRow"]');
+
+    if (target.length === 0) return 0;
+
+    const firstRow = target[0];
+    const cells = firstRow.querySelectorAll('td');
+    let offset = 0;
+
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      const html = cell.innerHTML;
+      const text = cell.textContent?.trim() ?? '';
+
+      const isSystemCell =
+        text === '' ||
+        html.includes('<!--') ||
+        html.includes('ASPx') ||
+        html.includes('dxICheckBox') ||
+        html.includes('type="checkbox"') ||
+        cell.querySelector('img[id*="Img"]') !== null;
+
+      if (isSystemCell) {
+        offset++;
+      } else {
+        break;
+      }
+    }
+
+    return offset;
+  });
+}
+
+async function extractPageRows(page: Page, systemColumnOffset: number): Promise<string[][]> {
+  return page.evaluate((offset: number) => {
     const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme');
     const target = rows.length > 0
       ? rows
@@ -28,9 +66,10 @@ async function extractPageRows(page: Page): Promise<string[][]> {
 
     return Array.from(target).map((row) => {
       const cells = row.querySelectorAll('td');
-      return Array.from(cells).map((cell) => cell.textContent?.trim() ?? '');
+      const dataCells = Array.from(cells).slice(offset);
+      return dataCells.map((cell) => cell.textContent?.trim() ?? '');
     });
-  });
+  }, systemColumnOffset);
 }
 
 async function scrapeListView(
@@ -46,6 +85,8 @@ async function scrapeListView(
   await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await waitForDevExpressIdle(page);
 
+  await gotoFirstPage(page);
+
   if (config.filter) {
     const filterResult = await ensureFilterValue(
       page,
@@ -59,12 +100,15 @@ async function scrapeListView(
   try {
     await setGridPageSize(page, pageSize);
 
-    const fieldMap = await getGridFieldMap(page);
+    const { fieldMap } = await getGridFieldMap(page);
 
     const missingColumns = config.columns.filter((col) => !(col.fieldName in fieldMap));
     if (missingColumns.length > 0) {
       logger.warn('Missing columns in grid: %s', missingColumns.map((c) => c.fieldName).join(', '));
     }
+
+    const systemColumnOffset = await detectSystemColumnOffset(page);
+    logger.info('[scraper] Detected %d system column(s) to skip', systemColumnOffset);
 
     const extractor = buildRowExtractor(config.columns, fieldMap);
     const allRows: ScrapedRow[] = [];
@@ -74,7 +118,7 @@ async function scrapeListView(
       const rowCount = await getVisibleRowCount(page);
 
       if (rowCount > 0) {
-        const cellRows = await extractPageRows(page);
+        const cellRows = await extractPageRows(page, systemColumnOffset);
         const extracted = cellRows.map(extractor);
         allRows.push(...extracted);
 

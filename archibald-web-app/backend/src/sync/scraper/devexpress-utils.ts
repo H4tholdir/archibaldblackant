@@ -40,7 +40,12 @@ async function waitForDevExpressIdle(page: Page, timeout = DEFAULT_IDLE_TIMEOUT)
   );
 }
 
-async function getGridFieldMap(page: Page): Promise<Record<string, number>> {
+type GridFieldMapResult = {
+  fieldMap: Record<string, number>;
+  systemColumnCount: number;
+};
+
+async function getGridFieldMap(page: Page): Promise<GridFieldMapResult> {
   return page.evaluate(() => {
     const w = window as any;
 
@@ -51,18 +56,22 @@ async function getGridFieldMap(page: Page): Promise<Record<string, number>> {
         return false;
       }
     });
-    if (!gridName) return {};
+    if (!gridName) return { fieldMap: {}, systemColumnCount: 0 };
 
     const grid = w[gridName];
-    const columns: Array<{ fieldName: string; visibleIndex: number }> = [];
+    const allColumns: Array<{ fieldName: string; visibleIndex: number; visible: boolean }> = [];
     let i = 0;
 
     while (true) {
       try {
         const col = grid.GetColumn(i);
         if (!col) break;
-        if (col.visible !== false && col.fieldName) {
-          columns.push({ fieldName: col.fieldName, visibleIndex: col.visibleIndex });
+        if (col.visible !== false) {
+          allColumns.push({
+            fieldName: col.fieldName ?? '',
+            visibleIndex: col.visibleIndex,
+            visible: true,
+          });
         }
         i++;
       } catch {
@@ -70,14 +79,46 @@ async function getGridFieldMap(page: Page): Promise<Record<string, number>> {
       }
     }
 
-    columns.sort((a, b) => a.visibleIndex - b.visibleIndex);
+    allColumns.sort((a, b) => a.visibleIndex - b.visibleIndex);
 
+    let systemColumnCount = 0;
     const map: Record<string, number> = {};
-    columns.forEach((col, idx) => {
-      map[col.fieldName] = idx;
-    });
-    return map;
+    let dataIndex = 0;
+
+    for (const col of allColumns) {
+      if (!col.fieldName) {
+        systemColumnCount++;
+      } else {
+        map[col.fieldName] = dataIndex;
+        dataIndex++;
+      }
+    }
+
+    return { fieldMap: map, systemColumnCount };
   });
+}
+
+async function gotoFirstPage(page: Page): Promise<void> {
+  const wasNotFirst = await page.evaluate(() => {
+    const w = window as any;
+    const gridName = Object.keys(w).find((k) => {
+      try {
+        return w[k]?.GotoPage && typeof w[k].GotoPage === 'function' && w[k]?.GetColumn;
+      } catch {
+        return false;
+      }
+    });
+    if (gridName && w[gridName].GetPageIndex() !== 0) {
+      w[gridName].GotoPage(0);
+      return true;
+    }
+    return false;
+  });
+
+  if (wasNotFirst) {
+    await waitForDevExpressIdle(page);
+    logger.info('[scraper] Reset grid to page 0 (was on a different page)');
+  }
 }
 
 async function setGridPageSize(page: Page, size: number): Promise<void> {
@@ -254,6 +295,7 @@ async function restoreFilterValue(page: Page, originalXafValue: string, controlI
 export {
   waitForDevExpressIdle,
   getGridFieldMap,
+  gotoFirstPage,
   setGridPageSize,
   getVisibleRowCount,
   hasNextPage,
@@ -261,3 +303,4 @@ export {
   ensureFilterValue,
   restoreFilterValue,
 };
+export type { GridFieldMapResult };

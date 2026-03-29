@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
   waitForDevExpressIdle,
   getGridFieldMap,
+  gotoFirstPage,
   setGridPageSize,
   getVisibleRowCount,
   hasNextPage,
@@ -46,26 +47,31 @@ describe('waitForDevExpressIdle', () => {
 });
 
 describe('getGridFieldMap', () => {
-  test('returns fieldName-to-position map from grid columns', async () => {
-    const expectedMap = { SALESID: 0, CUSTACCOUNT: 1, AMOUNT: 2 };
+  test('returns fieldMap and systemColumnCount from grid columns', async () => {
     const page = createMockPage({
-      evaluate: vi.fn().mockResolvedValue(expectedMap),
+      evaluate: vi.fn().mockResolvedValue({
+        fieldMap: { SALESID: 0, CUSTACCOUNT: 1, AMOUNT: 2 },
+        systemColumnCount: 2,
+      }),
     });
 
     const result = await getGridFieldMap(page as any);
 
-    expect(result).toEqual({ SALESID: 0, CUSTACCOUNT: 1, AMOUNT: 2 });
+    expect(result).toEqual({
+      fieldMap: { SALESID: 0, CUSTACCOUNT: 1, AMOUNT: 2 },
+      systemColumnCount: 2,
+    });
     expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function));
   });
 
-  test('returns empty map when grid has no columns', async () => {
+  test('returns empty map and zero system columns when grid has no columns', async () => {
     const page = createMockPage({
-      evaluate: vi.fn().mockResolvedValue({}),
+      evaluate: vi.fn().mockResolvedValue({ fieldMap: {}, systemColumnCount: 0 }),
     });
 
     const result = await getGridFieldMap(page as any);
 
-    expect(result).toEqual({});
+    expect(result).toEqual({ fieldMap: {}, systemColumnCount: 0 });
   });
 });
 
@@ -183,6 +189,30 @@ describe('ensureFilterValue', () => {
     const result = await ensureFilterValue(page as any, 'OrdersAll', 'xaf_xaf_a2ListViewSalesTableOrdersAll');
 
     expect(result).toEqual({ originalXafValue: null, controlId: undefined });
+  });
+});
+
+describe('gotoFirstPage', () => {
+  test('calls GotoPage(0) and waits for idle when not on first page', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(true),
+    });
+
+    await gotoFirstPage(page as any);
+
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function));
+    expect(page.waitForFunction).toHaveBeenCalled();
+  });
+
+  test('skips idle wait when already on first page', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(false),
+    });
+
+    await gotoFirstPage(page as any);
+
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function));
+    expect(page.waitForFunction).not.toHaveBeenCalled();
   });
 });
 

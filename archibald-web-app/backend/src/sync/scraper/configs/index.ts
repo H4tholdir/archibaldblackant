@@ -4,4 +4,4 @@ export { ddtConfig } from './ddt';
 export { invoicesConfig } from './invoices';
 export { productsConfig } from './products';
 export { pricesConfig } from './prices';
-export { parseDate, parseNumber, parseBoolean, parseCurrency } from './parsers';
+export { parseDate, parseNumber, parseBoolean, parseCurrency, normalizeNumber, detectNumberFormat, disambiguateMDY } from './parsers';

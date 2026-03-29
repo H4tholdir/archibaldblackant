@@ -36,11 +36,15 @@ describe('scrapeListView', () => {
     const page = createMockPage();
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0, CUSTACCOUNT: 1 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0, CUSTACCOUNT: 1 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
+
+    // detectSystemColumnOffset is called via page.evaluate in the module
+    page.evaluate.mockResolvedValue(0);
 
     mockedMapper.buildRowExtractor.mockReturnValue(
       (cells: string[]) => ({ orderNumber: cells[0], customerCode: cells[1] }),
@@ -55,12 +59,15 @@ describe('scrapeListView', () => {
     const page = createMockPage();
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(0);
 
     await scrapeListView(page as any, baseConfig);
 
@@ -74,16 +81,19 @@ describe('scrapeListView', () => {
     const page = createMockPage();
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0, CUSTACCOUNT: 1 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0, CUSTACCOUNT: 1 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(2);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
-    page.evaluate.mockResolvedValue([
-      ['ORD-001', 'C100'],
-      ['ORD-002', 'C200'],
-    ]);
+    page.evaluate
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce([
+        ['ORD-001', 'C100'],
+        ['ORD-002', 'C200'],
+      ]);
 
     mockedMapper.buildRowExtractor.mockReturnValue(
       (cells: string[]) => ({ orderNumber: cells[0], customerCode: cells[1] }),
@@ -101,7 +111,8 @@ describe('scrapeListView', () => {
     const page = createMockPage();
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
@@ -113,6 +124,7 @@ describe('scrapeListView', () => {
     mockedUtils.goToNextPage.mockResolvedValue(undefined);
 
     page.evaluate
+      .mockResolvedValueOnce(0)
       .mockResolvedValueOnce([['ORD-001']])
       .mockResolvedValueOnce([['ORD-002']]);
 
@@ -137,13 +149,16 @@ describe('scrapeListView', () => {
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
     mockedUtils.restoreFilterValue.mockResolvedValue(undefined);
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(0);
 
     await scrapeListView(page as any, configWithFilter);
 
@@ -167,12 +182,15 @@ describe('scrapeListView', () => {
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(0);
 
     await scrapeListView(page as any, configWithFilter);
 
@@ -184,13 +202,16 @@ describe('scrapeListView', () => {
     const shouldStop = vi.fn().mockReturnValue(true);
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
     mockedUtils.hasNextPage.mockResolvedValue(true);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
-    page.evaluate.mockResolvedValue([['ORD-001']]);
+    page.evaluate
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce([['ORD-001']]);
 
     mockedMapper.buildRowExtractor.mockReturnValue(
       (cells: string[]) => ({ orderNumber: cells[0] }),
@@ -207,13 +228,16 @@ describe('scrapeListView', () => {
     const onProgress = vi.fn();
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(1);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
 
-    page.evaluate.mockResolvedValue([['ORD-001']]);
+    page.evaluate
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce([['ORD-001']]);
 
     mockedMapper.buildRowExtractor.mockReturnValue(
       (cells: string[]) => ({ orderNumber: cells[0] }),
@@ -236,12 +260,15 @@ describe('scrapeListView', () => {
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
-    mockedUtils.getGridFieldMap.mockResolvedValue({ SALESID: 0 });
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
     mockedUtils.setGridPageSize.mockResolvedValue(undefined);
     mockedUtils.getVisibleRowCount.mockResolvedValue(0);
     mockedUtils.hasNextPage.mockResolvedValue(false);
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
     mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(0);
 
     await scrapeListView(page as any, configWithPageSize);
 
@@ -256,6 +283,7 @@ describe('scrapeListView', () => {
     };
 
     mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
     mockedUtils.getGridFieldMap.mockRejectedValue(new Error('Grid not found'));
     mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: 'xaf_xaf_a2OpenOrders', controlId: 'ctrl1' });
     mockedUtils.restoreFilterValue.mockResolvedValue(undefined);
@@ -263,5 +291,33 @@ describe('scrapeListView', () => {
     await expect(scrapeListView(page as any, configWithFilter)).rejects.toThrow('Grid not found');
 
     expect(mockedUtils.restoreFilterValue).toHaveBeenCalledWith(page, 'xaf_xaf_a2OpenOrders', 'ctrl1');
+  });
+
+  test('calls gotoFirstPage after navigation and before filter', async () => {
+    const page = createMockPage();
+    const callOrder: string[] = [];
+
+    mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockImplementation(async () => { callOrder.push('gotoFirstPage'); });
+    mockedUtils.ensureFilterValue.mockImplementation(async () => {
+      callOrder.push('ensureFilterValue');
+      return { originalXafValue: null, controlId: undefined };
+    });
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
+    mockedUtils.setGridPageSize.mockResolvedValue(undefined);
+    mockedUtils.getVisibleRowCount.mockResolvedValue(0);
+    mockedUtils.hasNextPage.mockResolvedValue(false);
+    mockedMapper.buildRowExtractor.mockReturnValue(() => ({}));
+
+    page.evaluate.mockResolvedValue(0);
+
+    const configWithFilter: ScraperConfig = {
+      ...baseConfig,
+      filter: { xafValuePattern: 'OrdersAll', xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll' },
+    };
+
+    await scrapeListView(page as any, configWithFilter);
+
+    expect(callOrder).toEqual(['gotoFirstPage', 'ensureFilterValue']);
   });
 });
