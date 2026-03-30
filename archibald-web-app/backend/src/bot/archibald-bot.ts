@@ -9267,7 +9267,7 @@ export class ArchibaldBot {
         timeout: 60000,
       });
       const currentUrl = page.url();
-      if (currentUrl.includes('Login')) {
+      if (currentUrl.includes('Login.aspx')) {
         throw new Error(
           `SessionExpiredError: redirect to login page (expected: ${pageUrl}, got: ${currentUrl})`,
         );
