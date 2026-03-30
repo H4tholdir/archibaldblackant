@@ -58,4 +58,13 @@ describe('getNotificationRoute', () => {
   test('altri tipi non fedex non sono influenzati', () => {
     expect(getNotificationRoute(makeNotif('price_change'))).toBe('/prezzi-variazioni');
   });
+
+  test('order_documents_missing con orderNumber → /orders?highlight=ORD/26004189', () => {
+    expect(getNotificationRoute(makeNotif('order_documents_missing', { orderNumber: 'ORD/26004189' })))
+      .toBe('/orders?highlight=ORD/26004189');
+  });
+
+  test('order_documents_missing senza orderNumber → /orders', () => {
+    expect(getNotificationRoute(makeNotif('order_documents_missing'))).toBe('/orders');
+  });
 });

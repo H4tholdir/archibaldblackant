@@ -80,6 +80,10 @@ function getNotificationRoute(notification: Notification): string {
       return notification.data?.orderNumber
         ? `/orders?highlight=${String(notification.data.orderNumber)}`
         : '/orders';
+    case 'order_documents_missing':
+      return notification.data?.orderNumber
+        ? `/orders?highlight=${String(notification.data.orderNumber)}`
+        : '/orders';
     case 'budget_milestone':
       return '/revenue-report';
     default:
