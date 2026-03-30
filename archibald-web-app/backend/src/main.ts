@@ -67,6 +67,7 @@ import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from 
 import { createApp } from './server';
 import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
+import { retryOnSessionExpired } from './utils/retry-on-session-expired';
 import type { BrowserLike } from './bot/browser-pool';
 import type { OperationType } from './operations/operation-types';
 import type { OperationHandler } from './operations/operation-processor';
@@ -895,14 +896,7 @@ async function bootstrap(): Promise<void> {
               await browserPool.releaseContext(userId, ctx as never, contextHealthy);
             }
           };
-          try {
-            return await attemptDownload();
-          } catch (err) {
-            if (err instanceof Error && err.message.includes('SessionExpiredError')) {
-              return attemptDownload();
-            }
-            throw err;
-          }
+          return retryOnSessionExpired(attemptDownload);
         },
       }),
       async (syncedIds, syncedNames) => {
