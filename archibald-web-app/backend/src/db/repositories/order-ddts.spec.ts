@@ -70,6 +70,13 @@ describe('repositionOrderDdts', () => {
       ['user-1'],
     );
   });
+
+  test('strips dot thousand-separators from ddt_id before bigint cast', async () => {
+    const pool = createMockPool([{ rows: [], rowCount: 3 }]);
+    await repositionOrderDdts(pool, 'user-1');
+    const sql = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(sql).toContain("REPLACE(ddt_id, '.', '')");
+  });
 });
 
 describe('getDdtsForOrder', () => {

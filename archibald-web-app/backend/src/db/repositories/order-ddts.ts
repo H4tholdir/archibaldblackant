@@ -219,7 +219,7 @@ async function repositionOrderDdts(pool: DbPool, userId: string): Promise<void> 
        SELECT id,
          ROW_NUMBER() OVER (
            PARTITION BY order_id
-           ORDER BY NULLIF(ddt_id,'')::bigint ASC NULLS LAST
+           ORDER BY NULLIF(REPLACE(ddt_id, '.', ''), '')::bigint ASC NULLS LAST
          ) - 1 AS pos
        FROM agents.order_ddts WHERE user_id = $1
      ) subq
