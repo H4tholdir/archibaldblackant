@@ -552,6 +552,10 @@ describe('createSyncStatusRouter', () => {
     test('null returnvalue → real', () => {
       expect(classifyOutcome(null)).toBe('real');
     });
+
+    test('circuitBreakerSkipped takes precedence over rescheduled when both set', () => {
+      expect(classifyOutcome({ data: { circuitBreakerSkipped: true, rescheduled: true } })).toBe('circuit_breaker_skip');
+    });
   });
 
   describe('GET /api/sync/monitoring/sync-history', () => {
@@ -612,6 +616,23 @@ describe('createSyncStatusRouter', () => {
       setQueueJobs(deps, [
         makeMockJob({ finishedOn: 2000, returnvalue: { success: true, data: { circuitBreakerSkipped: true }, duration: 1 } }),
         makeMockJob({ finishedOn: 1000, failedReason: 'timeout' }),
+      ]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      const stats = res.body.types['sync-customers'];
+      expect(stats.consecutiveFailures).toBe(1);
+    });
+
+    test('real success stops consecutive failure streak', async () => {
+      const newestTime = 3_000_000;
+      const midTime = 2_000_000;
+      const oldestTime = 1_000_000;
+      setQueueJobs(deps, [
+        makeMockJob({ finishedOn: newestTime, failedReason: 'timeout' }),
+        makeMockJob({ finishedOn: midTime }),
+        makeMockJob({ finishedOn: oldestTime, failedReason: 'timeout' }),
       ]);
 
       const app = createApp(deps);
