@@ -30,6 +30,7 @@ async function handleDeleteOrder(
   data: DeleteOrderData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  broadcast?: (userId: string, event: Record<string, unknown>) => void,
 ): Promise<{ success: boolean; message: string }> {
   bot.setProgressCallback(async (category) => {
     const mapped = BOT_DELETE_PROGRESS_MAP[category];
@@ -80,14 +81,20 @@ async function handleDeleteOrder(
 
   onProgress(100, 'Ordine eliminato con successo');
 
+  broadcast?.(userId, { event: 'ORDER_DELETE_COMPLETE', orderId: data.orderId });
+
   return { success: true, message: result.message };
 }
 
-function createDeleteOrderHandler(pool: DbPool, createBot: (userId: string) => DeleteOrderBot): OperationHandler {
+function createDeleteOrderHandler(
+  pool: DbPool,
+  createBot: (userId: string) => DeleteOrderBot,
+  broadcast?: (userId: string, event: Record<string, unknown>) => void,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as DeleteOrderData;
-    const result = await handleDeleteOrder(pool, bot, typedData, userId, onProgress);
+    const result = await handleDeleteOrder(pool, bot, typedData, userId, onProgress, broadcast);
     return result as unknown as Record<string, unknown>;
   };
 }

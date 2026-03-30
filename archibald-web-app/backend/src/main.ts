@@ -606,7 +606,7 @@ async function bootstrap(): Promise<void> {
         deleteOrderFromArchibald: async (id) => { await ensureInit(); return bot.deleteOrderFromArchibald(id); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
-    }),
+    }, broadcastEvent),
     'edit-order': createEditOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
       let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;

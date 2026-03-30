@@ -1326,18 +1326,8 @@ function TabArticoli({
       }
 
       trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...');
-
-      await waitForJobViaWebSocket(result.jobId, {
-        subscribe,
-        maxWaitMs: 120_000,
-        onProgress: (progress, label) => {
-          onEditProgress?.({
-            progress,
-            operation: label ?? `Modifica in corso... ${progress}%`,
-          });
-        },
-      });
-
+      // Exit edit mode immediately — banner tracks progress,
+      // ORDER_EDIT_COMPLETE broadcast drives onEditDone when done.
       setSubmittingEdit(false);
       onEditProgress?.(null);
       onEditDone?.();
@@ -4275,8 +4265,8 @@ export function OrderCardNew({
       }
     });
     const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: unknown) => {
-      const p = payload as { recordId?: string };
-      if (p.recordId === order.id) {
+      const p = payload as { orderId?: string };
+      if (p.orderId === order.id) {
         setEditProgress(null);
         onEditDone?.();
       }
@@ -4316,8 +4306,8 @@ export function OrderCardNew({
       }
     });
     const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: unknown) => {
-      const p = payload as { recordId?: string };
-      if (p.recordId === order.id && !deleteHandledRef.current) {
+      const p = payload as { orderId?: string };
+      if (p.orderId === order.id && !deleteHandledRef.current) {
         deleteHandledRef.current = true;
         setDeleteProgress(null);
         setDeletingOrder(false);
@@ -4345,26 +4335,9 @@ export function OrderCardNew({
       }
 
       trackOperation(order.id, result.jobId, order.customerName || order.id, 'Eliminazione ordine...');
-
-      if (deleteHandledRef.current) return;
-      setDeleteProgress({ progress: 20, operation: "Eliminazione in corso..." });
-
-      await waitForJobViaWebSocket(result.jobId, {
-        subscribe,
-        maxWaitMs: 120_000,
-        onProgress: (progress, label) => {
-          if (!deleteHandledRef.current) {
-            setDeleteProgress({ progress, operation: label ?? "Eliminazione in corso..." });
-          }
-        },
-      });
-
-      if (!deleteHandledRef.current) {
-        deleteHandledRef.current = true;
-        setDeleteProgress(null);
-        setDeletingOrder(false);
-        onDeleteDone?.();
-      }
+      // Clear local progress bar — banner tracks progress.
+      // ORDER_DELETE_COMPLETE broadcast drives cleanup and onDeleteDone when done.
+      setDeleteProgress(null);
     } catch (err) {
       console.error("Delete order failed:", err);
       setDeleteProgress(null);

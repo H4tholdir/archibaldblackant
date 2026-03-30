@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useKeyboardScroll } from '../hooks/useKeyboardScroll';
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 import { toastService } from '../services/toast.service';
+import { useOperationTracking } from '../contexts/OperationTrackingContext';
 import type { MissingFieldKey } from '../utils/customer-completeness';
 
 interface CustomerQuickFixProps {
@@ -52,6 +53,7 @@ export function CustomerQuickFix({
   const isDesktop = window.innerWidth >= 1024;
   const { modalOverlayKeyboardStyle, keyboardPaddingStyle, scrollFieldIntoView } =
     useKeyboardScroll();
+  const { trackOperation } = useOperationTracking();
 
   const inputKeys = buildInputKeys(missingFields);
 
@@ -112,6 +114,7 @@ export function CustomerQuickFix({
         data.postalCodeCity = values.city;
 
       const { jobId } = await enqueueOperation('update-customer', data);
+      trackOperation(erpId, jobId, customerName, 'Aggiornamento cliente...');
       await pollJobUntilDone(jobId, {
         maxWaitMs: 120_000,
         onProgress: (p) => setProgress(p),

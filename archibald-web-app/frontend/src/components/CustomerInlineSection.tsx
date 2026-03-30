@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 import { toastService } from '../services/toast.service';
+import { useOperationTracking } from '../contexts/OperationTrackingContext';
 
 export type SectionField = {
   key: string;
@@ -29,6 +30,7 @@ export function CustomerInlineSection({
   onSaved,
   columns = 2,
 }: CustomerInlineSectionProps) {
+  const { trackOperation } = useOperationTracking();
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(
     () => Object.fromEntries(fields.map((f) => [f.key, f.value ?? ''])),
@@ -71,6 +73,7 @@ export function CustomerInlineSection({
         }
       }
       const { jobId } = await enqueueOperation('update-customer', data);
+      trackOperation(erpId, jobId, customerName, 'Aggiornamento cliente...');
       await pollJobUntilDone(jobId, {
         maxWaitMs: 120_000,
         onProgress: (p) => setProgress(p),

@@ -18,7 +18,6 @@ import {
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { waitForJobViaWebSocket } from "../api/operations";
 import { customerService } from "../services/customers.service";
 import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useHiddenOrders } from "../hooks/useHiddenOrders";
@@ -786,27 +785,12 @@ export function OrderHistory() {
         }
       } else {
         trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...');
-        await waitForJobViaWebSocket(data.jobId, {
-          subscribe,
-          maxWaitMs: 200_000,
-          onProgress: (progress, label) => {
-            setSendToVeronaProgress({
-              progress,
-              operation: label ?? "Invio in corso...",
-            });
-          },
-        });
       }
 
       setSentToVeronaIds((prev) => new Set(prev).add(modalOrderId));
-
       setModalOpen(false);
       setModalOrderId(null);
       setModalCustomerName("");
-
-      await fetchOrders({ background: true });
-
-      toastService.success("Ordine inviato a Verona con successo!");
     } catch (err) {
       console.error("Error sending to Verona:", err);
       setError(
