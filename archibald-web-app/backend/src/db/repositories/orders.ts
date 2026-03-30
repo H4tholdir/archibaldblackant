@@ -469,10 +469,10 @@ async function getOrdersByUser(
   const { rows } = await pool.query<OrderRow>(
     `SELECT o.*, ovs.verification_status, ovs.verification_notes,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
-       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.position = 0
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
-       FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id AND i.position = 0
+       FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
       ) AS invoices_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id

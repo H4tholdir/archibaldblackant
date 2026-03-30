@@ -197,7 +197,7 @@ describe('createOperationProcessor', () => {
       agentLock: busyLock,
       handlers: { 'sync-customers': vi.fn().mockResolvedValue({}) } as any,
     });
-    const idempotencyKey = 'key-1-s1000-s2000'; // 2 reschedules = MAX_SCHEDULED_RESCHEDULE_COUNT
+    const idempotencyKey = 'key-1-s1000-s2000-s3000-s4000-s5000'; // 5 reschedules = MAX_SCHEDULED_RESCHEDULE_COUNT
     const job = createMockJob({ type: 'sync-customers', idempotencyKey });
 
     const result = await processor.processJob(job as any);

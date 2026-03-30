@@ -926,25 +926,27 @@ export function OrderHistory() {
           }
 
           case "inTransit":
-            matches = !order.deliveryConfirmedAt && (
-              order.trackingStatus === 'in_transit'
-              || order.trackingStatus === 'out_for_delivery'
-              || order.trackingStatus === 'exception'
-              || order.trackingStatus === 'pending'
+            matches = !order.ddts.every(d => !!d.deliveryConfirmedAt) && (
+              order.ddts.some(d =>
+                d.trackingStatus === 'in_transit'
+                || d.trackingStatus === 'out_for_delivery'
+                || d.trackingStatus === 'exception'
+                || d.trackingStatus === 'pending'
+              )
               || isInTransit(order)
             );
             break;
 
           case "delivered":
-            matches = !!order.deliveryConfirmedAt;
+            matches = order.ddts.some(d => !!d.deliveryConfirmedAt);
             break;
 
           case "invoiced":
-            matches = !!order.invoiceNumber && !isInvoicePaid(order) && !isOverdue(order);
+            matches = !!order.invoices[0]?.invoiceNumber && !isInvoicePaid(order) && !isOverdue(order);
             break;
 
           case "paid":
-            matches = !!order.invoiceNumber && isInvoicePaid(order);
+            matches = !!order.invoices[0]?.invoiceNumber && isInvoicePaid(order);
             break;
 
           case "overdue":
@@ -1118,11 +1120,13 @@ export function OrderHistory() {
       color: "#0066cc",
       bgColor: "#e8f0ff",
       count: ordersForCounts.filter((o) =>
-        !o.deliveryConfirmedAt && (
-          o.trackingStatus === 'in_transit'
-          || o.trackingStatus === 'out_for_delivery'
-          || o.trackingStatus === 'exception'
-          || o.trackingStatus === 'pending'
+        !o.ddts.every(d => !!d.deliveryConfirmedAt) && (
+          o.ddts.some(d =>
+            d.trackingStatus === 'in_transit'
+            || d.trackingStatus === 'out_for_delivery'
+            || d.trackingStatus === 'exception'
+            || d.trackingStatus === 'pending'
+          )
           || isInTransit(o)
         )
       ).length,
@@ -1132,21 +1136,21 @@ export function OrderHistory() {
       label: "\ud83d\udce6 Consegnati",
       color: "#0277BD",
       bgColor: "#B3E5FC",
-      count: ordersForCounts.filter((o) => !!o.deliveryConfirmedAt).length,
+      count: ordersForCounts.filter((o) => o.ddts.some(d => !!d.deliveryConfirmedAt)).length,
     },
     {
       id: "invoiced",
       label: "\ud83d\udcd1 Fatturati",
       color: "#6633cc",
       bgColor: "#f2eaff",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isInvoicePaid(o) && !isOverdue(o)).length,
+      count: ordersForCounts.filter((o) => !!o.invoices[0]?.invoiceNumber && !isInvoicePaid(o) && !isOverdue(o)).length,
     },
     {
       id: "paid",
       label: "\u2705 Pagati",
       color: "#006666",
       bgColor: "#e6f5f5",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber && isInvoicePaid(o)).length,
+      count: ordersForCounts.filter((o) => !!o.invoices[0]?.invoiceNumber && isInvoicePaid(o)).length,
     },
     {
       id: "overdue",
