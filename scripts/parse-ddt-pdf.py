@@ -140,7 +140,7 @@ def extract_tracking_info(text: str) -> tuple:
     return (tracking_number, courier_name, tracking_url)
 
 
-EXPECTED_CYCLE_SIZE = 6
+EXPECTED_CYCLE_SIZE = 7
 
 
 def _detect_cycle_size(pdf_path: str) -> int:

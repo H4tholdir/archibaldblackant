@@ -291,7 +291,7 @@ async function getCustomers(
          AND ${wordConditions}
        ORDER BY
          CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
-         CASE WHEN TO_DATE(NULLIF(last_order_date, ''), 'DD/MM/YYYY') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END,
+         CASE WHEN TO_DATE(NULLIF(last_order_date, ''), 'YYYY-MM-DD') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END,
          name ASC
        LIMIT 100`,
       [userId, ...patterns],

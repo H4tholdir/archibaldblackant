@@ -60,7 +60,10 @@ import { getEncryptedPassword } from './db/repositories/users';
 import { PDFParserSaleslinesService } from './pdf-parser-saleslines-service';
 import { PDFParserDDTService } from './pdf-parser-ddt-service';
 import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
-import { adaptDdt, adaptInvoice } from './parser-adapters';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { pdfParserService } from './pdf-parser-service';
+import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from './parser-adapters';
 import { createApp } from './server';
 import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
@@ -462,6 +465,8 @@ async function bootstrap(): Promise<void> {
   const saleslinesParser = PDFParserSaleslinesService.getInstance();
   const ddtParser = PDFParserDDTService.getInstance();
   const invoicesParser = PDFParserInvoicesService.getInstance();
+  const ordersParser = PDFParserOrdersService.getInstance();
+  const productsParser = PDFParserProductsService.getInstance();
 
   const broadcastEvent = (userId: string, event: Record<string, unknown>) => {
     wsServer.broadcast(userId, {
@@ -726,13 +731,25 @@ async function bootstrap(): Promise<void> {
         });
       },
     }), 'Prezzi'),
-    'sync-customers': withAnomalyNotification(createSyncCustomersHandler({
+    'sync-customers': withAnomalyNotification(createSyncCustomersHandler(
       pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
+      async (pdfPath) => {
+        const result = await pdfParserService.parsePDF(pdfPath);
+        return result.customers.map(adaptCustomer);
       },
-      onDeletedCustomers: async (deletedInfos) => {
+      cleanupFile,
+      (userId) => ({
+        downloadCustomersPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+      async (deletedInfos) => {
         const uniqueAgentIds = [...new Set(deletedInfos.flatMap((d) => d.affectedAgentIds))];
 
         for (const agentId of uniqueAgentIds) {
@@ -760,7 +777,7 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-      onRestoredCustomers: async (restoredInfos) => {
+      async (restoredInfos) => {
         const uniqueAgentIds = [...new Set(restoredInfos.flatMap((r) => r.affectedAgentIds))];
 
         for (const agentId of uniqueAgentIds) {
@@ -788,14 +805,23 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-    }), 'Clienti'),
-    'sync-orders': createSyncOrdersHandler({
+    ), 'Clienti'),
+    'sync-orders': createSyncOrdersHandler(
       pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
-      },
-    }),
+      async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),
+      cleanupFile,
+      (userId) => ({
+        downloadOrdersPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadOrdersPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+    ),
     'sync-ddt': createSyncDdtHandler(
       pool,
       async (pdfPath) => (await ddtParser.parseDDTPDF(pdfPath)).map(adaptDdt),
@@ -828,13 +854,22 @@ async function bootstrap(): Promise<void> {
         },
       }),
     ),
-    'sync-products': withAnomalyNotification(createSyncProductsHandler({
+    'sync-products': withAnomalyNotification(createSyncProductsHandler(
       pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
-      },
-      softDeleteGhosts: async (syncedIds, syncedNames) => {
+      async (pdfPath) => (await productsParser.parsePDF(pdfPath)).map(adaptProduct),
+      cleanupFile,
+      (userId) => ({
+        downloadProductsPdf: async () => {
+          const bot = createBotForUser(userId);
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          try {
+            return await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
+          } finally {
+            await browserPool.releaseContext(userId, ctx as never, true);
+          }
+        },
+      }),
+      async (syncedIds, syncedNames) => {
         const ghostIds = await findDeletedProducts(pool, syncedIds);
         if (ghostIds.length === 0) return 0;
         const placeholders = ghostIds.map((_, i) => `$${i + 1}`).join(',');
@@ -850,8 +885,8 @@ async function bootstrap(): Promise<void> {
         );
         return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
       },
-      trackProductCreated: (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
-      onProductsChanged: async (newProducts, ghostsDeleted) => {
+      (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
+      async (newProducts, ghostsDeleted) => {
         const parts: string[] = [];
         if (newProducts > 0) parts.push(`${newProducts} nuovo/i`);
         if (ghostsDeleted > 0) parts.push(`${ghostsDeleted} rimosso/i dal catalogo`);
@@ -864,7 +899,7 @@ async function bootstrap(): Promise<void> {
           data: { newProducts, ghostsDeleted },
         });
       },
-      onProductsMissingVat: async () => {
+      async () => {
         const { rows } = await pool.query<{ count: number }>(
           `SELECT COUNT(*)::int AS count FROM shared.products WHERE vat IS NULL AND deleted_at IS NULL`,
         );
@@ -886,7 +921,7 @@ async function bootstrap(): Promise<void> {
           data: { missingVatCount: missingCount },
         });
       },
-    }), 'Prodotti'),
+    ), 'Prodotti'),
     'sync-tracking': createSyncTrackingHandler(
       pool,
       async (type, orderNumber) => {

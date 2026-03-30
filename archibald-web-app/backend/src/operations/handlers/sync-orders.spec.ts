@@ -1,22 +1,15 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
 import type { OrderSyncResult } from '../../sync/services/order-sync';
-import type { BrowserPoolLike } from './sync-orders';
 
 vi.mock('../../sync/services/order-sync', () => ({
   syncOrders: vi.fn(),
 }));
 
-vi.mock('../../sync/scraper/list-view-scraper', () => ({
-  scrapeListView: vi.fn(),
-}));
-
 import { syncOrders } from '../../sync/services/order-sync';
-import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { createSyncOrdersHandler } from './sync-orders';
 
 const syncOrdersMock = vi.mocked(syncOrders);
-const scrapeListViewMock = vi.mocked(scrapeListView);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,28 +24,11 @@ function createMockPool(): DbPool {
   };
 }
 
-function createMockPage() {
-  return {
-    close: vi.fn().mockResolvedValue(undefined),
-  };
-}
+const pdfPath = '/tmp/orders.pdf';
 
-function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
-  const mockCtx = {
-    newPage: vi.fn().mockResolvedValue(mockPage),
-  };
-  return {
-    browserPool: {
-      acquireContext: vi.fn().mockResolvedValue(mockCtx),
-      releaseContext: vi.fn().mockResolvedValue(undefined),
-    },
-    mockCtx,
-  };
-}
-
-const sampleScrapedRows = [
-  { orderNumber: 'SO-001', customerName: 'Acme Corp', date: '2026-01-15' },
-  { orderNumber: 'SO-002', customerName: 'Beta Inc', date: '2026-01-16' },
+const sampleParsedOrders = [
+  { orderNumber: 'ORD/001', customerName: 'Acme Corp' },
+  { orderNumber: 'ORD/002', customerName: 'Beta Inc' },
 ];
 
 const sampleResult: OrderSyncResult = {
@@ -66,115 +42,53 @@ const sampleResult: OrderSyncResult = {
 };
 
 describe('createSyncOrdersHandler', () => {
-  test('scrapes orders and passes them to syncOrders via adapter', async () => {
+  test('downloads PDF, parses it, and passes orders to syncOrders', async () => {
     const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const mockBot = { downloadOrdersPdf: vi.fn().mockResolvedValue(pdfPath) };
+    const createBot = vi.fn().mockReturnValue(mockBot);
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
     syncOrdersMock.mockResolvedValue(sampleResult);
 
-    const handler = createSyncOrdersHandler({ pool, browserPool });
+    const handler = createSyncOrdersHandler(pool, parsePdf, cleanupFile, createBot);
     const onProgress = vi.fn();
     const result = await handler(null, {}, 'user-1', onProgress);
 
-    expect(browserPool.acquireContext).toHaveBeenCalledWith('user-1', { fromQueue: true });
-    expect(mockCtx.newPage).toHaveBeenCalled();
-    expect(scrapeListViewMock).toHaveBeenCalledWith(
-      mockPage,
-      expect.objectContaining({ url: expect.any(String), columns: expect.any(Array) }),
-      expect.any(Function),
-      expect.any(Function),
-    );
+    expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncOrdersMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pool,
-        downloadPdf: expect.any(Function),
-        parsePdf: expect.any(Function),
-        cleanupFile: expect.any(Function),
-      }),
+      expect.objectContaining({ pool, downloadPdf: expect.any(Function), parsePdf, cleanupFile }),
       'user-1',
       onProgress,
       expect.any(Function),
     );
     expect(result).toEqual(sampleResult);
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, true);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
-  test('adapter downloadPdf returns dummy path, parsePdf returns scraped rows', async () => {
+  test('downloadPdf calls bot.downloadOrdersPdf', async () => {
     const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const mockBot = { downloadOrdersPdf: vi.fn().mockResolvedValue(pdfPath) };
+    const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncOrdersMock.mockImplementation(async (deps) => {
-      const pdfPath = await deps.downloadPdf('user-1');
-      const parsed = await deps.parsePdf(pdfPath);
-      return {
-        ...sampleResult,
-        ordersProcessed: parsed.length,
-      };
+      const path = await deps.downloadPdf('user-1');
+      return { ...sampleResult, ordersInserted: path === pdfPath ? 1 : 0 };
     });
 
-    const handler = createSyncOrdersHandler({ pool, browserPool });
+    const handler = createSyncOrdersHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
-    expect(result).toEqual(expect.objectContaining({ ordersProcessed: 2 }));
-  });
-
-  test('adapter cleanupFile is a no-op', async () => {
-    const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
-
-    syncOrdersMock.mockImplementation(async (deps) => {
-      await deps.cleanupFile('/some/path');
-      return sampleResult;
-    });
-
-    const handler = createSyncOrdersHandler({ pool, browserPool });
-    await expect(handler(null, {}, 'user-1', vi.fn())).resolves.toEqual(sampleResult);
-  });
-
-  test('error during scraping: releaseContext(success=false), syncOrders not called', async () => {
-    const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
-
-    scrapeListViewMock.mockRejectedValue(new Error('Navigation timeout'));
-
-    const handler = createSyncOrdersHandler({ pool, browserPool });
-
-    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('Navigation timeout');
-
-    expect(syncOrdersMock).not.toHaveBeenCalled();
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
-  });
-
-  test('error during sync: releaseContext(success=false), page closed', async () => {
-    const pool = createMockPool();
-    const mockPage = createMockPage();
-    const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
-    syncOrdersMock.mockRejectedValue(new Error('DB error'));
-
-    const handler = createSyncOrdersHandler({ pool, browserPool });
-
-    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB error');
-
-    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
+    expect(mockBot.downloadOrdersPdf).toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ ordersInserted: 1 }));
   });
 
   test('shouldStop always returns false', async () => {
     const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadOrdersPdf: vi.fn().mockResolvedValue(pdfPath) });
 
     let capturedShouldStop: (() => boolean) | undefined;
     syncOrdersMock.mockImplementation(async (_deps, _userId, _onProgress, shouldStop) => {
@@ -182,10 +96,21 @@ describe('createSyncOrdersHandler', () => {
       return sampleResult;
     });
 
-    const handler = createSyncOrdersHandler({ pool, browserPool });
+    const handler = createSyncOrdersHandler(pool, parsePdf, cleanupFile, createBot);
     await handler(null, {}, 'user-1', vi.fn());
 
-    expect(capturedShouldStop).toBeDefined();
     expect(capturedShouldStop!()).toBe(false);
+  });
+
+  test('propagates error from syncOrders', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadOrdersPdf: vi.fn().mockResolvedValue(pdfPath) });
+
+    syncOrdersMock.mockRejectedValue(new Error('DB error'));
+
+    const handler = createSyncOrdersHandler(pool, parsePdf, cleanupFile, createBot);
+    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB error');
   });
 });
