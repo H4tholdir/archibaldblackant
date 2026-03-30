@@ -15,7 +15,7 @@ vi.mock('./config', () => ({
       enrichment: { concurrency: 3, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: true },
       'shared-sync': { concurrency: 1, lockDuration: 900000, stalledInterval: 60000, removeOnComplete: true },
     },
-    browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000 },
+    browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
   },
 }));
 

@@ -90,6 +90,7 @@ export const config = {
     maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
     maxContextsPerBrowser: parseInt(process.env.BROWSER_POOL_MAX_CONTEXTS || "8", 10),
     contextExpiryMs: parseInt(process.env.BROWSER_POOL_CONTEXT_EXPIRY_MS || "1800000", 10),
+    serviceAccountContextExpiryMs: parseInt(process.env.BROWSER_POOL_SERVICE_ACCOUNT_CONTEXT_EXPIRY_MS || "900000", 10),
   },
   dropbox: {
     refreshToken: process.env.DROPBOX_REFRESH_TOKEN || "",

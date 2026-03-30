@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { createBrowserPool } from './browser-pool';
 import type { BrowserPoolConfig } from './browser-pool';
 
@@ -227,5 +227,59 @@ describe('createBrowserPool', () => {
 
     expect(browsers[0].close).toHaveBeenCalled();
     expect(browsers[1].close).toHaveBeenCalled();
+  });
+
+  describe('service-account context expiry', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test('service-account context is evicted after serviceAccountContextExpiryMs', async () => {
+      const serviceAccountExpiryMs = 15 * 60 * 1000;
+      const config: BrowserPoolConfig = {
+        ...defaultConfig,
+        contextExpiryMs: 30 * 60 * 1000,
+        serviceAccountContextExpiryMs: serviceAccountExpiryMs,
+      };
+      const browser = createMockBrowser();
+      launchFn.mockResolvedValue(browser);
+
+      vi.useFakeTimers();
+      const pool = createBrowserPool(config, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('service-account', { fromQueue: true });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(serviceAccountExpiryMs + 1000);
+
+      await pool.acquireContext('service-account', { fromQueue: true });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+    });
+
+    test('non-service-account context is NOT evicted after serviceAccountContextExpiryMs', async () => {
+      const serviceAccountExpiryMs = 15 * 60 * 1000;
+      const config: BrowserPoolConfig = {
+        ...defaultConfig,
+        contextExpiryMs: 30 * 60 * 1000,
+        serviceAccountContextExpiryMs: serviceAccountExpiryMs,
+      };
+      const mockCtx = createMockContext();
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      vi.useFakeTimers();
+      const pool = createBrowserPool(config, launchFn);
+      await pool.initialize();
+
+      const ctx1 = await pool.acquireContext('agent-1', { fromQueue: true });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(serviceAccountExpiryMs + 1000);
+
+      const ctx2 = await pool.acquireContext('agent-1', { fromQueue: true });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+      expect(ctx2).toBe(ctx1);
+    });
   });
 });

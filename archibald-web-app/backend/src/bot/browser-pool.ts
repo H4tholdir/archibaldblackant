@@ -33,6 +33,7 @@ type BrowserPoolConfig = {
   maxBrowsers: number;
   maxContextsPerBrowser: number;
   contextExpiryMs: number;
+  serviceAccountContextExpiryMs?: number;
   launchOptions: Record<string, unknown>;
   sessionValidationUrl: string;
   loginFn?: LoginFn;
@@ -52,6 +53,10 @@ type BrowserPoolStats = {
   maxContexts: number;
   cachedContexts: Array<{ userId: string; age: number; lastUsed: number }>;
 };
+
+function isServiceUser(userId: string): boolean {
+  return userId === 'service-account' || userId.endsWith('-service') || userId === 'sync-orchestrator';
+}
 
 function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   const browsers: Array<BrowserLike | null> = [];
@@ -177,7 +182,10 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     const cached = contextPool.get(userId);
     if (cached) {
       const age = Date.now() - cached.createdAt;
-      if (age < poolConfig.contextExpiryMs) {
+      const expiryMs = poolConfig.serviceAccountContextExpiryMs !== undefined && isServiceUser(userId)
+        ? poolConfig.serviceAccountContextExpiryMs
+        : poolConfig.contextExpiryMs;
+      if (age < expiryMs) {
         const isValid = await validateSession(cached.context);
         if (isValid) {
           cached.lastUsedAt = Date.now();
