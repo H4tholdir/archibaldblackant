@@ -54,10 +54,17 @@ function adaptCustomer(p: ParserCustomer): ParsedCustomer {
   };
 }
 
+function normalizeOrderId(raw: string): string {
+  const stripped = raw.replace(/\./g, '');
+  return /^\d+$/.test(stripped) ? stripped : raw;
+}
+
 function adaptOrder(p: ParserOrder): ParsedOrder {
+  const id = normalizeOrderId(p.id);
+  const orderNumber = p.order_number ? normalizeOrderId(p.order_number) : undefined;
   return {
-    id: p.id,
-    orderNumber: n(p.order_number) ?? p.id,
+    id,
+    orderNumber: orderNumber ?? id,
     customerAccountNum: n(p.customer_profile_id),
     customerName: n(p.customer_name) ?? '',
     date: p.creation_date,

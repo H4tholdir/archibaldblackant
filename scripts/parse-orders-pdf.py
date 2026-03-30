@@ -253,6 +253,12 @@ def parse_orders_pdf(pdf_path: str):
                         print(f"WARNING: Skipping suspicious order with non-numeric ID '{order_id}' but valid customer '{customer_name}' at row {row_idx}, cycle {cycle_start}", file=sys.stderr)
                         continue
 
+                    # Normalize order_id: strip thousands separator from numeric IDs
+                    # (e.g. "51.847" → "51847", "ORD/123" left unchanged)
+                    stripped = order_id.replace(".", "")
+                    if stripped.isdigit():
+                        order_id = stripped
+
                     # Allow orders without order_number (ID DI VENDITA) - these are pending orders
                     # waiting for Milano processing or intervention
 
