@@ -145,3 +145,14 @@ LOGO-FRESIS*.jpeg
 .planning/CUSTOMER_SCRAPING_*.md
 VPS-ACCESS-CREDENTIALS.md
 .playwright-mcp/
+
+# ===== Screenshots / diagnostics =====
+*.png
+erp-explore-report/
+erp-wizard-shots/
+docs/diagnostics/*.png
+docs/diagnostics/*.json
+
+# ===== Python cache =====
+__pycache__/
+*.pyc
