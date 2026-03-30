@@ -49,6 +49,18 @@ describe('withAnomalyNotification', () => {
     expect(notifyFn).not.toHaveBeenCalled();
   });
 
+  test('returns result and skips notification when handler returns success: false with no error field', async () => {
+    const handler = vi.fn().mockResolvedValue({ success: false });
+    const notifyFn = vi.fn().mockResolvedValue(undefined);
+
+    const wrapped = withAnomalyNotification(handler, 'Prodotti', notifyFn);
+
+    const result = await wrapped(mockContext, {}, 'service-account', mockOnProgress);
+
+    expect(result).toEqual({ success: false });
+    expect(notifyFn).not.toHaveBeenCalled();
+  });
+
   test('truncates error body to 300 characters in the notification', async () => {
     const longError = 'e'.repeat(400);
     const handler = vi.fn().mockResolvedValue({ success: false, error: longError });
