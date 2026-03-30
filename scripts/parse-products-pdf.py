@@ -141,38 +141,40 @@ class ProductsPDFParserOptimized:
         # Process each cycle with fresh PDF instance (critical for memory!)
         for cycle in range(cycles):
             base_idx = cycle * self.PAGES_PER_CYCLE
-
-            # Re-open PDF for this cycle only - forces garbage collection
-            with pdfplumber.open(self.pdf_path) as pdf:
-                # Extract tables for this cycle only (not all pages!)
-                cycle_tables = []
-                for offset in range(self.PAGES_PER_CYCLE):
-                    page_idx = base_idx + offset
-                    if page_idx < total_pages:
-                        page = pdf.pages[page_idx]
-                        tables = page.extract_tables()
-                        if tables:
-                            # Diagnostic: dump headers for first cycle
-                            if cycle == 0 and tables[0] and len(tables[0]) > 0:
-                                headers = [(h or '').strip() for h in tables[0][0]]
-                                rows_count = len(tables[0]) - 1
-                                print(f"DIAG_PAGE:{offset+1}/{self.PAGES_PER_CYCLE} headers={headers} rows={rows_count}", file=sys.stderr)
-                            # Skip header row, get data rows only
-                            table_data = tables[0][1:] if len(tables[0]) > 1 else []
-                            cycle_tables.append(table_data)
+            try:
+                # Re-open PDF for this cycle only - forces garbage collection
+                with pdfplumber.open(self.pdf_path) as pdf:
+                    # Extract tables for this cycle only (not all pages!)
+                    cycle_tables = []
+                    for offset in range(self.PAGES_PER_CYCLE):
+                        page_idx = base_idx + offset
+                        if page_idx < total_pages:
+                            page = pdf.pages[page_idx]
+                            tables = page.extract_tables()
+                            if tables:
+                                # Diagnostic: dump headers for first cycle
+                                if cycle == 0 and tables[0] and len(tables[0]) > 0:
+                                    headers = [(h or '').strip() for h in tables[0][0]]
+                                    rows_count = len(tables[0]) - 1
+                                    print(f"DIAG_PAGE:{offset+1}/{self.PAGES_PER_CYCLE} headers={headers} rows={rows_count}", file=sys.stderr)
+                                # Skip header row, get data rows only
+                                table_data = tables[0][1:] if len(tables[0]) > 1 else []
+                                cycle_tables.append(table_data)
+                            else:
+                                cycle_tables.append([])
                         else:
                             cycle_tables.append([])
-                    else:
-                        cycle_tables.append([])
 
-            # Parse this cycle and yield products
-            # (PDF context closed here, memory freed before next cycle)
-            products = self._parse_single_cycle(cycle_tables)
-            for product in products:
-                yield product
+                # Parse this cycle and yield products
+                # (PDF context closed here, memory freed before next cycle)
+                products = self._parse_single_cycle(cycle_tables)
+                for product in products:
+                    yield product
 
-            # Clear cycle data to free memory
-            del cycle_tables
+                # Clear cycle data to free memory
+                del cycle_tables
+            except Exception as e:
+                print(f"CYCLE_PARSE_ERROR:cycle={cycle} base_idx={base_idx} error={str(e)}", file=sys.stderr)
 
     def parse(self) -> List[ParsedProduct]:
         """
@@ -375,6 +377,10 @@ def main():
         products_list = []
         for product in parser.parse_streaming():
             products_list.append(asdict(product))
+
+        if len(products_list) == 0:
+            print(json.dumps({"error": "Parse produced 0 products — aborting to prevent catalog wipe"}))
+            sys.exit(1)
 
         # Output as JSON
         output = {
