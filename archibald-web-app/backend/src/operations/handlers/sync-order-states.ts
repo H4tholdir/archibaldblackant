@@ -7,7 +7,7 @@ import type { OperationHandler } from '../operation-processor';
 type OrderState =
   | 'creato'
   | 'piazzato'
-  | 'inviato_milano'
+  | 'inviato_verona'
   | 'modifica'
   | 'trasferito'
   | 'transfer_error'
@@ -37,7 +37,7 @@ type StateSyncResult = {
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
 const VERIFICATION_RESOLVING_STATES: ReadonlySet<OrderState> = new Set([
-  'inviato_milano', 'trasferito', 'ordine_aperto', 'spedito',
+  'inviato_verona', 'trasferito', 'ordine_aperto', 'spedito',
   'consegnato', 'fatturato', 'pagamento_scaduto', 'pagato',
 ]);
 
@@ -126,12 +126,12 @@ function detectOrderState(order: Order): StateDetection {
     };
   }
 
-  if (!order.sentToMilanoAt) {
+  if (!order.sentToVeronaAt) {
     return {
       state: 'piazzato',
       confidence: 'high',
       source: 'database',
-      notes: 'Order sent to Archibald but not yet sent to Milano',
+      notes: 'Order sent to Archibald but not yet sent to Verona',
     };
   }
 
@@ -172,10 +172,10 @@ function detectOrderState(order: Order): StateDetection {
   }
 
   return {
-    state: 'inviato_milano',
+    state: 'inviato_verona',
     confidence: 'medium',
     source: 'inferred',
-    notes: 'Sent to Milano but further state unclear',
+    notes: 'Sent to Verona but further state unclear',
   };
 }
 

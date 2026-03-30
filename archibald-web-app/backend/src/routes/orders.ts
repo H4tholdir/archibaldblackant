@@ -256,7 +256,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
-  router.post('/:orderId/send-to-milano', async (req: AuthRequest, res) => {
+  router.post('/:orderId/send-to-verona', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const { orderId } = req.params;
@@ -266,11 +266,11 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         return res.status(404).json({ success: false, error: `Order ${orderId} not found` });
       }
 
-      if (order.sentToMilanoAt) {
+      if (order.sentToVeronaAt) {
         return res.json({
           success: true,
-          message: `Order ${orderId} was already sent to Milano`,
-          data: { orderId, sentToMilanoAt: order.sentToMilanoAt, state: order.state },
+          message: `Order ${orderId} was already sent to Verona`,
+          data: { orderId, sentToVeronaAt: order.sentToVeronaAt, state: order.state },
         });
       }
 
@@ -305,8 +305,8 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       const jobId = await queue.enqueue('send-to-verona', userId, { orderId });
       res.json({ success: true, jobId });
     } catch (error) {
-      logger.error('Error enqueuing send-to-milano', { error });
-      res.status(500).json({ success: false, error: 'Errore invio ordine a Milano' });
+      logger.error('Error enqueuing send-to-verona', { error });
+      res.status(500).json({ success: false, error: 'Errore invio ordine a Verona' });
     }
   });
 

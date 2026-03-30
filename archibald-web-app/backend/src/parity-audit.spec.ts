@@ -155,7 +155,7 @@ const masterEndpoints: EndpointEntry[] = [
   { method: 'GET', masterPath: '/api/orders/:id', branchPath: '/api/orders/:orderId', auth: 'auth' },
   { method: 'GET', masterPath: '/api/orders/:orderId/articles', branchPath: '/api/orders/:orderId/articles', auth: 'auth' },
   { method: 'GET', masterPath: '/api/orders/:orderId/state-history', branchPath: '/api/orders/:orderId/history', auth: 'auth', note: 'master /state-history → branch /history' },
-  { method: 'POST', masterPath: '/api/orders/:orderId/send-to-milano', branchPath: '/api/orders/:orderId/send-to-milano', auth: 'auth' },
+  { method: 'POST', masterPath: '/api/orders/:orderId/send-to-verona', branchPath: '/api/orders/:orderId/send-to-verona', auth: 'auth' },
   { method: 'GET', masterPath: '/api/orders/:orderId/pdf-download', branchPath: '/api/orders/:orderId/pdf-download', auth: 'auth' },
   { method: 'POST', masterPath: '/api/orders/:orderId/sync-articles', branchPath: '/api/orders/:orderId/sync-articles', auth: 'auth' },
   { method: 'POST', masterPath: '/api/orders/sync-states', branchPath: '/api/orders/sync-states', auth: 'auth' },

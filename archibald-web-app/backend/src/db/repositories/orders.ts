@@ -130,7 +130,7 @@ type Order = {
   lastSync: number;
   createdAt: string;
   state: string | null;
-  sentToMilanoAt: string | null;
+  sentToVeronaAt: string | null;
   archibaldOrderId: string | null;
   totalVatAmount: string | null;
   totalWithVat: string | null;
@@ -297,7 +297,7 @@ function mapRowToOrder(row: OrderRow): Order {
     lastSync: row.last_sync,
     createdAt: row.created_at,
     state: row.current_state,
-    sentToMilanoAt: row.sent_to_verona_at,
+    sentToVeronaAt: row.sent_to_verona_at,
     archibaldOrderId: row.archibald_order_id,
     totalVatAmount: row.total_vat_amount,
     totalWithVat: row.total_with_vat,

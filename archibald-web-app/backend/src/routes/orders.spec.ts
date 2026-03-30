@@ -70,7 +70,7 @@ const mockOrder = {
   invoiceLastSettlementDate: null,
   invoiceClosedDate: null,
   state: 'created',
-  sentToMilanoAt: null,
+  sentToVeronaAt: null,
   archibaldOrderId: 'ARC-001',
   totalVatAmount: null,
   totalWithVat: null,
@@ -335,12 +335,12 @@ describe('createOrdersRouter', () => {
     });
   });
 
-  describe('POST /api/orders/:orderId/send-to-milano', () => {
-    const sendableOrder = { ...mockOrder, transferStatus: 'modifica', sentToMilanoAt: null };
+  describe('POST /api/orders/:orderId/send-to-verona', () => {
+    const sendableOrder = { ...mockOrder, transferStatus: 'modifica', sentToVeronaAt: null };
 
     test('enqueues send-to-verona job for sendable order', async () => {
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(sendableOrder);
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -350,7 +350,7 @@ describe('createOrdersRouter', () => {
 
     test('enqueues when state is ERP-derived (ordine_aperto) but transferStatus is modifica', async () => {
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...sendableOrder, state: 'ordine_aperto' });
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -359,7 +359,7 @@ describe('createOrdersRouter', () => {
 
     test('enqueues when state is transfer_error and transferStatus is modifica (retry)', async () => {
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...sendableOrder, state: 'transfer_error' });
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -368,14 +368,14 @@ describe('createOrdersRouter', () => {
 
     test('returns 404 for unknown order', async () => {
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      const res = await request(app).post('/api/orders/UNKNOWN/send-to-milano');
+      const res = await request(app).post('/api/orders/UNKNOWN/send-to-verona');
 
       expect(res.status).toBe(404);
     });
 
     test('returns early success if already sent', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, sentToMilanoAt: '2026-01-20T10:00:00Z' });
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, sentToVeronaAt: '2026-01-20T10:00:00Z' });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -384,8 +384,8 @@ describe('createOrdersRouter', () => {
     });
 
     test('returns 400 when transferStatus is not modifica', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: 'trasferito', sentToMilanoAt: null });
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: 'trasferito', sentToVeronaAt: null });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('non inviabile');
@@ -393,8 +393,8 @@ describe('createOrdersRouter', () => {
     });
 
     test('returns 400 when transferStatus is null', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: null, sentToMilanoAt: null });
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: null, sentToVeronaAt: null });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('non inviabile');
@@ -408,7 +408,7 @@ describe('createOrdersRouter', () => {
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(incompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(false);
 
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
@@ -427,7 +427,7 @@ describe('createOrdersRouter', () => {
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(mockCompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(true);
 
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -439,7 +439,7 @@ describe('createOrdersRouter', () => {
       deps.getCustomerByProfile = undefined;
       deps.isCustomerComplete = undefined;
 
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

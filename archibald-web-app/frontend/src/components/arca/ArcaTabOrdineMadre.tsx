@@ -29,7 +29,7 @@ const STATE_LABELS: Record<string, string> = {
   piazzato: "Piazzato",
   ordine_aperto: "Ordine Aperto",
   modifica: "Modifica",
-  inviato_milano: "Inviato Milano",
+  inviato_verona: "Inviato Verona",
   trasferito: "Trasferito",
   spedito: "Spedito",
   consegnato: "Consegnato",
@@ -42,7 +42,7 @@ const STATE_LABELS: Record<string, string> = {
 const STATE_ORDER = [
   "piazzato",
   "ordine_aperto",
-  "inviato_milano",
+  "inviato_verona",
   "trasferito",
   "spedito",
   "consegnato",

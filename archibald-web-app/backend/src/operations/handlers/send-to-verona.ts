@@ -34,9 +34,9 @@ async function handleSendToVerona(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   broadcast?: (userId: string, event: { type: string; payload: unknown }) => void,
-): Promise<{ success: boolean; message: string; sentToMilanoAt: string }> {
+): Promise<{ success: boolean; message: string; sentToVeronaAt: string }> {
   if (data.orderId.startsWith('ghost-')) {
-    return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToMilanoAt: '' };
+    return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToVeronaAt: '' };
   }
 
   bot.setProgressCallback(async (category) => {
@@ -55,18 +55,18 @@ async function handleSendToVerona(
     throw new Error(result.message);
   }
 
-  const sentToMilanoAt = new Date().toISOString();
+  const sentToVeronaAt = new Date().toISOString();
 
   onProgress(70, 'Aggiornamento stato ordine');
 
-  await ordersRepo.updateOrderState(pool, userId, data.orderId, 'inviato_milano', 'system', result.message, null, 'send-to-verona');
+  await ordersRepo.updateOrderState(pool, userId, data.orderId, 'inviato_verona', 'system', result.message, null, 'send-to-verona');
 
   await pool.query(
     'UPDATE agents.order_records SET sent_to_verona_at = $1 WHERE id = $2 AND user_id = $3',
-    [sentToMilanoAt, data.orderId, userId],
+    [sentToVeronaAt, data.orderId, userId],
   );
 
-  await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToMilanoAt });
+  await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToVeronaAt });
 
   broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId: data.orderId } });
 
@@ -118,7 +118,7 @@ async function handleSendToVerona(
 
     await pool.query(
       `UPDATE agents.fresis_history
-       SET arca_data = $1, invoice_number = $2, current_state = 'inviato_milano',
+       SET arca_data = $1, invoice_number = $2, current_state = 'inviato_verona',
            state_updated_at = NOW(), updated_at = NOW()
        WHERE id = $3 AND user_id = $4`,
       [JSON.stringify(arcaData), invoiceNumber, row.id, userId],
@@ -129,7 +129,7 @@ async function handleSendToVerona(
 
   await pool.query(
     `UPDATE agents.fresis_history
-     SET current_state = 'inviato_milano', state_updated_at = NOW(), updated_at = NOW()
+     SET current_state = 'inviato_verona', state_updated_at = NOW(), updated_at = NOW()
      WHERE user_id = $1
        AND merged_into_order_id = $2
        AND source = 'app'`,
@@ -138,7 +138,7 @@ async function handleSendToVerona(
 
   onProgress(100, 'Invio completato');
 
-  return { success: true, message: result.message, sentToMilanoAt };
+  return { success: true, message: result.message, sentToVeronaAt };
 }
 
 function createSendToVeronaHandler(

@@ -40,7 +40,7 @@ describe('handleSendToVerona', () => {
     expect(bot.sendOrderToVerona).toHaveBeenCalledWith('ORD-001');
   });
 
-  test('updates order state to inviato_milano via updateOrderState', async () => {
+  test('updates order state to inviato_verona via updateOrderState', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -51,7 +51,7 @@ describe('handleSendToVerona', () => {
       (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.order_records SET current_state'),
     );
     expect(stateUpdateCall).toBeDefined();
-    expect(stateUpdateCall![1]).toEqual(['inviato_milano', expect.any(Number), 'ORD-001', 'user-1']);
+    expect(stateUpdateCall![1]).toEqual(['inviato_verona', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
   test('executes 7 DB queries for audit trail, warehouse mark-sold, fresis lookup, and sibling propagation', async () => {
@@ -85,21 +85,21 @@ describe('handleSendToVerona', () => {
 
     const params = historyInsert![1] as unknown[];
     expect(params).toEqual([
-      'ORD-001', 'user-1', 'bozza', 'inviato_milano',
+      'ORD-001', 'user-1', 'bozza', 'inviato_verona',
       'system', 'Sent to Verona', null, 'send-to-verona',
       expect.any(String), expect.any(String),
     ]);
   });
 
-  test('returns success with sentToMilanoAt timestamp', async () => {
+  test('returns success with sentToVeronaAt timestamp', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     const result = await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     expect(result.success).toBe(true);
-    expect(result.sentToMilanoAt).toBeDefined();
-    expect(typeof result.sentToMilanoAt).toBe('string');
+    expect(result.sentToVeronaAt).toBeDefined();
+    expect(typeof result.sentToVeronaAt).toBe('string');
   });
 
   test('throws when bot returns success: false', async () => {
@@ -167,7 +167,7 @@ describe('handleSendToVerona', () => {
     expect(updateParams[3]).toBe('user-1');
   });
 
-  test('propagates inviato_milano state to merged sibling fresis_history records', async () => {
+  test('propagates inviato_verona state to merged sibling fresis_history records', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -177,7 +177,7 @@ describe('handleSendToVerona', () => {
     const siblingUpdate = calls[6];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
     expect(siblingUpdate[0]).toContain('merged_into_order_id');
-    expect(siblingUpdate[0]).toContain("current_state = 'inviato_milano'");
+    expect(siblingUpdate[0]).toContain("current_state = 'inviato_verona'");
     expect(siblingUpdate[1]).toEqual(['user-1', 'ORD-001']);
   });
 
