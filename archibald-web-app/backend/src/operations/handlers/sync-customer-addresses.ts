@@ -24,7 +24,7 @@ type SyncCustomerAddressesData = {
 
 type SyncCustomerAddressesBot = {
   initialize: () => Promise<void>;
-  navigateToEditCustomerForm: (name: string) => Promise<void>;
+  navigateToCustomerByErpId: (erpId: string) => Promise<void>;
   readAltAddresses: () => Promise<AltAddress[]>;
   close: () => Promise<void>;
 };
@@ -63,7 +63,7 @@ async function handleSyncCustomerAddresses(
         const { erpId, customerName } = customers[i];
         onProgress(Math.floor((i / customers.length) * 90) + 5, `${customerName} (${i + 1}/${customers.length})`);
         try {
-          await bot.navigateToEditCustomerForm(customerName);
+          await bot.navigateToCustomerByErpId(erpId);
           const addresses = await bot.readAltAddresses();
           await upsertAddressesForCustomer(pool, userId, erpId, addresses);
           await setAddressesSyncedAt(pool, userId, erpId);
@@ -102,7 +102,7 @@ async function handleSyncCustomerAddresses(
   onProgress(10, 'Navigazione al cliente');
   await bot.initialize();
   try {
-    await bot.navigateToEditCustomerForm(data.customerName!);
+    await bot.navigateToCustomerByErpId(data.erpId!);
     const addresses = await bot.readAltAddresses();
     onProgress(60, 'Salvataggio indirizzi');
     await upsertAddressesForCustomer(pool, userId, data.erpId!, addresses);

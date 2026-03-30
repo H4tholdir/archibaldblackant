@@ -711,7 +711,7 @@ async function bootstrap(): Promise<void> {
       const bot = createBotForUser(userId);
       return {
         initialize: async () => bot.initialize(),
-        navigateToEditCustomerForm: async (name) => bot.navigateToEditCustomerForm(name),
+        navigateToCustomerByErpId: async (erpId) => bot.navigateToCustomerByErpId(erpId),
         readAltAddresses: async () => bot.readAltAddresses(),
         close: async () => bot.close(),
       };

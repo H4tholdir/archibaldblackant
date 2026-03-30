@@ -41,7 +41,7 @@ function createMockPool(): DbPool {
 function createMockBot(addresses: AltAddress[] = mockAltAddresses): SyncCustomerAddressesBot {
   return {
     initialize: vi.fn().mockResolvedValue(undefined),
-    navigateToEditCustomerForm: vi.fn().mockResolvedValue(undefined),
+    navigateToCustomerByErpId: vi.fn().mockResolvedValue(undefined),
     readAltAddresses: vi.fn().mockResolvedValue(addresses),
     close: vi.fn().mockResolvedValue(undefined),
   };
@@ -56,7 +56,7 @@ describe('handleSyncCustomerAddresses', () => {
     const result = await handleSyncCustomerAddresses(pool, bot, data, userId, onProgress);
 
     expect(bot.initialize).toHaveBeenCalledOnce();
-    expect(bot.navigateToEditCustomerForm).toHaveBeenCalledWith(data.customerName);
+    expect(bot.navigateToCustomerByErpId).toHaveBeenCalledWith(data.erpId);
     expect(bot.readAltAddresses).toHaveBeenCalledOnce();
     expect(pool.withTransaction).toHaveBeenCalledOnce();
     const updateCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -116,9 +116,9 @@ describe('handleSyncCustomerAddresses', () => {
       const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, onProgress);
 
       expect(bot.initialize).toHaveBeenCalledOnce();
-      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
-      expect(bot.navigateToEditCustomerForm).toHaveBeenNthCalledWith(1, 'Rossi Mario');
-      expect(bot.navigateToEditCustomerForm).toHaveBeenNthCalledWith(2, 'Verdi Luca');
+      expect(bot.navigateToCustomerByErpId).toHaveBeenCalledTimes(2);
+      expect(bot.navigateToCustomerByErpId).toHaveBeenNthCalledWith(1, 'CUST-001');
+      expect(bot.navigateToCustomerByErpId).toHaveBeenNthCalledWith(2, 'CUST-002');
       expect(bot.readAltAddresses).toHaveBeenCalledTimes(2);
       expect(bot.close).toHaveBeenCalledOnce();
       expect(result).toEqual({ addressesCount: mockAltAddresses.length * 2, errorsCount: 0 });
@@ -139,14 +139,14 @@ describe('handleSyncCustomerAddresses', () => {
     it('skips a failing customer and continues with the next', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
-      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+      (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('nav error'))
         .mockResolvedValueOnce(undefined);
       const onProgress = vi.fn();
 
       const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, onProgress);
 
-      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
+      expect(bot.navigateToCustomerByErpId).toHaveBeenCalledTimes(2);
       expect(bot.close).toHaveBeenCalledOnce();
       expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 1 });
     });
@@ -154,7 +154,7 @@ describe('handleSyncCustomerAddresses', () => {
     it('closes bot even if all customers fail', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
-      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('nav error'));
+      (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('nav error'));
 
       await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
 
@@ -165,7 +165,7 @@ describe('handleSyncCustomerAddresses', () => {
       const protocolError = new Error('Protocol error: Connection closed. Most likely the page has been closed.');
       const pool = createMockPool();
       const bot = createMockBot();
-      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+      (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(protocolError)
         .mockResolvedValueOnce(undefined);
 
@@ -173,7 +173,7 @@ describe('handleSyncCustomerAddresses', () => {
 
       expect(bot.close).toHaveBeenCalledTimes(2); // once for recovery, once in finally
       expect(bot.initialize).toHaveBeenCalledTimes(2); // once at start, once for recovery
-      expect(bot.navigateToEditCustomerForm).toHaveBeenCalledTimes(2);
+      expect(bot.navigateToCustomerByErpId).toHaveBeenCalledTimes(2);
       expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 1 });
     });
 
@@ -182,7 +182,7 @@ describe('handleSyncCustomerAddresses', () => {
       const pageNullError = new Error('Browser page is null'); // page is null after failed reinit
       const pool = createMockPool();
       const bot = createMockBot();
-      (bot.navigateToEditCustomerForm as ReturnType<typeof vi.fn>)
+      (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(protocolError)
         .mockRejectedValueOnce(pageNullError); // page is dead because reinit failed
       (bot.initialize as ReturnType<typeof vi.fn>)
