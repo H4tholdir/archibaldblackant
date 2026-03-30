@@ -3,7 +3,7 @@
 OPTIMIZED PDF Products Parser - Memory-efficient streaming parser
 
 Key optimizations:
-1. Process 8-page cycles one at a time (not all pages at once)
+1. Process 9-page cycles one at a time (not all pages at once)
 2. Yield products as generator to avoid building huge list in memory
 3. Clear cycle data after processing to free memory
 4. Target: <500MB RAM usage (down from 7GB)
@@ -31,7 +31,7 @@ except ImportError:
 
 @dataclass
 class ParsedProduct:
-    """Structured product data from PDF (8-page cycle)"""
+    """Structured product data from PDF (9-page cycle)"""
     # Page 1 fields (0)
     id_articolo: str
     nome_articolo: str
@@ -52,40 +52,43 @@ class ParsedProduct:
     qta_multipli: Optional[str] = None
     qta_massima: Optional[str] = None
     figura: Optional[str] = None
-    id_blocco_articolo: Optional[str] = None
-    pacco_gamba: Optional[str] = None
+    dataareaid: Optional[str] = None
+    id_prodotto: Optional[str] = None
+    datetime_modificato: Optional[str] = None
 
     # Page 5 fields (4)
+    fermato: Optional[str] = None
+    id_blocco_articolo: Optional[str] = None
+    pacco_gamba: Optional[str] = None
     grandezza: Optional[str] = None
     id_configurazione: Optional[str] = None
-    creato_da: Optional[str] = None
-    data_creata: Optional[str] = None
-    dataareaid: Optional[str] = None
 
     # Page 6 fields (5)
+    creato_da: Optional[str] = None
+    data_creata: Optional[str] = None
     qta_predefinita: Optional[str] = None
     visualizza_numero_prodotto: Optional[str] = None
-    sconto_assoluto_totale: Optional[str] = None
-    id_prodotto: Optional[str] = None
 
     # Page 7 fields (6)
+    sconto_assoluto_totale: Optional[str] = None
     sconto_linea: Optional[str] = None
     modificato_da: Optional[str] = None
-    datetime_modificato: Optional[str] = None
     articolo_ordinabile: Optional[str] = None
 
     # Page 8 fields (7)
     purch_price: Optional[str] = None
     pcs_id_configurazione_standard: Optional[str] = None
     qta_standard: Optional[str] = None
-    fermato: Optional[str] = None
+    id_elemento_ivaid: Optional[str] = None
+
+    # Page 9 fields (8)
     id_unita: Optional[str] = None
 
 
 class ProductsPDFParserOptimized:
     """Memory-efficient streaming parser for Archibald products PDF export"""
 
-    PAGES_PER_CYCLE = 8
+    PAGES_PER_CYCLE = 9
 
     def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
@@ -199,10 +202,11 @@ class ProductsPDFParserOptimized:
         page5_data = get_page(5)
         page6_data = get_page(6)
         page7_data = get_page(7)
+        page8_data = get_page(8)
 
         # All pages should have same number of rows
         all_pages = [page0_data, page1_data, page2_data, page3_data,
-                     page4_data, page5_data, page6_data, page7_data]
+                     page4_data, page5_data, page6_data, page7_data, page8_data]
         max_rows = max((len(p) for p in all_pages), default=0)
 
         # Combine data row by row
@@ -215,8 +219,9 @@ class ProductsPDFParserOptimized:
             page5 = page5_data[row_idx] if row_idx < len(page5_data) else []
             page6 = page6_data[row_idx] if row_idx < len(page6_data) else []
             page7 = page7_data[row_idx] if row_idx < len(page7_data) else []
+            page8 = page8_data[row_idx] if row_idx < len(page8_data) else []
 
-            # Combine all fields from 8 pages
+            # Combine all fields from 9 pages
             page1_fields = self._parse_page_1(page1)
             page2_fields = self._parse_page_2(page2)
             page3_fields = self._parse_page_3(page3)
@@ -224,6 +229,7 @@ class ProductsPDFParserOptimized:
             page5_fields = self._parse_page_5(page5)
             page6_fields = self._parse_page_6(page6)
             page7_fields = self._parse_page_7(page7)
+            page8_fields = self._parse_page_8(page8)
 
             # Page 0 has ID + Name + Description
             id_articolo = (page0[0] or '').strip() if len(page0) > 0 else None
@@ -242,6 +248,7 @@ class ProductsPDFParserOptimized:
                     **page5_fields,
                     **page6_fields,
                     **page7_fields,
+                    **page8_fields,
                 )
                 products.append(product)
 
@@ -278,87 +285,102 @@ class ProductsPDFParserOptimized:
         }
 
     def _parse_page_3(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 4: QTÀ MULTIPLI, QTÀ MASSIMA, FIGURA, ID IN BLOCCO DELL'ARTICOLO, PACCO, GAMBA
-        Columns: [QTA_MULTIPLI, QTA_MASSIMA, FIGURA, ID_BLOCCO_ARTICOLO, PACCO, GAMBA]
-        Note: PACCO (col 4) and GAMBA (col 5) are combined into pacco_gamba
+        """Parse page 4: QTÀ MULTIPLI, QTÀ MASSIMA, FIGURA, DATAAREAID, ID, DATETIME MODIFICATO
+        Columns: [QTA_MULTIPLI, QTA_MASSIMA, FIGURA, DATAAREAID, ID, DATETIME_MODIFICATO]
         """
         qta_multipli = (row[0] or '').strip() if len(row) > 0 else None
         qta_massima = (row[1] or '').strip() if len(row) > 1 else None
         figura = (row[2] or '').strip() if len(row) > 2 else None
-        id_blocco_articolo = (row[3] or '').strip() if len(row) > 3 else None
-
-        # Combine PACCO (col 4) and GAMBA (col 5) into pacco_gamba
-        pacco = (row[4] or '').strip() if len(row) > 4 else ''
-        gamba = (row[5] or '').strip() if len(row) > 5 else ''
-        pacco_gamba = f"{pacco}{gamba}".strip() if pacco or gamba else None
+        dataareaid = (row[3] or '').strip() if len(row) > 3 else None
+        id_prodotto = (row[4] or '').strip() if len(row) > 4 else None
+        datetime_modificato = (row[5] or '').strip() if len(row) > 5 else None
 
         return {
             'qta_multipli': qta_multipli,
             'qta_massima': qta_massima,
             'figura': figura,
-            'id_blocco_articolo': id_blocco_articolo,
-            'pacco_gamba': pacco_gamba,
+            'dataareaid': dataareaid,
+            'id_prodotto': id_prodotto,
+            'datetime_modificato': datetime_modificato,
         }
 
     def _parse_page_4(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 5: GRANDEZZA, ID DI CONFIGURAZIONE, CREATO DA, DATA CREATA, DATAAREAID"""
-        grandezza = (row[0] or '').strip() if len(row) > 0 else None
-        id_configurazione = (row[1] or '').strip() if len(row) > 1 else None
-        creato_da = (row[2] or '').strip() if len(row) > 2 else None
-        data_creata = (row[3] or '').strip() if len(row) > 3 else None
-        dataareaid = (row[4] or '').strip() if len(row) > 4 else None
+        """Parse page 5: FERMATO, ID IN BLOCCO ARTICOLO, PACCO, GAMBA, GRANDEZZA, ID CONFIGURAZIONE
+        Columns: [FERMATO, ID_BLOCCO_ARTICOLO, PACCO, GAMBA, GRANDEZZA, ID_CONFIGURAZIONE]
+        Note: PACCO (col 2) and GAMBA (col 3) are combined into pacco_gamba
+        """
+        fermato = (row[0] or '').strip() if len(row) > 0 else None
+        id_blocco_articolo = (row[1] or '').strip() if len(row) > 1 else None
+
+        pacco = (row[2] or '').strip() if len(row) > 2 else ''
+        gamba = (row[3] or '').strip() if len(row) > 3 else ''
+        pacco_gamba = f"{pacco}{gamba}".strip() if pacco or gamba else None
+
+        grandezza = (row[4] or '').strip() if len(row) > 4 else None
+        id_configurazione = (row[5] or '').strip() if len(row) > 5 else None
 
         return {
+            'fermato': fermato,
+            'id_blocco_articolo': id_blocco_articolo,
+            'pacco_gamba': pacco_gamba,
             'grandezza': grandezza,
             'id_configurazione': id_configurazione,
-            'creato_da': creato_da,
-            'data_creata': data_creata,
-            'dataareaid': dataareaid,
         }
 
     def _parse_page_5(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 6: QTÀ PREDEFINITA, VISUALIZZA IL NUMERO DI PRODOTTO, SCONTO ASSOLUTO TOTALE, ID"""
-        qta_predefinita = (row[0] or '').strip() if len(row) > 0 else None
-        visualizza_numero_prodotto = (row[1] or '').strip() if len(row) > 1 else None
-        sconto_assoluto_totale = (row[2] or '').strip() if len(row) > 2 else None
-        id_prodotto = (row[3] or '').strip() if len(row) > 3 else None
+        """Parse page 6: CREATO DA, DATA CREATA, QTÀ PREDEFINITA, VISUALIZZA NUMERO PRODOTTO
+        Columns: [CREATO_DA, DATA_CREATA, QTA_PREDEFINITA, VISUALIZZA_NUMERO_PRODOTTO]
+        """
+        creato_da = (row[0] or '').strip() if len(row) > 0 else None
+        data_creata = (row[1] or '').strip() if len(row) > 1 else None
+        qta_predefinita = (row[2] or '').strip() if len(row) > 2 else None
+        visualizza_numero_prodotto = (row[3] or '').strip() if len(row) > 3 else None
 
         return {
+            'creato_da': creato_da,
+            'data_creata': data_creata,
             'qta_predefinita': qta_predefinita,
             'visualizza_numero_prodotto': visualizza_numero_prodotto,
-            'sconto_assoluto_totale': sconto_assoluto_totale,
-            'id_prodotto': id_prodotto,
         }
 
     def _parse_page_6(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 7: SCONTO LINEA, MODIFICATO DA, DATETIME MODIFICATO, ARTICOLO ORDINABILE"""
-        sconto_linea = (row[0] or '').strip() if len(row) > 0 else None
-        modificato_da = (row[1] or '').strip() if len(row) > 1 else None
-        datetime_modificato = (row[2] or '').strip() if len(row) > 2 else None
+        """Parse page 7: SCONTO ASSOLUTO TOTALE, SCONTO LINEA, MODIFICATO DA, ARTICOLO ORDINABILE
+        Columns: [SCONTO_ASSOLUTO_TOTALE, SCONTO_LINEA, MODIFICATO_DA, ARTICOLO_ORDINABILE]
+        """
+        sconto_assoluto_totale = (row[0] or '').strip() if len(row) > 0 else None
+        sconto_linea = (row[1] or '').strip() if len(row) > 1 else None
+        modificato_da = (row[2] or '').strip() if len(row) > 2 else None
         articolo_ordinabile = (row[3] or '').strip() if len(row) > 3 else None
 
         return {
+            'sconto_assoluto_totale': sconto_assoluto_totale,
             'sconto_linea': sconto_linea,
             'modificato_da': modificato_da,
-            'datetime_modificato': datetime_modificato,
             'articolo_ordinabile': articolo_ordinabile,
         }
 
     def _parse_page_7(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 8: PURCH PRICE, PCS ID DI CONFIGURAZIONE STANDARD, QTÀ STANDARD, FERMATO, ID UNITÀ"""
+        """Parse page 8: PURCH PRICE PCS, ID CONFIGURAZIONE STANDARD, QTÀ STANDARD, ID ELEMENTO IVAID
+        Columns: [PURCH_PRICE, PCS_ID_CONFIGURAZIONE_STANDARD, QTA_STANDARD, ID_ELEMENTO_IVAID]
+        """
         purch_price = (row[0] or '').strip() if len(row) > 0 else None
         pcs_id_configurazione_standard = (row[1] or '').strip() if len(row) > 1 else None
         qta_standard = (row[2] or '').strip() if len(row) > 2 else None
-        fermato = (row[3] or '').strip() if len(row) > 3 else None
-        id_unita = (row[4] or '').strip() if len(row) > 4 else None
+        id_elemento_ivaid = (row[3] or '').strip() if len(row) > 3 else None
 
         return {
             'purch_price': purch_price,
             'pcs_id_configurazione_standard': pcs_id_configurazione_standard,
             'qta_standard': qta_standard,
-            'fermato': fermato,
-            'id_unita': id_unita,
+            'id_elemento_ivaid': id_elemento_ivaid,
         }
+
+    def _parse_page_8(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 9: ID UNITÀ
+        Columns: [ID_UNITA]
+        """
+        id_unita = (row[0] or '').strip() if len(row) > 0 else None
+        return {'id_unita': id_unita}
 
 
 def main():

@@ -25,33 +25,36 @@ export interface ParsedProduct {
   qta_multipli?: string;
   qta_massima?: string;
   figura?: string;
-  id_blocco_articolo?: string;
-  pacco_gamba?: string;
+  dataareaid?: string;
+  id_prodotto?: string;
+  datetime_modificato?: string;
 
   // Page 5
+  fermato?: string;
+  id_blocco_articolo?: string;
+  pacco_gamba?: string;
   grandezza?: string;
   id_configurazione?: string;
-  creato_da?: string;
-  data_creata?: string;
-  dataareaid?: string;
 
   // Page 6
+  creato_da?: string;
+  data_creata?: string;
   qta_predefinita?: string;
   visualizza_numero_prodotto?: string;
-  sconto_assoluto_totale?: string;
-  id_prodotto?: string;
 
   // Page 7
+  sconto_assoluto_totale?: string;
   sconto_linea?: string;
   modificato_da?: string;
-  datetime_modificato?: string;
   articolo_ordinabile?: string;
 
   // Page 8
   purch_price?: string;
   pcs_id_configurazione_standard?: string;
   qta_standard?: string;
-  fermato?: string;
+  id_elemento_ivaid?: string;
+
+  // Page 9
   id_unita?: string;
 }
 
