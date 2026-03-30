@@ -40,6 +40,17 @@ describe('PDFParserProductsService', () => {
   });
 
   describe('parsePDF', () => {
+    test('resolves with products when Python exits 0 with valid JSON', async () => {
+      vi.mocked(spawn).mockReturnValue(
+        createMockProcess(0, validProductsJson, '') as never,
+      );
+
+      const service = PDFParserProductsService.getInstance();
+      const products = await service.parsePDF('/tmp/test.pdf');
+
+      expect(products).toEqual([{ id_articolo: 'P001', nome_articolo: 'Prodotto Test' }]);
+    });
+
     test('rejects when Python exits non-zero with no CYCLE_SIZE_WARNING', async () => {
       vi.mocked(spawn).mockReturnValue(
         createMockProcess(1, JSON.stringify({ error: 'Parse failed: memory error' }), 'RuntimeError: out of memory') as never,

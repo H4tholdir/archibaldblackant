@@ -141,6 +141,7 @@ class ProductsPDFParserOptimized:
         # Process each cycle with fresh PDF instance (critical for memory!)
         for cycle in range(cycles):
             base_idx = cycle * self.PAGES_PER_CYCLE
+            cycle_tables = None
             try:
                 # Re-open PDF for this cycle only - forces garbage collection
                 with pdfplumber.open(self.pdf_path) as pdf:
@@ -170,11 +171,10 @@ class ProductsPDFParserOptimized:
                 products = self._parse_single_cycle(cycle_tables)
                 for product in products:
                     yield product
-
-                # Clear cycle data to free memory
-                del cycle_tables
             except Exception as e:
                 print(f"CYCLE_PARSE_ERROR:cycle={cycle} base_idx={base_idx} error={str(e)}", file=sys.stderr)
+            finally:
+                del cycle_tables
 
     def parse(self) -> List[ParsedProduct]:
         """
