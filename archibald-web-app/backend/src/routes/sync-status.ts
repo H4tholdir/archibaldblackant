@@ -106,7 +106,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/monitoring/sync-history', async (_req: AuthRequest, res) => {
     try {
-      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 149);
+      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 499);
 
       const byType = new Map<string, typeof jobs>();
       for (const syncType of SYNC_HISTORY_TYPES) {
