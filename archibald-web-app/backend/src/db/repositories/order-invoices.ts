@@ -113,7 +113,7 @@ async function upsertOrderInvoice(pool: DbPool, input: OrderInvoiceInput): Promi
       invoice_settled_amount, invoice_last_payment_id,
       invoice_last_settlement_date, invoice_closed_date, updated_at
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW())
-    ON CONFLICT (order_id, invoice_number) DO UPDATE SET
+    ON CONFLICT (order_id, user_id, invoice_number) DO UPDATE SET
       invoice_date = EXCLUDED.invoice_date,
       invoice_amount = EXCLUDED.invoice_amount,
       invoice_customer_account = EXCLUDED.invoice_customer_account,

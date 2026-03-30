@@ -178,7 +178,7 @@ async function upsertOrderDdt(pool: DbPool, input: OrderDdtInput): Promise<'inse
       ddt_quantity, ddt_customer_reference, ddt_description,
       tracking_number, tracking_url, tracking_courier, updated_at
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
-    ON CONFLICT (order_id, ddt_number) DO UPDATE SET
+    ON CONFLICT (order_id, user_id, ddt_number) DO UPDATE SET
       ddt_id = EXCLUDED.ddt_id,
       ddt_delivery_date = EXCLUDED.ddt_delivery_date,
       ddt_customer_account = EXCLUDED.ddt_customer_account,
