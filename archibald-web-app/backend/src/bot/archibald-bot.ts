@@ -9640,11 +9640,24 @@ export class ArchibaldBot {
     logger.info("[ArchibaldBot] Products Column Chooser: dialog opened");
 
     // Navigate to Column Chooser tab (T3T)
-    await page.evaluate(() => {
-      const tab = document.querySelector("[id$=\"DXCDPageControl_T3T\"]") as HTMLElement | null;
-      if (tab) tab.click();
+    const tabClicked = await page.evaluate(() => {
+      // Try exact T3T suffix first, then any tab containing "Column Chooser"
+      const byId = document.querySelector("[id$=\"DXCDPageControl_T3T\"]") as HTMLElement | null;
+      if (byId) { byId.click(); return `id:${byId.id.slice(-30)}`; }
+      const tabs = Array.from(document.querySelectorAll("[id*=\"DXCDPageControl_T\"]"));
+      const chooser = tabs.find(el => /column.?chooser/i.test(el.textContent?.trim() || "")) as HTMLElement | undefined;
+      if (chooser) { chooser.click(); return `text:${chooser.textContent?.trim()?.slice(0, 20)}`; }
+      return null;
     });
-    await new Promise(r => setTimeout(r, 1500));
+    logger.info(`[ArchibaldBot] Products Column Chooser: tab click result=${tabClicked}`);
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Diagnose class of first hidden column after tab activation
+    const diagCls = await page.evaluate((idx: number) => {
+      const el = document.querySelector(`[id*="C${idx}Chk5_D"]`) as HTMLElement | null;
+      return el ? `found:${el.className.slice(-40)}` : "not-found";
+    }, hiddenIndices[0]);
+    logger.info(`[ArchibaldBot] Products Column Chooser: C${hiddenIndices[0]}Chk5_D=${diagCls}`);
 
     let enabled = 0;
     for (const idx of hiddenIndices) {
@@ -9655,7 +9668,8 @@ export class ArchibaldBot {
           el.scrollIntoView({ block: "center", behavior: "instant" });
           return el.className;
         }, idx);
-        if (!cls?.includes("gvCOColumnShow")) continue;
+        // Accept gvCOColumnShow (tab active, col hidden) OR gvCOColumnHide (tab inactive, col "shown" = click to show means col is visible? no — click unconditionally)
+        if (cls === null) continue;
         // Puppeteer click via ElementHandle for proper event dispatch
         const el = await page.$(`[id*="C${idx}Chk5_D"]`);
         if (el) {
@@ -9667,7 +9681,7 @@ export class ArchibaldBot {
         logger.warn(`[ArchibaldBot] Products Column Chooser: failed to click col ${idx}`);
       }
     }
-    logger.info(`[ArchibaldBot] Products Column Chooser: enabled ${enabled}/${hiddenIndices.length} columns`);
+    logger.info(`[ArchibaldBot] Products Column Chooser: clicked ${enabled}/${hiddenIndices.length} checkboxes`);
 
     await page.evaluate(() => {
       const dialog = document.querySelector("[id*=\"DXCDWindow\"]") as HTMLElement | null;
