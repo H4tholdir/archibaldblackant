@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
-import type { Order } from "../types/order";
+import type { Order, DdtEntry } from "../types/order";
 import {
   getOrderStatus,
   getAllStatusStyles,
   getStatusStyleByCategory,
   isNotSentToVerona,
+  getDdtPillStyle,
   type OrderStatusCategory,
 } from "./orderStatus";
 
@@ -744,5 +745,92 @@ describe("isNotSentToVerona", () => {
     } as Order;
 
     expect(isNotSentToVerona(order)).toBe(false);
+  });
+});
+
+describe("getDdtPillStyle", () => {
+  const baseDdt: DdtEntry = {
+    id: "ddt-1",
+    position: 0,
+    ddtNumber: "DDT/001",
+    ddtId: null,
+    ddtDeliveryDate: null,
+    ddtCustomerAccount: null,
+    ddtSalesName: null,
+    ddtDeliveryName: null,
+    deliveryTerms: null,
+    deliveryMethod: null,
+    deliveryCity: null,
+    attentionTo: null,
+    ddtDeliveryAddress: null,
+    ddtQuantity: null,
+    ddtCustomerReference: null,
+    ddtDescription: null,
+    trackingNumber: null,
+    trackingUrl: null,
+    trackingCourier: null,
+    trackingStatus: null,
+    trackingKeyStatusCd: null,
+    trackingStatusBarCd: null,
+    trackingEstimatedDelivery: null,
+    trackingLastLocation: null,
+    trackingLastEvent: null,
+    trackingLastEventAt: null,
+    trackingOrigin: null,
+    trackingDestination: null,
+    trackingServiceDesc: null,
+    trackingLastSyncedAt: null,
+    trackingSyncFailures: null,
+    trackingEvents: null,
+    trackingDelayReason: null,
+    trackingDeliveryAttempts: null,
+    trackingAttemptedDeliveryAt: null,
+    deliveryConfirmedAt: null,
+    deliverySignedBy: null,
+  };
+
+  test("returns consegnato style when deliveryConfirmedAt is set", () => {
+    const ddt = { ...baseDdt, deliveryConfirmedAt: "2026-03-27T10:00:00Z" };
+    expect(getDdtPillStyle(ddt)).toEqual({
+      icon: "✅",
+      label: "Consegnato",
+      backgroundColor: "#DCFCE7",
+      color: "#15803D",
+    });
+  });
+
+  test("deliveryConfirmedAt takes priority over trackingStatus", () => {
+    const ddt = { ...baseDdt, deliveryConfirmedAt: "2026-03-27T10:00:00Z", trackingStatus: "exception" };
+    expect(getDdtPillStyle(ddt).icon).toBe("✅");
+  });
+
+  test.each([
+    ["exception",        "⚠️", "Eccezione",    "#FFF0F5", "#CC0066"],
+    ["held",             "📫", "Fermo",         "#FFF0F5", "#CC0066"],
+    ["returning",        "↩️", "Reso",          "#FFF0F5", "#CC0066"],
+    ["canceled",         "🚫", "Annullato",     "#F5F5F5", "#757575"],
+    ["in_transit",       "🚚", "In transito",   "#E8F0FF", "#0066CC"],
+    ["out_for_delivery", "🚚", "In transito",   "#E8F0FF", "#0066CC"],
+  ])("trackingStatus=%s → icon=%s label=%s", (status, icon, label, bg, color) => {
+    const result = getDdtPillStyle({ ...baseDdt, trackingStatus: status });
+    expect(result).toEqual({ icon, label, backgroundColor: bg, color });
+  });
+
+  test("returns backorder style for null trackingStatus", () => {
+    expect(getDdtPillStyle(baseDdt)).toEqual({
+      icon: "🔄",
+      label: "Backorder",
+      backgroundColor: "#FFEDD5",
+      color: "#B45309",
+    });
+  });
+
+  test("returns backorder style for unknown trackingStatus", () => {
+    expect(getDdtPillStyle({ ...baseDdt, trackingStatus: "pending" })).toEqual({
+      icon: "🔄",
+      label: "Backorder",
+      backgroundColor: "#FFEDD5",
+      color: "#B45309",
+    });
   });
 });

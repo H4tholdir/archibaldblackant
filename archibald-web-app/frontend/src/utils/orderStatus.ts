@@ -1,4 +1,4 @@
-import type { Order } from "../types/order";
+import type { Order, DdtEntry } from "../types/order";
 
 /**
  * Order status categories with associated visual styling
@@ -285,11 +285,14 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  if (order.currentState === 'parzialmente_consegnato') {
+  const someDelivered = order.ddts.some(d => !!d.deliveryConfirmedAt);
+  const allDelivered = order.ddts.length > 0 && order.ddts.every(d => !!d.deliveryConfirmedAt);
+
+  if (someDelivered && !allDelivered) {
     return ORDER_STATUS_STYLES["partially-delivered"];
   }
 
-  if (ddt?.deliveryConfirmedAt) {
+  if (allDelivered || ddt?.deliveryConfirmedAt) {
     return ORDER_STATUS_STYLES.delivered;
   }
 
@@ -339,6 +342,28 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   }
 
   return ORDER_STATUS_STYLES["on-archibald"];
+}
+
+export type DdtPillStyle = {
+  icon: string;
+  label: string;
+  backgroundColor: string;
+  color: string;
+};
+
+export function getDdtPillStyle(ddt: DdtEntry): DdtPillStyle {
+  if (ddt.deliveryConfirmedAt) {
+    return { icon: '✅', label: 'Consegnato', backgroundColor: '#DCFCE7', color: '#15803D' };
+  }
+  switch (ddt.trackingStatus) {
+    case 'exception':        return { icon: '⚠️', label: 'Eccezione',   backgroundColor: '#FFF0F5', color: '#CC0066' };
+    case 'held':             return { icon: '📫', label: 'Fermo',        backgroundColor: '#FFF0F5', color: '#CC0066' };
+    case 'returning':        return { icon: '↩️', label: 'Reso',         backgroundColor: '#FFF0F5', color: '#CC0066' };
+    case 'canceled':         return { icon: '🚫', label: 'Annullato',    backgroundColor: '#F5F5F5', color: '#757575' };
+    case 'in_transit':
+    case 'out_for_delivery': return { icon: '🚚', label: 'In transito',  backgroundColor: '#E8F0FF', color: '#0066CC' };
+    default:                 return { icon: '🔄', label: 'Backorder',    backgroundColor: '#FFEDD5', color: '#B45309' };
+  }
 }
 
 /**

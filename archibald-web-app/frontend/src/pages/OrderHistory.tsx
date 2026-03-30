@@ -1327,7 +1327,7 @@ export function OrderHistory() {
                 <input
                   id="customer-search"
                   type="search"
-                  placeholder="Cerca cliente per nome, P.IVA, citta\u0300, CAP..."
+                  placeholder="Cerca cliente per nome, P.IVA, città, CAP..."
                   value={customerSearchQuery}
                   onChange={(e) => handleCustomerSearch(e.target.value)}
                   onKeyDown={handleCustomerKeyDown}

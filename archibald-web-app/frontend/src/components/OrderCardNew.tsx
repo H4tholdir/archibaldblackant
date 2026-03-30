@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { Order, OrderArticle } from "../types/order";
 
-import { getOrderStatus, getStatusTabColors, isNotSentToVerona } from "../utils/orderStatus";
+import { getOrderStatus, getStatusTabColors, isNotSentToVerona, getDdtPillStyle } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
 import type { OperationType, SubscribeFn } from "../api/operations";
@@ -2988,11 +2988,15 @@ function TabLogistica({
   token,
   searchQuery = "",
   borderColor = "#999",
+  autoExpandBackorders = false,
+  onBackordersExpanded,
 }: {
   order: Order;
   token?: string;
   searchQuery?: string;
   borderColor?: string;
+  autoExpandBackorders?: boolean;
+  onBackordersExpanded?: () => void;
 }) {
   const { subscribe } = useWebSocketContext();
   const { trackOperation } = useOperationTracking();
@@ -3006,6 +3010,13 @@ function TabLogistica({
   const ddt = order.ddts?.[0] ?? null;
   const backorderDdts = (order.ddts ?? []).slice(1);
   const [showBackorders, setShowBackorders] = useState(false);
+
+  useEffect(() => {
+    if (autoExpandBackorders && backorderDdts.length > 0) {
+      setShowBackorders(true);
+      onBackordersExpanded?.();
+    }
+  }, [autoExpandBackorders]); // eslint-disable-line react-hooks/exhaustive-deps
   const tracking = {
     trackingNumber: ddt?.trackingNumber,
     trackingUrl: ddt?.trackingUrl,
@@ -4304,6 +4315,7 @@ export function OrderCardNew({
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("articoli");
+  const [pendingScrollTo, setPendingScrollTo] = useState<"backorder" | null>(null);
 
   const [editProgress, setEditProgress] = useState<{
     progress: number;
@@ -4726,6 +4738,37 @@ export function OrderCardNew({
 
             {order.ddts?.[0]?.trackingStatus && order.ddts?.[0]?.trackingEvents && order.ddts[0].trackingEvents.length > 0 && !expanded && (
               <TrackingDotBar order={order} borderColor={orderStatusStyle.borderColor} />
+            )}
+
+            {order.ddts.length >= 2 && !expanded && (
+              <div
+                style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {order.ddts.map((ddt, i) => {
+                  const pill = getDdtPillStyle(ddt);
+                  return (
+                    <button
+                      key={ddt.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveTab("logistica");
+                        if (i > 0) setPendingScrollTo("backorder");
+                        if (!expanded) onToggle();
+                      }}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        padding: "2px 8px", borderRadius: 4,
+                        backgroundColor: pill.backgroundColor, color: pill.color,
+                        border: `1px solid ${pill.color}33`,
+                        fontSize: 11, fontWeight: 600, cursor: "pointer",
+                      }}
+                    >
+                      {pill.icon} {ddt.ddtNumber} · {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
             )}
 
             {/* Residuo Finanziario (used as order notes) */}
@@ -5418,6 +5461,8 @@ export function OrderCardNew({
                 token={token}
                 searchQuery={searchQuery}
                 borderColor={orderStatusStyle.borderColor}
+                autoExpandBackorders={pendingScrollTo === "backorder"}
+                onBackordersExpanded={() => setPendingScrollTo(null)}
               />
             )}
             {activeTab === "finanziario" && (
