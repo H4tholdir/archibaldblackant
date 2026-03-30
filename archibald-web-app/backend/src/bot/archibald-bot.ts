@@ -9639,38 +9639,27 @@ export class ArchibaldBot {
     }
     logger.info("[ArchibaldBot] Products Column Chooser: dialog opened");
 
-    // Navigate to Column Chooser tab (T3T)
-    const tabClicked = await page.evaluate(() => {
-      // Try exact T3T suffix first, then any tab containing "Column Chooser"
+    // Navigate to Column Chooser tab (T3T). Checkboxes have class gvCOColumnHide_XafTheme
+    // for hidden columns (click to show) — click unconditionally for each hidden column index.
+    await page.evaluate(() => {
       const byId = document.querySelector("[id$=\"DXCDPageControl_T3T\"]") as HTMLElement | null;
-      if (byId) { byId.click(); return `id:${byId.id.slice(-30)}`; }
+      if (byId) { byId.click(); return; }
       const tabs = Array.from(document.querySelectorAll("[id*=\"DXCDPageControl_T\"]"));
       const chooser = tabs.find(el => /column.?chooser/i.test(el.textContent?.trim() || "")) as HTMLElement | undefined;
-      if (chooser) { chooser.click(); return `text:${chooser.textContent?.trim()?.slice(0, 20)}`; }
-      return null;
+      if (chooser) chooser.click();
     });
-    logger.info(`[ArchibaldBot] Products Column Chooser: tab click result=${tabClicked}`);
     await new Promise(r => setTimeout(r, 2000));
-
-    // Diagnose class of first hidden column after tab activation
-    const diagCls = await page.evaluate((idx: number) => {
-      const el = document.querySelector(`[id*="C${idx}Chk5_D"]`) as HTMLElement | null;
-      return el ? `found:${el.className.slice(-40)}` : "not-found";
-    }, hiddenIndices[0]);
-    logger.info(`[ArchibaldBot] Products Column Chooser: C${hiddenIndices[0]}Chk5_D=${diagCls}`);
 
     let enabled = 0;
     for (const idx of hiddenIndices) {
       try {
-        const cls = await page.evaluate((i: number) => {
+        const found = await page.evaluate((i: number) => {
           const el = document.querySelector(`[id*="C${i}Chk5_D"]`) as HTMLElement | null;
-          if (!el) return null;
+          if (!el) return false;
           el.scrollIntoView({ block: "center", behavior: "instant" });
-          return el.className;
+          return true;
         }, idx);
-        // Accept gvCOColumnShow (tab active, col hidden) OR gvCOColumnHide (tab inactive, col "shown" = click to show means col is visible? no — click unconditionally)
-        if (cls === null) continue;
-        // Puppeteer click via ElementHandle for proper event dispatch
+        if (!found) continue;
         const el = await page.$(`[id*="C${idx}Chk5_D"]`);
         if (el) {
           await el.click();
@@ -9681,7 +9670,7 @@ export class ArchibaldBot {
         logger.warn(`[ArchibaldBot] Products Column Chooser: failed to click col ${idx}`);
       }
     }
-    logger.info(`[ArchibaldBot] Products Column Chooser: clicked ${enabled}/${hiddenIndices.length} checkboxes`);
+    logger.info(`[ArchibaldBot] Products Column Chooser: enabled ${enabled}/${hiddenIndices.length} columns`);
 
     await page.evaluate(() => {
       const dialog = document.querySelector("[id*=\"DXCDWindow\"]") as HTMLElement | null;
