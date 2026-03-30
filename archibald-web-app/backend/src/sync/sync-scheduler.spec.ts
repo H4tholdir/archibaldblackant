@@ -416,12 +416,13 @@ describe('createSyncScheduler', () => {
             { erpId: 'CUST-002', customerName: 'Verdi Luca' },
           ],
         },
+        'sync-customer-addresses-user-1',
       );
 
       scheduler.stop();
     });
 
-    test('enqueues sync-customer-addresses without idempotency key to allow re-enqueue each cycle', async () => {
+    test('address sync uses stable idempotency key sync-customer-addresses-{userId}', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { erp_id: 'CUST-001', name: 'Rossi Mario' },
@@ -433,7 +434,7 @@ describe('createSyncScheduler', () => {
 
       const addressCall = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
       expect(addressCall).toBeDefined();
-      expect(addressCall!.length).toBe(3);
+      expect(addressCall![3]).toBe('sync-customer-addresses-user-1');
 
       scheduler.stop();
     });
@@ -526,7 +527,7 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
-    test('stop() does not cancel pending address sync timeouts (survives session stops)', async () => {
+    test('stop() cancels pending address sync timeouts so no enqueue fires after stop', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { erp_id: 'CUST-001', name: 'Rossi' },
@@ -534,17 +535,13 @@ describe('createSyncScheduler', () => {
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100); // first tick → schedules 5-min address timeout
       scheduler.stop();
 
       enqueue.mockClear();
-      await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS);
+      await vi.advanceTimersByTimeAsync(ADDRESS_SYNC_DELAY_MS); // would have fired without fix
 
-      expect(enqueue).toHaveBeenCalledWith(
-        'sync-customer-addresses',
-        'user-1',
-        expect.objectContaining({ customers: expect.any(Array) }),
-      );
+      expect(enqueue).not.toHaveBeenCalledWith('sync-customer-addresses', expect.any(String), expect.any(Object));
     });
   });
 

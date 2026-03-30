@@ -77,18 +77,24 @@ function createSyncScheduler(
       if (addressSyncTimeouts.has(userId)) continue;
       const agentUserId = userId;
       const tid = setTimeout(() => {
-        addressSyncTimeouts.delete(agentUserId);
         getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
           .then((customers) => {
-            if (customers.length === 0) return;
-            enqueue(
+            if (customers.length === 0) {
+              addressSyncTimeouts.delete(agentUserId);
+              return;
+            }
+            return enqueue(
               'sync-customer-addresses',
               agentUserId,
               { customers: customers.map((c) => ({ erpId: c.erp_id, customerName: c.name })) },
-            );
+              `sync-customer-addresses-${agentUserId}`,
+            ).finally(() => {
+              addressSyncTimeouts.delete(agentUserId);
+            });
           })
           .catch((error) => {
             logger.error('Failed to fetch customers needing address sync', { userId: agentUserId, error });
+            addressSyncTimeouts.delete(agentUserId);
           });
       }, ADDRESS_SYNC_DELAY_MS);
       addressSyncTimeouts.set(agentUserId, tid);
@@ -158,6 +164,10 @@ function createSyncScheduler(
       clearTimeout(timeout);
     }
     pendingTimeouts.length = 0;
+    for (const [, tid] of addressSyncTimeouts) {
+      clearTimeout(tid);
+    }
+    addressSyncTimeouts.clear();
     running = false;
   }
 
