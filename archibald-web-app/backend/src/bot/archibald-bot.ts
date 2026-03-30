@@ -9598,6 +9598,7 @@ export class ArchibaldBot {
     }
     logger.info(`[ArchibaldBot] Products: ${hiddenIndices.length} hidden columns, applying Column Chooser fix`);
 
+    // Try ShowCustomizationDialog() JS API first
     await page.evaluate(() => {
       const w = window as unknown as Record<string, unknown>;
       const gn = Object.keys(w).find(k => {
@@ -9606,8 +9607,39 @@ export class ArchibaldBot {
       });
       if (gn) (w[gn] as { ShowCustomizationDialog: () => void }).ShowCustomizationDialog();
     });
-    await new Promise(r => setTimeout(r, 1500));
 
+    // Wait up to 4s for the dialog to appear
+    const dialogVisible = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!dialogVisible) {
+      // Fallback: right-click on grid header to open context menu
+      logger.warn("[ArchibaldBot] Products Column Chooser: JS dialog failed, trying right-click");
+      const header = await page.$(".dxgvHeader_XafTheme td, .dxgv_hc td");
+      if (header) {
+        await header.click({ button: "right" });
+        await new Promise(r => setTimeout(r, 1500));
+        await page.evaluate(() => {
+          const item = Array.from(document.querySelectorAll(".dxm-item, li, a"))
+            .find(el => /customization/i.test(el.textContent || ""));
+          if (item) (item as HTMLElement).click();
+        });
+        const dialogAfterRightClick = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: 4000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!dialogAfterRightClick) {
+          logger.warn("[ArchibaldBot] Products Column Chooser: dialog did not open, skipping fix");
+          return;
+        }
+      } else {
+        logger.warn("[ArchibaldBot] Products Column Chooser: header not found, skipping fix");
+        return;
+      }
+    }
+    logger.info("[ArchibaldBot] Products Column Chooser: dialog opened");
+
+    // Navigate to Column Chooser tab (T3T)
     await page.evaluate(() => {
       const tab = document.querySelector("[id$=\"DXCDPageControl_T3T\"]") as HTMLElement | null;
       if (tab) tab.click();
