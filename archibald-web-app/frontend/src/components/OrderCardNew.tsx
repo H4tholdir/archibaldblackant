@@ -2988,15 +2988,11 @@ function TabLogistica({
   token,
   searchQuery = "",
   borderColor = "#999",
-  autoExpandBackorders = false,
-  onBackordersExpanded,
 }: {
   order: Order;
   token?: string;
   searchQuery?: string;
   borderColor?: string;
-  autoExpandBackorders?: boolean;
-  onBackordersExpanded?: () => void;
 }) {
   const { subscribe } = useWebSocketContext();
   const { trackOperation } = useOperationTracking();
@@ -3009,14 +3005,6 @@ function TabLogistica({
 
   const ddt = order.ddts?.[0] ?? null;
   const backorderDdts = (order.ddts ?? []).slice(1);
-  const [showBackorders, setShowBackorders] = useState(false);
-
-  useEffect(() => {
-    if (autoExpandBackorders && backorderDdts.length > 0) {
-      setShowBackorders(true);
-      onBackordersExpanded?.();
-    }
-  }, [autoExpandBackorders]); // eslint-disable-line react-hooks/exhaustive-deps
   const tracking = {
     trackingNumber: ddt?.trackingNumber,
     trackingUrl: ddt?.trackingUrl,
@@ -3413,26 +3401,28 @@ function TabLogistica({
         </div>
       )}
 
-      {backorderDdts.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <button
-            onClick={() => setShowBackorders(b => !b)}
-            style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', fontSize: 13, padding: 0 }}
-          >
-            {showBackorders ? '▼' : '▶'} {backorderDdts.length} consegna{backorderDdts.length > 1 ? ' aggiuntive' : ' aggiuntiva'} (backorder)
-          </button>
-          {showBackorders && backorderDdts.map((bd) => (
-            <div key={bd.id} style={{ marginLeft: 16, marginTop: 6, padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, borderLeft: '3px solid #FF9800' }}>
-              <div style={{ fontWeight: 500, fontSize: 13 }}>{bd.ddtNumber}{bd.ddtDeliveryDate ? ` — ${bd.ddtDeliveryDate}` : ''}</div>
-              {bd.trackingNumber && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Tracking: {bd.trackingNumber} {bd.trackingCourier ? `(${bd.trackingCourier})` : ''}</div>}
-              {bd.deliveryConfirmedAt && <div style={{ fontSize: 12, color: '#4caf50', marginTop: 2 }}>✓ Consegnato</div>}
-              {!bd.deliveryConfirmedAt && bd.trackingStatus && bd.trackingStatus !== 'pending' && (
-                <div style={{ fontSize: 12, color: '#FF9800', marginTop: 2 }}>In transito: {bd.trackingStatus}</div>
-              )}
-            </div>
-          ))}
+      {backorderDdts.map((bd) => (
+        <div key={bd.id} style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#FF9800' }}>🔄 {bd.ddtNumber}</span>
+            {bd.ddtDeliveryDate && <span style={{ fontSize: 12, color: '#999' }}>{bd.ddtDeliveryDate}</span>}
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', backgroundColor: '#FFEDD5', color: '#B45309', borderRadius: 4 }}>Backorder</span>
+          </div>
+          {bd.trackingEvents && bd.trackingEvents.length > 0
+            ? <TrackingTimeline order={order} borderColor="#FF9800" ddt={bd} />
+            : (
+              <div style={{ padding: '10px 14px', background: '#fff8f0', borderRadius: 8, borderLeft: '3px solid #FF9800', fontSize: 13 }}>
+                {bd.trackingNumber
+                  ? <div style={{ color: '#666' }}>{bd.trackingCourier && <span style={{ fontWeight: 600, marginRight: 6 }}>{bd.trackingCourier}</span>}<span style={{ fontFamily: 'monospace' }}>{bd.trackingNumber}</span></div>
+                  : <div style={{ color: '#999' }}>Nessun tracking disponibile</div>
+                }
+                {bd.deliveryConfirmedAt && <div style={{ color: '#4caf50', marginTop: 4 }}>✓ Consegnato</div>}
+                {!bd.deliveryConfirmedAt && bd.trackingStatus && bd.trackingStatus !== 'pending' && <div style={{ color: '#FF9800', marginTop: 4 }}>Stato: {bd.trackingStatus}</div>}
+              </div>
+            )
+          }
         </div>
-      )}
+      ))}
 
       {!ddt && !tracking.trackingNumber && (
         <div style={{ padding: "16px", textAlign: "center", color: "#999" }}>
@@ -3458,44 +3448,10 @@ function TabFinanziario({
     active: boolean;
     percent: number;
     stage: string;
+    forInvoiceId?: string;
   }>({ active: false, percent: 0, stage: "" });
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
-  const inv = order.invoices?.[0] ?? null;
-
-  const handleDownloadInvoice = () => {
-    if (!token) {
-      setInvoiceError("Token di autenticazione mancante");
-      return;
-    }
-
-    if (!inv?.invoiceNumber) {
-      setInvoiceError("Nessuna fattura disponibile per questo ordine");
-      return;
-    }
-
-    setInvoiceProgress({ active: true, percent: 0, stage: "Avvio..." });
-    setInvoiceError(null);
-
-    const isNC = inv?.invoiceNumber?.startsWith("NC/");
-    downloadPdfWithProgress(
-      order.orderNumber || order.id,
-      "invoice",
-      token,
-      (stage, percent) => setInvoiceProgress({ active: true, percent, stage }),
-      () =>
-        setTimeout(
-          () => setInvoiceProgress({ active: false, percent: 0, stage: "" }),
-          1500,
-        ),
-      (error) => {
-        setInvoiceError(error);
-        setInvoiceProgress({ active: false, percent: 0, stage: "" });
-      },
-      subscribe,
-      isNC ? "NC" : "Fattura",
-      (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
-    );
-  };
+  const invoices = order.invoices ?? [];
 
   return (
     <div style={{ padding: "16px" }}>
@@ -3653,241 +3609,8 @@ function TabFinanziario({
         </div>
       </div>
 
-      {/* Fattura */}
-      {inv?.invoiceNumber ? (
-        <div
-          style={{
-            border: "1px solid #e0e0e0",
-            borderRadius: "12px",
-            overflow: "hidden",
-            marginBottom: "16px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "14px 16px",
-              backgroundColor: "#f8f9fa",
-              borderBottom: "1px solid #e0e0e0",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                flexWrap: "wrap" as const,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  color: "#1565c0",
-                }}
-              >
-                <HighlightText
-                  text={inv?.invoiceNumber || ""}
-                  query={searchQuery}
-                />
-              </span>
-              <span style={{ fontSize: "13px", color: "#666" }}>
-                {formatDate(inv?.invoiceDate ?? undefined)}
-              </span>
-            </div>
-            <span
-              style={{
-                padding: "4px 12px",
-                borderRadius: "12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                backgroundColor: inv?.invoiceClosed ? "#e8f5e9" : "#fff3e0",
-                color: inv?.invoiceClosed ? "#2e7d32" : "#e65100",
-                whiteSpace: "nowrap" as const,
-              }}
-            >
-              {inv?.invoiceClosed ? "Chiusa" : "Aperta"}
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: "16px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: "14px",
-              backgroundColor: "#f8f9fa",
-            }}
-          >
-            <InfoField
-              label="Importo"
-              value={
-                inv?.invoiceAmount ? `\u20ac${inv.invoiceAmount}` : undefined
-              }
-              bold
-              searchQuery={searchQuery}
-            />
-            <InfoField
-              label="Conto Cliente"
-              value={inv?.invoiceCustomerAccount ?? undefined}
-              searchQuery={searchQuery}
-            />
-            <InfoField
-              label="Nome Fatturazione"
-              value={inv?.invoiceBillingName ?? undefined}
-              searchQuery={searchQuery}
-            />
-            <InfoField
-              label="Quantità"
-              value={inv?.invoiceQuantity?.toString()}
-            />
-            <InfoField
-              label="Importo Residuo"
-              value={
-                inv?.invoiceRemainingAmount
-                  ? formatPriceFromString(inv.invoiceRemainingAmount)
-                  : undefined
-              }
-            />
-            <InfoField
-              label="Importo Fiscale"
-              value={
-                inv?.invoiceTaxAmount
-                  ? formatPriceFromString(inv.invoiceTaxAmount)
-                  : undefined
-              }
-            />
-            <InfoField
-              label="Sconto Linea"
-              value={
-                inv?.invoiceLineDiscount
-                  ? formatPriceFromString(inv.invoiceLineDiscount)
-                  : undefined
-              }
-            />
-            <InfoField
-              label="Sconto Totale"
-              value={
-                inv?.invoiceTotalDiscount
-                  ? formatPriceFromString(inv.invoiceTotalDiscount)
-                  : undefined
-              }
-            />
-            <InfoField
-              label="Ordine Acquisto"
-              value={inv?.invoicePurchaseOrder ?? undefined}
-            />
-          </div>
-
-          {inv?.invoiceDueDate && (() => {
-            const dueDaysInfo = computeDueDaysInfo(inv.invoiceDueDate!);
-            return (
-            <div
-              style={{
-                padding: "10px 16px",
-                backgroundColor: dueDaysInfo?.bgColor ?? "#e8f5e9",
-                borderTop: "1px solid #e0e0e0",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap" as const,
-                gap: "8px",
-              }}
-            >
-              <div style={{ fontSize: "13px", color: "#555" }}>
-                <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
-                {formatDate(inv?.invoiceDueDate ?? undefined)}
-              </div>
-              {dueDaysInfo !== null && (
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: dueDaysInfo.color,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: dueDaysInfo.color,
-                      display: "inline-block",
-                    }}
-                  />
-                  {dueDaysInfo.detailLabel}
-                </div>
-              )}
-            </div>
-            );
-          })()}
-
-          {(inv?.invoiceSettledAmount ||
-            inv?.invoiceLastPaymentId ||
-            inv?.invoiceLastSettlementDate ||
-            (inv?.invoiceClosedDate &&
-              inv.invoiceClosedDate.toLowerCase() !== "no")) && (
-            <div
-              style={{
-                padding: "14px 16px",
-                borderTop: "1px solid #e0e0e0",
-                backgroundColor: "#fafafa",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "#888",
-                  marginBottom: "10px",
-                  textTransform: "uppercase" as const,
-                  letterSpacing: "0.5px",
-                  fontWeight: 600,
-                }}
-              >
-                Pagamenti
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                {inv?.invoiceSettledAmount && (
-                  <InfoField
-                    label="Importo liquidato"
-                    value={formatPriceFromString(inv.invoiceSettledAmount)}
-                  />
-                )}
-                {inv?.invoiceLastPaymentId && (
-                  <InfoField
-                    label="Ultimo pagamento"
-                    value={inv.invoiceLastPaymentId}
-                  />
-                )}
-                {inv?.invoiceLastSettlementDate && (
-                  <InfoField
-                    label="Data liquidazione"
-                    value={formatDate(inv?.invoiceLastSettlementDate ?? undefined)}
-                  />
-                )}
-                {inv?.invoiceClosedDate &&
-                  inv.invoiceClosedDate.toLowerCase() !== "no" && (
-                    <InfoField
-                      label="Data chiusura"
-                      value={formatDate(inv.invoiceClosedDate)}
-                    />
-                  )}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
+      {/* Fatture */}
+      {invoices.length === 0 ? (
         <div
           style={{
             padding: "20px",
@@ -3902,66 +3625,267 @@ function TabFinanziario({
         >
           Nessuna fattura disponibile
         </div>
+      ) : (
+        invoices.map((inv) => {
+          const isDownloading = invoiceProgress.active && invoiceProgress.forInvoiceId === inv.id;
+          const isNC = inv.invoiceNumber?.startsWith("NC/");
+          return (
+            <div key={inv.id} style={{ marginBottom: "16px" }}>
+              <div
+                style={{
+                  border: "1px solid #e0e0e0",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  marginBottom: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "14px 16px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "1px solid #e0e0e0",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      flexWrap: "wrap" as const,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 700,
+                        color: "#1565c0",
+                      }}
+                    >
+                      <HighlightText
+                        text={inv.invoiceNumber || ""}
+                        query={searchQuery}
+                      />
+                    </span>
+                    <span style={{ fontSize: "13px", color: "#666" }}>
+                      {formatDate(inv.invoiceDate ?? undefined)}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      padding: "4px 12px",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: inv.invoiceClosed ? "#e8f5e9" : "#fff3e0",
+                      color: inv.invoiceClosed ? "#2e7d32" : "#e65100",
+                      whiteSpace: "nowrap" as const,
+                    }}
+                  >
+                    {inv.invoiceClosed ? "Chiusa" : "Aperta"}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    padding: "16px",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "14px",
+                    backgroundColor: "#f8f9fa",
+                  }}
+                >
+                  <InfoField
+                    label="Importo"
+                    value={inv.invoiceAmount ? `\u20ac${inv.invoiceAmount}` : undefined}
+                    bold
+                    searchQuery={searchQuery}
+                  />
+                  <InfoField
+                    label="Conto Cliente"
+                    value={inv.invoiceCustomerAccount ?? undefined}
+                    searchQuery={searchQuery}
+                  />
+                  <InfoField
+                    label="Nome Fatturazione"
+                    value={inv.invoiceBillingName ?? undefined}
+                    searchQuery={searchQuery}
+                  />
+                  <InfoField label="Quantità" value={inv.invoiceQuantity?.toString()} />
+                  <InfoField
+                    label="Importo Residuo"
+                    value={inv.invoiceRemainingAmount ? formatPriceFromString(inv.invoiceRemainingAmount) : undefined}
+                  />
+                  <InfoField
+                    label="Importo Fiscale"
+                    value={inv.invoiceTaxAmount ? formatPriceFromString(inv.invoiceTaxAmount) : undefined}
+                  />
+                  <InfoField
+                    label="Sconto Linea"
+                    value={inv.invoiceLineDiscount ? formatPriceFromString(inv.invoiceLineDiscount) : undefined}
+                  />
+                  <InfoField
+                    label="Sconto Totale"
+                    value={inv.invoiceTotalDiscount ? formatPriceFromString(inv.invoiceTotalDiscount) : undefined}
+                  />
+                  <InfoField label="Ordine Acquisto" value={inv.invoicePurchaseOrder ?? undefined} />
+                </div>
+
+                {inv.invoiceDueDate && (() => {
+                  const dueDaysInfo = computeDueDaysInfo(inv.invoiceDueDate!);
+                  return (
+                    <div
+                      style={{
+                        padding: "10px 16px",
+                        backgroundColor: dueDaysInfo?.bgColor ?? "#e8f5e9",
+                        borderTop: "1px solid #e0e0e0",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap" as const,
+                        gap: "8px",
+                      }}
+                    >
+                      <div style={{ fontSize: "13px", color: "#555" }}>
+                        <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
+                        {formatDate(inv.invoiceDueDate ?? undefined)}
+                      </div>
+                      {dueDaysInfo !== null && (
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            color: dueDaysInfo.color,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              backgroundColor: dueDaysInfo.color,
+                              display: "inline-block",
+                            }}
+                          />
+                          {dueDaysInfo.detailLabel}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {(inv.invoiceSettledAmount ||
+                  inv.invoiceLastPaymentId ||
+                  inv.invoiceLastSettlementDate ||
+                  (inv.invoiceClosedDate && inv.invoiceClosedDate.toLowerCase() !== "no")) && (
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderTop: "1px solid #e0e0e0",
+                      backgroundColor: "#fafafa",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#888",
+                        marginBottom: "10px",
+                        textTransform: "uppercase" as const,
+                        letterSpacing: "0.5px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Pagamenti
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gap: "12px",
+                      }}
+                    >
+                      {inv.invoiceSettledAmount && (
+                        <InfoField label="Importo liquidato" value={formatPriceFromString(inv.invoiceSettledAmount)} />
+                      )}
+                      {inv.invoiceLastPaymentId && (
+                        <InfoField label="Ultimo pagamento" value={inv.invoiceLastPaymentId} />
+                      )}
+                      {inv.invoiceLastSettlementDate && (
+                        <InfoField label="Data liquidazione" value={formatDate(inv.invoiceLastSettlementDate ?? undefined)} />
+                      )}
+                      {inv.invoiceClosedDate && inv.invoiceClosedDate.toLowerCase() !== "no" && (
+                        <InfoField label="Data chiusura" value={formatDate(inv.invoiceClosedDate)} />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Download button for this invoice */}
+              <button
+                disabled={invoiceProgress.active}
+                onClick={() => {
+                  if (invoiceProgress.active || !token) return;
+                  setInvoiceProgress({ active: true, percent: 0, stage: "Avvio...", forInvoiceId: inv.id });
+                  setInvoiceError(null);
+                  downloadPdfWithProgress(
+                    order.orderNumber || order.id,
+                    "invoice",
+                    token,
+                    (stage, percent) => setInvoiceProgress({ active: true, percent, stage, forInvoiceId: inv.id }),
+                    () => setTimeout(() => setInvoiceProgress({ active: false, percent: 0, stage: "" }), 1500),
+                    (error) => {
+                      setInvoiceError(error);
+                      setInvoiceProgress({ active: false, percent: 0, stage: "" });
+                    },
+                    subscribe,
+                    isNC ? "NC" : "Fattura",
+                    (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
+                    inv.invoiceNumber,
+                  );
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  backgroundColor: invoiceProgress.active ? "#ccc" : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: invoiceProgress.active ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                {isDownloading ? (
+                  <>
+                    <span>⏳</span>
+                    <span>{invoiceProgress.stage || "Download in corso..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📄</span>
+                    <span>Scarica {isNC ? "NC" : "Fattura"} {inv.invoiceNumber}</span>
+                  </>
+                )}
+              </button>
+              {isDownloading && (
+                <ProgressBar percent={invoiceProgress.percent} stage={invoiceProgress.stage} color="#4caf50" />
+              )}
+            </div>
+          );
+        })
       )}
 
-      <button
-        onClick={handleDownloadInvoice}
-        disabled={invoiceProgress.active || !inv?.invoiceNumber}
-        style={{
-          width: "100%",
-          padding: "12px",
-          backgroundColor:
-            invoiceProgress.active || !inv?.invoiceNumber ? "#ccc" : "#4caf50",
-          color: "#fff",
-          border: "none",
-          borderRadius: "8px",
-          fontSize: "14px",
-          fontWeight: 600,
-          cursor:
-            invoiceProgress.active || !inv?.invoiceNumber
-              ? "not-allowed"
-              : "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-          transition: "background-color 0.2s",
-        }}
-        onMouseEnter={(e) => {
-          if (!invoiceProgress.active && inv?.invoiceNumber) {
-            e.currentTarget.style.backgroundColor = "#388e3c";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!invoiceProgress.active && inv?.invoiceNumber) {
-            e.currentTarget.style.backgroundColor = "#4caf50";
-          }
-        }}
-      >
-        {invoiceProgress.active ? (
-          <>
-            <span>⏳</span>
-            <span>{invoiceProgress.stage || "Download in corso..."}</span>
-          </>
-        ) : !inv?.invoiceNumber ? (
-          <>
-            <span>📄</span>
-            <span>Nessuna fattura disponibile</span>
-          </>
-        ) : (
-          <>
-            <span>📄</span>
-            <span>Scarica {inv?.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"} {inv?.invoiceNumber}</span>
-          </>
-        )}
-      </button>
-      {invoiceProgress.active && (
-        <ProgressBar
-          percent={invoiceProgress.percent}
-          stage={invoiceProgress.stage}
-          color="#4caf50"
-        />
-      )}
       {invoiceError && (
         <div
           style={{
@@ -4181,6 +4105,7 @@ function downloadPdfWithProgress(
   subscribe: SubscribeFn,
   docLabel?: string,
   onJobEnqueued?: (jobId: string) => void,
+  searchTerm?: string,
 ): () => void {
   let cancelled = false;
 
@@ -4189,7 +4114,7 @@ function downloadPdfWithProgress(
       onProgress("Avvio download...", 5);
 
       const operationType: OperationType = type === "invoice" ? "download-invoice-pdf" : "download-ddt-pdf";
-      const { jobId } = await enqueueOperation(operationType, { orderId, searchTerm: orderId });
+      const { jobId } = await enqueueOperation(operationType, { orderId, searchTerm: searchTerm ?? orderId });
 
       if (cancelled) return;
 
@@ -4315,7 +4240,6 @@ export function OrderCardNew({
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("articoli");
-  const [pendingScrollTo, setPendingScrollTo] = useState<"backorder" | null>(null);
 
   const [editProgress, setEditProgress] = useState<{
     progress: number;
@@ -4455,11 +4379,13 @@ export function OrderCardNew({
     active: boolean;
     percent: number;
     stage: string;
+    forDdtId?: string;
   }>({ active: false, percent: 0, stage: "" });
   const [invoiceQuickProgress, setInvoiceQuickProgress] = useState<{
     active: boolean;
     percent: number;
     stage: string;
+    forInvoiceId?: string;
   }>({ active: false, percent: 0, stage: "" });
 
   // Articles totals state (updated when articles are loaded/synced)
@@ -4745,7 +4671,7 @@ export function OrderCardNew({
                 style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {order.ddts.map((ddt, i) => {
+                {order.ddts.map((ddt) => {
                   const pill = getDdtPillStyle(ddt);
                   return (
                     <button
@@ -4753,7 +4679,6 @@ export function OrderCardNew({
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveTab("logistica");
-                        if (i > 0) setPendingScrollTo("backorder");
                         if (!expanded) onToggle();
                       }}
                       style={{
@@ -4868,202 +4793,88 @@ export function OrderCardNew({
                   flexWrap: "wrap",
                 }}
               >
-                {/* DDT Download Button */}
-                {order.ddts?.[0]?.ddtNumber && order.ddts?.[0]?.trackingNumber && (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      flexDirection: "column",
-                      minWidth: ddtQuickProgress.active ? "160px" : undefined,
-                    }}
-                  >
-                    <button
-                      disabled={ddtQuickProgress.active}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (ddtQuickProgress.active || !token) return;
-                        setDdtQuickProgress({
-                          active: true,
-                          percent: 0,
-                          stage: "Avvio...",
-                        });
-                        downloadPdfWithProgress(
-                          order.orderNumber || order.id,
-                          "ddt",
-                          token,
-                          (stage, percent) =>
-                            setDdtQuickProgress({
-                              active: true,
-                              percent,
-                              stage,
-                            }),
-                          () =>
-                            setTimeout(
-                              () =>
-                                setDdtQuickProgress({
-                                  active: false,
-                                  percent: 0,
-                                  stage: "",
-                                }),
-                              1500,
-                            ),
-                          (error) => {
-                            console.error("DDT download error:", error);
-                            setDdtQuickProgress({
-                              active: false,
-                              percent: 0,
-                              stage: "",
-                            });
-                          },
-                          subscribe,
-                          undefined,
-                          (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
-                        );
-                      }}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "6px 12px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        backgroundColor: ddtQuickProgress.active
-                          ? "#e8f5e9"
-                          : "#fff",
-                        color: ddtQuickProgress.active ? "#81c784" : "#388e3c",
-                        border: `1px solid ${ddtQuickProgress.active ? "#81c784" : "#388e3c"}`,
-                        borderRadius: "6px",
-                        cursor: ddtQuickProgress.active ? "wait" : "pointer",
-                        transition: "all 0.2s",
-                        opacity: ddtQuickProgress.active ? 0.85 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!ddtQuickProgress.active) {
-                          e.currentTarget.style.backgroundColor = "#388e3c";
-                          e.currentTarget.style.color = "#fff";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!ddtQuickProgress.active) {
-                          e.currentTarget.style.backgroundColor = "#fff";
-                          e.currentTarget.style.color = "#388e3c";
-                        }
-                      }}
-                    >
-                      {ddtQuickProgress.active ? "⏳ Scaricando DDT..." : "📄 Scarica DDT"}
-                    </button>
-                    {ddtQuickProgress.active && (
-                      <ProgressBar
-                        percent={ddtQuickProgress.percent}
-                        stage={ddtQuickProgress.stage}
-                        color="#388e3c"
-                      />
-                    )}
-                  </div>
-                )}
+                {/* DDT Download Buttons — one per downloadable DDT */}
+                {(order.ddts ?? []).filter(d => d.ddtNumber && d.trackingNumber).map((ddtItem) => {
+                  const isDownloading = ddtQuickProgress.active && ddtQuickProgress.forDdtId === ddtItem.id;
+                  return (
+                    <div key={ddtItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: isDownloading ? "160px" : undefined }}>
+                      <button
+                        disabled={ddtQuickProgress.active}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (ddtQuickProgress.active || !token) return;
+                          setDdtQuickProgress({ active: true, percent: 0, stage: "Avvio...", forDdtId: ddtItem.id });
+                          downloadPdfWithProgress(
+                            order.orderNumber || order.id, "ddt", token,
+                            (stage, percent) => setDdtQuickProgress({ active: true, percent, stage, forDdtId: ddtItem.id }),
+                            () => setTimeout(() => setDdtQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                            (error) => { console.error("DDT download error:", error); setDdtQuickProgress({ active: false, percent: 0, stage: "" }); },
+                            subscribe,
+                            undefined,
+                            (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
+                            ddtItem.ddtNumber,
+                          );
+                        }}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: "4px",
+                          padding: "6px 12px", fontSize: "12px", fontWeight: 600,
+                          backgroundColor: isDownloading ? "#e8f5e9" : "#fff",
+                          color: isDownloading ? "#81c784" : "#388e3c",
+                          border: `1px solid ${isDownloading ? "#81c784" : "#388e3c"}`,
+                          borderRadius: "6px", cursor: ddtQuickProgress.active ? "wait" : "pointer",
+                          transition: "all 0.2s", opacity: ddtQuickProgress.active ? 0.85 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (!ddtQuickProgress.active) { e.currentTarget.style.backgroundColor = "#388e3c"; e.currentTarget.style.color = "#fff"; } }}
+                        onMouseLeave={(e) => { if (!ddtQuickProgress.active) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#388e3c"; } }}
+                      >
+                        {isDownloading ? "⏳ Scaricando..." : `📄 ${ddtItem.ddtNumber}`}
+                      </button>
+                      {isDownloading && <ProgressBar percent={ddtQuickProgress.percent} stage={ddtQuickProgress.stage} color="#388e3c" />}
+                    </div>
+                  );
+                })}
 
-                {/* Invoice Download Button */}
-                {inv?.invoiceNumber && (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      flexDirection: "column",
-                      minWidth: invoiceQuickProgress.active
-                        ? "160px"
-                        : undefined,
-                    }}
-                  >
-                    <button
-                      disabled={invoiceQuickProgress.active}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (invoiceQuickProgress.active || !token) return;
-                        setInvoiceQuickProgress({
-                          active: true,
-                          percent: 0,
-                          stage: "Avvio...",
-                        });
-                        const isNC = inv?.invoiceNumber?.startsWith("NC/");
-                        downloadPdfWithProgress(
-                          order.orderNumber || order.id,
-                          "invoice",
-                          token,
-                          (stage, percent) =>
-                            setInvoiceQuickProgress({
-                              active: true,
-                              percent,
-                              stage,
-                            }),
-                          () =>
-                            setTimeout(
-                              () =>
-                                setInvoiceQuickProgress({
-                                  active: false,
-                                  percent: 0,
-                                  stage: "",
-                                }),
-                              1500,
-                            ),
-                          (error) => {
-                            console.error("Invoice download error:", error);
-                            setInvoiceQuickProgress({
-                              active: false,
-                              percent: 0,
-                              stage: "",
-                            });
-                          },
-                          subscribe,
-                          isNC ? "NC" : "Fattura",
-                          (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
-                        );
-                      }}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "6px 12px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        backgroundColor: invoiceQuickProgress.active
-                          ? "#f3e5f5"
-                          : "#fff",
-                        color: invoiceQuickProgress.active
-                          ? "#ba68c8"
-                          : "#7b1fa2",
-                        border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
-                        borderRadius: "6px",
-                        cursor: invoiceQuickProgress.active
-                          ? "wait"
-                          : "pointer",
-                        transition: "all 0.2s",
-                        opacity: invoiceQuickProgress.active ? 0.85 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!invoiceQuickProgress.active) {
-                          e.currentTarget.style.backgroundColor = "#7b1fa2";
-                          e.currentTarget.style.color = "#fff";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!invoiceQuickProgress.active) {
-                          e.currentTarget.style.backgroundColor = "#fff";
-                          e.currentTarget.style.color = "#7b1fa2";
-                        }
-                      }}
-                    >
-                      {invoiceQuickProgress.active
-                        ? `⏳ Scaricando...`
-                        : `📑 Scarica ${inv?.invoiceNumber?.startsWith("NC/") ? "NC" : "Fattura"}`}
-                    </button>
-                    {invoiceQuickProgress.active && (
-                      <ProgressBar
-                        percent={invoiceQuickProgress.percent}
-                        stage={invoiceQuickProgress.stage}
-                        color="#7b1fa2"
-                      />
-                    )}
-                  </div>
-                )}
+                {/* Invoice Download Buttons — one per invoice */}
+                {(order.invoices ?? []).filter(i => i.invoiceNumber).map((invItem) => {
+                  const isNC = invItem.invoiceNumber.startsWith("NC/");
+                  const isDownloading = invoiceQuickProgress.active && invoiceQuickProgress.forInvoiceId === invItem.id;
+                  return (
+                    <div key={invItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: isDownloading ? "160px" : undefined }}>
+                      <button
+                        disabled={invoiceQuickProgress.active}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (invoiceQuickProgress.active || !token) return;
+                          setInvoiceQuickProgress({ active: true, percent: 0, stage: "Avvio...", forInvoiceId: invItem.id });
+                          downloadPdfWithProgress(
+                            order.orderNumber || order.id, "invoice", token,
+                            (stage, percent) => setInvoiceQuickProgress({ active: true, percent, stage, forInvoiceId: invItem.id }),
+                            () => setTimeout(() => setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                            (error) => { console.error("Invoice download error:", error); setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }); },
+                            subscribe,
+                            isNC ? "NC" : "Fattura",
+                            (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
+                            invItem.invoiceNumber,
+                          );
+                        }}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: "4px",
+                          padding: "6px 12px", fontSize: "12px", fontWeight: 600,
+                          backgroundColor: isDownloading ? "#f3e5f5" : "#fff",
+                          color: isDownloading ? "#ba68c8" : "#7b1fa2",
+                          border: `1px solid ${isDownloading ? "#ba68c8" : "#7b1fa2"}`,
+                          borderRadius: "6px", cursor: invoiceQuickProgress.active ? "wait" : "pointer",
+                          transition: "all 0.2s", opacity: invoiceQuickProgress.active ? 0.85 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (!invoiceQuickProgress.active) { e.currentTarget.style.backgroundColor = "#7b1fa2"; e.currentTarget.style.color = "#fff"; } }}
+                        onMouseLeave={(e) => { if (!invoiceQuickProgress.active) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#7b1fa2"; } }}
+                      >
+                        {isDownloading ? "⏳ Scaricando..." : `📑 ${invItem.invoiceNumber}`}
+                      </button>
+                      {isDownloading && <ProgressBar percent={invoiceQuickProgress.percent} stage={invoiceQuickProgress.stage} color="#7b1fa2" />}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Right: Action Buttons (placeholder) */}
@@ -5461,8 +5272,6 @@ export function OrderCardNew({
                 token={token}
                 searchQuery={searchQuery}
                 borderColor={orderStatusStyle.borderColor}
-                autoExpandBackorders={pendingScrollTo === "backorder"}
-                onBackordersExpanded={() => setPendingScrollTo(null)}
               />
             )}
             {activeTab === "finanziario" && (

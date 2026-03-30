@@ -1,4 +1,4 @@
-import type { Order } from "../types/order";
+import type { Order, DdtEntry } from "../types/order";
 import type { ScanEvent } from "./TrackingProgressBar";
 
 export type GroupedDay = {
@@ -130,11 +130,13 @@ function formatDeliveryDate(isoStr: string): string {
 export function TrackingTimeline({
   order,
   borderColor,
+  ddt: ddtOverride,
 }: {
   order: Order;
   borderColor: string;
+  ddt?: DdtEntry;
 }) {
-  const primaryDdt = order.ddts?.[0] ?? null;
+  const primaryDdt = ddtOverride ?? order.ddts?.[0] ?? null;
   const events = primaryDdt?.trackingEvents ?? [];
   const groups = groupEventsByDay(events as ScanEvent[]);
   const trackingUrl =
