@@ -50,21 +50,21 @@ describe('createSyncScheduler', () => {
     scheduler.stop();
   });
 
-  test('active agents get all four sync types', () => {
+  test('active agents get all active sync types', () => {
     const enqueue = createMockEnqueue();
     const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']));
 
     scheduler.start(intervals);
     vi.advanceTimersByTime(100);
 
-    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'user-1', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-ddt', 'user-1', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-invoices', 'user-1', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-2', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'user-2', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-ddt', 'user-2', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-invoices', 'user-2', {});
+    for (const user of ['user-1', 'user-2']) {
+      expect(enqueue).toHaveBeenCalledWith('sync-customers', user, {});
+      expect(enqueue).toHaveBeenCalledWith('sync-orders', user, {});
+      expect(enqueue).toHaveBeenCalledWith('sync-ddt', user, {});
+      expect(enqueue).toHaveBeenCalledWith('sync-invoices', user, {});
+      expect(enqueue).toHaveBeenCalledWith('sync-tracking', user, {});
+      expect(enqueue).toHaveBeenCalledWith('sync-order-states', user, {});
+    }
 
     scheduler.stop();
   });
@@ -80,6 +80,7 @@ describe('createSyncScheduler', () => {
     expect(enqueue).toHaveBeenCalledWith('sync-orders', 'idle-1', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-ddt', 'idle-1', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-invoices', 'idle-1', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-order-states', 'idle-1', {});
 
     scheduler.stop();
   });
@@ -110,6 +111,7 @@ describe('createSyncScheduler', () => {
     expect(enqueue).not.toHaveBeenCalledWith('sync-orders', 'offline-agent', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-ddt', 'offline-agent', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-invoices', 'offline-agent', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-order-states', 'offline-agent', {});
 
     scheduler.stop();
   });

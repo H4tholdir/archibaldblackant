@@ -71,19 +71,19 @@ export const config = {
       concurrency: parseInt(process.env.AGENT_SYNC_CONCURRENCY || "3", 10),
       lockDuration: 300_000,
       stalledInterval: 30_000,
-      removeOnComplete: true as const,
+      removeOnComplete: { count: 100 } as const,
     },
     enrichment: {
       concurrency: parseInt(process.env.ENRICHMENT_CONCURRENCY || "3", 10),
       lockDuration: 900_000,
       stalledInterval: 30_000,
-      removeOnComplete: true as const,
+      removeOnComplete: { count: 100 } as const,
     },
     'shared-sync': {
       concurrency: parseInt(process.env.SHARED_SYNC_CONCURRENCY || "1", 10),
       lockDuration: 900_000,
       stalledInterval: 60_000,
-      removeOnComplete: true as const,
+      removeOnComplete: { count: 100 } as const,
     },
   },
   browserPool: {

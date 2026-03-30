@@ -41,6 +41,16 @@ export function mapTrackingStatus(statusBarCD: string, keyStatusCD: string): str
   return 'pending';
 }
 
+function normalizeForFedEx(raw: string): string | null {
+  if (!raw.trim()) return null;
+  const spaceIdx = raw.indexOf(' ');
+  if (spaceIdx === -1) return raw.trim();
+  const prefix = raw.slice(0, spaceIdx).toLowerCase();
+  const number = raw.slice(spaceIdx + 1).trim();
+  if (prefix !== 'fedex') return null;
+  return number || null;
+}
+
 async function syncTracking(
   pool: DbPool,
   userId: string,
@@ -72,8 +82,24 @@ async function syncTracking(
     const trackingToDdt = new Map<string, { ddtId: string; orderId: string; orderNumber: string }>();
     const trackingNumbers: string[] = [];
     for (const ddt of ddts) {
-      trackingToDdt.set(ddt.trackingNumber, ddt);
-      trackingNumbers.push(ddt.trackingNumber);
+      const normalized = normalizeForFedEx(ddt.trackingNumber);
+      if (normalized === null) {
+        logger.info('Tracking: skipping non-FedEx carrier', { trackingNumber: ddt.trackingNumber, orderNumber: ddt.orderNumber });
+        continue;
+      }
+      trackingToDdt.set(normalized, ddt);
+      trackingNumbers.push(normalized);
+    }
+
+    if (trackingNumbers.length === 0) {
+      return {
+        success: true,
+        trackingProcessed: 0,
+        trackingUpdated: 0,
+        trackingFailed: 0,
+        newDeliveries: 0,
+        duration: Date.now() - startTime,
+      };
     }
 
     const results = await trackViaFedExApi(trackingNumbers, (processed, total) => {
@@ -202,5 +228,5 @@ async function syncTracking(
   }
 }
 
-export { syncTracking };
+export { syncTracking, normalizeForFedEx };
 export type { TrackingSyncResult, TrackingEventType };

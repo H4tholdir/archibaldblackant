@@ -1,7 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../../db/pool';
 import type { FedExTrackingResult } from './fedex-api-tracker';
-import { mapTrackingStatus } from './tracking-sync';
+import { mapTrackingStatus, normalizeForFedEx } from './tracking-sync';
 
 vi.mock('./fedex-api-tracker', () => ({
   trackViaFedExApi: vi.fn(),
@@ -57,6 +57,33 @@ function makeResult(
     ...overrides,
   };
 }
+
+describe('normalizeForFedEx', () => {
+  test.each([
+    ['fedex 445291886931', '445291886931'],
+    ['FedEx 445291886931', '445291886931'],
+    ['FEDEX 445291886931', '445291886931'],
+    ['fedex  445291886931', '445291886931'],
+    ['445291886931', '445291886931'],
+    ['TRK111', 'TRK111'],
+  ])('normalizes %s → %s', (raw, expected) => {
+    expect(normalizeForFedEx(raw)).toBe(expected);
+  });
+
+  test.each([
+    ['Ups 1Z4V26Y86872784611'],
+    ['ups 1Z4V26Y86872784611'],
+    ['dhl 1234567890'],
+    ['DHL 1234567890'],
+    ['gls 12345'],
+    ['tnt 99999'],
+    [''],
+    ['   '],
+    ['fedex '],
+  ])('returns null for non-FedEx or empty: %s', (raw) => {
+    expect(normalizeForFedEx(raw)).toBeNull();
+  });
+});
 
 describe('mapTrackingStatus', () => {
   const cases: Array<[string, string, string]> = [
@@ -268,5 +295,53 @@ describe('syncTracking', () => {
     await expect(
       syncTracking(pool, 'user-1', vi.fn(), () => false),
     ).resolves.toMatchObject({ success: true });
+  });
+
+  test('strips "fedex " prefix before calling FedEx API', async () => {
+    const rawNumber = 'fedex 445291886931';
+    const bareNumber = '445291886931';
+    const mockDdts = [
+      { id: 'ddt-fx', order_id: 'ord-fx', order_number: 'ORD/FX', tracking_number: rawNumber },
+    ];
+    mockTrackViaFedExApi.mockResolvedValue([makeResult(bareNumber)]);
+    const { pool } = makeMockPool(mockDdts);
+
+    const result = await syncTracking(pool, 'user-1', vi.fn(), () => false);
+
+    expect(mockTrackViaFedExApi).toHaveBeenCalledWith(
+      [bareNumber],
+      expect.any(Function),
+    );
+    expect(result).toMatchObject({ success: true, trackingProcessed: 1, trackingUpdated: 1 });
+  });
+
+  test('skips UPS numbers without incrementing failures', async () => {
+    const mockDdts = [
+      { id: 'ddt-ups', order_id: 'ord-ups', order_number: 'ORD/UPS', tracking_number: 'Ups 1Z4V26Y86872784611' },
+    ];
+    const { pool, queries } = makeMockPool(mockDdts);
+
+    const result = await syncTracking(pool, 'user-1', vi.fn(), () => false);
+
+    expect(mockTrackViaFedExApi).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, trackingProcessed: 0, trackingFailed: 0 });
+    const failureIncrements = queries.filter((q) => q.text.includes('tracking_sync_failures, 0) + 1'));
+    expect(failureIncrements).toHaveLength(0);
+  });
+
+  test('mixes FedEx and UPS: only FedEx tracked, UPS skipped without failure', async () => {
+    const mockDdts = [
+      { id: 'ddt-fx2', order_id: 'ord-fx2', order_number: 'ORD/FX2', tracking_number: 'fedex 123456789' },
+      { id: 'ddt-ups2', order_id: 'ord-ups2', order_number: 'ORD/UPS2', tracking_number: 'Ups 1ZABC123' },
+    ];
+    mockTrackViaFedExApi.mockResolvedValue([makeResult('123456789')]);
+    const { pool, queries } = makeMockPool(mockDdts);
+
+    const result = await syncTracking(pool, 'user-1', vi.fn(), () => false);
+
+    expect(mockTrackViaFedExApi).toHaveBeenCalledWith(['123456789'], expect.any(Function));
+    expect(result).toMatchObject({ success: true, trackingProcessed: 1, trackingUpdated: 1, trackingFailed: 0 });
+    const failureIncrements = queries.filter((q) => q.text.includes('tracking_sync_failures, 0) + 1'));
+    expect(failureIncrements).toHaveLength(0);
   });
 });

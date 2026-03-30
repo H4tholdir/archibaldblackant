@@ -101,6 +101,7 @@ function createSyncScheduler(
     'sync-ddt',
     'sync-invoices',
     'sync-tracking',
+    'sync-order-states',
   ];
 
   const IDLE_SYNC_TYPES: readonly OperationType[] = [
