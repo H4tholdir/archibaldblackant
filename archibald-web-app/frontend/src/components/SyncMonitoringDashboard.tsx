@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 
+type JobOutcome = 'real' | 'circuit_breaker_skip' | 'rescheduled' | 'skipped';
+
 type SyncType =
   | "sync-customers"
   | "sync-orders"
@@ -14,9 +16,10 @@ type SyncType =
 
 type HistoryEntry = {
   timestamp: string | null;
-  duration: number;
+  duration: number | null;
   success: boolean;
   error: string | null;
+  outcome: JobOutcome;
 };
 
 type SyncTypeStats = {
@@ -24,11 +27,15 @@ type SyncTypeStats = {
   lastDuration: number | null;
   lastSuccess: boolean | null;
   lastError: string | null;
-  health: "healthy" | "degraded" | "stale" | "idle";
+  health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused';
   totalCompleted: number;
   totalFailed: number;
   consecutiveFailures: number;
   history: HistoryEntry[];
+  lastRealRunTime: string | null;
+  lastRealDuration: number | null;
+  circuitBreakerActive: boolean;
+  skipCount: number;
 };
 
 type QueueStats = {
@@ -56,6 +63,22 @@ type SyncHistoryData = {
   types: Record<SyncType, SyncTypeStats>;
 };
 
+type CircuitBreakerEntry = {
+  userId: string;
+  syncType: string;
+  consecutiveFailures: number;
+  totalFailures24h: number;
+  lastFailureAt: string | null;
+  lastError: string | null;
+  pausedUntil: string | null;
+  isPaused: boolean;
+  lastSuccessAt: string | null;
+};
+
+type CircuitBreakerData = {
+  entries: CircuitBreakerEntry[];
+};
+
 const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
   { type: "sync-orders", label: "Ordini", icon: "📦" },
   { type: "sync-customers", label: "Clienti", icon: "👥" },
@@ -68,16 +91,18 @@ const SYNC_SECTIONS: { type: SyncType; label: string; icon: string }[] = [
   { type: "sync-customer-addresses" as SyncType, label: "Indirizzi Clienti", icon: "🏠" },
 ];
 
-function getHealthBadge(health: "healthy" | "degraded" | "stale" | "idle") {
+function getHealthBadge(health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused') {
   switch (health) {
-    case "healthy":
-      return { color: "#4caf50", bg: "#e8f5e9", label: "HEALTHY" };
-    case "degraded":
-      return { color: "#f44336", bg: "#ffebee", label: "DEGRADED" };
-    case "stale":
-      return { color: "#e65100", bg: "#fff8e1", label: "STALE" };
-    case "idle":
-      return { color: "#ff9800", bg: "#fff3e0", label: "IDLE" };
+    case 'healthy':
+      return { color: '#4caf50', bg: '#e8f5e9', label: 'HEALTHY' };
+    case 'degraded':
+      return { color: '#f44336', bg: '#ffebee', label: 'DEGRADED' };
+    case 'stale':
+      return { color: '#e65100', bg: '#fff8e1', label: 'STALE' };
+    case 'idle':
+      return { color: '#ff9800', bg: '#fff3e0', label: 'IDLE' };
+    case 'paused':
+      return { color: '#7b1fa2', bg: '#f3e5f5', label: 'PAUSA CB' };
   }
 }
 
@@ -115,6 +140,7 @@ export default function SyncMonitoringDashboard() {
     timestamp: string;
   } | null>(null);
   const consecutiveErrorsRef = useRef(0);
+  const [cbData, setCbData] = useState<CircuitBreakerData | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -152,10 +178,25 @@ export default function SyncMonitoringDashboard() {
     }
   }, []);
 
+  const fetchCbStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sync/monitoring/circuit-breaker', {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCbData({ entries: data.entries });
+      }
+    } catch {
+      /* CB polling — non critico */
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
     fetchHistory();
-  }, [fetchStatus, fetchHistory]);
+    fetchCbStatus();
+  }, [fetchStatus, fetchHistory, fetchCbStatus]);
 
   useEffect(() => {
     const statusMs = wsState === "connected" ? 30000 : 5000;
@@ -167,6 +208,11 @@ export default function SyncMonitoringDashboard() {
       clearInterval(historyTimer);
     };
   }, [wsState, fetchStatus, fetchHistory]);
+
+  useEffect(() => {
+    const cbTimer = setInterval(fetchCbStatus, 60000);
+    return () => clearInterval(cbTimer);
+  }, [fetchCbStatus]);
 
   useEffect(() => {
     const unsubs = [
@@ -390,12 +436,17 @@ export default function SyncMonitoringDashboard() {
                 }}
               >
                 <span>
-                  <strong>Last:</strong> {formatTime(stats?.lastRunTime ?? null)}
+                  <strong>Reale:</strong> {formatTime(stats?.lastRealRunTime ?? null)}
                 </span>
                 <span>
                   <strong>Durata:</strong>{" "}
-                  {formatDuration(stats?.lastDuration ?? null)}
+                  {formatDuration(stats?.lastRealDuration ?? null)}
                 </span>
+                {stats && stats.skipCount > 0 && (
+                  <span style={{ color: '#7b1fa2', fontSize: '12px' }}>
+                    ⏭ {stats.skipCount} saltati
+                  </span>
+                )}
                 {stats?.lastSuccess === false && stats.lastError && (
                   <span
                     style={{ color: "#c62828", cursor: "pointer", textDecoration: "underline" }}
@@ -447,7 +498,12 @@ export default function SyncMonitoringDashboard() {
                           key={i}
                           style={{
                             borderTop: "1px solid #f0f0f0",
-                            backgroundColor: i % 2 === 0 ? "white" : "#fafafa",
+                            backgroundColor:
+                              entry.outcome === 'circuit_breaker_skip' ? '#f3e5f5'
+                                : entry.outcome === 'rescheduled' ? '#fff8e1'
+                                  : entry.outcome === 'skipped' ? '#f5f5f5'
+                                    : entry.success ? 'white'
+                                      : '#ffebee',
                           }}
                         >
                           <td style={{ padding: "5px 8px" }}>
@@ -465,7 +521,10 @@ export default function SyncMonitoringDashboard() {
                               fontSize: "14px",
                             }}
                           >
-                            {entry.success ? "✅" : "❌"}
+                            {entry.outcome === 'circuit_breaker_skip' ? '⏸'
+                              : entry.outcome === 'rescheduled' ? '🔄'
+                                : entry.outcome === 'skipped' ? '⏭'
+                                  : entry.success ? '✅' : '❌'}
                           </td>
                           <td
                             style={{
@@ -565,6 +624,67 @@ export default function SyncMonitoringDashboard() {
           </table>
         )}
       </div>
+
+      {/* 4b. Circuit Breaker Status */}
+      {cbData && cbData.entries.some((e) => e.isPaused) && (
+        <div
+          style={{
+            marginBottom: '24px',
+            padding: '16px',
+            backgroundColor: '#f3e5f5',
+            borderRadius: '8px',
+            border: '2px solid #7b1fa2',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}
+        >
+          <h4 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: '#7b1fa2' }}>
+            ⏸ Circuit Breaker Attivo
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {cbData.entries.filter((e) => e.isPaused).map((entry) => (
+              <div
+                key={`${entry.userId}-${entry.syncType}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '8px 12px',
+                  backgroundColor: 'white',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{entry.syncType}</span>
+                <span style={{ color: '#666', fontFamily: 'monospace', fontSize: '11px' }}>
+                  {entry.userId.slice(0, 8)}...
+                </span>
+                <span style={{ color: '#c62828' }}>
+                  {entry.consecutiveFailures} errori consecutivi
+                </span>
+                {entry.pausedUntil && (
+                  <span style={{ color: '#7b1fa2' }}>
+                    pausa fino alle {formatTime(entry.pausedUntil)}
+                  </span>
+                )}
+                {entry.lastError && (
+                  <span
+                    style={{
+                      color: '#999',
+                      fontSize: '12px',
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {entry.lastError.slice(0, 60)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 5. Scheduler Config */}
       <div

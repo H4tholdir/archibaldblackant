@@ -245,4 +245,97 @@ describe('createCircuitBreaker', () => {
       expect(DAILY_PAUSE_DURATION_MS).toBe(24 * 60 * 60 * 1000);
     });
   });
+
+  describe('getAllStatus', () => {
+    test('returns empty array when no circuit breaker entries exist', async () => {
+      const pool = createMockPool([{ rows: [] }]);
+      const cb = createCircuitBreaker(pool);
+
+      const result = await cb.getAllStatus();
+
+      expect(result).toEqual([]);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('system.circuit_breaker'),
+      );
+    });
+
+    test('returns mapped CircuitBreakerState for all entries ordered by updated_at DESC', async () => {
+      const futureDate = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const nowDate = new Date().toISOString();
+      const rows = [
+        {
+          user_id: 'user-1',
+          sync_type: 'sync-orders',
+          consecutive_failures: 3,
+          total_failures_24h: 5,
+          last_failure_at: futureDate,
+          paused_until: futureDate,
+          last_error: 'Connection timeout',
+          last_success_at: null,
+          updated_at: nowDate,
+        },
+      ];
+      const pool = createMockPool([{ rows }]);
+      const cb = createCircuitBreaker(pool);
+
+      const result = await cb.getAllStatus();
+
+      expect(result).toEqual([{
+        userId: 'user-1',
+        syncType: 'sync-orders',
+        consecutiveFailures: 3,
+        totalFailures24h: 5,
+        lastFailureAt: new Date(futureDate),
+        pausedUntil: new Date(futureDate),
+        lastError: 'Connection timeout',
+        lastSuccessAt: null,
+        updatedAt: new Date(nowDate),
+      }]);
+    });
+
+    test('returns multiple entries', async () => {
+      const nowDate = new Date().toISOString();
+      const rows = [
+        {
+          user_id: 'user-1', sync_type: 'sync-orders', consecutive_failures: 1,
+          total_failures_24h: 1, last_failure_at: null, paused_until: null,
+          last_error: null, last_success_at: null, updated_at: nowDate,
+        },
+        {
+          user_id: 'user-2', sync_type: 'sync-customers', consecutive_failures: 2,
+          total_failures_24h: 2, last_failure_at: null, paused_until: null,
+          last_error: null, last_success_at: null, updated_at: nowDate,
+        },
+      ];
+      const pool = createMockPool([{ rows }]);
+      const cb = createCircuitBreaker(pool);
+
+      const result = await cb.getAllStatus();
+
+      expect(result).toEqual([
+        {
+          userId: 'user-1',
+          syncType: 'sync-orders',
+          consecutiveFailures: 1,
+          totalFailures24h: 1,
+          lastFailureAt: null,
+          pausedUntil: null,
+          lastError: null,
+          lastSuccessAt: null,
+          updatedAt: new Date(nowDate),
+        },
+        {
+          userId: 'user-2',
+          syncType: 'sync-customers',
+          consecutiveFailures: 2,
+          totalFailures24h: 2,
+          lastFailureAt: null,
+          pausedUntil: null,
+          lastError: null,
+          lastSuccessAt: null,
+          updatedAt: new Date(nowDate),
+        },
+      ]);
+    });
+  });
 });

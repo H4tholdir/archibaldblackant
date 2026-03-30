@@ -126,8 +126,21 @@ function createCircuitBreaker(pool: DbPool) {
       if (rows.length === 0) return null;
       return mapRowToState(rows[0]);
     },
+
+    async getAllStatus(): Promise<CircuitBreakerState[]> {
+      const { rows } = await pool.query<CircuitBreakerRow>(
+        `SELECT user_id, sync_type, consecutive_failures, total_failures_24h,
+                last_failure_at, paused_until, last_error, last_success_at, updated_at
+         FROM system.circuit_breaker
+         ORDER BY updated_at DESC`,
+      );
+
+      return rows.map(mapRowToState);
+    },
   };
 }
+
+type CircuitBreaker = ReturnType<typeof createCircuitBreaker>;
 
 export {
   createCircuitBreaker,
@@ -138,4 +151,4 @@ export {
   PAUSE_DURATION_MS,
   DAILY_PAUSE_DURATION_MS,
 };
-export type { CircuitBreakerState, CircuitBreakerRow };
+export type { CircuitBreakerState, CircuitBreakerRow, CircuitBreaker };

@@ -6,6 +6,7 @@ import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
+import type { CircuitBreakerState } from '../sync/circuit-breaker';
 
 type SyncSchedulerLike = {
   start: (intervals?: unknown) => void;
@@ -32,6 +33,7 @@ type SyncStatusRouterDeps = {
   getProductLastSyncTime?: () => Promise<number | null>;
   getSessionCount?: () => number;
   getOrdersNeedingArticleSync?: (userId: string, limit: number) => Promise<string[]>;
+  getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -40,6 +42,16 @@ const VALID_SYNC_TYPES = new Set([
   'sync-order-articles', 'sync-tracking',
   'sync-customer-addresses', 'sync-order-states',
 ]);
+
+type JobOutcome = 'real' | 'circuit_breaker_skip' | 'rescheduled' | 'skipped';
+
+function classifyOutcome(returnvalue: Record<string, unknown> | null | undefined): JobOutcome {
+  const data = returnvalue?.data as Record<string, unknown> | undefined;
+  if (data?.circuitBreakerSkipped) return 'circuit_breaker_skip';
+  if (data?.rescheduled) return 'rescheduled';
+  if (data?.skipped) return 'skipped';
+  return 'real';
+}
 
 function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const { queue, agentLock, syncScheduler } = deps;
@@ -138,11 +150,14 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           }
         }
 
+        // Solo i job 'real' failed incrementano consecutiveFailures.
+        // Gli skip (CB, rescheduled, skipped) non azzerano la streak né la incrementano.
         for (const job of typeJobs) {
           if (job.failedReason) {
             consecutiveFailures++;
           } else {
-            break;
+            const outcome = classifyOutcome(job.returnvalue as Record<string, unknown> | null);
+            if (outcome === 'real') break;
           }
         }
 
@@ -157,22 +172,40 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         const lastSuccess: boolean | null = lastJob ? !lastJob.failedReason : null;
         const lastError: string | null = lastJob?.failedReason ?? null;
 
+        const realJob = typeJobs.find(
+          (job) => !job.failedReason && classifyOutcome(job.returnvalue as Record<string, unknown> | null) === 'real',
+        ) ?? null;
+        const lastRealRunTime = realJob?.finishedOn ? new Date(realJob.finishedOn).toISOString() : null;
+        const lastRealDuration = realJob?.finishedOn && realJob.processedOn
+          ? realJob.finishedOn - realJob.processedOn
+          : null;
+
+        const recentJobs = typeJobs.slice(0, 20);
+        const circuitBreakerActive = recentJobs.some(
+          (job) => !job.failedReason && classifyOutcome(job.returnvalue as Record<string, unknown> | null) === 'circuit_breaker_skip',
+        );
+        const skipCount = recentJobs.filter(
+          (job) => !job.failedReason && classifyOutcome(job.returnvalue as Record<string, unknown> | null) !== 'real',
+        ).length;
+
         const staleThresholdMs = STALE_THRESHOLDS_MS[syncType as OperationType];
-        const isStale = staleThresholdMs !== undefined && lastJob?.finishedOn !== undefined
-          ? Date.now() - lastJob.finishedOn > staleThresholdMs
+        const isStale = staleThresholdMs !== undefined && realJob?.finishedOn !== undefined
+          ? Date.now() - realJob.finishedOn > staleThresholdMs
           : false;
 
-        const health: 'healthy' | 'degraded' | 'stale' | 'idle' =
+        const health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused' =
           typeJobs.length === 0 ? 'idle'
-            : consecutiveFailures >= 3 ? 'degraded'
-              : isStale ? 'stale'
-                : 'healthy';
+            : circuitBreakerActive ? 'paused'
+              : consecutiveFailures >= 3 ? 'degraded'
+                : isStale ? 'stale'
+                  : 'healthy';
 
         const history = typeJobs.slice(0, 20).map((job) => ({
           timestamp: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
           duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null,
           success: !job.failedReason,
           error: job.failedReason ?? null,
+          outcome: classifyOutcome(job.returnvalue as Record<string, unknown> | null),
         }));
 
         types[syncType] = {
@@ -185,6 +218,10 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           totalFailed,
           consecutiveFailures,
           history,
+          lastRealRunTime,
+          lastRealDuration,
+          circuitBreakerActive,
+          skipCount,
         };
       }
 
@@ -192,6 +229,31 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     } catch (error) {
       logger.error('Error fetching sync history', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
       res.status(500).json({ success: false, error: 'Errore nel recupero history sync' });
+    }
+  });
+
+  router.get('/monitoring/circuit-breaker', async (_req: AuthRequest, res) => {
+    try {
+      if (!deps.getCircuitBreakerStatus) {
+        return res.json({ success: true, entries: [] });
+      }
+      const states = await deps.getCircuitBreakerStatus();
+      const now = new Date();
+      const entries = states.map((s) => ({
+        userId: s.userId,
+        syncType: s.syncType,
+        consecutiveFailures: s.consecutiveFailures,
+        totalFailures24h: s.totalFailures24h,
+        lastFailureAt: s.lastFailureAt?.toISOString() ?? null,
+        lastError: s.lastError,
+        pausedUntil: s.pausedUntil?.toISOString() ?? null,
+        isPaused: s.pausedUntil ? s.pausedUntil > now : false,
+        lastSuccessAt: s.lastSuccessAt?.toISOString() ?? null,
+      }));
+      res.json({ success: true, entries });
+    } catch (error) {
+      logger.error('Error fetching circuit breaker status', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero circuit breaker status' });
     }
   });
 
@@ -545,4 +607,4 @@ function createQuickCheckRouter(deps: SyncStatusRouterDeps) {
   return router;
 }
 
-export { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps, type ResetSyncType };
+export { createSyncStatusRouter, createQuickCheckRouter, classifyOutcome, type SyncStatusRouterDeps, type ResetSyncType, type JobOutcome };

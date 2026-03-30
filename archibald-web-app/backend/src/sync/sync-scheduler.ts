@@ -87,7 +87,7 @@ function createSyncScheduler(
               'sync-customer-addresses',
               agentUserId,
               { customers: customers.map((c) => ({ erpId: c.erp_id, customerName: c.name })) },
-              `sync-customer-addresses-${agentUserId}`,
+              `sync-customer-addresses-${agentUserId}-${Math.floor(Date.now() / ADDRESS_SYNC_DELAY_MS)}`,
             ).finally(() => {
               addressSyncTimeouts.delete(agentUserId);
             });

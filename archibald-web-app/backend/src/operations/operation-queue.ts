@@ -58,7 +58,7 @@ function createOperationQueue(
     const base: JobsOptions = {
       priority: OPERATION_PRIORITIES[type],
       removeOnComplete: removeOnComplete ?? { count: 500 },
-      removeOnFail: { count: 100 },
+      removeOnFail: { age: 3600, count: 100 },
     };
 
     if (isScheduledSync(type)) {

@@ -397,6 +397,7 @@ async function bootstrap(): Promise<void> {
         logger.warn('Failed to reset circuit breaker on login', { userId, error: err }),
       );
     },
+    getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
   });
 
   const server = http.createServer(app);

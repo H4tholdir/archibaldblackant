@@ -416,13 +416,14 @@ describe('createSyncScheduler', () => {
             { erpId: 'CUST-002', customerName: 'Verdi Luca' },
           ],
         },
-        'sync-customer-addresses-user-1',
+        expect.stringMatching(/^sync-customer-addresses-user-1-\d+$/),
       );
 
       scheduler.stop();
     });
 
-    test('address sync uses stable idempotency key sync-customer-addresses-{userId}', async () => {
+    test('address sync jobId changes across time slots to prevent permanent deduplication', async () => {
+      vi.setSystemTime(0);
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { erp_id: 'CUST-001', name: 'Rossi Mario' },
@@ -431,10 +432,19 @@ describe('createSyncScheduler', () => {
 
       scheduler.start(intervals);
       await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+      const call1 = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
+      expect(call1).toBeDefined();
+      const jobId1 = call1![3] as string;
 
-      const addressCall = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
-      expect(addressCall).toBeDefined();
-      expect(addressCall![3]).toBe('sync-customer-addresses-user-1');
+      enqueue.mockClear();
+      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
+      const call2 = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
+      expect(call2).toBeDefined();
+      const jobId2 = call2![3] as string;
+
+      expect(jobId1).toMatch(/^sync-customer-addresses-user-1-\d+$/);
+      expect(jobId2).toMatch(/^sync-customer-addresses-user-1-\d+$/);
+      expect(jobId1).not.toBe(jobId2);
 
       scheduler.stop();
     });
