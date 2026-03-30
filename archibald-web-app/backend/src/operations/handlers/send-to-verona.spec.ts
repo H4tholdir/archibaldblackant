@@ -7,7 +7,8 @@ function createMockPool(): DbPool {
     .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 }) // SELECT current_state
     .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE current_state
     .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT order_state_history
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_milano_at
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_verona_at
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE warehouse_items (batchMarkSold)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history (no records)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE merged siblings
     .mockResolvedValue({ rows: [], rowCount: 0 });
@@ -53,20 +54,21 @@ describe('handleSendToVerona', () => {
     expect(stateUpdateCall![1]).toEqual(['inviato_milano', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes 6 DB queries for audit trail, fresis lookup, and sibling propagation', async () => {
+  test('executes 7 DB queries for audit trail, warehouse mark-sold, fresis lookup, and sibling propagation', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
     expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_verona_at');
-    expect(calls[4][0]).toContain('SELECT id, items');
-    expect(calls[5][0]).toContain('merged_into_order_id');
+    expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
+    expect(calls[5][0]).toContain('SELECT id, items');
+    expect(calls[6][0]).toContain('merged_into_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
@@ -124,7 +126,8 @@ describe('handleSendToVerona', () => {
       .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 }) // SELECT current_state
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE current_state
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT order_state_history
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_milano_at
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_verona_at
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE warehouse_items (batchMarkSold)
       .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 }) // SELECT fresis_history
       .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 }) // getNextFtNumber
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE fresis_history
@@ -141,13 +144,13 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = queryMock.mock.calls;
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(9);
 
-    const ftCounterCall = calls[5];
+    const ftCounterCall = calls[6];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
     expect(ftCounterCall[1]).toEqual([esercizio, 'user-1', 'FT']);
 
-    const updateCall = calls[6];
+    const updateCall = calls[7];
     expect(updateCall[0]).toContain('UPDATE agents.fresis_history');
     const updateParams = updateCall[1] as unknown[];
     const arcaDataJson = updateParams[0] as string;
@@ -171,7 +174,7 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    const siblingUpdate = calls[5];
+    const siblingUpdate = calls[6];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
     expect(siblingUpdate[0]).toContain('merged_into_order_id');
     expect(siblingUpdate[0]).toContain("current_state = 'inviato_milano'");

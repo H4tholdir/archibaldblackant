@@ -4,6 +4,7 @@ import type { OperationHandler } from '../operation-processor';
 import { generateArcaData } from '../../services/generate-arca-data';
 import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
+import { batchMarkSold } from '../../db/repositories/warehouse';
 
 type SendToVeronaData = {
   orderId: string;
@@ -63,6 +64,8 @@ async function handleSendToVerona(
     'UPDATE agents.order_records SET sent_to_verona_at = $1 WHERE id = $2 AND user_id = $3',
     [sentToMilanoAt, data.orderId, userId],
   );
+
+  await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToMilanoAt });
 
   onProgress(85, 'Generazione documenti FT');
 
