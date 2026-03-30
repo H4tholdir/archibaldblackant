@@ -104,6 +104,7 @@ export default function SyncControlPanel() {
   const [togglingAutoSync, setTogglingAutoSync] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const consecutiveErrorsRef = useRef(0);
+  const enqueuedAtRef = useRef<Map<SyncType, number>>(new Map());
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -151,6 +152,20 @@ export default function SyncControlPanel() {
         setLastSyncTimes(newTimes);
         setLastSyncHealth(newHealth);
         setLastSyncTimesLoaded(true);
+
+        setEnqueuedTypes((prev) => {
+          if (prev.size === 0) return prev;
+          const next = new Set(prev);
+          for (const t of [...next]) {
+            const enqueuedAt = enqueuedAtRef.current.get(t as SyncType);
+            const lastRun = newTimes[t];
+            if (enqueuedAt && lastRun && new Date(lastRun).getTime() >= enqueuedAt) {
+              next.delete(t as SyncType);
+              enqueuedAtRef.current.delete(t as SyncType);
+            }
+          }
+          return next;
+        });
       }
 
       consecutiveErrorsRef.current = 0;
@@ -193,6 +208,12 @@ export default function SyncControlPanel() {
   }, [wsState, fetchStatus, fetchAutoSyncStatus]);
 
   useEffect(() => {
+    if (enqueuedTypes.size === 0) return;
+    const fastPoll = setInterval(fetchStatus, 3000);
+    return () => clearInterval(fastPoll);
+  }, [enqueuedTypes.size, fetchStatus]);
+
+  useEffect(() => {
     const unsubs = [
       subscribe("JOB_STARTED", () => { fetchStatus(); }),
       subscribe("JOB_COMPLETED", () => { fetchStatus(); }),
@@ -225,6 +246,7 @@ export default function SyncControlPanel() {
   };
 
   const handleSyncIndividual = async (type: SyncType) => {
+    enqueuedAtRef.current.set(type, Date.now());
     setSyncing((prev) => ({ ...prev, [type]: true }));
     setEnqueuedTypes((prev) => new Set(prev).add(type));
     try {
@@ -243,6 +265,8 @@ export default function SyncControlPanel() {
   };
 
   const handleSyncAll = async () => {
+    const now = Date.now();
+    ALL_SYNC_TYPES.forEach((t) => enqueuedAtRef.current.set(t, now));
     setSyncingAll(true);
     setEnqueuedTypes(new Set(ALL_SYNC_TYPES));
     try {
