@@ -147,7 +147,7 @@ async function handleUpdateCustomer(
       updated_at = NOW()
      WHERE erp_id = $16 AND user_id = $17`,
     [
-      data.name,
+      snapshot?.name ?? data.name,
       snapshot?.nameAlias ?? null,
       snapshot?.city ?? null,
       snapshot?.county ?? null,

@@ -94,4 +94,33 @@ describe('handleUpdateCustomer', () => {
     );
     expect(updateVatValidatedAt).toHaveBeenCalledWith(pool, 'user1', '55.261');
   });
+
+  test('uses snapshot.name as archibald_name when ERP normalizes the name differently from form input', async () => {
+    const erpName = 'MARIO ROSSI SRL';
+    const formName = 'Mario Rossi S.r.l.';
+    const pool = makePool({ name: formName, archibald_name: formName });
+    const bot = makeBot({ ...snapshot, name: erpName });
+
+    await handleUpdateCustomer(pool as never, bot, { ...baseData, name: formName }, 'user1', vi.fn());
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const snapshotCall = calls.find(([sql]) => sql.includes("bot_status = 'snapshot'"));
+    expect(snapshotCall).toBeDefined();
+    // $1 is archibald_name — must be the ERP-read name, not the form name
+    expect(snapshotCall![1][0]).toBe(erpName);
+  });
+
+  test('falls back to form name as archibald_name when snapshot is unavailable', async () => {
+    const formName = 'Mario Rossi S.r.l.';
+    const pool = makePool({ name: formName, archibald_name: formName });
+    const bot = makeBot();
+    (bot.buildCustomerSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    await handleUpdateCustomer(pool as never, bot, { ...baseData, name: formName }, 'user1', vi.fn());
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const snapshotCall = calls.find(([sql]) => sql.includes("bot_status = 'snapshot'"));
+    expect(snapshotCall).toBeDefined();
+    expect(snapshotCall![1][0]).toBe(formName);
+  });
 });

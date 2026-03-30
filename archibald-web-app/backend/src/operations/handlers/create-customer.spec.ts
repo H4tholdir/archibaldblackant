@@ -105,4 +105,32 @@ describe('handleCreateCustomer', () => {
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('persists snapshot.name as archibald_name in UPDATE when ERP normalizes name differently', async () => {
+    const erpName = 'NEW CORP SRL';
+    const formName = 'New Corp S.r.l.';
+    const pool = createMockPool();
+    const bot: CreateCustomerBot = {
+      createCustomer: vi.fn().mockResolvedValue('CUST-001'),
+      buildCustomerSnapshot: vi.fn().mockResolvedValue({
+        internalId: '42', name: erpName, nameAlias: null,
+        vatNumber: null, vatValidated: null, fiscalCode: null,
+        pec: null, sdi: null, notes: null, street: null,
+        postalCode: null, city: null, county: null,
+        state: null, country: null, phone: null, mobile: null,
+        email: null, url: null, attentionTo: null, deliveryMode: null,
+        paymentTerms: null, sector: null, priceGroup: null, lineDiscount: null,
+      }),
+      setProgressCallback: vi.fn(),
+    };
+
+    await handleCreateCustomer(pool, bot, { ...sampleData, name: formName }, 'user-1', vi.fn());
+
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('UPDATE agents.customers'));
+    expect(updateCalls).toHaveLength(1);
+    const [sql, params] = updateCalls[0] as [string, unknown[]];
+    expect(sql).toContain('archibald_name');
+    expect(params).toContain(erpName);
+  });
 });

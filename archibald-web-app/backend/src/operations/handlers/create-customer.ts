@@ -113,6 +113,7 @@ async function handleCreateCustomer(
       payment_terms = COALESCE($13, payment_terms),
       attention_to = COALESCE($14, attention_to),
       notes = COALESCE($15, notes),
+      archibald_name = COALESCE($18, archibald_name),
       updated_at = NOW()
      WHERE erp_id = $16 AND user_id = $17`,
     [
@@ -133,6 +134,7 @@ async function handleCreateCustomer(
       snapshot?.notes ?? null,
       tempProfile,
       userId,
+      snapshot?.name ?? null,
     ],
   );
 
