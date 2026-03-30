@@ -143,6 +143,7 @@ export class PDFParserProductsService {
               // stdout is not valid products JSON, fall through to reject
             }
           }
+          this.lastWarnings = [];
           logger.error('[PDFParserProductsService] Python script failed', {
             code,
             stderr,
