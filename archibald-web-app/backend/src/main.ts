@@ -884,14 +884,24 @@ async function bootstrap(): Promise<void> {
       (userId) => ({
         downloadProductsPdf: async () => {
           const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          let contextHealthy = false;
+          const attemptDownload = async () => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+            let contextHealthy = false;
+            try {
+              const result = await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
+              contextHealthy = true;
+              return result;
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+            }
+          };
           try {
-            const result = await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+            return await attemptDownload();
+          } catch (err) {
+            if (err instanceof Error && err.message.includes('SessionExpiredError')) {
+              return attemptDownload();
+            }
+            throw err;
           }
         },
       }),
