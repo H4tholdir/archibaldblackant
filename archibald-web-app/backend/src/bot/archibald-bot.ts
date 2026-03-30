@@ -13316,6 +13316,24 @@ export class ArchibaldBot {
     logger.info("navigateToEditCustomerForm: edit form loaded", { name });
   }
 
+  async navigateToCustomerByErpId(erpId: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    const cleanId = erpId.replace(/,/g, '');
+    logger.info("navigateToCustomerByErpId: navigating directly", { erpId: cleanId });
+
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_DetailView/${cleanId}/?mode=View`,
+      { waitUntil: "networkidle2", timeout: 60000 },
+    );
+
+    if (this.page.url().includes("Login.aspx")) {
+      throw new Error("Sessione scaduta: reindirizzato al login");
+    }
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+    logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
+  }
+
   async readEditFormFieldValues(): Promise<Record<string, string>> {
     if (!this.page) throw new Error("Browser page is null");
 
