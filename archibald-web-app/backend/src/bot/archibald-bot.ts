@@ -9203,7 +9203,7 @@ export class ArchibaldBot {
         const anchorId = id.endsWith('_') ? `${id}T` : `${id}_T`;
         const anchor = li.querySelector(`#${CSS.escape(anchorId)}`);
         const text = ((anchor || li).textContent || '').trim();
-        if (/^Esportare in\b/i.test(text) || /^Export to\b/i.test(text)) {
+        if (/Esportare in/i.test(text) || /Export to/i.test(text)) {
           return {
             buttonSelector: `#${CSS.escape(anchor ? anchorId : id)}`,
             containerSelector: `#${CSS.escape(id)}`,

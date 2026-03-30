@@ -336,13 +336,33 @@ describe('createOrdersRouter', () => {
   });
 
   describe('POST /api/orders/:orderId/send-to-milano', () => {
+    const sendableOrder = { ...mockOrder, transferStatus: 'modifica', sentToMilanoAt: null };
+
     test('enqueues send-to-verona job for sendable order', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'creato', sentToMilanoAt: null });
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(sendableOrder);
       const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+    });
+
+    test('enqueues when state is ERP-derived (ordine_aperto) but transferStatus is modifica', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...sendableOrder, state: 'ordine_aperto' });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+    });
+
+    test('enqueues when state is transfer_error and transferStatus is modifica (retry)', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...sendableOrder, state: 'transfer_error' });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
       expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
     });
 
@@ -363,8 +383,17 @@ describe('createOrdersRouter', () => {
       expect(deps.queue.enqueue).not.toHaveBeenCalled();
     });
 
-    test('returns 400 for non-sendable state', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'inviato_milano', sentToMilanoAt: null });
+    test('returns 400 when transferStatus is not modifica', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: 'trasferito', sentToMilanoAt: null });
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('non inviabile');
+      expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    test('returns 400 when transferStatus is null', async () => {
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, transferStatus: null, sentToMilanoAt: null });
       const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
 
       expect(res.status).toBe(400);
@@ -374,7 +403,7 @@ describe('createOrdersRouter', () => {
 
     test('returns 400 with customer_incomplete error when customer is missing required fields', async () => {
       const incompleteCustomer: Customer = { ...mockCompleteCustomer, vatNumber: null, vatValidatedAt: null };
-      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerAccountNum: 'CUST-001' };
+      const orderWithCustomer = { ...sendableOrder, customerAccountNum: 'CUST-001' };
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(incompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(false);
@@ -393,7 +422,7 @@ describe('createOrdersRouter', () => {
     });
 
     test('proceeds with enqueue when customer is complete', async () => {
-      const orderWithCustomer = { ...mockOrder, state: 'creato', sentToMilanoAt: null, customerAccountNum: 'CUST-001' };
+      const orderWithCustomer = { ...sendableOrder, customerAccountNum: 'CUST-001' };
       (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(orderWithCustomer);
       deps.getCustomerByProfile = vi.fn().mockResolvedValue(mockCompleteCustomer);
       deps.isCustomerComplete = vi.fn().mockReturnValue(true);
@@ -406,7 +435,7 @@ describe('createOrdersRouter', () => {
     });
 
     test('proceeds with enqueue when getCustomerByProfile dep is not provided (graceful degradation)', async () => {
-      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockOrder, state: 'creato', sentToMilanoAt: null });
+      (deps.getOrderById as ReturnType<typeof vi.fn>).mockResolvedValue(sendableOrder);
       deps.getCustomerByProfile = undefined;
       deps.isCustomerComplete = undefined;
 

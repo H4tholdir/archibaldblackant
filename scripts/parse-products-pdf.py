@@ -183,21 +183,25 @@ class ProductsPDFParserOptimized:
         return list(self.parse_streaming())
 
     def _parse_single_cycle(self, cycle_tables: List[List[List[str]]]) -> List[ParsedProduct]:
-        """Parse a single 8-page cycle and return products"""
+        """Parse a single N-page cycle and return products"""
         products = []
 
-        if len(cycle_tables) != self.PAGES_PER_CYCLE:
-            return products
+        def get_page(idx: int) -> List[List[str]]:
+            return cycle_tables[idx] if idx < len(cycle_tables) else []
 
-        # Get data for all 8 pages
-        page0_data, page1_data, page2_data, page3_data = cycle_tables[0:4]
-        page4_data, page5_data, page6_data, page7_data = cycle_tables[4:8]
+        page0_data = get_page(0)
+        page1_data = get_page(1)
+        page2_data = get_page(2)
+        page3_data = get_page(3)
+        page4_data = get_page(4)
+        page5_data = get_page(5)
+        page6_data = get_page(6)
+        page7_data = get_page(7)
 
         # All pages should have same number of rows
-        max_rows = max(
-            len(page0_data), len(page1_data), len(page2_data), len(page3_data),
-            len(page4_data), len(page5_data), len(page6_data), len(page7_data)
-        )
+        all_pages = [page0_data, page1_data, page2_data, page3_data,
+                     page4_data, page5_data, page6_data, page7_data]
+        max_rows = max((len(p) for p in all_pages), default=0)
 
         # Combine data row by row
         for row_idx in range(max_rows):

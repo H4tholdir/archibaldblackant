@@ -274,11 +274,10 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         });
       }
 
-      const sendableStates = [null, '', 'creato', 'piazzato'];
-      if (!sendableStates.includes(order.state as string | null)) {
+      if (order.transferStatus?.toLowerCase() !== 'modifica') {
         return res.status(400).json({
           success: false,
-          error: `Ordine non inviabile nello stato attuale: ${order.state}`,
+          error: `Ordine non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA)`,
         });
       }
 
