@@ -69,7 +69,7 @@ describe('createOperationQueue', () => {
       expect.objectContaining({
         priority: 1,
         removeOnComplete: { count: 500 },
-        removeOnFail: { count: 100 },
+        removeOnFail: { age: 3600, count: 100 },
       }),
     );
     expect(jobId).toBe('job-123');
