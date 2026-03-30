@@ -9266,6 +9266,12 @@ export class ArchibaldBot {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
+      const currentUrl = page.url();
+      if (currentUrl.includes('Login')) {
+        throw new Error(
+          `SessionExpiredError: redirect to login page (expected: ${pageUrl}, got: ${currentUrl})`,
+        );
+      }
       logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:page_loaded url=${pageUrl}`);
       stage = 'pdf_export:page_loaded';
 
