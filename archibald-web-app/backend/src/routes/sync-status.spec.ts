@@ -1,7 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createSyncStatusRouter, createQuickCheckRouter, type SyncStatusRouterDeps } from './sync-status';
+import { createSyncStatusRouter, createQuickCheckRouter, classifyOutcome, type SyncStatusRouterDeps } from './sync-status';
 
 function createMockDeps(): SyncStatusRouterDeps {
   return {
@@ -529,6 +529,155 @@ describe('createSyncStatusRouter', () => {
         success: false,
         error: 'DB connection lost',
       });
+    });
+  });
+
+  describe('classifyOutcome', () => {
+    test('circuitBreakerSkipped in data → circuit_breaker_skip', () => {
+      expect(classifyOutcome({ data: { circuitBreakerSkipped: true } })).toBe('circuit_breaker_skip');
+    });
+
+    test('rescheduled in data → rescheduled', () => {
+      expect(classifyOutcome({ data: { rescheduled: true } })).toBe('rescheduled');
+    });
+
+    test('skipped in data → skipped', () => {
+      expect(classifyOutcome({ data: { skipped: true } })).toBe('skipped');
+    });
+
+    test('normal result → real', () => {
+      expect(classifyOutcome({ success: true, data: {}, duration: 1000 })).toBe('real');
+    });
+
+    test('null returnvalue → real', () => {
+      expect(classifyOutcome(null)).toBe('real');
+    });
+  });
+
+  describe('GET /api/sync/monitoring/sync-history', () => {
+    function makeMockJob(overrides: {
+      type?: string;
+      finishedOn?: number;
+      processedOn?: number;
+      failedReason?: string;
+      returnvalue?: Record<string, unknown> | null;
+    } = {}) {
+      const finishedOn = overrides.finishedOn ?? Date.now();
+      return {
+        data: { type: overrides.type ?? 'sync-customers', userId: 'user-1' },
+        finishedOn,
+        processedOn: overrides.processedOn ?? finishedOn - 1000,
+        failedReason: overrides.failedReason,
+        returnvalue: overrides.returnvalue ?? { success: true, data: {}, duration: 1000 },
+      };
+    }
+
+    function setQueueJobs(d: SyncStatusRouterDeps, jobs: ReturnType<typeof makeMockJob>[]) {
+      (d.queue as any).queue = { getJobs: vi.fn().mockResolvedValue(jobs) };
+    }
+
+    test('circuit_breaker_skip outcome: circuitBreakerActive true and health paused', async () => {
+      setQueueJobs(deps, [
+        makeMockJob({ returnvalue: { success: true, data: { circuitBreakerSkipped: true }, duration: 1 } }),
+      ]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.circuitBreakerActive).toBe(true);
+      expect(stats.health).toBe('paused');
+      expect(stats.history[0].outcome).toBe('circuit_breaker_skip');
+      expect(stats.skipCount).toBe(1);
+    });
+
+    test('lastRealRunTime excludes skip outcomes, uses most recent real job', async () => {
+      const realJobTime = 1_000_000;
+      const skipJobTime = 2_000_000;
+      setQueueJobs(deps, [
+        makeMockJob({ finishedOn: skipJobTime, returnvalue: { success: true, data: { rescheduled: true }, duration: 1 } }),
+        makeMockJob({ finishedOn: realJobTime }),
+      ]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      const stats = res.body.types['sync-customers'];
+      expect(stats.lastRealRunTime).toBe(new Date(realJobTime).toISOString());
+      expect(stats.lastRunTime).toBe(new Date(skipJobTime).toISOString()); // lastRunTime non cambia
+    });
+
+    test('consecutiveFailures counts real failed jobs; CB skip does not reset the streak', async () => {
+      setQueueJobs(deps, [
+        makeMockJob({ finishedOn: 2000, returnvalue: { success: true, data: { circuitBreakerSkipped: true }, duration: 1 } }),
+        makeMockJob({ finishedOn: 1000, failedReason: 'timeout' }),
+      ]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      const stats = res.body.types['sync-customers'];
+      expect(stats.consecutiveFailures).toBe(1);
+    });
+  });
+
+  describe('GET /api/sync/monitoring/circuit-breaker', () => {
+    test('returns empty entries when getCircuitBreakerStatus not provided', async () => {
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/circuit-breaker');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, entries: [] });
+    });
+
+    test('returns mapped entries with isPaused computed from pausedUntil', async () => {
+      const futureDate = new Date(Date.now() + 3_600_000);
+      deps.getCircuitBreakerStatus = vi.fn().mockResolvedValue([{
+        userId: 'user-1',
+        syncType: 'sync-orders',
+        consecutiveFailures: 3,
+        totalFailures24h: 5,
+        lastFailureAt: futureDate,
+        pausedUntil: futureDate,
+        lastError: 'Connection timeout',
+        lastSuccessAt: null,
+        updatedAt: new Date(),
+      }]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/circuit-breaker');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.entries).toHaveLength(1);
+      expect(res.body.entries[0]).toMatchObject({
+        userId: 'user-1',
+        syncType: 'sync-orders',
+        consecutiveFailures: 3,
+        isPaused: true,
+        lastError: 'Connection timeout',
+      });
+    });
+
+    test('isPaused is false when pausedUntil is null', async () => {
+      deps.getCircuitBreakerStatus = vi.fn().mockResolvedValue([{
+        userId: 'user-1',
+        syncType: 'sync-customers',
+        consecutiveFailures: 1,
+        totalFailures24h: 1,
+        lastFailureAt: new Date(),
+        pausedUntil: null,
+        lastError: 'minor error',
+        lastSuccessAt: null,
+        updatedAt: new Date(),
+      }]);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/circuit-breaker');
+
+      expect(res.body.entries[0].isPaused).toBe(false);
+      expect(res.body.entries[0].pausedUntil).toBeNull();
     });
   });
 });
