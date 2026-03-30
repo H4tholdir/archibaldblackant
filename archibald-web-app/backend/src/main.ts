@@ -866,7 +866,23 @@ async function bootstrap(): Promise<void> {
     ),
     'sync-products': withAnomalyNotification(createSyncProductsHandler(
       pool,
-      async (pdfPath) => (await productsParser.parsePDF(pdfPath)).map(adaptProduct),
+      async (pdfPath) => {
+        const rawProducts = await productsParser.parsePDF(pdfPath);
+        for (const w of productsParser.getLastWarnings()) {
+          if (w.status === 'CHANGED') {
+            await createNotification(notificationDeps, {
+              target: 'admin',
+              type: 'sync_anomaly',
+              severity: 'warning',
+              title: 'Sync prodotti: layout PDF cambiato',
+              body: `Ciclo rilevato: ${w.detected} pagine (attese: ${w.expected}). Colonne potrebbero essere cambiate.`,
+              data: { warning: w },
+            }).catch(() => {});
+            break;
+          }
+        }
+        return rawProducts.map(adaptProduct);
+      },
       cleanupFile,
       (userId) => ({
         downloadProductsPdf: async () => {

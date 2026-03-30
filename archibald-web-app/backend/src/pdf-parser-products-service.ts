@@ -125,14 +125,30 @@ export class PDFParserProductsService {
             reject(new Error(`Failed to parse JSON output: ${error}`));
           }
         } else {
-          logger.error("[PDFParserProductsService] Python script failed", {
+          const warnings = extractCycleSizeWarnings(stderr);
+          const hasChanged = warnings.some((w) => w.status === 'CHANGED');
+          if (hasChanged) {
+            try {
+              const partial = JSON.parse(stdout) as { products: ParsedProduct[] };
+              if (partial.products && partial.products.length > 0) {
+                logger.warn(
+                  `[PDFParserProductsService] Python exited non-zero but recovered ${partial.products.length} products via CYCLE_SIZE_WARNING fallback`,
+                  { code, warnings },
+                );
+                this.lastWarnings = warnings;
+                resolve(partial.products);
+                return;
+              }
+            } catch {
+              // stdout is not valid products JSON, fall through to reject
+            }
+          }
+          logger.error('[PDFParserProductsService] Python script failed', {
             code,
             stderr,
             duration,
           });
-          reject(
-            new Error(`Python script exited with code ${code}: ${stderr}`),
-          );
+          reject(new Error(`Python script exited with code ${code}: ${stderr}`));
         }
       });
 
