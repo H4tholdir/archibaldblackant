@@ -742,10 +742,13 @@ async function bootstrap(): Promise<void> {
         downloadCustomersPdf: async () => {
           const bot = createBotForUser(userId);
           const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
           try {
-            return await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
+            const result = await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
           }
         },
       }),
@@ -814,10 +817,13 @@ async function bootstrap(): Promise<void> {
         downloadOrdersPdf: async () => {
           const bot = createBotForUser(userId);
           const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
           try {
-            return await bot.downloadOrdersPDF(ctx as unknown as BrowserContext);
+            const result = await bot.downloadOrdersPDF(ctx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
           }
         },
       }),
@@ -830,10 +836,13 @@ async function bootstrap(): Promise<void> {
         downloadDdtPdf: async () => {
           const bot = createBotForUser(userId);
           const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
           try {
-            return await bot.downloadDDTPDF(ctx as unknown as BrowserContext);
+            const result = await bot.downloadDDTPDF(ctx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
           }
         },
       }),
@@ -846,10 +855,13 @@ async function bootstrap(): Promise<void> {
         downloadInvoicesPdf: async () => {
           const bot = createBotForUser(userId);
           const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
           try {
-            return await bot.downloadInvoicesPDF(ctx as unknown as BrowserContext);
+            const result = await bot.downloadInvoicesPDF(ctx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
           }
         },
       }),
@@ -862,10 +874,13 @@ async function bootstrap(): Promise<void> {
         downloadProductsPdf: async () => {
           const bot = createBotForUser(userId);
           const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
           try {
-            return await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
+            const result = await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, true);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
           }
         },
       }),

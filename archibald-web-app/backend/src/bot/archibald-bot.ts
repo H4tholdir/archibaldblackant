@@ -9248,9 +9248,10 @@ export class ArchibaldBot {
     const page = await context.newPage();
     const startTime = Date.now();
     let cancelDownload: () => void = () => {};
+    let stage = 'pdf_export:start';
 
     try {
-      logger.info(`[ArchibaldBot] Starting ${filePrefix} PDF download`);
+      logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:start`);
 
       await page.setExtraHTTPHeaders({
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -9264,7 +9265,8 @@ export class ArchibaldBot {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
-      logger.info(`[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`);
+      logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:page_loaded url=${pageUrl}`);
+      stage = 'pdf_export:page_loaded';
 
       await this.waitForDevExpressReadyOnPage(page);
 
@@ -9285,6 +9287,9 @@ export class ArchibaldBot {
           );
         }
       }
+
+      stage = 'pdf_export:menu_resolved';
+      logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:menu_resolved button=${buttonSelector}`);
 
       if (beforeClick) {
         await beforeClick(page);
@@ -9441,9 +9446,8 @@ export class ArchibaldBot {
         }
       }
 
-      logger.info(
-        "[ArchibaldBot] PDF export button clicked, waiting for download...",
-      );
+      stage = 'pdf_export:click_sent';
+      logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:click_sent`);
 
       if (retryOnDataStoreError) {
         await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -9508,26 +9512,39 @@ export class ArchibaldBot {
         }
       }
 
+      stage = 'pdf_export:download_wait';
       await downloadComplete;
+      stage = 'pdf_export:file_detected';
 
       const stats = fs.statSync(downloadPath);
       if (stats.size === 0) {
         throw new Error("Downloaded PDF is empty (0 bytes)");
       }
 
+      stage = 'pdf_export:completed';
       const duration = Date.now() - startTime;
       logger.info(
-        `[ArchibaldBot] ${filePrefix} PDF downloaded to ${downloadPath} in ${duration}ms (${(stats.size / 1024).toFixed(2)} KB)`,
+        `[ArchibaldBot] ${filePrefix} pdf_export:completed path=${downloadPath} duration=${duration}ms size=${(stats.size / 1024).toFixed(2)}KB`,
       );
 
       return downloadPath;
     } catch (error: any) {
       const duration = Date.now() - startTime;
+      const msg: string = error instanceof Error ? error.message : String(error);
+      const errorClass =
+        /Target closed|Target detached|Session closed/i.test(msg) ? 'target_closed' :
+        /timeout|exceeded/i.test(msg) ? 'timeout' :
+        /ERR_NAME_NOT_RESOLVED|ERR_CONNECTION|ERR_CERT|net::/i.test(msg) ? 'navigation_error' :
+        /not found in DOM|waiting for selector|No node found/i.test(msg) ? 'selector_not_found' :
+        'unknown';
+      let currentUrl = 'unknown';
+      try { currentUrl = page.url(); } catch {}
+      const pageClosed = page.isClosed();
       logger.error(
-        `[ArchibaldBot] ${filePrefix} PDF download failed after ${duration}ms`,
-        { error: error.message },
+        `[ArchibaldBot] ${filePrefix} pdf_export:failed stage=${stage} class=${errorClass} pageClosed=${pageClosed} url=${currentUrl} after ${duration}ms`,
+        { error: msg },
       );
-      throw new Error(`PDF download failed: ${error.message}`);
+      throw new Error(`PDF download failed [${stage}/${errorClass}]: ${msg}`);
     } finally {
       cancelDownload();
       if (!page.isClosed()) {
