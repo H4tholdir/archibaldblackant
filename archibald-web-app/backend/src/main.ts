@@ -633,7 +633,7 @@ async function bootstrap(): Promise<void> {
         sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
-    }),
+    }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),
     'download-ddt-pdf': createDownloadDdtPdfHandler((userId) => {
       const bot = createBotForUser(userId);
       return {

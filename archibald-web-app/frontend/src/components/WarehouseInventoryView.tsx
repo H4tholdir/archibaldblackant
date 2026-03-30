@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 import type { WarehouseItem } from "../types/warehouse";
 import {
   getWarehouseItems,
@@ -36,10 +37,17 @@ export function WarehouseInventoryView() {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editQuantity, setEditQuantity] = useState<number>(1);
 
+  const { subscribe } = useWebSocketContext();
+
   // Load all items on mount
   useEffect(() => {
     loadInventory();
   }, []);
+
+  // Refresh inventory in real-time when an order is sent to Verona
+  useEffect(() => {
+    return subscribe('WAREHOUSE_UPDATED', () => { loadInventory(); });
+  }, [subscribe]);
 
   // Apply filters whenever they change
   useEffect(() => {

@@ -33,6 +33,7 @@ async function handleSendToVerona(
   data: SendToVeronaData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  broadcast?: (userId: string, event: { type: string; payload: unknown }) => void,
 ): Promise<{ success: boolean; message: string; sentToMilanoAt: string }> {
   if (data.orderId.startsWith('ghost-')) {
     return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToMilanoAt: '' };
@@ -66,6 +67,8 @@ async function handleSendToVerona(
   );
 
   await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToMilanoAt });
+
+  broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId: data.orderId } });
 
   onProgress(85, 'Generazione documenti FT');
 
@@ -138,11 +141,15 @@ async function handleSendToVerona(
   return { success: true, message: result.message, sentToMilanoAt };
 }
 
-function createSendToVeronaHandler(pool: DbPool, createBot: (userId: string) => SendToVeronaBot): OperationHandler {
+function createSendToVeronaHandler(
+  pool: DbPool,
+  createBot: (userId: string) => SendToVeronaBot,
+  broadcast?: (userId: string, event: { type: string; payload: unknown }) => void,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as SendToVeronaData;
-    const result = await handleSendToVerona(pool, bot, typedData, userId, onProgress);
+    const result = await handleSendToVerona(pool, bot, typedData, userId, onProgress, broadcast);
     return result as unknown as Record<string, unknown>;
   };
 }
