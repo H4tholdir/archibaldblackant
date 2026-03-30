@@ -45,7 +45,8 @@ import {
   createReadVatStatusHandler,
 } from './operations/handlers';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
-import { createNotification } from './services/notification-service';
+import { createNotification, type CreateNotificationParams } from './services/notification-service';
+import { withAnomalyNotification } from './anomaly-notification-wrapper';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
@@ -539,23 +540,8 @@ async function bootstrap(): Promise<void> {
     }
   }).catch((err) => logger.error('Startup reconciliation failed', { err }));
 
-  // Wraps a sync handler: if the result is a failure (not a user-requested stop), notifies admin.
-  const withAnomalyNotification = (handler: OperationHandler, syncName: string): OperationHandler =>
-    async (context, data, userId, onProgress) => {
-      const result = await handler(context, data, userId, onProgress);
-      const r = result as { success?: boolean; error?: string };
-      if (r.success === false && r.error && !r.error.includes('stop')) {
-        await createNotification(notificationDeps, {
-          target: 'admin',
-          type: 'sync_anomaly',
-          severity: 'error',
-          title: `Anomalia sincronizzazione: ${syncName}`,
-          body: r.error.slice(0, 300),
-          data: { syncName, error: r.error },
-        }).catch(() => {});
-      }
-      return result;
-    };
+  const notifyAdmin = (params: CreateNotificationParams) =>
+    createNotification(notificationDeps, params);
 
   const handlers: Partial<Record<OperationType, OperationHandler>> = {
     'submit-order': createSubmitOrderHandler(pool, (userId) => {
@@ -742,7 +728,7 @@ async function bootstrap(): Promise<void> {
           data: { pricesUpdated },
         });
       },
-    }), 'Prezzi'),
+    }), 'Prezzi', notifyAdmin),
     'sync-customers': withAnomalyNotification(createSyncCustomersHandler(
       pool,
       async (pdfPath) => {
@@ -820,7 +806,7 @@ async function bootstrap(): Promise<void> {
           excludeUserIds: uniqueAgentIds,
         });
       },
-    ), 'Clienti'),
+    ), 'Clienti', notifyAdmin),
     'sync-orders': createSyncOrdersHandler(
       pool,
       async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),
@@ -951,7 +937,7 @@ async function bootstrap(): Promise<void> {
           data: { missingVatCount: missingCount },
         });
       },
-    ), 'Prodotti'),
+    ), 'Prodotti', notifyAdmin),
     'sync-tracking': createSyncTrackingHandler(
       pool,
       async (type, orderNumber) => {
