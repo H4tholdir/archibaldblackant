@@ -9245,12 +9245,13 @@ export class ArchibaldBot {
       findExportMenu,
     } = options;
 
-    const page = await context.newPage();
     const startTime = Date.now();
     let cancelDownload: () => void = () => {};
     let stage = 'pdf_export:start';
+    let page: Page | null = null;
 
     try {
+      page = await context.newPage();
       logger.info(`[ArchibaldBot] ${filePrefix} pdf_export:start`);
 
       await page.setExtraHTTPHeaders({
@@ -9538,8 +9539,8 @@ export class ArchibaldBot {
         /not found in DOM|waiting for selector|No node found/i.test(msg) ? 'selector_not_found' :
         'unknown';
       let currentUrl = 'unknown';
-      try { currentUrl = page.url(); } catch {}
-      const pageClosed = page.isClosed();
+      try { currentUrl = page?.url() ?? 'no-page'; } catch {}
+      const pageClosed = page ? page.isClosed() : true;
       logger.error(
         `[ArchibaldBot] ${filePrefix} pdf_export:failed stage=${stage} class=${errorClass} pageClosed=${pageClosed} url=${currentUrl} after ${duration}ms`,
         { error: msg },
@@ -9547,7 +9548,7 @@ export class ArchibaldBot {
       throw new Error(`PDF download failed [${stage}/${errorClass}]: ${msg}`);
     } finally {
       cancelDownload();
-      if (!page.isClosed()) {
+      if (page && !page.isClosed()) {
         await page.close().catch(() => {});
       }
     }
