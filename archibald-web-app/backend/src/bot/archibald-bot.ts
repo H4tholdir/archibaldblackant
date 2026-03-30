@@ -9782,8 +9782,8 @@ export class ArchibaldBot {
     return this.downloadPDFExport({
       context,
       pageUrl: "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
-      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI7_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI7_",
       expectedFileNames: [
         "Ordini.pdf",
         "Ordini cliente.pdf",
