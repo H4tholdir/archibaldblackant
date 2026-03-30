@@ -22,6 +22,7 @@ import { createKtSyncRouter } from './routes/kt-sync';
 import { createSyncStatusRouter, createQuickCheckRouter } from './routes/sync-status';
 import { createDeltaSyncRouter } from './routes/delta-sync';
 import type { ResetSyncType } from './routes/sync-status';
+import type { CircuitBreakerState } from './sync/circuit-breaker';
 import { createAdminRouter } from './routes/admin';
 import { createPricesRouter } from './routes/prices';
 import { createShareRouter } from './routes/share';
@@ -125,6 +126,7 @@ type AppDeps = {
   createTestBot?: () => Promise<{ initialize: () => Promise<void>; login: () => Promise<void>; close: () => Promise<void> }>;
   onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
   onLoginSuccess?: (userId: string) => void;
+  getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -736,6 +738,7 @@ function createApp(deps: AppDeps): Express {
     getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
     getSessionCount: () => syncScheduler.getSessionCount(),
     getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
+    getCircuitBreakerStatus: deps.getCircuitBreakerStatus,
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
