@@ -78,13 +78,20 @@ async function checkOverduePayments(pool: DbPool, deps: NotificationServiceDeps)
   const { rows } = await pool.query<OverdueOrderRow>(
     `SELECT
        o.id, o.user_id, o.order_number, o.customer_name,
-       o.invoice_due_date, o.invoice_remaining_amount,
-       EXTRACT(DAY FROM (CURRENT_DATE - o.invoice_due_date::date))::int AS days_past_due
+       inv.invoice_due_date, inv.invoice_remaining_amount,
+       EXTRACT(DAY FROM (CURRENT_DATE - inv.invoice_due_date::date))::int AS days_past_due
      FROM agents.order_records o
-     WHERE o.invoice_due_date IS NOT NULL
-       AND o.invoice_due_date::date < CURRENT_DATE - INTERVAL '45 days'
-       AND (o.invoice_closed IS NULL OR o.invoice_closed = false)
-       AND (o.total_amount IS NULL OR o.total_amount NOT LIKE '-%')
+     JOIN LATERAL (
+       SELECT invoice_due_date, invoice_remaining_amount
+       FROM agents.order_invoices
+       WHERE order_id = o.id AND user_id = o.user_id
+         AND invoice_due_date IS NOT NULL
+         AND invoice_due_date::date < CURRENT_DATE - INTERVAL '45 days'
+         AND (invoice_closed IS NULL OR invoice_closed = false)
+       ORDER BY invoice_due_date ASC
+       LIMIT 1
+     ) inv ON true
+     WHERE (o.total_amount IS NULL OR o.total_amount NOT LIKE '-%')
        AND NOT EXISTS (
          SELECT 1 FROM agents.notifications n
          WHERE n.user_id = o.user_id
