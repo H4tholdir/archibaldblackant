@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones } from './notification-scheduler';
+import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments } from './notification-scheduler';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import type { DbPool } from '../db/pool';
 
@@ -173,6 +173,102 @@ describe('checkBudgetMilestones', () => {
 
     expect(count).toBe(0);
     expect(markAchieved).not.toHaveBeenCalled();
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkMissingOrderDocuments', () => {
+  test('creates a "Spedizione senza DDT" warning when only DDT is missing', async () => {
+    const row = {
+      id: 'ORD001', user_id: 'U1', order_number: 'ORD/26004189',
+      customer_name: 'An.Di. S.A.S.', current_state: 'spedito',
+      missing_ddt: true, missing_invoice: false,
+    };
+    const pool = makePool([row]);
+    const deps = makeDeps(pool);
+
+    const count = await checkMissingOrderDocuments(pool, deps);
+
+    expect(count).toBe(1);
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'order_documents_missing',
+        severity: 'warning',
+        title: 'Spedizione senza DDT',
+        data: expect.objectContaining({ orderId: 'ORD001', orderNumber: 'ORD/26004189', missing: ['ddt'] }),
+      }),
+    );
+    expect(deps.broadcast).toHaveBeenCalledWith('U1', expect.objectContaining({ type: 'NOTIFICATION_NEW' }));
+  });
+
+  test('creates a "Fattura mancante" warning when only invoice is missing', async () => {
+    const row = {
+      id: 'ORD002', user_id: 'U1', order_number: 'ORD/26000412',
+      customer_name: 'Gino Ambrosio', current_state: 'fatturato',
+      missing_ddt: false, missing_invoice: true,
+    };
+    const pool = makePool([row]);
+    const deps = makeDeps(pool);
+
+    const count = await checkMissingOrderDocuments(pool, deps);
+
+    expect(count).toBe(1);
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'order_documents_missing',
+        severity: 'warning',
+        title: 'Fattura mancante',
+        data: expect.objectContaining({ orderId: 'ORD002', missing: ['invoice'] }),
+      }),
+    );
+  });
+
+  test('creates a "DDT e fattura mancanti" warning when both are missing', async () => {
+    const row = {
+      id: 'ORD003', user_id: 'U2', order_number: 'ORD/26003001',
+      customer_name: 'Studio Medico', current_state: 'fatturato',
+      missing_ddt: true, missing_invoice: true,
+    };
+    const pool = makePool([row]);
+    const deps = makeDeps(pool);
+
+    const count = await checkMissingOrderDocuments(pool, deps);
+
+    expect(count).toBe(1);
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        title: 'DDT e fattura mancanti',
+        data: expect.objectContaining({ missing: ['ddt', 'invoice'] }),
+      }),
+    );
+  });
+
+  test('creates one notification per anomalous order', async () => {
+    const rows = [
+      { id: 'ORD001', user_id: 'U1', order_number: 'ORD/26001001', customer_name: 'Cliente A', current_state: 'spedito', missing_ddt: true, missing_invoice: false },
+      { id: 'ORD002', user_id: 'U1', order_number: 'ORD/26001002', customer_name: 'Cliente B', current_state: 'fatturato', missing_ddt: false, missing_invoice: true },
+    ];
+    const pool = makePool(rows);
+    const deps = makeDeps(pool);
+
+    const count = await checkMissingOrderDocuments(pool, deps);
+
+    expect(count).toBe(2);
+    expect(deps.insertNotification).toHaveBeenCalledTimes(2);
+  });
+
+  test('returns 0 and sends no notifications when no anomalous orders are found', async () => {
+    const pool = makePool([]);
+    const deps = makeDeps(pool);
+
+    const count = await checkMissingOrderDocuments(pool, deps);
+
+    expect(count).toBe(0);
     expect(deps.insertNotification).not.toHaveBeenCalled();
   });
 });

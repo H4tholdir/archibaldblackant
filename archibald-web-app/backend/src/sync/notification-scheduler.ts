@@ -155,6 +155,85 @@ async function checkBudgetMilestones(
   return notified;
 }
 
+type MissingDocumentsRow = {
+  id: string;
+  user_id: string;
+  order_number: string;
+  customer_name: string;
+  current_state: string;
+  missing_ddt: boolean;
+  missing_invoice: boolean;
+};
+
+async function checkMissingOrderDocuments(pool: DbPool, deps: NotificationServiceDeps): Promise<number> {
+  const { rows } = await pool.query<MissingDocumentsRow>(
+    `SELECT
+       o.id, o.user_id, o.order_number, o.customer_name, o.current_state,
+       NOT EXISTS (
+         SELECT 1 FROM agents.order_ddts d
+         WHERE d.order_id = o.id AND d.user_id = o.user_id
+       ) AS missing_ddt,
+       NOT EXISTS (
+         SELECT 1 FROM agents.order_invoices i
+         WHERE i.order_id = o.id AND i.user_id = o.user_id
+       ) AS missing_invoice
+     FROM agents.order_records o
+     WHERE o.creation_date::date >= '2026-01-01'
+       AND o.order_number NOT LIKE 'NC/%'
+       AND (o.total_amount IS NULL OR o.total_amount NOT LIKE '-%')
+       AND (
+         (o.current_state IN ('spedito','consegnato','parzialmente_consegnato','fatturato','pagamento_scaduto','pagato')
+          AND NOT EXISTS (SELECT 1 FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id))
+         OR
+         (o.current_state IN ('fatturato','pagamento_scaduto','pagato')
+          AND NOT EXISTS (SELECT 1 FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id))
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.notifications n
+         WHERE n.user_id = o.user_id
+           AND n.type = 'order_documents_missing'
+           AND (n.data->>'orderId') = o.id
+           AND n.created_at > NOW() - INTERVAL '14 days'
+       )`,
+  );
+
+  for (const row of rows) {
+    const missing: ('ddt' | 'invoice')[] = [];
+    if (row.missing_ddt) missing.push('ddt');
+    if (row.missing_invoice) missing.push('invoice');
+
+    const title = missing.length === 2
+      ? 'DDT e fattura mancanti'
+      : missing[0] === 'ddt'
+        ? 'Spedizione senza DDT'
+        : 'Fattura mancante';
+
+    const body = missing.length === 2
+      ? `Ordine ${row.order_number} di ${row.customer_name} è in stato ${row.current_state} senza DDT né fattura collegati. Verifica con Verona.`
+      : missing[0] === 'ddt'
+        ? `Ordine ${row.order_number} di ${row.customer_name} è in stato ${row.current_state} ma non risulta nessun DDT collegato. Verifica con Verona se la spedizione è avvenuta.`
+        : `Ordine ${row.order_number} di ${row.customer_name} è in stato ${row.current_state} ma non risulta nessuna fattura collegata. Segnala a Verona.`;
+
+    await createNotification(deps, {
+      target: 'user',
+      userId: row.user_id,
+      type: 'order_documents_missing',
+      severity: 'warning',
+      title,
+      body,
+      data: {
+        orderId: row.id,
+        orderNumber: row.order_number,
+        customerName: row.customer_name,
+        currentState: row.current_state,
+        missing,
+      },
+    });
+  }
+
+  return rows.length;
+}
+
 function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps) {
   const timers: NodeJS.Timeout[] = [];
 
@@ -169,6 +248,9 @@ function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps
         });
         checkBudgetMilestones(pool, deps, markAchievedCondition as MarkAchievedFn).catch((error) => {
           logger.error('Failed to check budget milestones', { error });
+        });
+        checkMissingOrderDocuments(pool, deps).catch((error) => {
+          logger.error('Failed to check missing order documents', { error });
         });
       }, DAILY_CHECK_MS),
     );
@@ -189,5 +271,6 @@ export {
   checkCustomerInactivity,
   checkOverduePayments,
   checkBudgetMilestones,
+  checkMissingOrderDocuments,
   DAILY_CHECK_MS,
 };
