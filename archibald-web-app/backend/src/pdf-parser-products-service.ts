@@ -116,7 +116,12 @@ export class PDFParserProductsService {
             this.lastWarnings = extractCycleSizeWarnings(stderr);
             for (const w of this.lastWarnings) {
               if (w.status === "CHANGED") {
-                logger.error("[PDFParserProductsService] Cycle size CHANGED", w);
+                // WARN not ERROR: parsing succeeded, just missing extra columns
+                logger.warn("[PDFParserProductsService] Cycle size CHANGED (Column Chooser not fully set)", w);
+                const diagLines = stderr.split('\n').filter(l => l.startsWith('DIAG_PAGE:'));
+                if (diagLines.length > 0) {
+                  logger.warn("[PDFParserProductsService] PDF layout detected", { diagPages: diagLines });
+                }
               }
             }
             resolve(products);

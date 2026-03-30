@@ -9572,6 +9572,87 @@ export class ArchibaldBot {
     });
   }
 
+  private async fixProductsColumnChooser(page: Page): Promise<void> {
+    const hiddenIndices: number[] = await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const gn = Object.keys(w).find(k => {
+        try { return typeof (w[k] as Record<string, unknown>)?.GetColumn === "function"; }
+        catch { return false; }
+      });
+      if (!gn) return [];
+      const grid = w[gn] as { GetColumn: (i: number) => { visible?: boolean } | null };
+      const hidden: number[] = [];
+      for (let i = 0; i < 50; i++) {
+        try {
+          const col = grid.GetColumn(i);
+          if (!col) break;
+          if (col.visible === false) hidden.push(i);
+        } catch { break; }
+      }
+      return hidden;
+    });
+
+    if (hiddenIndices.length === 0) {
+      logger.info("[ArchibaldBot] Products: all columns visible, skipping Column Chooser fix");
+      return;
+    }
+    logger.info(`[ArchibaldBot] Products: ${hiddenIndices.length} hidden columns, applying Column Chooser fix`);
+
+    await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const gn = Object.keys(w).find(k => {
+        try { return typeof (w[k] as Record<string, unknown>)?.ShowCustomizationDialog === "function"; }
+        catch { return false; }
+      });
+      if (gn) (w[gn] as { ShowCustomizationDialog: () => void }).ShowCustomizationDialog();
+    });
+    await new Promise(r => setTimeout(r, 1500));
+
+    await page.evaluate(() => {
+      const tab = document.querySelector("[id$=\"DXCDPageControl_T3T\"]") as HTMLElement | null;
+      if (tab) tab.click();
+    });
+    await new Promise(r => setTimeout(r, 1500));
+
+    let enabled = 0;
+    for (const idx of hiddenIndices) {
+      try {
+        const cls = await page.evaluate((i: number) => {
+          const el = document.querySelector(`[id*="C${i}Chk5_D"]`) as HTMLElement | null;
+          if (!el) return null;
+          el.scrollIntoView({ block: "center", behavior: "instant" });
+          return el.className;
+        }, idx);
+        if (!cls?.includes("gvCOColumnShow")) continue;
+        // Puppeteer click via ElementHandle for proper event dispatch
+        const el = await page.$(`[id*="C${idx}Chk5_D"]`);
+        if (el) {
+          await el.click();
+          await new Promise(r => setTimeout(r, 150));
+          enabled++;
+        }
+      } catch {
+        logger.warn(`[ArchibaldBot] Products Column Chooser: failed to click col ${idx}`);
+      }
+    }
+    logger.info(`[ArchibaldBot] Products Column Chooser: enabled ${enabled}/${hiddenIndices.length} columns`);
+
+    await page.evaluate(() => {
+      const dialog = document.querySelector("[id*=\"DXCDWindow\"]") as HTMLElement | null;
+      if (dialog) dialog.scrollTop = 0;
+    });
+    await new Promise(r => setTimeout(r, 400));
+
+    const applied = await page.evaluate(() => {
+      const btn = document.querySelector("[id$=\"DXCDWindow_DXCBtn201\"]") as HTMLElement | null;
+      if (btn && !btn.className.includes("Disabled")) { btn.click(); return true; }
+      return false;
+    });
+    logger.info(`[ArchibaldBot] Products Column Chooser: Apply clicked=${applied}`);
+
+    await new Promise(r => setTimeout(r, 3000));
+  }
+
   async downloadProductsPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
@@ -9581,6 +9662,7 @@ export class ArchibaldBot {
       expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
       filePrefix: "prodotti",
       findExportMenu: (page) => this.findExportMenuSelector(page),
+      beforeClick: (page) => this.fixProductsColumnChooser(page),
     });
   }
 
