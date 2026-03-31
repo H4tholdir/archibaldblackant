@@ -5,6 +5,7 @@ import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { BadgeGreen } from '../components/BadgeGreen';
+import { SceneCaption } from '../components/SceneCaption';
 
 type Article = {
   name: string;
@@ -71,6 +72,7 @@ export function IvaAndTotals() {
         gap: 24,
         opacity: fadeOut,
         padding: '0 80px',
+        position: 'relative',
       }}
     >
       {/* Header */}
@@ -224,6 +226,12 @@ export function IvaAndTotals() {
         </div>
 
       </div>
+      <SceneCaption
+        main="IVA e totali calcolati in tempo reale — zero errori manuali"
+        vs="vs ERP: calcolo manuale riga per riga, rischio errori ogni volta"
+        delay={30}
+        color="#34C759"
+      />
     </div>
   );
 }

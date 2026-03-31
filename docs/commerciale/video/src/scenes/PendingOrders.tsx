@@ -6,6 +6,7 @@ import { SCENE_FRAMES } from '../lib/timing';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgressBar } from '../components/ProgressBar';
 import { BadgeGreen } from '../components/BadgeGreen';
+import { SceneCaption } from '../components/SceneCaption';
 
 const CARDS = [
   { client: 'Studio Dr. Bianchi',  amount: 1240, addAtFrame: 20  },
@@ -41,6 +42,7 @@ export function PendingOrders() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 28, opacity: fadeOut, padding: '0 200px',
+      position: 'relative',
     }}>
       {/* Header */}
       <div style={{ textAlign: 'center' }}>
@@ -157,6 +159,12 @@ export function PendingOrders() {
           <BadgeGreen label={`${CARDS.length}/${CARDS.length} Inviati`} delay={SEND_FRAME + CARDS.length * 40 + 60} />
         )}
       </div>
+      <SceneCaption
+        main="Accumula ordini tutto il giorno e invia tutto in un tap"
+        vs="vs ERP: ogni ordine va aperto e inviato manualmente, uno per volta"
+        delay={30}
+        color="#FF9500"
+      />
     </div>
   );
 }

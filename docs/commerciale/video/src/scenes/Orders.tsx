@@ -8,6 +8,7 @@ import { DarkCard } from '../components/DarkCard';
 import { StatPill } from '../components/StatPill';
 import { BadgeGreen } from '../components/BadgeGreen';
 import { BotTimeline } from '../components/BotTimeline';
+import { SceneCaption } from '../components/SceneCaption';
 
 export function Orders() {
   const frame = useCurrentFrame();
@@ -54,6 +55,7 @@ export function Orders() {
         gap: 32,
         opacity: fadeOut,
         padding: '0 80px',
+        position: 'relative',
       }}
     >
       {/* Header */}
@@ -133,6 +135,11 @@ export function Orders() {
         </DarkCard>
 
       </div>
+      <SceneCaption
+        main="Il bot invia l'ordine su Archibald automaticamente"
+        vs="vs ERP: 15–20 minuti di lavoro manuale per ogni ordine"
+        delay={30}
+      />
     </div>
   );
 }
