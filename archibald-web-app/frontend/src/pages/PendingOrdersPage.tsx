@@ -39,7 +39,7 @@ function isInventtableError(msg: string | undefined | null): boolean {
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
-  const { trackOperation } = useOperationTracking();
+  const { trackOperation, activeOperations } = useOperationTracking();
 
   // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
   const {
@@ -1051,6 +1051,7 @@ export function PendingOrdersPage() {
         }}
       >
         {orders.map((order, orderIndex) => {
+          const liveOp = activeOperations.find(o => o.orderId === order.id);
           const isJobActive =
             order.jobStatus &&
             ["started", "processing"].includes(order.jobStatus);
@@ -1443,13 +1444,23 @@ export function PendingOrdersPage() {
               </div>
 
               {/* PHASE 72: Job Progress Bar */}
-              {(isJobActive || isJobCompleted || isJobFailed) && (
+              {(liveOp != null || isJobActive || isJobCompleted || isJobFailed) && (
                 <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
                   <JobProgressBar
-                    progress={order.jobProgress || 0}
-                    operation={order.jobOperation || "In attesa..."}
-                    status={order.jobStatus || "idle"}
-                    error={isJobFailed ? order.jobError : undefined}
+                    progress={liveOp?.progress ?? order.jobProgress ?? 0}
+                    operation={liveOp?.label ?? order.jobOperation ?? "In attesa..."}
+                    status={
+                      liveOp != null
+                        ? liveOp.status === "completed" ? "completed"
+                          : liveOp.status === "failed" ? "failed"
+                          : liveOp.status === "queued" ? "started"
+                          : "processing"
+                        : order.jobStatus ?? "idle"
+                    }
+                    error={
+                      (liveOp?.status === "failed" ? liveOp.error : undefined) ??
+                      (isJobFailed ? order.jobError : undefined)
+                    }
                   />
                   {isStale && !isJobFailed && (
                     <div
