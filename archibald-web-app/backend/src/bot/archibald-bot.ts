@@ -7324,6 +7324,8 @@ export class ArchibaldBot {
     }
 
     const normalizedTargets = orderIds.map((id) => id.replace(/\./g, ''));
+    const deletedIds: string[] = [];
+    const notFoundIds: string[] = [];
 
     try {
       // Step 1: Navigate to orders page (only if not already there)
@@ -7373,194 +7375,164 @@ export class ArchibaldBot {
         await this.wait(500);
       }
 
-      // ERP Bible: GotoPage(0) obbligatorio — il page index persiste tra navigazioni
-      await this.page.evaluate(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        collection?.ForEachControl?.((c: any) => { if (typeof c.GotoPage === 'function') c.GotoPage(0); });
-      });
-      await this.wait(300);
+      // Delete each order one at a time: the DevExpress grid is in single-select mode,
+      // so SelectRowOnPage JS API only updates client-side state without notifying the server.
+      // Physical click on DXSelBtn (cells[0]) triggers the server-side AJAX selection callback.
+      for (let i = 0; i < normalizedTargets.length; i++) {
+        const normalizedId = normalizedTargets[i];
+        const originalId = orderIds[i];
 
-      // Step 4: Scan visible rows to find row indices for each target order
-      const rowIndices = await this.page.evaluate((targets: string[]) => {
-        const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-        const found: Array<{ rowIndex: number; normalizedId: string }> = [];
-        rows.forEach((row, rowIndex) => {
-          const cells = row.querySelectorAll('td');
-          // cells[0]=edit ghost, cells[1]=checkbox ghost, cells[2]=order ID
-          const cellText = cells[2]?.textContent?.trim().replace(/\./g, '') ?? '';
-          if (targets.includes(cellText)) {
-            found.push({ rowIndex, normalizedId: cellText });
-          }
+        await this.emitProgress('batchDelete.select');
+        logger.info(`[batchDelete] Processing order ${normalizedId} (${i + 1}/${normalizedTargets.length})...`);
+
+        // ERP Bible: GotoPage(0) mandatory before each scan — page index persists between navigations
+        await this.page.evaluate(() => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          collection?.ForEachControl?.((c: any) => { if (typeof c.GotoPage === 'function') c.GotoPage(0); });
         });
-        return found;
-      }, normalizedTargets);
+        await this.wait(300);
 
-      const foundNormalizedIds = rowIndices.map((r) => r.normalizedId);
-      const notFoundIds = orderIds.filter((id) => !foundNormalizedIds.includes(id.replace(/\./g, '')));
-
-      if (rowIndices.length === 0) {
-        return { success: false, message: 'Nessun ordine trovato nella griglia ERP', deletedIds: [], notFoundIds: orderIds };
-      }
-
-      logger.info(`[batchDelete] Found ${rowIndices.length}/${orderIds.length} orders in grid. Selecting via DevExpress API...`);
-
-      // Step 5: Select all found rows via SelectRowOnPage API
-      await this.emitProgress('batchDelete.select');
-      await this.page.evaluate((indices: number[]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
-        if (!collection) return;
-        // First unselect all
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        collection.ForEachControl?.((c: any) => {
-          if (typeof c.UnselectAllRowsOnPage === 'function') c.UnselectAllRowsOnPage();
-        });
-        // Then select each target row
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        collection.ForEachControl?.((c: any) => {
-          if (typeof c.SelectRowOnPage === 'function') {
-            for (const idx of indices) c.SelectRowOnPage(idx);
-          }
-        });
-      }, rowIndices.map((r) => r.rowIndex));
-      await this.wait(500);
-
-      // Wait for "Cancellare" to become enabled
-      await this.page.waitForFunction(
-        () => {
-          const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T');
-          return btn && !btn.classList.contains('dxm-disabled');
-        },
-        { timeout: 5000, polling: 100 },
-      ).catch(() => null);
-
-      // Step 6: Register dialog handler BEFORE clicking delete
-      const dialogPromise = new Promise<boolean>((resolve) => {
-        let resolved = false;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const handler = (dialog: any) => {
-          if (resolved) return;
-          resolved = true;
-          logger.debug(`[batchDelete] Dialog: ${dialog.type()} — ${dialog.message()}`);
-          dialog.accept();
-          resolve(true);
-        };
-        this.page!.once('dialog', handler);
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            this.page!.off('dialog', handler);
-            resolve(false);
-          }
-        }, 10000);
-      });
-
-      // Step 7: Click "Cancellare"
-      await this.emitProgress('batchDelete.confirm');
-      const deleteClicked = await this.page.evaluate(() => {
-        const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T') as HTMLElement | null;
-        if (btn) { btn.click(); return { clicked: true, strategy: 'by-id' }; }
-        for (const link of Array.from(document.querySelectorAll('a[id*="Vertical_mainMenu"], a[id*="mainMenu_Menu"]'))) {
-          const text = link.textContent?.trim().toLowerCase();
-          if (text === 'cancellare' || text === 'elimina' || text === 'delete') {
-            (link as HTMLElement).click();
-            return { clicked: true, strategy: 'by-text' };
-          }
-        }
-        return { clicked: false, strategy: 'none' };
-      });
-
-      if (!deleteClicked.clicked) {
-        return { success: false, message: '"Cancellare" button not found', deletedIds: [], notFoundIds: orderIds };
-      }
-
-      // Step 8: Accept the native browser confirm() dialog
-      const dialogHandled = await dialogPromise;
-      if (!dialogHandled) {
-        logger.debug('[batchDelete] No native dialog appeared, trying DevExpress popup...');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dxPopupHandled = await this.page.evaluate(() => {
-          const confirmSelectors = [
-            'div[id*="Confirm"] a[id*="btnOk"]',
-            'div[id*="Dialog"] a[id*="btnOk"]',
-            '[class*="dxpc"] a[id*="btnOk"]',
-            'div[id*="Confirm"] a[id*="btnYes"]',
-            'div[id*="Dialog"] a[id*="btnYes"]',
-            '[class*="dxpc"] button',
-          ];
-          for (const sel of confirmSelectors) {
-            const btn = document.querySelector(sel) as HTMLElement | null;
-            if (btn && btn.offsetParent !== null) {
-              btn.click();
-              return { handled: true, selector: sel };
-            }
-          }
-          return { handled: false, selector: '' };
-        });
-        if (dxPopupHandled.handled) {
-          logger.debug(`[batchDelete] DevExpress popup confirmed via ${dxPopupHandled.selector}`);
-        } else {
-          logger.warn('[batchDelete] No confirmation dialog or popup appeared');
-        }
-      }
-
-      // Step 9: Wait for grid to reload after delete
-      await this.page.waitForFunction(
-        () => document.querySelectorAll('tr[class*="dxgvDataRow"]').length >= 0,
-        { timeout: 8000, polling: 300 },
-      ).catch(() => null);
-      await this.wait(500);
-
-      await this.emitProgress('batchDelete.verify');
-      await this.page.waitForFunction(
-        () => {
-          const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
-          return !panels.some((el) => {
-            const s = window.getComputedStyle(el as HTMLElement);
-            return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
-          });
-        },
-        { timeout: 10000, polling: 300 },
-      ).catch(() => null);
-      await this.wait(300);
-
-      // Verify by checking which orders are actually gone from the grid
-      const stillInGrid = await this.page.evaluate((normalizedIds: string[]) => {
-        const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-        return normalizedIds.filter((nid) =>
-          rows.some((row) => {
+        // Find the DXSelBtn span bounding rect for this order
+        // cells[0]=DXSelBtn (selection), cells[1]=Edit button, cells[2]=Order ID
+        const selBtnRect = await this.page.evaluate((targetId: string) => {
+          const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+          for (const row of rows) {
             const cells = row.querySelectorAll('td');
-            return (cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') === nid;
-          }),
-        );
-      }, foundNormalizedIds);
+            if ((cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') !== targetId) continue;
+            const span = cells[0]?.querySelector('span[id*="DXSelBtn"]');
+            const spanRect = span?.getBoundingClientRect();
+            if (spanRect && spanRect.width > 0) {
+              return { x: Math.round(spanRect.x), y: Math.round(spanRect.y), w: Math.round(spanRect.width), h: Math.round(spanRect.height) };
+            }
+            // Fallback: click center of cells[0] if span rect is unavailable
+            const cellRect = cells[0]?.getBoundingClientRect();
+            if (cellRect && cellRect.width > 0) {
+              return { x: Math.round(cellRect.x), y: Math.round(cellRect.y), w: Math.round(cellRect.width), h: Math.round(cellRect.height) };
+            }
+            return null;
+          }
+          return null;
+        }, normalizedId);
 
-      const actuallyDeletedNormalized = foundNormalizedIds.filter((n) => !stillInGrid.includes(n));
-      const deletedIds = orderIds.filter((id) => actuallyDeletedNormalized.includes(id.replace(/\./g, '')));
-      const failedIds = orderIds.filter((id) => stillInGrid.includes(id.replace(/\./g, '')));
+        if (!selBtnRect) {
+          logger.warn(`[batchDelete] Order ${normalizedId} not found in grid — skipping`);
+          notFoundIds.push(originalId);
+          continue;
+        }
 
-      if (failedIds.length > 0) {
-        logger.warn('[batchDelete] Orders still present in grid after delete — confirm dialog may not have been accepted', { failedIds });
+        // Physical click on DXSelBtn — triggers server-side AJAX selection callback
+        const cx = selBtnRect.x + selBtnRect.w / 2;
+        const cy = selBtnRect.y + selBtnRect.h / 2;
+        logger.debug(`[batchDelete] Clicking DXSelBtn for ${normalizedId} at (${cx}, ${cy})`);
+        await this.page.mouse.click(cx, cy);
+        await this.wait(400);
+
+        // Wait for "Cancellare" to become enabled (confirms server acknowledged the selection)
+        const btnEnabled = await this.page.waitForFunction(
+          () => {
+            const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T');
+            return btn && !btn.classList.contains('dxm-disabled');
+          },
+          { timeout: 5000, polling: 100 },
+        ).catch(() => null);
+
+        if (!btnEnabled) {
+          logger.warn(`[batchDelete] Cancellare still disabled after DXSelBtn click for order ${normalizedId}`);
+          notFoundIds.push(originalId);
+          continue;
+        }
+
+        // Register dialog handler BEFORE clicking delete
+        const dialogPromise = new Promise<boolean>((resolve) => {
+          let resolved = false;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const handler = (dialog: any) => {
+            if (resolved) return;
+            resolved = true;
+            logger.debug(`[batchDelete] Dialog: ${dialog.type()} — ${dialog.message()}`);
+            dialog.accept();
+            resolve(true);
+          };
+          this.page!.once('dialog', handler);
+          setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              this.page!.off('dialog', handler);
+              resolve(false);
+            }
+          }, 10000);
+        });
+
+        // Click "Cancellare"
+        await this.emitProgress('batchDelete.confirm');
+        const deleteClicked = await this.page.evaluate(() => {
+          const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T') as HTMLElement | null;
+          if (btn) { btn.click(); return true; }
+          return false;
+        });
+
+        if (!deleteClicked) {
+          logger.warn(`[batchDelete] Cancellare button not found for order ${normalizedId}`);
+          notFoundIds.push(originalId);
+          continue;
+        }
+
+        // Accept the native browser confirm() dialog
+        const dialogHandled = await dialogPromise;
+        if (!dialogHandled) {
+          logger.warn(`[batchDelete] No confirm dialog appeared for order ${normalizedId}`);
+        }
+
+        // Wait for grid to reload after delete
+        await this.page.waitForFunction(
+          () => {
+            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+            return !panels.some((el) => {
+              const s = window.getComputedStyle(el as HTMLElement);
+              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+            });
+          },
+          { timeout: 10000, polling: 300 },
+        ).catch(() => null);
+        await this.wait(500);
+
+        // Verify order is gone from grid
+        const stillPresent = await this.page.evaluate((targetId: string) => {
+          const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+          return rows.some((row) => {
+            const cells = row.querySelectorAll('td');
+            return (cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') === targetId;
+          });
+        }, normalizedId);
+
+        if (stillPresent) {
+          logger.warn(`[batchDelete] Order ${normalizedId} still present in grid after delete attempt`);
+          notFoundIds.push(originalId);
+        } else {
+          logger.info(`[batchDelete] Order ${normalizedId} successfully deleted`);
+          deletedIds.push(originalId);
+        }
       }
+
+      await this.emitProgress('batchDelete.complete');
+      logger.info(`[batchDelete] Deleted ${deletedIds.length}/${orderIds.length} orders`);
 
       if (deletedIds.length === 0) {
         return {
           success: false,
-          message: 'Nessun ordine eliminato dall\'ERP — la conferma del popup potrebbe non essere stata accettata',
+          message: 'Nessun ordine eliminato dall\'ERP',
           deletedIds: [],
-          notFoundIds: [...notFoundIds, ...failedIds],
+          notFoundIds,
         };
       }
 
-      await this.emitProgress('batchDelete.complete');
-      logger.info(`[batchDelete] Deleted ${deletedIds.length}/${foundNormalizedIds.length} orders`);
       return {
         success: true,
         message: `Eliminati ${deletedIds.length} ordini da Archibald`,
         deletedIds,
-        notFoundIds: [...notFoundIds, ...failedIds],
+        notFoundIds,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -7568,7 +7540,9 @@ export class ArchibaldBot {
       try {
         await this.page!.screenshot({ path: `logs/batch-delete-error-${Date.now()}.png`, fullPage: true });
       } catch { /* ignore */ }
-      return { success: false, message: `Errore batch delete: ${errorMsg}`, deletedIds: [], notFoundIds: orderIds };
+      const processedIds = new Set([...deletedIds, ...notFoundIds]);
+      const unprocessedIds = orderIds.filter((id) => !processedIds.has(id));
+      return { success: false, message: `Errore batch delete: ${errorMsg}`, deletedIds, notFoundIds: [...notFoundIds, ...unprocessedIds] };
     }
   }
 
