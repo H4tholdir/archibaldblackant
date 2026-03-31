@@ -1,11 +1,11 @@
 import type { OperationType } from './operation-types';
 
-type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync';
+type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync' | 'bot-queue';
 
-const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync'] as const;
+const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync', 'bot-queue'] as const;
 
 const QUEUE_ROUTING: Record<OperationType, QueueName> = {
-  'submit-order': 'writes',
+  'submit-order': 'bot-queue',
   'create-customer': 'writes',
   'update-customer': 'writes',
   'read-vat-status': 'writes',
