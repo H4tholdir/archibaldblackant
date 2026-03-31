@@ -1062,10 +1062,10 @@ export function PendingOrdersPage() {
 
           const isWarehouseOrder = order.status === "completed-warehouse";
           const isSelected = selectedOrderIds.has(order.id!);
-          const cardOpacity = isJobActive || isJobCompleted ? 0.6 : 1;
-          const cardBgColor = isJobCompleted
+          const cardOpacity = isJobActive || isJobCompleted || liveOp != null ? 0.6 : 1;
+          const cardBgColor = isJobCompleted || liveOp?.status === "completed"
             ? "#f0fdf4"
-            : isJobFailed
+            : isJobFailed || liveOp?.status === "failed"
               ? "#fef2f2"
               : isWarehouseOrder
                 ? "#eff6ff"

@@ -546,6 +546,7 @@ describe("PendingOrdersPage", () => {
     render(<PendingOrdersPage />);
     await act(async () => {});
 
+    expect(capturedJobProgressBarProps.length).toBeGreaterThan(0);
     const lastProps = capturedJobProgressBarProps[capturedJobProgressBarProps.length - 1] as {
       progress: number;
       operation: string;
