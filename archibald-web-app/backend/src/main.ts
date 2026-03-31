@@ -561,7 +561,7 @@ async function bootstrap(): Promise<void> {
         createOrder: async (data) => { await ensureInit(); return bot!.createOrder(data); },
         deleteOrderFromArchibald: async (orderId) => { await ensureInit(); return bot!.deleteOrderFromArchibald(orderId); },
         setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
-        readOrderHeader: async (_orderId) => null,
+        readOrderHeader: async (_orderId) => { await ensureInit(); return null; },
       };
     }, sharedInlineSyncDeps, broadcastEvent),
     'create-customer': createCreateCustomerHandler(pool, (userId) => {

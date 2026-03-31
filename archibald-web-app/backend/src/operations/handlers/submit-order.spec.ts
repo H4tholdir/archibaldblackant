@@ -834,7 +834,20 @@ describe('handleSubmitOrder — readOrderHeader post-piazzamento', () => {
     );
     expect(updateCalls).toHaveLength(1);
     const params = updateCalls[0][1] as unknown[];
-    expect(params).toEqual(expect.arrayContaining(['SO-2024-001234', 'RC-001', 'Riferimento cliente']));
+    expect(params).toEqual([
+      'SO-2024-001234',      // $1 order_number (COALESCE)
+      'RC-001',              // $2 customer_reference
+      'Riferimento cliente', // $3 order_description
+      '4/5/2024',           // $4 delivery_date
+      'Mario Rossi',         // $5 delivery_name
+      'Via Roma 1',          // $6 delivery_address
+      'Giornale',            // $7 sales_status (COALESCE)
+      'Nessuno',             // $8 document_status (COALESCE)
+      'Non trasferibile',    // $9 transfer_status (COALESCE)
+      expect.any(Number),    // $10 last_sync (timestamp)
+      expect.any(String),    // $11 orderId
+      'user-1',              // $12 userId
+    ]);
   }, 15_000);
 
   test('continua normalmente se readOrderHeader restituisce null', async () => {
