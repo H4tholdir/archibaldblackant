@@ -11,8 +11,10 @@ describe('getQueueForOperation', () => {
     'update-customer': 'writes',
     'read-vat-status': 'writes',
     'send-to-verona': 'writes',
+    'batch-send-to-verona': 'writes',
     'edit-order': 'writes',
     'delete-order': 'writes',
+    'batch-delete-orders': 'writes',
     'download-ddt-pdf': 'writes',
     'download-invoice-pdf': 'writes',
     'sync-customers': 'agent-sync',
@@ -47,9 +49,9 @@ describe('getQueueForOperation', () => {
     }
   });
 
-  test('writes queue contains 9 operations', () => {
+  test('writes queue contains 11 operations', () => {
     const writesOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'writes');
-    expect(writesOps).toHaveLength(9);
+    expect(writesOps).toHaveLength(11);
   });
 
   test('agent-sync queue contains 4 operations', () => {

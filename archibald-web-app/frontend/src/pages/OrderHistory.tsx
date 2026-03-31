@@ -267,6 +267,8 @@ export function OrderHistory() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [stackReasonDialog, setStackReasonDialog] = useState(false);
   const [ktSyncDialogOpen, setKtSyncDialogOpen] = useState(false);
+  const [batchDeleteConfirmOpen, setBatchDeleteConfirmOpen] = useState(false);
+  const [batchSendVeronaConfirmOpen, setBatchSendVeronaConfirmOpen] = useState(false);
   const [stackReason, setStackReason] = useState("");
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justEnteredSelectionMode = useRef(false);
@@ -851,7 +853,51 @@ export function OrderHistory() {
     setSelectionMode(false);
     setSelectedOrderIds(new Set());
     setStackReasonDialog(false);
+    setBatchDeleteConfirmOpen(false);
+    setBatchSendVeronaConfirmOpen(false);
     setStackReason("");
+  }
+
+  async function handleBatchDelete() {
+    const ids = Array.from(selectedOrderIds);
+    if (ids.length === 0) return;
+    setBatchDeleteConfirmOpen(false);
+    try {
+      const response = await fetchWithRetry(
+        `/api/orders/batch-delete`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderIds: ids }) },
+        { maxRetries: 0, totalTimeout: 60000 },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Errore eliminazione batch");
+      if (data.jobId) {
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Eliminazione batch...");
+      }
+      handleCancelSelection();
+    } catch (err) {
+      toastService.error(err instanceof Error ? err.message : "Errore eliminazione batch");
+    }
+  }
+
+  async function handleBatchSendToVerona() {
+    const ids = Array.from(selectedOrderIds);
+    if (ids.length === 0) return;
+    setBatchSendVeronaConfirmOpen(false);
+    try {
+      const response = await fetchWithRetry(
+        `/api/orders/batch-send-to-verona`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderIds: ids }) },
+        { maxRetries: 0, totalTimeout: 60000 },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.message || "Errore invio batch");
+      if (data.jobId) {
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Invio a Verona...");
+      }
+      handleCancelSelection();
+    } catch (err) {
+      toastService.error(err instanceof Error ? err.message : "Errore invio batch a Verona");
+    }
   }
 
   async function handleConfirmStack() {
@@ -2521,6 +2567,40 @@ export function OrderHistory() {
             >
               Impila ({selectedOrderIds.size})
             </button>
+            <button
+              onClick={() => setBatchSendVeronaConfirmOpen(true)}
+              disabled={selectedOrderIds.size === 0}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: selectedOrderIds.size === 0 ? "#bdbdbd" : "#2e7d32",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              Invia a Verona ({selectedOrderIds.size})
+            </button>
+            <button
+              onClick={() => setBatchDeleteConfirmOpen(true)}
+              disabled={selectedOrderIds.size === 0}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: selectedOrderIds.size === 0 ? "#bdbdbd" : "#c62828",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              Elimina ({selectedOrderIds.size})
+            </button>
           </div>
         </div>
       )}
@@ -2535,6 +2615,51 @@ export function OrderHistory() {
             setSelectedOrderIds(new Set());
           }}
         />
+      )}
+
+      {/* Batch delete confirm dialog */}
+      {batchDeleteConfirmOpen && (
+        <div
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setBatchDeleteConfirmOpen(false)}
+        >
+          <div
+            style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#c62828", marginBottom: "12px" }}>Elimina ordini</div>
+            <div style={{ fontSize: "14px", color: "#444", marginBottom: "20px" }}>
+              Sei sicuro di voler eliminare <strong>{selectedOrderIds.size}</strong> {selectedOrderIds.size === 1 ? "ordine" : "ordini"} da Archibald?<br />
+              <span style={{ color: "#c62828" }}>Questa operazione non può essere annullata.</span>
+            </div>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button onClick={() => setBatchDeleteConfirmOpen(false)} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>Annulla</button>
+              <button onClick={handleBatchDelete} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 700, backgroundColor: "#c62828", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch send to Verona confirm dialog */}
+      {batchSendVeronaConfirmOpen && (
+        <div
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setBatchSendVeronaConfirmOpen(false)}
+        >
+          <div
+            style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "#2e7d32", marginBottom: "12px" }}>Invia a Verona</div>
+            <div style={{ fontSize: "14px", color: "#444", marginBottom: "20px" }}>
+              Sei sicuro di voler inviare <strong>{selectedOrderIds.size}</strong> {selectedOrderIds.size === 1 ? "ordine" : "ordini"} a Verona?
+            </div>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button onClick={() => setBatchSendVeronaConfirmOpen(false)} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}>Annulla</button>
+              <button onClick={handleBatchSendToVerona} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 700, backgroundColor: "#2e7d32", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>Invia</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Stack reason dialog */}

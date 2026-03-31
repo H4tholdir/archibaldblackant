@@ -7312,6 +7312,398 @@ export class ArchibaldBot {
     }
   }
 
+  private batchOperationFilterReady = false;
+
+  async batchDeleteOrdersFromArchibald(
+    orderIds: string[],
+  ): Promise<{ success: boolean; message: string; deletedIds: string[]; notFoundIds: string[] }> {
+    logger.info(`[batchDelete] Deleting ${orderIds.length} orders: ${orderIds.join(', ')}`);
+
+    if (!this.page) {
+      return { success: false, message: 'Browser page not initialized', deletedIds: [], notFoundIds: orderIds };
+    }
+
+    const normalizedTargets = orderIds.map((id) => id.replace(/\./g, ''));
+
+    try {
+      // Step 1: Navigate to orders page (only if not already there)
+      const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+      if (!this.page.url().includes('SALESTABLE_ListView_Agent')) {
+        await this.emitProgress('batchDelete.navigation');
+        await this.page.goto(ordersUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await this.page.waitForFunction(
+          () => Array.from(document.querySelectorAll('span, button, a')).some(
+            (el) => { const t = el.textContent?.trim().toLowerCase() ?? ''; return t === 'nuovo' || t === 'new'; },
+          ),
+          { timeout: 15000 },
+        );
+        await this.wait(500);
+        this.batchOperationFilterReady = false;
+      }
+
+      // Step 2: Ensure filter = "Tutti gli ordini"
+      if (!this.batchOperationFilterReady) {
+        await this.emitProgress('batchDelete.filter');
+        await this.ensureOrdersFilterSetToAll(this.page);
+        this.batchOperationFilterReady = true;
+      }
+
+      // Step 3: Clear the search box so all orders are visible (not filtered to 1)
+      await this.emitProgress('batchDelete.scan');
+      const searchHandle = await this.page.$('input[id*="SearchAC"][id*="Ed_I"]').catch(() => null);
+      if (searchHandle) {
+        await this.page.evaluate((input) => {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input as HTMLInputElement, '');
+          else (input as HTMLInputElement).value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, searchHandle);
+        await this.page.keyboard.press('Enter');
+        await this.page.waitForFunction(
+          () => {
+            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+            return !panels.some((el) => {
+              const s = window.getComputedStyle(el as HTMLElement);
+              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+            });
+          },
+          { timeout: 10000, polling: 200 },
+        ).catch(() => null);
+        await this.wait(500);
+      }
+
+      // Step 4: Scan visible rows to find row indices for each target order
+      const rowIndices = await this.page.evaluate((targets: string[]) => {
+        const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        const found: Array<{ rowIndex: number; normalizedId: string }> = [];
+        rows.forEach((row, rowIndex) => {
+          const cells = row.querySelectorAll('td');
+          // cells[0]=edit ghost, cells[1]=checkbox ghost, cells[2]=order ID
+          const cellText = cells[2]?.textContent?.trim().replace(/\./g, '') ?? '';
+          if (targets.includes(cellText)) {
+            found.push({ rowIndex, normalizedId: cellText });
+          }
+        });
+        return found;
+      }, normalizedTargets);
+
+      const foundNormalizedIds = rowIndices.map((r) => r.normalizedId);
+      const notFoundIds = orderIds.filter((id) => !foundNormalizedIds.includes(id.replace(/\./g, '')));
+
+      if (rowIndices.length === 0) {
+        return { success: false, message: 'Nessun ordine trovato nella griglia ERP', deletedIds: [], notFoundIds: orderIds };
+      }
+
+      logger.info(`[batchDelete] Found ${rowIndices.length}/${orderIds.length} orders in grid. Selecting via DevExpress API...`);
+
+      // Step 5: Select all found rows via SelectRowOnPage API
+      await this.emitProgress('batchDelete.select');
+      await this.page.evaluate((indices: number[]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
+        if (!collection) return;
+        // First unselect all
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection.ForEachControl?.((c: any) => {
+          if (typeof c.UnselectAllRowsOnPage === 'function') c.UnselectAllRowsOnPage();
+        });
+        // Then select each target row
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection.ForEachControl?.((c: any) => {
+          if (typeof c.SelectRowOnPage === 'function') {
+            for (const idx of indices) c.SelectRowOnPage(idx);
+          }
+        });
+      }, rowIndices.map((r) => r.rowIndex));
+      await this.wait(500);
+
+      // Wait for "Cancellare" to become enabled
+      await this.page.waitForFunction(
+        () => {
+          const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T');
+          return btn && !btn.classList.contains('dxm-disabled');
+        },
+        { timeout: 5000, polling: 100 },
+      ).catch(() => null);
+
+      // Step 6: Register dialog handler BEFORE clicking delete
+      const dialogPromise = new Promise<boolean>((resolve) => {
+        let resolved = false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handler = (dialog: any) => {
+          if (resolved) return;
+          resolved = true;
+          logger.debug(`[batchDelete] Dialog: ${dialog.type()} — ${dialog.message()}`);
+          dialog.accept();
+          resolve(true);
+        };
+        this.page!.once('dialog', handler);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            this.page!.off('dialog', handler);
+            resolve(false);
+          }
+        }, 10000);
+      });
+
+      // Step 7: Click "Cancellare"
+      await this.emitProgress('batchDelete.confirm');
+      const deleteClicked = await this.page.evaluate(() => {
+        const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T') as HTMLElement | null;
+        if (btn) { btn.click(); return { clicked: true, strategy: 'by-id' }; }
+        for (const link of Array.from(document.querySelectorAll('a[id*="Vertical_mainMenu"], a[id*="mainMenu_Menu"]'))) {
+          const text = link.textContent?.trim().toLowerCase();
+          if (text === 'cancellare' || text === 'elimina' || text === 'delete') {
+            (link as HTMLElement).click();
+            return { clicked: true, strategy: 'by-text' };
+          }
+        }
+        return { clicked: false, strategy: 'none' };
+      });
+
+      if (!deleteClicked.clicked) {
+        return { success: false, message: '"Cancellare" button not found', deletedIds: [], notFoundIds: orderIds };
+      }
+
+      // Step 8: Accept the native browser confirm() dialog
+      const dialogHandled = await dialogPromise;
+      if (!dialogHandled) {
+        logger.warn('[batchDelete] No confirmation dialog appeared');
+      }
+
+      // Step 9: Wait for page to reload after delete (frame may detach — that's expected)
+      await this.page.waitForFunction(
+        () => document.querySelectorAll('tr[class*="dxgvDataRow"]').length >= 0,
+        { timeout: 8000, polling: 300 },
+      ).catch(() => null);
+      await this.wait(500);
+
+      const deletedIds = orderIds.filter((id) => foundNormalizedIds.includes(id.replace(/\./g, '')));
+      await this.emitProgress('batchDelete.complete');
+
+      logger.info(`[batchDelete] Successfully deleted ${deletedIds.length} orders`);
+      return {
+        success: true,
+        message: `Eliminati ${deletedIds.length} ordini da Archibald`,
+        deletedIds,
+        notFoundIds,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error('[batchDelete] Error:', { error: errorMsg });
+      try {
+        await this.page!.screenshot({ path: `logs/batch-delete-error-${Date.now()}.png`, fullPage: true });
+      } catch { /* ignore */ }
+      return { success: false, message: `Errore batch delete: ${errorMsg}`, deletedIds: [], notFoundIds: orderIds };
+    }
+  }
+
+  async batchSendOrdersToVerona(
+    orderIds: string[],
+  ): Promise<{ success: boolean; message: string; sentIds: string[]; notFoundIds: string[] }> {
+    logger.info(`[batchSendToVerona] Sending ${orderIds.length} orders: ${orderIds.join(', ')}`);
+
+    if (!this.page) {
+      return { success: false, message: 'Browser page not initialized', sentIds: [], notFoundIds: orderIds };
+    }
+
+    const normalizedTargets = orderIds.map((id) => id.replace(/\./g, ''));
+
+    try {
+      // Step 1: Navigate to orders page (only if not already there)
+      const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+      if (!this.page.url().includes('SALESTABLE_ListView_Agent')) {
+        await this.emitProgress('batchSendToVerona.navigation');
+        await this.page.goto(ordersUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await this.page.waitForFunction(
+          () => Array.from(document.querySelectorAll('span, button, a')).some(
+            (el) => { const t = el.textContent?.trim().toLowerCase() ?? ''; return t === 'nuovo' || t === 'new'; },
+          ),
+          { timeout: 15000 },
+        );
+        await this.wait(500);
+        this.batchOperationFilterReady = false;
+      }
+
+      // Step 2: Ensure filter = "Tutti gli ordini"
+      if (!this.batchOperationFilterReady) {
+        await this.emitProgress('batchSendToVerona.filter');
+        await this.ensureOrdersFilterSetToAll(this.page);
+        this.batchOperationFilterReady = true;
+      }
+
+      // Step 3: Clear the search box so all orders are visible
+      await this.emitProgress('batchSendToVerona.scan');
+      const searchHandle = await this.page.$('input[id*="SearchAC"][id*="Ed_I"]').catch(() => null);
+      if (searchHandle) {
+        await this.page.evaluate((input) => {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input as HTMLInputElement, '');
+          else (input as HTMLInputElement).value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, searchHandle);
+        await this.page.keyboard.press('Enter');
+        await this.page.waitForFunction(
+          () => {
+            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+            return !panels.some((el) => {
+              const s = window.getComputedStyle(el as HTMLElement);
+              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+            });
+          },
+          { timeout: 10000, polling: 200 },
+        ).catch(() => null);
+        await this.wait(500);
+      }
+
+      // Step 4: Scan visible rows to find row indices for each target order
+      const rowIndices = await this.page.evaluate((targets: string[]) => {
+        const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        const found: Array<{ rowIndex: number; normalizedId: string }> = [];
+        rows.forEach((row, rowIndex) => {
+          const cells = row.querySelectorAll('td');
+          const cellText = cells[2]?.textContent?.trim().replace(/\./g, '') ?? '';
+          if (targets.includes(cellText)) {
+            found.push({ rowIndex, normalizedId: cellText });
+          }
+        });
+        return found;
+      }, normalizedTargets);
+
+      const foundNormalizedIds = rowIndices.map((r) => r.normalizedId);
+      const notFoundIds = orderIds.filter((id) => !foundNormalizedIds.includes(id.replace(/\./g, '')));
+
+      if (rowIndices.length === 0) {
+        return { success: false, message: 'Nessun ordine trovato nella griglia ERP', sentIds: [], notFoundIds: orderIds };
+      }
+
+      logger.info(`[batchSendToVerona] Found ${rowIndices.length}/${orderIds.length} orders. Selecting...`);
+
+      // Step 5: Select all found rows via SelectRowOnPage API
+      await this.emitProgress('batchSendToVerona.select');
+      await this.page.evaluate((indices: number[]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
+        if (!collection) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection.ForEachControl?.((c: any) => {
+          if (typeof c.UnselectAllRowsOnPage === 'function') c.UnselectAllRowsOnPage();
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection.ForEachControl?.((c: any) => {
+          if (typeof c.SelectRowOnPage === 'function') {
+            for (const idx of indices) c.SelectRowOnPage(idx);
+          }
+        });
+      }, rowIndices.map((r) => r.rowIndex));
+      await this.wait(500);
+
+      // Wait for "invia ordine/i" button to become enabled
+      await this.page.waitForFunction(
+        () => {
+          const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI4_T');
+          if (!btn) return false;
+          const li = document.querySelector('#Vertical_mainMenu_Menu_DXI4_');
+          return !btn.classList.contains('dxm-disabled') && (!li || !li.classList.contains('dxm-disabled'));
+        },
+        { timeout: 5000, polling: 100 },
+      ).catch(() => null);
+
+      // Step 6: Register dialog handler BEFORE clicking send
+      await this.emitProgress('batchSendToVerona.confirm');
+      const dialogPromise = new Promise<boolean>((resolve) => {
+        let resolved = false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handler = (dialog: any) => {
+          if (resolved) return;
+          resolved = true;
+          logger.debug(`[batchSendToVerona] Dialog: ${dialog.type()} — ${dialog.message()}`);
+          dialog.accept();
+          resolve(true);
+        };
+        this.page!.once('dialog', handler);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            this.page!.off('dialog', handler);
+            resolve(false);
+          }
+        }, 10000);
+      });
+
+      // Step 7: Click "invia ordine/i"
+      const sendClicked = await this.page.evaluate(() => {
+        const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI4_T') as HTMLElement | null;
+        if (btn) { btn.click(); return { clicked: true, strategy: 'by-id' }; }
+        for (const link of Array.from(document.querySelectorAll('a[id*="Vertical_mainMenu"], a[id*="mainMenu_Menu"]'))) {
+          const text = link.textContent?.trim().toLowerCase();
+          if (text === 'invia ordine/i' || text === 'invia ordini' || text === 'invia ordine') {
+            (link as HTMLElement).click();
+            return { clicked: true, strategy: 'by-text' };
+          }
+        }
+        return { clicked: false, strategy: 'none' };
+      });
+
+      if (!sendClicked.clicked) {
+        return { success: false, message: '"Invia ordine/i" button not found', sentIds: [], notFoundIds: orderIds };
+      }
+
+      // Step 8: Accept native confirm() — or check for DevExpress popup fallback
+      const dialogHandled = await dialogPromise;
+      if (!dialogHandled) {
+        logger.debug('[batchSendToVerona] No native dialog, checking DevExpress popup...');
+        await this.page.evaluate(() => {
+          const selectors = [
+            'div[id*="Confirm"] a[id*="btnOk"]',
+            'div[id*="Dialog"] a[id*="btnOk"]',
+            '[class*="dxpc"] a[id*="btnOk"]',
+            'div[id*="Confirm"] a[id*="btnYes"]',
+          ];
+          for (const sel of selectors) {
+            const popupBtn = document.querySelector(sel) as HTMLElement | null;
+            if (popupBtn && popupBtn.offsetParent !== null) { popupBtn.click(); return; }
+          }
+        }).catch(() => null);
+      }
+
+      // Step 9: Wait for grid to update
+      await this.emitProgress('batchSendToVerona.verify');
+      await this.page.waitForFunction(
+        () => {
+          const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+          return !panels.some((el) => {
+            const s = window.getComputedStyle(el as HTMLElement);
+            return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+          });
+        },
+        { timeout: 10000, polling: 300 },
+      ).catch(() => null);
+      await this.wait(500);
+
+      const sentIds = orderIds.filter((id) => foundNormalizedIds.includes(id.replace(/\./g, '')));
+      await this.emitProgress('batchSendToVerona.complete');
+
+      logger.info(`[batchSendToVerona] Successfully sent ${sentIds.length} orders to Verona`);
+      return {
+        success: true,
+        message: `Inviati ${sentIds.length} ordini a Verona`,
+        sentIds,
+        notFoundIds,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error('[batchSendToVerona] Error:', { error: errorMsg });
+      try {
+        await this.page!.screenshot({ path: `logs/batch-send-verona-error-${Date.now()}.png`, fullPage: true });
+      } catch { /* ignore */ }
+      return { success: false, message: `Errore batch send to Verona: ${errorMsg}`, sentIds: [], notFoundIds: orderIds };
+    }
+  }
+
   private editOrderFilterReady = false;
 
   async editOrderInArchibald(

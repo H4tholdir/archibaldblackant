@@ -219,8 +219,10 @@ vi.mock('./operations/handlers', () => ({
   createUpdateCustomerHandler: vi.fn(() => vi.fn()),
   createReadVatStatusHandler: vi.fn(() => vi.fn()),
   createDeleteOrderHandler: vi.fn(() => vi.fn()),
+  createBatchDeleteOrdersHandler: vi.fn(() => vi.fn()),
   createEditOrderHandler: vi.fn(() => vi.fn()),
   createSendToVeronaHandler: vi.fn(() => vi.fn()),
+  createBatchSendToVeronaHandler: vi.fn(() => vi.fn()),
   createDownloadDdtPdfHandler: vi.fn(() => vi.fn()),
   createDownloadInvoicePdfHandler: vi.fn(() => vi.fn()),
   createSyncOrderArticlesHandler: vi.fn(() => vi.fn()),
@@ -340,7 +342,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 19 operation handlers', async () => {
+  test('registers all 21 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -355,8 +357,10 @@ describe('bootstrap', () => {
       'update-customer',
       'read-vat-status',
       'delete-order',
+      'batch-delete-orders',
       'edit-order',
       'send-to-verona',
+      'batch-send-to-verona',
       'download-ddt-pdf',
       'download-invoice-pdf',
       'sync-order-articles',
@@ -370,7 +374,7 @@ describe('bootstrap', () => {
       'sync-tracking',
       'sync-customer-addresses',
     ]));
-    expect(handlerKeys).toHaveLength(19);
+    expect(handlerKeys).toHaveLength(21);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

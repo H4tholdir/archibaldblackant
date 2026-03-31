@@ -28,8 +28,10 @@ import {
   createCreateCustomerHandler,
   createUpdateCustomerHandler,
   createDeleteOrderHandler,
+  createBatchDeleteOrdersHandler,
   createEditOrderHandler,
   createSendToVeronaHandler,
+  createBatchSendToVeronaHandler,
   createDownloadDdtPdfHandler,
   createDownloadInvoicePdfHandler,
   createSyncOrderArticlesHandler,
@@ -607,6 +609,17 @@ async function bootstrap(): Promise<void> {
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }, broadcastEvent),
+    'batch-delete-orders': createBatchDeleteOrdersHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        batchDeleteOrdersFromArchibald: async (ids) => { await ensureInit(); return bot.batchDeleteOrdersFromArchibald(ids); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }, broadcastEvent),
     'edit-order': createEditOrderHandler(pool, (userId) => {
       let bot: ArchibaldBot | null = null;
       let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
@@ -631,6 +644,17 @@ async function bootstrap(): Promise<void> {
       };
       return {
         sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
+        setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),
+    'batch-send-to-verona': createBatchSendToVeronaHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        batchSendOrdersToVerona: async (ids) => { await ensureInit(); return bot.batchSendOrdersToVerona(ids); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),

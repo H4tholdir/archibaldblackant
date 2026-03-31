@@ -344,6 +344,64 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
+  router.post('/batch-delete', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { orderIds } = req.body as { orderIds?: unknown };
+
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'orderIds deve essere un array non vuoto' });
+      }
+
+      const jobId = await queue.enqueue('batch-delete-orders', userId, { orderIds });
+      res.json({ success: true, jobId });
+    } catch (error) {
+      logger.error('Error enqueuing batch-delete-orders', { error });
+      res.status(500).json({ success: false, error: 'Errore avvio eliminazione batch' });
+    }
+  });
+
+  router.post('/batch-send-to-verona', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { orderIds } = req.body as { orderIds?: unknown };
+
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'orderIds deve essere un array non vuoto' });
+      }
+
+      for (const orderId of orderIds as string[]) {
+        const order = await getOrderById(userId, orderId);
+        if (!order) {
+          return res.status(404).json({ success: false, error: `Ordine ${orderId} non trovato` });
+        }
+        if (order.transferStatus?.toLowerCase() !== 'modifica') {
+          return res.status(400).json({
+            success: false,
+            error: `Ordine ${orderId} non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA)`,
+          });
+        }
+        if (deps.getCustomerByProfile && deps.isCustomerComplete && order.customerAccountNum) {
+          const customer = await deps.getCustomerByProfile(userId, order.customerAccountNum);
+          if (customer && !deps.isCustomerComplete(customer)) {
+            return res.status(400).json({
+              success: false,
+              error: 'customer_incomplete',
+              message: `Scheda cliente incompleta per ordine ${orderId} — completare i dati obbligatori prima di inviare`,
+              erpId: order.customerAccountNum,
+            });
+          }
+        }
+      }
+
+      const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds });
+      res.json({ success: true, jobId });
+    } catch (error) {
+      logger.error('Error enqueuing batch-send-to-verona', { error });
+      res.status(500).json({ success: false, error: 'Errore avvio invio batch a Verona' });
+    }
+  });
+
   return router;
 }
 

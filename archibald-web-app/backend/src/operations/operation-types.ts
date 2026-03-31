@@ -4,8 +4,10 @@ const OPERATION_TYPES = [
   'update-customer',
   'read-vat-status',
   'send-to-verona',
+  'batch-send-to-verona',
   'edit-order',
   'delete-order',
+  'batch-delete-orders',
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
@@ -28,8 +30,10 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'update-customer': 3,
   'read-vat-status': 4,
   'send-to-verona': 5,
+  'batch-send-to-verona': 5,
   'edit-order': 6,
   'delete-order': 7,
+  'batch-delete-orders': 7,
   'download-ddt-pdf': 8,
   'download-invoice-pdf': 9,
   'sync-order-states': 10,
@@ -49,8 +53,10 @@ const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([
   'create-customer',
   'update-customer',
   'send-to-verona',
+  'batch-send-to-verona',
   'edit-order',
   'delete-order',
+  'batch-delete-orders',
 ]);
 
 const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([

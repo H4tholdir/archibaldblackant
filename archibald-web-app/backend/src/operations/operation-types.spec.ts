@@ -15,8 +15,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
-  test('all 19 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(19);
+  test('all 21 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(21);
   });
 });
 
@@ -26,8 +26,10 @@ describe('isWriteOperation', () => {
     'create-customer',
     'update-customer',
     'send-to-verona',
+    'batch-send-to-verona',
     'edit-order',
     'delete-order',
+    'batch-delete-orders',
   ];
 
   const nonWriteOps: OperationType[] = [
@@ -75,8 +77,10 @@ describe('isScheduledSync', () => {
     'update-customer',
     'read-vat-status',
     'send-to-verona',
+    'batch-send-to-verona',
     'edit-order',
     'delete-order',
+    'batch-delete-orders',
     'download-ddt-pdf',
     'download-invoice-pdf',
   ];
