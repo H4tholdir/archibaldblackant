@@ -39,7 +39,7 @@ function isInventtableError(msg: string | undefined | null): boolean {
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
-  const { trackOperation } = useOperationTracking();
+  const { trackOperation, activeOperations } = useOperationTracking();
 
   // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
   const {
@@ -301,6 +301,7 @@ export function PendingOrdersPage() {
               vat: item.vat,
               warehouseQuantity: item.warehouseQuantity || 0,
               warehouseSources: item.warehouseSources || [],
+              isGhostArticle: item.isGhostArticle,
             })),
             discountPercent: isFresisSubclient ? undefined : order.discountPercent,
             targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
@@ -327,17 +328,18 @@ export function PendingOrdersPage() {
         }
       }
 
-      for (const orderId of selectedOrderIds) {
-        const order = orders.find((o) => o.id === orderId);
-        if (order) {
-          await savePendingOrder({
+      void Promise.allSettled(
+        Array.from(selectedOrderIds).map((orderId) => {
+          const order = orders.find((o) => o.id === orderId);
+          if (!order) return Promise.resolve();
+          return savePendingOrder({
             ...order,
             status: "syncing",
             updatedAt: new Date().toISOString(),
             needsSync: true,
           });
-        }
-      }
+        }),
+      );
 
       toastService.success(
         `Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`,
@@ -407,6 +409,7 @@ export function PendingOrdersPage() {
           vat: item.vat,
           warehouseQuantity: item.warehouseQuantity || 0,
           warehouseSources: item.warehouseSources || [],
+          isGhostArticle: item.isGhostArticle,
         })),
         discountPercent: isFresisSubclient ? undefined : order.discountPercent,
         targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
@@ -1051,6 +1054,7 @@ export function PendingOrdersPage() {
         }}
       >
         {orders.map((order, orderIndex) => {
+          const liveOp = activeOperations.find(o => o.orderId === order.id);
           const isJobActive =
             order.jobStatus &&
             ["started", "processing"].includes(order.jobStatus);
@@ -1061,10 +1065,10 @@ export function PendingOrdersPage() {
 
           const isWarehouseOrder = order.status === "completed-warehouse";
           const isSelected = selectedOrderIds.has(order.id!);
-          const cardOpacity = isJobActive || isJobCompleted ? 0.6 : 1;
-          const cardBgColor = isJobCompleted
+          const cardOpacity = isJobActive || isJobCompleted || liveOp != null ? 0.6 : 1;
+          const cardBgColor = isJobCompleted || liveOp?.status === "completed"
             ? "#f0fdf4"
-            : isJobFailed
+            : isJobFailed || liveOp?.status === "failed"
               ? "#fef2f2"
               : isWarehouseOrder
                 ? "#eff6ff"
@@ -1443,13 +1447,23 @@ export function PendingOrdersPage() {
               </div>
 
               {/* PHASE 72: Job Progress Bar */}
-              {(isJobActive || isJobCompleted || isJobFailed) && (
+              {(liveOp != null || isJobActive || isJobCompleted || isJobFailed) && (
                 <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
                   <JobProgressBar
-                    progress={order.jobProgress || 0}
-                    operation={order.jobOperation || "In attesa..."}
-                    status={order.jobStatus || "idle"}
-                    error={isJobFailed ? order.jobError : undefined}
+                    progress={liveOp?.progress ?? order.jobProgress ?? 0}
+                    operation={liveOp?.label ?? order.jobOperation ?? "In attesa..."}
+                    status={
+                      liveOp != null
+                        ? liveOp.status === "completed" ? "completed"
+                          : liveOp.status === "failed" ? "failed"
+                          : liveOp.status === "queued" ? "started"
+                          : "processing"
+                        : order.jobStatus ?? "idle"
+                    }
+                    error={
+                      (liveOp?.status === "failed" ? liveOp.error : undefined) ??
+                      (isJobFailed ? order.jobError : undefined)
+                    }
                   />
                   {isStale && !isJobFailed && (
                     <div

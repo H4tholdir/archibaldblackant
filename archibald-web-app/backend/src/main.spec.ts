@@ -14,6 +14,7 @@ vi.mock('./config', () => ({
       'agent-sync': { concurrency: 3, lockDuration: 300000, stalledInterval: 30000, removeOnComplete: true },
       enrichment: { concurrency: 3, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: true },
       'shared-sync': { concurrency: 1, lockDuration: 900000, stalledInterval: 60000, removeOnComplete: true },
+      'bot-queue': { concurrency: 1, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: { count: 100 } },
     },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
   },
@@ -308,7 +309,7 @@ describe('bootstrap', () => {
 
     expect(createPool).toHaveBeenCalledTimes(1);
     expect(runMigrations).toHaveBeenCalledTimes(1);
-    expect(createOperationQueue).toHaveBeenCalledTimes(4);
+    expect(createOperationQueue).toHaveBeenCalledTimes(5);
     expect(createAgentLock).toHaveBeenCalledTimes(1);
     expect(createBrowserPool).toHaveBeenCalledTimes(1);
     expect(createSyncScheduler).toHaveBeenCalledTimes(1);
@@ -387,18 +388,18 @@ describe('bootstrap', () => {
     expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
   });
 
-  test('creates 4 BullMQ workers — one per queue tier', async () => {
+  test('creates 5 BullMQ workers — one per queue tier', async () => {
     const { bootstrap } = await import('./main');
     const { Worker } = await import('bullmq');
 
     await bootstrap();
 
-    expect(Worker).toHaveBeenCalledTimes(4);
+    expect(Worker).toHaveBeenCalledTimes(5);
     const workerNames = (Worker as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0],
     );
     expect(workerNames).toEqual(
-      expect.arrayContaining(['writes', 'agent-sync', 'enrichment', 'shared-sync']),
+      expect.arrayContaining(['writes', 'agent-sync', 'enrichment', 'shared-sync', 'bot-queue']),
     );
   });
 

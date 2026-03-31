@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleSubmitOrder, calculateAmounts, type SubmitOrderBot, type SubmitOrderData, type SubmitOrderItem } from './submit-order';
+import { handleSubmitOrder, calculateAmounts, type SubmitOrderBot, type SubmitOrderData, type SubmitOrderItem, type OrderHeaderData } from './submit-order';
 import type { DbPool } from '../../db/pool';
 import { arcaLineAmount, round2 } from '../../utils/arca-math';
 
@@ -46,7 +46,9 @@ function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
 function createMockBot(orderId = 'ORD-001'): SubmitOrderBot {
   return {
     createOrder: vi.fn().mockResolvedValue(orderId),
+    deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
     setProgressCallback: vi.fn(),
+    readOrderHeader: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -760,6 +762,123 @@ describe('notes storage with noShipping', () => {
     const notesParam = params[25]; // notes is the 26th param (index 25)
     expect(notesParam).toBe(notesText);
   });
+});
+
+describe('handleSubmitOrder — cooldown post-completamento', () => {
+  const ghostOnlyItems = [
+    {
+      articleCode: 'GHOST001',
+      description: 'Articolo fantasma',
+      quantity: 2,
+      price: 10,
+      discount: 0,
+      vat: 22,
+      isGhostArticle: true,
+      warehouseQuantity: 2,
+      warehouseSources: [],
+    },
+  ];
+
+  test('attende cooldown di 5s dopo il completamento per ordine non-warehouse', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-COOLDOWN');
+    const startMs = Date.now();
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn());
+    const elapsed = Date.now() - startMs;
+    expect(elapsed).toBeGreaterThanOrEqual(4_500);
+  }, 15_000);
+
+  test('non attende cooldown per ordini ghost-only (warehouse)', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const ghostOnlyData: SubmitOrderData = {
+      pendingOrderId: 'pending-ghost-cooldown',
+      customerId: 'CUST-001',
+      customerName: 'Acme Corp',
+      items: ghostOnlyItems,
+    };
+    const startMs = Date.now();
+    await handleSubmitOrder(pool, bot, ghostOnlyData, 'user-1', vi.fn());
+    const elapsed = Date.now() - startMs;
+    expect(elapsed).toBeLessThan(4_000);
+  }, 10_000);
+});
+
+describe('handleSubmitOrder — readOrderHeader post-piazzamento', () => {
+  const mockHeader: OrderHeaderData = {
+    orderNumber: 'SO-2024-001234',
+    orderDescription: 'Riferimento cliente',
+    customerReference: 'RC-001',
+    deliveryDate: '4/5/2024',
+    deliveryName: 'Mario Rossi',
+    deliveryAddress: 'Via Roma 1',
+    salesStatus: 'Giornale',
+    documentStatus: 'Nessuno',
+    transferStatus: 'Non trasferibile',
+  };
+
+  test('chiama readOrderHeader e aggiorna order_records dopo il piazzamento', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-HEADER');
+    vi.mocked(bot.readOrderHeader).mockResolvedValue(mockHeader);
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
+
+    expect(bot.readOrderHeader).toHaveBeenCalledWith('ORD-HEADER');
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('UPDATE agents.order_records') &&
+        (call[0] as string).includes('order_number'),
+    );
+    expect(updateCalls).toHaveLength(1);
+    const params = updateCalls[0][1] as unknown[];
+    expect(params).toEqual([
+      'SO-2024-001234',      // $1 order_number (COALESCE)
+      'RC-001',              // $2 customer_reference
+      'Riferimento cliente', // $3 order_description
+      '4/5/2024',           // $4 delivery_date
+      'Mario Rossi',         // $5 delivery_name
+      'Via Roma 1',          // $6 delivery_address
+      'Giornale',            // $7 sales_status (COALESCE)
+      'Nessuno',             // $8 document_status (COALESCE)
+      'Non trasferibile',    // $9 transfer_status (COALESCE)
+      expect.any(Number),    // $10 last_sync (timestamp)
+      expect.any(String),    // $11 orderId
+      'user-1',              // $12 userId
+    ]);
+  }, 15_000);
+
+  test('continua normalmente se readOrderHeader restituisce null', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-NULL-HEADER');
+    vi.mocked(bot.readOrderHeader).mockResolvedValue(null);
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).resolves.not.toThrow();
+
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('UPDATE agents.order_records') &&
+        (call[0] as string).includes('order_number'),
+    );
+    expect(updateCalls).toHaveLength(0);
+  }, 15_000);
+
+  test('continua normalmente se readOrderHeader lancia eccezione', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-ERR-HEADER');
+    vi.mocked(bot.readOrderHeader).mockRejectedValue(new Error('ERP timeout'));
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).resolves.not.toThrow();
+  }, 15_000);
 });
 
 describe('calculateAmounts', () => {

@@ -47,12 +47,25 @@ type SubmitOrderData = {
   deliveryAddress?: CustomerAddress | null;
 };
 
+type OrderHeaderData = {
+  orderNumber: string | null;
+  orderDescription: string | null;
+  customerReference: string | null;
+  deliveryDate: string | null;
+  deliveryName: string | null;
+  deliveryAddress: string | null;
+  salesStatus: string | null;
+  documentStatus: string | null;
+  transferStatus: string | null;
+};
+
 type SubmitOrderBot = {
   createOrder: (orderData: SubmitOrderData) => Promise<string>;
   deleteOrderFromArchibald: (orderId: string) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
+  readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
 };
 
 function calculateAmounts(
@@ -433,6 +446,48 @@ async function handleSubmitOrder(
     });
   }
 
+  if (!isWarehouseOnly) {
+    onProgress(68, 'Lettura dettagli ordine dal ERP...');
+    try {
+      const header = await bot.readOrderHeader(orderId);
+      if (header) {
+        await pool.query(
+          `UPDATE agents.order_records SET
+             order_number = COALESCE($1, order_number),
+             customer_reference = $2,
+             order_description = $3,
+             delivery_date = $4,
+             delivery_name = $5,
+             delivery_address = $6,
+             sales_status = COALESCE($7, sales_status),
+             document_status = COALESCE($8, document_status),
+             transfer_status = COALESCE($9, transfer_status),
+             last_sync = $10
+           WHERE id = $11 AND user_id = $12`,
+          [
+            header.orderNumber,
+            header.customerReference,
+            header.orderDescription,
+            header.deliveryDate,
+            header.deliveryName,
+            header.deliveryAddress,
+            header.salesStatus,
+            header.documentStatus,
+            header.transferStatus,
+            Math.floor(Date.now() / 1000),
+            orderId,
+            userId,
+          ],
+        );
+        onProgress(69, 'Dettagli ordine aggiornati');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('[SubmitOrder] readOrderHeader failed, sync schedulata recupererà', { orderId, error: message });
+      onProgress(69, 'Lettura dettagli posticipata');
+    }
+  }
+
   let verificationStatus: string | undefined;
   let verificationPassed = true;
 
@@ -494,6 +549,11 @@ async function handleSubmitOrder(
     onProgress(100, 'Ordine creato con discrepanze');
   }
 
+  // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
+  if (!isWarehouseOnly) {
+    await new Promise<void>((resolve) => { setTimeout(resolve, 5_000); });
+  }
+
   return { orderId, verificationStatus };
 }
 
@@ -521,5 +581,5 @@ function createSubmitOrderHandler(
   };
 }
 
-export { handleSubmitOrder, createSubmitOrderHandler, calculateAmounts, type SubmitOrderData, type SubmitOrderBot, type SubmitOrderItem };
+export { handleSubmitOrder, createSubmitOrderHandler, calculateAmounts, type SubmitOrderData, type SubmitOrderBot, type SubmitOrderItem, type OrderHeaderData };
 export type { InlineSyncDeps } from '../../verification/inline-order-sync';

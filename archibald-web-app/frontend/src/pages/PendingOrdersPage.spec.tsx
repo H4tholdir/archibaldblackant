@@ -112,13 +112,18 @@ vi.mock("../components/EmailShareDialog", () => ({
   EmailShareDialog: () => null,
 }));
 
+let capturedJobProgressBarProps: unknown[] = [];
 vi.mock("../components/JobProgressBar", () => ({
-  JobProgressBar: () => null,
+  JobProgressBar: (props: unknown) => {
+    capturedJobProgressBarProps.push(props);
+    return null;
+  },
 }));
 
+let mockActiveOperations: unknown[] = [];
 vi.mock("../contexts/OperationTrackingContext", () => ({
   useOperationTracking: () => ({
-    activeOperations: [],
+    activeOperations: mockActiveOperations,
     trackOperation: vi.fn(),
     dismissOperation: vi.fn(),
   }),
@@ -196,6 +201,8 @@ describe("PendingOrdersPage", () => {
     vi.clearAllMocks();
     mockPendingOrders = [];
     mockIsSyncing = false;
+    mockActiveOperations = [];
+    capturedJobProgressBarProps = [];
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ data: { customers: [] } }),
@@ -509,5 +516,44 @@ describe("PendingOrdersPage", () => {
     await act(async () => {});
 
     expect(screen.queryByText(/📍/)).not.toBeInTheDocument();
+  });
+
+  test("JobProgressBar usa il progresso da activeOperations invece di order.jobProgress quando disponibile", async () => {
+    const liveProgress = 65;
+    const liveLabel = "Invio righe ordine...";
+    const orderId = "order-uuid-live-001";
+
+    const orderWithStaleProgress: PendingOrder = {
+      ...testOrders[0],
+      id: orderId,
+      jobStatus: "processing",
+      jobProgress: 0,
+      jobOperation: "In attesa...",
+    };
+    mockPendingOrders = [orderWithStaleProgress];
+    mockActiveOperations = [
+      {
+        orderId,
+        jobId: "job-live-001",
+        customerName: "Cliente 1",
+        status: "active",
+        progress: liveProgress,
+        label: liveLabel,
+        startedAt: Date.now(),
+      },
+    ];
+
+    render(<PendingOrdersPage />);
+    await act(async () => {});
+
+    expect(capturedJobProgressBarProps.length).toBeGreaterThan(0);
+    const lastProps = capturedJobProgressBarProps[capturedJobProgressBarProps.length - 1] as {
+      progress: number;
+      operation: string;
+      status: string;
+    };
+    expect(lastProps.progress).toBe(liveProgress);
+    expect(lastProps.operation).toBe(liveLabel);
+    expect(lastProps.status).toBe("processing");
   });
 });

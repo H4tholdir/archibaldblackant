@@ -6,7 +6,7 @@ import type { QueueName } from './queue-router';
 
 describe('getQueueForOperation', () => {
   const expectedRouting: Record<OperationType, QueueName> = {
-    'submit-order': 'writes',
+    'submit-order': 'bot-queue',
     'create-customer': 'writes',
     'update-customer': 'writes',
     'read-vat-status': 'writes',
@@ -49,9 +49,26 @@ describe('getQueueForOperation', () => {
     }
   });
 
-  test('writes queue contains 11 operations', () => {
+  test('instrada submit-order su bot-queue', () => {
+    expect(getQueueForOperation('submit-order')).toBe('bot-queue');
+  });
+
+  test('include bot-queue in QUEUE_NAMES', () => {
+    expect(QUEUE_NAMES).toContain('bot-queue');
+  });
+
+  test('non instrada create-customer su bot-queue', () => {
+    expect(getQueueForOperation('create-customer')).toBe('writes');
+  });
+
+  test('writes queue contains 10 operations', () => {
     const writesOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'writes');
-    expect(writesOps).toHaveLength(11);
+    expect(writesOps).toHaveLength(10);
+  });
+
+  test('bot-queue contains 1 operation', () => {
+    const botQueueOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'bot-queue');
+    expect(botQueueOps).toHaveLength(1);
   });
 
   test('agent-sync queue contains 4 operations', () => {

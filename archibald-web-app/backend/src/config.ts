@@ -85,6 +85,12 @@ export const config = {
       stalledInterval: 60_000,
       removeOnComplete: { count: 100 } as const,
     },
+    'bot-queue': {
+      concurrency: 1,
+      lockDuration: 900_000,
+      stalledInterval: 30_000,
+      removeOnComplete: { count: 100 } as const,
+    },
   },
   browserPool: {
     maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
