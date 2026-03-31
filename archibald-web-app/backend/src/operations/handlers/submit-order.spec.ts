@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleSubmitOrder, calculateAmounts, type SubmitOrderBot, type SubmitOrderData, type SubmitOrderItem } from './submit-order';
+import { handleSubmitOrder, calculateAmounts, type SubmitOrderBot, type SubmitOrderData, type SubmitOrderItem, type OrderHeaderData } from './submit-order';
 import type { DbPool } from '../../db/pool';
 import { arcaLineAmount, round2 } from '../../utils/arca-math';
 
@@ -46,7 +46,9 @@ function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
 function createMockBot(orderId = 'ORD-001'): SubmitOrderBot {
   return {
     createOrder: vi.fn().mockResolvedValue(orderId),
+    deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
     setProgressCallback: vi.fn(),
+    readOrderHeader: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -800,6 +802,70 @@ describe('handleSubmitOrder — cooldown post-completamento', () => {
     const elapsed = Date.now() - startMs;
     expect(elapsed).toBeLessThan(4_000);
   }, 10_000);
+});
+
+describe('handleSubmitOrder — readOrderHeader post-piazzamento', () => {
+  const mockHeader: OrderHeaderData = {
+    orderNumber: 'SO-2024-001234',
+    orderDescription: 'Riferimento cliente',
+    customerReference: 'RC-001',
+    deliveryDate: '4/5/2024',
+    deliveryName: 'Mario Rossi',
+    deliveryAddress: 'Via Roma 1',
+    salesStatus: 'Giornale',
+    documentStatus: 'Nessuno',
+    transferStatus: 'Non trasferibile',
+  };
+
+  test('chiama readOrderHeader e aggiorna order_records dopo il piazzamento', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-HEADER');
+    vi.mocked(bot.readOrderHeader).mockResolvedValue(mockHeader);
+    const onProgress = vi.fn();
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
+
+    expect(bot.readOrderHeader).toHaveBeenCalledWith('ORD-HEADER');
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('UPDATE agents.order_records') &&
+        (call[0] as string).includes('order_number'),
+    );
+    expect(updateCalls).toHaveLength(1);
+    const params = updateCalls[0][1] as unknown[];
+    expect(params).toEqual(expect.arrayContaining(['SO-2024-001234', 'RC-001', 'Riferimento cliente']));
+  }, 15_000);
+
+  test('continua normalmente se readOrderHeader restituisce null', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-NULL-HEADER');
+    vi.mocked(bot.readOrderHeader).mockResolvedValue(null);
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).resolves.not.toThrow();
+
+    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' &&
+        (call[0] as string).includes('UPDATE agents.order_records') &&
+        (call[0] as string).includes('order_number'),
+    );
+    expect(updateCalls).toHaveLength(0);
+  }, 15_000);
+
+  test('continua normalmente se readOrderHeader lancia eccezione', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-ERR-HEADER');
+    vi.mocked(bot.readOrderHeader).mockRejectedValue(new Error('ERP timeout'));
+    const onProgress = vi.fn();
+
+    await expect(
+      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
+    ).resolves.not.toThrow();
+  }, 15_000);
 });
 
 describe('calculateAmounts', () => {
