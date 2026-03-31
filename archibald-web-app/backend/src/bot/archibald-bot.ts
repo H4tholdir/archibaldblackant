@@ -12,7 +12,7 @@ import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
 import type { OrderData, AddressEntry } from "../types";
 import type { AltAddress, CustomerAddress } from '../db/repositories/customer-addresses';
-import type { SubmitOrderData } from '../operations/handlers/submit-order';
+import type { SubmitOrderData, OrderHeaderData } from '../operations/handlers/submit-order';
 import {
   buildVariantCandidates,
   buildTextMatchCandidates,
@@ -14553,5 +14553,56 @@ export class ArchibaldBot {
       "/tmp/archibald-invoices",
       30000,
     );
+  }
+
+  async readOrderHeader(orderId: string): Promise<OrderHeaderData | null> {
+    if (!this.page) {
+      logger.warn('[ArchibaldBot] readOrderHeader: page non inizializzata', { orderId });
+      return null;
+    }
+
+    const cleanOrderId = orderId.replace(/\./g, '');
+    const orderUrl = `${config.archibald.url}/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
+
+    logger.info('[ArchibaldBot] readOrderHeader: navigazione', { orderId, cleanOrderId, url: orderUrl });
+
+    try {
+      await this.page.goto(orderUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+
+      await this.waitForDevExpressReady({ timeout: 15_000 });
+
+      const header = await this.page.evaluate(() => {
+        function getVal(selector: string): string | null {
+          const el = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | HTMLElement | null;
+          if (!el) return null;
+          const val = (el as HTMLInputElement).value?.trim();
+          if (val && val.length > 0) return val;
+          const text = el.textContent?.trim();
+          return text && text.length > 0 ? text : null;
+        }
+
+        return {
+          orderNumber: getVal('[id*="xaf_dviSALESID"]'),
+          orderDescription: getVal('[id*="xaf_dviPURCHORDERFORMNUM"]'),
+          customerReference: getVal('[id*="xaf_dviCUSTOMERREF"]'),
+          deliveryDate: getVal('[id*="xaf_dviDELIVERYDATE"]'),
+          deliveryName: getVal('[id*="xaf_dviDELIVERYNAME"]'),
+          deliveryAddress: getVal('[id*="xaf_dviDLVADDRESS"]'),
+          salesStatus: getVal('[id*="xaf_dviSALESSTATUS_VI"]'),
+          documentStatus: getVal('[id*="xaf_dviDOCUMENTSTATUS_VI"]'),
+          transferStatus: getVal('[id*="xaf_dviTRANSFERSTATUS_VI"]'),
+        };
+      });
+
+      logger.info('[ArchibaldBot] readOrderHeader: header letto', { orderId, header });
+      return header;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('[ArchibaldBot] readOrderHeader: fallito', { orderId, error: message });
+      return null;
+    }
   }
 }
