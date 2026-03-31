@@ -1,12 +1,9 @@
 import { useCurrentFrame, spring, interpolate, Img, staticFile, useVideoConfig } from 'remotion';
 import { springBounce } from '../lib/springs';
 import { palette } from '../lib/palette';
-import { SCENE_DURATION } from '../lib/timing';
-
 export function Closing() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const _dur = SCENE_DURATION.closing;
 
   const logoProgress = spring({ frame, fps, config: springBounce, from: 0, to: 1 });
   const titleOpacity = interpolate(frame, [20, 45], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
