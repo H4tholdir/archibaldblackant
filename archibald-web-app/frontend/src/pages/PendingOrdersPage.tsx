@@ -301,6 +301,7 @@ export function PendingOrdersPage() {
               vat: item.vat,
               warehouseQuantity: item.warehouseQuantity || 0,
               warehouseSources: item.warehouseSources || [],
+              isGhostArticle: item.isGhostArticle,
             })),
             discountPercent: isFresisSubclient ? undefined : order.discountPercent,
             targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
@@ -327,17 +328,18 @@ export function PendingOrdersPage() {
         }
       }
 
-      for (const orderId of selectedOrderIds) {
-        const order = orders.find((o) => o.id === orderId);
-        if (order) {
-          await savePendingOrder({
+      void Promise.allSettled(
+        Array.from(selectedOrderIds).map((orderId) => {
+          const order = orders.find((o) => o.id === orderId);
+          if (!order) return Promise.resolve();
+          return savePendingOrder({
             ...order,
             status: "syncing",
             updatedAt: new Date().toISOString(),
             needsSync: true,
           });
-        }
-      }
+        }),
+      );
 
       toastService.success(
         `Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`,
@@ -407,6 +409,7 @@ export function PendingOrdersPage() {
           vat: item.vat,
           warehouseQuantity: item.warehouseQuantity || 0,
           warehouseSources: item.warehouseSources || [],
+          isGhostArticle: item.isGhostArticle,
         })),
         discountPercent: isFresisSubclient ? undefined : order.discountPercent,
         targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
