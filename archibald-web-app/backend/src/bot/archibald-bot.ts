@@ -7506,7 +7506,7 @@ export class ArchibaldBot {
         }
       }
 
-      // Step 9: Wait for page to reload after delete (frame may detach — that's expected)
+      // Step 9: Wait for grid to reload after delete
       await this.page.waitForFunction(
         () => document.querySelectorAll('tr[class*="dxgvDataRow"]').length >= 0,
         { timeout: 8000, polling: 300 },
@@ -7526,15 +7526,41 @@ export class ArchibaldBot {
       ).catch(() => null);
       await this.wait(300);
 
-      const deletedIds = orderIds.filter((id) => foundNormalizedIds.includes(id.replace(/\./g, '')));
-      await this.emitProgress('batchDelete.complete');
+      // Verify by checking which orders are actually gone from the grid
+      const stillInGrid = await this.page.evaluate((normalizedIds: string[]) => {
+        const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        return normalizedIds.filter((nid) =>
+          rows.some((row) => {
+            const cells = row.querySelectorAll('td');
+            return (cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') === nid;
+          }),
+        );
+      }, foundNormalizedIds);
 
-      logger.info(`[batchDelete] Successfully deleted ${deletedIds.length} orders`);
+      const actuallyDeletedNormalized = foundNormalizedIds.filter((n) => !stillInGrid.includes(n));
+      const deletedIds = orderIds.filter((id) => actuallyDeletedNormalized.includes(id.replace(/\./g, '')));
+      const failedIds = orderIds.filter((id) => stillInGrid.includes(id.replace(/\./g, '')));
+
+      if (failedIds.length > 0) {
+        logger.warn('[batchDelete] Orders still present in grid after delete — confirm dialog may not have been accepted', { failedIds });
+      }
+
+      if (deletedIds.length === 0) {
+        return {
+          success: false,
+          message: 'Nessun ordine eliminato dall\'ERP — la conferma del popup potrebbe non essere stata accettata',
+          deletedIds: [],
+          notFoundIds: [...notFoundIds, ...failedIds],
+        };
+      }
+
+      await this.emitProgress('batchDelete.complete');
+      logger.info(`[batchDelete] Deleted ${deletedIds.length}/${foundNormalizedIds.length} orders`);
       return {
         success: true,
         message: `Eliminati ${deletedIds.length} ordini da Archibald`,
         deletedIds,
-        notFoundIds,
+        notFoundIds: [...notFoundIds, ...failedIds],
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
