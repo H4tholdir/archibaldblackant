@@ -7373,6 +7373,15 @@ export class ArchibaldBot {
         await this.wait(500);
       }
 
+      // ERP Bible: GotoPage(0) obbligatorio — il page index persiste tra navigazioni
+      await this.page.evaluate(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection?.ForEachControl?.((c: any) => { if (typeof c.GotoPage === 'function') c.GotoPage(0); });
+      });
+      await this.wait(300);
+
       // Step 4: Scan visible rows to find row indices for each target order
       const rowIndices = await this.page.evaluate((targets: string[]) => {
         const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
@@ -7480,6 +7489,7 @@ export class ArchibaldBot {
       ).catch(() => null);
       await this.wait(500);
 
+      await this.emitProgress('batchDelete.verify');
       const deletedIds = orderIds.filter((id) => foundNormalizedIds.includes(id.replace(/\./g, '')));
       await this.emitProgress('batchDelete.complete');
 
@@ -7558,6 +7568,15 @@ export class ArchibaldBot {
         ).catch(() => null);
         await this.wait(500);
       }
+
+      // ERP Bible: GotoPage(0) obbligatorio — il page index persiste tra navigazioni
+      await this.page.evaluate(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection?.ForEachControl?.((c: any) => { if (typeof c.GotoPage === 'function') c.GotoPage(0); });
+      });
+      await this.wait(300);
 
       // Step 4: Scan visible rows to find row indices for each target order
       const rowIndices = await this.page.evaluate((targets: string[]) => {

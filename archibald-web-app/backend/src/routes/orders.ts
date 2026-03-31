@@ -352,6 +352,9 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       if (!Array.isArray(orderIds) || orderIds.length === 0) {
         return res.status(400).json({ success: false, error: 'orderIds deve essere un array non vuoto' });
       }
+      if (!orderIds.every((id) => typeof id === 'string')) {
+        return res.status(400).json({ success: false, error: 'orderIds deve contenere solo stringhe' });
+      }
 
       const jobId = await queue.enqueue('batch-delete-orders', userId, { orderIds });
       res.json({ success: true, jobId });
@@ -368,6 +371,9 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
 
       if (!Array.isArray(orderIds) || orderIds.length === 0) {
         return res.status(400).json({ success: false, error: 'orderIds deve essere un array non vuoto' });
+      }
+      if (!orderIds.every((id) => typeof id === 'string')) {
+        return res.status(400).json({ success: false, error: 'orderIds deve contenere solo stringhe' });
       }
 
       for (const orderId of orderIds as string[]) {
