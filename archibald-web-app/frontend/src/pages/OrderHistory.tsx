@@ -422,16 +422,25 @@ export function OrderHistory() {
     const style = document.createElement("style");
     style.textContent = `
       @keyframes wiggle {
-        0% { transform: rotate(0deg); }
-        25% { transform: rotate(-1deg); }
-        50% { transform: rotate(0deg); }
-        75% { transform: rotate(1deg); }
+        0%   { transform: rotate(0deg); }
+        25%  { transform: rotate(-0.35deg); }
+        50%  { transform: rotate(0deg); }
+        75%  { transform: rotate(0.35deg); }
         100% { transform: rotate(0deg); }
       }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
   }, []);
+
+  useEffect(() => {
+    if (!selectionMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCancelSelection();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectionMode]);
 
   // Click outside customer dropdown
   useEffect(() => {
@@ -732,13 +741,16 @@ export function OrderHistory() {
   };
 
   // Close expanded card when clicking outside
-  const handleBackgroundClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!expandedOrderId) return;
+  function handleBackgroundClick(e: React.MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
-    // Only close if clicking directly on the background (not on a card)
     if (target.closest('[data-order-card]')) return;
+    if (selectionMode) {
+      if (!justEnteredSelectionMode.current) handleCancelSelection();
+      return;
+    }
+    if (!expandedOrderId) return;
     setExpandedOrderId(null);
-  }, [expandedOrderId]);
+  }
 
   // Clear all filters
   const handleClearFilters = () => {
@@ -2345,8 +2357,8 @@ export function OrderHistory() {
                               : {}),
                             ...(selectionMode
                               ? {
-                                  animation: "wiggle 0.3s ease-in-out infinite",
-                                  animationDelay: `${(orderIndex % 3) * 0.05}s`,
+                                  animation: "wiggle 1.4s ease-in-out infinite",
+                                  animationDelay: `${(orderIndex % 3) * 0.12}s`,
                                 }
                               : {}),
                           }}
