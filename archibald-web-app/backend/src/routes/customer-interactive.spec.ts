@@ -607,6 +607,43 @@ describe('createCustomerInteractiveRouter', () => {
     });
   });
 
+  describe('saveSchema — campi estesi', () => {
+    test('fiscalCode, sector, attentionTo, notes raggiungono completeCustomerCreation', async () => {
+      const mockBot = createMockBot();
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'ready');
+      sessionManager.setBot(sid, mockBot);
+
+      await request(app)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send({
+          name: 'Test Srl',
+          vatNumber: '12345678901',
+          fiscalCode: 'TSTFSC80A01H501Z',
+          sector: 'concessionari',
+          attentionTo: 'Mario Rossi',
+          notes: 'Note interne di test',
+          county: 'RM',
+          state: 'Lazio',
+          country: 'IT',
+        });
+
+      await vi.waitFor(() => {
+        expect(mockBot.completeCustomerCreation).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fiscalCode: 'TSTFSC80A01H501Z',
+            sector: 'concessionari',
+            attentionTo: 'Mario Rossi',
+            notes: 'Note interne di test',
+            county: 'RM',
+            state: 'Lazio',
+            country: 'IT',
+          }),
+        );
+      });
+    });
+  });
+
   describe('DELETE /api/customers/interactive/:sessionId', () => {
     test('destroys session and returns success', async () => {
       const sessionId = sessionManager.createSession('user-1');

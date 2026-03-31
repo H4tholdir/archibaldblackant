@@ -58,6 +58,13 @@ const saveSchema = z.object({
   deliveryMode: z.string().optional(),
   paymentTerms: z.string().optional(),
   lineDiscount: z.string().optional(),
+  fiscalCode: z.string().optional(),
+  sector: z.string().optional(),
+  attentionTo: z.string().optional(),
+  notes: z.string().optional(),
+  county: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
   postalCodeCity: z.string().optional(),
   postalCodeCountry: z.string().optional(),
   addresses: z.array(z.object({
