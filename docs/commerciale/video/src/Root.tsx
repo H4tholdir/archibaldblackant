@@ -1,6 +1,6 @@
 import './font';
 import type { FC } from 'react';
-import { Composition } from 'remotion';
+import { Composition, registerRoot } from 'remotion';
 import { FormicaneraDemoVideo } from './Video';
 import { TOTAL_FRAMES, FPS, WIDTH, HEIGHT } from './lib/timing';
 
@@ -16,3 +16,5 @@ export const RemotionRoot: FC = () => {
     />
   );
 };
+
+registerRoot(RemotionRoot);
