@@ -524,11 +524,11 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   router.post('/begin', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { vatNumber } = req.body as { vatNumber?: string };
-
-      if (!vatNumber) {
+      const parsed = vatSchema.safeParse(req.body);
+      if (!parsed.success) {
         return res.status(400).json({ success: false, error: 'vatNumber obbligatorio' });
       }
+      const { vatNumber } = parsed.data;
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {

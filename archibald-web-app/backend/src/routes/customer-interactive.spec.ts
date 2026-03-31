@@ -690,7 +690,7 @@ describe('createCustomerInteractiveRouter', () => {
         .send({ vatNumber: '12345678901' });
 
       await vi.waitFor(() => {
-        const vatResult = broadcasts.find((b: any) => b.type === 'CUSTOMER_VAT_RESULT');
+        const vatResult = broadcasts.find((b: unknown) => (b as { type?: string }).type === 'CUSTOMER_VAT_RESULT');
         expect(vatResult).toBeTruthy();
       });
     });
