@@ -62,10 +62,9 @@ export function AnimatedNumber({
   const formatted = euroFormat
     ? value
         .toFixed(decimals)
-        .replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-        .replace('.', '§') // placeholder
-        .replace(/\./g, '.')
-        .replace('§', ',')
+        .replace('.', '§')                      // segna separatore decimale
+        .replace(/\B(?=(\d{3})+(?!\d))/g, '.') // migliaia con punto
+        .replace('§', ',')                      // decimale → virgola
     : value.toFixed(decimals);
 
   return (
