@@ -762,6 +762,46 @@ describe('notes storage with noShipping', () => {
   });
 });
 
+describe('handleSubmitOrder — cooldown post-completamento', () => {
+  const ghostOnlyItems = [
+    {
+      articleCode: 'GHOST001',
+      description: 'Articolo fantasma',
+      quantity: 2,
+      price: 10,
+      discount: 0,
+      vat: 22,
+      isGhostArticle: true,
+      warehouseQuantity: 2,
+      warehouseSources: [],
+    },
+  ];
+
+  test('attende cooldown di 5s dopo il completamento per ordine non-warehouse', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-COOLDOWN');
+    const startMs = Date.now();
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn());
+    const elapsed = Date.now() - startMs;
+    expect(elapsed).toBeGreaterThanOrEqual(4_500);
+  }, 15_000);
+
+  test('non attende cooldown per ordini ghost-only (warehouse)', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('should-not-be-used');
+    const ghostOnlyData: SubmitOrderData = {
+      pendingOrderId: 'pending-ghost-cooldown',
+      customerId: 'CUST-001',
+      customerName: 'Acme Corp',
+      items: ghostOnlyItems,
+    };
+    const startMs = Date.now();
+    await handleSubmitOrder(pool, bot, ghostOnlyData, 'user-1', vi.fn());
+    const elapsed = Date.now() - startMs;
+    expect(elapsed).toBeLessThan(4_000);
+  }, 10_000);
+});
+
 describe('calculateAmounts', () => {
   const items: SubmitOrderItem[] = [
     { articleCode: 'A1', quantity: 7,  price: 167.20, discount: 45.00 },

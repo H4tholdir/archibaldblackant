@@ -494,6 +494,11 @@ async function handleSubmitOrder(
     onProgress(100, 'Ordine creato con discrepanze');
   }
 
+  // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
+  if (!isWarehouseOnly) {
+    await new Promise<void>((resolve) => { setTimeout(resolve, 5_000); });
+  }
+
   return { orderId, verificationStatus };
 }
 
