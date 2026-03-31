@@ -1,4 +1,6 @@
-import { useCurrentFrame, interpolate, Easing } from 'remotion';
+// src/components/AnimatedNumber.tsx
+import { useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
+import { easingApple, springSnap } from '../lib/springs';
 
 type Props = {
   from?: number;
@@ -8,6 +10,11 @@ type Props = {
   prefix?: string;
   suffix?: string;
   decimals?: number;
+  euroFormat?: boolean;  // separa migliaia con punto, decimali con virgola
+  pulse?: boolean;       // scala leggermente al completamento
+  fontSize?: number;
+  fontWeight?: number;
+  color?: string;
 };
 
 export function AnimatedNumber({
@@ -18,8 +25,14 @@ export function AnimatedNumber({
   prefix = '',
   suffix = '',
   decimals = 0,
+  euroFormat = false,
+  pulse = false,
+  fontSize = 40,
+  fontWeight = 900,
+  color = 'inherit',
 }: Props) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
   const value = interpolate(
     frame - delay,
@@ -28,13 +41,45 @@ export function AnimatedNumber({
     {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      easing: easingApple,
     }
   );
 
+  const pulseProgress = pulse
+    ? spring({
+        frame: Math.max(0, frame - delay - durationInFrames),
+        fps,
+        config: springSnap,
+        from: 0,
+        to: 1,
+      })
+    : 1;
+
+  const pulseScale = pulse
+    ? 1 + Math.sin(pulseProgress * Math.PI) * 0.04
+    : 1;
+
+  const formatted = euroFormat
+    ? value
+        .toFixed(decimals)
+        .replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+        .replace('.', '§') // placeholder
+        .replace(/\./g, '.')
+        .replace('§', ',')
+    : value.toFixed(decimals);
+
   return (
-    <span>
-      {prefix}{value.toFixed(decimals)}{suffix}
+    <span
+      style={{
+        fontSize,
+        fontWeight,
+        fontFamily: 'Inter, sans-serif',
+        color,
+        display: 'inline-block',
+        transform: `scale(${pulseScale})`,
+      }}
+    >
+      {prefix}{formatted}{suffix}
     </span>
   );
 }
