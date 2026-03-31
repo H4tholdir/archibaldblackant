@@ -190,7 +190,7 @@ export type VatLookupResult = {
 export type InteractiveSessionState =
   | "starting"
   | "ready"
-  | "erp_validating"   // bot sul form, VAT in attesa callback ERP
+  | "erp_validating"
   | "processing_vat"
   | "vat_complete"
   | "saving"
