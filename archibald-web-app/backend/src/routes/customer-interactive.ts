@@ -521,6 +521,75 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     }
   });
 
+  router.post('/begin', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { vatNumber } = req.body as { vatNumber?: string };
+
+      if (!vatNumber) {
+        return res.status(400).json({ success: false, error: 'vatNumber obbligatorio' });
+      }
+
+      const existing = sessionManager.getActiveSessionForUser(userId);
+      if (existing) {
+        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
+        await sessionManager.removeBot(existing.sessionId);
+        sessionManager.destroySession(existing.sessionId);
+        if (hadSyncsPaused) resumeSyncs();
+      }
+
+      const sessionId = sessionManager.createSession(userId);
+      res.json({ success: true, data: { sessionId }, message: 'Sessione avviata' });
+
+      (async () => {
+        let bot: CustomerBotLike | null = null;
+        try {
+          sessionManager.updateState(sessionId, 'starting');
+          await pauseSyncs();
+          sessionManager.markSyncsPaused(sessionId, true);
+
+          bot = createBot(userId);
+          await bot.initialize();
+          await bot.navigateToNewCustomerForm();
+          sessionManager.setBot(sessionId, bot);
+          sessionManager.updateState(sessionId, 'erp_validating');
+
+          const vatResult = await bot.submitVatAndReadAutofill(vatNumber);
+          sessionManager.setVatResult(sessionId, vatResult);
+
+          broadcast(userId, {
+            type: 'CUSTOMER_VAT_RESULT',
+            payload: { sessionId, vatResult },
+            timestamp: now(),
+          });
+        } catch (error) {
+          if (bot) {
+            try { await bot.close(); } catch { /* ignore */ }
+          }
+          if (sessionManager.isSyncsPaused(sessionId)) {
+            sessionManager.markSyncsPaused(sessionId, false);
+            resumeSyncs();
+          }
+          sessionManager.setError(
+            sessionId,
+            error instanceof Error ? error.message : 'Errore begin',
+          );
+          broadcast(userId, {
+            type: 'CUSTOMER_INTERACTIVE_FAILED',
+            payload: {
+              sessionId,
+              error: error instanceof Error ? error.message : 'Errore sconosciuto',
+            },
+            timestamp: now(),
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error('Error in /begin', { error });
+      res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+  });
+
   router.delete('/:sessionId', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;

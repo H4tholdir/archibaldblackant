@@ -644,6 +644,58 @@ describe('createCustomerInteractiveRouter', () => {
     });
   });
 
+  describe('POST /interactive/begin', () => {
+    test('ritorna sessionId immediatamente e avvia bot in background', async () => {
+      const res = await request(app)
+        .post('/api/customers/interactive/begin')
+        .send({ vatNumber: '12345678901' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.sessionId).toBeTruthy();
+    });
+
+    test('400 se vatNumber mancante', async () => {
+      const res = await request(app)
+        .post('/api/customers/interactive/begin')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    test('chiama submitVatAndReadAutofill con il vatNumber corretto', async () => {
+      const mockBot = createMockBot();
+      const customDeps = createMockDeps(sessionManager);
+      (customDeps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(mockBot);
+      const customApp = createApp(customDeps);
+
+      await request(customApp)
+        .post('/api/customers/interactive/begin')
+        .send({ vatNumber: '12345678901' });
+
+      await vi.waitFor(() => {
+        expect(mockBot.submitVatAndReadAutofill).toHaveBeenCalledWith('12345678901');
+      });
+    });
+
+    test('broadcast CUSTOMER_VAT_RESULT dopo validazione ERP', async () => {
+      const broadcasts: unknown[] = [];
+      const customDeps = createMockDeps(sessionManager);
+      (customDeps.broadcast as ReturnType<typeof vi.fn>).mockImplementation((_userId: string, msg: unknown) => {
+        broadcasts.push(msg);
+      });
+      const customApp = createApp(customDeps);
+
+      await request(customApp)
+        .post('/api/customers/interactive/begin')
+        .send({ vatNumber: '12345678901' });
+
+      await vi.waitFor(() => {
+        const vatResult = broadcasts.find((b: any) => b.type === 'CUSTOMER_VAT_RESULT');
+        expect(vatResult).toBeTruthy();
+      });
+    });
+  });
+
   describe('DELETE /api/customers/interactive/:sessionId', () => {
     test('destroys session and returns success', async () => {
       const sessionId = sessionManager.createSession('user-1');
