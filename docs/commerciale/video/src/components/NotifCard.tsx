@@ -15,7 +15,7 @@ export function NotifCard({ icon, text, time, accentColor, delay = 0 }: Props) {
   const { fps } = useVideoConfig();
 
   const progress = spring({
-    frame: frame - delay,
+    frame: Math.max(0, frame - delay),
     fps,
     config: springCard,
     from: 0,

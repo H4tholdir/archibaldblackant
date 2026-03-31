@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import { useCurrentFrame, spring, useVideoConfig } from 'remotion';
 import { springText } from '../lib/springs';
 import { palette } from '../lib/palette';
 
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
   delay?: number;
   color?: string;
   fontSize?: number;
@@ -21,7 +22,7 @@ export function SpringText({
   const { fps } = useVideoConfig();
 
   const progress = spring({
-    frame: frame - delay,
+    frame: Math.max(0, frame - delay),
     fps,
     config: springText,
     from: 0,

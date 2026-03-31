@@ -19,7 +19,7 @@ export function BotTimeline({ steps, staggerFrames = 30, startFrame = 0 }: Props
       {steps.map((step, i) => {
         const dotFrame = startFrame + i * staggerFrames;
         const isLast = i === steps.length - 1;
-        const dotProgress = spring({ frame: frame - dotFrame, fps, config: springBounce, from: 0, to: 1 });
+        const dotProgress = spring({ frame: Math.max(0, frame - dotFrame), fps, config: springBounce, from: 0, to: 1 });
         const lineProgress = isLast ? 0 : interpolate(
           frame - dotFrame - 10,
           [0, staggerFrames - 10],
@@ -30,7 +30,7 @@ export function BotTimeline({ steps, staggerFrames = 30, startFrame = 0 }: Props
         const dotColor = isDone ? palette.green : palette.blue;
 
         return (
-          <div key={i}>
+          <div key={step.label}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div

@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react';
 import { useCurrentFrame, spring, useVideoConfig } from 'remotion';
 import { springCard } from '../lib/springs';
 
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
   delay?: number;
   rotateY?: number;
   rotateX?: number;
@@ -22,7 +23,7 @@ export function FrostedCard({
   const { fps } = useVideoConfig();
 
   const progress = spring({
-    frame: frame - delay,
+    frame: Math.max(0, frame - delay),
     fps,
     config: springCard,
     from: 0,
