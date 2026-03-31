@@ -7490,6 +7490,18 @@ export class ArchibaldBot {
       await this.wait(500);
 
       await this.emitProgress('batchDelete.verify');
+      await this.page.waitForFunction(
+        () => {
+          const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+          return !panels.some((el) => {
+            const s = window.getComputedStyle(el as HTMLElement);
+            return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+          });
+        },
+        { timeout: 10000, polling: 300 },
+      ).catch(() => null);
+      await this.wait(300);
+
       const deletedIds = orderIds.filter((id) => foundNormalizedIds.includes(id.replace(/\./g, '')));
       await this.emitProgress('batchDelete.complete');
 

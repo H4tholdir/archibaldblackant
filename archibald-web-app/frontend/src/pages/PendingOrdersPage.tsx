@@ -76,6 +76,8 @@ export function PendingOrdersPage() {
 
   // Inline single-order delete confirmation
   const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState<string | null>(null);
+  // Inline warehouse order confirmation
+  const [confirmWarehouseOrderId, setConfirmWarehouseOrderId] = useState<string | null>(null);
   // Batch delete confirmation modal
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
@@ -143,14 +145,15 @@ export function PendingOrdersPage() {
     return () => { document.head.removeChild(style); };
   }, []);
 
+  const hasSelection = selectedOrderIds.size > 0;
   useEffect(() => {
-    if (selectedOrderIds.size === 0) return;
+    if (!hasSelection) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedOrderIds(new Set());
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedOrderIds.size]);
+  }, [hasSelection]);
 
   useEffect(() => {
     const token = localStorage.getItem("archibald_jwt") ?? "";
@@ -606,14 +609,7 @@ export function PendingOrdersPage() {
   };
 
   const handleConfirmWarehouseOrder = async (order: PendingOrder) => {
-    if (
-      !confirm(
-        "Confermi di aver verificato l'ordine magazzino? L'ordine verrà archiviato nello storico.",
-      )
-    ) {
-      return;
-    }
-
+    setConfirmWarehouseOrderId(null);
     try {
       // Mark warehouse items as sold on confirmation
       try {
@@ -1352,7 +1348,15 @@ export function PendingOrdersPage() {
 
                         {/* PRIMARY: Conferma e Archivia (solo magazzino) */}
                         {isWarehouseOrder && (
-                          <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.5rem 1rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Conferma e archivia">✓ Conferma</button>
+                          confirmWarehouseOrderId === order.id ? (
+                            <>
+                              <span style={{ fontSize: "0.8125rem", color: "#16a34a", fontWeight: 600 }}>Confermare?</span>
+                              <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.5rem 0.75rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "600" }}>Sì, conferma</button>
+                              <button onClick={() => setConfirmWarehouseOrderId(null)} style={{ padding: "0.5rem 0.625rem", background: "#e5e7eb", color: "#374151", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem" }}>No</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setConfirmWarehouseOrderId(order.id!)} style={{ padding: "0.5rem 1rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Conferma e archivia">✓ Conferma</button>
+                          )
                         )}
 
                         {/* DIVIDER */}
@@ -1407,7 +1411,11 @@ export function PendingOrdersPage() {
                     <div style={{ display: "grid", gridTemplateColumns: isWarehouseOrder ? "1fr 1fr" : "1fr", gap: "0.5rem" }}>
                       <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.75rem", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Modifica ordine">✎ Modifica</button>
                       {isWarehouseOrder && (
-                        <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.75rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Conferma e archivia">✓ Conferma</button>
+                        confirmWarehouseOrderId === order.id ? (
+                          <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.75rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>Sì, conferma</button>
+                        ) : (
+                          <button onClick={() => setConfirmWarehouseOrderId(order.id!)} style={{ padding: "0.75rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Conferma e archivia">✓ Conferma</button>
+                        )
                       )}
                     </div>
                     {/* SHARE group */}
