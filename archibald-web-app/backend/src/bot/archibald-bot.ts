@@ -7479,7 +7479,31 @@ export class ArchibaldBot {
       // Step 8: Accept the native browser confirm() dialog
       const dialogHandled = await dialogPromise;
       if (!dialogHandled) {
-        logger.warn('[batchDelete] No confirmation dialog appeared');
+        logger.debug('[batchDelete] No native dialog appeared, trying DevExpress popup...');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dxPopupHandled = await this.page.evaluate(() => {
+          const confirmSelectors = [
+            'div[id*="Confirm"] a[id*="btnOk"]',
+            'div[id*="Dialog"] a[id*="btnOk"]',
+            '[class*="dxpc"] a[id*="btnOk"]',
+            'div[id*="Confirm"] a[id*="btnYes"]',
+            'div[id*="Dialog"] a[id*="btnYes"]',
+            '[class*="dxpc"] button',
+          ];
+          for (const sel of confirmSelectors) {
+            const btn = document.querySelector(sel) as HTMLElement | null;
+            if (btn && btn.offsetParent !== null) {
+              btn.click();
+              return { handled: true, selector: sel };
+            }
+          }
+          return { handled: false, selector: '' };
+        });
+        if (dxPopupHandled.handled) {
+          logger.debug(`[batchDelete] DevExpress popup confirmed via ${dxPopupHandled.selector}`);
+        } else {
+          logger.warn('[batchDelete] No confirmation dialog or popup appeared');
+        }
       }
 
       // Step 9: Wait for page to reload after delete (frame may detach — that's expected)

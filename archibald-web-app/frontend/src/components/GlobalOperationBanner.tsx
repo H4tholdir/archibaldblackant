@@ -6,8 +6,8 @@ import {
 } from "../contexts/OperationTrackingContext";
 
 const ANIMATION_STYLES = `
-@keyframes gob-slide-down {
-  from { transform: translateY(-100%); opacity: 0; }
+@keyframes gob-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 @keyframes gob-spin {
@@ -21,16 +21,20 @@ const ANIMATION_STYLES = `
 `;
 
 const bannerBaseStyle: CSSProperties = {
-  padding: "10px 16px",
+  padding: "12px 16px",
   display: "flex",
   alignItems: "center",
   gap: "10px",
   cursor: "pointer",
   fontSize: "13px",
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  animation: "gob-slide-down 0.3s ease-out",
-  position: "relative",
-  zIndex: 1000,
+  animation: "gob-slide-up 0.3s ease-out",
+  position: "fixed",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  zIndex: 1100,
+  boxShadow: "0 -3px 16px rgba(0,0,0,0.3)",
 };
 
 const activeBannerStyle: CSSProperties = {
@@ -52,12 +56,13 @@ const failedBannerStyle: CSSProperties = {
 };
 
 const progressBarContainerStyle: CSSProperties = {
-  flex: 1,
-  maxWidth: "120px",
-  height: "6px",
-  background: "rgba(255,255,255,0.3)",
-  borderRadius: "3px",
+  width: "160px",
+  flexShrink: 0,
+  height: "10px",
+  background: "rgba(255,255,255,0.2)",
+  borderRadius: "5px",
   overflow: "hidden",
+  border: "1px solid rgba(255,255,255,0.25)",
 };
 
 const progressBarFillStyle = (progress: number): CSSProperties => ({
@@ -200,8 +205,13 @@ function GlobalOperationBanner() {
           <span style={labelStyle}>
             {op.customerName} — {op.label}
           </span>
-          <div style={progressBarContainerStyle}>
-            <div style={progressBarFillStyle(op.progress)} />
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <div style={progressBarContainerStyle}>
+              <div style={progressBarFillStyle(op.progress)} />
+            </div>
+            <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
+              {op.progress}%
+            </span>
           </div>
           <span style={chevronStyle}>&#8250;</span>
         </div>
@@ -230,8 +240,13 @@ function GlobalOperationBanner() {
         )}
         <span style={labelStyle}>{summary.text}</span>
         {summary.hasActive && (
-          <div style={progressBarContainerStyle}>
-            <div style={progressBarFillStyle(summary.avgProgress)} />
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <div style={progressBarContainerStyle}>
+              <div style={progressBarFillStyle(summary.avgProgress)} />
+            </div>
+            <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
+              {summary.avgProgress}%
+            </span>
           </div>
         )}
         <span style={chevronStyle}>&#8250;</span>
