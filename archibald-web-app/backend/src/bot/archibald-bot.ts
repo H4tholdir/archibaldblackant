@@ -7394,24 +7394,21 @@ export class ArchibaldBot {
         });
         await this.wait(300);
 
-        // Find the DXSelBtn span bounding rect for this order
+        // Find the DXSelBtn span and scroll it into view before reading its rect.
+        // scrollIntoView(instant) is synchronous so getBoundingClientRect returns in-viewport
+        // coordinates, fixing the off-viewport issue when rows are below the 800px fold.
         // cells[0]=DXSelBtn (selection), cells[1]=Edit button, cells[2]=Order ID
         const selBtnRect = await this.page.evaluate((targetId: string) => {
           const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
           for (const row of rows) {
             const cells = row.querySelectorAll('td');
             if ((cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') !== targetId) continue;
-            const span = cells[0]?.querySelector('span[id*="DXSelBtn"]');
-            const spanRect = span?.getBoundingClientRect();
-            if (spanRect && spanRect.width > 0) {
-              return { x: Math.round(spanRect.x), y: Math.round(spanRect.y), w: Math.round(spanRect.width), h: Math.round(spanRect.height) };
-            }
-            // Fallback: click center of cells[0] if span rect is unavailable
-            const cellRect = cells[0]?.getBoundingClientRect();
-            if (cellRect && cellRect.width > 0) {
-              return { x: Math.round(cellRect.x), y: Math.round(cellRect.y), w: Math.round(cellRect.width), h: Math.round(cellRect.height) };
-            }
-            return null;
+            const span = cells[0]?.querySelector('span[id*="DXSelBtn"]') as HTMLElement | null;
+            const target = (span ?? cells[0]) as HTMLElement | null;
+            if (!target) return null;
+            target.scrollIntoView({ block: 'center', behavior: 'instant' });
+            const rect = target.getBoundingClientRect();
+            return { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) };
           }
           return null;
         }, normalizedId);
@@ -7422,7 +7419,7 @@ export class ArchibaldBot {
           continue;
         }
 
-        // Physical click on DXSelBtn — triggers server-side AJAX selection callback
+        // Physical click on DXSelBtn via CDP mouse event — triggers server-side AJAX selection callback
         const cx = selBtnRect.x + selBtnRect.w / 2;
         const cy = selBtnRect.y + selBtnRect.h / 2;
         logger.debug(`[batchDelete] Clicking DXSelBtn for ${normalizedId} at (${cx}, ${cy})`);
