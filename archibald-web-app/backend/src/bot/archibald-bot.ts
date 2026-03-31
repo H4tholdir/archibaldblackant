@@ -7350,34 +7350,15 @@ export class ArchibaldBot {
         this.batchOperationFilterReady = true;
       }
 
-      // Step 3: Clear the search box so all orders are visible (not filtered to 1)
-      await this.emitProgress('batchDelete.scan');
-      const searchHandle = await this.page.$('input[id*="SearchAC"][id*="Ed_I"]').catch(() => null);
-      if (searchHandle) {
-        await this.page.evaluate((input) => {
-          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          if (setter) setter.call(input as HTMLInputElement, '');
-          else (input as HTMLInputElement).value = '';
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }, searchHandle);
-        await this.page.keyboard.press('Enter');
-        await this.page.waitForFunction(
-          () => {
-            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
-            return !panels.some((el) => {
-              const s = window.getComputedStyle(el as HTMLElement);
-              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
-            });
-          },
-          { timeout: 10000, polling: 200 },
-        ).catch(() => null);
-        await this.wait(500);
+      // Delete each order one at a time using the same proven strategy as deleteOrderFromArchibald:
+      // search the order → grid shows 1 row → click cells[0] via JS → Cancellare enabled → confirm.
+      // JS element.click() on cells[0] is coordinate-free and works regardless of scroll position.
+      const searchSelector = '#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I';
+      const searchHandle = await this.page.waitForSelector(searchSelector, { timeout: 5000, visible: true }).catch(() => null);
+      if (!searchHandle) {
+        return { success: false, message: 'Search input not found on orders list page', deletedIds: [], notFoundIds: orderIds };
       }
 
-      // Delete each order one at a time: the DevExpress grid is in single-select mode,
-      // so SelectRowOnPage JS API only updates client-side state without notifying the server.
-      // Physical click on DXSelBtn (cells[0]) triggers the server-side AJAX selection callback.
       for (let i = 0; i < normalizedTargets.length; i++) {
         const normalizedId = normalizedTargets[i];
         const originalId = orderIds[i];
@@ -7385,61 +7366,60 @@ export class ArchibaldBot {
         await this.emitProgress('batchDelete.select');
         logger.info(`[batchDelete] Processing order ${normalizedId} (${i + 1}/${normalizedTargets.length})...`);
 
-        // ERP Bible: GotoPage(0) mandatory before each scan — page index persists between navigations
-        await this.page.evaluate(() => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const collection = (window as any).ASPxClientControl?.GetControlCollection?.();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          collection?.ForEachControl?.((c: any) => { if (typeof c.GotoPage === 'function') c.GotoPage(0); });
-        });
+        // Search for this specific order so grid shows only that row
+        const rowCountBefore = await this.page.evaluate(() => document.querySelectorAll('tr[class*="dxgvDataRow"]').length);
+        await this.pasteText(searchHandle, normalizedId);
+        await this.page.keyboard.press('Enter');
+
+        await this.page.waitForFunction(
+          (prevCount: number) => {
+            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
+            const hasLoading = panels.some((el) => {
+              const s = window.getComputedStyle(el as HTMLElement);
+              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
+            });
+            if (hasLoading) return false;
+            const currentCount = document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+            const hasEmpty = document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCountBefore,
+        ).catch(() => null);
         await this.wait(300);
 
-        // Find the DXSelBtn span and scroll it into view before reading its rect.
-        // scrollIntoView(instant) is synchronous so getBoundingClientRect returns in-viewport
-        // coordinates, fixing the off-viewport issue when rows are below the 800px fold.
-        // cells[0]=DXSelBtn (selection), cells[1]=Edit button, cells[2]=Order ID
-        const selBtnRect = await this.page.evaluate((targetId: string) => {
-          const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-          for (const row of rows) {
-            const cells = row.querySelectorAll('td');
-            if ((cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') !== targetId) continue;
-            const span = cells[0]?.querySelector('span[id*="DXSelBtn"]') as HTMLElement | null;
-            const target = (span ?? cells[0]) as HTMLElement | null;
-            if (!target) return null;
-            target.scrollIntoView({ block: 'center', behavior: 'instant' });
-            const rect = target.getBoundingClientRect();
-            return { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) };
-          }
-          return null;
-        }, normalizedId);
-
-        if (!selBtnRect) {
-          logger.warn(`[batchDelete] Order ${normalizedId} not found in grid — skipping`);
+        const rowCount = await this.page.evaluate(() => document.querySelectorAll('tr[class*="dxgvDataRow"]').length);
+        if (rowCount === 0) {
+          logger.warn(`[batchDelete] Order ${normalizedId} not found in grid after search — skipping`);
           notFoundIds.push(originalId);
           continue;
         }
 
-        // Physical click on DXSelBtn via CDP mouse event — triggers server-side AJAX selection callback
-        const cx = selBtnRect.x + selBtnRect.w / 2;
-        const cy = selBtnRect.y + selBtnRect.h / 2;
-        logger.debug(`[batchDelete] Clicking DXSelBtn for ${normalizedId} at (${cx}, ${cy})`);
-        await this.page.mouse.click(cx, cy);
-        await this.wait(400);
+        // Click cells[0] of the first (and only) row — same as deleteOrderFromArchibald
+        const rowSelected = await this.page.evaluate(() => {
+          const firstRow = document.querySelector('tr[class*="dxgvDataRow"]');
+          if (!firstRow) return false;
+          const commandCell = firstRow.querySelector('td.dxgvCommandColumn_XafTheme') as HTMLElement | null;
+          if (commandCell) { commandCell.click(); return true; }
+          const firstCell = firstRow.querySelector('td') as HTMLElement | null;
+          if (firstCell) { firstCell.click(); return true; }
+          return false;
+        });
 
-        // Wait for "Cancellare" to become enabled (confirms server acknowledged the selection)
-        const btnEnabled = await this.page.waitForFunction(
+        if (!rowSelected) {
+          logger.warn(`[batchDelete] Could not click row for order ${normalizedId}`);
+          notFoundIds.push(originalId);
+          continue;
+        }
+
+        // Wait for "Cancellare" to become enabled
+        await this.page.waitForFunction(
           () => {
             const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T');
             return btn && !btn.classList.contains('dxm-disabled');
           },
           { timeout: 5000, polling: 100 },
         ).catch(() => null);
-
-        if (!btnEnabled) {
-          logger.warn(`[batchDelete] Cancellare still disabled after DXSelBtn click for order ${normalizedId}`);
-          notFoundIds.push(originalId);
-          continue;
-        }
 
         // Register dialog handler BEFORE clicking delete
         const dialogPromise = new Promise<boolean>((resolve) => {
@@ -7479,37 +7459,31 @@ export class ArchibaldBot {
         // Accept the native browser confirm() dialog
         const dialogHandled = await dialogPromise;
         if (!dialogHandled) {
-          logger.warn(`[batchDelete] No confirm dialog appeared for order ${normalizedId}`);
+          logger.warn(`[batchDelete] No confirm dialog for order ${normalizedId}`);
         }
 
-        // Wait for grid to reload after delete
+        // Wait for grid to reflect deletion (0 rows or empty state)
         await this.page.waitForFunction(
-          () => {
-            const panels = Array.from(document.querySelectorAll('[id*="LPV"], .dxlp, [id*="Loading"]'));
-            return !panels.some((el) => {
-              const s = window.getComputedStyle(el as HTMLElement);
-              return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
-            });
+          (prevCount: number) => {
+            const currentCount = document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+            const hasEmpty = document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount < prevCount || hasEmpty;
           },
-          { timeout: 10000, polling: 300 },
+          { timeout: 15000, polling: 200 },
+          rowCount,
         ).catch(() => null);
-        await this.wait(500);
+        await this.wait(300);
 
-        // Verify order is gone from grid
-        const stillPresent = await this.page.evaluate((targetId: string) => {
-          const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-          return rows.some((row) => {
-            const cells = row.querySelectorAll('td');
-            return (cells[2]?.textContent?.trim().replace(/\./g, '') ?? '') === targetId;
-          });
-        }, normalizedId);
+        // Verify order is gone
+        const remainingRows = await this.page.evaluate(() => document.querySelectorAll('tr[class*="dxgvDataRow"]').length);
+        const hasEmpty = await this.page.evaluate(() => document.querySelector('tr[class*="dxgvEmptyData"]') !== null);
 
-        if (stillPresent) {
-          logger.warn(`[batchDelete] Order ${normalizedId} still present in grid after delete attempt`);
-          notFoundIds.push(originalId);
-        } else {
+        if (remainingRows === 0 || hasEmpty) {
           logger.info(`[batchDelete] Order ${normalizedId} successfully deleted`);
           deletedIds.push(originalId);
+        } else {
+          logger.warn(`[batchDelete] Order ${normalizedId} still present after delete attempt`);
+          notFoundIds.push(originalId);
         }
       }
 
