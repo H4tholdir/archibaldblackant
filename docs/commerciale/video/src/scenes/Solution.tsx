@@ -3,6 +3,7 @@ import { useCurrentFrame, spring, interpolate, useVideoConfig } from 'remotion';
 import { springBounce } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
+import { Ant } from '../components/Ant';
 
 export function Solution() {
   const frame = useCurrentFrame();
@@ -85,6 +86,12 @@ export function Solution() {
       >
         Formicanera.
       </div>
+
+      {/* Formiche che attraversano la scena */}
+      <Ant startX={-60}  endX={1980} y={820} startFrame={40}  endFrame={130} size={36} />
+      <Ant startX={1980} endX={-60}  y={900} startFrame={60}  endFrame={148} size={28} flip />
+      <Ant startX={-60}  endX={1980} y={960} startFrame={80}  endFrame={145} size={40} />
+      <Ant startX={1980} endX={-60}  y={850} startFrame={20}  endFrame={140} size={24} flip />
     </div>
   );
 }
