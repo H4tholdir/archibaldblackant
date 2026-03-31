@@ -1,30 +1,38 @@
-/** Frame di inizio per ogni scena a 30fps */
-export const SCENE_START = {
-  logoIntro:     0,    // 0s
-  problem:       90,   // 3s
-  solution:      330,  // 11s
-  orders:        420,  // 14s
-  dashboard:     720,  // 24s
-  customers:     1020, // 34s
-  bot:           1260, // 42s
-  notifications: 1500, // 50s
-  closing:       1710, // 57s
-} as const;
-
-/** Durata in frame per ogni scena */
-export const SCENE_DURATION = {
-  logoIntro:     90,
-  problem:       240,
-  solution:      90,
-  orders:        300,
-  dashboard:     300,
-  customers:     240,
-  bot:           240,
-  notifications: 210,
-  closing:       540,
-} as const;
-
-export const TOTAL_FRAMES = 2250; // 75s @ 30fps
+// src/lib/timing.ts
 export const FPS = 30;
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
+
+/** Durata in frame per ogni scena (usata da Series.Sequence) */
+export const SCENE_FRAMES = {
+  logo:          120,   // 4s
+  problem:       420,   // 14s
+  solution:      150,   // 5s
+  orders:        540,   // 18s
+  iva:           480,   // 16s
+  pending:       480,   // 16s
+  storico:       600,   // 20s
+  clients:       540,   // 18s
+  warehouse:     420,   // 14s
+  quotes:        420,   // 14s
+  dashboard:     480,   // 16s
+  documents:     480,   // 16s
+  integrations:  540,   // 18s
+  notifications: 420,   // 14s
+  closing:       300,   // 10s
+} as const;
+
+export const TOTAL_FRAMES = Object.values(SCENE_FRAMES).reduce((a, b) => a + b, 0);
+// = 6390 frame = ~213s = ~3:33
+
+/** Frame di crossfade tra scene */
+export const TRANSITION = 15;
+
+// Legacy: mantieni SCENE_DURATION per compatibilità con scene vecchie durante migrazione
+export const SCENE_DURATION = {
+  ...SCENE_FRAMES,
+  // Legacy key aliases (scene v1)
+  logoIntro:     SCENE_FRAMES.logo,
+  customers:     SCENE_FRAMES.clients,
+  bot:           180,  // scena Bot vecchia non presente in SCENE_FRAMES v2
+} as const;
