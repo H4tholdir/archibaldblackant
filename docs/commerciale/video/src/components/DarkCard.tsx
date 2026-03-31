@@ -1,4 +1,4 @@
-// src/components/FrostedCard.tsx
+// src/components/DarkCard.tsx
 import type { ReactNode } from 'react';
 import { useCurrentFrame, spring, useVideoConfig } from 'remotion';
 import { springCard } from '../lib/springs';
@@ -7,25 +7,21 @@ import { palette } from '../lib/palette';
 type Props = {
   children: ReactNode;
   delay?: number;
-  rotateY?: number;
-  rotateX?: number;
   width?: number | string;
   padding?: number;
-  fromX?: number;   // translateX di partenza (default 0)
-  fromY?: number;   // translateY di partenza (default 40)
-  style?: React.CSSProperties;
+  fromX?: number;
+  fromY?: number;
+  accentColor?: string;
 };
 
-export function FrostedCard({
+export function DarkCard({
   children,
   delay = 0,
-  rotateY = 0,
-  rotateX = 0,
-  width = 340,
+  width = 300,
   padding = 28,
   fromX = 0,
-  fromY = 40,
-  style = {},
+  fromY = 0,
+  accentColor,
 }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -41,21 +37,18 @@ export function FrostedCard({
   return (
     <div
       style={{
-        background: palette.bgCard,
+        background: palette.bgDark,
         borderRadius: 24,
         padding,
         width,
-        boxShadow: `0 4px 24px rgba(0,0,0,0.08), 0 16px 56px rgba(0,0,0,0.10)`,
+        boxShadow: `0 8px 40px rgba(0,0,0,0.40)`,
+        borderTop: accentColor ? `2px solid ${accentColor}` : undefined,
         transform: `
-          perspective(1200px)
-          rotateY(${rotateY}deg)
-          rotateX(${rotateX}deg)
           scale(${0.85 + progress * 0.15})
           translateX(${fromX * (1 - progress)}px)
           translateY(${fromY * (1 - progress)}px)
         `,
         opacity: progress,
-        ...style,
       }}
     >
       {children}
