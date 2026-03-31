@@ -5,6 +5,7 @@ import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { SearchBar } from '../components/SearchBar';
 import { BadgeGreen } from '../components/BadgeGreen';
+import { SceneCaption } from '../components/SceneCaption';
 
 const ORDERS = [
   { id: '#4821', date: '28/03/26', client: 'Dr. Bianchi', amount: '€ 1.240', status: 'Confermato' },
@@ -55,12 +56,17 @@ export function Storico() {
     fps, config: springCard, from: 0, to: 1,
   });
 
+  const leftWidth = interpolate(frame, [SPLIT_FRAME, SPLIT_FRAME + 20], [100, 45], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple,
+  });
+
   return (
     <div style={{
       width: '100%', height: '100%',
       background: palette.bg,
       display: 'flex', flexDirection: 'column',
       opacity: fadeOut, padding: '48px 80px',
+      position: 'relative',
     }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
@@ -75,8 +81,7 @@ export function Storico() {
       <div style={{ display: 'flex', gap: 24, flex: 1 }}>
         {/* Pannello sinistro */}
         <div style={{
-          flex: isSplit ? '0 0 45%' : '1',
-          transition: 'flex 0.3s',
+          flex: `0 0 ${leftWidth}%`,
           display: 'flex', flexDirection: 'column', gap: 12,
         }}>
           {frame >= SEARCH_START && (
@@ -257,6 +262,13 @@ export function Storico() {
           </div>
         )}
       </div>
+
+      <SceneCaption
+        main="Cerca nello storico e copia articoli in un tap — ordine pre-compilato"
+        vs="vs ERP: riaprire l'ordine precedente, copiare manualmente, rischio errori"
+        delay={30}
+        color="#5856D6"
+      />
     </div>
   );
 }

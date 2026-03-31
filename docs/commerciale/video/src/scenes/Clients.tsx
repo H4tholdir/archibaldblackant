@@ -4,6 +4,7 @@ import { springCard, springSnap, easingApple } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { BadgeGreen } from '../components/BadgeGreen';
+import { SceneCaption } from '../components/SceneCaption';
 
 const WIZARD_STEPS = [
   'Dati aziendali',
@@ -61,6 +62,7 @@ export function Clients() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 24, opacity: fadeOut, padding: '0 120px',
+      position: 'relative',
     }}>
 
       {!isWizard ? (
@@ -79,13 +81,25 @@ export function Clients() {
               transform: `translateX(${(1 - cardProgress) * -50}px)`,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${palette.blue}, ${palette.purple})`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: 'Inter, sans-serif',
-                }}>
-                  DB
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${palette.blue}, ${palette.purple})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: 'Inter, sans-serif',
+                  }}>
+                    DB
+                  </div>
+                  {frame >= 60 && (
+                    <div style={{
+                      position: 'absolute', bottom: -8, right: -8,
+                      background: palette.blue, borderRadius: 20, padding: '3px 8px',
+                      fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: 'Inter, sans-serif',
+                      opacity: interpolate(frame, [60, 75], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+                    }}>
+                      📷
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: palette.textPrimary, fontFamily: 'Inter, sans-serif' }}>
@@ -98,26 +112,41 @@ export function Clients() {
               </div>
 
               {[
-                { label: 'P.IVA', value: '04821760652' },
-                { label: 'Indirizzo', value: 'Via Roma 12, Napoli' },
-                { label: 'Email', value: 'bianchi@studiodent.it' },
-                { label: 'Telefono', value: '+39 081 1234567' },
-              ].map(({ label, value }, i) => {
+                { label: 'P.IVA', value: '04821760652', tap: null },
+                { label: 'Indirizzo', value: 'Via Roma 12, Napoli', tap: '📍 Tap → Apple Maps' },
+                { label: 'Email', value: 'bianchi@studiodent.it', tap: '✉️ Tap → Gmail' },
+                { label: 'Telefono', value: '+39 081 1234567', tap: '📞 Tap → Chiama' },
+              ].map(({ label, value, tap }, i) => {
                 const fieldOpacity = interpolate(frame, [20 + i * 15, 40 + i * 15], [0, 1], {
+                  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+                });
+                const tapOpacity = interpolate(frame, [50 + i * 20, 70 + i * 20], [0, 1], {
                   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
                 });
                 return (
                   <div key={i} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '10px 0', borderBottom: `1px solid ${palette.divider}`,
                     opacity: fieldOpacity,
                   }}>
                     <span style={{ fontSize: 13, color: palette.textMuted, fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
                       {label}
                     </span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: palette.textPrimary, fontFamily: 'Inter, sans-serif', textAlign: 'right' }}>
-                      {value}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: palette.textPrimary, fontFamily: 'Inter, sans-serif', textAlign: 'right' }}>
+                        {value}
+                      </span>
+                      {tap && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, color: palette.blue,
+                          fontFamily: 'Inter, sans-serif',
+                          background: `${palette.blue}15`, borderRadius: 6, padding: '2px 8px',
+                          opacity: tapOpacity,
+                        }}>
+                          {tap}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -271,6 +300,12 @@ export function Clients() {
           </div>
         </div>
       )}
+
+      <SceneCaption
+        main="Scheda cliente interattiva: tap → Maps, Chiama, Gmail, Foto"
+        vs="vs ERP: nessuna interattività, dati in sola lettura, nessuna integrazione"
+        delay={30}
+      />
     </div>
   );
 }
