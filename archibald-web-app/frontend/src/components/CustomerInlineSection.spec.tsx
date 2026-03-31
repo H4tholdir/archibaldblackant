@@ -10,6 +10,9 @@ vi.mock('../api/operations', () => ({
 vi.mock('../services/toast.service', () => ({
   toastService: { success: vi.fn(), error: vi.fn() },
 }));
+vi.mock('../contexts/OperationTrackingContext', () => ({
+  useOperationTracking: () => ({ trackOperation: vi.fn() }),
+}));
 
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 

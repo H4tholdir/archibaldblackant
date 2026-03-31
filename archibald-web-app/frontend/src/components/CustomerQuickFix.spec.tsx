@@ -11,6 +11,10 @@ vi.mock('../services/toast.service', () => ({
   toastService: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('../contexts/OperationTrackingContext', () => ({
+  useOperationTracking: () => ({ trackOperation: vi.fn() }),
+}));
+
 vi.mock('../hooks/useKeyboardScroll', () => ({
   useKeyboardScroll: () => ({
     keyboardHeight: 0,
