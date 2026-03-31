@@ -243,19 +243,20 @@ describe('createMultiQueueEnqueue', () => {
     };
   }
 
-  test('routes write operation to writes queue', async () => {
+  test('routes bot operation to bot-queue', async () => {
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
+      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
     const jobId = await enqueue('submit-order', 'user-a', { orderId: '1' }, 'key-1');
 
-    expect(jobId).toBe('writes-job-id');
-    expect(queues.writes.enqueue).toHaveBeenCalledWith(
+    expect(jobId).toBe('bot-queue-job-id');
+    expect(queues['bot-queue'].enqueue).toHaveBeenCalledWith(
       'submit-order', 'user-a', { orderId: '1' }, 'key-1', undefined,
     );
     expect(queues['agent-sync'].enqueue).not.toHaveBeenCalled();
@@ -267,6 +268,7 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
+      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -284,6 +286,7 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
+      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -301,6 +304,7 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
+      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -318,6 +322,7 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
+      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -359,19 +364,20 @@ describe('createMultiQueueFacade', () => {
       'agent-sync': makeFacadeMockQueue('agent-sync'),
       enrichment: makeFacadeMockQueue('enrichment'),
       'shared-sync': makeFacadeMockQueue('shared-sync'),
+      'bot-queue': makeFacadeMockQueue('bot-queue'),
     } as Record<QueueName, ReturnType<typeof makeFacadeMockQueue>>;
   }
 
-  test('getStats aggregates counts across all 4 queues', async () => {
+  test('getStats aggregates counts across all 5 queues', async () => {
     const queues = makeQueues();
     const facade = createMultiQueueFacade(queues as never);
 
     const stats = await facade.getStats();
 
     expect(stats).toEqual({
-      waiting: 4,
+      waiting: 5,
       active: 0,
-      completed: 8,
+      completed: 10,
       failed: 0,
       delayed: 0,
       prioritized: 0,
@@ -470,13 +476,13 @@ describe('createMultiQueueFacade', () => {
     expect(cleaned).toEqual(['id-1', 'id-2', 'id-3']);
   });
 
-  test('enqueue routes submit-order to writes queue', async () => {
+  test('enqueue routes submit-order to bot-queue', async () => {
     const queues = makeQueues();
     const facade = createMultiQueueFacade(queues as never);
 
     const jobId = await facade.enqueue('submit-order', 'user-a', { orderId: '1' });
 
-    expect(jobId).toBe('writes-job-id');
-    expect(queues.writes.enqueue).toHaveBeenCalled();
+    expect(jobId).toBe('bot-queue-job-id');
+    expect(queues['bot-queue'].enqueue).toHaveBeenCalled();
   });
 });
