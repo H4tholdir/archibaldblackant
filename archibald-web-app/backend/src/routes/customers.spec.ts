@@ -552,4 +552,67 @@ describe('createCustomersRouter', () => {
       expect(deps.deleteCustomerPhoto).toHaveBeenCalledWith('user-1', 'CUST-001');
     });
   });
+
+  describe('POST /api/customers/vat-check', () => {
+    const vatNumber = '12345678901';
+
+    test('restituisce valid:true e name quando VIES risponde', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          valid: true,
+          name: 'ACME SRL',
+          address: 'VIA ROMA 1 00100 ROMA IT',
+        }),
+      }));
+
+      const res = await request(app)
+        .post('/api/customers/vat-check')
+        .send({ vatNumber });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        valid: true,
+        name: 'ACME SRL',
+        rawAddress: 'VIA ROMA 1 00100 ROMA IT',
+      });
+
+      vi.unstubAllGlobals();
+    });
+
+    test('restituisce valid:false quando VIES dice invalid', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ valid: false }),
+      }));
+
+      const res = await request(app)
+        .post('/api/customers/vat-check')
+        .send({ vatNumber });
+
+      expect(res.body.data.valid).toBe(false);
+      vi.unstubAllGlobals();
+    });
+
+    test('fallback gracioso quando VIES non raggiungibile', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+
+      const res = await request(app)
+        .post('/api/customers/vat-check')
+        .send({ vatNumber });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.valid).toBe(true);
+      expect(res.body.meta?.source).toBe('fallback');
+      vi.unstubAllGlobals();
+    });
+
+    test('400 se vatNumber ha formato errato', async () => {
+      const res = await request(app)
+        .post('/api/customers/vat-check')
+        .send({ vatNumber: 'abc' });
+
+      expect(res.status).toBe(400);
+    });
+  });
 });
