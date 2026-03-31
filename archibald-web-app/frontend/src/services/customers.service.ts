@@ -1,5 +1,6 @@
 import type { Customer } from "../types/local-customer";
 import type { CacheMetadata } from "../types/cache";
+import type { CustomerFormData } from "../types/customer-form-data";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 function parseLastOrderDate(raw: string | undefined | null): string {
@@ -205,6 +206,38 @@ export class CustomerService {
     }
   }
 
+  async checkVat(vatNumber: string): Promise<{
+    valid: boolean;
+    name?: string;
+    rawAddress?: string;
+    source?: string;
+  }> {
+    const response = await fetchWithRetry('/api/customers/vat-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vatNumber }),
+    });
+    if (!response.ok) throw new Error(`vat-check failed: ${response.status}`);
+    const data = await response.json();
+    return {
+      valid: data.data?.valid ?? true,
+      name: data.data?.name,
+      rawAddress: data.data?.rawAddress,
+      source: data.meta?.source,
+    };
+  }
+
+  async beginInteractiveSession(vatNumber: string): Promise<{ sessionId: string }> {
+    const response = await fetchWithRetry('/api/customers/interactive/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vatNumber }),
+    });
+    if (!response.ok) throw new Error(`begin session failed: ${response.status}`);
+    const data = await response.json();
+    return { sessionId: data.data?.sessionId || '' };
+  }
+
   async startInteractiveSession(): Promise<{ sessionId: string }> {
     const response = await fetchWithRetry("/api/customers/interactive/start", {
       method: "POST",
@@ -252,20 +285,7 @@ export class CustomerService {
 
   async saveInteractiveCustomer(
     sessionId: string,
-    formData: {
-      name: string;
-      vatNumber?: string;
-      pec?: string;
-      sdi?: string;
-      street?: string;
-      postalCode?: string;
-      phone?: string;
-      email?: string;
-      deliveryMode?: string;
-      paymentTerms?: string;
-      postalCodeCity?: string;
-      postalCodeCountry?: string;
-    },
+    formData: CustomerFormData,
   ): Promise<{ customer: Customer | null; taskId: string | null }> {
     const response = await fetchWithRetry(
       `/api/customers/interactive/${encodeURIComponent(sessionId)}/save`,
