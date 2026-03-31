@@ -74,6 +74,11 @@ export function PendingOrdersPage() {
     new Set(),
   );
 
+  // Inline single-order delete confirmation
+  const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState<string | null>(null);
+  // Batch delete confirmation modal
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+
   // Share state
   const [emailDialogOrder, setEmailDialogOrder] = useState<PendingOrder | null>(
     null,
@@ -130,6 +135,22 @@ export function PendingOrdersPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `@keyframes wiggle-pending{0%{transform:rotate(0deg)}25%{transform:rotate(-0.35deg)}50%{transform:rotate(0deg)}75%{transform:rotate(0.35deg)}100%{transform:rotate(0deg)}}`;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
+  useEffect(() => {
+    if (selectedOrderIds.size === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedOrderIds(new Set());
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedOrderIds.size]);
 
   useEffect(() => {
     const token = localStorage.getItem("archibald_jwt") ?? "";
@@ -411,10 +432,7 @@ export function PendingOrdersPage() {
   };
 
   const handleDeleteOrder = async (orderId: string) => {
-    if (!confirm("Sei sicuro di voler eliminare questo ordine?")) {
-      return;
-    }
-
+    setConfirmDeleteOrderId(null);
     try {
       const order = orders.find((o) => o.id === orderId);
       if (order) {
@@ -436,13 +454,7 @@ export function PendingOrdersPage() {
 
   const handleDeleteSelectedOrders = async () => {
     if (selectedOrderIds.size === 0) return;
-
-    if (
-      !confirm(`Sei sicuro di voler eliminare ${selectedOrderIds.size} ordini?`)
-    ) {
-      return;
-    }
-
+    setConfirmBatchDelete(false);
     try {
       for (const orderId of selectedOrderIds) {
         const order = orders.find((o) => o.id === orderId);
@@ -830,17 +842,8 @@ export function PendingOrdersPage() {
   }
 
   return (
-    <div style={{ padding: isMobile ? "1rem" : "2rem" }}>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          justifyContent: "space-between",
-          alignItems: isMobile ? "stretch" : "center",
-          marginBottom: isMobile ? "1rem" : "1.5rem",
-          gap: isMobile ? "1rem" : "0",
-        }}
-      >
+    <div style={{ padding: isMobile ? "1rem" : "2rem", paddingBottom: selectedOrderIds.size > 0 ? (isMobile ? "80px" : "72px") : undefined }}>
+      <div style={{ marginBottom: isMobile ? "1rem" : "1.5rem" }}>
         <h1
           style={{
             fontSize: isMobile ? "1.5rem" : "1.875rem",
@@ -849,160 +852,8 @@ export function PendingOrdersPage() {
         >
           Ordini in Attesa ({orders.length})
         </h1>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? "0.5rem" : "0.75rem",
-          }}
-        >
-          <button
-            onClick={handleDeleteSelectedOrders}
-            disabled={selectedOrderIds.size === 0}
-            style={{
-              padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
-              backgroundColor:
-                selectedOrderIds.size === 0 ? "#e5e7eb" : "#dc2626",
-              color: selectedOrderIds.size === 0 ? "#9ca3af" : "white",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: isMobile ? "1rem" : "0.95rem",
-              fontWeight: "600",
-              cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
-              minHeight: "44px", // Touch target
-            }}
-            title="Elimina tutti gli ordini selezionati"
-          >
-            🗑️ {isMobile ? "Elimina" : "Elimina Selezionati"} (
-            {selectedOrderIds.size})
-          </button>
-          <button
-            onClick={handleSubmitOrders}
-            disabled={selectedOrderIds.size === 0 || submitting}
-            style={{
-              padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.5rem",
-              backgroundColor:
-                selectedOrderIds.size === 0 ? "#d1d5db" : "#22c55e",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: isMobile ? "1rem" : "1rem",
-              fontWeight: "600",
-              cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
-              minHeight: "44px", // Touch target
-            }}
-          >
-            {submitting
-              ? "Invio..."
-              : isMobile
-                ? `Invia (${selectedOrderIds.size})`
-                : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
-          </button>
-          {selectedFresisOrders.length >= 2 && (
-            <button
-              onClick={() => setShowMergeDialog(true)}
-              style={{
-                padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
-                backgroundColor: "#f59e0b",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: isMobile ? "1rem" : "0.95rem",
-                fontWeight: "600",
-                cursor: "pointer",
-                minHeight: "44px",
-              }}
-            >
-              Unisci Fresis ({selectedFresisOrders.length})
-            </button>
-          )}
-        </div>
-
-        {/* Fresis shipping threshold estimate */}
-        {selectedFresisOrders.length >= 2 && fresisEstimate && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "0.75rem 1rem",
-              borderRadius: "8px",
-              backgroundColor: fresisEstimate.loading
-                ? "#f3f4f6"
-                : fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                  ? "#f0fdf4"
-                  : "#fef2f2",
-              border: `1px solid ${
-                fresisEstimate.loading
-                  ? "#d1d5db"
-                  : fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                    ? "#bbf7d0"
-                    : "#fecaca"
-              }`,
-            }}
-          >
-            {fresisEstimate.loading ? (
-              <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                Calcolo imponibile...
-              </span>
-            ) : (
-              <>
-                <span
-                  style={{
-                    fontSize: "1.25rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                    ? "\u2705"
-                    : "\u26A0\uFE0F"}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "0.9375rem",
-                      color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                        ? "#166534"
-                        : "#991b1b",
-                    }}
-                  >
-                    Imponibile stimato: {formatCurrency(fresisEstimate.imponibile)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.8125rem",
-                      color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                        ? "#15803d"
-                        : "#b91c1c",
-                      marginTop: "0.125rem",
-                    }}
-                  >
-                    {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                      ? "Spedizione gratuita"
-                      : `Sotto soglia ${formatCurrency(SHIPPING_THRESHOLD)} \u2014 spese di spedizione applicate`}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    fontWeight: "700",
-                    fontSize: "1.125rem",
-                    flexShrink: 0,
-                    color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                      ? "#166534"
-                      : "#991b1b",
-                  }}
-                >
-                  {fresisEstimate.imponibile >= SHIPPING_THRESHOLD
-                    ? "FREE"
-                    : "+\u00A015,45\u00A0\u20AC"}
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </div>
+
 
       {/* Merge Fresis Dialog */}
       {showMergeDialog && (
@@ -1203,7 +1054,7 @@ export function PendingOrdersPage() {
           gap: "1rem",
         }}
       >
-        {orders.map((order) => {
+        {orders.map((order, orderIndex) => {
           const isJobActive =
             order.jobStatus &&
             ["started", "processing"].includes(order.jobStatus);
@@ -1213,6 +1064,7 @@ export function PendingOrdersPage() {
           const isStale = staleJobIds.has(order.id!);
 
           const isWarehouseOrder = order.status === "completed-warehouse";
+          const isSelected = selectedOrderIds.has(order.id!);
           const cardOpacity = isJobActive || isJobCompleted ? 0.6 : 1;
           const cardBgColor = isJobCompleted
             ? "#f0fdf4"
@@ -1226,15 +1078,22 @@ export function PendingOrdersPage() {
             <div
               key={order.id}
               style={{
-                border: isWarehouseOrder
-                  ? "1px solid #93c5fd"
-                  : "1px solid #e5e7eb",
-                borderLeft: isWarehouseOrder ? "4px solid #3b82f6" : undefined,
+                borderTop: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
+                borderRight: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
+                borderBottom: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
+                borderLeft: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "4px solid #3b82f6" : "1px solid #e5e7eb",
                 borderRadius: "8px",
                 padding: isMobile ? "1rem" : "1.5rem",
                 backgroundColor: cardBgColor,
                 opacity: cardOpacity,
-                transition: "opacity 0.3s ease, background-color 0.3s ease",
+                transition: "opacity 0.3s ease, background-color 0.3s ease, border-color 0.2s ease",
+                boxShadow: isSelected ? "0 0 8px rgba(25, 118, 210, 0.25)" : undefined,
+                ...(isSelected
+                  ? {
+                      animation: "wiggle-pending 1.4s ease-in-out infinite",
+                      animationDelay: `${(orderIndex % 3) * 0.12}s`,
+                    }
+                  : {}),
               }}
             >
               <div
@@ -1463,6 +1322,7 @@ export function PendingOrdersPage() {
                 {/* Action buttons - desktop layout */}
                 {!isMobile && (
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    {/* Status badge */}
                     <div
                       style={{
                         padding: "0.25rem 0.75rem",
@@ -1475,53 +1335,101 @@ export function PendingOrdersPage() {
                     >
                       {order.status === "pending" ? "In Attesa" : order.status === "error" ? "Errore" : order.status === "completed-warehouse" ? "Da Magazzino" : "In Elaborazione"}
                     </div>
+
                     {!actionsVisibleIds.has(order.id!) ? (
+                      /* Collapsed: show "⋯ Azioni" toggle */
                       <button
                         onClick={() => setActionsVisibleIds((prev) => new Set(prev).add(order.id!))}
-                        style={{ padding: "0.5rem 0.75rem", background: "#6b7280", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }}
+                        style={{ padding: "0.5rem 0.75rem", background: "#6b7280", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }}
                       >
-                        Azioni
+                        ⋯ Azioni
                       </button>
                     ) : (
-                      <>
-                        <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.5rem 0.75rem", background: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Scarica PDF">PDF</button>
-                        <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.5rem 0.75rem", background: "#8b5cf6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Stampa ordine">Stampa</button>
-                        <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#25D366", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "..." : "WhatsApp"}</button>
-                        <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Invia via Email">Email</button>
-                        <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "4px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "..." : "Dropbox"}</button>
-                        <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Modifica ordine">Modifica</button>
+                      /* Expanded: actions with hierarchy */
+                      <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap" }}>
+                        {/* PRIMARY: Modifica */}
+                        <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Modifica ordine">✎ Modifica</button>
+
+                        {/* PRIMARY: Conferma e Archivia (solo magazzino) */}
                         {isWarehouseOrder && (
-                          <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.5rem 0.75rem", background: "#22c55e", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Conferma e archivia">Conferma e Archivia</button>
+                          <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.5rem 1rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Conferma e archivia">✓ Conferma</button>
                         )}
-                        <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "500" }} title="Elimina ordine">Elimina</button>
-                      </>
+
+                        {/* DIVIDER */}
+                        <div style={{ width: "1px", height: "24px", background: "#d1d5db", margin: "0 0.125rem" }} />
+
+                        {/* SHARE GROUP: utility actions */}
+                        <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.5rem 0.625rem", background: "#059669", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Scarica PDF">PDF</button>
+                        <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.5rem 0.625rem", background: "#7c3aed", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Stampa ordine">Stampa</button>
+                        <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.625rem", background: sharingOrderId === order.id ? "#9ca3af" : "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "…" : "WA"}</button>
+                        <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.625rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Invia via Email">Email</button>
+                        <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.5rem 0.625rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "…" : "Dropbox"}</button>
+
+                        {/* DIVIDER */}
+                        <div style={{ width: "1px", height: "24px", background: "#d1d5db", margin: "0 0.125rem" }} />
+
+                        {/* DESTRUCTIVE: Elimina (inline confirm) */}
+                        {confirmDeleteOrderId === order.id ? (
+                          <>
+                            <span style={{ fontSize: "0.8125rem", color: "#dc2626", fontWeight: 600 }}>Sicuro?</span>
+                            <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "600" }}>Sì, elimina</button>
+                            <button onClick={() => setConfirmDeleteOrderId(null)} style={{ padding: "0.5rem 0.625rem", background: "#e5e7eb", color: "#374151", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem" }}>No</button>
+                          </>
+                        ) : (
+                          <button onClick={() => setConfirmDeleteOrderId(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "none", color: "#dc2626", border: "1px solid #dc2626", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "500" }} title="Elimina ordine">🗑 Elimina</button>
+                        )}
+
+                        {/* CLOSE: collapse actions */}
+                        <button
+                          onClick={() => { setActionsVisibleIds((prev) => { const s = new Set(prev); s.delete(order.id!); return s; }); setConfirmDeleteOrderId(null); }}
+                          style={{ padding: "0.5rem 0.5rem", background: "none", color: "#9ca3af", border: "1px solid #e5e7eb", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem" }}
+                          title="Chiudi azioni"
+                        >✕</button>
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* Action buttons - mobile layout (grid) */}
+                {/* Action buttons - mobile layout */}
                 {isMobile && !actionsVisibleIds.has(order.id!) && (
                   <div style={{ marginTop: "0.5rem" }}>
                     <button
                       onClick={() => setActionsVisibleIds((prev) => new Set(prev).add(order.id!))}
                       style={{ padding: "0.75rem 1.5rem", background: "#6b7280", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", width: "100%", minHeight: "44px" }}
                     >
-                      Azioni
+                      ⋯ Azioni
                     </button>
                   </div>
                 )}
                 {isMobile && actionsVisibleIds.has(order.id!) && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem", marginTop: "0.5rem" }}>
-                    <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.75rem", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Scarica PDF">PDF</button>
-                    <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.75rem", background: "#8b5cf6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Stampa ordine">Stampa</button>
-                    <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#25D366", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "..." : "WhatsApp"}</button>
-                    <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Invia via Email">Email</button>
-                    <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "..." : "Dropbox"}</button>
-                    <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.75rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Modifica ordine">Modifica</button>
-                    {isWarehouseOrder && (
-                      <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.75rem", background: "#22c55e", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Conferma e archivia">Conferma</button>
+                  <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {/* PRIMARY row */}
+                    <div style={{ display: "grid", gridTemplateColumns: isWarehouseOrder ? "1fr 1fr" : "1fr", gap: "0.5rem" }}>
+                      <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.75rem", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Modifica ordine">✎ Modifica</button>
+                      {isWarehouseOrder && (
+                        <button onClick={() => handleConfirmWarehouseOrder(order)} style={{ padding: "0.75rem", background: "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Conferma e archivia">✓ Conferma</button>
+                      )}
+                    </div>
+                    {/* SHARE group */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
+                      <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.75rem", background: "#059669", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Scarica PDF">PDF</button>
+                      <button onClick={() => handlePrintOrder(order)} style={{ padding: "0.75rem", background: "#7c3aed", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Stampa ordine">Stampa</button>
+                      <button onClick={() => handleWhatsApp(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#16a34a", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Invia via WhatsApp">{sharingOrderId === order.id ? "…" : "WA"}</button>
+                      <button onClick={() => handleEmail(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#ea580c", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Invia via Email">Email</button>
+                      <button onClick={() => handleDropbox(order)} disabled={sharingOrderId === order.id} style={{ padding: "0.75rem", background: sharingOrderId === order.id ? "#9ca3af" : "#0061FF", color: "white", border: "none", borderRadius: "6px", cursor: sharingOrderId === order.id ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Carica su Dropbox">{sharingOrderId === order.id ? "…" : "Dropbox"}</button>
+                    </div>
+                    {/* DESTRUCTIVE row: Elimina (inline confirm) + Chiudi */}
+                    {confirmDeleteOrderId === order.id ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                        <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>Sì, elimina</button>
+                        <button onClick={() => setConfirmDeleteOrderId(null)} style={{ padding: "0.75rem", background: "#e5e7eb", color: "#374151", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>Annulla</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                        <button onClick={() => setConfirmDeleteOrderId(order.id!)} style={{ padding: "0.75rem", background: "none", color: "#dc2626", border: "1.5px solid #dc2626", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Elimina ordine">🗑 Elimina</button>
+                        <button onClick={() => { setActionsVisibleIds((prev) => { const s = new Set(prev); s.delete(order.id!); return s; }); setConfirmDeleteOrderId(null); }} style={{ padding: "0.75rem", background: "none", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>✕ Chiudi</button>
+                      </div>
                     )}
-                    <button onClick={() => handleDeleteOrder(order.id!)} style={{ padding: "0.75rem", background: "#dc2626", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }} title="Elimina ordine">Elimina</button>
                   </div>
                 )}
               </div>
@@ -2421,6 +2329,110 @@ export function PendingOrdersPage() {
           }}
           onDismiss={() => setQuickFixCustomer(null)}
         />
+      )}
+
+      {/* Bottom selection toolbar — visible when at least 1 order is selected */}
+      {selectedOrderIds.size > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 300,
+            backgroundColor: "#fff",
+            borderTop: "1px solid #e0e0e0",
+            boxShadow: "0 -2px 12px rgba(0,0,0,0.15)",
+            padding: "10px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+          }}
+        >
+          {/* Fresis shipping estimate (compact, only when relevant) */}
+          {selectedFresisOrders.length >= 2 && fresisEstimate && !fresisEstimate.loading && (
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: fresisEstimate.imponibile >= SHIPPING_THRESHOLD ? "#166534" : "#991b1b",
+                backgroundColor: fresisEstimate.imponibile >= SHIPPING_THRESHOLD ? "#f0fdf4" : "#fef2f2",
+                borderRadius: "4px",
+                padding: "4px 8px",
+                alignSelf: "flex-start",
+              }}
+            >
+              {fresisEstimate.imponibile >= SHIPPING_THRESHOLD ? "✅ Spedizione gratuita" : `⚠ Sotto soglia — +15,45 €`}
+              {" · "}Imponibile: {formatCurrency(fresisEstimate.imponibile)}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
+              {selectedOrderIds.size} {selectedOrderIds.size === 1 ? "ordine selezionato" : "ordini selezionati"}
+            </span>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setSelectedOrderIds(new Set())}
+                style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: "#fff", color: "#666", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer" }}
+              >
+                Deseleziona
+              </button>
+              {selectedFresisOrders.length >= 2 && (
+                <button
+                  onClick={() => setShowMergeDialog(true)}
+                  style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: "#f59e0b", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
+                >
+                  Unisci Fresis ({selectedFresisOrders.length})
+                </button>
+              )}
+              <button
+                onClick={() => setConfirmBatchDelete(true)}
+                style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: "#c62828", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
+              >
+                Elimina ({selectedOrderIds.size})
+              </button>
+              <button
+                onClick={handleSubmitOrders}
+                disabled={submitting}
+                style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: submitting ? "#9ca3af" : "#2e7d32", color: "#fff", border: "none", borderRadius: "8px", cursor: submitting ? "not-allowed" : "pointer" }}
+              >
+                {submitting ? "Invio…" : `Invia (${selectedOrderIds.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch delete confirmation modal */}
+      {confirmBatchDelete && (
+        <div
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={(e) => { e.stopPropagation(); setConfirmBatchDelete(false); }}
+        >
+          <div
+            style={{ backgroundColor: "#fff", borderRadius: "12px", padding: "24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", fontWeight: 700, color: "#b91c1c" }}>Elimina ordini</h3>
+            <p style={{ margin: "0 0 20px", fontSize: "14px", color: "#374151" }}>
+              Stai per eliminare <strong>{selectedOrderIds.size} ordini</strong> in modo definitivo. Questa azione non è reversibile.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={handleDeleteSelectedOrders}
+                style={{ flex: 1, padding: "10px", fontSize: "14px", fontWeight: 700, backgroundColor: "#dc2626", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
+              >
+                Sì, elimina tutto
+              </button>
+              <button
+                onClick={() => setConfirmBatchDelete(false)}
+                style={{ flex: 1, padding: "10px", fontSize: "14px", fontWeight: 600, backgroundColor: "#f3f4f6", color: "#374151", border: "none", borderRadius: "8px", cursor: "pointer" }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

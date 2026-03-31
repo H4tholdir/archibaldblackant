@@ -279,9 +279,7 @@ describe("PendingOrdersPage", () => {
     const orderCheckboxes = checkboxes.slice(1);
     fireEvent.click(orderCheckboxes[0]);
 
-    expect(
-      screen.getByText(/Invia Ordini Selezionati \(1\)/i),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Invia \(1\)$/i })).toBeInTheDocument();
   });
 
   test('"Select All" checkbox selects all orders', async () => {
@@ -293,21 +291,16 @@ describe("PendingOrdersPage", () => {
     const selectAllCheckbox = screen.getAllByRole("checkbox")[0];
     fireEvent.click(selectAllCheckbox);
 
-    expect(
-      screen.getByText(/Invia Ordini Selezionati \(3\)/i),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Invia \(3\)$/i })).toBeInTheDocument();
   });
 
-  test('"Invia Ordini Selezionati" button disabled when no selection', async () => {
+  test('submit button not rendered when no orders selected', async () => {
     mockPendingOrders = testOrders;
 
     render(<PendingOrdersPage />);
     await act(async () => {});
 
-    const submitButton = screen.getByRole("button", {
-      name: /Invia Ordini Selezionati/i,
-    });
-    expect(submitButton).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Invia \(/i })).toBeNull();
   });
 
   test("submits selected orders to bot API", async () => {
@@ -324,9 +317,7 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(orderCheckboxes[0]);
     fireEvent.click(orderCheckboxes[1]);
 
-    const submitButton = screen.getByRole("button", {
-      name: /Invia Ordini Selezionati \(2\)/i,
-    });
+    const submitButton = screen.getByRole("button", { name: /^Invia \(2\)$/i });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -373,9 +364,7 @@ describe("PendingOrdersPage", () => {
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.click(checkboxes[1]);
 
-    const submitButton = screen.getByRole("button", {
-      name: /Invia Ordini Selezionati \(1\)/i,
-    });
+    const submitButton = screen.getByRole("button", { name: /^Invia \(1\)$/i });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -463,9 +452,7 @@ describe("PendingOrdersPage", () => {
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.click(checkboxes[1]);
 
-    const submitButton = screen.getByRole("button", {
-      name: /Invia Ordini Selezionati/i,
-    });
+    const submitButton = screen.getByRole("button", { name: /^Invia \(1\)$/i });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
