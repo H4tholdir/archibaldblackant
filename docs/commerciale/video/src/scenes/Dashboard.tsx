@@ -18,7 +18,7 @@ export function Dashboard() {
 
   const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const fadeOut = interpolate(frame, [dur - 15, dur], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const progressBarWidth = interpolate(frame, [80, 160], [0, 67], {
+  const progressBarWidth = interpolate(frame, [80, 160], [0, METRICS[1].to], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: Easing.bezier(0.25, 0.1, 0.25, 1),

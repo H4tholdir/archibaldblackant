@@ -38,7 +38,7 @@ export function Customers() {
           Passo 2 di 6 — Anagrafica
         </div>
         {FIELDS.map((f, i) => {
-          const fieldOpacity = interpolate(frame, [i * 20, i * 20 + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const fieldOpacity = interpolate(frame, [20 + i * 20, 20 + i * 20 + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           return (
             <div key={i} style={{ background: palette.bg, borderRadius: 12, padding: '12px 16px', marginBottom: 12, opacity: fieldOpacity }}>
               <div style={{ fontSize: 14, color: palette.textMuted, fontWeight: 700, letterSpacing: 1, fontFamily: 'Inter, sans-serif' }}>
