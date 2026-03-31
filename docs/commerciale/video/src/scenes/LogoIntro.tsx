@@ -62,14 +62,14 @@ export function LogoIntro() {
       >
         <Img
           src={staticFile('formicaneralogo.png')}
-          style={{ width: 100, height: 100, objectFit: 'contain' }}
+          style={{ width: 220, height: 205, objectFit: 'contain' }}
         />
       </div>
 
       {/* Formicanera */}
       <div
         style={{
-          fontSize: 56,
+          fontSize: 72,
           fontWeight: 900,
           color: palette.textPrimary,
           fontFamily: 'Inter, sans-serif',
