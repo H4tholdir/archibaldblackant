@@ -1,0 +1,21 @@
+{
+  "name": "formicanera-demo-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npx remotion studio",
+    "render": "npx remotion render src/Root.tsx FormicaneraDemoVideo out/formicanera-demo.mp4 --codec=h264 --crf=18"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.235",
+    "@remotion/google-fonts": "4.0.235",
+    "remotion": "4.0.235",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.4.0"
+  }
+}
