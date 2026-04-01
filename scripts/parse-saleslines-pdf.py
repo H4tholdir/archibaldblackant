@@ -111,14 +111,21 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
                 print(f"Warning: Invalid unit price {unit_price} at pair {pair_idx} row {row_idx}, skipping", file=sys.stderr)
                 continue
 
-            # Compute effective discount from actual amounts (captures both system + line discounts)
+            # Compute effective discount.
+            # When only APPLICA SCONTO % (col5) is set, read it directly to preserve
+            # the original precision stored in the ERP field.
+            # When system SCONTO % (col4) is also non-zero both discounts are applied
+            # cumulatively by the ERP, so derive from the actual line amount instead.
+            raw_d4 = raw_discount_col4 or 0
+            raw_d5 = raw_discount_col5 or 0
             gross = unit_price * quantity
-            if line_amount is not None and gross > 0:
+            if raw_d4 == 0 and raw_d5 > 0:
+                discount_percent = raw_d5
+            elif gross > 0 and line_amount is not None:
                 discount_percent = round((1 - line_amount / gross) * 100, 2)
             else:
-                # Fallback: combine both columns multiplicatively
-                d4 = (raw_discount_col4 or 0) / 100
-                d5 = (raw_discount_col5 or 0) / 100
+                d4 = raw_d4 / 100
+                d5 = raw_d5 / 100
                 discount_percent = round((1 - (1 - d4) * (1 - d5)) * 100, 2)
 
             if discount_percent < 0 or discount_percent > 100:

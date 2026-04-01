@@ -230,13 +230,24 @@ export function usePendingSync(): UsePendingSyncReturn {
         } else if (eventType === "VERIFICATION_RESULT") {
           const orderId = p.orderId as string | undefined;
           const notification = p.notification as VerificationNotification | undefined;
-          if (orderId && notification) {
+          if (!orderId) return;
+          if (notification) {
             verificationCacheRef.current.set(orderId, notification);
             setPendingOrders((prev) =>
               prev.map((order) => {
                 const jobOrderId = order.jobOrderId ?? (order.jobId ? completedOrderIdsRef.current.get(order.jobId) : undefined);
                 return jobOrderId === orderId
                   ? { ...order, verificationNotification: notification, jobOrderId }
+                  : order;
+              }),
+            );
+          } else {
+            verificationCacheRef.current.delete(orderId);
+            setPendingOrders((prev) =>
+              prev.map((order) => {
+                const jobOrderId = order.jobOrderId ?? (order.jobId ? completedOrderIdsRef.current.get(order.jobId) : undefined);
+                return jobOrderId === orderId
+                  ? { ...order, verificationNotification: undefined }
                   : order;
               }),
             );

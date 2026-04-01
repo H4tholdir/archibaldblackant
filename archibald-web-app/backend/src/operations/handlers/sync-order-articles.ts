@@ -28,6 +28,7 @@ type SyncOrderArticlesDeps = {
   parsePdf: (pdfPath: string) => Promise<ParsedArticle[]>;
   getProductVat: (articleCode: string) => number | null | Promise<number | null>;
   cleanupFile: (filePath: string) => Promise<void>;
+  broadcast?: (userId: string, event: Record<string, unknown>) => void;
 };
 
 type SyncOrderArticlesResult = {
@@ -42,7 +43,7 @@ async function handleSyncOrderArticles(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<SyncOrderArticlesResult> {
-  const { pool, bot, parsePdf, getProductVat, cleanupFile } = deps;
+  const { pool, bot, parsePdf, getProductVat, cleanupFile, broadcast } = deps;
 
   onProgress(5, 'Recupero ordine');
 
@@ -160,12 +161,27 @@ async function handleSyncOrderArticles(
       [grossAmount.toFixed(2).replace('.', ','), totalVatAmount.toString(), totalWithVat.toString(), new Date().toISOString(), Math.floor(Date.now() / 1000), articleSearchText, data.orderId, userId],
     );
 
+    const { rows: [existingSnapshot] } = await pool.query<{ verification_status: string }>(
+      `SELECT verification_status FROM agents.order_verification_snapshots WHERE order_id = $1 AND user_id = $2`,
+      [data.orderId, userId],
+    );
+    const wasMismatch = existingSnapshot?.verification_status === 'mismatch_detected';
+
     await pool.query(
       `UPDATE agents.order_verification_snapshots
        SET verification_status = 'verified', verified_at = NOW(), verification_notes = NULL
        WHERE order_id = $1 AND user_id = $2`,
       [data.orderId, userId],
     );
+
+    if (wasMismatch && broadcast) {
+      broadcast(userId, {
+        event: 'VERIFICATION_RESULT',
+        orderId: data.orderId,
+        status: 'verified',
+        notification: null,
+      });
+    }
 
     onProgress(100, 'Sincronizzazione articoli completata');
 

@@ -702,6 +702,7 @@ async function bootstrap(): Promise<void> {
           return variants[0]?.vat ?? null;
         },
         cleanupFile,
+        broadcast: broadcastEvent,
       },
       (userId) => {
         const bot = createBotForUser(userId);

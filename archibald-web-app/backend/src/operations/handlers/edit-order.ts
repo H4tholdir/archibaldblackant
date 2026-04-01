@@ -5,6 +5,7 @@ import type { InlineSyncDeps } from '../../verification/inline-order-sync';
 import { performInlineOrderSync } from '../../verification/inline-order-sync';
 import type { SnapshotArticle, VerificationResult } from '../../verification/verify-order-articles';
 import { verifyOrderArticles } from '../../verification/verify-order-articles';
+import { formatVerificationNotification } from '../../verification/format-notification';
 import { logger } from '../../logger';
 
 type EditOrderArticle = {
@@ -196,11 +197,12 @@ async function handleEditOrder(
         );
 
         if (broadcast) {
+          const notification = formatVerificationNotification(verificationResult.status, verificationResult.mismatches);
           broadcast(userId, {
             event: 'VERIFICATION_RESULT',
             orderId: data.orderId,
             status: verificationResult.status,
-            mismatches: verificationResult.mismatches,
+            notification,
           });
         }
 

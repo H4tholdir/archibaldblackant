@@ -17,7 +17,7 @@ import {
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT, FRESIS_ACCOUNT_NUM } from "../utils/fresis-constants";
 import { archibaldLineAmount, calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
-import { arcaDocumentTotals, arcaLineAmount } from "../utils/arca-math";
+
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { parseOrderNotesForEdit } from "../utils/parse-order-notes";
 import { getDiscountForArticle } from "../api/fresis-discounts";
@@ -2842,15 +2842,9 @@ function TabArticoli({
             return sum + unitPrice * quantity;
           }, 0);
 
-          const lines = articles.map((item) => ({
-            prezzotot: arcaLineAmount(
-              item.quantity ?? 0,
-              item.unitPrice ?? 0,
-              item.discountPercent ?? 0,
-            ),
-            vatRate: item.vatPercent ?? 0,
-          }));
-          const { totImp: totalImponibile, totIva, totDoc } = arcaDocumentTotals(lines, 1);
+          const totalImponibile = articles.reduce((sum, item) => sum + (item.lineAmount ?? 0), 0);
+          const totIva = articles.reduce((sum, item) => sum + (item.vatAmount ?? 0), 0);
+          const totDoc = articles.reduce((sum, item) => sum + (item.lineTotalWithVat ?? 0), 0);
 
           const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
 
