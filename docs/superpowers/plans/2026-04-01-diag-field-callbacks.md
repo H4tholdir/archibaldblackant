@@ -1,0 +1,849 @@
+# diag-field-callbacks Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Script Puppeteer standalone che (1) sonda i callback XHR dei 4 campi chiave nel form nuovo cliente ERP e (2) corregge il cliente Claudio Palmese (erp_id 57396) con i dati corretti.
+
+**Architecture:** Script ESM `.mjs` standalone con CDP per tracking preciso degli XHR. Phase 1 usa un form nuovo (senza salvataggio) per isolare l'effetto di ogni callback nell'ordine NAME→FISCALCODE→CAP→VATNUM. Phase 2 accede direttamente in edit mode a Palmese 57396 e scrive 4 campi nell'ordine sicuro (CAP→FISCALCODE→NAMEALIAS→SDI) senza re-inserire VATNUM. Output: log console strutturato + JSON in `logs/`.
+
+**Tech Stack:** Node.js 20 ESM, Puppeteer (già in devDependencies backend), CDP Network events (`Network.requestWillBeSent` / `loadingFinished`)
+
+---
+
+### Task 1: Pre-flight — elimina record UNKNOWN dal DB
+
+**Files:**
+- Read: `VPS-ACCESS-CREDENTIALS.md`
+
+- [ ] **Step 1: Leggi credenziali e salva chiave SSH**
+
+  Leggi `/Users/hatholdir/Downloads/Archibald/VPS-ACCESS-CREDENTIALS.md`, poi:
+
+  ```bash
+  chmod 600 /tmp/archibald_vps
+  ```
+
+- [ ] **Step 2: Verifica il record UNKNOWN**
+
+  ```bash
+  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+    "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+     exec -T postgres psql -U archibald -d archibald -c \
+     \"SELECT id, erp_id, name, user_id, created_at FROM agents.customers WHERE erp_id = 'UNKNOWN';\""
+  ```
+
+  Expected: 1 riga con `name = 'Dr. Claudio Palmese'` e `user_id = 'bbed531f-97a5-4250-865e-39ec149cd048'`.
+
+- [ ] **Step 3: Elimina il record**
+
+  ```bash
+  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+    "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+     exec -T postgres psql -U archibald -d archibald -c \
+     \"DELETE FROM agents.customers \
+       WHERE erp_id = 'UNKNOWN' \
+       AND user_id = 'bbed531f-97a5-4250-865e-39ec149cd048';\""
+  ```
+
+  Expected output: `DELETE 1`
+
+- [ ] **Step 4: Conferma eliminazione**
+
+  ```bash
+  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+    "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+     exec -T postgres psql -U archibald -d archibald -c \
+     \"SELECT COUNT(*) FROM agents.customers WHERE erp_id = 'UNKNOWN';\""
+  ```
+
+  Expected: `count = 0`
+
+---
+
+### Task 2: Crea lo script — skeleton + configurazione + login
+
+**Files:**
+- Create: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Crea il file**
+
+  ```javascript
+  /**
+   * diag-field-callbacks.mjs
+   * Phase 1: sonda callback XHR dei campi del form nuovo cliente ERP
+   * Phase 2: corregge Palmese (erp_id 57396) con i dati corretti
+   * Usage: node scripts/diag-field-callbacks.mjs  (dalla dir backend)
+   */
+
+  import puppeteer from 'puppeteer';
+  import { writeFileSync, mkdirSync } from 'fs';
+  import { join, dirname } from 'path';
+  import { fileURLToPath } from 'url';
+
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+
+  const ERP_URL = 'https://4.231.124.90/Archibald';
+  const USERNAME = 'ikiA0930';
+  const PASSWORD = 'Fresis26@';
+  const LOGS_DIR = join(__dirname, '..', 'logs');
+
+  const PROBE_FIELDS = {
+    NAME: {
+      inputIdPattern: /dviNAME_Edit_I$/,
+      value: 'Dr. Test Palmese',
+    },
+    FISCALCODE: {
+      inputIdPattern: /dviFISCALCODE_Edit_I$/,
+      value: 'PLMCLD76T10A390T',
+    },
+    VATNUM: {
+      inputIdPattern: /dviVATNUM_Edit_I$/,
+      value: '13890640967',
+    },
+  };
+
+  const PALMESE_ERP_ID = '57396';
+  const PALMESE_FIX = {
+    CAP: '80038',
+    FISCALCODE: 'PLMCLD76T10A390T',
+    NAMEALIAS: 'Dr. Claudio Palmese',
+    SDI: 'C3UCNRB',
+  };
+
+  function wait(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  function cssEscape(s) {
+    return s.replace(/([.#[\]()])/g, '\\$1');
+  }
+
+  async function login(page) {
+    console.log('[LOGIN] navigating...');
+    await page.goto(`${ERP_URL}/`, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.waitForSelector('input[name="UserName"]', { timeout: 10000 });
+    await page.type('input[name="UserName"]', USERNAME, { delay: 50 });
+    await page.type('input[name="Password"]', PASSWORD, { delay: 50 });
+    await page.keyboard.press('Enter');
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+    console.log('[LOGIN] OK —', page.url());
+  }
+
+  async function waitForDevExpressReady(page, { timeout = 15000, label = '' } = {}) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const ready = await page.evaluate(() => {
+        try {
+          return (window.ASPx?._pendingCallbacks ?? 0) === 0
+            && document.readyState === 'complete';
+        } catch { return false; }
+      }).catch(() => false);
+      if (ready) return;
+      await wait(200);
+    }
+    console.warn(`[waitForDevExpressReady] timeout${label ? ` (${label})` : ''}`);
+  }
+  ```
+
+- [ ] **Step 2: Verifica parsing**
+
+  ```bash
+  cd /Users/hatholdir/Downloads/Archibald/archibald-web-app/backend
+  node -e "import('./scripts/diag-field-callbacks.mjs').catch(e => { if (!e.message.includes('main is not defined') && !e.message.includes('Cannot find')) console.error('PARSE ERROR:', e.message) })" 2>&1 | head -5
+  ```
+
+  Expected: nessun output (il file importa ma non ha ancora una `main()`).
+
+---
+
+### Task 3: Implementa `waitForXhrSettle`
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi dopo `waitForDevExpressReady`**
+
+  ```javascript
+  async function waitForXhrSettle(page, cdpSession, {
+    formUrlPattern = 'CUSTTABLE_DetailView',
+    quietMs = 400,
+    maxWaitMs = 35000,
+  } = {}) {
+    const pending = new Set();
+    let totalXhr = 0;
+    let quietStart = null;
+    const start = Date.now();
+
+    const onSent = ({ requestId, request }) => {
+      if (request?.url?.includes(formUrlPattern)) {
+        pending.add(requestId);
+        totalXhr++;
+      }
+    };
+    const onDone = ({ requestId }) => pending.delete(requestId);
+
+    cdpSession.on('Network.requestWillBeSent', onSent);
+    cdpSession.on('Network.loadingFinished', onDone);
+    cdpSession.on('Network.loadingFailed', onDone);
+
+    return new Promise((resolve) => {
+      const timer = setInterval(async () => {
+        const elapsed = Date.now() - start;
+
+        const pendingCallbacks = await page
+          .evaluate(() => {
+            try { return window.ASPx?._pendingCallbacks ?? 0; }
+            catch { return 0; }
+          })
+          .catch(() => 0);
+
+        const isSettled = pending.size === 0 && pendingCallbacks === 0;
+
+        if (isSettled) {
+          if (!quietStart) quietStart = Date.now();
+          if (Date.now() - quietStart >= quietMs) {
+            clearInterval(timer);
+            cdpSession.off('Network.requestWillBeSent', onSent);
+            cdpSession.off('Network.loadingFinished', onDone);
+            cdpSession.off('Network.loadingFailed', onDone);
+            resolve({ settleMs: elapsed, xhrCount: totalXhr });
+            return;
+          }
+        } else {
+          quietStart = null;
+        }
+
+        if (elapsed >= maxWaitMs) {
+          clearInterval(timer);
+          cdpSession.off('Network.requestWillBeSent', onSent);
+          cdpSession.off('Network.loadingFinished', onDone);
+          cdpSession.off('Network.loadingFailed', onDone);
+          console.warn(`[waitForXhrSettle] timeout dopo ${elapsed}ms — pending: ${pending.size}`);
+          resolve({ settleMs: elapsed, xhrCount: totalXhr, timedOut: true });
+        }
+      }, 100);
+    });
+  }
+  ```
+
+---
+
+### Task 4: Implementa helpers DOM
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi dopo `waitForXhrSettle`**
+
+  ```javascript
+  async function snapshotXafInputs(page) {
+    return page.evaluate(() => {
+      const snap = {};
+      document.querySelectorAll('input[id*="xaf_dvi"]').forEach(el => {
+        snap[el.id] = el.value ?? '';
+      });
+      return snap;
+    });
+  }
+
+  function diffSnapshots(before, after) {
+    const changed = {};
+    for (const [id, afterVal] of Object.entries(after)) {
+      const beforeVal = before[id] ?? '';
+      if (afterVal !== beforeVal) {
+        changed[id] = { before: beforeVal, after: afterVal };
+      }
+    }
+    return changed;
+  }
+
+  function logProbeResult(fieldName, result) {
+    const timedOutNote = result.timedOut ? ', TIMEOUT' : '';
+    console.log(`\n[PROBE] ${fieldName}`);
+    console.log(`  → XHR: ${result.xhrCount} (settle: ${result.settleMs}ms${timedOutNote})`);
+    const entries = Object.entries(result.changedFields);
+    if (entries.length === 0) {
+      console.log('  → CHANGED: (nessuno)');
+    } else {
+      for (const [id, { before, after }] of entries) {
+        const short = id.replace(/^xaf_dvi/, '').replace(/_Edit_I$/, '');
+        console.log(`  → CHANGED: ${short} "${before}" → "${after}"`);
+      }
+    }
+  }
+  ```
+
+---
+
+### Task 5: Implementa `probeTextField`
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi dopo gli helper DOM**
+
+  ```javascript
+  async function probeTextField(page, cdpSession, fieldName, { inputIdPattern, value }) {
+    const before = await snapshotXafInputs(page);
+
+    const inputId = await page.evaluate((patternSrc) => {
+      const re = new RegExp(patternSrc);
+      const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+        .find(el => re.test(el.id) && el.offsetParent !== null);
+      if (!input) return null;
+      input.scrollIntoView({ block: 'center' });
+      return input.id;
+    }, inputIdPattern.source);
+
+    if (!inputId) throw new Error(`Campo non trovato: ${fieldName} (${inputIdPattern})`);
+
+    const escaped = cssEscape(inputId);
+    await page.click(`#${escaped}`, { clickCount: 3 });
+    await wait(100);
+    await page.type(`#${escaped}`, value, { delay: 60 });
+    await page.keyboard.press('Tab');
+
+    const settle = await waitForXhrSettle(page, cdpSession);
+    const after = await snapshotXafInputs(page);
+    const changedFields = diffSnapshots(before, after);
+
+    return { field: fieldName, ...settle, changedFields };
+  }
+  ```
+
+---
+
+### Task 6: Implementa `probeCap` (popup iframe)
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi dopo `probeTextField`**
+
+  ```javascript
+  async function probeCap(page, cdpSession, capValue) {
+    const before = await snapshotXafInputs(page);
+
+    // Clicca pulsante B0 (lente lookup CAP)
+    const btnClicked = await page.evaluate(() => {
+      const btn = document.querySelector('[id*="LOGISTICSADDRESSZIPCODE"][id*="B0"]');
+      if (!btn) return false;
+      btn.scrollIntoView({ block: 'center' });
+      btn.click();
+      return true;
+    });
+    if (!btnClicked) throw new Error('Pulsante B0 CAP non trovato');
+    await wait(1500);
+
+    // Trova iframe del popup (non-main frame con input visibili)
+    let frame = null;
+    for (let attempt = 0; attempt < 15 && !frame; attempt++) {
+      for (const f of page.frames()) {
+        if (f === page.mainFrame()) continue;
+        const hasInputs = await f.evaluate(() =>
+          document.querySelectorAll('input[type="text"]').length > 0
+        ).catch(() => false);
+        if (hasInputs) { frame = f; break; }
+      }
+      if (!frame) await wait(400);
+    }
+    if (!frame) throw new Error('Iframe popup CAP non trovato');
+
+    await frame.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 8000 }
+    ).catch(() => {});
+    await wait(300);
+
+    // Trova input di ricerca visibile
+    const searchId = await frame.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[type="text"]'))
+        .filter(el => el.offsetParent !== null);
+      const found = inputs.find(i =>
+        /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id)
+      ) || inputs[0];
+      if (!found) return null;
+      if (!found.id) found.id = '_diag_cap_search_';
+      found.focus();
+      found.value = '';
+      return found.id;
+    });
+    if (!searchId) throw new Error('Input ricerca CAP non trovato nell\'iframe');
+
+    // Digita CAP con delay SAC (100ms per triggerare textChanged)
+    await frame.type(`#${cssEscape(searchId)}`, capValue, { delay: 100 });
+    await wait(1000);
+
+    // Attendi righe risultato (fino a 7.5s)
+    let rowCount = 0;
+    for (let i = 0; i < 15; i++) {
+      rowCount = await frame.evaluate(() =>
+        document.querySelectorAll('tr[class*="dxgvDataRow"]').length
+      ).catch(() => 0);
+      if (rowCount > 0) break;
+      await wait(500);
+    }
+    if (rowCount === 0) {
+      await frame.keyboard.press('Enter');
+      await wait(2000);
+      rowCount = await frame.evaluate(() =>
+        document.querySelectorAll('tr[class*="dxgvDataRow"]').length
+      ).catch(() => 0);
+    }
+    if (rowCount === 0) throw new Error(`Nessuna riga CAP trovata per "${capValue}"`);
+
+    // Clicca prima riga
+    await frame.evaluate(() => {
+      const row = document.querySelector('tr[class*="dxgvDataRow"]');
+      if (row) row.click();
+    });
+    await wait(300);
+
+    // Clicca OK
+    await frame.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('input[type="button"], button'));
+      const ok = btns.find(b =>
+        (b.value?.trim() === 'OK') || (b.textContent?.trim() === 'OK')
+      );
+      if (ok) ok.click();
+    });
+
+    const settle = await waitForXhrSettle(page, cdpSession);
+    const after = await snapshotXafInputs(page);
+    const changedFields = diffSnapshots(before, after);
+
+    return { field: 'CAP', ...settle, changedFields };
+  }
+  ```
+
+---
+
+### Task 7: Phase 1 — orchestrazione probe + form nuovo
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi `runPhase1` dopo `probeCap`**
+
+  ```javascript
+  async function runPhase1(page, cdpSession) {
+    console.log('\n=== PHASE 1: Field Probe ===');
+
+    await page.goto(
+      `${ERP_URL}/CUSTTABLE_ListView_Agent/`,
+      { waitUntil: 'networkidle2', timeout: 60000 }
+    );
+    await wait(2000);
+
+    const clicked = await page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('a, span, button, td'))
+        .find(e => e.textContent?.trim() === 'Nuovo' || e.textContent?.trim() === 'New');
+      if (el) { el.click(); return true; }
+      return false;
+    });
+    if (!clicked) throw new Error('Pulsante Nuovo non trovato');
+
+    await page.waitForFunction(
+      () => !window.location.href.includes('ListView'),
+      { timeout: 15000 }
+    );
+    await wait(2000);
+    console.log('[PHASE1] Form nuovo aperto —', page.url());
+
+    // Assicura tab Principale attivo
+    await page.evaluate(() => {
+      const tab = Array.from(document.querySelectorAll('*'))
+        .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+      if (tab) tab.click();
+    });
+    await wait(1000);
+
+    const results = {};
+
+    // Probe 1: NAME
+    const nameResult = await probeTextField(page, cdpSession, 'NAME', PROBE_FIELDS.NAME);
+    logProbeResult('NAME', nameResult);
+    results.NAME = nameResult;
+
+    // Probe 2: FISCALCODE
+    const fcResult = await probeTextField(page, cdpSession, 'FISCALCODE', PROBE_FIELDS.FISCALCODE);
+    logProbeResult('FISCALCODE', fcResult);
+    results.FISCALCODE = fcResult;
+
+    // Probe 3: CAP (popup iframe)
+    const capResult = await probeCap(page, cdpSession, '80038');
+    logProbeResult('CAP', capResult);
+    results.CAP = capResult;
+
+    // Probe 4: VATNUM (possibile attesa fino a 35s)
+    console.log('\n[PROBE] VATNUM — avvio (possibile wait fino a 35s)...');
+    const vatResult = await probeTextField(page, cdpSession, 'VATNUM', PROBE_FIELDS.VATNUM);
+    logProbeResult('VATNUM', vatResult);
+    results.VATNUM = vatResult;
+
+    // Naviga via SENZA salvare
+    console.log('\n[PHASE1] Navigazione via (no save)...');
+    await page.goto(
+      `${ERP_URL}/CUSTTABLE_ListView_Agent/`,
+      { waitUntil: 'networkidle2', timeout: 30000 }
+    );
+    await wait(1500);
+
+    // Dismissi eventuale dialog DevExpress "Vuoi salvare?"
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('input[type="button"], button, a'));
+      const discard = btns.find(b =>
+        /no|annulla|cancel|discard|ignore/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+      );
+      if (discard) discard.click();
+    }).catch(() => {});
+    await wait(1000);
+
+    console.log('[PHASE1] completata.');
+    return results;
+  }
+  ```
+
+---
+
+### Task 8: Phase 2 — Fix Palmese
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi `runPhase2` dopo `runPhase1`**
+
+  ```javascript
+  async function runPhase2(page, cdpSession) {
+    console.log('\n=== PHASE 2: Fix Palmese (erp_id 57396) ===');
+
+    await page.goto(
+      `${ERP_URL}/CUSTTABLE_DetailView/${PALMESE_ERP_ID}/?mode=Edit`,
+      { waitUntil: 'networkidle2', timeout: 30000 }
+    );
+    await waitForDevExpressReady(page, { label: 'phase2-load' });
+    await wait(2000);
+    console.log('[PHASE2] Form aperto —', page.url());
+
+    // Assicura tab Principale attivo
+    await page.evaluate(() => {
+      const tab = Array.from(document.querySelectorAll('*'))
+        .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+      if (tab) tab.click();
+    });
+    await wait(1000);
+
+    const steps = {};
+
+    // Passo 1: CAP = 80038 (prima di FISCALCODE per evitare race VATNUM)
+    console.log('[PHASE2] Passo 1: CAP...');
+    await probeCap(page, cdpSession, PALMESE_FIX.CAP);
+    steps.CAP = true;
+    console.log(`  CAP → ${PALMESE_FIX.CAP}: OK`);
+
+    // Passo 2: FISCALCODE
+    console.log('[PHASE2] Passo 2: FISCALCODE...');
+    const fcId = await page.evaluate(() => {
+      const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+        .find(el => /dviFISCALCODE_Edit_I$/.test(el.id) && el.offsetParent !== null);
+      if (!input) return null;
+      input.scrollIntoView({ block: 'center' });
+      return input.id;
+    });
+    if (!fcId) throw new Error('FISCALCODE input non trovato');
+    await page.click(`#${cssEscape(fcId)}`, { clickCount: 3 });
+    await page.type(`#${cssEscape(fcId)}`, PALMESE_FIX.FISCALCODE, { delay: 60 });
+    await page.keyboard.press('Tab');
+    await waitForXhrSettle(page, cdpSession, { quietMs: 800 });
+    steps.FISCALCODE = true;
+    console.log(`  FISCALCODE → ${PALMESE_FIX.FISCALCODE}: OK`);
+
+    // Passo 3: NAMEALIAS esplicito (sovrascrive callback FISCALCODE che setta CF nel nome)
+    // NAMEALIAS è maxLen 20 — "Dr. Claudio Palmese" = 19 chars, entra per intero
+    console.log('[PHASE2] Passo 3: NAMEALIAS...');
+    const naId = await page.evaluate(() => {
+      const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+        .find(el => /dviNAMEALIAS_Edit_I$/.test(el.id) && el.offsetParent !== null);
+      if (!input) return null;
+      input.scrollIntoView({ block: 'center' });
+      return input.id;
+    });
+    if (!naId) throw new Error('NAMEALIAS input non trovato');
+    await page.click(`#${cssEscape(naId)}`, { clickCount: 3 });
+    await page.type(`#${cssEscape(naId)}`, PALMESE_FIX.NAMEALIAS, { delay: 60 });
+    await page.keyboard.press('Tab');
+    await waitForXhrSettle(page, cdpSession, { quietMs: 400 });
+    steps.NAMEALIAS = true;
+    console.log(`  NAMEALIAS → ${PALMESE_FIX.NAMEALIAS}: OK`);
+
+    // Passo 4: SDI (nessun callback atteso)
+    console.log('[PHASE2] Passo 4: SDI...');
+    const sdiId = await page.evaluate(() => {
+      // Il campo SDI si chiama PDVFATTELLETTR in XAF
+      const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+        .find(el =>
+          /PDVFATTELLETTR|SDI|FATTELLETTR/i.test(el.id) &&
+          el.offsetParent !== null
+        );
+      if (!input) return null;
+      input.scrollIntoView({ block: 'center' });
+      return input.id;
+    });
+    if (!sdiId) throw new Error('SDI input non trovato (cercato: PDVFATTELLETTR/SDI/FATTELLETTR)');
+    await page.click(`#${cssEscape(sdiId)}`, { clickCount: 3 });
+    await page.type(`#${cssEscape(sdiId)}`, PALMESE_FIX.SDI, { delay: 60 });
+    await page.keyboard.press('Tab');
+    await wait(500);
+    steps.SDI = true;
+    console.log(`  SDI → ${PALMESE_FIX.SDI}: OK`);
+
+    // Salva
+    console.log('[PHASE2] Salvataggio...');
+    const saved = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('a, input[type="button"], button'));
+      const save = btns.find(b =>
+        /^salva$|^save$/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+      );
+      if (save) { save.click(); return true; }
+      return false;
+    });
+    if (!saved) throw new Error('Pulsante Salva non trovato');
+
+    // Attendi callbacks post-save
+    await waitForXhrSettle(page, cdpSession, { maxWaitMs: 15000, quietMs: 600 });
+    await wait(2000);
+
+    // Dismissi eventuale "Ignora avvisi" o dialog di conferma
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('input[type="button"], button, a'));
+      const confirm = btns.find(b =>
+        /ignora|ignore|sì|si\b|yes\b|ok\b/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+      );
+      if (confirm) confirm.click();
+    }).catch(() => {});
+    await wait(1500);
+
+    console.log(`[PHASE2] Salvato — URL: ${page.url()}`);
+    steps.SAVE = true;
+
+    return steps;
+  }
+  ```
+
+---
+
+### Task 9: Verifica post-save + JSON report + main runner
+
+**Files:**
+- Modify: `archibald-web-app/backend/scripts/diag-field-callbacks.mjs`
+
+- [ ] **Step 1: Aggiungi `verifyPalmese`**
+
+  ```javascript
+  async function verifyPalmese(page) {
+    console.log('\n[VERIFY] Naviga view mode...');
+    await page.goto(
+      `${ERP_URL}/CUSTTABLE_DetailView/${PALMESE_ERP_ID}/`,
+      { waitUntil: 'networkidle2', timeout: 30000 }
+    );
+    await waitForDevExpressReady(page, { label: 'verify' });
+    await wait(2000);
+
+    // Assicura tab Principale attivo
+    await page.evaluate(() => {
+      const tab = Array.from(document.querySelectorAll('*'))
+        .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+      if (tab) tab.click();
+    });
+    await wait(1000);
+
+    const rawValues = await page.evaluate(() => {
+      const get = (pattern) => {
+        const re = new RegExp(pattern, 'i');
+        const el = Array.from(document.querySelectorAll('[id]'))
+          .find(e => re.test(e.id) && e.offsetParent !== null);
+        return el?.value?.trim() ?? el?.textContent?.trim() ?? '';
+      };
+      return {
+        NAMEALIAS: get('NAMEALIAS'),
+        FISCALCODE: get('FISCALCODE'),
+        CAP: get('LOGISTICSADDRESSZIPCODE'),
+        SDI: get('PDVFATTELLETTR'),
+      };
+    });
+
+    const expected = {
+      NAMEALIAS: 'Dr. Claudio Palmese',
+      FISCALCODE: 'PLMCLD76T10A390T',
+      CAP: '80038',
+      SDI: 'C3UCNRB',
+    };
+
+    console.log('\n[VERIFY] Risultati:');
+    const fieldsVerified = {};
+    for (const [field, exp] of Object.entries(expected)) {
+      const got = rawValues[field] ?? '';
+      const ok = got === exp || got.includes(exp) || exp.includes(got);
+      fieldsVerified[field] = ok;
+      console.log(`  ${field}=${got} ${ok ? '✓' : `✗ (atteso: ${exp})`}`);
+    }
+
+    return { fieldsVerified, rawValues };
+  }
+  ```
+
+- [ ] **Step 2: Aggiungi `main`**
+
+  ```javascript
+  async function main() {
+    const browser = await puppeteer.launch({
+      headless: false,
+      slowMo: 60,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
+      ignoreHTTPSErrors: true,
+    });
+
+    const report = {
+      timestamp: new Date().toISOString(),
+      erpUrl: ERP_URL,
+      phase1: {},
+      phase2Palmese: { success: false, fieldsVerified: {} },
+    };
+
+    try {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1400, height: 900 });
+
+      const cdpSession = await page.target().createCDPSession();
+      await cdpSession.send('Network.enable');
+
+      await login(page);
+
+      // Phase 1
+      const phase1Results = await runPhase1(page, cdpSession);
+      for (const [field, result] of Object.entries(phase1Results)) {
+        report.phase1[field] = {
+          xhrCount: result.xhrCount,
+          settleMs: result.settleMs,
+          timedOut: result.timedOut ?? false,
+          changedFields: result.changedFields,
+        };
+      }
+
+      // Phase 2
+      const phase2Steps = await runPhase2(page, cdpSession);
+      const { fieldsVerified, rawValues } = await verifyPalmese(page);
+
+      report.phase2Palmese = {
+        success: Object.values(fieldsVerified).every(Boolean),
+        steps: phase2Steps,
+        fieldsVerified,
+        rawValues,
+      };
+
+      console.log('\n[FINAL] Phase 2 success:', report.phase2Palmese.success);
+
+    } finally {
+      await browser.close();
+
+      mkdirSync(LOGS_DIR, { recursive: true });
+      const date = new Date().toISOString().split('T')[0];
+      const reportPath = join(LOGS_DIR, `diag-field-callbacks-${date}.json`);
+      writeFileSync(reportPath, JSON.stringify(report, null, 2));
+      console.log(`\n[REPORT] Salvato: ${reportPath}`);
+    }
+  }
+
+  main().catch(err => {
+    console.error('[FATAL]', err);
+    process.exit(1);
+  });
+  ```
+
+- [ ] **Step 3: Commit**
+
+  ```bash
+  cd /Users/hatholdir/Downloads/Archibald
+  git add archibald-web-app/backend/scripts/diag-field-callbacks.mjs
+  git commit -m "feat(diag): diag-field-callbacks.mjs — phase1 probe + phase2 fix Palmese"
+  ```
+
+---
+
+### Task 10: Esecuzione manuale + deploy archibald-bot.ts
+
+**Files:**
+- N/A (esecuzione + push)
+
+- [ ] **Step 1: Esegui lo script**
+
+  ```bash
+  cd /Users/hatholdir/Downloads/Archibald/archibald-web-app/backend
+  node scripts/diag-field-callbacks.mjs
+  ```
+
+  Il browser Chrome si aprirà sul Mac (headless: false, slowMo: 60ms). Phase 1 dura ~1-2 min (più ~35s per VATNUM). Phase 2 altri ~2 min.
+
+- [ ] **Step 2: Verifica output Phase 1 atteso**
+
+  ```
+  [PROBE] NAME
+    → XHR: 1 (settle: ~180ms)
+    → CHANGED: NAMEALIAS "" → "Dr. Test Palmese"
+
+  [PROBE] FISCALCODE
+    → XHR: 1 (settle: ~310ms)
+    → CHANGED: NAMEALIAS "Dr. Test Palmese" → "PLMCLD76T10A390T"
+
+  [PROBE] CAP
+    → XHR: 1 (settle: ~220ms)
+    → CHANGED: LOGISTICSADDRESSCITY "" → "Pomigliano d'Arco", ...
+
+  [PROBE] VATNUM
+    → XHR: 3 (settle: ~24800ms)
+    → CHANGED: LOGISTICSADDRESSZIPCODE "80038" → "62013"
+  ```
+
+  Se un campo non mostra `CHANGED` atteso, controlla la console per eccezioni. Per VATNUM: se `settleMs` è vicino a `35000ms` con `TIMEOUT`, la P.IVA 13890640967 non è stata riconosciuta dal registro imprese; il probe è comunque valido (il risultato documenta l'assenza di callback).
+
+- [ ] **Step 3: Verifica output Phase 2 atteso**
+
+  ```
+  [PHASE2] Passo 1: CAP...
+    CAP → 80038: OK
+  [PHASE2] Passo 2: FISCALCODE...
+    FISCALCODE → PLMCLD76T10A390T: OK
+  [PHASE2] Passo 3: NAMEALIAS...
+    NAMEALIAS → Dr. Claudio Palmese: OK
+  [PHASE2] Passo 4: SDI...
+    SDI → C3UCNRB: OK
+
+  [VERIFY] Risultati:
+    NAMEALIAS=Dr. Claudio Palmese ✓
+    FISCALCODE=PLMCLD76T10A390T ✓
+    CAP=80038 ✓
+    SDI=C3UCNRB ✓
+
+  [FINAL] Phase 2 success: true
+  [REPORT] Salvato: .../logs/diag-field-callbacks-2026-04-01.json
+  ```
+
+  Se il campo SDI mostra `✗`, verificare manualmente il nome del campo XAF sul DOM: aprire DevTools su `CUSTTABLE_DetailView/57396/?mode=Edit` e cercare `input[id*="xaf_dvi"]` relativi a SDI/fattura elettronica.
+
+- [ ] **Step 4: Deploy archibald-bot.ts**
+
+  I fix già implementati in `archibald-bot.ts` (getCustomerProfileId con URL extraction + fallbackName + NAMEALIAS esplicito dopo VATNUM) vanno in produzione:
+
+  ```bash
+  cd /Users/hatholdir/Downloads/Archibald
+  git push origin master
+  ```
+
+  GitHub Actions buildirà l'immagine e deplowerà sul VPS. Dopo ~5 minuti verificare:
+
+  ```bash
+  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+    "docker compose -f /home/deploy/archibald-app/docker-compose.yml logs --tail 20 backend"
+  ```
+
+  Expected: nessun errore di startup.

@@ -13147,13 +13147,18 @@ export class ArchibaldBot {
       await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-validation-final" });
     }
 
+    // NAMEALIAS written after VATNUM: FISCALCODE XHR callback overwrites the ERP-auto-filled
+    // NAMEALIAS (first 20 chars of NAME) with the fiscal code value. Writing explicitly here,
+    // after all other callbacks have settled, ensures the correct customer name is preserved.
+    await this.typeDevExpressField(/dviNAMEALIAS_Edit_I$/, customerData.name);
+
     // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
     await this.writeAltAddresses(customerData.addresses ?? []);
 
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
-    const customerProfileId = await this.getCustomerProfileId();
+    const customerProfileId = await this.getCustomerProfileId(customerData.name);
     logger.info("Customer created successfully", {
       customerProfileId,
       name: customerData.name,
@@ -13167,6 +13172,18 @@ export class ArchibaldBot {
   private async getCustomerProfileId(fallbackName?: string): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 
+    // Strategy 1: extract numeric ID from URL after save (most reliable).
+    // saveAndCloseCustomer succeeds when URL is CUSTTABLE_DetailView/{id}/?mode=Edit.
+    // The URL integer (e.g. 57396) maps to ERP profile format "57.396".
+    const currentUrl = this.page.url();
+    const urlIdMatch = currentUrl.match(/CUSTTABLE_DetailView\/(\d+)\//);
+    if (urlIdMatch) {
+      const profileId = urlIdMatch[1].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      logger.info("Customer profile ID extracted from URL", { profileId });
+      return profileId;
+    }
+
+    // Strategy 2: read dviID_Edit_I input from the open edit form.
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: "get-profile-id",
@@ -13187,7 +13204,7 @@ export class ArchibaldBot {
 
     if (profileId && profileId.trim() !== "") return profileId;
 
-    // Form already closed (we are on list view) — try to extract from list
+    // Strategy 3: form already closed (ListView) — search by name in list
     if (fallbackName) {
       const extracted = await this.extractProfileFromListByName(fallbackName);
       if (extracted) {
