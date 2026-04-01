@@ -470,69 +470,83 @@ async function runPhase2(page, cdpSession) {
   steps.SDI = true;
   console.log(`  SDI → ${PALMESE_FIX.SDI}: OK`);
 
-  // Salva — dropdown "Salvare" → click opzione "Salvare" (stesso pattern del bot clickSaveOnly)
-  console.log('[PHASE2] Salvataggio...');
-  const dropOpened = await page.evaluate(() => {
-    const allElements = Array.from(document.querySelectorAll('span, button, a'));
-    const salvareBtn = allElements.find(el => {
-      const text = el.textContent?.trim().toLowerCase() || '';
-      return text.includes('salvare') || text === 'save';
-    });
-    if (!salvareBtn) return false;
-    const parent = salvareBtn.closest('li') || salvareBtn.parentElement;
-    if (!parent) return false;
-    const popOut = parent.querySelector('div.dxm-popOut') || parent.querySelector('[id*="_P"]');
-    if (popOut && popOut.offsetParent !== null) { popOut.click(); return true; }
-    const arrow = parent.querySelector('img[id*="_B-1"], img[alt*="down"]');
-    if (arrow) { arrow.click(); return true; }
-    salvareBtn.click(); return true;
-  });
-  if (!dropOpened) throw new Error('Pulsante Salvare non trovato');
+  // Salva — "Salva e chiudi" (come il bot saveAndCloseCustomer)
+  // "Salvare" (save-only) non serializza i campi senza XHR immediato (CAP, NAMEALIAS, SDI).
+  // "Salva e chiudi" fa la serializzazione completa del form → tutti i campi vengono salvati.
+  console.log('[PHASE2] Salvataggio (Salva e chiudi)...');
 
-  // Aspetta che il popup dropdown sia visibile (fino a 3s)
-  let popupVisible = false;
-  const popupStart = Date.now();
-  while (Date.now() - popupStart < 3000) {
-    popupVisible = await page.evaluate(() => {
-      const popups = Array.from(document.querySelectorAll(
-        '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"], [class*="dxm-content"]'
+  // Step 1: prova click diretto su "Salva e chiudi"
+  let saveClicked = await page.evaluate(() => {
+    const allElements = Array.from(document.querySelectorAll('a, span, div, li'));
+    const btn = allElements.find(el => {
+      const text = el.textContent?.trim() || '';
+      return text === 'Salva e chiudi' || text === 'Save and Close';
+    });
+    if (btn && btn.offsetParent !== null) { btn.click(); return true; }
+    return false;
+  });
+
+  if (!saveClicked) {
+    // Step 2: apri dropdown "Salvare" e clicca "Salva e chiudi" al suo interno
+    const dropOpened = await page.evaluate(() => {
+      const allElements = Array.from(document.querySelectorAll('span, button, a'));
+      const salvareBtn = allElements.find(el => {
+        const text = el.textContent?.trim().toLowerCase() || '';
+        return text.includes('salvare') || text === 'save';
+      });
+      if (!salvareBtn) return false;
+      const parent = salvareBtn.closest('li') || salvareBtn.parentElement;
+      if (!parent) return false;
+      const popOut = parent.querySelector('div.dxm-popOut') || parent.querySelector('[id*="_P"]');
+      if (popOut && popOut.offsetParent !== null) { popOut.click(); return true; }
+      const arrow = parent.querySelector('img[id*="_B-1"], img[alt*="down"]');
+      if (arrow) { arrow.click(); return true; }
+      salvareBtn.click(); return true;
+    });
+    if (!dropOpened) throw new Error('Pulsante Salvare non trovato');
+
+    // Aspetta popup dropdown (fino a 3s)
+    const popupStart = Date.now();
+    while (Date.now() - popupStart < 3000) {
+      const found = await page.evaluate(() => {
+        const popups = Array.from(document.querySelectorAll(
+          '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"], [class*="dxm-content"]'
+        ));
+        return popups.some(popup => {
+          if (popup.offsetParent === null || popup.offsetHeight <= 0) return false;
+          return Array.from(popup.querySelectorAll('a, span'))
+            .some(i => {
+              const t = i.textContent?.trim() ?? '';
+              return t === 'Salva e chiudi' || t === 'Save and Close' || t === 'Salvare' || t === 'Save';
+            });
+        });
+      });
+      if (found) break;
+      await wait(100);
+    }
+
+    saveClicked = await page.evaluate(() => {
+      // Clicca "Salva e chiudi" nel popup
+      const all = Array.from(document.querySelectorAll(
+        '[class*="dxm-popup"] a, [class*="dxm-popup"] span, [class*="subMenu"] a, [class*="subMenu"] span, [id*="_menu_DXI"] a, [id*="_menu_DXI"] span, [class*="dxm-content"] a, [class*="dxm-content"] span'
       ));
-      for (const popup of popups) {
-        if (popup.offsetParent !== null && popup.offsetHeight > 0) {
-          const items = Array.from(popup.querySelectorAll('a, span'));
-          if (items.some(i => { const t = i.textContent?.trim(); return t === 'Salvare' || t === 'Save'; })) return true;
+      for (const item of all) {
+        const t = item.textContent?.trim() ?? '';
+        if ((t === 'Salva e chiudi' || t === 'Save and Close') && item.offsetParent !== null) {
+          item.click(); return true;
+        }
+      }
+      // fallback: cerca in tutti gli elementi visibili
+      for (const item of document.querySelectorAll('a, span, li')) {
+        const text = item.textContent?.trim() || '';
+        if ((text === 'Salva e chiudi' || text === 'Save and Close') && item.offsetParent !== null) {
+          item.click(); return true;
         }
       }
       return false;
     });
-    if (popupVisible) break;
-    await wait(100);
+    if (!saveClicked) throw new Error('"Salva e chiudi" non trovato nel dropdown');
   }
-
-  const saveClicked = await page.evaluate(() => {
-    const popups = Array.from(document.querySelectorAll(
-      '[class*="dxm-popup"], [class*="subMenu"], [id*="_menu_DXI"], [class*="dxm-content"]'
-    ));
-    for (const popup of popups) {
-      for (const item of popup.querySelectorAll('a, span')) {
-        const t = item.textContent?.trim() ?? '';
-        if ((t === 'Salvare' || t === 'Save') && item.offsetParent !== null) {
-          item.click(); return true;
-        }
-      }
-    }
-    // fallback: tutti gli elementi visibili con testo "Salvare" dentro un menu popup
-    for (const item of document.querySelectorAll('a, span, li')) {
-      const text = item.textContent?.trim() || '';
-      if (text === 'Salvare' && item.offsetParent !== null) {
-        const isInMenu = item.closest('[class*="dxm-popup"]') || item.closest('[class*="subMenu"]')
-          || item.closest('[id*="_DXI"]') || item.closest('[class*="dxm-content"]');
-        if (isInMenu) { item.click(); return true; }
-      }
-    }
-    return false;
-  });
-  if (!saveClicked) throw new Error('Opzione Salvare nel dropdown non trovata');
 
   // Attendi callbacks post-save
   await waitForXhrSettle(page, cdpSession, { maxWaitMs: 15000, quietMs: 600 });
@@ -583,6 +597,8 @@ async function verifyPalmese(page) {
   await wait(1000);
 
   const rawValues = await page.evaluate(() => {
+    // Usa pattern con underscore trailing per evitare false corrispondenze:
+    // dviNAMEALIAS_ → sì; dviFISCALCODE_ → sì ma non FISCALCODEVALIDE/LASTCHECKDATE
     const get = (pattern) => {
       const re = new RegExp(pattern, 'i');
       const el = Array.from(document.querySelectorAll('[id]'))
@@ -590,10 +606,10 @@ async function verifyPalmese(page) {
       return el?.value?.trim() ?? el?.textContent?.trim() ?? '';
     };
     return {
-      NAMEALIAS: get('NAMEALIAS'),
-      FISCALCODE: get('FISCALCODE'),
-      CAP: get('LOGISTICSADDRESSZIPCODE'),
-      SDI: get('PDVFATTELLETTR'),
+      NAMEALIAS:  get('dviNAMEALIAS_'),
+      FISCALCODE: get('dviFISCALCODE_(?!VALIDE|LASTCHECK)'),
+      CAP:        get('dviLOGISTICSADDRESSZIPCODE_'),
+      SDI:        get('dviLEGALAUTHORITY_'),
     };
   });
 
