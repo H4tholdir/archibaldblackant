@@ -249,6 +249,7 @@ export function CustomerCreateModal({
       subscribe,
       maxWaitMs: 180_000,
       skipSafetyPoll: true,
+      wsFallbackMs: Number.MAX_SAFE_INTEGER,
       onProgress: (p, label) => {
         if (!resolved && !cancelled) {
           setProgress(p);
