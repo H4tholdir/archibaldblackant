@@ -12284,6 +12284,17 @@ export class ArchibaldBot {
             }
           });
 
+        // XAF data validation error summary (shown as red banner when save fails
+        // due to business rules, e.g. "Il numero IVA è già utilizzato dal cliente")
+        document
+          .querySelectorAll('.dxErrors, [id*="pcValidation"], [id*="ValidationSummary"]')
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+              errorTexts.push(htmlEl.textContent.trim());
+            }
+          });
+
         document
           .querySelectorAll(
             'div[id*="Popup"], div[id*="popup"], div[id*="Dialog"], div[id*="dialog"]',
@@ -12328,10 +12339,19 @@ export class ArchibaldBot {
         visibleFormText: diagnostics.visibleFormText.substring(0, 1000),
       });
 
-      const errorDetail =
-        diagnostics.errorTexts.length > 0
-          ? diagnostics.errorTexts.join("; ").substring(0, 500)
-          : `errore di validazione non rilevato. Screenshot: ${screenshotPath}. Testo visibile: ${diagnostics.visibleFormText.substring(0, 300)}`;
+      const errorDetail = (() => {
+        if (diagnostics.errorTexts.length > 0) {
+          return diagnostics.errorTexts.join("; ").substring(0, 500);
+        }
+        // Extract the "Data Validation Error" section from visible form text —
+        // the full nav menu precedes it in innerText, so a simple substring(0,300)
+        // would only show the menu. Search from the actual error header instead.
+        const dvIdx = diagnostics.visibleFormText.search(/Data Validation Error/i);
+        if (dvIdx !== -1) {
+          return diagnostics.visibleFormText.substring(dvIdx, dvIdx + 500).trim();
+        }
+        return `errore di validazione non rilevato. Screenshot: ${screenshotPath}. Testo visibile: ${diagnostics.visibleFormText.substring(0, 300)}`;
+      })();
 
       throw new Error(
         `Salvataggio fallito: il form non si è chiuso. Dettaglio: ${errorDetail}`,
