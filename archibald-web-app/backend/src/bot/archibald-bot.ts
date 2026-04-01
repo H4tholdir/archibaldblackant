@@ -13049,7 +13049,9 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "N/A");
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+    }
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
@@ -14330,7 +14332,9 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "N/A");
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+    }
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
