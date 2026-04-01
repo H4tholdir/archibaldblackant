@@ -65,7 +65,7 @@ describe('CustomerProfilePage — shell', () => {
 
   test('renderizza il nome del cliente dopo il caricamento', async () => {
     renderProfile();
-    await waitFor(() => expect(screen.getByText('Rossi Mario')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Rossi Mario').length).toBeGreaterThan(0));
   });
 
   test('mostra lo stato di caricamento prima del fetch', () => {
@@ -77,5 +77,52 @@ describe('CustomerProfilePage — shell', () => {
       </MemoryRouter>
     );
     expect(screen.getByText(/Caricamento/i)).toBeInTheDocument();
+  });
+});
+
+describe('CustomerProfilePage — ProfileHero', () => {
+  test('mostra le iniziali dell avatar quando non c è foto', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('RM')); // iniziali Rossi Mario
+  });
+
+  test('pulsante 📷 apre l input file', async () => {
+    renderProfile();
+    await waitFor(() => screen.getAllByText('Rossi Mario'));
+    const photoBtn = screen.getByRole('button', { name: /📷/i });
+    expect(photoBtn).toBeInTheDocument();
+  });
+
+  test('quick action Ordine è presente', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Ordine'));
+  });
+
+  test('quick action Chiama è presente', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Chiama'));
+  });
+
+  test('quick action WhatsApp è assente quando mobile è null', async () => {
+    renderProfile(); // mockCustomer.mobile === null
+    await waitFor(() => screen.getAllByText('Rossi Mario'));
+    expect(screen.queryByText('WhatsApp')).toBeNull();
+  });
+});
+
+describe('CustomerProfilePage — sezioni dati', () => {
+  test('mostra il telefono nella sezione Contatti', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('081 552 1234'));
+  });
+
+  test('mostra Via Roma 12 nella sezione Indirizzo', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Via Roma 12'));
+  });
+
+  test('mostra Florovivaismo nella sezione Anagrafica', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Florovivaismo'));
   });
 });
