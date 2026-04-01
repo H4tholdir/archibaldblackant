@@ -12972,21 +12972,7 @@ export class ArchibaldBot {
       }
     }
 
-    // Phase B: vatNumber (triggers async VAT validation — must complete before other fields)
-    if (customerData.vatNumber) {
-      await this.typeDevExpressField(
-        /xaf_dviVATNUM_Edit_I$/,
-        customerData.vatNumber,
-      );
-      // Wait for the async VAT validation callback to fully complete
-      await this.wait(5000);
-      await this.waitForDevExpressIdle({
-        timeout: 10000,
-        label: "vat-validation",
-      });
-    }
-
-    // Phase C: Combo boxes (after VAT callback so they don't get cleared)
+    // Phase B: Combo boxes (after lookups so they don't get cleared)
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -13049,9 +13035,9 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url) {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
-    }
+    // URL: ERP enforces a hard regex pattern — empty string fails validation.
+    // Write "nd.it" (non disponibile) as fallback when no URL is provided.
+    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "nd.it");
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
@@ -13068,6 +13054,15 @@ export class ArchibaldBot {
     }
 
     await this.ensureNameFieldBeforeSave(customerData.name);
+
+    // VATNUM written last: Phase C XHR callbacks (from NAME/SDI/PEC Tab presses) silently
+    // clear the field even when the immediate mismatch check passes. Writing after all
+    // other fields ensures the value persists into the save.
+    if (customerData.vatNumber) {
+      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.wait(5000);
+      await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-validation-final" });
+    }
 
     // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
     await this.writeAltAddresses(customerData.addresses ?? []);
@@ -14255,21 +14250,7 @@ export class ArchibaldBot {
       }
     }
 
-    // Phase B: vatNumber — re-type to restore if XAF callbacks cleared it during
-    // tab navigation, and trigger async VAT validation before text fields are set.
-    if (customerData.vatNumber) {
-      await this.typeDevExpressField(
-        /xaf_dviVATNUM_Edit_I$/,
-        customerData.vatNumber,
-      );
-      await this.wait(5000);
-      await this.waitForDevExpressIdle({
-        timeout: 10000,
-        label: "vat-validation-interactive",
-      });
-    }
-
-    // Phase C: Combo boxes
+    // Phase B: Combo boxes
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -14332,9 +14313,9 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url) {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
-    }
+    // URL: ERP enforces a hard regex pattern — empty string fails validation.
+    // Write "nd.it" (non disponibile) as fallback when no URL is provided.
+    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "nd.it");
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
@@ -14377,6 +14358,15 @@ export class ArchibaldBot {
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
         customerData.deliveryMode,
       );
+    }
+
+    // VATNUM written last: Phase D XHR callbacks (from NAME/SDI/PEC Tab presses) silently
+    // clear the field even when the immediate mismatch check passes. Writing after all
+    // other fields ensures the value persists into the save.
+    if (customerData.vatNumber) {
+      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.wait(5000);
+      await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-validation-interactive-final" });
     }
 
     // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
