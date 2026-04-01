@@ -58,6 +58,13 @@ const saveSchema = z.object({
   deliveryMode: z.string().optional(),
   paymentTerms: z.string().optional(),
   lineDiscount: z.string().optional(),
+  fiscalCode: z.string().optional(),
+  sector: z.string().optional(),
+  attentionTo: z.string().optional(),
+  notes: z.string().optional(),
+  county: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
   postalCodeCity: z.string().optional(),
   postalCodeCountry: z.string().optional(),
   addresses: z.array(z.object({
@@ -511,6 +518,75 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         success: false,
         error: 'Errore durante il salvataggio interattivo',
       });
+    }
+  });
+
+  router.post('/begin', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const parsed = vatSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: 'vatNumber obbligatorio' });
+      }
+      const { vatNumber } = parsed.data;
+
+      const existing = sessionManager.getActiveSessionForUser(userId);
+      if (existing) {
+        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
+        await sessionManager.removeBot(existing.sessionId);
+        sessionManager.destroySession(existing.sessionId);
+        if (hadSyncsPaused) resumeSyncs();
+      }
+
+      const sessionId = sessionManager.createSession(userId);
+      res.json({ success: true, data: { sessionId }, message: 'Sessione avviata' });
+
+      (async () => {
+        let bot: CustomerBotLike | null = null;
+        try {
+          sessionManager.updateState(sessionId, 'starting');
+          await pauseSyncs();
+          sessionManager.markSyncsPaused(sessionId, true);
+
+          bot = createBot(userId);
+          await bot.initialize();
+          await bot.navigateToNewCustomerForm();
+          sessionManager.setBot(sessionId, bot);
+          sessionManager.updateState(sessionId, 'erp_validating');
+
+          const vatResult = await bot.submitVatAndReadAutofill(vatNumber);
+          sessionManager.setVatResult(sessionId, vatResult);
+
+          broadcast(userId, {
+            type: 'CUSTOMER_VAT_RESULT',
+            payload: { sessionId, vatResult },
+            timestamp: now(),
+          });
+        } catch (error) {
+          if (bot) {
+            try { await bot.close(); } catch { /* ignore */ }
+          }
+          if (sessionManager.isSyncsPaused(sessionId)) {
+            sessionManager.markSyncsPaused(sessionId, false);
+            resumeSyncs();
+          }
+          sessionManager.setError(
+            sessionId,
+            error instanceof Error ? error.message : 'Errore begin',
+          );
+          broadcast(userId, {
+            type: 'CUSTOMER_INTERACTIVE_FAILED',
+            payload: {
+              sessionId,
+              error: error instanceof Error ? error.message : 'Errore sconosciuto',
+            },
+            timestamp: now(),
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error('Error in /begin', { error });
+      res.status(500).json({ success: false, error: 'Errore interno' });
     }
   });
 

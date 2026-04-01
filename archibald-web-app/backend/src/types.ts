@@ -190,6 +190,7 @@ export type VatLookupResult = {
 export type InteractiveSessionState =
   | "starting"
   | "ready"
+  | "erp_validating"
   | "processing_vat"
   | "vat_complete"
   | "saving"

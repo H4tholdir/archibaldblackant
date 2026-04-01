@@ -4,12 +4,12 @@ import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/customers.service', () => ({
   customerService: {
-    createCustomer: vi.fn(),
-    saveInteractiveCustomer: vi.fn(),
-    startInteractiveSession: vi.fn().mockResolvedValue({ sessionId: 'test-session' }),
+    checkVat: vi.fn().mockResolvedValue({ valid: true, name: 'ACME SRL' }),
+    beginInteractiveSession: vi.fn().mockResolvedValue({ sessionId: 'test-session' }),
+    createCustomer: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
+    saveInteractiveCustomer: vi.fn().mockResolvedValue({ customer: null, taskId: 'task-1' }),
+    heartbeat: vi.fn().mockResolvedValue(undefined),
     cancelInteractiveSession: vi.fn().mockResolvedValue(undefined),
-    submitVatNumber: vi.fn(),
-    heartbeat: vi.fn(),
   },
 }));
 vi.mock('../api/operations', () => ({
@@ -29,7 +29,9 @@ import { customerService } from '../services/customers.service';
 describe('CustomerCreateModal — vat-input step', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (customerService.startInteractiveSession as ReturnType<typeof vi.fn>)
+    (customerService.checkVat as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ valid: true, name: 'ACME SRL' });
+    (customerService.beginInteractiveSession as ReturnType<typeof vi.fn>)
       .mockResolvedValue({ sessionId: 'test-session' });
   });
 
@@ -66,10 +68,12 @@ describe('CustomerCreateModal — vat-input step', () => {
 describe('CustomerCreateModal — payload di salvataggio', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (customerService.startInteractiveSession as ReturnType<typeof vi.fn>)
+    (customerService.checkVat as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ valid: true, name: 'ACME SRL' });
+    (customerService.beginInteractiveSession as ReturnType<typeof vi.fn>)
       .mockResolvedValue({ sessionId: 'test-session' });
     (customerService.saveInteractiveCustomer as ReturnType<typeof vi.fn>)
-      .mockResolvedValue({ taskId: null });
+      .mockResolvedValue({ customer: null, taskId: null });
   });
 
   it('calls saveInteractiveCustomer when interactive session is active', async () => {
@@ -106,5 +110,63 @@ describe('CustomerCreateModal — payload di salvataggio', () => {
         );
       });
     }
+  });
+});
+
+describe('CustomerCreateModal — autofill e VAT check', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (customerService.checkVat as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ valid: true, name: 'ACME SRL' });
+    (customerService.beginInteractiveSession as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({ sessionId: 'test-session' });
+  });
+
+  it('autofill nome da vat-check quando campo vuoto', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      // Siamo passati ad anagrafica — deve esserci il campo nome
+      expect(screen.getByPlaceholderText(/Rossi Dr\. Mario/i)).toBeInTheDocument();
+    });
+
+    // Il campo nome deve essere pre-compilato con ACME SRL (da checkVat mock)
+    const nameInput = screen.getByPlaceholderText(/Rossi Dr\. Mario/i) as HTMLInputElement;
+    expect(nameInput.value).toBe('ACME SRL');
+  });
+
+  it('salta VAT e avanza ad anagrafica senza chiamare checkVat', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Salta/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    });
+    expect(customerService.checkVat).not.toHaveBeenCalled();
+    expect(customerService.beginInteractiveSession).not.toHaveBeenCalled();
+  });
+
+  it('mostra errore se checkVat risponde valid:false', async () => {
+    (customerService.checkVat as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ valid: false });
+
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/P\.IVA non valida/i)).toBeInTheDocument();
+    });
+    // Rimane sul passo VAT
+    expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
 });

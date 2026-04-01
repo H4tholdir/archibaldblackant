@@ -443,6 +443,45 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
+  router.post('/vat-check', async (req: AuthRequest, res) => {
+    const { vatNumber } = req.body as { vatNumber?: string };
+
+    if (!vatNumber || !/^\d{11}$/.test(vatNumber)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Formato P.IVA non valido (11 cifre numeriche)',
+      });
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const viesRes = await fetch(
+        `https://ec.europa.eu/taxation_customs/vies/rest-api/ms/IT/vat/${vatNumber}`,
+        { signal: controller.signal },
+      );
+      clearTimeout(timeout);
+
+      if (!viesRes.ok) {
+        return res.json({ success: true, data: { valid: true }, meta: { source: 'fallback' } });
+      }
+
+      const viesData = await viesRes.json() as { valid?: boolean; name?: string; address?: string };
+
+      return res.json({
+        success: true,
+        data: {
+          valid: viesData.valid ?? true,
+          name: viesData.name || undefined,
+          rawAddress: viesData.address || undefined,
+        },
+      });
+    } catch {
+      return res.json({ success: true, data: { valid: true }, meta: { source: 'fallback' } });
+    }
+  });
+
   return router;
 }
 
