@@ -11156,17 +11156,33 @@ export class ArchibaldBot {
 
     await this.wait(300);
 
-    // ElementHandle.type() and .press() route through the iframe's frame context;
-    // page.keyboard.press() targets the main page and does not reach iframe elements
-    const searchInput = await frame
-      .waitForSelector(
-        'input[type="text"],input:not([type="hidden"]):not([type="checkbox"])',
-        { timeout: 6000, visible: true },
-      )
-      .catch(() => null);
+    // Use evaluate() to find the correct VISIBLE input using the same filtering logic
+    // as the DOM-level inspection. waitForSelector without visibility checks can return
+    // hidden filter-row inputs (e.g. _DXFREditorcol0_I with w=0) which are not clickable.
+    const searchInputId = await frame.evaluate((): string | null => {
+      const visibleInputs = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="text"]'),
+      ).filter((i) => i.offsetParent !== null);
 
+      const preferred = visibleInputs.find(
+        (i) => /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
+      );
+      const target = preferred ?? visibleInputs[0] ?? null;
+      if (!target) return null;
+      if (!target.id) target.id = "_archibald_iframe_search_";
+      return target.id;
+    });
+
+    if (!searchInputId) {
+      logger.warn("No visible search input found inside iframe");
+      return;
+    }
+
+    // ElementHandle.type() and .press() route through the iframe's frame context;
+    // page.keyboard.press() does not reach iframe elements
+    const searchInput = await frame.$(`#${searchInputId}`);
     if (!searchInput) {
-      logger.warn("No search input found inside iframe");
+      logger.warn("Could not get ElementHandle for iframe search input");
       return;
     }
 
