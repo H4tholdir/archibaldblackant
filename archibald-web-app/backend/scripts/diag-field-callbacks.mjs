@@ -50,25 +50,24 @@ function cssEscape(s) {
 
 async function login(page) {
   console.log('[LOGIN] navigating...');
-  await page.goto(`${ERP_URL}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await wait(1500);
+  await page.goto(`${ERP_URL}/Default.aspx`, { waitUntil: 'networkidle2', timeout: 60000 });
+  console.log('[LOGIN] URL:', page.url());
 
-  // Skip login if already authenticated (redirected to a post-login page)
-  const userInput = await page.$('input[id*="UserName"], input[name="UserName"]');
+  const userInput = await page.$('input[id*="USER"], input[name*="user"], input[type="text"]');
   if (!userInput) {
-    console.log('[LOGIN] Already authenticated —', page.url());
+    console.log('[LOGIN] Nessun form login — già autenticato');
     return;
   }
 
-  const passInput = await page.$('input[id*="Password"], input[name="Password"]');
-  if (userInput) await userInput.type(USERNAME, { delay: 50 });
-  if (passInput) await passInput.type(PASSWORD, { delay: 50 });
-
-  // Register navigation listener BEFORE pressing Enter to avoid missing the event
-  const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  await userInput.click();
+  await userInput.type(USERNAME, { delay: 50 });
+  const passInput = await page.$('input[type="password"]');
+  if (passInput) {
+    await passInput.click();
+    await passInput.type(PASSWORD, { delay: 50 });
+  }
   await page.keyboard.press('Enter');
-  await navPromise;
-  await wait(2000);
+  await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
   console.log('[LOGIN] OK —', page.url());
 }
 
