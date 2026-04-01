@@ -914,12 +914,18 @@ export default function OrderFormSimple() {
       if (loadingHistoryId !== null) return;
       setLoadingHistoryId(itemId);
       try {
-        const profileIds = historyCustomerProfileIds.length > 0
-          ? historyCustomerProfileIds
-          : (selectedCustomer ? [selectedCustomer.id] : []);
+        let profileIds = historyCustomerProfileIds;
+        let subCodices = historySubClientCodices;
+        if (profileIds.length === 0 && subCodices.length === 0 && selectedCustomer) {
+          if (isFresis(selectedCustomer) && selectedSubClient) {
+            subCodices = [selectedSubClient.codice];
+          } else {
+            profileIds = [selectedCustomer.id];
+          }
+        }
         const orders = await getCustomerFullHistory({
           customerErpIds: profileIds,
-          subClientCodices: historySubClientCodices,
+          subClientCodices: subCodices,
         });
         setCustomerHistoryCache(orders);
         setOpenHistoryIds(prev => new Set([...prev, itemId]));
@@ -929,7 +935,7 @@ export default function OrderFormSimple() {
       return;
     }
     setOpenHistoryIds(prev => new Set([...prev, itemId]));
-  }, [openHistoryIds, customerHistoryCache, historyCustomerProfileIds, historySubClientCodices, selectedCustomer]);
+  }, [openHistoryIds, customerHistoryCache, historyCustomerProfileIds, historySubClientCodices, selectedCustomer, selectedSubClient]);
 
   const dispatchMatchingResult = useCallback((ids: { customerErpIds: string[]; subClientCodices: string[] } | undefined) => {
     if (!selectedCustomer) return;
