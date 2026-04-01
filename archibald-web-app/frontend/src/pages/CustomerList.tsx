@@ -1,648 +1,197 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
-import { CustomerCard } from "../components/CustomerCard";
-import { CustomerDetailPage } from "./CustomerDetailPage";
-import { customerService } from "../services/customers.service";
-import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
-import { toastService } from "../services/toast.service";
-import { checkCustomerCompleteness } from "../utils/customer-completeness";
-import type { Customer } from "../types/customer";
+import { customerService } from '../services/customers.service';
+import { avatarGradient, customerInitials } from '../utils/customer-avatar';
+import type { Customer } from '../types/customer';
 
-interface CustomerFilters {
-  search: string;
-  city: string;
-  customerType: string;
+// ── Recenti ─────────────────────────────────────────────────────────────────
+const RECENTS_KEY = 'customers_recents_v1';
+function getRecents(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]') as string[]; }
+  catch { return []; }
+}
+function addRecent(erpId: string): void {
+  const updated = [erpId, ...getRecents().filter(id => id !== erpId)].slice(0, 5);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(updated));
 }
 
-interface CustomerListResponse {
-  success: boolean;
-  data: {
-    customers: Customer[];
-    total: number;
-  };
+// ── Badge ────────────────────────────────────────────────────────────────────
+function parseOrderDate(d: string): number {
+  if (d.includes('/')) {
+    const [day, month, year] = d.split('/');
+    return new Date(`${year}-${month}-${day}`).getTime();
+  }
+  return new Date(d).getTime();
+}
+type BadgeType = 'attivo' | 'inattivo' | null;
+function customerBadge(c: Customer): BadgeType {
+  if (!c.lastOrderDate) return null;
+  const last = parseOrderDate(c.lastOrderDate);
+  if (isNaN(last)) return null;
+  const now = Date.now();
+  const DAY = 86_400_000;
+  if (now - last < 90 * DAY) return 'attivo';
+  if (now - last > 180 * DAY) return 'inattivo';
+  return null;
 }
 
+const BADGE_STYLE: Record<'attivo' | 'inattivo', React.CSSProperties> = {
+  attivo:   { background: '#dcfce7', color: '#166534', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
+  inattivo: { background: '#fef9c3', color: '#854d0e', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
+};
+
+// ── Component ────────────────────────────────────────────────────────────────
 export function CustomerList() {
-  const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const highlightProfile = searchParams.get('highlight');
-  const searchParam = searchParams.get('search');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [retryingProfiles, setRetryingProfiles] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(
-    null,
-  );
-  const [filters, setFilters] = useState<CustomerFilters>({
-    search: searchParam ?? "",
-    city: "",
-    customerType: "",
-  });
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const navigate = useNavigate();
-  const [incompleteOnly, setIncompleteOnly] = useState(false);
-  const [incompleteCount, setIncompleteCount] = useState<number | null>(null);
-  const [customerPhotos, setCustomerPhotos] = useState<
-    Record<string, string | null>
-  >({});
+  const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [recents, setRecents] = useState<string[]>(getRecents());
 
-  // Debounce search input (300ms)
+  // Debounce search
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-    }, 300);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-    return () => clearTimeout(timer);
-  }, [filters.search]);
-
-  useEffect(() => {
-    const jwt = localStorage.getItem('archibald_jwt') ?? '';
-    fetch('/api/customers/stats', {
-      headers: { Authorization: `Bearer ${jwt}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: { total: number; incomplete: number } | null) => {
-        if (body) setIncompleteCount(body.incomplete);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Fetch customers: default view loads first 30, filters load up to 100/500
   const fetchCustomers = useCallback(async () => {
+    const token = localStorage.getItem('archibald_jwt');
+    if (!token) return;
     setLoading(true);
-    setError(null);
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.append('search', debouncedSearch);
+    params.append('limit', debouncedSearch ? '100' : '50');
+    const res = await fetch(`/api/customers?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { setLoading(false); return; }
+    const body = await res.json();
+    if (body.success) setCustomers(body.data.customers);
+    setLoading(false);
+  }, [debouncedSearch]);
 
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        setLoading(false);
-        return;
-      }
+  useEffect(() => { void fetchCustomers(); }, [fetchCustomers]);
 
-      const hasActiveFilter = incompleteOnly || !!debouncedSearch || !!filters.city || !!filters.customerType;
-
-      // Build query params
-      const params = new URLSearchParams();
-      if (incompleteOnly) {
-        params.append('limit', '500');
-      } else if (!hasActiveFilter) {
-        // Default view: primi 30 clienti (sorted by last_sync desc, backend default)
-        params.append('limit', '30');
-      } else {
-        if (debouncedSearch) params.append("search", debouncedSearch);
-        if (filters.city) params.append("city", filters.city);
-        if (filters.customerType) params.append("type", filters.customerType);
-        params.append("limit", "100");
-      }
-
-      const response = await fetch(`/api/customers?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Sessione scaduta. Effettua il login.");
-          localStorage.removeItem("archibald_jwt");
-          return;
-        }
-        throw new Error(`Errore ${response.status}: ${response.statusText}`);
-      }
-
-      const data: CustomerListResponse = await response.json();
-      if (!data.success) {
-        throw new Error("Errore nel caricamento dei clienti");
-      }
-
-      setCustomers(data.data.customers);
-    } catch (err) {
-      console.error("Error fetching customers:", err);
-      setError(err instanceof Error ? err.message : "Errore di rete. Riprova.");
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch, filters.city, filters.customerType, incompleteOnly]);
-
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
-
-  // Scroll+flash al cliente evidenziato da notifica (?highlight=<customerProfile>)
-  useEffect(() => {
-    if (!highlightProfile || customers.length === 0) return;
-    const target = customers.find((c) => c.erpId === highlightProfile);
-    if (!target) return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.delete('highlight');
-      return next;
-    }, { replace: true });
-    setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(`[data-customer-profile="${highlightProfile}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.transition = 'box-shadow 0.3s';
-        el.style.boxShadow = '0 0 0 3px #f59e0b';
-        setTimeout(() => { el.style.boxShadow = ''; }, 2000);
-      }
-    }, 300);
-  }, [highlightProfile, customers, setSearchParams]);
-
-  // Lazy load photos for visible customers
+  // Lazy-load foto
   useEffect(() => {
     if (customers.length === 0) return;
-
     let cancelled = false;
-    const loadPhotos = async () => {
+    const load = async () => {
       for (const c of customers) {
-        if (cancelled) break;
-        if (customerPhotos[c.erpId] !== undefined) continue;
-        try {
-          const url = await customerService.getPhotoUrl(c.erpId);
-          if (!cancelled) {
-            setCustomerPhotos((prev) => ({
-              ...prev,
-              [c.erpId]: url,
-            }));
-          }
-        } catch {
-          if (!cancelled) {
-            setCustomerPhotos((prev) => ({
-              ...prev,
-              [c.erpId]: null,
-            }));
-          }
-        }
+        if (cancelled || customerPhotos[c.erpId] !== undefined) continue;
+        const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
+        if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
       }
     };
-    loadPhotos();
-    return () => {
-      cancelled = true;
-    };
+    void load();
+    return () => { cancelled = true; };
   }, [customers]);
 
-  const handlePhotoUpload = async (erpId: string, file: File) => {
-    try {
-      await customerService.uploadPhoto(erpId, file);
-      const url = await customerService.getPhotoUrl(erpId);
-      setCustomerPhotos((prev) => ({ ...prev, [erpId]: url }));
-    } catch (err) {
-      console.error("Photo upload failed:", err);
-      setError("Errore durante il caricamento della foto");
-    }
+  const handleClick = (erpId: string) => {
+    addRecent(erpId);
+    setRecents(getRecents());
+    navigate(`/customers/${erpId}`);
   };
 
-  const handlePhotoDelete = async (erpId: string) => {
-    try {
-      await customerService.deletePhoto(erpId);
-      setCustomerPhotos((prev) => ({ ...prev, [erpId]: null }));
-    } catch (err) {
-      console.error("Photo delete failed:", err);
-      setError("Errore durante l'eliminazione della foto");
-    }
-  };
-
-  const handleToggle = (customerId: string) => {
-    if (expandedCustomerId === customerId) {
-      setExpandedCustomerId(null);
-    } else {
-      setExpandedCustomerId(customerId);
-    }
-  };
-
-  const handleClearFilters = () => {
-    setFilters({
-      search: "",
-      city: "",
-      customerType: "",
-    });
-  };
-
-  const handleRetry = async (erpId: string) => {
-    setRetryingProfiles((prev) => new Set(prev).add(erpId));
-    try {
-      await customerService.retryBotPlacement(erpId);
-      await fetchCustomers();
-      toastService.success("Sincronizzazione avviata — il bot aggiornerà il cliente a breve");
-    } catch (err) {
-      console.error("Retry failed:", err);
-      toastService.error("Errore durante il retry — riprova tra qualche minuto");
-    } finally {
-      setRetryingProfiles((prev) => {
-        const next = new Set(prev);
-        next.delete(erpId);
-        return next;
-      });
-    }
-  };
-
-  const isDesktop = window.innerWidth > 1024;
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
-
-  const handleNavigate = (erpId: string) => {
-    if (isDesktop) {
-      setSelectedProfile((prev) => prev === erpId ? null : erpId);
-    } else {
-      navigate(`/customers/${encodeURIComponent(erpId)}`);
-    }
-  };
-
-  const isTablet = window.innerWidth >= 641;
-
-  const displayedCustomers = incompleteOnly
-    ? customers.filter((c) => !checkCustomerCompleteness(c).ok)
-    : customers;
-
-  const hasActiveFilters =
-    filters.search || filters.city || filters.customerType;
+  const recentCustomers = recents
+    .map(id => customers.find(c => c.erpId === id))
+    .filter((c): c is Customer => c !== undefined);
+  const recentIds = new Set(recents);
+  const allCustomers = customers.filter(c => !recentIds.has(c.erpId));
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
-      {/* Pannello lista — sinistra */}
-      <div
-        style={{
-          width: isDesktop && selectedProfile ? '38%' : '100%',
-          flexShrink: 0,
-          overflowY: 'auto',
-          background: '#f5f5f5',
-          borderRight: isDesktop && selectedProfile ? '1.5px solid #e5e7eb' : 'none',
-          transition: 'width 0.2s ease',
-          ...keyboardPaddingStyle,
-        }}
-      >
-      {/* Topbar dark — coerente con CustomerDetailPage */}
-      <div style={{
-        background: '#1e293b',
-        color: '#f8fafc',
-        padding: '9px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        fontSize: '13px',
-        fontWeight: 600,
-        marginBottom: '0',
-      }}>
-        <span style={{ fontSize: '14px' }}>👥</span>
-        <span>Clienti</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: '11px', color: '#64748b' }}>Formicola Biagio</span>
-      </div>
-
-      <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "16px",
-        backgroundColor: "#f5f5f5",
-        minHeight: "100vh",
-      }}
-    >
-
-      {/* Filters */}
-      <div
-        style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            gap: "16px",
-            marginBottom: "16px",
-          }}
-        >
-          {/* Search */}
-          <div>
-            <label
-              htmlFor="customer-search"
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Cerca cliente
-            </label>
-            <input autoComplete="off"
-              id="customer-search"
-              type="text"
-              placeholder="Nome, P.IVA, telefono, città, email..."
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, search: e.target.value }))
-              }
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                fontSize: "14px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#1976d2";
-                scrollFieldIntoView(e.target as HTMLElement);
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#ddd";
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Incomplete filter chip */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-          <button
-            onClick={() => setIncompleteOnly((v) => !v)}
-            style={{
-              padding: '5px 12px', borderRadius: '14px', fontSize: '12px',
-              fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
-              background: incompleteOnly ? '#fff5f5' : 'white',
-              borderColor: incompleteOnly ? '#fca5a5' : '#d1d5db',
-              color: incompleteOnly ? '#dc2626' : '#64748b',
-            }}
-          >
-            ⚠ Incompleti{incompleteCount !== null ? ` (${incompleteCount})` : ''}
-          </button>
-        </div>
-
-        {/* Action buttons */}
-        <div style={{ display: "flex", gap: "12px", marginTop: '12px' }}>
-          {/* Clear filters button */}
-          {hasActiveFilters && (
-            <button
-              onClick={handleClearFilters}
-              style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #f44336",
-                borderRadius: "8px",
-                backgroundColor: "#fff",
-                color: "#f44336",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f44336";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#f44336";
-              }}
-            >
-              ✕ Cancella filtri
-            </button>
-          )}
-
-          {/* New customer button */}
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            style={{
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              border: "1px solid #4caf50",
-              borderRadius: "8px",
-              backgroundColor: "#4caf50",
-              color: "#fff",
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#43a047";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#4caf50";
-            }}
-          >
-            + Nuovo Cliente
-          </button>
-        </div>
-      </div>
-
-      {/* Loading state */}
-      {loading && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "48px",
-              marginBottom: "16px",
-              animation: "spin 1s linear infinite",
-            }}
-          >
-            ⏳
-          </div>
-          <p style={{ fontSize: "16px", color: "#666" }}>
-            Caricamento clienti...
-          </p>
-          <style>
-            {`
-              @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-              }
-            `}
-          </style>
-        </div>
-      )}
-
-      {/* Error state */}
-      {error && !loading && (
-        <div
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "24px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-            border: "2px solid #f44336",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "48px",
-              textAlign: "center",
-              marginBottom: "16px",
-            }}
-          >
-            ⚠️
-          </div>
-          <p
-            style={{
-              fontSize: "16px",
-              color: "#f44336",
-              textAlign: "center",
-              marginBottom: "16px",
-            }}
-          >
-            {error}
-          </p>
-          <div style={{ textAlign: "center" }}>
-            <button
-              onClick={fetchCustomers}
-              style={{
-                padding: "10px 20px",
-                fontSize: "14px",
-                fontWeight: 600,
-                backgroundColor: "#1976d2",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#1565c0";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#1976d2";
-              }}
-            >
-              Riprova
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && !error && customers.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
-            👤
-          </div>
-          <p
-            style={{
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Nessun cliente trovato
-          </p>
-          <p style={{ fontSize: "14px", color: "#666" }}>
-            Prova a modificare i filtri di ricerca
-          </p>
-        </div>
-      )}
-
-      {/* Customer list */}
-      {!loading && !error && customers.length > 0 && (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <div
-            style={{
-              marginBottom: "12px",
-              fontSize: "12px",
-              color: "#64748b",
-              paddingLeft: "4px",
-            }}
-          >
-            {!incompleteOnly && !filters.search && !filters.city && !filters.customerType
-              ? `${displayedCustomers.length} clienti recenti`
-              : `${displayedCustomers.length} clienti trovati`}
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isTablet ? 'repeat(2, 1fr)' : '1fr',
-              gap: '16px',
-            }}
-          >
-            {displayedCustomers.map((customer) => {
-              const isExpanded =
-                expandedCustomerId === customer.erpId;
-
-              return (
-                <div
-                  key={customer.erpId}
-                  data-customer-profile={customer.erpId}
-                  style={{
-                    outline: isDesktop && selectedProfile === customer.erpId
-                      ? '2px solid #2563eb'
-                      : 'none',
-                    borderRadius: '12px',
-                    transition: 'outline 0.1s',
-                  }}
-                >
-                  <CustomerCard
-                    customer={customer}
-                    expanded={isExpanded}
-                    onToggle={() => handleToggle(customer.erpId)}
-                    onEdit={() => {}}
-                    onNavigate={handleNavigate}
-                    onRetry={handleRetry}
-                    isRetrying={retryingProfiles.has(customer.erpId)}
-                    photoUrl={customerPhotos[customer.erpId]}
-                    onPhotoUpload={handlePhotoUpload}
-                    onPhotoDelete={handlePhotoDelete}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Clienti</div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>{customers.length} clienti</div>
         </div>
-      )}
-    </div>
+        <button
+          onClick={() => setCreateModalOpen(true)}
+          aria-label="+"
+          style={{ width: 32, height: 32, background: '#2563eb', border: 'none', borderRadius: '50%', color: 'white', fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >+</button>
       </div>
-      {/* Pannello dettaglio — destra (solo desktop + cliente selezionato) */}
-      {isDesktop && selectedProfile && (
-        <div style={{ flex: 1, overflowY: 'auto', position: 'relative', background: 'white' }}>
-          <button
-            onClick={() => setSelectedProfile(null)}
-            style={{
-              position: 'absolute', top: '10px', right: '12px', zIndex: 10,
-              background: 'rgba(15,23,42,0.6)', color: 'white', border: 'none',
-              borderRadius: '50%', width: '24px', height: '24px', fontSize: '14px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              lineHeight: '1',
-            }}
-          >
-            ✕
-          </button>
-          <CustomerDetailPage
-            erpIdOverride={selectedProfile}
-            embedded
+
+      {/* Search */}
+      <div style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f1f5f9', borderRadius: 10, padding: '8px 12px' }}>
+          <span style={{ fontSize: 13, color: '#94a3b8' }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca nome, telefono, P.IVA…"
+            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
           />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* List */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && (
+          <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
+        )}
+
+        {recentCustomers.length > 0 && !debouncedSearch && (
+          <>
+            <SectionLabel>Recenti</SectionLabel>
+            {recentCustomers.map(c => (
+              <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+            ))}
+          </>
+        )}
+
+        <SectionLabel>{debouncedSearch ? `Risultati (${allCustomers.length})` : 'Tutti (A–Z)'}</SectionLabel>
+        {allCustomers.map(c => (
+          <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+        ))}
+      </div>
+
       <CustomerCreateModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        onSaved={() => {
-          setCreateModalOpen(false);
-          void fetchCustomers();
-        }}
+        onSaved={() => { setCreateModalOpen(false); void fetchCustomers(); }}
+        contextMode="standalone"
       />
+    </div>
+  );
+}
+
+// ── Sub-components ───────────────────────────────────────────────────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+      {children}
+    </div>
+  );
+}
+
+function CustomerRow({ customer: c, photo, onClick }: { customer: Customer; photo: string | null; onClick: () => void }) {
+  const badge = customerBadge(c);
+  return (
+    <div
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f8fafc' }}
+    >
+      <div style={{ width: 36, height: 36, borderRadius: '50%', background: photo ? undefined : avatarGradient(c.erpId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'white', flexShrink: 0, overflow: 'hidden' }}>
+        {photo ? <img src={photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : customerInitials(c.name)}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+        <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {[c.phone ?? c.mobile, c.city].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+      {badge && <span style={BADGE_STYLE[badge]}>{badge}</span>}
     </div>
   );
 }
