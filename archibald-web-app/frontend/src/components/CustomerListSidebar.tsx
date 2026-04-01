@@ -22,6 +22,7 @@ export function CustomerListSidebar({ activeErpId, width = 240 }: Props) {
     const res = await fetch(`/api/customers?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) return;
     const body = await res.json();
     if (body.success) setCustomers(body.data.customers);
   }, [search]);
