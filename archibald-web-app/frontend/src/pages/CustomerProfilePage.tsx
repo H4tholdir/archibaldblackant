@@ -208,7 +208,7 @@ export function CustomerProfilePage() {
             onClick={editMode ? exitEditMode : enterEditMode}
             style={{ padding: '5px 12px', background: editMode ? '#fff' : '#2563eb', color: editMode ? '#2563eb' : 'white', border: editMode ? '1.5px solid #2563eb' : 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
           >
-            {editMode ? '✎ Modifica' : 'Modifica'}
+            {editMode ? 'Modifica' : '✎ Modifica'}
           </button>
         </div>
 
@@ -438,26 +438,29 @@ export function CustomerProfilePage() {
             </div>
 
             {/* Lista ordini */}
-            {filterOrders(orders, storicoFilter).length === 0 ? (
-              <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun ordine nel periodo selezionato</div>
-            ) : (
-              filterOrders(orders, storicoFilter).map(o => (
-                <div
-                  key={o.orderId}
-                  onClick={() => navigate(`/orders?highlight=${encodeURIComponent(o.orderId)}`)}
-                  style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #f8fafc', cursor: 'pointer' }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>N° {o.orderNumber}</div>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(o.orderDate).toLocaleDateString('it-IT')}</div>
+            {(() => {
+              const filteredOrders = filterOrders(orders, storicoFilter);
+              return filteredOrders.length === 0 ? (
+                <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun ordine nel periodo selezionato</div>
+              ) : (
+                filteredOrders.map(o => (
+                  <div
+                    key={o.orderId}
+                    onClick={() => navigate(`/orders?highlight=${encodeURIComponent(o.orderId)}`)}
+                    style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #f8fafc', cursor: 'pointer' }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>N° {o.orderNumber}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(o.orderDate).toLocaleDateString('it-IT')}</div>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                      €{o.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>›</span>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                    €{o.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>›</span>
-                </div>
-              ))
-            )}
+                ))
+              );
+            })()}
           </div>
         </div>
 

@@ -61,6 +61,11 @@ function renderProfile(erpId = 'A001') {
   );
 }
 
+function getModifyButton() {
+  const modifyButtons = screen.getAllByRole('button').filter(btn => btn.textContent?.includes('Modifica'));
+  return modifyButtons[modifyButtons.length - 1];
+}
+
 describe('CustomerProfilePage — shell', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -139,15 +144,15 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
 
   test('entra in edit mode al click su Modifica', async () => {
     renderProfile();
-    await waitFor(() => screen.getByText('Modifica'));
-    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    await waitFor(() => getModifyButton());
+    fireEvent.click(getModifyButton());
     expect(screen.getByText(/Modalità modifica attiva/)).toBeInTheDocument();
   });
 
   test('FAB appare dopo aver modificato un campo', async () => {
     renderProfile();
-    await waitFor(() => screen.getByText('Modifica'));
-    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    await waitFor(() => getModifyButton());
+    fireEvent.click(getModifyButton());
     const phoneInput = screen.getByDisplayValue('081 552 1234');
     fireEvent.change(phoneInput, { target: { value: '099 999 9999' } });
     expect(screen.getByText(/Salva \(1\)/)).toBeInTheDocument();
@@ -155,8 +160,8 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
 
   test('modifica due campi → FAB mostra (2)', async () => {
     renderProfile();
-    await waitFor(() => screen.getByText('Modifica'));
-    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    await waitFor(() => getModifyButton());
+    fireEvent.click(getModifyButton());
     fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 999 9999' } });
     fireEvent.change(screen.getByDisplayValue('rossi@test.it'), { target: { value: 'nuovo@email.it' } });
     expect(screen.getByText(/Salva \(2\)/)).toBeInTheDocument();
@@ -164,8 +169,8 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
 
   test('Annulla ripristina view mode e FAB sparisce', async () => {
     renderProfile();
-    await waitFor(() => screen.getByText('Modifica'));
-    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    await waitFor(() => getModifyButton());
+    fireEvent.click(getModifyButton());
     fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 999 9999' } });
     fireEvent.click(screen.getByText('Annulla modifiche'));
     expect(screen.queryByText(/Salva/)).toBeNull();
@@ -175,8 +180,8 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
   test('tap FAB chiama enqueueOperation una sola volta con tutti i campi', async () => {
     vi.mocked(enqueueOperation).mockClear();
     renderProfile();
-    await waitFor(() => screen.getByText('Modifica'));
-    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    await waitFor(() => getModifyButton());
+    fireEvent.click(getModifyButton());
     fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 111' } });
     fireEvent.change(screen.getByDisplayValue('rossi@test.it'), { target: { value: 'x@y.it' } });
     fireEvent.click(screen.getByText(/Salva \(2\)/));
