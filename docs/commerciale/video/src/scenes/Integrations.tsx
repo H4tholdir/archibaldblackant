@@ -4,6 +4,7 @@ import { springCard, easingApple } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { IntegrationHub } from '../components/IntegrationHub';
+import { SceneCaption } from '../components/SceneCaption';
 
 const INTEGRATIONS = [
   { name: 'WhatsApp', icon: '📱', color: '#25D366', x: -160, y: -120 },
@@ -45,6 +46,7 @@ export function Integrations() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 24, opacity: fadeOut, padding: '0 80px',
+      position: 'relative',
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 42, fontWeight: 800, color: palette.textPrimary, fontFamily: 'Inter, sans-serif' }}>
@@ -149,6 +151,13 @@ export function Integrations() {
           )}
         </div>
       </div>
+
+      <SceneCaption
+        main="WhatsApp, Gmail, Dropbox, Google Drive — connesso agli strumenti che usi"
+        vs="vs ERP: nessuna integrazione — copia-incolla manuale tra app diverse"
+        delay={30}
+        color="#1C1C1E"
+      />
     </div>
   );
 }

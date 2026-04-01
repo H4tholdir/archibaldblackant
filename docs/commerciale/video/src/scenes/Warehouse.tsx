@@ -6,6 +6,7 @@ import { SCENE_FRAMES } from '../lib/timing';
 import { SearchBar } from '../components/SearchBar';
 import { BadgeGreen } from '../components/BadgeGreen';
 import { ProgressBar } from '../components/ProgressBar';
+import { SceneCaption } from '../components/SceneCaption';
 
 type Product = {
   name: string;
@@ -64,6 +65,7 @@ export function Warehouse() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 24, opacity: fadeOut, padding: '0 120px',
+      position: 'relative',
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 42, fontWeight: 800, color: palette.textPrimary, fontFamily: 'Inter, sans-serif' }}>
@@ -183,6 +185,13 @@ export function Warehouse() {
           );
         })}
       </div>
+
+      <SceneCaption
+        main="Stock in 2 secondi · Il tuo prezzo cliente, non il listino generico"
+        vs="vs ERP: nessun check disponibilità in app — telefonate al magazzino ogni volta"
+        delay={30}
+        color="#FF9500"
+      />
     </div>
   );
 }

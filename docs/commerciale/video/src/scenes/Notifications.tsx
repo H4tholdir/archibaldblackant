@@ -4,6 +4,7 @@ import { easingApple } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { NotifCard } from '../components/NotifCard';
+import { SceneCaption } from '../components/SceneCaption';
 
 const NOTIFS = [
   { icon: '✅', title: 'Ordine confermato',      body: 'Ordine #4821 registrato su Archibald',                           time: '14:32', color: palette.green,  highlight: false },
@@ -42,6 +43,7 @@ export function Notifications() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', padding: '48px 160px',
       gap: 20, opacity: fadeOut,
+      position: 'relative',
     }}>
       <div style={{ textAlign: 'center', opacity: headerOpacity }}>
         <div style={{ fontSize: 38, fontWeight: 800, color: palette.textPrimary, fontFamily: 'Inter, sans-serif' }}>
@@ -75,6 +77,13 @@ export function Notifications() {
       }}>
         &quot;Formicanera ti avvisa. Tu pensi solo a vendere.&quot;
       </div>
+
+      <SceneCaption
+        main="11 tipi di notifiche proattive · Formicanera ti avvisa prima che tu cerchi"
+        vs="vs ERP: zero notifiche — l'agente deve controllare manualmente ogni informazione"
+        delay={30}
+        color="#FF9500"
+      />
     </div>
   );
 }

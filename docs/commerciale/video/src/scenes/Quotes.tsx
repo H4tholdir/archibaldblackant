@@ -4,6 +4,7 @@ import { springCard, springBounce, easingApple } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { SCENE_FRAMES } from '../lib/timing';
 import { BadgeGreen } from '../components/BadgeGreen';
+import { SceneCaption } from '../components/SceneCaption';
 
 const TAP_FRAME       = 80;
 const BUILD_START     = 100;
@@ -228,6 +229,13 @@ export function Quotes() {
           <span style={{ color: palette.green }}>✓</span> Condiviso via WhatsApp
         </div>
       )}
+
+      <SceneCaption
+        main="Preventivo professionale in 3 secondi · Da condividere durante la visita"
+        vs="vs ERP: nessuna funzione preventivi — Word, calcolo manuale, email"
+        delay={30}
+        color="#34C759"
+      />
     </div>
   );
 }
