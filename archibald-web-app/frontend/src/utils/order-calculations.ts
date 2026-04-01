@@ -1,4 +1,4 @@
-import { arcaLineAmount as arcaLineAmountCanonical } from "./arca-math";
+import { arcaLineAmount as arcaLineAmountCanonical, arcaDocumentTotals } from "./arca-math";
 
 export const VAT_RATE = 0.22; // 22% Italy standard
 export const SHIPPING_COST = 15.45; // Spese di trasporto K3 (imponibile)
@@ -342,13 +342,13 @@ export function recalcOrderLineItem<T extends OrderLineItem>(item: T, discount: 
 export function computeOrderDocumentTotal<T extends OrderLineItem>(items: T[], noShipping: boolean): number {
   const sub = items.reduce((s, i) => s + i.subtotal, 0);
   const ship = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(sub);
-  const itemVat = items.reduce((s, i) => s + i.vat, 0);
-  const finalVAT = Math.round((itemVat + ship.tax) * 100) / 100;
-  return Math.round((sub + ship.cost + finalVAT) * 100) / 100;
+  const lines = items.map((i) => ({ prezzotot: i.subtotal, vatRate: i.vatRate }));
+  const { totDoc } = arcaDocumentTotals(lines, 1, ship.cost > 0 ? ship.cost : undefined, 22);
+  return totDoc;
 }
 
-// Same 4-phase algorithm as applyExactTotalWithVat. Uses per-line VAT (matching ERP Archibald)
-// and OrderLineItem (string id selection) instead of EditItem (numeric index selection).
+// Same 4-phase algorithm as applyExactTotalWithVat. Uses arcaDocumentTotals (IVA per-gruppo,
+// coerente con PendingOrdersPage) invece di per-riga, per evitare divergenze post-salvataggio.
 // Invariant: result total is always >= target.
 export function applyExactTotalToOrderLineItems<T extends OrderLineItem>(
   items: T[],
