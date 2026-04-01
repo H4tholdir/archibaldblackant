@@ -21,7 +21,12 @@ import { getDiscountForArticle } from "../api/fresis-discounts";
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import { aggregateTopSold } from '../utils/aggregate-top-sold';
 import type { TopSoldItem } from '../utils/aggregate-top-sold';
-import { calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
+import {
+  calculateShippingCosts,
+  SHIPPING_THRESHOLD,
+  applyExactTotalToOrderLineItems,
+  applyExactImponibileToOrderLineItems,
+} from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../types/sub-client";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
@@ -2086,14 +2091,13 @@ export default function OrderFormSimple() {
     const unselectedSubtotal = items
       .filter((i) => !imponibileSelectedItems.has(i.id))
       .reduce((sum, i) => sum + i.subtotal, 0);
-
     const targetForSelected = target - unselectedSubtotal;
+
     if (targetForSelected < 0 || selectedSubtotal === 0) {
       toastService.error("Impossibile raggiungere l'imponibile target");
       setShowImponibileDialog(false);
       return;
     }
-
     const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
     if (scontoNecessario < 0 || scontoNecessario > 100) {
       toastService.error("Sconto calcolato non valido");
@@ -2101,99 +2105,7 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Round discount, but ensure imponibile never falls below target:
-    // try Math.round first, fall back to Math.floor (less discount = higher imponibile)
-    let newDiscount = Math.round(scontoNecessario * 100) / 100;
-
-    const computeImponibile = (disc: number) =>
-      items.reduce((sum, item) => {
-        if (!imponibileSelectedItems.has(item.id)) return sum + item.subtotal;
-        return (
-          sum +
-          Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) /
-            100
-        );
-      }, 0);
-
-    // Ensure imponibile >= target: use Math.floor (less discount = higher imponibile)
-    newDiscount = Math.floor(scontoNecessario * 100) / 100;
-
-    // If still below target, keep reducing discount
-    while (computeImponibile(newDiscount) < target && newDiscount > 0) {
-      newDiscount = Math.round((newDiscount - 0.01) * 100) / 100;
-    }
-
-    // Try stepping up (more discount) to get closer, only if imponibile stays >= target
-    const stepped = Math.round((newDiscount + 0.01) * 100) / 100;
-    if (computeImponibile(stepped) >= target) {
-      newDiscount = stepped;
-    }
-
-    const recalcItemImponibile = (item: OrderItem, disc: number) => {
-      const newSubtotal =
-        Math.round(
-          item.unitPrice * item.quantity * (1 - disc / 100) * 100,
-        ) / 100;
-      const newVat =
-        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
-      return {
-        ...item,
-        discount: disc,
-        subtotal: newSubtotal,
-        vat: newVat,
-        total: Math.round((newSubtotal + newVat) * 100) / 100,
-      };
-    };
-
-    let updatedItems = items.map((item) =>
-      imponibileSelectedItems.has(item.id)
-        ? recalcItemImponibile(item, newDiscount)
-        : item,
-    );
-
-    // Compensate residual cents on last selected item's discount
-    const actualImponibile = updatedItems.reduce((s, i) => s + i.subtotal, 0);
-    const residualCents = Math.round((actualImponibile - target) * 100);
-
-    if (residualCents > 0 && residualCents <= 10) {
-      const selectedIds = Array.from(imponibileSelectedItems);
-      const lastId = selectedIds[selectedIds.length - 1];
-      const lastItem = items.find((i) => i.id === lastId)!;
-
-      let lo = newDiscount;
-      let hi = Math.min(newDiscount + 5, 100);
-      let bestLastDisc = newDiscount;
-
-      for (let iter = 0; iter < 80; iter++) {
-        const mid = (lo + hi) / 2;
-        const midDisc = Math.round(mid * 100) / 100;
-        const testItems = updatedItems.map((it) =>
-          it.id === lastId ? recalcItemImponibile(lastItem, midDisc) : it,
-        );
-        const testImponibile = testItems.reduce((s, i) => s + i.subtotal, 0);
-        const testRounded = Math.round(testImponibile * 100) / 100;
-
-        if (testRounded === target) {
-          bestLastDisc = midDisc;
-          break;
-        }
-        if (testRounded > target) {
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-        if (testRounded >= target && midDisc > bestLastDisc) {
-          bestLastDisc = midDisc;
-        }
-      }
-
-      if (bestLastDisc > newDiscount) {
-        updatedItems = updatedItems.map((it) =>
-          it.id === lastId ? recalcItemImponibile(lastItem, bestLastDisc) : it,
-        );
-      }
-    }
-
+    const updatedItems = applyExactImponibileToOrderLineItems(items, target, imponibileSelectedItems);
     setItems(updatedItems);
     setShowImponibileDialog(false);
     const uniqueDiscounts = [
@@ -2328,176 +2240,7 @@ export default function OrderFormSimple() {
       // Target achievable by reducing discounts — fall through to binary search
     }
 
-    // Calculate per-item discount to reach target total
-    const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
-    const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
-
-    const unselectedSubtotal = unselectedItems.reduce(
-      (sum, i) => sum + i.subtotal,
-      0,
-    );
-    const unselectedVAT = unselectedItems.reduce(
-      (sum, i) => sum + i.vat,
-      0,
-    );
-    const shippingCosts = noShipping ? { cost: 0, tax: 0, total: 0 } : calculateShippingCosts(currentTotals.finalSubtotal);
-    const fixedPortion =
-      unselectedSubtotal +
-      unselectedVAT +
-      shippingCosts.cost +
-      shippingCosts.tax;
-
-    const targetForSelected = target - fixedPortion;
-    if (targetForSelected <= 0) {
-      toastService.error(
-        "Impossibile raggiungere il totale target con gli articoli selezionati",
-      );
-      setShowTotaleDialog(false);
-      return;
-    }
-
-    // Binary search for per-item discount
-    // Use unitPrice * quantity as base (NOT subtotal, which includes old discount)
-    // because finalDiscount replaces the existing discount entirely
-    let low = 0;
-    let high = 100;
-    let bestDiscount = 0;
-
-    // Compute total using arcaDocumentTotals (VAT by group) to match calculateTotals()
-    const computeDiscountedTotal = (disc: number): number => {
-      const selLines = selectedItems.map(i => ({
-        prezzotot: Math.round(i.unitPrice * i.quantity * (1 - disc / 100) * 100) / 100,
-        vatRate: i.vatRate,
-      }));
-      const unselLines = unselectedItems.map(i => ({ prezzotot: i.subtotal, vatRate: i.vatRate }));
-      const allLines = [...unselLines, ...selLines];
-      const newSub = allLines.reduce((s, l) => s + l.prezzotot, 0);
-      const newShipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(newSub);
-      if (newShipping.cost > 0) {
-        return arcaDocumentTotals(allLines, 1, newShipping.cost, 22).totDoc;
-      }
-      return arcaDocumentTotals(allLines, 1).totDoc;
-    };
-
-    for (let iter = 0; iter < 100; iter++) {
-      const mid = (low + high) / 2;
-      const testTotal = computeDiscountedTotal(mid);
-
-      if (Math.abs(testTotal - target) < 0.005) {
-        bestDiscount = mid;
-        break;
-      }
-      if (testTotal > target) {
-        low = mid;
-      } else {
-        high = mid;
-      }
-      bestDiscount = mid;
-    }
-
-    // Round discount ensuring total >= target (never below).
-    // Math.floor gives less discount = higher total.
-    // Then step down by 0.01 if we can get closer while staying >= target.
-    let finalDiscount = Math.floor(bestDiscount * 100) / 100;
-
-    // If Math.floor still gives total < target (edge case from rounding),
-    // keep reducing discount by 0.01 until total >= target
-    while (
-      computeDiscountedTotal(finalDiscount) < target &&
-      finalDiscount > 0
-    ) {
-      finalDiscount = Math.round((finalDiscount - 0.01) * 100) / 100;
-    }
-
-    // Try stepping up by 0.01 (more discount) to get closer to target,
-    // but only if the total stays >= target
-    const stepped = Math.round((finalDiscount + 0.01) * 100) / 100;
-    if (computeDiscountedTotal(stepped) >= target) {
-      finalDiscount = stepped;
-    }
-
-    const recalcItem = (item: OrderItem, disc: number) => {
-      const newSubtotal =
-        Math.round(
-          item.unitPrice * item.quantity * (1 - disc / 100) * 100,
-        ) / 100;
-      const newVat =
-        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
-      return {
-        ...item,
-        discount: disc,
-        subtotal: newSubtotal,
-        vat: newVat,
-        total: Math.round((newSubtotal + newVat) * 100) / 100,
-      };
-    };
-
-    // Apply main discount to all selected items
-    let updatedItems = items.map((item) =>
-      totaleSelectedItems.has(item.id) ? recalcItem(item, finalDiscount) : item,
-    );
-
-    // Compensate residual cents by adjusting last selected item's discount.
-    // Compute forward total with the applied items to check for residual.
-    // Usa arcaDocumentTotals (IVA per gruppo) per coerenza con calculateTotals() e computeDiscountedTotal.
-    // La somma per-riga (i.vat) può divergere di 1 cent dalla formula a gruppi, causando
-    // residualCents calcolati in modo errato rispetto al totale visualizzato.
-    const computeForwardTotal = (testItems: OrderItem[]) => {
-      const lines = testItems.map((i) => ({ prezzotot: i.subtotal, vatRate: i.vatRate ?? 0 }));
-      const sub = lines.reduce((s, l) => s + l.prezzotot, 0);
-      const shipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(sub);
-      if (shipping.cost > 0) {
-        return arcaDocumentTotals(lines, 1, shipping.cost, 22).totDoc;
-      }
-      return arcaDocumentTotals(lines, 1).totDoc;
-    };
-
-    const forwardTotal = computeForwardTotal(updatedItems);
-    const residualCents = Math.round((forwardTotal - target) * 100);
-
-    // Soglia 100: con subtotali elevati ogni step 0.01% vale ~15 centesimi →
-    // dopo lo snap alla griglia il residuo può superare 10 cent.
-    if (residualCents > 0 && residualCents <= 100) {
-      // Find the last selected item and binary-search a slightly higher
-      // discount for it alone to absorb the residual cents
-      const selectedIds = Array.from(totaleSelectedItems);
-      const lastId = selectedIds[selectedIds.length - 1];
-      const lastItem = items.find((i) => i.id === lastId)!;
-
-      let lo = finalDiscount;
-      let hi = Math.min(finalDiscount + 5, 100);
-      let bestLastDisc = finalDiscount;
-
-      for (let iter = 0; iter < 80; iter++) {
-        const mid = (lo + hi) / 2;
-        const midDisc = Math.round(mid * 100) / 100;
-        const testItems = updatedItems.map((it) =>
-          it.id === lastId ? recalcItem(lastItem, midDisc) : it,
-        );
-        const testTotal = computeForwardTotal(testItems);
-
-        if (testTotal === target) {
-          bestLastDisc = midDisc;
-          break;
-        }
-        if (testTotal > target) {
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-        // Keep the best discount that still gives total >= target
-        if (testTotal >= target && midDisc > bestLastDisc) {
-          bestLastDisc = midDisc;
-        }
-      }
-
-      if (bestLastDisc > finalDiscount) {
-        updatedItems = updatedItems.map((it) =>
-          it.id === lastId ? recalcItem(lastItem, bestLastDisc) : it,
-        );
-      }
-    }
-
+    const updatedItems = applyExactTotalToOrderLineItems(items, target, totaleSelectedItems, noShipping);
     setItems(updatedItems);
     setShowTotaleDialog(false);
     const uniqueDiscounts = [

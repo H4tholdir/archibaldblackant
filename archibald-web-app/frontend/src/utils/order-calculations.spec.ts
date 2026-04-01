@@ -9,9 +9,15 @@ import {
   recalcLineAmounts,
   computeEditDocumentTotal,
   applyExactTotalWithVat,
+  recalcOrderLineItem,
+  computeOrderDocumentTotal,
+  applyExactTotalToOrderLineItems,
+  applyExactImponibileToOrderLineItems,
+  applyExactImponibileToEditItems,
   VAT_RATE,
   SHIPPING_THRESHOLD,
   type EditItem,
+  type OrderLineItem,
 } from "./order-calculations";
 
 describe("order-calculations", () => {
@@ -509,6 +515,171 @@ describe("order-calculations", () => {
       const total = computeEditDocumentTotal(result, false);
       expect(total).toBeGreaterThanOrEqual(target);
       expect(total).toBeLessThanOrEqual(target + 0.01);
+    });
+  });
+
+  describe("applyExactTotalToOrderLineItems", () => {
+    const makeOrderItem = (
+      id: string, qty: number, price: number, disc: number, vat: number,
+    ): OrderLineItem => recalcOrderLineItem(
+      { id, quantity: qty, unitPrice: price, vatRate: vat, discount: disc, subtotal: 0, vat: 0, total: 0 },
+      disc,
+    );
+
+    test("property: result total is always >= target", () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              qty: fc.integer({ min: 1, max: 50 }),
+              price: fc.integer({ min: 1, max: 100000 }).map((n) => n / 100),
+              vat: fc.constantFrom(4, 10, 22),
+            }),
+            { minLength: 1, maxLength: 9 },
+          ),
+          fc.integer({ min: 1, max: 500000 }).map((n) => n / 100),
+          (rawItems, target) => {
+            const items = rawItems.map(({ qty, price, vat }, i) =>
+              makeOrderItem(String(i), qty, price, 0, vat),
+            );
+            const maxTotal = computeOrderDocumentTotal(items, false);
+            if (target > maxTotal) return true;
+            const selectedIds = new Set(items.map((it) => it.id));
+            const result = applyExactTotalToOrderLineItems(items, target, selectedIds, false);
+            return computeOrderDocumentTotal(result, false) >= target;
+          },
+        ),
+      );
+    });
+
+
+    test("11 articoli mix IVA 22%/4%, target 1500: eccesso non supera 0.01", () => {
+      const data = [
+        [3,  16.00,  22], [2,  25.97,   4], [18, 15.56,  22],
+        [12, 15.56,  22], [12, 15.56,  22], [12, 15.56,  22],
+        [2,  170.81,  4], [2,  14.15,  22], [10, 9.98,   22],
+        [10, 9.98,   22], [10, 10.58,  22],
+      ] as const;
+      const items = data.map(([qty, price, vat], i) =>
+        makeOrderItem(String(i), qty, price, 0, vat),
+      );
+      const target = 1500.00;
+      const selectedIds = new Set(items.map((it) => it.id));
+      const result = applyExactTotalToOrderLineItems(items, target, selectedIds, false);
+      const total = computeOrderDocumentTotal(result, false);
+      expect(total).toBeGreaterThanOrEqual(target);
+      expect(total).toBeLessThanOrEqual(target + 0.01);
+    });
+
+    test("partial selection: unselected items unchanged", () => {
+      const items = [
+        makeOrderItem("a", 10, 5.90, 0, 22),
+        makeOrderItem("b",  5, 12.50, 0, 22),
+        makeOrderItem("c",  3, 8.00, 0, 22),
+      ];
+      const selected = new Set(["a", "b"]);
+      const target = 100.00;
+      const result = applyExactTotalToOrderLineItems(items, target, selected, false);
+      expect(result[2]).toEqual(items[2]);
+      expect(computeOrderDocumentTotal(result, false)).toBeGreaterThanOrEqual(target);
+    });
+  });
+
+  describe("applyExactImponibileToOrderLineItems", () => {
+    const makeOrderItem = (
+      id: string, qty: number, price: number, disc: number, vat: number,
+    ): OrderLineItem => recalcOrderLineItem(
+      { id, quantity: qty, unitPrice: price, vatRate: vat, discount: disc, subtotal: 0, vat: 0, total: 0 },
+      disc,
+    );
+
+    test("property: result imponibile is always >= target", () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              qty: fc.integer({ min: 1, max: 50 }),
+              price: fc.integer({ min: 1, max: 100000 }).map((n) => n / 100),
+            }),
+            { minLength: 1, maxLength: 9 },
+          ),
+          fc.integer({ min: 1, max: 500000 }).map((n) => n / 100),
+          (rawItems, target) => {
+            const items = rawItems.map(({ qty, price }, i) =>
+              makeOrderItem(String(i), qty, price, 0, 22),
+            );
+            const maxImponibile = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+            if (target > maxImponibile) return true;
+            const selectedIds = new Set(items.map((it) => it.id));
+            const result = applyExactImponibileToOrderLineItems(items, target, selectedIds);
+            return result.reduce((s, i) => s + i.subtotal, 0) >= target - 0.001;
+          },
+        ),
+      );
+    });
+
+    test("unselected items unchanged", () => {
+      const items = [
+        makeOrderItem("a", 10, 15.00, 0, 22),
+        makeOrderItem("b",  5, 20.00, 0, 22),
+        makeOrderItem("c",  3, 10.00, 0, 22),
+      ];
+      const selected = new Set(["a", "b"]);
+      const target = 200.00;
+      const result = applyExactImponibileToOrderLineItems(items, target, selected);
+      expect(result[2]).toEqual(items[2]);
+    });
+
+    test("infeasible target (> max) returns items unchanged", () => {
+      const items = [makeOrderItem("a", 1, 10.00, 0, 22)];
+      const result = applyExactImponibileToOrderLineItems(items, 999.00, new Set(["a"]));
+      expect(result).toEqual(items);
+    });
+  });
+
+  describe("applyExactImponibileToEditItems", () => {
+    const makeItem = (qty: number, price: number, disc: number, vat: number): EditItem =>
+      recalcLineAmounts({
+        articleCode: "A", productName: "P", quantity: qty, unitPrice: price,
+        discountPercent: disc, vatPercent: vat, vatAmount: 0,
+        lineAmount: 0, lineTotalWithVat: 0, articleDescription: "",
+      });
+
+    test("property: result imponibile is always >= target", () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              qty: fc.integer({ min: 1, max: 50 }),
+              price: fc.integer({ min: 1, max: 100000 }).map((n) => n / 100),
+            }),
+            { minLength: 1, maxLength: 9 },
+          ),
+          fc.integer({ min: 1, max: 500000 }).map((n) => n / 100),
+          (rawItems, target) => {
+            const items = rawItems.map(({ qty, price }) => makeItem(qty, price, 0, 22));
+            const maxImponibile = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+            if (target > maxImponibile) return true;
+            const selectedIndices = new Set(items.map((_, i) => i));
+            const result = applyExactImponibileToEditItems(items, target, selectedIndices);
+            return result.reduce((s, i) => s + i.lineAmount, 0) >= target - 0.001;
+          },
+        ),
+      );
+    });
+
+    test("unselected items unchanged", () => {
+      const items = [makeItem(10, 15.00, 0, 22), makeItem(5, 20.00, 0, 22), makeItem(3, 10.00, 0, 22)];
+      const selected = new Set([0, 1]);
+      const target = 200.00;
+      const result = applyExactImponibileToEditItems(items, target, selected);
+      expect(result[2]).toEqual(items[2]);
+    });
+
+    test("infeasible target returns items unchanged", () => {
+      const items = [makeItem(1, 10.00, 0, 22)];
+      const result = applyExactImponibileToEditItems(items, 999.00, new Set([0]));
+      expect(result).toEqual(items);
     });
   });
 });

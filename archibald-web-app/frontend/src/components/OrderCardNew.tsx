@@ -16,7 +16,7 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT, FRESIS_ACCOUNT_NUM } from "../utils/fresis-constants";
-import { calculateShippingCosts, SHIPPING_THRESHOLD, recalcLineAmounts, applyExactTotalWithVat, type EditItem } from "../utils/order-calculations";
+import { calculateShippingCosts, SHIPPING_THRESHOLD, recalcLineAmounts, applyExactTotalWithVat, applyExactImponibileToEditItems, type EditItem } from "../utils/order-calculations";
 
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { parseOrderNotesForEdit } from "../utils/parse-order-notes";
@@ -1337,14 +1337,13 @@ function TabArticoli({
     const unselectedSubtotal = editItems
       .filter((_, i) => !imponibileSelectedItems.has(i))
       .reduce((sum, item) => sum + item.lineAmount, 0);
-
     const targetForSelected = target - unselectedSubtotal;
+
     if (targetForSelected < 0 || selectedSubtotal === 0) {
       setError("Impossibile raggiungere l'imponibile target");
       setShowImponibileDialog(false);
       return;
     }
-
     const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
     if (scontoNecessario < 0 || scontoNecessario >= 100) {
       setError("Sconto necessario fuori range (0-100%)");
@@ -1352,56 +1351,7 @@ function TabArticoli({
       return;
     }
 
-    const computeImponibile = (disc: number) =>
-      editItems.reduce((sum, item, i) => {
-        if (!imponibileSelectedItems.has(i)) return sum + item.lineAmount;
-        return sum + Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
-      }, 0);
-
-    let newDiscount = Math.floor(scontoNecessario * 100) / 100;
-    while (computeImponibile(newDiscount) < target && newDiscount > 0) {
-      newDiscount = Math.round((newDiscount - 0.01) * 100) / 100;
-    }
-    const stepped = Math.round((newDiscount + 0.01) * 100) / 100;
-    if (computeImponibile(stepped) >= target) {
-      newDiscount = stepped;
-    }
-
-    let updatedItems = editItems.map((item, i) =>
-      imponibileSelectedItems.has(i)
-        ? recalcLineAmounts({ ...item, discountPercent: newDiscount })
-        : item,
-    );
-
-    // Correzione centesimi residui sull'ultimo articolo selezionato
-    const actualImponibile = updatedItems.reduce((s, i) => s + i.lineAmount, 0);
-    const residualCents = Math.round((actualImponibile - target) * 100);
-    if (residualCents > 0 && residualCents <= 10) {
-      const indices = Array.from(imponibileSelectedItems);
-      const lastIdx = indices[indices.length - 1];
-      const lastItem = editItems[lastIdx];
-      let lo = newDiscount;
-      let hi = Math.min(newDiscount + 5, 100);
-      let bestDisc = newDiscount;
-      for (let iter = 0; iter < 80; iter++) {
-        const mid = Math.round(((lo + hi) / 2) * 100) / 100;
-        const testItems = updatedItems.map((it, i) =>
-          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: mid }) : it,
-        );
-        const testImp = testItems.reduce((s, i) => s + i.lineAmount, 0);
-        if (testImp === target) { bestDisc = mid; break; }
-        if (testImp > target) lo = mid;
-        else hi = mid;
-        if (testImp >= target && mid > bestDisc) bestDisc = mid;
-      }
-      if (bestDisc > newDiscount) {
-        updatedItems = updatedItems.map((it, i) =>
-          i === lastIdx ? recalcLineAmounts({ ...lastItem, discountPercent: bestDisc }) : it,
-        );
-      }
-    }
-
-    setEditItems(updatedItems);
+    setEditItems(applyExactImponibileToEditItems(editItems, target, imponibileSelectedItems));
     setShowImponibileDialog(false);
   };
 
