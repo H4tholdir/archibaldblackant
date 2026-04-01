@@ -10,6 +10,9 @@ import { customerService } from '../services/customers.service';
 import { CustomerListSidebar } from '../components/CustomerListSidebar';
 import { PhotoCropModal } from '../components/PhotoCropModal';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
+import { enqueueOperation, pollJobUntilDone } from '../api/operations';
+import { toastService } from '../services/toast.service';
+import { useOperationTracking } from '../contexts/OperationTrackingContext';
 
 type PendingEdits = {
   name?: string;
@@ -58,6 +61,8 @@ export function CustomerProfilePage() {
   const [pendingEdits, setPendingEdits] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
 
+  const { trackOperation } = useOperationTracking();
+
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,7 +109,7 @@ export function CustomerProfilePage() {
     };
   }, [erpId]);
 
-  const hasPendingEdits = Object.keys(pendingEdits).length > 0;
+  const pendingCount = Object.keys(pendingEdits).length;
 
   function enterEditMode() {
     setEditMode(true);
@@ -117,6 +122,27 @@ export function CustomerProfilePage() {
 
   function setField(key: keyof PendingEdits, value: string) {
     setPendingEdits(prev => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSave() {
+    if (pendingCount === 0 || saving || !customer) return;
+    setSaving(true);
+    try {
+      const { jobId } = await enqueueOperation('update-customer', { erpId, name: customer.name, ...pendingEdits });
+      trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`);
+      await pollJobUntilDone(jobId, {
+        onProgress: (_p, _label) => { /* handled by GlobalOperationBanner */ },
+      });
+      toastService.success('Cliente aggiornato');
+      setEditMode(false);
+      setPendingEdits({});
+      const reloaded = await fetchCustomer(erpId);
+      setCustomer(reloaded);
+    } catch {
+      toastService.error('Errore durante il salvataggio');
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {
@@ -246,12 +272,12 @@ export function CustomerProfilePage() {
             pendingKeys={['phone', 'mobile', 'email', 'pec', 'sdi', 'url']}
             pendingEdits={pendingEdits}
           >
-            <FieldCell label="Telefono" value={pendingEdits.phone ?? customer.phone} editKey="phone" editMode={editMode} setField={setField} />
-            <FieldCell label="Mobile" value={pendingEdits.mobile ?? customer.mobile} editKey="mobile" editMode={editMode} setField={setField} />
-            <FieldCell label="Email" value={pendingEdits.email ?? customer.email} editKey="email" editMode={editMode} setField={setField} />
-            <FieldCell label="PEC" value={pendingEdits.pec ?? customer.pec} editKey="pec" editMode={editMode} setField={setField} />
-            <FieldCell label="SDI" value={pendingEdits.sdi ?? customer.sdi} editKey="sdi" editMode={editMode} setField={setField} />
-            <FieldCell label="URL" value={pendingEdits.url ?? customer.url} editKey="url" editMode={editMode} setField={setField} />
+            <FieldCell label="Telefono" value={pendingEdits.phone ?? customer.phone} originalValue={customer.phone} editKey="phone" editMode={editMode} setField={setField} />
+            <FieldCell label="Mobile" value={pendingEdits.mobile ?? customer.mobile} originalValue={customer.mobile} editKey="mobile" editMode={editMode} setField={setField} />
+            <FieldCell label="Email" value={pendingEdits.email ?? customer.email} originalValue={customer.email} editKey="email" editMode={editMode} setField={setField} />
+            <FieldCell label="PEC" value={pendingEdits.pec ?? customer.pec} originalValue={customer.pec} editKey="pec" editMode={editMode} setField={setField} />
+            <FieldCell label="SDI" value={pendingEdits.sdi ?? customer.sdi} originalValue={customer.sdi} editKey="sdi" editMode={editMode} setField={setField} />
+            <FieldCell label="URL" value={pendingEdits.url ?? customer.url} originalValue={customer.url} editKey="url" editMode={editMode} setField={setField} />
           </SectionCard>
 
           {/* Indirizzo */}
@@ -261,9 +287,9 @@ export function CustomerProfilePage() {
             pendingKeys={['street', 'postalCode', 'postalCodeCity']}
             pendingEdits={pendingEdits}
           >
-            <FieldCell label="Via" value={pendingEdits.street ?? customer.street} editKey="street" editMode={editMode} setField={setField} />
-            <FieldCell label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} editKey="postalCode" editMode={editMode} setField={setField} />
-            <FieldCell label="Città" value={pendingEdits.postalCodeCity ?? customer.city} editKey="postalCodeCity" editMode={editMode} setField={setField} />
+            <FieldCell label="Via" value={pendingEdits.street ?? customer.street} originalValue={customer.street} editKey="street" editMode={editMode} setField={setField} />
+            <FieldCell label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} originalValue={customer.postalCode} editKey="postalCode" editMode={editMode} setField={setField} />
+            <FieldCell label="Città" value={pendingEdits.postalCodeCity ?? customer.city} originalValue={customer.city} editKey="postalCodeCity" editMode={editMode} setField={setField} />
             <FieldCell label="Provincia" value={customer.county ?? null} readOnly />
             <FieldCell label="Regione" value={customer.state ?? null} readOnly />
             <FieldCell label="Paese" value={customer.country ?? null} readOnly />
@@ -276,9 +302,9 @@ export function CustomerProfilePage() {
             pendingKeys={['deliveryMode', 'paymentTerms', 'lineDiscount']}
             pendingEdits={pendingEdits}
           >
-            <FieldCell label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} editKey="lineDiscount" editMode={editMode} setField={setField} />
-            <FieldCell label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} editKey="paymentTerms" editMode={editMode} setField={setField} />
-            <FieldCell label="Consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms} editKey="deliveryMode" editMode={editMode} setField={setField} />
+            <FieldCell label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} originalValue={customer.lineDiscount ?? null} editKey="lineDiscount" editMode={editMode} setField={setField} />
+            <FieldCell label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} originalValue={customer.paymentTerms ?? null} editKey="paymentTerms" editMode={editMode} setField={setField} />
+            <FieldCell label="Consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms} originalValue={customer.deliveryTerms} editKey="deliveryMode" editMode={editMode} setField={setField} />
           </SectionCard>
 
           {/* Anagrafica */}
@@ -288,24 +314,22 @@ export function CustomerProfilePage() {
             pendingKeys={['name', 'vatNumber', 'fiscalCode', 'sector', 'attentionTo', 'notes']}
             pendingEdits={pendingEdits}
           >
-            <FieldCell label="Ragione sociale" value={pendingEdits.name ?? customer.name} editKey="name" editMode={editMode} setField={setField} />
+            <FieldCell label="Ragione sociale" value={pendingEdits.name ?? customer.name} originalValue={customer.name} editKey="name" editMode={editMode} setField={setField} />
             <FieldCell label="P.IVA" value={customer.vatNumber} readOnly />
-            <FieldCell label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} editKey="fiscalCode" editMode={editMode} setField={setField} />
-            <FieldCell label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} editKey="sector" editMode={editMode} setField={setField} />
-            <FieldCell label="Att.ne" value={pendingEdits.attentionTo ?? customer.attentionTo} editKey="attentionTo" editMode={editMode} setField={setField} />
-            <FieldCell label="Note" value={pendingEdits.notes ?? customer.notes ?? null} editKey="notes" editMode={editMode} setField={setField} isTextarea />
+            <FieldCell label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} originalValue={customer.fiscalCode} editKey="fiscalCode" editMode={editMode} setField={setField} />
+            <FieldCell label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} originalValue={customer.sector ?? null} editKey="sector" editMode={editMode} setField={setField} />
+            <FieldCell label="Att.ne" value={pendingEdits.attentionTo ?? customer.attentionTo} originalValue={customer.attentionTo} editKey="attentionTo" editMode={editMode} setField={setField} />
+            <FieldCell label="Note" value={pendingEdits.notes ?? customer.notes ?? null} originalValue={customer.notes ?? null} editKey="notes" editMode={editMode} setField={setField} isTextarea />
           </SectionCard>
 
           {/* Indirizzi alt + Storico — da completare nei task successivi */}
         </div>
 
-        {/* Save button */}
-        {editMode && hasPendingEdits && (
+        {/* Save FAB */}
+        {editMode && pendingCount > 0 && (
           <button
             disabled={saving}
-            onClick={() => {
-              setSaving(true);
-            }}
+            onClick={() => { void handleSave(); }}
             style={{
               position: 'fixed',
               bottom: 24,
@@ -377,16 +401,17 @@ function SectionCard({ title, editMode, pendingKeys, pendingEdits, children }: {
   );
 }
 
-function FieldCell({ label, value, editKey, editMode, setField, readOnly, isTextarea }: {
+function FieldCell({ label, value, originalValue, editKey, editMode, setField, readOnly, isTextarea }: {
   label: string;
   value: string | null | undefined;
+  originalValue?: string | null | undefined;
   editKey?: keyof PendingEdits;
   editMode?: boolean;
   setField?: (key: keyof PendingEdits, value: string) => void;
   readOnly?: boolean;
   isTextarea?: boolean;
 }) {
-  const isModified = editMode && editKey && value !== undefined && value !== null;
+  const isModified = editMode && !readOnly && value !== originalValue && originalValue !== undefined;
   const canEdit = editMode && !readOnly && editKey && setField;
   const displayVal = value ?? '—';
 
