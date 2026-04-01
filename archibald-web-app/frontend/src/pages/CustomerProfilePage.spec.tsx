@@ -227,3 +227,29 @@ describe('CustomerProfilePage — Storico ordini', () => {
     });
   });
 });
+
+describe('CustomerProfilePage — indirizzi alternativi', () => {
+  const mockAddresses = [
+    { id: 1, erpId: 'A001', tipo: 'Consegna', nome: 'Magazzino Nord', via: 'Via Po 5', cap: '20100', citta: 'Milano', contea: null, stato: null, idRegione: null, contra: null },
+  ];
+
+  beforeEach(async () => {
+    const mod = await import('../services/customer-addresses');
+    vi.mocked(mod.getCustomerAddresses).mockResolvedValue(mockAddresses);
+  });
+
+  test('mostra l indirizzo alternativo', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Magazzino Nord'));
+  });
+
+  test('pulsante elimina chiama deleteCustomerAddress dopo conferma', async () => {
+    const mod = await import('../services/customer-addresses');
+    renderProfile();
+    await waitFor(() => screen.getByText('Magazzino Nord'));
+    fireEvent.click(screen.getByRole('button', { name: /Elimina/i }));
+    // Inline confirm
+    fireEvent.click(screen.getByRole('button', { name: /Conferma/i }));
+    await waitFor(() => expect(vi.mocked(mod.deleteCustomerAddress)).toHaveBeenCalledWith('A001', 1));
+  });
+});

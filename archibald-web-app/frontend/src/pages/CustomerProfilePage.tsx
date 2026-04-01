@@ -5,7 +5,7 @@ import type { CustomerAddress } from '../types/customer-address';
 import type { AddressEntry } from '../types/customer-form-data';
 import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
-import { getCustomerAddresses } from '../services/customer-addresses';
+import { getCustomerAddresses, addCustomerAddress, deleteCustomerAddress } from '../services/customer-addresses';
 import { customerService } from '../services/customers.service';
 import { CustomerListSidebar } from '../components/CustomerListSidebar';
 import { PhotoCropModal } from '../components/PhotoCropModal';
@@ -63,6 +63,9 @@ export function CustomerProfilePage() {
   const [storicoFilter, setStoricoFilter] = useState<'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'>('anno');
 
   const { trackOperation } = useOperationTracking();
+
+  const [deleteAddrConfirmId, setDeleteAddrConfirmId] = useState<number | null>(null);
+  const [addAddrForm, setAddAddrForm] = useState<AddressEntry | null>(null);
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -339,6 +342,75 @@ export function CustomerProfilePage() {
             <FieldCell label="Note" value={pendingEdits.notes ?? customer.notes ?? null} originalValue={customer.notes ?? null} editKey="notes" editMode={editMode} setField={setField} isTextarea />
           </SectionCard>
 
+          {/* Indirizzi alternativi */}
+          <div style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              Indirizzi alternativi
+              <button
+                onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
+                style={{ border: 'none', background: '#eff6ff', color: '#2563eb', borderRadius: 6, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+              >+ Aggiungi</button>
+            </div>
+
+            {addresses.length === 0 && !addAddrForm && (
+              <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun indirizzo alternativo</div>
+            )}
+
+            {addresses.map(addr => (
+              <div key={addr.id} style={{ padding: '8px 14px', borderTop: '1px solid #f8fafc', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{addr.nome ?? addr.tipo}</div>
+                  <div style={{ fontSize: 10, color: '#64748b' }}>{[addr.via, addr.citta].filter(Boolean).join(', ')}</div>
+                </div>
+                {deleteAddrConfirmId === addr.id ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      aria-label="Conferma eliminazione"
+                      onClick={async () => {
+                        await deleteCustomerAddress(erpId, addr.id);
+                        setAddresses(prev => prev.filter(a => a.id !== addr.id));
+                        setDeleteAddrConfirmId(null);
+                      }}
+                      style={{ padding: '3px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                    >Conferma</button>
+                    <button onClick={() => setDeleteAddrConfirmId(null)} style={{ padding: '3px 8px', background: '#f1f5f9', border: 'none', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}>Annulla</button>
+                  </div>
+                ) : (
+                  <button
+                    aria-label={`Elimina ${addr.nome ?? addr.tipo}`}
+                    onClick={() => setDeleteAddrConfirmId(addr.id)}
+                    style={{ padding: '3px 8px', background: '#fff', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}
+                  >Elimina</button>
+                )}
+              </div>
+            ))}
+
+            {addAddrForm && (
+              <div style={{ padding: '10px 14px', borderTop: '1px solid #f8fafc', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(['via', 'citta', 'cap', 'nome'] as const).map(field => (
+                  <input
+                    key={field}
+                    placeholder={field === 'nome' ? 'Descrizione (es. Magazzino)' : field === 'via' ? 'Via' : field === 'citta' ? 'Città' : 'CAP'}
+                    value={(addAddrForm as Record<string, string>)[field] ?? ''}
+                    onChange={e => setAddAddrForm(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                    style={{ fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', outline: 'none' }}
+                  />
+                ))}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={async () => {
+                      const created = await addCustomerAddress(erpId, addAddrForm);
+                      setAddresses(prev => [...prev, created]);
+                      setAddAddrForm(null);
+                    }}
+                    style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >Salva indirizzo</button>
+                  <button onClick={() => setAddAddrForm(null)} style={{ padding: '5px 12px', background: '#f1f5f9', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Annulla</button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Storico ordini */}
           <div id="storico-section" style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9', overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -426,8 +498,6 @@ export function CustomerProfilePage() {
         />
       )}
 
-      {/* Suppress unused variable warning for addresses (used in later task) */}
-      {false && JSON.stringify({ addresses })}
     </div>
   );
 }
