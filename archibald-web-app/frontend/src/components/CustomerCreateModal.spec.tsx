@@ -15,11 +15,32 @@ vi.mock('../services/customers.service', () => ({
 vi.mock('../api/operations', () => ({
   waitForJobViaWebSocket: vi.fn(),
 }));
+const { mockSubscribe, fireWsEvent } = vi.hoisted(() => {
+  const subscribers: Record<string, Array<(payload: unknown) => void>> = {};
+  const mockSubscribe = vi.fn().mockImplementation(
+    (eventType: string, cb: (p: unknown) => void) => {
+      if (!subscribers[eventType]) subscribers[eventType] = [];
+      subscribers[eventType].push(cb);
+      return () => {
+        const i = subscribers[eventType].indexOf(cb);
+        if (i !== -1) subscribers[eventType].splice(i, 1);
+      };
+    },
+  );
+  const fireWsEvent = (type: string, payload: unknown) => {
+    (subscribers[type] ?? []).forEach((cb) => cb(payload));
+  };
+  const clearWsSubscribers = () => {
+    Object.keys(subscribers).forEach((k) => { subscribers[k] = []; });
+  };
+  return { mockSubscribe, fireWsEvent, clearWsSubscribers };
+});
+
 vi.mock('../contexts/WebSocketContext', () => ({
   useWebSocketContext: () => ({
     socket: null,
     isConnected: false,
-    subscribe: vi.fn().mockReturnValue(vi.fn()),
+    subscribe: mockSubscribe,
   }),
 }));
 
@@ -129,6 +150,24 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     const vatInput = screen.getByPlaceholderText(/06104510653/i);
     await user.type(vatInput, '12345678901');
     await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    // Verifica avvia la sessione ERP; attendiamo che beginInteractiveSession sia chiamato
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    // Simuliamo la risposta WebSocket dal bot — questa sblocca l'avanzamento al passo 2
+    fireWsEvent('CUSTOMER_VAT_RESULT', {
+      sessionId: 'test-session',
+      vatResult: {
+        lastVatCheck: '2026-04-01',
+        vatValidated: 'Yes',
+        vatAddress: '',
+        parsed: { companyName: '', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+        pec: '',
+        sdi: '',
+      },
+    });
 
     await waitFor(() => {
       // Siamo passati ad anagrafica — deve esserci il campo nome
