@@ -12293,6 +12293,10 @@ export class ArchibaldBot {
             const isVisible =
               htmlEl.offsetParent !== null || htmlEl.style.display !== "none";
             const text = htmlEl.textContent?.trim() || "";
+            // Skip DevExpress infrastructure elements whose textContent is
+            // JavaScript initialization code — they start with an HTML comment
+            // marker and are always present in the DOM even when no popup is shown.
+            if (text.startsWith("<!--")) return;
             if (text.length > 0 && text.length < 1000) {
               popups.push({
                 id: htmlEl.id,
@@ -13045,9 +13049,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url) {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
-    }
+    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "N/A");
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
@@ -14251,7 +14253,21 @@ export class ArchibaldBot {
       }
     }
 
-    // Phase B: Combo boxes
+    // Phase B: vatNumber — re-type to restore if XAF callbacks cleared it during
+    // tab navigation, and trigger async VAT validation before text fields are set.
+    if (customerData.vatNumber) {
+      await this.typeDevExpressField(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
+      await this.wait(5000);
+      await this.waitForDevExpressIdle({
+        timeout: 10000,
+        label: "vat-validation-interactive",
+      });
+    }
+
+    // Phase C: Combo boxes
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -14266,7 +14282,7 @@ export class ArchibaldBot {
       );
     }
 
-    // Phase C: Text fields (set after lookups so they don't get cleared)
+    // Phase D: Text fields (set after lookups so they don't get cleared)
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.fiscalCode) {
@@ -14314,9 +14330,7 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    if (customerData.url !== undefined) {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
-    }
+    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "N/A");
 
     if (customerData.attentionTo) {
       await this.typeDevExpressField(
