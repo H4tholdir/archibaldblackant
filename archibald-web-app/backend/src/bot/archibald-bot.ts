@@ -11187,13 +11187,44 @@ export class ArchibaldBot {
     }
 
     await searchInput.click({ clickCount: 3 });
-    await searchInput.type(searchValue, { delay: 20 });
-    await this.wait(200);
-    await searchInput.press("Enter");
+    // delay:100ms is required: the DevExpress SAC control fires textChanged callbacks
+    // between characters to populate the grid; delay:20ms is too fast and the callback
+    // never fires, resulting in 0 rows regardless of wait time.
+    await searchInput.type(searchValue, { delay: 100 });
+    await this.wait(500);
 
-    logger.debug(
-      "Search value entered in iframe via real keyboard, waiting for results...",
-    );
+    // If rows already appeared from typing (SAC autocomplete), skip Enter.
+    // Otherwise press Enter to explicitly trigger the filter.
+    const rowsAlreadyLoaded = await frame.evaluate(() => {
+      return (
+        document.querySelectorAll(
+          'tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]',
+        ).length > 0
+      );
+    });
+
+    if (!rowsAlreadyLoaded) {
+      await searchInput.press("Enter");
+      logger.debug("No rows from typing alone, pressed Enter to force filter");
+
+      // Also try clicking the search button (_Ed_B1) as additional fallback
+      const btnClicked = await frame.evaluate((inputId: string) => {
+        const btnId = inputId.replace(/_Ed_I$/, "_Ed_B1");
+        const btn = document.getElementById(btnId) as HTMLElement | null;
+        if (btn && btn.offsetParent !== null) {
+          btn.click();
+          return btnId;
+        }
+        return null;
+      }, searchInputId);
+      if (btnClicked) {
+        logger.debug("Clicked search button as fallback", { btnClicked });
+      }
+    }
+
+    logger.debug("Search value entered in iframe, waiting for results...", {
+      rowsAlreadyLoaded,
+    });
 
     // Wait for rows to appear inside the iframe
     try {
@@ -12062,9 +12093,10 @@ export class ArchibaldBot {
       );
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
-      const alreadyClosed = await this.page.evaluate(
-        () => !window.location.href.includes("DetailView"),
-      );
+      const alreadyClosed = await this.page.evaluate(() => {
+        const u = window.location.href;
+        return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+      });
 
       if (!alreadyClosed) {
         const savedAgain = await saveAttempt();
@@ -12083,11 +12115,15 @@ export class ArchibaldBot {
       }
     }
 
-    // Verify the form actually closed (URL should navigate away from DetailView)
+    // Verify the form actually closed (URL should navigate away from DetailView,
+    // OR land on DetailView/{id}/?mode=Edit which means customer was saved successfully)
     let formClosed = false;
     try {
       await this.page.waitForFunction(
-        () => !window.location.href.includes("DetailView"),
+        () => {
+          const u = window.location.href;
+          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+        },
         { timeout: 10000, polling: 500 },
       );
       formClosed = true;
@@ -12177,9 +12213,10 @@ export class ArchibaldBot {
           label: "late-warning-ack",
         });
 
-        const alreadyClosed = await this.page.evaluate(
-          () => !window.location.href.includes("DetailView"),
-        );
+        const alreadyClosed = await this.page.evaluate(() => {
+          const u = window.location.href;
+          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+        });
 
         if (!alreadyClosed) {
           const savedAgain = await saveAttempt();
@@ -12197,7 +12234,10 @@ export class ArchibaldBot {
         // Final form-closed check
         try {
           await this.page.waitForFunction(
-            () => !window.location.href.includes("DetailView"),
+            () => {
+              const u = window.location.href;
+              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+            },
             { timeout: 10000, polling: 500 },
           );
           formClosed = true;
@@ -12220,7 +12260,10 @@ export class ArchibaldBot {
 
         try {
           await this.page.waitForFunction(
-            () => !window.location.href.includes("DetailView"),
+            () => {
+              const u = window.location.href;
+              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+            },
             { timeout: 10000, polling: 500 },
           );
           formClosed = true;
