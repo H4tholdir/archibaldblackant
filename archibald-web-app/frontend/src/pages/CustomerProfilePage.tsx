@@ -60,6 +60,7 @@ export function CustomerProfilePage() {
   const [editMode, setEditMode] = useState(false);
   const [pendingEdits, setPendingEdits] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
+  const [storicoFilter, setStoricoFilter] = useState<'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'>('anno');
 
   const { trackOperation } = useOperationTracking();
 
@@ -143,6 +144,22 @@ export function CustomerProfilePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function filterOrders(allOrders: CustomerFullHistoryOrder[], filter: 'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'): CustomerFullHistoryOrder[] {
+    if (filter === 'tutto') return allOrders;
+    const now = new Date();
+    const year = now.getFullYear();
+    return allOrders.filter(o => {
+      const d = new Date(o.orderDate);
+      if (filter === 'anno') return d.getFullYear() === year;
+      if (filter === 'anno_prec') return d.getFullYear() === year - 1;
+      const diffMs = now.getTime() - d.getTime();
+      const DAY = 86_400_000;
+      if (filter === 'mese') return diffMs < 30 * DAY;
+      if (filter === 'trimestre') return diffMs < 90 * DAY;
+      return true;
+    });
   }
 
   if (loading) {
@@ -322,7 +339,54 @@ export function CustomerProfilePage() {
             <FieldCell label="Note" value={pendingEdits.notes ?? customer.notes ?? null} originalValue={customer.notes ?? null} editKey="notes" editMode={editMode} setField={setField} isTextarea />
           </SectionCard>
 
-          {/* Indirizzi alt + Storico — da completare nei task successivi */}
+          {/* Storico ordini */}
+          <div id="storico-section" style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              Storico ordini
+              <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{filterOrders(orders, storicoFilter).length} ordini</span>
+            </div>
+
+            {/* Filtri chip */}
+            <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px', flexWrap: 'wrap' }}>
+              {([
+                { key: 'mese', label: 'Questo mese' },
+                { key: 'trimestre', label: 'Ultimi 3m' },
+                { key: 'anno', label: "Quest'anno" },
+                { key: 'anno_prec', label: 'Anno scorso' },
+                { key: 'tutto', label: 'Tutto' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setStoricoFilter(key)}
+                  style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: storicoFilter === key ? 700 : 400, border: `1px solid ${storicoFilter === key ? '#2563eb' : '#e2e8f0'}`, background: storicoFilter === key ? '#eff6ff' : '#fff', color: storicoFilter === key ? '#1d4ed8' : '#64748b', cursor: 'pointer' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Lista ordini */}
+            {filterOrders(orders, storicoFilter).length === 0 ? (
+              <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun ordine nel periodo selezionato</div>
+            ) : (
+              filterOrders(orders, storicoFilter).map(o => (
+                <div
+                  key={o.orderId}
+                  onClick={() => navigate(`/orders?highlight=${encodeURIComponent(o.orderId)}`)}
+                  style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #f8fafc', cursor: 'pointer' }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>N° {o.orderNumber}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(o.orderDate).toLocaleDateString('it-IT')}</div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                    €{o.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>›</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* Save FAB */}
@@ -343,7 +407,7 @@ export function CustomerProfilePage() {
               fontWeight: 600,
             }}
           >
-            {saving ? 'Salvataggio…' : 'Salva'}
+            {saving ? 'Salvataggio…' : `Salva (${pendingCount})`}
           </button>
         )}
       </div>
@@ -362,8 +426,8 @@ export function CustomerProfilePage() {
         />
       )}
 
-      {/* Suppress unused variable warnings for state setters used by child components in later tasks */}
-      {false && JSON.stringify({ orders, addresses })}
+      {/* Suppress unused variable warning for addresses (used in later task) */}
+      {false && JSON.stringify({ addresses })}
     </div>
   );
 }
