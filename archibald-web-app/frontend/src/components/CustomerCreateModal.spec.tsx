@@ -277,4 +277,38 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     // Rimane sul passo VAT — il campo nome non è presente
     expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
+
+  it('non sovrascrive fiscalCode con internalId ERP quando il campo è vuoto', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '02360490656');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    const erpInternalId = '6475b693b5b2f73da44f07e8';
+    fireWsEvent('CUSTOMER_VAT_RESULT', {
+      sessionId: 'test-session',
+      vatResult: {
+        lastVatCheck: '2026-04-01',
+        vatValidated: 'Yes',
+        vatAddress: 'GIANVITO NAIMOLI\nId:6475b693b5b2f73da44f07e8',
+        parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: erpInternalId },
+        pec: '',
+        sdi: '',
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    });
+
+    // Navigate to anagrafica step and check the fiscalCode field
+    const fiscalCodeInput = screen.getByPlaceholderText(/Auto-compilato dalla P\.IVA/i) as HTMLInputElement;
+    expect(fiscalCodeInput.value).toBe('');
+  });
 });

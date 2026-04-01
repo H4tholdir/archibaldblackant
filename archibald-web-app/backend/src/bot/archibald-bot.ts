@@ -11154,8 +11154,8 @@ export class ArchibaldBot {
 
     await this.wait(300);
 
-    // Find and focus the search input inside the iframe
-    const searchFound = await frame.evaluate(() => {
+    // Find and focus the search input inside the iframe, returning its id for frame.type()
+    const searchInputId = await frame.evaluate(() => {
       const inputs = Array.from(
         document.querySelectorAll('input[type="text"]'),
       ).filter(
@@ -11167,22 +11167,25 @@ export class ArchibaldBot {
           (i) => /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
         ) || inputs[0];
 
-      if (!searchInput) return false;
+      if (!searchInput) return null;
 
       searchInput.focus();
       searchInput.click();
       // Clear any existing value
       searchInput.value = "";
-      return true;
+      // Ensure the input has an id so frame.type() can target it
+      if (!searchInput.id) searchInput.id = '_archibald_iframe_search_';
+      return searchInput.id;
     });
 
-    if (!searchFound) {
+    if (!searchInputId) {
       logger.warn("No search input found inside iframe");
       return;
     }
 
-    // Use real keyboard to type and press Enter (dispatchEvent doesn't trigger DevExpress callbacks)
-    await this.page!.keyboard.type(searchValue, { delay: 20 });
+    // frame.type() reliably dispatches keyboard events to iframe elements;
+    // page.keyboard.type() does not forward events across frame boundaries in Puppeteer
+    await frame.type(`#${searchInputId}`, searchValue, { delay: 20 });
     await this.wait(200);
     await this.page!.keyboard.press("Enter");
 
