@@ -557,11 +557,26 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           const vatResult = await bot.submitVatAndReadAutofill(vatNumber);
           sessionManager.setVatResult(sessionId, vatResult);
 
-          broadcast(userId, {
-            type: 'CUSTOMER_VAT_RESULT',
-            payload: { sessionId, vatResult },
-            timestamp: now(),
-          });
+          if (vatResult.erpDuplicateCustomerId) {
+            // P.IVA già usata da un altro cliente nell'ERP: chiudi il bot e notifica il frontend
+            try { await bot.close(); } catch { /* ignore */ }
+            if (sessionManager.isSyncsPaused(sessionId)) {
+              sessionManager.markSyncsPaused(sessionId, false);
+              resumeSyncs();
+            }
+            sessionManager.destroySession(sessionId);
+            broadcast(userId, {
+              type: 'CUSTOMER_VAT_DUPLICATE',
+              payload: { sessionId, erpCustomerId: vatResult.erpDuplicateCustomerId },
+              timestamp: now(),
+            });
+          } else {
+            broadcast(userId, {
+              type: 'CUSTOMER_VAT_RESULT',
+              payload: { sessionId, vatResult },
+              timestamp: now(),
+            });
+          }
         } catch (error) {
           if (bot) {
             try { await bot.close(); } catch { /* ignore */ }

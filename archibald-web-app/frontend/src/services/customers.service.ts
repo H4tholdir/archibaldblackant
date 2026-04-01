@@ -211,6 +211,9 @@ export class CustomerService {
     name?: string;
     rawAddress?: string;
     source?: string;
+    alreadyExists?: boolean;
+    existingName?: string;
+    existingCode?: string;
   }> {
     const response = await fetchWithRetry('/api/customers/vat-check', {
       method: 'POST',
@@ -224,6 +227,9 @@ export class CustomerService {
       name: data.data?.name,
       rawAddress: data.data?.rawAddress,
       source: data.meta?.source,
+      alreadyExists: data.data?.alreadyExists,
+      existingName: data.data?.existingName,
+      existingCode: data.data?.existingCode,
     };
   }
 

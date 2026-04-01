@@ -453,33 +453,45 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       });
     }
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      const viesRes = await fetch(
-        `https://ec.europa.eu/taxation_customs/vies/rest-api/ms/IT/vat/${vatNumber}`,
-        { signal: controller.signal },
-      );
-      clearTimeout(timeout);
-
-      if (!viesRes.ok) {
-        return res.json({ success: true, data: { valid: true }, meta: { source: 'fallback' } });
+    // Italian P.IVA checksum: odd positions summed directly, even positions doubled
+    // (if doubled > 9 subtract 9), total including check digit must be divisible by 10.
+    const digits = vatNumber.split('').map(Number);
+    let checksumTotal = 0;
+    for (let i = 0; i < 10; i++) {
+      if (i % 2 === 0) {
+        checksumTotal += digits[i];
+      } else {
+        const v = digits[i] * 2;
+        checksumTotal += v > 9 ? v - 9 : v;
       }
+    }
+    if ((checksumTotal + digits[10]) % 10 !== 0) {
+      return res.json({
+        success: true,
+        data: { valid: false },
+        meta: { source: 'checksum' },
+      });
+    }
 
-      const viesData = await viesRes.json() as { valid?: boolean; name?: string; address?: string };
-
+    // Check if the P.IVA is already in this agent's customer DB
+    const userId = req.user!.userId;
+    const customers = await getCustomers(userId, vatNumber);
+    const duplicate = customers.find(
+      (c) => (c as unknown as { vatNumber?: string }).vatNumber === vatNumber,
+    );
+    if (duplicate) {
       return res.json({
         success: true,
         data: {
-          valid: viesData.valid ?? true,
-          name: viesData.name || undefined,
-          rawAddress: viesData.address || undefined,
+          valid: true,
+          alreadyExists: true,
+          existingName: duplicate.name,
+          existingCode: (duplicate as unknown as { erpId?: string }).erpId ?? '',
         },
       });
-    } catch {
-      return res.json({ success: true, data: { valid: true }, meta: { source: 'fallback' } });
     }
+
+    return res.json({ success: true, data: { valid: true } });
   });
 
   return router;

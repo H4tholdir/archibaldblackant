@@ -554,57 +554,48 @@ describe('createCustomersRouter', () => {
   });
 
   describe('POST /api/customers/vat-check', () => {
-    const vatNumber = '12345678901';
+    // 12345678903: checksum valido (somma dispari=47, (47+3)%10=0)
+    const validVat = '12345678903';
+    // 12345678901: checksum invalido (somma dispari=47, (47+1)%10=8≠0)
+    const invalidChecksumVat = '12345678901';
 
-    test('restituisce valid:true e name quando VIES risponde', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          valid: true,
-          name: 'ACME SRL',
-          address: 'VIA ROMA 1 00100 ROMA IT',
-        }),
-      }));
+    test('restituisce valid:true per P.IVA con checksum corretto e nessun duplicato nel DB', async () => {
+      deps.getCustomers = vi.fn().mockResolvedValue([]);
 
       const res = await request(app)
         .post('/api/customers/vat-check')
-        .send({ vatNumber });
+        .send({ vatNumber: validVat });
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({
-        valid: true,
-        name: 'ACME SRL',
-        rawAddress: 'VIA ROMA 1 00100 ROMA IT',
-      });
-
-      vi.unstubAllGlobals();
+      expect(res.body.data).toEqual({ valid: true });
     });
 
-    test('restituisce valid:false quando VIES dice invalid', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ valid: false }),
-      }));
-
+    test('restituisce valid:false e source:checksum per P.IVA con checksum errato', async () => {
       const res = await request(app)
         .post('/api/customers/vat-check')
-        .send({ vatNumber });
+        .send({ vatNumber: invalidChecksumVat });
 
+      expect(res.status).toBe(200);
       expect(res.body.data.valid).toBe(false);
-      vi.unstubAllGlobals();
+      expect(res.body.meta?.source).toBe('checksum');
     });
 
-    test('fallback gracioso quando VIES non raggiungibile', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+    test('restituisce alreadyExists:true se P.IVA già presente nel DB agente', async () => {
+      (deps.getCustomers as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { id: 'erp-1', name: 'ACME SRL', erpId: '00123', vatNumber: validVat },
+      ]);
 
       const res = await request(app)
         .post('/api/customers/vat-check')
-        .send({ vatNumber });
+        .send({ vatNumber: validVat });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.valid).toBe(true);
-      expect(res.body.meta?.source).toBe('fallback');
-      vi.unstubAllGlobals();
+      expect(res.body.data).toMatchObject({
+        valid: true,
+        alreadyExists: true,
+        existingName: 'ACME SRL',
+        existingCode: '00123',
+      });
     });
 
     test('400 se vatNumber ha formato errato', async () => {

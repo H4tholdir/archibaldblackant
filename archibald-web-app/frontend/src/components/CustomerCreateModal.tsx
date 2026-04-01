@@ -224,6 +224,18 @@ export function CustomerCreateModal({
       }),
     );
 
+    unsubs.push(
+      subscribe("CUSTOMER_VAT_DUPLICATE", (payload: unknown) => {
+        const p = payload as { sessionId: string; erpCustomerId: string };
+        if (p.sessionId !== interactiveSessionIdRef.current) return;
+        // P.IVA già registrata nell'ERP: torna al passo VAT con messaggio chiaro
+        setCurrentStep({ kind: "vat" });
+        setVatError(
+          `Questo cliente esiste già nell'ERP (ID: ${p.erpCustomerId}). Contatta il Servizio Clienti.`,
+        );
+      }),
+    );
+
     return () => unsubs.forEach((u) => u());
   }, [interactiveSessionId, subscribe]);
 
@@ -367,11 +379,19 @@ export function CustomerCreateModal({
       const result = await customerService.checkVat(vat);
 
       if (!result.valid) {
-        setVatError("P.IVA non valida -- verifica il numero inserito");
+        setVatError("P.IVA non valida — verifica il numero inserito");
         return;
       }
 
-      if (result.source === "fallback") setVatFallbackWarning(true);
+      if (result.alreadyExists) {
+        const label = result.existingName
+          ? `${result.existingName}${result.existingCode ? ` (cod. ${result.existingCode})` : ""}`
+          : result.existingCode ?? "";
+        setVatError(
+          `Questo cliente esiste già nel sistema${label ? `: ${label}` : ""}`,
+        );
+        return;
+      }
 
       if (result.name) {
         setFormData((f) => ({ ...f, name: f.name || result.name! }));

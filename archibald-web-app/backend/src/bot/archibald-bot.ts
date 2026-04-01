@@ -14055,6 +14055,29 @@ export class ArchibaldBot {
         break;
       }
 
+      // Check for ERP duplicate-customer banner early so we don't wait 20s pointlessly.
+      // When a P.IVA is already registered, the ERP XHR callback clears the field and
+      // shows: "Il numero IVA è già utilizzato dal cliente con ID: XXXX".
+      const earlyDuplicateId = await this.page.evaluate(() => {
+        const text = document.body?.innerText || "";
+        const m = text.match(/Il numero IVA[^.]*con ID:\s*(\d+)/i);
+        return m ? m[1] : null;
+      });
+      if (earlyDuplicateId) {
+        logger.warn("Interactive: P.IVA already exists in ERP (early detection)", {
+          vatNumber,
+          erpDuplicateCustomerId: earlyDuplicateId,
+        });
+        const emptyParsed: import("../types").VatAddressInfo = {
+          companyName: "", street: "", postalCode: "", city: "", vatStatus: "", internalId: "",
+        };
+        return {
+          lastVatCheck: "", vatValidated: "No", vatAddress: "",
+          parsed: emptyParsed, pec: "", sdi: "",
+          erpDuplicateCustomerId: earlyDuplicateId,
+        };
+      }
+
       if (attempt < maxPollAttempts - 1) {
         logger.info("Interactive: VAT data not yet populated, waiting...", {
           attempt: attempt + 1,

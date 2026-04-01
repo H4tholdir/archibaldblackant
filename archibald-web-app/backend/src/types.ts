@@ -185,6 +185,7 @@ export type VatLookupResult = {
   parsed: VatAddressInfo;
   pec: string;
   sdi: string;
+  erpDuplicateCustomerId?: string;
 };
 
 export type InteractiveSessionState =
