@@ -14091,6 +14091,30 @@ export class ArchibaldBot {
       }
     }
 
+    // Post-loop duplicate check: runs regardless of how the loop exited (break or exhaustion).
+    // When hasData=true fires at attempt 1, the in-loop earlyDuplicateId check is skipped.
+    // This catches the case where VATLASTCHECKEDDATE is populated (hasData=true) but the
+    // ERP also shows the "già utilizzato" banner (duplicate P.IVA).
+    const postLoopDuplicateId = await this.page.evaluate(() => {
+      const text = document.body?.innerText || "";
+      const m = text.match(/Il numero IVA[^.]*con ID:\s*(\d+)/i);
+      return m ? m[1] : null;
+    });
+    if (postLoopDuplicateId) {
+      logger.warn("Interactive: P.IVA already exists in ERP (post-loop detection)", {
+        vatNumber,
+        erpDuplicateCustomerId: postLoopDuplicateId,
+      });
+      const emptyParsed: import("../types").VatAddressInfo = {
+        companyName: "", street: "", postalCode: "", city: "", vatStatus: "", internalId: "",
+      };
+      return {
+        lastVatCheck: "", vatValidated: "No", vatAddress: "",
+        parsed: emptyParsed, pec: "", sdi: "",
+        erpDuplicateCustomerId: postLoopDuplicateId,
+      };
+    }
+
     // Read fields using both DevExpress API and DOM
     const rawFields = await this.page.evaluate(() => {
       const w = window as any;
