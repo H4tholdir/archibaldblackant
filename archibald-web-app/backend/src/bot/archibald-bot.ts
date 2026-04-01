@@ -11193,38 +11193,36 @@ export class ArchibaldBot {
     await searchInput.type(searchValue, { delay: 100 });
     await this.wait(500);
 
-    // If rows already appeared from typing (SAC autocomplete), skip Enter.
-    // Otherwise press Enter to explicitly trigger the filter.
-    const rowsAlreadyLoaded = await frame.evaluate(() => {
-      return (
-        document.querySelectorAll(
-          'tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]',
-        ).length > 0
-      );
-    });
+    // Always click the search button (magnifying glass) to apply the final filter.
+    // Not doing this risks selecting a partially-filtered SAC row mid-typing.
+    // _Ed_B0 is the primary (search) button; _Ed_B1 is secondary (clear) — don't use B1.
+    const btnClicked = await frame.evaluate((inputId: string) => {
+      const candidates = [
+        inputId.replace(/_Ed_I$/, "_Ed_B0"),
+        inputId.replace(/_DXSE_I$/, "_DXSE_Btn"),
+        inputId.replace(/_DXFREditorcol0_I$/, "_DXFREditorcol0_B0"),
+      ].filter((id) => id !== inputId);
 
-    if (!rowsAlreadyLoaded) {
-      await searchInput.press("Enter");
-      logger.debug("No rows from typing alone, pressed Enter to force filter");
-
-      // Also try clicking the search button (_Ed_B1) as additional fallback
-      const btnClicked = await frame.evaluate((inputId: string) => {
-        const btnId = inputId.replace(/_Ed_I$/, "_Ed_B1");
-        const btn = document.getElementById(btnId) as HTMLElement | null;
-        if (btn && btn.offsetParent !== null) {
-          btn.click();
-          return btnId;
+      for (const id of candidates) {
+        const el = document.getElementById(id) as HTMLElement | null;
+        if (el && el.offsetParent !== null) {
+          el.click();
+          return id;
         }
-        return null;
-      }, searchInputId);
-      if (btnClicked) {
-        logger.debug("Clicked search button as fallback", { btnClicked });
       }
+      return null;
+    }, searchInputId);
+
+    if (btnClicked) {
+      logger.debug("Clicked search button (magnifying glass)", { btnClicked });
+      await this.wait(500);
+    } else {
+      await searchInput.press("Enter");
+      logger.debug("Search button not found, pressed Enter as fallback");
+      await this.wait(500);
     }
 
-    logger.debug("Search value entered in iframe, waiting for results...", {
-      rowsAlreadyLoaded,
-    });
+    logger.debug("Search value entered in iframe, waiting for results...");
 
     // Wait for rows to appear inside the iframe
     try {

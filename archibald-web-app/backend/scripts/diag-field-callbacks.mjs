@@ -362,8 +362,9 @@ async function runPhase1(page, cdpSession) {
   logProbeResult('VATNUM', vatResult);
   results.VATNUM = vatResult;
 
-  // Naviga via SENZA salvare
+  // Naviga via SENZA salvare — XAF mostra dialog beforeunload, va accettato
   console.log('\n[PHASE1] Navigazione via (no save)...');
+  page.once('dialog', async dialog => { await dialog.accept().catch(() => {}); });
   await page.goto(
     `${ERP_URL}/CUSTTABLE_ListView_Agent/`,
     { waitUntil: 'networkidle2', timeout: 30000 }
@@ -451,17 +452,17 @@ async function runPhase2(page, cdpSession) {
   // Passo 4: SDI (nessun callback atteso)
   console.log('[PHASE2] Passo 4: SDI...');
   const sdiId = await page.evaluate(() => {
-    // Il campo SDI si chiama PDVFATTELLETTR in XAF
+    // Il campo SDI è LEGALAUTHORITY nel DOM XAF
     const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
       .find(el =>
-        /PDVFATTELLETTR|SDI|FATTELLETTR/i.test(el.id) &&
+        /LEGALAUTHORITY/i.test(el.id) &&
         el.offsetParent !== null
       );
     if (!input) return null;
     input.scrollIntoView({ block: 'center' });
     return input.id;
   });
-  if (!sdiId) throw new Error('SDI input non trovato (cercato: PDVFATTELLETTR/SDI/FATTELLETTR)');
+  if (!sdiId) throw new Error('SDI input non trovato (cercato: LEGALAUTHORITY)');
   await page.click(`#${cssEscape(sdiId)}`, { clickCount: 3 });
   await page.type(`#${cssEscape(sdiId)}`, PALMESE_FIX.SDI, { delay: 60 });
   await page.keyboard.press('Tab');
