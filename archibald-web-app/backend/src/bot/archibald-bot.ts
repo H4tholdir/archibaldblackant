@@ -11120,18 +11120,20 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) return;
 
-    const iframeHandle = await this.page.$(`#${iframeId}`);
-    if (!iframeHandle) {
-      logger.warn(
-        "Iframe element not found by id, falling back to direct mode",
-      );
-      return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
-    }
-
-    const frame = await iframeHandle.contentFrame();
+    // page.frames() is more reliable than contentFrame() for FindPopup iframes
+    let frame =
+      this.page.frames().find((f) => f.url().includes("FindPopup")) ?? null;
     if (!frame) {
-      logger.warn("Could not get contentFrame, falling back to direct mode");
-      return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
+      const iframeHandle = await this.page.$(`#${iframeId}`);
+      if (!iframeHandle) {
+        logger.warn("Iframe element not found, falling back to direct mode");
+        return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
+      }
+      frame = await iframeHandle.contentFrame();
+      if (!frame) {
+        logger.warn("Could not get contentFrame, falling back to direct mode");
+        return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
+      }
     }
 
     logger.debug("Working inside iframe for lookup");
@@ -11154,40 +11156,24 @@ export class ArchibaldBot {
 
     await this.wait(300);
 
-    // Find and focus the search input inside the iframe, returning its id for frame.type()
-    const searchInputId = await frame.evaluate(() => {
-      const inputs = Array.from(
-        document.querySelectorAll('input[type="text"]'),
-      ).filter(
-        (i) => (i as HTMLElement).offsetParent !== null,
-      ) as HTMLInputElement[];
+    // ElementHandle.type() and .press() route through the iframe's frame context;
+    // page.keyboard.press() targets the main page and does not reach iframe elements
+    const searchInput = await frame
+      .waitForSelector(
+        'input[type="text"],input:not([type="hidden"]):not([type="checkbox"])',
+        { timeout: 6000, visible: true },
+      )
+      .catch(() => null);
 
-      const searchInput =
-        inputs.find(
-          (i) => /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
-        ) || inputs[0];
-
-      if (!searchInput) return null;
-
-      searchInput.focus();
-      searchInput.click();
-      // Clear any existing value
-      searchInput.value = "";
-      // Ensure the input has an id so frame.type() can target it
-      if (!searchInput.id) searchInput.id = '_archibald_iframe_search_';
-      return searchInput.id;
-    });
-
-    if (!searchInputId) {
+    if (!searchInput) {
       logger.warn("No search input found inside iframe");
       return;
     }
 
-    // frame.type() reliably dispatches keyboard events to iframe elements;
-    // page.keyboard.type() does not forward events across frame boundaries in Puppeteer
-    await frame.type(`#${searchInputId}`, searchValue, { delay: 20 });
+    await searchInput.click({ clickCount: 3 });
+    await searchInput.type(searchValue, { delay: 20 });
     await this.wait(200);
-    await this.page!.keyboard.press("Enter");
+    await searchInput.press("Enter");
 
     logger.debug(
       "Search value entered in iframe via real keyboard, waiting for results...",
