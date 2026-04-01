@@ -287,6 +287,20 @@ async function handleSubmitOrder(
 
   const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
 
+  const scontif = 1 - (data.discountPercent ?? 0) / 100;
+  const totalWithVatFromItems = parseFloat(
+    data.items
+      .filter(item => !item.isGhostArticle)
+      .reduce((sum, item) => {
+        const lineAmt = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
+        const adjustedLine = data.discountPercent ? round2(lineAmt * scontif) : lineAmt;
+        const vatPercent = item.vat ?? 0;
+        const lineTotalWithVat = round2(adjustedLine + round2(adjustedLine * vatPercent / 100));
+        return sum + lineTotalWithVat;
+      }, 0)
+      .toFixed(2),
+  );
+
   const isWarehouseOnly = orderId.startsWith('warehouse-') || orderId.startsWith('ghost-');
   const now = new Date().toISOString();
 
@@ -299,8 +313,8 @@ async function handleSubmitOrder(
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
         total_amount, hash, last_sync, created_at, articles_synced_at,
-        notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        notes, total_with_vat
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       ON CONFLICT (id, user_id) DO UPDATE SET
         order_number = EXCLUDED.order_number,
         gross_amount = EXCLUDED.gross_amount,
@@ -334,6 +348,7 @@ async function handleSubmitOrder(
         now,
         isWarehouseOnly ? now : null,
         buildOrderNotesText(data.noShipping, data.notes) || null,
+        totalWithVatFromItems > 0 ? totalWithVatFromItems.toString() : null,
       ],
     );
 

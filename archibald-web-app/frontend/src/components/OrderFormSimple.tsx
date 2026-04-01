@@ -33,7 +33,7 @@ import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
-import { arcaLineAmount, arcaDocumentTotals } from "../utils/arca-math";
+import { arcaLineAmount } from "../utils/arca-math";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
@@ -2315,32 +2315,22 @@ export default function OrderFormSimple() {
 
   // === CALCULATIONS ===
   const calculateTotals = () => {
-    const lines = items.map((item) => ({
-      prezzotot: item.subtotal,  // item.subtotal è già arcaLineAmount (già arrotondato)
-      vatRate: item.vatRate ?? 0,
-    }));
-    // scontif = 1 perché OrderFormSimple applica il globalDiscount già ai singoli item.discount
-    const { totNetto, totIva, totDoc } = arcaDocumentTotals(lines, 1);
-
-    const finalSubtotal = totNetto;
+    const sub = items.reduce((s, i) => s + i.subtotal, 0);
     const shippingCosts = noShipping
       ? { cost: 0, tax: 0, total: 0 }
-      : calculateShippingCosts(finalSubtotal);
-
-    const withShip = shippingCosts.cost > 0
-      ? arcaDocumentTotals(lines, 1, shippingCosts.cost, 22)
-      : { totIva, totDoc };
-    const totIvaWithShip = withShip.totIva;
-    const finalTotal = withShip.totDoc;
+      : calculateShippingCosts(sub);
+    const itemVat = items.reduce((s, i) => s + i.vat, 0);
+    const finalVAT = Math.round((itemVat + shippingCosts.tax) * 100) / 100;
+    const finalTotal = Math.round((sub + shippingCosts.cost + finalVAT) * 100) / 100;
 
     return {
-      itemsSubtotal: totNetto,
-      itemsVAT: totIvaWithShip,
+      itemsSubtotal: sub,
+      itemsVAT: finalVAT,
       itemsTotal: finalTotal,
-      finalSubtotal,
+      finalSubtotal: sub,
       shippingCost: shippingCosts.cost,
       shippingTax: shippingCosts.tax,
-      finalVAT: totIvaWithShip,
+      finalVAT,
       finalTotal,
     };
   };
