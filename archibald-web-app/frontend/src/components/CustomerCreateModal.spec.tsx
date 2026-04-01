@@ -208,4 +208,73 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     // Rimane sul passo VAT
     expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
+
+  it('CUSTOMER_INTERACTIVE_FAILED avanza ad anagrafica in fallback senza bloccare', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'Bot crash' });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    });
+    // Nessun errore mostrato — il fallback è trasparente per l'utente
+    expect(screen.queryByText(/errore/i)).not.toBeInTheDocument();
+  });
+
+  it('CUSTOMER_VAT_DUPLICATE tardivo (dopo risoluzione) viene ignorato', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    // Prima risoluzione: INTERACTIVE_FAILED avanza ad anagrafica
+    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session' });
+    await waitFor(() => {
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    });
+
+    // Evento tardivo: VAT_DUPLICATE arriva dopo — deve essere ignorato
+    fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '99999' });
+
+    // Utente rimane su anagrafica, nessun errore P.IVA mostrato
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    expect(screen.queryByText(/già nell'ERP/i)).not.toBeInTheDocument();
+  });
+
+  it('CUSTOMER_VAT_DUPLICATE mostra errore e rimane su step VAT', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '53466' });
+
+    await waitFor(() => {
+      expect(screen.getByText(/già nell'ERP.*53466/i)).toBeInTheDocument();
+    });
+    // Rimane sul passo VAT — il campo nome non è presente
+    expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
+  });
 });

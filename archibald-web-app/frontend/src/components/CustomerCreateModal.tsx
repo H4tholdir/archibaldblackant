@@ -99,11 +99,12 @@ export function CustomerCreateModal({
   const [interactiveSessionId, setInteractiveSessionId] = useState<string | null>(null);
   const interactiveSessionIdRef = useRef<string | null>(null);
   const vatErpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Prevents late-arriving WS events from acting after ERP check is already resolved.
+  const erpCheckResolvedRef = useRef(false);
   const [erpValidated, setErpValidated] = useState(false);
 
   const [vatChecking, setVatChecking] = useState(false);
   const [vatError, setVatError] = useState<string | null>(null);
-  const [vatFallbackWarning, setVatFallbackWarning] = useState(false);
 
   const [capDisambigEntries, setCapDisambigEntries] = useState<CapEntry[]>([]);
   const [altAddressCapDisambig, setAltAddressCapDisambig] = useState<CapEntry[] | null>(null);
@@ -156,6 +157,7 @@ export function CustomerCreateModal({
         clearTimeout(vatErpTimeoutRef.current);
         vatErpTimeoutRef.current = null;
       }
+      erpCheckResolvedRef.current = false;
       const initial = { ...INITIAL_FORM };
       if (prefillName) initial.name = prefillName;
       setFormData(initial);
@@ -164,7 +166,6 @@ export function CustomerCreateModal({
       setErpValidated(false);
       setVatChecking(false);
       setVatError(null);
-      setVatFallbackWarning(false);
       setCapDisambigEntries([]);
       setAltAddressCapDisambig(null);
       setLocalAddresses([]);
@@ -181,6 +182,10 @@ export function CustomerCreateModal({
       setBotError(null);
       setError(null);
     } else {
+      if (vatErpTimeoutRef.current) {
+        clearTimeout(vatErpTimeoutRef.current);
+        vatErpTimeoutRef.current = null;
+      }
       if (interactiveSessionIdRef.current) {
         customerService
           .cancelInteractiveSession(interactiveSessionIdRef.current)
@@ -203,17 +208,20 @@ export function CustomerCreateModal({
     if (!interactiveSessionId) return;
     const unsubs: Array<() => void> = [];
 
-    const clearErpTimeout = () => {
+    const resolveErpCheck = () => {
       if (vatErpTimeoutRef.current) {
         clearTimeout(vatErpTimeoutRef.current);
         vatErpTimeoutRef.current = null;
       }
+      erpCheckResolvedRef.current = true;
+      setVatChecking(false);
     };
 
     unsubs.push(
       subscribe("CUSTOMER_VAT_RESULT", (payload: unknown) => {
         const p = payload as { sessionId: string; vatResult: VatLookupResult };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
+        if (erpCheckResolvedRef.current) return;
         const r = p.vatResult;
         setErpValidated(true);
         setFormData((prev) => ({
@@ -225,8 +233,7 @@ export function CustomerCreateModal({
           postalCode: prev.postalCode || r.parsed?.postalCode || "",
           postalCodeCity: prev.postalCodeCity || r.parsed?.city || "",
         }));
-        clearErpTimeout();
-        setVatChecking(false);
+        resolveErpCheck();
         setCurrentStep({ kind: "anagrafica" });
       }),
     );
@@ -235,9 +242,11 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_INTERACTIVE_FAILED", (payload: unknown) => {
         const p = payload as { sessionId: string; error?: string };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
-        // erpValidated remains false -- save will use fallback fresh-bot
-        clearErpTimeout();
-        setVatChecking(false);
+        if (erpCheckResolvedRef.current) return;
+        // erpValidated remains false — save path will use fallback fresh-bot.
+        // Clear the session so heartbeat stops and handleSave skips pendingSave wait.
+        resolveErpCheck();
+        setInteractiveSessionId(null);
         setCurrentStep({ kind: "anagrafica" });
       }),
     );
@@ -246,8 +255,10 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_VAT_DUPLICATE", (payload: unknown) => {
         const p = payload as { sessionId: string; erpCustomerId: string };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
-        clearErpTimeout();
-        setVatChecking(false);
+        if (erpCheckResolvedRef.current) return;
+        // Session was already destroyed on backend — clear it on frontend too.
+        resolveErpCheck();
+        setInteractiveSessionId(null);
         setCurrentStep({ kind: "vat" });
         setVatError(
           `Questo cliente esiste già nell'ERP (ID: ${p.erpCustomerId}). Contatta il Servizio Clienti.`,
@@ -393,7 +404,7 @@ export function CustomerCreateModal({
 
     setVatChecking(true);
     setVatError(null);
-    setVatFallbackWarning(false);
+    erpCheckResolvedRef.current = false;
 
     // True only when the ERP check is running and WS handler will clear vatChecking.
     let erpCheckWaiting = false;
@@ -431,6 +442,8 @@ export function CustomerCreateModal({
       // WS handlers (VAT_RESULT / INTERACTIVE_FAILED / VAT_DUPLICATE) clear it and advance.
       const safetyTimer = setTimeout(() => {
         vatErpTimeoutRef.current = null;
+        if (erpCheckResolvedRef.current) return;
+        erpCheckResolvedRef.current = true;
         setVatChecking(false);
         setCurrentStep({ kind: "anagrafica" });
       }, 30_000);
@@ -803,22 +816,6 @@ export function CustomerCreateModal({
               </div>
             )}
 
-            {vatFallbackWarning && (
-              <div
-                style={{
-                  marginTop: "12px",
-                  padding: "12px",
-                  backgroundColor: "#fff3e0",
-                  border: "1px solid #ff9800",
-                  borderRadius: "8px",
-                  color: "#e65100",
-                  fontSize: "14px",
-                }}
-              >
-                Verifica parziale (servizio VIES non disponibile). I dati
-                potrebbero non essere completi.
-              </div>
-            )}
 
             <div
               style={{

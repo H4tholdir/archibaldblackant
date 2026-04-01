@@ -444,54 +444,59 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
   });
 
   router.post('/vat-check', async (req: AuthRequest, res) => {
-    const { vatNumber } = req.body as { vatNumber?: string };
+    try {
+      const { vatNumber } = req.body as { vatNumber?: string };
 
-    if (!vatNumber || !/^\d{11}$/.test(vatNumber)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Formato P.IVA non valido (11 cifre numeriche)',
-      });
-    }
-
-    // Italian P.IVA checksum: odd positions summed directly, even positions doubled
-    // (if doubled > 9 subtract 9), total including check digit must be divisible by 10.
-    const digits = vatNumber.split('').map(Number);
-    let checksumTotal = 0;
-    for (let i = 0; i < 10; i++) {
-      if (i % 2 === 0) {
-        checksumTotal += digits[i];
-      } else {
-        const v = digits[i] * 2;
-        checksumTotal += v > 9 ? v - 9 : v;
+      if (!vatNumber || !/^\d{11}$/.test(vatNumber)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Formato P.IVA non valido (11 cifre numeriche)',
+        });
       }
-    }
-    if ((checksumTotal + digits[10]) % 10 !== 0) {
-      return res.json({
-        success: true,
-        data: { valid: false },
-        meta: { source: 'checksum' },
-      });
-    }
 
-    // Check if the P.IVA is already in this agent's customer DB
-    const userId = req.user!.userId;
-    const customers = await getCustomers(userId, vatNumber);
-    const duplicate = customers.find(
-      (c) => (c as unknown as { vatNumber?: string }).vatNumber === vatNumber,
-    );
-    if (duplicate) {
-      return res.json({
-        success: true,
-        data: {
-          valid: true,
-          alreadyExists: true,
-          existingName: duplicate.name,
-          existingCode: (duplicate as unknown as { erpId?: string }).erpId ?? '',
-        },
-      });
-    }
+      // Italian P.IVA checksum: odd positions summed directly, even positions doubled
+      // (if doubled > 9 subtract 9), total including check digit must be divisible by 10.
+      const digits = vatNumber.split('').map(Number);
+      let checksumTotal = 0;
+      for (let i = 0; i < 10; i++) {
+        if (i % 2 === 0) {
+          checksumTotal += digits[i];
+        } else {
+          const v = digits[i] * 2;
+          checksumTotal += v > 9 ? v - 9 : v;
+        }
+      }
+      if ((checksumTotal + digits[10]) % 10 !== 0) {
+        return res.json({
+          success: true,
+          data: { valid: false },
+          meta: { source: 'checksum' },
+        });
+      }
 
-    return res.json({ success: true, data: { valid: true } });
+      // Check if the P.IVA is already in this agent's customer DB
+      const userId = req.user!.userId;
+      const customers = await getCustomers(userId, vatNumber);
+      const duplicate = customers.find(
+        (c) => (c as unknown as { vatNumber?: string }).vatNumber === vatNumber,
+      );
+      if (duplicate) {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            alreadyExists: true,
+            existingName: duplicate.name,
+            existingCode: (duplicate as unknown as { erpId?: string }).erpId ?? '',
+          },
+        });
+      }
+
+      return res.json({ success: true, data: { valid: true } });
+    } catch (error) {
+      logger.error('Error in vat-check', { error });
+      res.status(500).json({ success: false, error: 'Errore durante la verifica P.IVA' });
+    }
   });
 
   return router;
