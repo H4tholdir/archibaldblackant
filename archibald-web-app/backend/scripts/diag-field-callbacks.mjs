@@ -30,6 +30,14 @@ const PROBE_FIELDS = {
     inputIdPattern: /dviVATNUM_Edit_I$/,
     value: '13890640967',
   },
+  NAMEALIAS: {
+    inputIdPattern: /dviNAMEALIAS_Edit_I$/,
+    value: 'Tst', // 3 chars — osserva se il campo triggerisce XHR o no
+  },
+  LEGALAUTHORITY: {
+    inputIdPattern: /dviLEGALAUTHORITY_Edit_I$/,
+    value: 'TST', // 3 chars — osserva se SDI triggerisce XHR o no
+  },
 };
 
 const PALMESE_ERP_ID = '57396';
@@ -361,6 +369,16 @@ async function runPhase1(page, cdpSession) {
   const vatResult = await probeTextField(page, cdpSession, 'VATNUM', PROBE_FIELDS.VATNUM);
   logProbeResult('VATNUM', vatResult);
   results.VATNUM = vatResult;
+
+  // Probe 5: NAMEALIAS — 3 chars per osservare se triggerisce XHR
+  const naResult = await probeTextField(page, cdpSession, 'NAMEALIAS', PROBE_FIELDS.NAMEALIAS);
+  logProbeResult('NAMEALIAS', naResult);
+  results.NAMEALIAS = naResult;
+
+  // Probe 6: LEGALAUTHORITY (SDI) — 3 chars per osservare se triggerisce XHR
+  const laResult = await probeTextField(page, cdpSession, 'LEGALAUTHORITY', PROBE_FIELDS.LEGALAUTHORITY);
+  logProbeResult('LEGALAUTHORITY', laResult);
+  results.LEGALAUTHORITY = laResult;
 
   // Naviga via SENZA salvare — XAF mostra dialog beforeunload, va accettato
   console.log('\n[PHASE1] Navigazione via (no save)...');
