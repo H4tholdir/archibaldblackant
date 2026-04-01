@@ -11195,12 +11195,14 @@ export class ArchibaldBot {
 
     // Always click the search button (magnifying glass) to apply the final filter.
     // Not doing this risks selecting a partially-filtered SAC row mid-typing.
-    // _Ed_B0 is the primary (search) button; _Ed_B1 is secondary (clear) — don't use B1.
+    // Confirmed via DOM inspection: _Ed_B1 is the filter/search button
+    // (onclick ASPx.BEClick(...,1), title "Filtrare i record in base al testo").
+    // _Ed_B0 does NOT exist in this FindPopup layout.
     const btnClicked = await frame.evaluate((inputId: string) => {
       const candidates = [
-        inputId.replace(/_Ed_I$/, "_Ed_B0"),
+        inputId.replace(/_Ed_I$/, "_Ed_B1"),
         inputId.replace(/_DXSE_I$/, "_DXSE_Btn"),
-        inputId.replace(/_DXFREditorcol0_I$/, "_DXFREditorcol0_B0"),
+        inputId.replace(/_DXFREditorcol0_I$/, "_DXFREditorcol0_B1"),
       ].filter((id) => id !== inputId);
 
       for (const id of candidates) {
