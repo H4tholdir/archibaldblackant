@@ -2072,21 +2072,21 @@ export function CustomerCreateModal({
         {currentStep.kind === "riepilogo" && !isProcessing && (
           <div>
             {/* ERP validation banner */}
-            {!erpValidated && interactiveSessionId && (
+            {!erpValidated && interactiveSessionId && contextMode !== 'order' && (
               <div
                 style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
                   padding: "10px 14px",
-                  backgroundColor: "#fff3e0",
-                  border: "1px solid #ff9800",
+                  backgroundColor: "#fff8e1",
+                  border: "1px solid #ffc107",
                   borderRadius: "8px",
                   marginBottom: "16px",
                   fontSize: "13px",
-                  color: "#e65100",
-                  textAlign: "center",
+                  color: "#f57f17",
                 }}
               >
-                Validazione ERP in corso... il salvataggio attendera il
-                completamento.
+                <div style={{ width: '14px', height: '14px', flexShrink: 0, border: '2px solid rgba(245,127,23,0.3)', borderTop: '2px solid #f57f17', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                Connessione al gestionale in corso...
               </div>
             )}
 
