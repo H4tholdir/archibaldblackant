@@ -483,8 +483,15 @@ async function runPhase2(page, cdpSession) {
   }).catch(() => {});
   await wait(1500);
 
-  console.log(`[PHASE2] Salvato — URL: ${page.url()}`);
-  steps.SAVE = true;
+  const urlAfterSave = page.url();
+  if (urlAfterSave.includes('mode=Edit') || urlAfterSave.includes('NewObject')) {
+    console.warn('[PHASE2] URL ancora in edit mode dopo save — possibile errore di validazione');
+    steps.SAVE = false;
+  } else {
+    steps.SAVE = true;
+  }
+
+  console.log(`[PHASE2] Salvato — URL: ${urlAfterSave}`);
 
   return steps;
 }
@@ -532,7 +539,7 @@ async function verifyPalmese(page) {
   const fieldsVerified = {};
   for (const [field, exp] of Object.entries(expected)) {
     const got = rawValues[field] ?? '';
-    const ok = got === exp || got.includes(exp) || exp.includes(got);
+    const ok = got === exp;
     fieldsVerified[field] = ok;
     console.log(`  ${field}=${got} ${ok ? '✓' : `✗ (atteso: ${exp})`}`);
   }
