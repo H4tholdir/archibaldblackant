@@ -24,6 +24,7 @@ const ORDER_ROW = {
   quantity: 10,
   unit_price: 7.29,
   discount_percent: 50,
+  line_amount: 36.45,
   vat_percent: 22,
   line_total_with_vat: 44.47,
 };
@@ -87,6 +88,7 @@ describe('getCustomerFullHistory', () => {
             quantity: 10,
             unitPrice: 7.29,
             discountPercent: 50,
+            lineAmount: ORDER_ROW.line_amount ?? 0,
             vatPercent: 22,
             lineTotalWithVat: 44.47,
           },
@@ -109,6 +111,7 @@ describe('getCustomerFullHistory', () => {
 
     // lineTotalWithVat = round2(2 * 149.18 * (1 - 0/100) * (1 + 22/100))
     //                  = round2(363.9992) = 364
+    // lineAmount = round2(2 * 149.18 * (1 - 0/100)) = round2(298.36) = 298.36
     expect(result).toEqual([
       {
         source: 'fresis',
@@ -117,6 +120,9 @@ describe('getCustomerFullHistory', () => {
         orderDate: '2024-07-15T00:00:00.000Z',
         totalAmount: 364,
         orderDiscountPercent: 0,
+        subClientCodice: undefined,
+        subClientCity: undefined,
+        subClientRagioneSociale: undefined,
         articles: [
           {
             articleCode: 'SFM7.000.1',
@@ -124,6 +130,7 @@ describe('getCustomerFullHistory', () => {
             quantity: 2,
             unitPrice: 149.18,
             discountPercent: 0,
+            lineAmount: 298.36,
             vatPercent: 22,
             lineTotalWithVat: 364,
           },
