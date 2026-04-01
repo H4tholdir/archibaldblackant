@@ -15,7 +15,7 @@ import { ToastContainer } from "./components/Toast";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersPage } from "./pages/PendingOrdersPage";
-import { CustomerDetailPage } from "./pages/CustomerDetailPage";
+import { CustomerProfilePage } from "./pages/CustomerProfilePage";
 import { CustomerList } from "./pages/CustomerList";
 
 import { ArticoliList } from "./pages/ArticoliList";
@@ -322,7 +322,7 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
-                    <CustomerDetailPage />
+                    <CustomerProfilePage />
                   </main>
                   <footer className="app-footer">
                     <p>
