@@ -185,7 +185,7 @@ function GlobalOperationBanner() {
           >
             <span style={{ flexShrink: 0 }}>&#10003;</span>
             <span style={labelStyle}>
-              {op.customerName} — Ordine completato
+              {op.customerName} — {op.label}
             </span>
             <span style={chevronStyle}>&#8250;</span>
           </div>
