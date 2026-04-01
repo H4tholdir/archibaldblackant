@@ -1,7 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { CustomerProfilePage } from './CustomerProfilePage';
+import { getCustomerFullHistory } from '../api/customer-full-history';
+import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
+import { enqueueOperation } from '../api/operations';
 
 vi.mock('../services/customers.service', () => ({
   customerService: {
@@ -124,5 +127,103 @@ describe('CustomerProfilePage — sezioni dati', () => {
   test('mostra Florovivaismo nella sezione Anagrafica', async () => {
     renderProfile();
     await waitFor(() => screen.getByText('Florovivaismo'));
+  });
+});
+
+describe('CustomerProfilePage — edit mode + FAB', () => {
+  test('FAB non visibile in view mode', async () => {
+    renderProfile();
+    await waitFor(() => screen.getAllByText('Rossi Mario'));
+    expect(screen.queryByText(/Salva/)).toBeNull();
+  });
+
+  test('entra in edit mode al click su Modifica', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Modifica'));
+    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    expect(screen.getByText(/Modalità modifica attiva/)).toBeInTheDocument();
+  });
+
+  test('FAB appare dopo aver modificato un campo', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Modifica'));
+    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    const phoneInput = screen.getByDisplayValue('081 552 1234');
+    fireEvent.change(phoneInput, { target: { value: '099 999 9999' } });
+    expect(screen.getByText(/Salva \(1\)/)).toBeInTheDocument();
+  });
+
+  test('modifica due campi → FAB mostra (2)', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Modifica'));
+    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 999 9999' } });
+    fireEvent.change(screen.getByDisplayValue('rossi@test.it'), { target: { value: 'nuovo@email.it' } });
+    expect(screen.getByText(/Salva \(2\)/)).toBeInTheDocument();
+  });
+
+  test('Annulla ripristina view mode e FAB sparisce', async () => {
+    renderProfile();
+    await waitFor(() => screen.getByText('Modifica'));
+    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 999 9999' } });
+    fireEvent.click(screen.getByText('Annulla modifiche'));
+    expect(screen.queryByText(/Salva/)).toBeNull();
+    expect(screen.queryByText(/Modalità modifica/)).toBeNull();
+  });
+
+  test('tap FAB chiama enqueueOperation una sola volta con tutti i campi', async () => {
+    vi.mocked(enqueueOperation).mockClear();
+    renderProfile();
+    await waitFor(() => screen.getByText('Modifica'));
+    fireEvent.click(screen.getAllByText('Modifica')[0]);
+    fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 111' } });
+    fireEvent.change(screen.getByDisplayValue('rossi@test.it'), { target: { value: 'x@y.it' } });
+    fireEvent.click(screen.getByText(/Salva \(2\)/));
+    await waitFor(() => {
+      expect(enqueueOperation).toHaveBeenCalledTimes(1);
+      expect(enqueueOperation).toHaveBeenCalledWith('update-customer', expect.objectContaining({
+        erpId: 'A001',
+        phone: '099 111',
+        email: 'x@y.it',
+      }));
+    });
+  });
+});
+
+describe('CustomerProfilePage — Storico ordini', () => {
+  const currentYear = new Date().getFullYear();
+  const mockOrders: CustomerFullHistoryOrder[] = [
+    { orderId: 'ORD-1', orderNumber: '12345', orderDate: `${currentYear}-03-01`, totalAmount: 250.00, orderDiscountPercent: 0, source: 'orders', articles: [] },
+    { orderId: 'ORD-2', orderNumber: '12300', orderDate: `${currentYear - 1}-06-15`, totalAmount: 180.50, orderDiscountPercent: 0, source: 'orders', articles: [] },
+  ];
+
+  function renderProfileWithOrders() {
+    vi.mocked(getCustomerFullHistory).mockResolvedValue(mockOrders);
+    return renderProfile();
+  }
+
+  test('mostra ordini dell anno corrente per default', async () => {
+    renderProfileWithOrders();
+    await waitFor(() => screen.getByText('N° 12345'));
+    expect(screen.queryByText('N° 12300')).toBeNull();
+  });
+
+  test('chip "Anno scorso" mostra ordini anno precedente', async () => {
+    renderProfileWithOrders();
+    await waitFor(() => screen.getByText('Anno scorso'));
+    fireEvent.click(screen.getByText('Anno scorso'));
+    await waitFor(() => expect(screen.getByText('N° 12300')).toBeInTheDocument());
+    expect(screen.queryByText('N° 12345')).toBeNull();
+  });
+
+  test('chip "Tutto" mostra tutti gli ordini', async () => {
+    renderProfileWithOrders();
+    await waitFor(() => screen.getByText('Tutto'));
+    fireEvent.click(screen.getByText('Tutto'));
+    await waitFor(() => {
+      expect(screen.getByText('N° 12345')).toBeInTheDocument();
+      expect(screen.getByText('N° 12300')).toBeInTheDocument();
+    });
   });
 });
