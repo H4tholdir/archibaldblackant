@@ -549,8 +549,10 @@ async function runPhase2(page, cdpSession) {
   await wait(1500);
 
   const urlAfterSave = page.url();
-  if (urlAfterSave.includes('mode=Edit') || urlAfterSave.includes('NewObject')) {
-    console.warn('[PHASE2] URL ancora in edit mode dopo save — possibile errore di validazione');
+  // Per customer esistente, l'ERP rimane in mode=Edit anche dopo save — comportamento normale.
+  // Il save è fallito solo se l'URL contiene ancora NewObject (nuovo record non salvato).
+  if (urlAfterSave.includes('NewObject')) {
+    console.warn('[PHASE2] URL ancora NewObject — save fallito');
     steps.SAVE = false;
   } else {
     steps.SAVE = true;
@@ -563,6 +565,8 @@ async function runPhase2(page, cdpSession) {
 
 async function verifyPalmese(page) {
   console.log('\n[VERIFY] Naviga view mode...');
+  // XAF può mostrare dialog beforeunload se c'è ancora roba unsaved — accettiamo automaticamente
+  page.once('dialog', async dialog => { await dialog.accept().catch(() => {}); });
   await page.goto(
     `${ERP_URL}/CUSTTABLE_DetailView/${PALMESE_ERP_ID}/`,
     { waitUntil: 'networkidle2', timeout: 30000 }
