@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/customers.service";
 import {
@@ -21,6 +21,9 @@ import { getDiscountForArticle } from "../api/fresis-discounts";
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import { aggregateTopSold } from '../utils/aggregate-top-sold';
 import type { TopSoldItem } from '../utils/aggregate-top-sold';
+import { findLastPurchase } from '../utils/find-last-purchase';
+import type { LastPurchaseResult } from '../utils/find-last-purchase';
+import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import {
   calculateShippingCosts,
   SHIPPING_THRESHOLD,
@@ -314,6 +317,11 @@ export default function OrderFormSimple() {
   const [showTopSoldModal, setShowTopSoldModal] = useState(false);
   const [topSoldItems, setTopSoldItems] = useState<TopSoldItem[]>([]);
 
+  // Storico ultimo acquisto per articolo
+  const [customerHistoryCache, setCustomerHistoryCache] = useState<CustomerFullHistoryOrder[] | null>(null);
+  const [openHistoryIds, setOpenHistoryIds] = useState<Set<string>>(new Set());
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
+
   // Customer history modals
   const [showCustomerHistoryModal, setShowCustomerHistoryModal] = useState(false);
   const [showMatchingManagerModal, setShowMatchingManagerModal] = useState(false);
@@ -325,10 +333,20 @@ export default function OrderFormSimple() {
   // Animazione nuove righe
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
 
+  const lastPurchaseByArticle = useMemo((): Map<string, LastPurchaseResult | null> => {
+    if (!customerHistoryCache) return new Map();
+    return new Map(items.map(item => [item.id, findLastPurchase(customerHistoryCache, item.article)]));
+  }, [customerHistoryCache, items]);
+
   // Reset activeMatchLevel when no product is selected
   useEffect(() => {
     if (!selectedProduct) setActiveMatchLevel('none');
   }, [selectedProduct]);
+
+  useEffect(() => {
+    setCustomerHistoryCache(null);
+    setOpenHistoryIds(new Set());
+  }, [selectedCustomer]);
 
   // Apply warehouse theme to the full-page .app background
   useEffect(() => {
@@ -888,6 +906,29 @@ export default function OrderFormSimple() {
     setTopSoldItems(sorted);
     setShowTopSoldModal(true);
   }, []);
+
+  const toggleHistoryRow = useCallback(async (itemId: string) => {
+    if (openHistoryIds.has(itemId)) {
+      setOpenHistoryIds(prev => { const s = new Set(prev); s.delete(itemId); return s; });
+      return;
+    }
+    if (!customerHistoryCache) {
+      setLoadingHistoryId(itemId);
+      try {
+        const profileIds = historyCustomerProfileIds.length > 0
+          ? historyCustomerProfileIds
+          : (selectedCustomer ? [selectedCustomer.id] : []);
+        const orders = await getCustomerFullHistory({
+          customerErpIds: profileIds,
+          subClientCodices: historySubClientCodices,
+        });
+        setCustomerHistoryCache(orders);
+      } finally {
+        setLoadingHistoryId(null);
+      }
+    }
+    setOpenHistoryIds(prev => new Set([...prev, itemId]));
+  }, [openHistoryIds, customerHistoryCache, historyCustomerProfileIds, historySubClientCodices, selectedCustomer]);
 
   const dispatchMatchingResult = useCallback((ids: { customerErpIds: string[]; subClientCodices: string[] } | undefined) => {
     if (!selectedCustomer) return;
@@ -3884,9 +3925,20 @@ export default function OrderFormSimple() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {items.map((item) => {
+                  const historyLast = lastPurchaseByArticle.get(item.id) ?? null;
+                  const historyAvailable = customerHistoryCache !== null ? historyLast !== null : true;
+                  const isHistoryOpen = openHistoryIds.has(item.id);
+                  const isHistoryLoading = loadingHistoryId === item.id;
+                  const historyVatAmount = historyLast
+                    ? historyLast.article.lineTotalWithVat - historyLast.article.lineAmount
+                    : 0;
+                  const historyDateStr = historyLast
+                    ? new Date(historyLast.orderDate).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '';
+                  return (
+                  <Fragment key={item.id}>
                   <tr
-                    key={item.id}
                     style={{
                       borderBottom: "1px solid #f3f4f6",
                       background: recentlyAddedIds.has(item.id) ? '#f0fdf4' : undefined,
@@ -4098,6 +4150,29 @@ export default function OrderFormSimple() {
                         </button>
                       )}
                       <button
+                        onClick={() => { void toggleHistoryRow(item.id); }}
+                        disabled={isHistoryLoading || (customerHistoryCache !== null && !historyAvailable)}
+                        title={
+                          isHistoryLoading ? 'Caricamento storico...' :
+                          customerHistoryCache !== null && !historyAvailable ? 'Nessuno storico per questo articolo' :
+                          isHistoryOpen ? 'Nascondi storico' : 'Mostra ultimo acquisto'
+                        }
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          background: isHistoryOpen ? '#7c6ff7' : '#ede8ff',
+                          color: isHistoryOpen ? '#fff' : (customerHistoryCache !== null && !historyAvailable ? '#ccc' : '#7c6ff7'),
+                          border: '1px solid',
+                          borderColor: isHistoryOpen ? '#7c6ff7' : '#c8bbf8',
+                          borderRadius: '4px',
+                          cursor: (isHistoryLoading || (customerHistoryCache !== null && !historyAvailable)) ? 'default' : 'pointer',
+                          marginRight: '0.25rem',
+                          fontSize: '0.875rem',
+                          opacity: isHistoryLoading ? 0.6 : 1,
+                        }}
+                      >
+                        {isHistoryLoading ? '⏳' : '⏱'}
+                      </button>
+                      <button
                         onClick={() => handleDeleteItem(item.id)}
                         style={{
                           padding: "0.25rem 0.5rem",
@@ -4112,7 +4187,43 @@ export default function OrderFormSimple() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  {isHistoryOpen && historyLast && (
+                    <tr style={{ background: '#7c6ff7', borderBottom: '3px solid #5a50d4' }}>
+                      <td style={{ padding: '0.75rem' }}>
+                        <strong style={{ color: '#fff', display: 'block' }}>{historyLast.article.articleCode}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,.65)' }}>
+                          ◆ Ultimo acquisto · {historyDateStr}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', color: '#fff', fontWeight: 600 }}>
+                        {historyLast.article.quantity}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
+                        {formatCurrency(historyLast.article.unitPrice)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ffe0a0', fontWeight: 700 }}>
+                        {historyLast.article.discountPercent > 0 ? `${historyLast.article.discountPercent}%` : '—'}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
+                        {formatCurrency(historyLast.article.lineAmount)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,.55)' }}>
+                          ({historyLast.article.vatPercent}%)
+                        </span>
+                        <span style={{ color: '#fff' }}>{formatCurrency(historyVatAmount)}</span>
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fff', fontWeight: 700 }}>
+                        {formatCurrency(historyLast.article.lineTotalWithVat)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.7rem', color: 'rgba(255,255,255,.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        storico
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
             </>
