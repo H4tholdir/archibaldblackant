@@ -487,5 +487,28 @@ describe("order-calculations", () => {
       const result = applyExactTotalWithVat(items, current, new Set([0, 1]), false);
       expect(computeEditDocumentTotal(result, false)).toBeGreaterThanOrEqual(current);
     });
+
+    test("11 articoli mix IVA 22%/4%, target 1500: eccesso non supera 0.01", () => {
+      // Riproduce il bug: subtotale ~1275€ → step 0.01% vale ~15 centesimi →
+      // Phase 3 con soglia excess<=10 veniva saltata lasciando 1500.12 invece di ≤1500.01
+      const items = [
+        makeItem(3,  16.00,  0, 22),  // PPFQ04
+        makeItem(2,  25.97,  0,  4),  // GPFQ04
+        makeItem(18, 15.56,  0, 22),  // FQ08L19
+        makeItem(12, 15.56,  0, 22),  // FQ04L25.020
+        makeItem(12, 15.56,  0, 22),  // FQ04L25.025
+        makeItem(12, 15.56,  0, 22),  // FQ04L25.030
+        makeItem(2,  170.81, 0,  4),  // BCS1
+        makeItem(2,  14.15,  0, 22),  // BCS1TIPS
+        makeItem(10, 9.98,   0, 22),  // S6830RL
+        makeItem(10, 9.98,   0, 22),  // S6830RL
+        makeItem(10, 10.58,  0, 22),  // 8368
+      ];
+      const target = 1500.00;
+      const result = applyExactTotalWithVat(items, target, new Set(items.map((_, i) => i)), false);
+      const total = computeEditDocumentTotal(result, false);
+      expect(total).toBeGreaterThanOrEqual(target);
+      expect(total).toBeLessThanOrEqual(target + 0.01);
+    });
   });
 });

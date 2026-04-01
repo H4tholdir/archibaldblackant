@@ -283,8 +283,10 @@ export function applyExactTotalWithVat(
 
   // 3. Per-row correction: shed excess cents by increasing discount on individual rows.
   //    Accept any reduction that keeps total >= target.
+  //    Threshold 100: with large subtotals (e.g. €5000) each 0.01% grid step is worth
+  //    ~61 cents, so after Phase 2 the excess can exceed 10 cents on real orders.
   let excess = Math.round(getTotal(current) * 100) - Math.round(target * 100);
-  while (excess > 0 && excess <= 10) {
+  while (excess > 0 && excess <= 100) {
     let corrected = false;
     for (const idx of selIndices) {
       const newDisc = Math.round((current[idx].discountPercent + 0.01) * 100) / 100;
