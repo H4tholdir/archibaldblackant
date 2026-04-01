@@ -16,7 +16,7 @@ import {
   formatPriceFromString,
 } from "../utils/format-currency";
 import { FRESIS_DEFAULT_DISCOUNT, FRESIS_ACCOUNT_NUM } from "../utils/fresis-constants";
-import { archibaldLineAmount, calculateShippingCosts, SHIPPING_THRESHOLD } from "../utils/order-calculations";
+import { calculateShippingCosts, SHIPPING_THRESHOLD, recalcLineAmounts, applyExactTotalWithVat, type EditItem } from "../utils/order-calculations";
 
 import { parseOrderDiscountPercent } from "../utils/parse-order-discount";
 import { parseOrderNotesForEdit } from "../utils/parse-order-notes";
@@ -565,19 +565,6 @@ function TabPanoramica({
   );
 }
 
-interface EditItem {
-  articleCode: string;
-  productName: string;
-  quantity: number;
-  unitPrice: number;
-  discountPercent: number;
-  vatPercent: number;
-  vatAmount: number;
-  lineAmount: number;
-  lineTotalWithVat: number;
-  articleDescription: string;
-  _origIdx?: number;
-}
 
 interface EditModification {
   type: "update" | "add" | "delete";
@@ -651,12 +638,6 @@ function computeModifications(
   return mods;
 }
 
-function recalcLineAmounts(item: EditItem): EditItem {
-  const lineAmount = archibaldLineAmount(item.quantity, item.unitPrice, item.discountPercent);
-  const vatAmount = Math.round(lineAmount * (item.vatPercent / 100) * 100) / 100;
-  const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
-  return { ...item, lineAmount, vatAmount, lineTotalWithVat };
-}
 
 function TabArticoli({
   orderId,
@@ -1447,53 +1428,7 @@ function TabArticoli({
       }
     }
 
-    const selItems = editItems.filter((_, i) => totaleSelectedItems.has(i));
-    const unselSub = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.lineAmount, 0);
-    const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
-    const shipping = calculateShippingCosts(editTotals.itemsSubtotal);
-    const fixedPortion = unselSub + unselVAT + shipping.cost + shipping.tax;
-    const targetForSelected = target - fixedPortion;
-    if (targetForSelected <= 0) {
-      setError('Impossibile raggiungere il totale target con gli articoli selezionati');
-      setShowTotaleDialog(false);
-      return;
-    }
-
-    const computeDiscountedTotal = (disc: number) => {
-      let testSub = 0; let testVAT = 0;
-      for (const it of selItems) {
-        const itemSub = Math.round(it.unitPrice * it.quantity * (1 - disc / 100) * 100) / 100;
-        testSub += itemSub;
-        testVAT += Math.round(itemSub * (it.vatPercent / 100) * 100) / 100;
-      }
-      // Match editTotals: intermediate round2 on total VAT before final sum
-      const totalVAT = Math.round((testVAT + unselVAT + shipping.tax) * 100) / 100;
-      return Math.round((testSub + unselSub + shipping.cost + totalVAT) * 100) / 100;
-    };
-
-    let low = 0; let high = 100; let bestDiscount = 0;
-    for (let iter = 0; iter < 100; iter++) {
-      const mid = (low + high) / 2;
-      const testTotal = computeDiscountedTotal(mid);
-      if (Math.abs(testTotal - target) < 0.005) { bestDiscount = mid; break; }
-      if (testTotal > target) low = mid; else high = mid;
-      bestDiscount = mid;
-    }
-
-    let finalDiscount = Math.floor(bestDiscount * 100) / 100;
-    while (computeDiscountedTotal(finalDiscount) < target && finalDiscount > 0) {
-      finalDiscount = Math.round((finalDiscount - 0.01) * 100) / 100;
-    }
-    const stepped = Math.round((finalDiscount + 0.01) * 100) / 100;
-    if (computeDiscountedTotal(stepped) >= target) finalDiscount = stepped;
-
-    setEditItems(prev =>
-      prev.map((item, i) =>
-        totaleSelectedItems.has(i)
-          ? recalcLineAmounts({ ...item, discountPercent: finalDiscount })
-          : item,
-      ),
-    );
+    setEditItems(applyExactTotalWithVat(editItems, target, totaleSelectedItems, editNoShipping));
     setShowTotaleDialog(false);
   };
 

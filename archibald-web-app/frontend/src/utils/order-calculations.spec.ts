@@ -6,8 +6,12 @@ import {
   reverseCalculateGlobalDiscount,
   calculateShippingCosts,
   archibaldLineAmount,
+  recalcLineAmounts,
+  computeEditDocumentTotal,
+  applyExactTotalWithVat,
   VAT_RATE,
   SHIPPING_THRESHOLD,
+  type EditItem,
 } from "./order-calculations";
 
 describe("order-calculations", () => {
@@ -416,6 +420,72 @@ describe("order-calculations", () => {
           },
         ),
       );
+    });
+  });
+
+  describe("applyExactTotalWithVat", () => {
+    const makeItem = (qty: number, price: number, disc: number, vat: number): EditItem =>
+      recalcLineAmounts({
+        articleCode: "A", productName: "P", quantity: qty, unitPrice: price,
+        discountPercent: disc, vatPercent: vat, vatAmount: 0,
+        lineAmount: 0, lineTotalWithVat: 0, articleDescription: "",
+      });
+
+    test("property: result total is always >= target", () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              qty: fc.integer({ min: 1, max: 50 }),
+              price: fc.integer({ min: 1, max: 100000 }).map((n) => n / 100),
+              vat: fc.constantFrom(4, 10, 22),
+            }),
+            { minLength: 1, maxLength: 9 },
+          ),
+          fc.integer({ min: 1, max: 500000 }).map((n) => n / 100),
+          (rawItems, target) => {
+            const items = rawItems.map(({ qty, price, vat }) => makeItem(qty, price, 0, vat));
+            const maxTotal = computeEditDocumentTotal(items, false);
+            if (target > maxTotal) return true; // skip unreachable targets
+            const result = applyExactTotalWithVat(items, target, new Set(items.map((_, i) => i)), false);
+            return computeEditDocumentTotal(result, false) >= target;
+          },
+        ),
+      );
+    });
+
+    test("single item 22% VAT: total >= target in mathematical gap (532.79 → 649.99, 532.80 → 650.02)", () => {
+      // No single imponibile at 22% gives exactly 650.00 — gap exists
+      const items = [makeItem(1, 700, 0, 22)];
+      const target = 650.00;
+      const result = applyExactTotalWithVat(items, target, new Set([0]), false);
+      expect(computeEditDocumentTotal(result, false)).toBeGreaterThanOrEqual(target);
+    });
+
+    test("9 items 22% VAT: hits integer target exactly via per-row correction", () => {
+      const prices = [5.90, 12.50, 8.00, 15.00, 3.25, 22.00, 7.50, 18.90, 11.00];
+      const quantities = [10, 5, 8, 3, 20, 2, 6, 4, 9];
+      const items = prices.map((p, i) => makeItem(quantities[i], p, 0, 22));
+      const target = 400.00;
+      const result = applyExactTotalWithVat(items, target, new Set(items.map((_, i) => i)), false);
+      expect(computeEditDocumentTotal(result, false)).toBe(target);
+    });
+
+    test("partial selection: unselected items unchanged", () => {
+      const items = [makeItem(10, 5.90, 0, 22), makeItem(5, 12.50, 0, 22), makeItem(3, 8.00, 0, 22)];
+      const selected = new Set([0, 1]); // only first two
+      const target = 100.00;
+      const result = applyExactTotalWithVat(items, target, selected, false);
+      // Unselected item (index 2) must be unchanged
+      expect(result[2]).toEqual(items[2]);
+      expect(computeEditDocumentTotal(result, false)).toBeGreaterThanOrEqual(target);
+    });
+
+    test("items already at target: result stays at or above target", () => {
+      const items = [makeItem(10, 5.90, 24.9, 22), makeItem(5, 12.50, 24.9, 22)];
+      const current = computeEditDocumentTotal(items, false);
+      const result = applyExactTotalWithVat(items, current, new Set([0, 1]), false);
+      expect(computeEditDocumentTotal(result, false)).toBeGreaterThanOrEqual(current);
     });
   });
 });
