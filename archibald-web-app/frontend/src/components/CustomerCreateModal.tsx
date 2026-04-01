@@ -226,6 +226,7 @@ export function CustomerCreateModal({
         setErpValidated(true);
         setFormData((prev) => ({
           ...prev,
+          name: prev.name || r.parsed?.companyName || "",
           fiscalCode: prev.fiscalCode,
           pec: prev.pec || r.pec || "",
           sdi: prev.sdi || r.sdi || "",

@@ -179,6 +179,41 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     expect(nameInput.value).toBe('ACME SRL');
   });
 
+  it('autofill nome da CUSTOMER_VAT_RESULT.parsed.companyName quando checkVat non restituisce nome', async () => {
+    (customerService.checkVat as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ valid: true }); // nessun name — caso reale produzione
+
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '02360490656');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    fireWsEvent('CUSTOMER_VAT_RESULT', {
+      sessionId: 'test-session',
+      vatResult: {
+        lastVatCheck: '2026-04-01',
+        vatValidated: 'Yes',
+        vatAddress: 'GIANVITO NAIMOLI',
+        parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+        pec: '',
+        sdi: '',
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Rossi Dr\. Mario/i)).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByPlaceholderText(/Rossi Dr\. Mario/i) as HTMLInputElement;
+    expect(nameInput.value).toBe('Gianvito Naimoli');
+  });
+
   it('salta VAT e avanza ad anagrafica senza chiamare checkVat', async () => {
     const user = userEvent.setup();
     render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
