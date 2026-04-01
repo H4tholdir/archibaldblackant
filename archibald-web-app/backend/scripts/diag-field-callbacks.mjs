@@ -51,9 +51,11 @@ function cssEscape(s) {
 async function login(page) {
   console.log('[LOGIN] navigating...');
   await page.goto(`${ERP_URL}/`, { waitUntil: 'networkidle2', timeout: 30000 });
-  await page.waitForSelector('input[name="UserName"]', { timeout: 10000 });
-  await page.type('input[name="UserName"]', USERNAME, { delay: 50 });
-  await page.type('input[name="Password"]', PASSWORD, { delay: 50 });
+  await page.waitForSelector('input[id*="user"], input[type="text"]', { timeout: 10000 });
+  const userInput = await page.$('input[id*="UserName"], input[name="UserName"]');
+  const passInput = await page.$('input[id*="Password"], input[name="Password"]');
+  if (userInput) await userInput.type(USERNAME, { delay: 50 });
+  if (passInput) await passInput.type(PASSWORD, { delay: 50 });
   await page.keyboard.press('Enter');
   await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
   console.log('[LOGIN] OK —', page.url());
