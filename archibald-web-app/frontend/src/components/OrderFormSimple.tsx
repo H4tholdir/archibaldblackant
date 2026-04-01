@@ -923,9 +923,11 @@ export default function OrderFormSimple() {
           subClientCodices: historySubClientCodices,
         });
         setCustomerHistoryCache(orders);
+        setOpenHistoryIds(prev => new Set([...prev, itemId]));
       } finally {
         setLoadingHistoryId(null);
       }
+      return;
     }
     setOpenHistoryIds(prev => new Set([...prev, itemId]));
   }, [openHistoryIds, customerHistoryCache, historyCustomerProfileIds, historySubClientCodices, selectedCustomer]);
