@@ -58,7 +58,7 @@ Un video marketing da mostrare velocemente al CEO di Komet Italia. Deve trasmett
 - **Sfondo:** `#1C1C1E` — transizione da chiaro a scuro con crossfade 15f
 - **Animazione:** 3 righe di testo entrano in sequenza con stagger 40f:
   - `"20 minuti per un ordine."` — dot rosso `#FF3B30`
-  - `"ERP solo da PC fisso."` — dot rosso
+  - `"Archibald solo da PC fisso."` — dot rosso
   - `"Nessuna visibilità in trasferta."` — dot rosso
 - **Ogni riga:** slide-in da destra (translateX 40px → 0) + fade, spring damping 200
 - **Sottotitolo:** `"— Il lavoro quotidiano dell'agente Komet"` appare dopo tutte e 3, color `#3A3A3C`
@@ -74,7 +74,7 @@ Un video marketing da mostrare velocemente al CEO di Komet Italia. Deve trasmett
   - Order card bianca (3D tilt `rotateY(-8deg) rotateX(3deg)`) entra da sinistra con spring
   - Stat pill `"3 min"` in `#007AFF` con bounce
   - Bot status card `#1C1C1E` entra da destra
-- **Testo overlay:** `"vs 20 min con ERP"` in `#8E8E93`
+- **Testo overlay:** `"vs 20 min con Archibald"` in `#8E8E93`
 - **Spring config:** `mass:1, damping:15, stiffness:100`
 
 ### Scena 4 — Dashboard Provvigioni (24–34s, 720–1020f)
@@ -90,7 +90,7 @@ Un video marketing da mostrare velocemente al CEO di Komet Italia. Deve trasmett
 - **Elementi:**
   - Wizard card (3D tilt `rotateY(6deg)`) con 3 campi che appaiono in sequenza
   - Badge `"✓ P.IVA verificata"` verde pop-in con scale bounce
-  - Label `"28 campi ERP gestiti"` e `"🤖 Bot crea su Archibald"` slide-in da destra
+  - Label `"28 campi gestiti"` e `"🤖 Bot crea su Archibald"` slide-in da destra
 - **Effetto campo:** ogni campo del wizard appare con type-effect (larghezza da 0 al 100%)
 
 ### Scena 6 — Bot Automatico (42–50s, 1260–1500f)
