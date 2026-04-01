@@ -18,12 +18,10 @@ import {
 import { batchRelease } from "../api/warehouse";
 import { getFresisHistory } from "../api/fresis-history";
 import { getDiscountForArticle } from "../api/fresis-discounts";
-import { getCustomerFullHistory } from '../api/customer-full-history';
+import { getCustomerFullHistory, type CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { aggregateTopSold } from '../utils/aggregate-top-sold';
 import type { TopSoldItem } from '../utils/aggregate-top-sold';
-import { findLastPurchase } from '../utils/find-last-purchase';
-import type { LastPurchaseResult } from '../utils/find-last-purchase';
-import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
+import { findLastPurchase, type LastPurchaseResult } from '../utils/find-last-purchase';
 import {
   calculateShippingCosts,
   SHIPPING_THRESHOLD,
@@ -913,6 +911,7 @@ export default function OrderFormSimple() {
       return;
     }
     if (!customerHistoryCache) {
+      if (loadingHistoryId !== null) return;
       setLoadingHistoryId(itemId);
       try {
         const profileIds = historyCustomerProfileIds.length > 0
