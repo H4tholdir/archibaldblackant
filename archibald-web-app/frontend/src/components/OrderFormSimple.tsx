@@ -2439,18 +2439,25 @@ export default function OrderFormSimple() {
 
     // Compensate residual cents by adjusting last selected item's discount.
     // Compute forward total with the applied items to check for residual.
+    // Usa arcaDocumentTotals (IVA per gruppo) per coerenza con calculateTotals() e computeDiscountedTotal.
+    // La somma per-riga (i.vat) può divergere di 1 cent dalla formula a gruppi, causando
+    // residualCents calcolati in modo errato rispetto al totale visualizzato.
     const computeForwardTotal = (testItems: OrderItem[]) => {
-      const sub = testItems.reduce((s, i) => s + i.subtotal, 0);
-      const shipping = calculateShippingCosts(sub);
-      const vat = testItems.reduce((s, i) => s + i.vat, 0);
-      const finalVat = Math.round((vat + shipping.tax) * 100) / 100;
-      return Math.round((sub + shipping.cost + finalVat) * 100) / 100;
+      const lines = testItems.map((i) => ({ prezzotot: i.subtotal, vatRate: i.vatRate ?? 0 }));
+      const sub = lines.reduce((s, l) => s + l.prezzotot, 0);
+      const shipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(sub);
+      if (shipping.cost > 0) {
+        return arcaDocumentTotals(lines, 1, shipping.cost, 22).totDoc;
+      }
+      return arcaDocumentTotals(lines, 1).totDoc;
     };
 
     const forwardTotal = computeForwardTotal(updatedItems);
     const residualCents = Math.round((forwardTotal - target) * 100);
 
-    if (residualCents > 0 && residualCents <= 10) {
+    // Soglia 100: con subtotali elevati ogni step 0.01% vale ~15 centesimi →
+    // dopo lo snap alla griglia il residuo può superare 10 cent.
+    if (residualCents > 0 && residualCents <= 100) {
       // Find the last selected item and binary-search a slightly higher
       // discount for it alone to absorb the residual cents
       const selectedIds = Array.from(totaleSelectedItems);
