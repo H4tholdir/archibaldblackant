@@ -121,8 +121,8 @@ const HISTORY_ORDERS: CustomerFullHistoryOrder[] = [
     orderDiscountPercent: 0,
     customerAccountNum: 'CUST-001',
     articles: [
-      { articleCode: 'A001', articleDescription: 'Serei DIA', quantity: 5, unitPrice: 10, discountPercent: 0, vatPercent: 22, lineTotalWithVat: 61 },
-      { articleCode: 'B002', articleDescription: 'Cemento', quantity: 2, unitPrice: 5, discountPercent: 0, vatPercent: 22, lineTotalWithVat: 12.2 },
+      { articleCode: 'A001', articleDescription: 'Serei DIA', quantity: 5, unitPrice: 10, discountPercent: 0, vatPercent: 22, lineAmount: 50, lineTotalWithVat: 61 },
+      { articleCode: 'B002', articleDescription: 'Cemento', quantity: 2, unitPrice: 5, discountPercent: 0, vatPercent: 22, lineAmount: 10, lineTotalWithVat: 12.2 },
     ],
   },
 ];

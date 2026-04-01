@@ -7,6 +7,7 @@ export type CustomerFullHistoryArticle = {
   unitPrice: number;
   discountPercent: number;
   vatPercent: number;
+  lineAmount: number;
   lineTotalWithVat: number;
 };
 

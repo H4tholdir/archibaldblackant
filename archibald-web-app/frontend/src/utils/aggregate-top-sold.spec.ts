@@ -14,6 +14,7 @@ const makeOrder = (articles: Array<{ articleCode: string; articleDescription: st
     unitPrice: 0,
     discountPercent: 0,
     vatPercent: 22,
+    lineAmount: 0,
     lineTotalWithVat: 0,
   })),
 });

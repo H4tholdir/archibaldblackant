@@ -35,6 +35,7 @@ const mockOrder = (overrides: Partial<CustomerFullHistoryOrder> = {}): CustomerF
       quantity: 2,
       unitPrice: 10,
       discountPercent: 0,
+      lineAmount: 20,
       lineTotalWithVat: 20,
       vatPercent: 22,
     },
@@ -86,8 +87,8 @@ describe('CustomerHistoryModal', () => {
 
   it('filters orders by search query matching article code', async () => {
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ orderNumber: 'OF001', articles: [{ articleCode: 'ART001', articleDescription: 'Primo', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
-      mockOrder({ orderId: 'ORD-2', orderNumber: 'OF002', totalAmount: 50, articles: [{ articleCode: 'ZZZ999', articleDescription: 'Secondo', quantity: 1, unitPrice: 5, discountPercent: 0, lineTotalWithVat: 6.1, vatPercent: 22 }] }),
+      mockOrder({ orderNumber: 'OF001', articles: [{ articleCode: 'ART001', articleDescription: 'Primo', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+      mockOrder({ orderId: 'ORD-2', orderNumber: 'OF002', totalAmount: 50, articles: [{ articleCode: 'ZZZ999', articleDescription: 'Secondo', quantity: 1, unitPrice: 5, discountPercent: 0, lineAmount: 5, lineTotalWithVat: 6.1, vatPercent: 22 }] }),
     ]);
 
     render(<CustomerHistoryModal {...defaultProps} />);
@@ -111,7 +112,7 @@ describe('CustomerHistoryModal', () => {
 
   it('badge ×N increments correctly on each click', async () => {
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Articolo Uno', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Articolo Uno', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
     ]);
 
     render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} />);
@@ -139,7 +140,7 @@ describe('CustomerHistoryModal', () => {
     const listPrice = 20;
     vi.mocked(priceService.getPriceAndVat).mockResolvedValue({ price: listPrice, vat: 22 });
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
+      mockOrder({ articles: [{ articleCode: 'ART001', articleDescription: 'Test', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 12.2, vatPercent: 22 }] }),
     ]);
 
     const onAddArticle = vi.fn();
@@ -180,7 +181,7 @@ describe('CustomerHistoryModal', () => {
     vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[oldCode, null]]));
     vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(newCode);
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 10, vatPercent: 22 }] }),
     ]);
 
     render(<CustomerHistoryModal {...defaultProps} isFresisClient={true} />);
@@ -195,7 +196,7 @@ describe('CustomerHistoryModal', () => {
     vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[oldCode, null]]));
     vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(newCode);
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+      mockOrder({ source: 'fresis', orderId: 'F-1', articles: [{ articleCode: oldCode, articleDescription: 'Old Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 10, vatPercent: 22 }] }),
     ]);
 
     const onAddOrder = vi.fn();
@@ -218,7 +219,7 @@ describe('CustomerHistoryModal', () => {
     vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(new Map([[staleCode, null]]));
     vi.mocked(priceService.fuzzyMatchArticleCode).mockResolvedValue(null);
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
-      mockOrder({ source: 'fresis', orderId: 'F-2', articles: [{ articleCode: staleCode, articleDescription: 'Gone Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineTotalWithVat: 10, vatPercent: 22 }] }),
+      mockOrder({ source: 'fresis', orderId: 'F-2', articles: [{ articleCode: staleCode, articleDescription: 'Gone Article', quantity: 1, unitPrice: 10, discountPercent: 0, lineAmount: 10, lineTotalWithVat: 10, vatPercent: 22 }] }),
     ]);
 
     const onAddOrder = vi.fn();
@@ -380,7 +381,7 @@ describe('CustomerHistoryModal', () => {
     vi.mocked(getCustomerFullHistory).mockResolvedValue([
       mockOrder({
         source: 'fresis',
-        articles: [{ articleCode: requestedCode, articleDescription: 'DIA gr F', quantity: 5, unitPrice: 8.62, discountPercent: 50, lineTotalWithVat: 26.29, vatPercent: 22 }],
+        articles: [{ articleCode: requestedCode, articleDescription: 'DIA gr F', quantity: 5, unitPrice: 8.62, discountPercent: 50, lineAmount: 30.26, lineTotalWithVat: 26.29, vatPercent: 22 }],
       }),
     ]);
 
