@@ -10,6 +10,7 @@ import {
   getMonthsAgo,
   getOrderAmountOverrides,
   buildComparison,
+  getItalianNow,
 } from './temporal-comparisons';
 import * as WidgetCalc from './widget-calculations';
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
@@ -20,7 +21,7 @@ async function getDashboardData(pool: DbPool, userId: string) {
     throw new Error('User not found');
   }
 
-  const now = new Date();
+  const now = getItalianNow();
 
   const currentMonthRevenue = await calculateCurrentMonthRevenue(pool, userId, true);
   const currentYearRevenue = await calculateCurrentYearRevenue(pool, userId, true);
@@ -120,7 +121,7 @@ async function getBudgetMetrics(pool: DbPool, userId: string) {
 }
 
 async function getOrderMetrics(pool: DbPool, userId: string) {
-  const now = new Date();
+  const now = getItalianNow();
 
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);

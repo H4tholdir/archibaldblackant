@@ -1,5 +1,6 @@
 import type { DbPool } from "./db/pool";
 import { logger } from "./logger";
+import { getItalianNow } from "./temporal-comparisons";
 import {
   buildPreviousMonthComparison,
   buildSameMonthLastYearComparison,
@@ -42,7 +43,7 @@ export function calculateBonusMilestonesReached(
 // ============================================================================
 
 export function calculateWorkingDaysRemaining(): number {
-  const now = new Date();
+  const now = getItalianNow();
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = now.getDate();
@@ -256,7 +257,7 @@ export async function calculateHeroStatus(
   averageDailyRevenue: number,
   workingDaysRemaining: number,
 ) {
-  const dayOfMonth = new Date().getDate();
+  const dayOfMonth = getItalianNow().getDate();
   const { status, projectedProgress, projectedMonthRevenue } =
     determineHeroStatus(
       currentMonthRevenue,

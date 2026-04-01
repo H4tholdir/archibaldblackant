@@ -34,6 +34,10 @@ export interface SparklineData {
 // DATE RANGE CALCULATIONS
 // ============================================================================
 
+export function getItalianNow(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
+}
+
 export function getPreviousMonthRange(): { start: Date; end: Date } {
   const now = new Date();
   const firstDayCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -166,7 +170,7 @@ export async function calculateCurrentMonthRevenue(
   userId: string,
   excludeFromMonthly?: boolean,
 ): Promise<number> {
-  const now = new Date();
+  const now = getItalianNow();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfToday = new Date(
     now.getFullYear(),
@@ -195,7 +199,7 @@ export async function calculateSameMonthLastYearRevenue(
   userId: string,
   excludeFromMonthly = true,
 ): Promise<number> {
-  const now = new Date();
+  const now = getItalianNow();
   const currentDay = now.getDate();
   const currentMonth = now.getMonth();
   const lastYear = now.getFullYear() - 1;
@@ -213,7 +217,7 @@ export async function calculateCurrentYearRevenue(
   userId: string,
   excludeFromYearly?: boolean,
 ): Promise<number> {
-  const now = new Date();
+  const now = getItalianNow();
   const yearStart = getCurrentYearStart();
   const endOfToday = new Date(
     now.getFullYear(),
@@ -403,7 +407,7 @@ export async function calculateSamePeriodPreviousMonthRevenue(
   userId: string,
   excludeFromMonthly = true,
 ): Promise<number> {
-  const now = new Date();
+  const now = getItalianNow();
   const currentDay = now.getDate();
   const prevMonth = now.getMonth() - 1;
   const year = prevMonth < 0 ? now.getFullYear() - 1 : now.getFullYear();
