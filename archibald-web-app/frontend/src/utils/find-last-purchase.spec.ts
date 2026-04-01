@@ -71,9 +71,10 @@ describe('findLastPurchase', () => {
   test('returns the first match (most recent, array sorted DESC by caller)', () => {
     const newerOrder = makeOrder('new', '2026-03-01', 'ART-001', { unitPrice: 87.21 });
     const olderOrder = makeOrder('old', '2025-06-01', 'ART-001', { unitPrice: 80.00 });
-    const result = findLastPurchase([newerOrder, olderOrder], 'ART-001');
-    expect(result?.article.unitPrice).toBe(87.21);
-    expect(result?.orderNumber).toBe('new');
+    expect(findLastPurchase([newerOrder, olderOrder], 'ART-001')).toMatchObject({
+      orderNumber: 'new',
+      article: expect.objectContaining({ unitPrice: 87.21 }),
+    });
   });
 
   test('skips orders that do not contain the article and finds the correct one', () => {
@@ -85,7 +86,11 @@ describe('findLastPurchase', () => {
     });
   });
 
-  test('returns null when all orders have only NC (negative totalAmount) — already excluded by caller', () => {
-    expect(findLastPurchase([], 'ART-001')).toBeNull();
+  test('returns null when caller pre-filters NC orders and no remaining order contains the article', () => {
+    const validOrders: CustomerFullHistoryOrder[] = [
+      makeOrder('o1', '2026-01-01', 'ART-999'),
+      makeOrder('o2', '2025-11-01', 'ART-888'),
+    ];
+    expect(findLastPurchase(validOrders, 'ART-001')).toBeNull();
   });
 });

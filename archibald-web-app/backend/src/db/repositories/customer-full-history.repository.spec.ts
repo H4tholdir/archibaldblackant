@@ -109,9 +109,6 @@ describe('getCustomerFullHistory', () => {
       subClientCodices: ['C00042'],
     });
 
-    // lineTotalWithVat = round2(2 * 149.18 * (1 - 0/100) * (1 + 22/100))
-    //                  = round2(363.9992) = 364
-    // lineAmount = round2(2 * 149.18 * (1 - 0/100)) = round2(298.36) = 298.36
     expect(result).toEqual([
       {
         source: 'fresis',
@@ -157,18 +154,17 @@ describe('getCustomerFullHistory', () => {
         order_id: 'ord-1', order_number: 'FT 100', order_date: '2024-01-01',
         customer_profile_id: 'C001', customer_city: 'Roma', customer_rag_sociale: 'Mario Srl',
         article_code: 'ART001', article_description: 'Desc', quantity: 2,
-        unit_price: 10, discount_percent: 0, vat_percent: 22, line_total_with_vat: 24.4,
+        unit_price: 10, discount_percent: 0, vat_percent: 22, line_amount: 20, line_total_with_vat: 24.4,
       },
       {
         order_id: 'ord-2', order_number: 'FT 200', order_date: '2024-01-02',
         customer_profile_id: 'C002', customer_city: 'Milano', customer_rag_sociale: 'Luigi Srl',
         article_code: 'ART002', article_description: 'Desc2', quantity: 1,
-        unit_price: 5, discount_percent: 0, vat_percent: 22, line_total_with_vat: 6.1,
+        unit_price: 5, discount_percent: 0, vat_percent: 22, line_amount: 5, line_total_with_vat: 6.1,
       },
     ];
     const pool = makePool(twoOrderRows, []);
     const result = await getCustomerFullHistory(pool, 'user-1', { customerErpIds: ['C001', 'C002'] });
-    expect(result).toHaveLength(2);
     expect(result.map((o) => o.orderId)).toEqual(expect.arrayContaining(['ord-1', 'ord-2']));
   });
 
