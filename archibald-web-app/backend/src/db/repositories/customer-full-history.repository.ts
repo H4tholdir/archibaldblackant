@@ -25,6 +25,7 @@ type OrderArticleRow = {
   discount_percent: number | null;
   vat_percent: number | null;
   line_total_with_vat: number | null;
+  line_amount: number | null;
 };
 
 type FresisHistoryRow = {
@@ -74,6 +75,7 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
       unitPrice: row.unit_price ?? 0,
       discountPercent: row.discount_percent ?? 0,
       vatPercent: row.vat_percent || 22,
+      lineAmount: row.line_amount ?? 0,
       lineTotalWithVat,
     };
     order.articles.push(article);
@@ -106,6 +108,7 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
       const disc = item.discount ?? 0;
       const lineRaw = item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100);
       const lineTotalWithVat = Math.round(lineRaw * globalFactor * 100) / 100;
+      const lineAmount = Math.round(item.quantity * item.price * (1 - disc / 100) * globalFactor * 100) / 100;
       return {
         articleCode: item.articleCode,
         articleDescription: item.description ?? item.productName ?? '',
@@ -113,6 +116,7 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
         unitPrice: item.price,
         discountPercent: disc,
         vatPercent: item.vat,
+        lineAmount,
         lineTotalWithVat,
       };
     });
@@ -173,7 +177,8 @@ async function getCustomerFullHistory(
              a.unit_price,
              a.discount_percent,
              a.vat_percent,
-             a.line_total_with_vat
+             a.line_total_with_vat,
+             a.line_amount
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
            LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num

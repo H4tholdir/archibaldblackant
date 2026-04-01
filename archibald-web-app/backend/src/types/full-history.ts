@@ -5,6 +5,7 @@ export type FullHistoryArticle = {
   unitPrice: number;
   discountPercent: number;
   vatPercent: number;
+  lineAmount: number;
   lineTotalWithVat: number;
 };
 
