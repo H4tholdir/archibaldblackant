@@ -645,6 +645,7 @@ async function bootstrap(): Promise<void> {
       };
       return {
         sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
+        readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),
@@ -656,6 +657,7 @@ async function bootstrap(): Promise<void> {
       };
       return {
         batchSendOrdersToVerona: async (ids) => { await ensureInit(); return bot.batchSendOrdersToVerona(ids); },
+        readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),

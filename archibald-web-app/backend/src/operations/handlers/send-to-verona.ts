@@ -5,13 +5,21 @@ import { generateArcaData } from '../../services/generate-arca-data';
 import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
 import { batchMarkSold } from '../../db/repositories/warehouse';
+import { logger } from '../../logger';
 
 type SendToVeronaData = {
   orderId: string;
 };
 
+type OrderHeaderData = {
+  salesStatus: string | null;
+  documentStatus: string | null;
+  transferStatus: string | null;
+};
+
 type SendToVeronaBot = {
   sendOrderToVerona: (orderId: string) => Promise<{ success: boolean; message: string }>;
+  readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -69,6 +77,25 @@ async function handleSendToVerona(
   await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToVeronaAt });
 
   broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId: data.orderId } });
+
+  onProgress(83, 'Lettura stato ordine da ERP');
+  try {
+    const header = await bot.readOrderHeader(data.orderId);
+    if (header) {
+      await pool.query(
+        `UPDATE agents.order_records SET
+           sales_status = COALESCE($1, sales_status),
+           document_status = COALESCE($2, document_status),
+           transfer_status = COALESCE($3, transfer_status),
+           last_sync = $4
+         WHERE id = $5 AND user_id = $6`,
+        [header.salesStatus, header.documentStatus, header.transferStatus, Math.floor(Date.now() / 1000), data.orderId, userId],
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn('[SendToVerona] readOrderHeader failed, sync schedulata recupererà', { orderId: data.orderId, error: message });
+  }
 
   onProgress(85, 'Generazione documenti FT');
 

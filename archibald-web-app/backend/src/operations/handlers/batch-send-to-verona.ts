@@ -11,6 +11,12 @@ type BatchSendToVeronaData = {
   orderIds: string[];
 };
 
+type OrderHeaderData = {
+  salesStatus: string | null;
+  documentStatus: string | null;
+  transferStatus: string | null;
+};
+
 type BatchSendToVeronaBot = {
   batchSendOrdersToVerona: (orderIds: string[]) => Promise<{
     success: boolean;
@@ -18,6 +24,7 @@ type BatchSendToVeronaBot = {
     sentIds: string[];
     notFoundIds: string[];
   }>;
+  readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -74,6 +81,24 @@ async function handleBatchSendToVerona(
     await batchMarkSold(pool, userId, orderId, { orderDate: sentToVeronaAt });
 
     broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId } });
+
+    try {
+      const header = await bot.readOrderHeader(orderId);
+      if (header) {
+        await pool.query(
+          `UPDATE agents.order_records SET
+             sales_status = COALESCE($1, sales_status),
+             document_status = COALESCE($2, document_status),
+             transfer_status = COALESCE($3, transfer_status),
+             last_sync = $4
+           WHERE id = $5 AND user_id = $6`,
+          [header.salesStatus, header.documentStatus, header.transferStatus, Math.floor(Date.now() / 1000), orderId, userId],
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('[BatchSendToVerona] readOrderHeader failed, sync schedulata recupererà', { orderId, error: message });
+    }
   }
 
   onProgress(90, 'Generazione documenti FT');
