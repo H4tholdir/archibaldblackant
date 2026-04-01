@@ -11215,11 +11215,11 @@ export class ArchibaldBot {
 
     if (btnClicked) {
       logger.debug("Clicked search button (magnifying glass)", { btnClicked });
-      await this.wait(500);
+      await this.wait(2000);
     } else {
       await searchInput.press("Enter");
       logger.debug("Search button not found, pressed Enter as fallback");
-      await this.wait(500);
+      await this.wait(2000);
     }
 
     logger.debug("Search value entered in iframe, waiting for results...");
