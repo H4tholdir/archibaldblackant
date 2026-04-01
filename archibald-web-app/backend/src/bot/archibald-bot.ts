@@ -12353,9 +12353,24 @@ export class ArchibaldBot {
         return `errore di validazione non rilevato. Screenshot: ${screenshotPath}. Testo visibile: ${diagnostics.visibleFormText.substring(0, 300)}`;
       })();
 
-      throw new Error(
-        `Salvataggio fallito: il form non si è chiuso. Dettaglio: ${errorDetail}`,
-      );
+      // Produce a user-friendly error; technical diagnostics are already in the log above.
+
+      // Pattern: VAT already used by another customer in this ERP
+      const vatDuplicateMatch = errorDetail.match(/Il numero IVA[^.]*con ID:\s*(\d+)/i);
+      if (vatDuplicateMatch) {
+        throw new Error(
+          `La P.IVA è già associata a un altro cliente nell'ERP (ID: ${vatDuplicateMatch[1]}). Controlla il cliente esistente o contatta il Servizio Clienti.`,
+        );
+      }
+
+      // Pattern: generic XAF Data Validation Error — strip the header, keep the message
+      const dataValidationMatch = errorDetail.match(/Data Validation Error[^A-Za-z]*([\s\S]+)/i);
+      if (dataValidationMatch) {
+        throw new Error(`Errore di validazione ERP: ${dataValidationMatch[1].trim().substring(0, 300)}`);
+      }
+
+      // Fallback: keep the raw detail but remove the internal "form non si è chiuso" prefix
+      throw new Error(`Errore ERP durante il salvataggio: ${errorDetail.substring(0, 300)}`);
     }
 
     logger.info("Customer saved (form closed successfully)");
