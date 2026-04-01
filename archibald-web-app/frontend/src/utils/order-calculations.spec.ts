@@ -584,11 +584,11 @@ describe("order-calculations", () => {
       expect(computeOrderDocumentTotal(result, false)).toBeGreaterThanOrEqual(target);
     });
 
-    test("IVA per-gruppo: coerente con PendingOrdersPage (regressione 1119.98 vs 1120)", () => {
+    test("IVA per-riga: coerente con ERP Archibald (regressione 1119.98 vs 1120)", () => {
       // 3 righe al 22% con subtotal 33.33 ciascuna:
       // per-riga: Σ round2(33.33 × 0.22) = 7.33 × 3 = 21.99 → totale 121.98
       // per-gruppo: round2(99.99 × 0.22) = 22.00 → totale 121.99
-      // computeOrderDocumentTotal deve usare la formula per-gruppo (uguale al pending)
+      // computeOrderDocumentTotal deve usare la formula per-riga (uguale all'ERP)
       const subtotal33 = 33.33;
       const items = [1, 2, 3].map((i) =>
         recalcOrderLineItem(
@@ -596,7 +596,7 @@ describe("order-calculations", () => {
           0,
         ),
       );
-      expect(computeOrderDocumentTotal(items, true)).toBe(121.99);
+      expect(computeOrderDocumentTotal(items, true)).toBe(121.98);
     });
   });
 

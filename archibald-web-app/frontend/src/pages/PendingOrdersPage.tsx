@@ -9,7 +9,7 @@ import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../types/pending-order";
 import { calculateShippingCosts, archibaldLineAmount, SHIPPING_THRESHOLD } from "../utils/order-calculations";
-import { arcaDocumentTotals } from "../utils/arca-math";
+import { arcaDocumentTotals, round2 } from "../utils/arca-math";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { VerificationAlert } from "../components/VerificationAlert";
@@ -2128,13 +2128,13 @@ export function PendingOrdersPage() {
                         const shippingCost = shippingCosts.cost;
                         const shippingTax = shippingCosts.tax;
 
-                        // Totali documento con IVA per-gruppo (non per-riga) + spedizione
-                        const { totIva: orderVAT, totDoc: orderTotal } = arcaDocumentTotals(
-                          lines,
-                          scontif,
-                          shippingCost > 0 ? shippingCost : undefined,
-                          shippingCost > 0 ? 22 : undefined,
-                        );
+                        const adjustedLines = lines.map((l) => ({
+                          adj: scontif !== 1 ? round2(l.prezzotot * scontif) : l.prezzotot,
+                          vatRate: l.vatRate,
+                        }));
+                        const itemsVAT = adjustedLines.reduce((s, l) => s + round2(l.adj * l.vatRate / 100), 0);
+                        const orderVAT = Math.round((itemsVAT + shippingTax) * 100) / 100;
+                        const orderTotal = Math.round((subtotalAfterGlobalDiscount + shippingCost + orderVAT) * 100) / 100;
 
                         return (
                           <>

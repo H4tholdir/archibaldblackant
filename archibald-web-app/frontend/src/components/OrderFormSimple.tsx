@@ -33,7 +33,7 @@ import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { formatCurrency } from "../utils/format-currency";
-import { arcaLineAmount, arcaDocumentTotals } from "../utils/arca-math";
+import { arcaLineAmount } from "../utils/arca-math";
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
@@ -2319,13 +2319,9 @@ export default function OrderFormSimple() {
     const shippingCosts = noShipping
       ? { cost: 0, tax: 0, total: 0 }
       : calculateShippingCosts(sub);
-    const lines = items.map((i) => ({ prezzotot: i.subtotal, vatRate: i.vatRate }));
-    const { totIva: finalVAT, totDoc: finalTotal } = arcaDocumentTotals(
-      lines,
-      1,
-      shippingCosts.cost > 0 ? shippingCosts.cost : undefined,
-      22,
-    );
+    const itemVat = items.reduce((s, i) => s + i.vat, 0);
+    const finalVAT = Math.round((itemVat + shippingCosts.tax) * 100) / 100;
+    const finalTotal = Math.round((sub + shippingCosts.cost + finalVAT) * 100) / 100;
 
     return {
       itemsSubtotal: sub,
