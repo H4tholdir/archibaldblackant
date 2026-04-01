@@ -294,3 +294,312 @@ async function probeCap(page, cdpSession, capValue) {
 
   return { field: 'CAP', ...settle, changedFields };
 }
+
+async function runPhase1(page, cdpSession) {
+  console.log('\n=== PHASE 1: Field Probe ===');
+
+  await page.goto(
+    `${ERP_URL}/CUSTTABLE_ListView_Agent/`,
+    { waitUntil: 'networkidle2', timeout: 60000 }
+  );
+  await wait(2000);
+
+  const clicked = await page.evaluate(() => {
+    const el = Array.from(document.querySelectorAll('a, span, button, td'))
+      .find(e => e.textContent?.trim() === 'Nuovo' || e.textContent?.trim() === 'New');
+    if (el) { el.click(); return true; }
+    return false;
+  });
+  if (!clicked) throw new Error('Pulsante Nuovo non trovato');
+
+  await page.waitForFunction(
+    () => !window.location.href.includes('ListView'),
+    { timeout: 15000 }
+  );
+  await wait(2000);
+  console.log('[PHASE1] Form nuovo aperto —', page.url());
+
+  // Assicura tab Principale attivo
+  await page.evaluate(() => {
+    const tab = Array.from(document.querySelectorAll('*'))
+      .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+    if (tab) tab.click();
+  });
+  await wait(1000);
+
+  const results = {};
+
+  // Probe 1: NAME
+  const nameResult = await probeTextField(page, cdpSession, 'NAME', PROBE_FIELDS.NAME);
+  logProbeResult('NAME', nameResult);
+  results.NAME = nameResult;
+
+  // Probe 2: FISCALCODE
+  const fcResult = await probeTextField(page, cdpSession, 'FISCALCODE', PROBE_FIELDS.FISCALCODE);
+  logProbeResult('FISCALCODE', fcResult);
+  results.FISCALCODE = fcResult;
+
+  // Probe 3: CAP (popup iframe)
+  const capResult = await probeCap(page, cdpSession, '80038');
+  logProbeResult('CAP', capResult);
+  results.CAP = capResult;
+
+  // Probe 4: VATNUM (possibile attesa fino a 35s)
+  console.log('\n[PROBE] VATNUM — avvio (possibile wait fino a 35s)...');
+  const vatResult = await probeTextField(page, cdpSession, 'VATNUM', PROBE_FIELDS.VATNUM);
+  logProbeResult('VATNUM', vatResult);
+  results.VATNUM = vatResult;
+
+  // Naviga via SENZA salvare
+  console.log('\n[PHASE1] Navigazione via (no save)...');
+  await page.goto(
+    `${ERP_URL}/CUSTTABLE_ListView_Agent/`,
+    { waitUntil: 'networkidle2', timeout: 30000 }
+  );
+  await wait(1500);
+
+  // Dismissi eventuale dialog DevExpress "Vuoi salvare?"
+  await page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('input[type="button"], button, a'));
+    const discard = btns.find(b =>
+      /no|annulla|cancel|discard|ignore/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+    );
+    if (discard) discard.click();
+  }).catch(() => {});
+  await wait(1000);
+
+  console.log('[PHASE1] completata.');
+  return results;
+}
+
+async function runPhase2(page, cdpSession) {
+  console.log('\n=== PHASE 2: Fix Palmese (erp_id 57396) ===');
+
+  await page.goto(
+    `${ERP_URL}/CUSTTABLE_DetailView/${PALMESE_ERP_ID}/?mode=Edit`,
+    { waitUntil: 'networkidle2', timeout: 30000 }
+  );
+  await waitForDevExpressReady(page, { label: 'phase2-load' });
+  await wait(2000);
+  console.log('[PHASE2] Form aperto —', page.url());
+
+  // Assicura tab Principale attivo
+  await page.evaluate(() => {
+    const tab = Array.from(document.querySelectorAll('*'))
+      .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+    if (tab) tab.click();
+  });
+  await wait(1000);
+
+  const steps = {};
+
+  // Passo 1: CAP = 80038 (prima di FISCALCODE per evitare race VATNUM)
+  console.log('[PHASE2] Passo 1: CAP...');
+  await probeCap(page, cdpSession, PALMESE_FIX.CAP);
+  steps.CAP = true;
+  console.log(`  CAP → ${PALMESE_FIX.CAP}: OK`);
+
+  // Passo 2: FISCALCODE
+  console.log('[PHASE2] Passo 2: FISCALCODE...');
+  const fcId = await page.evaluate(() => {
+    const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+      .find(el => /dviFISCALCODE_Edit_I$/.test(el.id) && el.offsetParent !== null);
+    if (!input) return null;
+    input.scrollIntoView({ block: 'center' });
+    return input.id;
+  });
+  if (!fcId) throw new Error('FISCALCODE input non trovato');
+  await page.click(`#${cssEscape(fcId)}`, { clickCount: 3 });
+  await page.type(`#${cssEscape(fcId)}`, PALMESE_FIX.FISCALCODE, { delay: 60 });
+  const fcSettle = waitForXhrSettle(page, cdpSession, { quietMs: 800 });
+  await page.keyboard.press('Tab');
+  await fcSettle;
+  steps.FISCALCODE = true;
+  console.log(`  FISCALCODE → ${PALMESE_FIX.FISCALCODE}: OK`);
+
+  // Passo 3: NAMEALIAS esplicito (sovrascrive callback FISCALCODE che setta CF nel nome)
+  // NAMEALIAS è maxLen 20 — "Dr. Claudio Palmese" = 19 chars, entra per intero
+  console.log('[PHASE2] Passo 3: NAMEALIAS...');
+  const naId = await page.evaluate(() => {
+    const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+      .find(el => /dviNAMEALIAS_Edit_I$/.test(el.id) && el.offsetParent !== null);
+    if (!input) return null;
+    input.scrollIntoView({ block: 'center' });
+    return input.id;
+  });
+  if (!naId) throw new Error('NAMEALIAS input non trovato');
+  await page.click(`#${cssEscape(naId)}`, { clickCount: 3 });
+  await page.type(`#${cssEscape(naId)}`, PALMESE_FIX.NAMEALIAS, { delay: 60 });
+  const naSettle = waitForXhrSettle(page, cdpSession, { quietMs: 400 });
+  await page.keyboard.press('Tab');
+  await naSettle;
+  steps.NAMEALIAS = true;
+  console.log(`  NAMEALIAS → ${PALMESE_FIX.NAMEALIAS}: OK`);
+
+  // Passo 4: SDI (nessun callback atteso)
+  console.log('[PHASE2] Passo 4: SDI...');
+  const sdiId = await page.evaluate(() => {
+    // Il campo SDI si chiama PDVFATTELLETTR in XAF
+    const input = Array.from(document.querySelectorAll('input[id*="xaf_dvi"]'))
+      .find(el =>
+        /PDVFATTELLETTR|SDI|FATTELLETTR/i.test(el.id) &&
+        el.offsetParent !== null
+      );
+    if (!input) return null;
+    input.scrollIntoView({ block: 'center' });
+    return input.id;
+  });
+  if (!sdiId) throw new Error('SDI input non trovato (cercato: PDVFATTELLETTR/SDI/FATTELLETTR)');
+  await page.click(`#${cssEscape(sdiId)}`, { clickCount: 3 });
+  await page.type(`#${cssEscape(sdiId)}`, PALMESE_FIX.SDI, { delay: 60 });
+  await page.keyboard.press('Tab');
+  await wait(500);
+  steps.SDI = true;
+  console.log(`  SDI → ${PALMESE_FIX.SDI}: OK`);
+
+  // Salva
+  console.log('[PHASE2] Salvataggio...');
+  const saved = await page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('a, input[type="button"], button'));
+    const save = btns.find(b =>
+      /^salva$|^save$/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+    );
+    if (save) { save.click(); return true; }
+    return false;
+  });
+  if (!saved) throw new Error('Pulsante Salva non trovato');
+
+  // Attendi callbacks post-save
+  await waitForXhrSettle(page, cdpSession, { maxWaitMs: 15000, quietMs: 600 });
+  await wait(2000);
+
+  // Dismissi eventuale "Ignora avvisi" o dialog di conferma
+  await page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('input[type="button"], button, a'));
+    const confirm = btns.find(b =>
+      /ignora|ignore|sì|si\b|yes\b|ok\b/i.test(b.textContent?.trim() ?? b.value?.trim() ?? '')
+    );
+    if (confirm) confirm.click();
+  }).catch(() => {});
+  await wait(1500);
+
+  console.log(`[PHASE2] Salvato — URL: ${page.url()}`);
+  steps.SAVE = true;
+
+  return steps;
+}
+
+async function verifyPalmese(page) {
+  console.log('\n[VERIFY] Naviga view mode...');
+  await page.goto(
+    `${ERP_URL}/CUSTTABLE_DetailView/${PALMESE_ERP_ID}/`,
+    { waitUntil: 'networkidle2', timeout: 30000 }
+  );
+  await waitForDevExpressReady(page, { label: 'verify' });
+  await wait(2000);
+
+  // Assicura tab Principale attivo
+  await page.evaluate(() => {
+    const tab = Array.from(document.querySelectorAll('*'))
+      .find(el => el.textContent?.trim() === 'Principale' && el.offsetParent !== null);
+    if (tab) tab.click();
+  });
+  await wait(1000);
+
+  const rawValues = await page.evaluate(() => {
+    const get = (pattern) => {
+      const re = new RegExp(pattern, 'i');
+      const el = Array.from(document.querySelectorAll('[id]'))
+        .find(e => re.test(e.id) && e.offsetParent !== null);
+      return el?.value?.trim() ?? el?.textContent?.trim() ?? '';
+    };
+    return {
+      NAMEALIAS: get('NAMEALIAS'),
+      FISCALCODE: get('FISCALCODE'),
+      CAP: get('LOGISTICSADDRESSZIPCODE'),
+      SDI: get('PDVFATTELLETTR'),
+    };
+  });
+
+  const expected = {
+    NAMEALIAS: 'Dr. Claudio Palmese',
+    FISCALCODE: 'PLMCLD76T10A390T',
+    CAP: '80038',
+    SDI: 'C3UCNRB',
+  };
+
+  console.log('\n[VERIFY] Risultati:');
+  const fieldsVerified = {};
+  for (const [field, exp] of Object.entries(expected)) {
+    const got = rawValues[field] ?? '';
+    const ok = got === exp || got.includes(exp) || exp.includes(got);
+    fieldsVerified[field] = ok;
+    console.log(`  ${field}=${got} ${ok ? '✓' : `✗ (atteso: ${exp})`}`);
+  }
+
+  return { fieldsVerified, rawValues };
+}
+
+async function main() {
+  const browser = await puppeteer.launch({
+    headless: false,
+    slowMo: 60,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
+    ignoreHTTPSErrors: true,
+  });
+
+  const report = {
+    timestamp: new Date().toISOString(),
+    erpUrl: ERP_URL,
+    phase1: {},
+    phase2Palmese: { success: false, fieldsVerified: {} },
+  };
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1400, height: 900 });
+
+    const cdpSession = await page.target().createCDPSession();
+    await cdpSession.send('Network.enable');
+
+    await login(page);
+
+    // Phase 1
+    const phase1Results = await runPhase1(page, cdpSession);
+    for (const [field, result] of Object.entries(phase1Results)) {
+      report.phase1[field] = {
+        xhrCount: result.xhrCount,
+        settleMs: result.settleMs,
+        timedOut: result.timedOut ?? false,
+        changedFields: result.changedFields,
+      };
+    }
+
+    // Phase 2
+    const phase2Steps = await runPhase2(page, cdpSession);
+    const { fieldsVerified, rawValues } = await verifyPalmese(page);
+
+    report.phase2Palmese = {
+      success: Object.values(fieldsVerified).every(Boolean),
+      steps: phase2Steps,
+      fieldsVerified,
+      rawValues,
+    };
+
+    console.log('\n[FINAL] Phase 2 success:', report.phase2Palmese.success);
+
+  } finally {
+    await browser.close();
+
+    mkdirSync(LOGS_DIR, { recursive: true });
+    const date = new Date().toISOString().split('T')[0];
+    const reportPath = join(LOGS_DIR, `diag-field-callbacks-${date}.json`);
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    console.log(`\n[REPORT] Salvato: ${reportPath}`);
+  }
+}
+
+main().catch(err => {
+  console.error('[FATAL]', err);
+  process.exit(1);
+});
