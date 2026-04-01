@@ -189,9 +189,10 @@ async function probeTextField(page, cdpSession, fieldName, { inputIdPattern, val
   await page.click(`#${escaped}`, { clickCount: 3 });
   await wait(100);
   await page.type(`#${escaped}`, value, { delay: 60 });
-  await page.keyboard.press('Tab');
 
-  const settle = await waitForXhrSettle(page, cdpSession);
+  const settlePromise = waitForXhrSettle(page, cdpSession);
+  await page.keyboard.press('Tab');
+  const settle = await settlePromise;
   const after = await snapshotXafInputs(page);
   const changedFields = diffSnapshots(before, after);
 
@@ -276,6 +277,8 @@ async function probeCap(page, cdpSession, capValue) {
   });
   await wait(300);
 
+  const settlePromise = waitForXhrSettle(page, cdpSession);
+
   // Clicca OK
   await frame.evaluate(() => {
     const btns = Array.from(document.querySelectorAll('input[type="button"], button'));
@@ -285,7 +288,7 @@ async function probeCap(page, cdpSession, capValue) {
     if (ok) ok.click();
   });
 
-  const settle = await waitForXhrSettle(page, cdpSession);
+  const settle = await settlePromise;
   const after = await snapshotXafInputs(page);
   const changedFields = diffSnapshots(before, after);
 
