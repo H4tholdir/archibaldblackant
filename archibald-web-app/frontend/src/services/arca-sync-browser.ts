@@ -215,6 +215,7 @@ export type KtSyncStatus = {
 
 export type KtExportResult = {
   ktExported: number;
+  exportedOrderIds: string[];
   vbsScript: {
     vbs: string;
     bat: string;
@@ -246,6 +247,16 @@ export async function finalizeKtExport(
   if (!res.ok) throw new Error(`finalize-kt failed: ${res.status}`);
   const json = await res.json();
   return json.data;
+}
+
+export async function confirmKtSynced(orderIds: string[]): Promise<void> {
+  if (orderIds.length === 0) return;
+  const res = await fetch('/api/arca-sync/confirm-kt', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds }),
+  });
+  if (!res.ok) throw new Error(`confirm-kt failed: ${res.status}`);
 }
 
 export async function writeVbsToDirectory(

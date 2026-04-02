@@ -1544,6 +1544,7 @@ export type KtExportResult = {
   ktExported: number;
   warehouseOnlyExported: number;
   vbsScript: VbsResult | null;
+  exportedOrderIds: string[];
 };
 
 type SplittableArticle = { quantity: number; warehouseQuantity: number | null };
@@ -1576,10 +1577,23 @@ export async function generateKtExportVbs(
     }
   }
 
+  // Fallback: alcuni ordini hanno customer_account_num nel formato ACCOUNTNUM (1002xxx)
+  // invece del formato erp_id (55.xxx). Risolviamo tramite agents.customers.
+  const { rows: customerRows } = await pool.query<{ account_num: string; erp_id: string }>(
+    `SELECT account_num, erp_id FROM agents.customers
+     WHERE user_id = $1 AND account_num IS NOT NULL AND account_num != '' AND erp_id IS NOT NULL AND erp_id != ''`,
+    [userId],
+  );
+  const accountNumToErpId = new Map<string, string>();
+  for (const c of customerRows) {
+    accountNumToErpId.set(c.account_num, c.erp_id);
+  }
+
   const exportRecords: VbsExportRecord[] = [...ftExportRecords];
   const currentYear = new Date().getFullYear().toString();
   let ktExported = 0;
   let warehouseOnlyExported = 0;
+  const exportedOrderIds: string[] = [];
 
   // Align FT and KT counters to global max(FT, KT) before assigning numbers.
   // generateKtExportVbs can run between syncs; without this, the KT counter may lag
@@ -1610,7 +1624,12 @@ export async function generateKtExportVbs(
 
   for (const order of ktOrders) {
     if (!order.articlesSyncedAt) continue;
-    const subclient = order.customerAccountNum ? subByProfile.get(order.customerAccountNum) : undefined;
+    const erpId = order.customerAccountNum
+      ? (subByProfile.has(order.customerAccountNum)
+          ? order.customerAccountNum
+          : accountNumToErpId.get(order.customerAccountNum))
+      : undefined;
+    const subclient = erpId ? subByProfile.get(erpId) : undefined;
     if (!subclient) continue;
 
     const articles = await getOrderArticles(pool, order.id, userId);
@@ -1705,14 +1724,7 @@ export async function generateKtExportVbs(
       );
     }
 
-    // Mark order as exported: set arca_kt_synced_at for any order that had articles processed
-    // (including fully-warehouse orders that generated only an FT companion — without this,
-    // fully-warehouse orders would loop on every sync since arca_kt_synced_at stays NULL)
-    // Gap 4: AND arca_kt_synced_at IS NULL guards against concurrent sync runs
-    await pool.query(
-      `UPDATE agents.order_records SET arca_kt_synced_at = NOW() WHERE id = $1 AND user_id = $2 AND arca_kt_synced_at IS NULL`,
-      [order.id, userId],
-    );
+    exportedOrderIds.push(order.id);
   }
 
   // ANAGRAFE export (spostato da performArcaSync)
@@ -1789,7 +1801,7 @@ export async function generateKtExportVbs(
     logger.info(`Arca sync finalize-kt: ${exportRecords.length} docs + ${anagrafeExportRecords.length} anagrafe exported for user ${userId}`);
   }
 
-  return { ktExported, warehouseOnlyExported, vbsScript };
+  return { ktExported, warehouseOnlyExported, vbsScript, exportedOrderIds };
 }
 
 export async function suggestNextCodice(pool: DbPool): Promise<string> {

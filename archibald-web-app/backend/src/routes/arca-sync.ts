@@ -112,6 +112,25 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
     }
   });
 
+  router.post('/confirm-kt', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const orderIds: string[] = req.body?.orderIds ?? [];
+      if (orderIds.length === 0) return void res.json({ success: true, updated: 0 });
+
+      const { rowCount } = await deps.pool.query(
+        `UPDATE agents.order_records
+         SET arca_kt_synced_at = NOW()
+         WHERE id = ANY($1::text[]) AND user_id = $2 AND arca_kt_synced_at IS NULL`,
+        [orderIds, userId],
+      );
+      logger.info(`KT confirm: ${rowCount} orders marked as synced for user ${userId}`);
+      res.json({ success: true, updated: rowCount ?? 0 });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to confirm KT' });
+    }
+  });
+
   router.get('/suggest-codice', async (req: AuthRequest, res) => {
     try {
       const suggestedCode = await suggestNextCodice(deps.pool);

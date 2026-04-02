@@ -5,6 +5,7 @@ import {
   isFileSystemAccessSupported,
   fetchKtStatus,
   finalizeKtExport,
+  confirmKtSynced,
   getOrRequestDirectoryHandle,
   writeVbsToDirectory,
 } from '../services/arca-sync-browser';
@@ -375,6 +376,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
   const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
   const ftExportRecordsRef = useRef<Array<{ invoiceNumber: string; arcaData: unknown }>>([]);
   const deletionWarningsRef = useRef<DeletionWarning[]>([]);
+  const exportedKtOrderIdsRef = useRef<string[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Cleanup polling on unmount
@@ -462,11 +464,12 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
     try {
       const result = await finalizeKtExport(ftExportRecordsRef.current);
       setKtFinalExported(result.ktExported);
+      exportedKtOrderIdsRef.current = result.exportedOrderIds ?? [];
 
       if (result.vbsScript && dirHandleRef.current) {
         await writeVbsToDirectory(dirHandleRef.current, result.vbsScript);
         setPhase('waiting-arca');
-        // onSyncComplete verrà chiamato dal polling arca_done.txt
+        // arca_kt_synced_at verrà impostato dal polling arca_done.txt, dopo conferma esecuzione VBS
         return;
       }
 
@@ -492,6 +495,7 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
         await handle.getFileHandle('arca_done.txt');
         clearInterval(interval);
         try { await handle.removeEntry('arca_done.txt'); } catch {}
+        try { await confirmKtSynced(exportedKtOrderIdsRef.current); } catch {}
         setPhase('done');
         onSyncComplete?.(deletionWarningsRef.current);
       } catch {
