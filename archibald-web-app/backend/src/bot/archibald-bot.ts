@@ -22,6 +22,8 @@ import {
   normalizeLookupText,
 } from "../variant-selection";
 import { buildOrderNotesText } from '../utils/order-notes';
+import { diffSnapshot } from './customer-snapshot-diff.js';
+import type { FieldDivergence } from './customer-snapshot-diff.js';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -13346,6 +13348,21 @@ export class ArchibaldBot {
       });
       return null;
     }
+  }
+
+  async buildSnapshotWithDiff(
+    erpId: string,
+    formData: import('../types.js').CustomerFormData,
+  ): Promise<{ snapshot: import('../types.js').CustomerSnapshot; divergences: FieldDivergence[] }> {
+    const snapshot = await this.buildCustomerSnapshot(erpId);
+    const divergences = diffSnapshot(snapshot, formData);
+    if (divergences.length > 0) {
+      console.warn(`[buildSnapshotWithDiff] ${divergences.length} divergences for ERP ID ${erpId}:`);
+      for (const d of divergences) {
+        console.warn(`  ${d.field}: sent="${d.sent}" actual="${d.actual}"`);
+      }
+    }
+    return { snapshot, divergences };
   }
 
   async readCustomerVatStatus(
