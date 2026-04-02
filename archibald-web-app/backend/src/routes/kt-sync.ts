@@ -64,18 +64,33 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
         subByCodice.set(sc.codice, sc);
       }
 
+      // Fallback: account_num (1002xxx) → erp_id (55.xxx) for customers assigned an ACCOUNTNUM by Verona
+      const { rows: customerRows } = await pool.query<{ account_num: string; erp_id: string }>(
+        `SELECT account_num, erp_id FROM agents.customers
+         WHERE user_id = $1 AND account_num IS NOT NULL AND account_num != '' AND erp_id IS NOT NULL AND erp_id != ''`,
+        [userId],
+      );
+      const accountNumToErpId = new Map<string, string>();
+      for (const c of customerRows) {
+        accountNumToErpId.set(c.account_num, c.erp_id);
+      }
+
       const errors: string[] = [];
       let synced = 0;
       const exportRecords: Array<{ invoiceNumber: string; arcaData: any }> = [];
 
       for (const order of orders) {
-        // Resolve subclient: check override first, then profile match
+        // Resolve subclient: check override first, then profile match (with account_num → erp_id fallback)
         const overrideCodice = matchOverrides?.[order.id];
-        let subclient = overrideCodice
-          ? subByCodice.get(overrideCodice)
-          : order.customer_account_num
-            ? subByProfile.get(order.customer_account_num)
-            : undefined;
+        let subclient: typeof allSubclients[number] | undefined;
+        if (overrideCodice) {
+          subclient = subByCodice.get(overrideCodice);
+        } else if (order.customer_account_num) {
+          const erpId = subByProfile.has(order.customer_account_num)
+            ? order.customer_account_num
+            : accountNumToErpId.get(order.customer_account_num);
+          subclient = erpId ? subByProfile.get(erpId) : undefined;
+        }
 
         if (!subclient) {
           errors.push(`Ordine ${order.order_number}: nessun sottocliente trovato per ${order.customer_name}`);
