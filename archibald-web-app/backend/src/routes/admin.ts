@@ -5,6 +5,7 @@ import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole, UserTarget } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
+import { audit } from '../db/repositories/audit-log';
 import { logger } from '../logger';
 import {
   getExceptionStats,
@@ -201,6 +202,15 @@ function createAdminRouter(deps: AdminRouterDeps) {
         adminSessionId,
       });
 
+      void audit(deps.pool, {
+        actorId: adminUser.userId,
+        actorRole: 'admin',
+        action: 'admin.impersonation_start',
+        targetType: 'user',
+        targetId: targetUserId,
+        ipAddress: req.ip,
+      });
+
       res.json({
         success: true,
         token,
@@ -238,6 +248,15 @@ function createAdminRouter(deps: AdminRouterDeps) {
         userId: adminUser.id,
         username: adminUser.username,
         role: adminUser.role as UserRole,
+      });
+
+      void audit(deps.pool, {
+        actorId: adminUser.id,
+        actorRole: 'admin',
+        action: 'admin.impersonation_end',
+        targetType: 'user',
+        targetId: user.userId,
+        ipAddress: req.ip,
       });
 
       res.json({
@@ -414,6 +433,40 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (err) {
       logger.error('Error generating claim PDF', { err });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/audit-log', async (req: AuthRequest, res) => {
+    try {
+      const { actorId, action, targetType, from, to, page = '1' } = req.query as Record<string, string>;
+      const pageNum = Math.max(1, parseInt(page, 10));
+      const offset = (pageNum - 1) * 50;
+
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (actorId) { conditions.push(`actor_id = $${idx++}`); params.push(actorId); }
+      if (action) { conditions.push(`action = $${idx++}`); params.push(action); }
+      if (targetType) { conditions.push(`target_type = $${idx++}`); params.push(targetType); }
+      if (from) { conditions.push(`occurred_at >= $${idx++}`); params.push(from); }
+      if (to) { conditions.push(`occurred_at <= $${idx++}`); params.push(to); }
+
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      params.push(50, offset);
+
+      const { rows } = await deps.pool.query(
+        `SELECT id, occurred_at, actor_id, actor_role, action, target_type, target_id, ip_address, metadata
+         FROM system.audit_log ${where}
+         ORDER BY occurred_at DESC
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        params,
+      );
+
+      res.json({ success: true, data: rows, page: pageNum });
+    } catch (error) {
+      logger.error('Error fetching audit log', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero audit log' });
     }
   });
 

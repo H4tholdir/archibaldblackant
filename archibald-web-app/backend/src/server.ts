@@ -368,6 +368,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
 
   app.use('/api/customers', authenticate, createCustomersRouter({
+    pool,
     queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
     getHiddenCustomers: (userId) => customersRepo.getHiddenCustomers(pool, userId),
@@ -545,6 +546,7 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/orders', authenticate, createOrdersRouter({
+    pool,
     queue,
     getOrdersByUser: (userId, options) => ordersRepo.getOrdersByUser(pool, userId, options),
     countOrders: (userId, options) => ordersRepo.countOrders(pool, userId, options),
