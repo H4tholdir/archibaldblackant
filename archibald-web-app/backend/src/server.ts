@@ -156,10 +156,12 @@ function createApp(deps: AppDeps): Express {
 
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, origin ?? true);
+      if (!origin) {
+        callback(null, false); // server-to-server: no CORS header needed
+      } else if (allowedOrigins.includes(origin)) {
+        callback(null, origin); // reflect whitelisted origin
       } else {
-        callback(null, false);
+        callback(null, false); // block unknown origins
       }
     },
     credentials: true,
@@ -170,7 +172,7 @@ function createApp(deps: AppDeps): Express {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // required: React uses inline styles throughout the app
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'", 'wss:'],
         fontSrc: ["'self'"],
