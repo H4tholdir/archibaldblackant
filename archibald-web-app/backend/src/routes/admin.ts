@@ -40,7 +40,7 @@ type AdminRouterDeps = {
   deleteUser: (id: string) => Promise<void>;
   updateUserTarget: (userId: string, yearlyTarget: number, currency: string, commissionRate: number, bonusAmount: number, bonusInterval: number, extraBudgetInterval: number, extraBudgetReward: number, monthlyAdvance: number, hideCommissions: boolean) => Promise<void>;
   getUserTarget: (userId: string) => Promise<UserTarget | null>;
-  generateJWT: (payload: JWTPayload) => Promise<string>;
+  generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
   createAdminSession: (adminUserId: string, targetUserId: string) => Promise<number>;
   closeAdminSession: (sessionId: number) => Promise<void>;
   getAllJobs: (limit: number, status?: string) => Promise<AdminJob[]>;
@@ -202,7 +202,6 @@ function createAdminRouter(deps: AdminRouterDeps) {
         realAdminId: adminUser.userId,
         adminSessionId,
         modules: targetUser.modules,
-        jti: '',
       });
 
       void audit(deps.pool, {
@@ -252,7 +251,6 @@ function createAdminRouter(deps: AdminRouterDeps) {
         username: adminUser.username,
         role: adminUser.role as UserRole,
         modules: adminUser.modules,
-        jti: '',
       });
 
       void audit(deps.pool, {

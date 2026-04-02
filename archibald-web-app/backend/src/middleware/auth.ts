@@ -94,6 +94,8 @@ function createAuthMiddleware(pool: DbPool, redis?: RedisClient) {
       if (revoked) {
         return res.status(401).json({ error: "Token revocato" });
       }
+    } else if (payload && !redis && payload.jti) {
+      logger.warn('JWT revocation check skipped: Redis not configured', { jti: payload.jti });
     }
 
     req.user = payload;

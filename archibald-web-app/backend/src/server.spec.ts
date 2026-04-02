@@ -524,7 +524,7 @@ describe('createApp', () => {
   test('GET /api/cache/export returns data with correct structure', async () => {
     const deps = createMockDeps();
     const app = createApp(deps);
-    const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [], jti: '' });
+    const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [] });
 
     const response = await request(app)
       .get('/api/cache/export')
@@ -623,7 +623,7 @@ describe('cross-flow integration', () => {
         result: { customersProcessed: 10 },
       });
       const app = createApp(deps);
-      const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [], jti: '' });
+      const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [] });
 
       const enqueueResponse = await request(app)
         .post('/api/operations/enqueue')

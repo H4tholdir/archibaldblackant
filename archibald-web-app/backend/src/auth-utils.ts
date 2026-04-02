@@ -19,10 +19,12 @@ export interface JWTPayload {
   adminSessionId?: number;
   modules: string[];
   jti: string;
+  exp?: number;
 }
 
-export async function generateJWT(payload: JWTPayload): Promise<string> {
-  const jwt = await new jose.SignJWT({ ...payload, jti: randomUUID() })
+export async function generateJWT(payload: Omit<JWTPayload, 'jti'>): Promise<string> {
+  const jti = randomUUID();
+  const jwt = await new jose.SignJWT({ ...payload, jti })
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime(JWT_EXPIRY)
@@ -43,6 +45,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
       adminSessionId: payload.adminSessionId as number | undefined,
       modules: (payload.modules as string[]) || [],
       jti: payload.jti as string,
+      exp: payload.exp as number | undefined,
     };
   } catch (error) {
     logger.warn("JWT verification failed", { error });

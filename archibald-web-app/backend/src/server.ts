@@ -120,7 +120,7 @@ type AppDeps = {
   wsServer: WebSocketServerModule;
   passwordCache: PasswordCacheLike;
   pdfStore: PdfStoreLike;
-  generateJWT: (payload: JWTPayload) => Promise<string>;
+  generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
   verifyToken: (token: string) => Promise<{ userId: string } | null>;
   sendEmail: (to: string, subject: string, body: string, fileBuffer: Buffer, fileName: string) => Promise<{ messageId: string }>;
   uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;

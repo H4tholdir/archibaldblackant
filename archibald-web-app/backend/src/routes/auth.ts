@@ -32,7 +32,7 @@ type AuthRouterDeps = {
   updateLastLogin: (userId: string) => Promise<void>;
   passwordCache: PasswordCacheLike;
   browserPool: BrowserPoolLike;
-  generateJWT: (payload: JWTPayload) => Promise<string>;
+  generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
   encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
   onLoginSuccess?: (userId: string) => void;
@@ -148,7 +148,6 @@ function createAuthRouter(deps: AuthRouterDeps) {
         role: user.role as UserRole,
         deviceId: deviceId || undefined,
         modules: user.modules,
-        jti: '',
       });
 
       const { platform, deviceName } = parsed.data;
@@ -196,7 +195,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
     const userId = req.user!.userId;
     const jti = req.user!.jti;
     if (deps.revokeToken && jti) {
-      const remainingTtl = 8 * 60 * 60; // max JWT lifetime
+      const exp = (req.user as JWTPayload).exp;
+      const remainingTtl = exp ? Math.max(1, exp - Math.floor(Date.now() / 1000)) : 8 * 60 * 60;
       await deps.revokeToken(jti, remainingTtl).catch(() => {});
     }
     passwordCache.clear(userId);
@@ -223,13 +223,19 @@ function createAuthRouter(deps: AuthRouterDeps) {
         });
       }
 
+      const oldJti = req.user!.jti;
+      if (deps.revokeToken && oldJti) {
+        const oldExp = (req.user as JWTPayload).exp;
+        const remainingTtl = oldExp ? Math.max(1, oldExp - Math.floor(Date.now() / 1000)) : 8 * 60 * 60;
+        await deps.revokeToken(oldJti, remainingTtl).catch(() => {});
+      }
+
       const newToken = await generateJWT({
         userId: user.userId,
         username: user.username,
         role: user.role as UserRole,
         deviceId: user.deviceId,
         modules: user.modules,
-        jti: '',
       });
 
       const userDetails = await getUserById(user.userId);
@@ -342,7 +348,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
       return res.status(401).json({ success: false, error: 'Codice OTP non valido' });
     }
     void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_success', ipAddress: req.ip });
-    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, modules: user.modules, jti: '' });
+    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, modules: user.modules });
     res.json({ success: true, token, user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role } });
   });
 
