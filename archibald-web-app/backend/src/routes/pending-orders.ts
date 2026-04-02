@@ -3,15 +3,18 @@ import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { PendingOrder, PendingOrderInput } from '../db/repositories/pending-orders';
 import type { WebSocketMessage } from '../realtime/websocket-server';
+import type { AuditEvent } from '../db/repositories/audit-log';
 import { logger } from '../logger';
 
 type BroadcastFn = (userId: string, event: WebSocketMessage) => void;
+type AuditFn = (event: AuditEvent) => void;
 
 type PendingOrdersRouterDeps = {
   getPendingOrders: (userId: string) => Promise<PendingOrder[]>;
   upsertPendingOrder: (userId: string, order: PendingOrderInput) => Promise<{ id: string; action: string; serverUpdatedAt: number }>;
   deletePendingOrder: (userId: string, orderId: string) => Promise<boolean>;
   broadcast: BroadcastFn;
+  audit: AuditFn;
 };
 
 const pendingOrderSchema = z.object({
@@ -40,7 +43,7 @@ const batchUpsertSchema = z.object({
 });
 
 function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
-  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, broadcast } = deps;
+  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, broadcast, audit } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -72,6 +75,16 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
           payload: { orderId: result.id },
           timestamp: new Date().toISOString(),
         });
+        if (result.action === 'created') {
+          void audit({
+            actorId: req.user!.userId,
+            actorRole: req.user!.role,
+            action: 'order.created',
+            targetType: 'order',
+            targetId: result.id,
+            ipAddress: req.ip,
+          });
+        }
       }
 
       res.json({ success: true, results });

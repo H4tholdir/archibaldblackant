@@ -95,6 +95,7 @@ import { PassThrough } from 'stream';
 import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { passwordEncryption } from './services/password-encryption-service';
+import { audit } from './db/repositories/audit-log';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -569,6 +570,7 @@ function createApp(deps: AppDeps): Express {
     upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
     deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
+    audit: (event) => void audit(pool, event),
   }));
 
   app.use('/api/warehouse', authenticate, createWarehouseRouter({
