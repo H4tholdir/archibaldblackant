@@ -149,6 +149,7 @@ function createApp(deps: AppDeps): Express {
   });
 
   const app = express();
+  app.set('trust proxy', 1); // trust first proxy (nginx)
 
   const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')

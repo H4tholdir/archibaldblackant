@@ -383,4 +383,71 @@ describe('createAdminRouter', () => {
       expect(response.body.success).toBe(false);
     });
   });
+
+  describe('GET /api/admin/audit-log', () => {
+    const mockAuditRows = [
+      {
+        id: 1,
+        occurred_at: '2026-04-01T10:00:00Z',
+        actor_id: 'u1',
+        actor_role: 'admin',
+        action: 'auth.login_success',
+        target_type: null,
+        target_id: null,
+        ip_address: '1.2.3.4',
+        metadata: null,
+      },
+    ];
+
+    beforeEach(() => {
+      deps.pool = { query: vi.fn().mockResolvedValue({ rows: mockAuditRows }) } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns audit log entries without filters', async () => {
+      const res = await request(app).get('/api/admin/audit-log');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: mockAuditRows, page: 1 });
+    });
+
+    test('filters by action and passes it as SQL param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?action=auth.login_success');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const querySpy = deps.pool.query as ReturnType<typeof vi.fn>;
+      const callArgs = querySpy.mock.calls[0];
+      expect(callArgs[1]).toContain('auth.login_success');
+    });
+
+    test('returns page 1 for invalid page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=abc');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(1);
+    });
+
+    test('returns page 1 for negative page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=-5');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(1);
+    });
+
+    test('returns correct page number for valid page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=3');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(3);
+    });
+
+    test('returns 500 when pool query fails', async () => {
+      (deps.pool.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/api/admin/audit-log');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });

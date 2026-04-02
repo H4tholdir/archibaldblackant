@@ -439,7 +439,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
   router.get('/audit-log', async (req: AuthRequest, res) => {
     try {
       const { actorId, action, targetType, from, to, page = '1' } = req.query as Record<string, string>;
-      const pageNum = Math.max(1, parseInt(page, 10));
+      const rawPage = parseInt(page, 10);
+      const pageNum = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
       const offset = (pageNum - 1) * 50;
 
       const conditions: string[] = [];
