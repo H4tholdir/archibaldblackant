@@ -1,0 +1,389 @@
+{
+  "certifiedAt": "2026-04-02T21:42:41.786Z",
+  "description": "Struttura iframe PAYMTERMID, ricerca per codice, righe risultato",
+  "results": [
+    {
+      "termCode": "201",
+      "btnId": "Vertical_v11_38509673_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l864_xaf_dviPAYMTERMID_Edit_find_Edit_B0Img",
+      "frameInfo": {
+        "inputs": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "type": "text",
+            "placeholder": ""
+          }
+        ],
+        "btns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ],
+        "headers": [
+          "ID TERMINE DI PAGAMENTO",
+          "DESCRIZIONE",
+          "CITTÀ DI FATTURAZIONE",
+          "CREATO DA:",
+          "DATA DI CREAZIONE",
+          "DATAAREAID",
+          "FORSELECT",
+          "ID",
+          "MODIFICATO DA:"
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=44656728",
+        "allVisibleBtns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_52777891_LE_v19_IADD",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_52777891_LE_v19_IADU",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_52777891_LE_v19_IADL",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_52777891_LE_v19_IADR",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_52777891_LE_v19_IDHF",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "rowIndex": 0,
+          "rowId": "FindDialog_v19_52777891_LE_v19_DXDataRow0",
+          "cells": [
+            {
+              "colIndex": 0,
+              "text": "201"
+            },
+            {
+              "colIndex": 1,
+              "text": "201 BONIF. BANC. 60 GG.DFFM Iban IT21J0200811796000106970061"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "termCode": "206",
+      "btnId": "Vertical_v11_20484083_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l864_xaf_dviPAYMTERMID_Edit_find_Edit_B0Img",
+      "frameInfo": {
+        "inputs": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "type": "text",
+            "placeholder": ""
+          }
+        ],
+        "btns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ],
+        "headers": [
+          "ID TERMINE DI PAGAMENTO",
+          "DESCRIZIONE",
+          "CITTÀ DI FATTURAZIONE",
+          "CREATO DA:",
+          "DATA DI CREAZIONE",
+          "DATAAREAID",
+          "FORSELECT",
+          "ID",
+          "MODIFICATO DA:"
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=44225940",
+        "allVisibleBtns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_49496378_LE_v19_IADD",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_49496378_LE_v19_IADU",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_49496378_LE_v19_IADL",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_49496378_LE_v19_IADR",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_49496378_LE_v19_IDHF",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "rowIndex": 0,
+          "rowId": "FindDialog_v19_49496378_LE_v19_DXDataRow0",
+          "cells": [
+            {
+              "colIndex": 0,
+              "text": "206"
+            },
+            {
+              "colIndex": 1,
+              "text": "206 BONIF. BANC. 30 GGDFFM Iban IT21J0200811796000106970061"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "termCode": "INESISTENTE",
+      "btnId": "Vertical_v11_2416712_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l864_xaf_dviPAYMTERMID_Edit_find_Edit_B0Img",
+      "frameInfo": {
+        "inputs": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "type": "text",
+            "placeholder": ""
+          }
+        ],
+        "btns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ],
+        "headers": [
+          "ID TERMINE DI PAGAMENTO",
+          "DESCRIZIONE",
+          "CITTÀ DI FATTURAZIONE",
+          "CREATO DA:",
+          "DATA DI CREAZIONE",
+          "DATAAREAID",
+          "FORSELECT",
+          "ID",
+          "MODIFICATO DA:"
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=53681276",
+        "allVisibleBtns": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_27846708_LE_v19_IADD",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_27846708_LE_v19_IADU",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_27846708_LE_v19_IADL",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_27846708_LE_v19_IADR",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_v19_27846708_LE_v19_IDHF",
+            "title": "",
+            "text": "",
+            "tag": "IMG"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI0_T",
+            "title": "OK\nRichiede la selezione di un unico oggetto",
+            "text": "OK",
+            "tag": "A"
+          },
+          {
+            "id": "FindDialog_PopupActions_Menu_DXI1_T",
+            "title": "Annulla",
+            "text": "Annulla",
+            "tag": "A"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "rowIndex": 0,
+          "rowId": "FindDialog_v19_27846708_LE_v19_DXEmptyRow",
+          "cells": [
+            {
+              "colIndex": 0,
+              "text": "No data to display"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
