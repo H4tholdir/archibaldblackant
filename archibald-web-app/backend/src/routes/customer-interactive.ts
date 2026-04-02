@@ -15,7 +15,7 @@ type CustomerBotLike = BotLike & {
   readEditFormFieldValues: () => Promise<Record<string, string>>;
   readAltAddresses: () => Promise<AltAddress[]>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
-  completeCustomerCreation: (formData: CustomerFormData) => Promise<string>;
+  completeCustomerCreation: (formData: CustomerFormData, isVatOnForm?: boolean) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
   setProgressCallback: (cb: (category: string, metadata?: unknown) => Promise<void>) => void;
 };
