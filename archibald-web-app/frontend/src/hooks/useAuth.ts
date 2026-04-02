@@ -15,6 +15,7 @@ export interface AuthState {
   needsPinSetup: boolean;
   lastUser: { userId: string; fullName: string } | null;
   pendingMfaToken: string | null;
+  pendingMfaSetupToken: string | null;
 }
 
 export function useAuth() {
@@ -27,6 +28,7 @@ export function useAuth() {
     needsPinSetup: false,
     lastUser: null,
     pendingMfaToken: null,
+    pendingMfaSetupToken: null,
   });
 
   // Initialize: Check localStorage for existing JWT and lastUser
@@ -50,6 +52,7 @@ export function useAuth() {
               needsPinSetup: false,
               lastUser,
               pendingMfaToken: null,
+              pendingMfaSetupToken: null,
             });
           } else {
             // Token invalid, clear it
@@ -93,6 +96,16 @@ export function useAuth() {
         return false;
       }
 
+      if (response.status === 'mfa_setup_required' && response.setupToken) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaSetupToken: response.setupToken ?? null,
+        }));
+        return false;
+      }
+
       if (response.success && response.token && response.user) {
         localStorage.setItem(TOKEN_KEY, response.token);
 
@@ -120,6 +133,7 @@ export function useAuth() {
             fullName: response.user.fullName,
           },
           pendingMfaToken: null,
+          pendingMfaSetupToken: null,
         });
 
         // Start JWT auto-refresh service
@@ -164,6 +178,7 @@ export function useAuth() {
       needsPinSetup: false,
       lastUser: state.lastUser,
       pendingMfaToken: null,
+      pendingMfaSetupToken: null,
     });
   };
 
@@ -225,6 +240,7 @@ export function useAuth() {
             fullName: response.user.fullName,
           },
           pendingMfaToken: null,
+          pendingMfaSetupToken: null,
         });
         return true;
       } else {
@@ -293,6 +309,7 @@ export function useAuth() {
       needsPinSetup: rememberCredentials,
       lastUser: { userId: user.id, fullName: user.fullName },
       pendingMfaToken: null,
+      pendingMfaSetupToken: null,
     });
 
     jwtRefreshService.start();
@@ -300,6 +317,10 @@ export function useAuth() {
 
   const cancelMfa = () => {
     setState((prev) => ({ ...prev, pendingMfaToken: null, error: null }));
+  };
+
+  const cancelMfaSetup = () => {
+    setState((prev) => ({ ...prev, pendingMfaSetupToken: null, error: null }));
   };
 
   return {
@@ -313,5 +334,6 @@ export function useAuth() {
     switchAccount,
     completeMfaLogin,
     cancelMfa,
+    cancelMfaSetup,
   };
 }

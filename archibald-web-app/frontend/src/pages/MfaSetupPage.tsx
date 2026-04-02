@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 
 type Props = {
-  authToken: string;
+  setupToken: string;
   onComplete: () => void;
 };
 
-export function MfaSetupPage({ authToken, onComplete }: Props) {
+export function MfaSetupPage({ setupToken, onComplete }: Props) {
   const [uri, setUri] = useState('');
   const [code, setCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
@@ -15,7 +15,7 @@ export function MfaSetupPage({ authToken, onComplete }: Props) {
   useEffect(() => {
     fetch('/api/auth/mfa-setup', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${setupToken}` },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -27,7 +27,7 @@ export function MfaSetupPage({ authToken, onComplete }: Props) {
         }
       })
       .catch(() => setError('Errore di connessione'));
-  }, [authToken]);
+  }, [setupToken]);
 
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +35,7 @@ export function MfaSetupPage({ authToken, onComplete }: Props) {
     try {
       const res = await fetch('/api/auth/mfa-confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${setupToken}` },
         body: JSON.stringify({ code }),
       });
       const data = await res.json();

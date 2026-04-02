@@ -9,6 +9,8 @@ import { MfaVerifyStep } from "./components/MfaVerifyStep";
 import { PinSetupWizard } from "./components/PinSetupWizard";
 import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
+import { MfaSetupPage } from "./pages/MfaSetupPage";
+import { AccessManagementPage } from "./pages/AccessManagementPage";
 import { LiquidLoader } from "./components/LiquidLoader";
 import OrderFormNew from "./components/OrderFormSimple";
 import { OfflineBanner } from "./components/OfflineBanner";
@@ -53,6 +55,7 @@ function AppRouter() {
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showTargetWizard, setShowTargetWizard] = useState(false);
   const [hasTarget, setHasTarget] = useState(true); // assume true, check on mount
+  const [showClearCredentialsConfirm, setShowClearCredentialsConfirm] = useState(false);
 
   // Check if user has set target after authentication
   useEffect(() => {
@@ -149,24 +152,82 @@ function AppRouter() {
   // Show unlock screen if lastUser exists
   if (showUnlock && auth.lastUser) {
     return (
-      <UnlockScreen
-        userId={auth.lastUser.userId}
-        fullName={auth.lastUser.fullName}
-        onUnlock={auth.unlockWithPin}
-        onForgotPin={async () => {
-          const confirmed = window.confirm(
-            "Cancellare le credenziali salvate? Dovrai inserire di nuovo username e password Archibald.",
-          );
-          if (confirmed) {
-            await auth.clearLastUser();
+      <>
+        <UnlockScreen
+          userId={auth.lastUser.userId}
+          fullName={auth.lastUser.fullName}
+          onUnlock={auth.unlockWithPin}
+          onForgotPin={() => setShowClearCredentialsConfirm(true)}
+          onSwitchAccount={() => {
+            auth.switchAccount();
             setShowLoginForm(true);
-          }
-        }}
-        onSwitchAccount={() => {
-          auth.switchAccount();
-          setShowLoginForm(true);
-        }}
-      />
+          }}
+        />
+        {showClearCredentialsConfirm && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.6)",
+              zIndex: 1000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                background: "#1e1e1e",
+                borderRadius: 12,
+                padding: "28px 32px",
+                maxWidth: 380,
+                width: "90%",
+                color: "#fff",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ marginBottom: 20, fontSize: 15, lineHeight: 1.5 }}>
+                Cancellare le credenziali salvate? Dovrai inserire di nuovo
+                username e password Archibald.
+              </p>
+              <div
+                style={{ display: "flex", gap: 12, justifyContent: "center" }}
+              >
+                <button
+                  onClick={() => setShowClearCredentialsConfirm(false)}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 8,
+                    border: "1px solid #555",
+                    background: "transparent",
+                    color: "#ccc",
+                    cursor: "pointer",
+                  }}
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowClearCredentialsConfirm(false);
+                    await auth.clearLastUser();
+                    setShowLoginForm(true);
+                  }}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#e53935",
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancella credenziali
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -190,6 +251,28 @@ function AppRouter() {
             onCancel={auth.cancelMfa}
           />
         </div>
+      </div>
+    );
+  }
+
+  // Show MFA setup overlay if login returned mfa_setup_required
+  if (!auth.isAuthenticated && auth.pendingMfaSetupToken) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          zIndex: 1000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <MfaSetupPage
+          setupToken={auth.pendingMfaSetupToken}
+          onComplete={auth.cancelMfaSetup}
+        />
       </div>
     );
   }
@@ -304,6 +387,23 @@ function AppRouter() {
                     onLogout={auth.logout}
                     userName={auth.user?.fullName || ""}
                   />
+                }
+              />
+            )}
+
+            {/* Access Management route — admin only */}
+            {isAdmin && (
+              <Route
+                path="/admin/access"
+                element={
+                  <div className="app">
+                    <main className="app-main" style={{ padding: "0" }}>
+                      <AccessManagementPage />
+                    </main>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
+                  </div>
                 }
               />
             )}
