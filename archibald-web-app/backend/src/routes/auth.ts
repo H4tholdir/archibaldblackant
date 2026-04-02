@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import type { DbPool } from '../db/pool';
 import { authenticateJWT } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
@@ -43,7 +44,24 @@ function createAuthRouter(deps: AuthRouterDeps) {
   const { getUserByUsername, getUserById, updateLastLogin, passwordCache, browserPool, generateJWT, encryptAndSavePassword } = deps;
   const router = Router();
 
-  router.post('/login', async (req, res) => {
+  const loginRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' },
+    keyGenerator: (req) => req.ip ?? 'unknown',
+  });
+
+  const refreshRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: "Limite refresh raggiunto. Riprova tra un'ora." },
+  });
+
+  router.post('/login', loginRateLimiter, async (req, res) => {
     try {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -134,7 +152,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({ success: true, data: { message: 'Logout effettuato con successo' } });
   });
 
-  router.post('/refresh', authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/refresh', refreshRateLimiter, authenticateJWT, async (req: AuthRequest, res) => {
     try {
       const user = req.user!;
       const cachedPassword = passwordCache.get(user.userId);
