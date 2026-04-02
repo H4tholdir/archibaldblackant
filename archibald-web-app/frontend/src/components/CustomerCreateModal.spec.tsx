@@ -6,7 +6,6 @@ vi.mock('../services/customers.service', () => ({
   customerService: {
     checkVat: vi.fn().mockResolvedValue({ valid: true, name: 'ACME SRL' }),
     beginInteractiveSession: vi.fn().mockResolvedValue({ sessionId: 'test-session' }),
-    createCustomer: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
     saveInteractiveCustomer: vi.fn().mockResolvedValue({ customer: null, taskId: 'task-1' }),
     heartbeat: vi.fn().mockResolvedValue(undefined),
     cancelInteractiveSession: vi.fn().mockResolvedValue(undefined),
