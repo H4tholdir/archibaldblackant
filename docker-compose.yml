@@ -72,6 +72,29 @@ services:
       timeout: 5s
       retries: 3
 
+  # PostgreSQL Backup to Hetzner Object Storage (run manually or via cron)
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: archibald-backup
+    restart: 'no'
+    env_file:
+      - .env
+    environment:
+      - PG_HOST=${PG_HOST}
+      - PG_USER=${PG_USER:-archibald}
+      - PG_DATABASE=${PG_DATABASE:-archibald}
+      - PG_PASSWORD=${PG_PASSWORD}
+      - HETZNER_S3_ENDPOINT=${HETZNER_S3_ENDPOINT}
+      - HETZNER_BUCKET=${HETZNER_BUCKET}
+      - HETZNER_ACCESS_KEY=${HETZNER_ACCESS_KEY}
+      - HETZNER_SECRET_KEY=${HETZNER_SECRET_KEY}
+    networks:
+      - archibald-net
+    profiles:
+      - backup
+
 volumes:
   redis-data:
 
