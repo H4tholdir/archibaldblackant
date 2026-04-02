@@ -17,19 +17,25 @@ export function AccessManagementPage() {
   const { token } = useAuth();
   const [users, setUsers] = useState<WhitelistUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((data) => { setUsers(data.users ?? []); setLoading(false); });
+      .then((data) => { setUsers(data.users ?? []); setLoading(false); })
+      .catch(() => { setError('Impossibile caricare gli utenti'); setLoading(false); });
   }, [token]);
 
   async function updateUser(userId: string, changes: Partial<Pick<WhitelistUser, 'role' | 'modules' | 'whitelisted'>>) {
-    await fetch(`/api/admin/users/${userId}`, {
+    const res = await fetch(`/api/admin/users/${userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(changes),
     });
+    if (!res.ok) {
+      setError(`Errore aggiornamento utente: ${res.status}`);
+      return;
+    }
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, ...changes } : u));
   }
 
@@ -38,6 +44,7 @@ export function AccessManagementPage() {
   return (
     <div style={{ padding: 24 }}>
       <h1>Gestione accessi</h1>
+      {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>

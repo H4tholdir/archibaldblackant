@@ -96,7 +96,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
     try {
       let users = await getAllUsers();
       const { role } = req.query;
-      if (role === 'agent' || role === 'admin') {
+      const validRoles = ['agent', 'admin', 'ufficio', 'concessionario'] as const;
+      if (validRoles.includes(role as (typeof validRoles)[number])) {
         users = users.filter((u) => u.role === role);
       }
       res.json({
@@ -161,7 +162,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
       let idx = 1;
 
       if (changes.role !== undefined) { setClauses.push(`role = $${idx++}`); params.push(changes.role); }
-      if (changes.modules !== undefined) { setClauses.push(`modules = $${idx++}`); params.push(JSON.stringify(changes.modules)); }
+      if (changes.modules !== undefined) { setClauses.push(`modules = $${idx++}`); params.push(changes.modules); }
       if (changes.whitelisted !== undefined) { setClauses.push(`whitelisted = $${idx++}`); params.push(changes.whitelisted); }
 
       if (setClauses.length === 0) {
@@ -171,9 +172,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
       params.push(id);
       await deps.pool.query(`UPDATE agents.users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
 
-      const action = changes.role !== undefined ? 'user.role_changed'
-        : changes.modules !== undefined ? 'user.modules_changed'
-        : 'user.whitelist_changed';
+      const action = 'user.updated';
 
       void audit(deps.pool, {
         actorId: req.user!.userId,
