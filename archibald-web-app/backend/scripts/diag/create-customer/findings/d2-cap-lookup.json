@@ -1,0 +1,198 @@
+{
+  "certifiedAt": "2026-04-02T21:39:00.036Z",
+  "description": "Struttura iframe CAP, colonne, auto-fill, scenari multi-città e cap-non-trovato",
+  "scenarios": [
+    {
+      "label": "singola_città",
+      "cap": "80038",
+      "city": "Pomigliano d'Arco",
+      "iframe": {
+        "inputIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "placeholder": ""
+          }
+        ],
+        "searchBtnIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "tagName": "IMG"
+          }
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=56619185"
+      },
+      "rowCount": 1,
+      "rows": [
+        {
+          "rowIndex": 0,
+          "cells": [
+            {
+              "text": "80038",
+              "colIndex": 0
+            },
+            {
+              "text": "Pomigliano d'Arco",
+              "colIndex": 1
+            },
+            {
+              "text": "Campania",
+              "colIndex": 2
+            },
+            {
+              "text": "NA",
+              "colIndex": 3
+            },
+            {
+              "text": "IT",
+              "colIndex": 4
+            }
+          ],
+          "rowId": "FindDialog_v20_62495525_LE_v20_DXDataRow0"
+        }
+      ],
+      "selectedRow": {
+        "rowIndex": 0,
+        "cells": [
+          {
+            "text": "80038",
+            "colIndex": 0
+          },
+          {
+            "text": "Pomigliano d'Arco",
+            "colIndex": 1
+          },
+          {
+            "text": "Campania",
+            "colIndex": 2
+          },
+          {
+            "text": "NA",
+            "colIndex": 3
+          },
+          {
+            "text": "IT",
+            "colIndex": 4
+          }
+        ],
+        "rowId": "FindDialog_v20_62495525_LE_v20_DXDataRow0"
+      },
+      "btnId": "Vertical_v11_48387226_MainLayoutEdit_xaf_l576_pg_xaf_l898_xaf_l927_xaf_l927_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0Img",
+      "autoFill": {
+        "CITY": "Pomigliano d'Arco",
+        "COUNTY": "NA",
+        "STATE": "Campania",
+        "COUNTRYREGIONID": "IT",
+        "LOGISTICSADDRESSZIPCODE": "80038"
+      },
+      "error": null
+    },
+    {
+      "label": "multi_città_roma",
+      "cap": "00100",
+      "city": null,
+      "iframe": {
+        "inputIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "placeholder": ""
+          }
+        ],
+        "searchBtnIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "tagName": "IMG"
+          }
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=61271202"
+      },
+      "rowCount": 1,
+      "rows": [
+        {
+          "rowIndex": 0,
+          "cells": [
+            {
+              "text": "No data to display",
+              "colIndex": 0
+            }
+          ],
+          "rowId": "FindDialog_v20_47560607_LE_v20_DXEmptyRow"
+        }
+      ],
+      "selectedRow": {
+        "rowIndex": 0,
+        "cells": [
+          {
+            "text": "No data to display",
+            "colIndex": 0
+          }
+        ],
+        "rowId": "FindDialog_v20_47560607_LE_v20_DXEmptyRow"
+      },
+      "btnId": "Vertical_v11_107312_MainLayoutEdit_xaf_l576_pg_xaf_l898_xaf_l927_xaf_l927_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0Img",
+      "autoFill": {
+        "CITY": "",
+        "COUNTY": "",
+        "STATE": "",
+        "COUNTRYREGIONID": "",
+        "LOGISTICSADDRESSZIPCODE": "N/A"
+      },
+      "error": null
+    },
+    {
+      "label": "cap_non_trovato",
+      "cap": "99999",
+      "city": null,
+      "iframe": {
+        "inputIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+            "placeholder": ""
+          }
+        ],
+        "searchBtnIds": [
+          {
+            "id": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1Img",
+            "title": "",
+            "tagName": "IMG"
+          }
+        ],
+        "iframeUrl": "https://4.231.124.90/Archibald/Default.aspx?FindPopup=true&ActionID=61555138"
+      },
+      "rowCount": 1,
+      "rows": [
+        {
+          "rowIndex": 0,
+          "cells": [
+            {
+              "text": "No data to display",
+              "colIndex": 0
+            }
+          ],
+          "rowId": "FindDialog_v20_6743109_LE_v20_DXEmptyRow"
+        }
+      ],
+      "selectedRow": {
+        "rowIndex": 0,
+        "cells": [
+          {
+            "text": "No data to display",
+            "colIndex": 0
+          }
+        ],
+        "rowId": "FindDialog_v20_6743109_LE_v20_DXEmptyRow"
+      },
+      "btnId": "Vertical_v11_2479015_MainLayoutEdit_xaf_l576_pg_xaf_l898_xaf_l927_xaf_l927_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0Img",
+      "autoFill": {
+        "CITY": "",
+        "COUNTY": "",
+        "STATE": "",
+        "COUNTRYREGIONID": "",
+        "LOGISTICSADDRESSZIPCODE": "N/A"
+      },
+      "error": null
+    }
+  ],
+  "manualCheck": "Verificare D2-Scenario-D (Tab Principale vs Alt Address) manualmente"
+}
