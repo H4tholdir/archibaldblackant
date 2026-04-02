@@ -108,7 +108,7 @@ function SubclientPicker({
               )}
               {(sc.telefono || sc.email) && (
                 <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                  {sc.telefono}{sc.email && ` · ${sc.email}`}
+                  {sc.telefono}{sc.email && <>{' · '}<a href={`mailto:${sc.email}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{sc.email}</a></>}
                 </div>
               )}
             </div>

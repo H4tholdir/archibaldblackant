@@ -294,8 +294,8 @@ export function CustomerProfilePage() {
           >
             <FieldCell label="Telefono" value={pendingEdits.phone ?? customer.phone} originalValue={customer.phone} editKey="phone" editMode={editMode} setField={setField} />
             <FieldCell label="Mobile" value={pendingEdits.mobile ?? customer.mobile} originalValue={customer.mobile} editKey="mobile" editMode={editMode} setField={setField} />
-            <FieldCell label="Email" value={pendingEdits.email ?? customer.email} originalValue={customer.email} editKey="email" editMode={editMode} setField={setField} />
-            <FieldCell label="PEC" value={pendingEdits.pec ?? customer.pec} originalValue={customer.pec} editKey="pec" editMode={editMode} setField={setField} />
+            <FieldCell label="Email" value={pendingEdits.email ?? customer.email} originalValue={customer.email} editKey="email" editMode={editMode} setField={setField} renderValue={v => <a href={`mailto:${v}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{v}</a>} />
+            <FieldCell label="PEC" value={pendingEdits.pec ?? customer.pec} originalValue={customer.pec} editKey="pec" editMode={editMode} setField={setField} renderValue={v => <a href={`mailto:${v}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{v}</a>} />
             <FieldCell label="SDI" value={pendingEdits.sdi ?? customer.sdi} originalValue={customer.sdi} editKey="sdi" editMode={editMode} setField={setField} />
             <FieldCell label="URL" value={pendingEdits.url ?? customer.url} originalValue={customer.url} editKey="url" editMode={editMode} setField={setField} />
           </SectionCard>
@@ -538,7 +538,7 @@ function SectionCard({ title, editMode, pendingKeys, pendingEdits, children }: {
   );
 }
 
-function FieldCell({ label, value, originalValue, editKey, editMode, setField, readOnly, isTextarea }: {
+function FieldCell({ label, value, originalValue, editKey, editMode, setField, readOnly, isTextarea, renderValue }: {
   label: string;
   value: string | null | undefined;
   originalValue?: string | null | undefined;
@@ -547,6 +547,7 @@ function FieldCell({ label, value, originalValue, editKey, editMode, setField, r
   setField?: (key: keyof PendingEdits, value: string) => void;
   readOnly?: boolean;
   isTextarea?: boolean;
+  renderValue?: (v: string) => React.ReactNode;
 }) {
   const isModified = editMode && !readOnly && value !== originalValue && originalValue !== undefined;
   const canEdit = editMode && !readOnly && editKey && setField;
@@ -573,7 +574,9 @@ function FieldCell({ label, value, originalValue, editKey, editMode, setField, r
           />
         )
       ) : (
-        <div style={{ fontSize: 12, color: readOnly ? '#94a3b8' : '#1e293b', fontWeight: readOnly ? 400 : 500 }}>{displayVal}</div>
+        <div style={{ fontSize: 12, color: readOnly ? '#94a3b8' : '#1e293b', fontWeight: readOnly ? 400 : 500 }}>
+          {renderValue && value ? renderValue(value) : displayVal}
+        </div>
       )}
     </div>
   );
