@@ -104,6 +104,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
         users: users.map((u) => ({
           id: u.id, username: u.username, fullName: u.fullName,
           role: u.role, whitelisted: u.whitelisted, lastLoginAt: u.lastLoginAt,
+          modules: u.modules, mfaEnabled: u.mfaEnabled,
         })),
       });
     } catch (error) {
@@ -137,6 +138,57 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (error) {
       logger.error('Error updating whitelist', { error });
       res.status(500).json({ success: false, error: 'Errore aggiornamento whitelist' });
+    }
+  });
+
+  router.patch('/users/:id', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      const parsed = z.object({
+        role: z.enum(['agent', 'admin', 'ufficio', 'concessionario']).optional(),
+        modules: z.array(z.string()).optional(),
+        whitelisted: z.boolean().optional(),
+      }).safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+
+      const changes = parsed.data;
+      const setClauses: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (changes.role !== undefined) { setClauses.push(`role = $${idx++}`); params.push(changes.role); }
+      if (changes.modules !== undefined) { setClauses.push(`modules = $${idx++}`); params.push(JSON.stringify(changes.modules)); }
+      if (changes.whitelisted !== undefined) { setClauses.push(`whitelisted = $${idx++}`); params.push(changes.whitelisted); }
+
+      if (setClauses.length === 0) {
+        return res.status(400).json({ success: false, error: 'Nessun campo da aggiornare' });
+      }
+
+      params.push(id);
+      await deps.pool.query(`UPDATE agents.users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+
+      const action = changes.role !== undefined ? 'user.role_changed'
+        : changes.modules !== undefined ? 'user.modules_changed'
+        : 'user.whitelist_changed';
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action,
+        targetType: 'user',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: changes as Record<string, unknown>,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error updating user', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento utente' });
     }
   });
 
