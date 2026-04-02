@@ -10,7 +10,7 @@
  * - Auto-recovery: Lazy-load from DB when cache miss
  *
  * Security:
- * - In-memory cache: 24-hour TTL per credential
+ * - In-memory cache: 4-hour TTL per credential
  * - Database storage: AES-256-GCM encrypted at rest
  * - Lazy-load: Automatic, transparent to caller
  * - HTTPS required to protect credentials in transit
@@ -31,7 +31,7 @@ interface CachedPassword {
 export class PasswordCache {
   private static instance: PasswordCache;
   private cache: Map<string, CachedPassword> = new Map();
-  private readonly TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (match JWT expiration)
+  private readonly TTL_MS = 4 * 60 * 60 * 1000; // 4 hours (NIS2/GDPR compliance — short-lived credential window)
   private userDb: any = null; // UserDatabase instance
   private passwordEncryption: any = null; // PasswordEncryptionService instance
 
