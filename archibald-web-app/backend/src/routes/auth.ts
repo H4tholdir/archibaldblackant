@@ -7,6 +7,7 @@ import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
 import { logger } from '../logger';
+import { audit } from '../db/repositories/audit-log';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -72,6 +73,13 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
       const user = await getUserByUsername(username);
       if (!user) {
+        void audit(deps.pool, {
+          action: 'auth.login_failed',
+          actorRole: 'unknown',
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          metadata: { username },
+        });
         return res.status(401).json({ success: false, error: 'Credenziali non valide o utente non autorizzato' });
       }
 
@@ -89,6 +97,13 @@ function createAuthRouter(deps: AuthRouterDeps) {
           await browserPool.releaseContext(user.id, context, true);
         } catch {
           passwordCache.clear(user.id);
+          void audit(deps.pool, {
+            action: 'auth.login_failed',
+            actorRole: 'unknown',
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { username },
+          });
           return res.status(401).json({ success: false, error: 'Credenziali non valide' });
         }
       }
@@ -118,6 +133,13 @@ function createAuthRouter(deps: AuthRouterDeps) {
           .catch((err) => logger.warn('Failed to register device', { userId: user.id, deviceId, error: err }));
       }
 
+      void audit(deps.pool, {
+        actorId: user.id,
+        actorRole: user.role,
+        action: 'auth.login_success',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
       res.json({
         success: true,
         token,
@@ -149,6 +171,13 @@ function createAuthRouter(deps: AuthRouterDeps) {
   router.post('/logout', authenticateJWT, async (req: AuthRequest, res) => {
     const userId = req.user!.userId;
     passwordCache.clear(userId);
+    void audit(deps.pool, {
+      actorId: req.user!.userId,
+      actorRole: req.user!.role,
+      action: 'auth.logout',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     res.json({ success: true, data: { message: 'Logout effettuato con successo' } });
   });
 
@@ -174,6 +203,12 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
       const userDetails = await getUserById(user.userId);
 
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'auth.token_refresh',
+        ipAddress: req.ip,
+      });
       res.json({
         success: true,
         token: newToken,
