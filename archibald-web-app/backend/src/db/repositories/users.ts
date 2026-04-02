@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import type { DbPool } from '../pool';
 import type { AgentStatus } from '../../sync/activity-tracker';
 
-type UserRole = 'agent' | 'admin';
+type UserRole = 'agent' | 'admin' | 'ufficio' | 'concessionario';
 
 type User = {
   id: string;
@@ -25,6 +25,8 @@ type User = {
   extraBudgetReward: number;
   monthlyAdvance: number;
   hideCommissions: boolean;
+  modules: string[];
+  mfaEnabled: boolean;
 };
 
 type EncryptedPassword = {
@@ -55,6 +57,8 @@ type UserRow = {
   extra_budget_reward: number;
   monthly_advance: number;
   hide_commissions: boolean;
+  modules: string[] | null;
+  mfa_enabled: boolean | null;
 };
 
 type EncryptedPasswordRow = {
@@ -106,7 +110,7 @@ const USER_COLUMNS = `
   monthly_target, yearly_target, currency, target_updated_at,
   commission_rate, bonus_amount, bonus_interval,
   extra_budget_interval, extra_budget_reward, monthly_advance,
-  hide_commissions
+  hide_commissions, modules, mfa_enabled
 `;
 
 function mapRowToUser(row: UserRow): User {
@@ -131,6 +135,8 @@ function mapRowToUser(row: UserRow): User {
     extraBudgetReward: row.extra_budget_reward,
     monthlyAdvance: row.monthly_advance,
     hideCommissions: row.hide_commissions,
+    modules: row.modules ?? [],
+    mfaEnabled: row.mfa_enabled ?? false,
   };
 }
 

@@ -200,6 +200,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
         isImpersonating: true,
         realAdminId: adminUser.userId,
         adminSessionId,
+        modules: targetUser.modules,
+        jti: '',
       });
 
       void audit(deps.pool, {
@@ -248,6 +250,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
         userId: adminUser.id,
         username: adminUser.username,
         role: adminUser.role as UserRole,
+        modules: adminUser.modules,
+        jti: '',
       });
 
       void audit(deps.pool, {

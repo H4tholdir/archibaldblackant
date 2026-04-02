@@ -125,6 +125,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
         username: user.username,
         role: user.role as UserRole,
         deviceId: deviceId || undefined,
+        modules: user.modules,
+        jti: '',
       });
 
       const { platform, deviceName } = parsed.data;
@@ -199,6 +201,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
         username: user.username,
         role: user.role as UserRole,
         deviceId: user.deviceId,
+        modules: user.modules,
+        jti: '',
       });
 
       const userDetails = await getUserById(user.userId);

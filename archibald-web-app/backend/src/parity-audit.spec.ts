@@ -399,7 +399,7 @@ describe('endpoint parity audit — master vs branch', () => {
   beforeAll(async () => {
     const deps = createMockDeps();
     app = createApp(deps);
-    adminToken = await generateJWT({ userId: 'admin-1', username: 'admin', role: 'admin' });
+    adminToken = await generateJWT({ userId: 'admin-1', username: 'admin', role: 'admin', modules: [], jti: '' });
   });
 
   const standardEndpoints = masterEndpoints.filter((e) => e.auth !== 'auth-internal');

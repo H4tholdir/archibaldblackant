@@ -14,6 +14,8 @@ export interface AuthRequest extends Request {
     isImpersonating?: boolean;
     realAdminId?: string;
     adminSessionId?: number;
+    modules: string[];
+    jti: string;
   };
 }
 

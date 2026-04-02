@@ -50,7 +50,7 @@ function createApp(deps: AuthRouterDeps) {
 }
 
 async function createAuthToken() {
-  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1' });
+  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1', modules: [], jti: '' });
 }
 
 describe('createAuthRouter', () => {
