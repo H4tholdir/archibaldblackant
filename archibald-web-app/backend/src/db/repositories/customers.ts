@@ -155,6 +155,7 @@ type CustomerFormInput = {
   county?: string;
   state?: string;
   country?: string;
+  lineDiscount?: string;
 };
 
 type UpsertResult = {

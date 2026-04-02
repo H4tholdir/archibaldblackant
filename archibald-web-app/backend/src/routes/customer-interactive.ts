@@ -406,6 +406,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         county: customerData.county,
         state: customerData.state,
         country: customerData.country,
+        lineDiscount: customerData.lineDiscount,
       };
 
       const customer = await upsertSingleCustomer(userId, formInput, tempProfile, 'pending');
