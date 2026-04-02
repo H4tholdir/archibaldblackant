@@ -14,6 +14,8 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   success: boolean;
+  status?: 'mfa_required';
+  mfaToken?: string;
   token?: string;
   user?: {
     id: string;

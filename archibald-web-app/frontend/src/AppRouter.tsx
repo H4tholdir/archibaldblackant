@@ -2,8 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
+import type { UserRole } from "./api/auth";
 import { useToast } from "./hooks/useToast";
 import { LoginModal } from "./components/LoginModal";
+import { MfaVerifyStep } from "./components/MfaVerifyStep";
 import { PinSetupWizard } from "./components/PinSetupWizard";
 import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
@@ -47,6 +49,7 @@ function AppRouter() {
     username: string;
     password: string;
   } | null>(null);
+  const [rememberCredentials, setRememberCredentials] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showTargetWizard, setShowTargetWizard] = useState(false);
   const [hasTarget, setHasTarget] = useState(true); // assume true, check on mount
@@ -167,15 +170,40 @@ function AppRouter() {
     );
   }
 
+  // Show MFA verification step if login returned mfa_required
+  if (!auth.isAuthenticated && auth.pendingMfaToken) {
+    return (
+      <div className="login-modal-overlay">
+        <div className="login-modal">
+          <img src="/logo.png" alt="Formicanera" className="login-modal-logo" />
+          <h1>🐜 Formicanera</h1>
+          <p className="subtitle">Verifica a due fattori</p>
+          <MfaVerifyStep
+            mfaToken={auth.pendingMfaToken}
+            onSuccess={(token, user) => {
+              auth.completeMfaLogin(
+                token,
+                { ...user, role: user.role as UserRole, whitelisted: true, lastLoginAt: null },
+                rememberCredentials,
+              );
+            }}
+            onCancel={auth.cancelMfa}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Show login modal if not authenticated
   if (showLogin) {
     const handleLogin = async (
       username: string,
       password: string,
-      rememberCredentials: boolean,
+      remember: boolean,
     ) => {
-      const success = await auth.login(username, password, rememberCredentials);
-      if (success && rememberCredentials) {
+      setRememberCredentials(remember);
+      const success = await auth.login(username, password, remember);
+      if (success && remember) {
         setTempCredentials({ username, password });
       }
       return success;
