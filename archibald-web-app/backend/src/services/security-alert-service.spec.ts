@@ -44,4 +44,16 @@ describe('createSecurityAlertService', () => {
     await svc.send('backup_failed', {});
     expect(mockSendMail).not.toHaveBeenCalled();
   });
+
+  it('uses smtp user as from address when from is empty', async () => {
+    const user = 'alerts@example.com';
+    const svc = createSecurityAlertService(
+      { host: 'smtp.example.com', port: 587, secure: false, user, pass: 'secret', from: '' },
+      'admin@example.com',
+    );
+    await svc.send('backup_failed', {});
+    expect(mockSendMail).toHaveBeenCalledOnce();
+    const call = mockSendMail.mock.calls[0][0];
+    expect(call.from).toBe(user);
+  });
 });
