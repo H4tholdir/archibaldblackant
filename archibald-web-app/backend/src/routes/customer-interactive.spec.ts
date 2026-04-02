@@ -436,6 +436,7 @@ describe('createCustomerInteractiveRouter', () => {
       await vi.waitFor(() => {
         expect(mockBot.completeCustomerCreation).toHaveBeenCalledWith(
           expect.objectContaining({ name: 'Test Customer' }),
+          true,
         );
       });
     });
@@ -639,6 +640,7 @@ describe('createCustomerInteractiveRouter', () => {
             state: 'Lazio',
             country: 'IT',
           }),
+          true,
         );
       });
     });

@@ -17,6 +17,7 @@ type CustomerBotLike = BotLike & {
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
   completeCustomerCreation: (formData: CustomerFormData, isVatOnForm?: boolean) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
+  buildSnapshotWithDiff?: (erpId: string, formData: CustomerFormData) => Promise<{ snapshot: import('../types').CustomerSnapshot; divergences: unknown[] }>;
   setProgressCallback: (cb: (category: string, metadata?: unknown) => Promise<void>) => void;
 };
 
@@ -30,6 +31,7 @@ type CustomerInteractiveRouterDeps = {
   broadcast: BroadcastFn;
   upsertSingleCustomer: (userId: string, formData: CustomerFormInput, erpId: string, botStatus: string) => Promise<Customer>;
   updateCustomerBotStatus: (userId: string, erpId: string, status: string) => Promise<void>;
+  updateCustomerErpId?: (userId: string, tempErpId: string, realErpId: string) => Promise<void>;
   updateVatValidatedAt: (userId: string, erpId: string) => Promise<void>;
   getCustomerByProfile: (userId: string, erpId: string) => Promise<Customer | undefined>;
   pauseSyncs: () => Promise<void>;
@@ -92,6 +94,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   const {
     sessionManager, createBot, broadcast,
     upsertSingleCustomer, updateCustomerBotStatus,
+    updateCustomerErpId,
     updateVatValidatedAt, getCustomerByProfile,
     pauseSyncs, resumeSyncs,
     upsertAddressesForCustomer, setAddressesSyncedAt,
@@ -395,6 +398,14 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         email: customerData.email,
         url: customerData.url,
         deliveryMode: customerData.deliveryMode,
+        paymentTerms: customerData.paymentTerms,
+        fiscalCode: customerData.fiscalCode,
+        sector: customerData.sector,
+        attentionTo: customerData.attentionTo,
+        notes: customerData.notes,
+        county: customerData.county,
+        state: customerData.state,
+        country: customerData.country,
       };
 
       const customer = await upsertSingleCustomer(userId, formInput, tempProfile, 'pending');
@@ -441,7 +452,9 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           if (useInteractiveBot) {
             setupProgressCallback(existingBot!);
-            newErpId = await existingBot!.completeCustomerCreation(customerData);
+            const realErpId = await existingBot!.completeCustomerCreation(formInput, true);
+            newErpId = realErpId;
+
             const altAddresses: AltAddress[] = (customerData.addresses ?? []).map(a => ({
               tipo: a.tipo,
               nome: a.nome ?? null,
@@ -455,6 +468,42 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             }));
             await upsertAddressesForCustomer(userId, tempProfile, altAddresses);
             await setAddressesSyncedAt(userId, tempProfile);
+
+            if (updateCustomerErpId) {
+              await updateCustomerErpId(userId, tempProfile, realErpId);
+            }
+
+            if (existingBot!.buildSnapshotWithDiff) {
+              try {
+                const { snapshot } = await existingBot!.buildSnapshotWithDiff(realErpId, formInput);
+                const snapshotFormInput: CustomerFormInput = {
+                  name: snapshot?.name ?? formInput.name,
+                  vatNumber: snapshot?.vatNumber ?? formInput.vatNumber,
+                  pec: snapshot?.pec ?? formInput.pec,
+                  sdi: snapshot?.sdi ?? formInput.sdi,
+                  street: snapshot?.street ?? formInput.street,
+                  postalCode: snapshot?.postalCode ?? formInput.postalCode,
+                  phone: snapshot?.phone ?? formInput.phone,
+                  mobile: snapshot?.mobile ?? formInput.mobile,
+                  email: snapshot?.email ?? formInput.email,
+                  url: snapshot?.url ?? formInput.url,
+                  deliveryMode: snapshot?.deliveryMode ?? formInput.deliveryMode,
+                  paymentTerms: snapshot?.paymentTerms ?? formInput.paymentTerms,
+                  fiscalCode: snapshot?.fiscalCode ?? formInput.fiscalCode,
+                  sector: snapshot?.sector ?? formInput.sector,
+                  attentionTo: snapshot?.attentionTo ?? formInput.attentionTo,
+                  notes: snapshot?.notes ?? formInput.notes,
+                  county: snapshot?.county ?? formInput.county,
+                  state: snapshot?.state ?? formInput.state,
+                  country: snapshot?.country ?? formInput.country,
+                };
+                await upsertSingleCustomer(userId, snapshotFormInput, realErpId, 'snapshot');
+              } catch (snapshotErr) {
+                logger.warn('/save: buildSnapshotWithDiff failed (non-fatal)', { error: snapshotErr, userId });
+              }
+            }
+
+            await updateCustomerBotStatus(userId, realErpId, 'placed');
             await sessionManager.removeBot(sessionId);
             sessionManager.updateState(sessionId, 'completed');
           } else {
@@ -465,12 +514,12 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             await freshBot.createCustomer(customerData);
             await freshBot.close();
             newErpId = tempProfile;
+            await updateCustomerBotStatus(userId, tempProfile, 'placed');
             if (effectiveSession) {
               sessionManager.updateState(sessionId, 'completed');
             }
           }
 
-          await updateCustomerBotStatus(userId, tempProfile, 'placed');
           await updateVatValidatedAt(userId, newErpId);
 
           if (smartCustomerSync) {

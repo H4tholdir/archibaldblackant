@@ -428,6 +428,7 @@ function createApp(deps: AppDeps): Express {
       broadcast: broadcastFn,
       upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+      updateCustomerErpId: (userId, tempErpId, realErpId) => customersRepo.updateCustomerErpId(pool, userId, tempErpId, realErpId),
       updateVatValidatedAt: (userId, profile) => customersRepo.updateVatValidatedAt(pool, userId, profile),
       getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
       upsertAddressesForCustomer: (userId, erpId, addresses) =>
