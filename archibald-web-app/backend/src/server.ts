@@ -10,6 +10,8 @@ import type { WebSocketServerModule } from './realtime/websocket-server';
 import type { JWTPayload } from './auth-utils';
 import { requireAdmin, createAuthMiddleware } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
+import type { RedisClient } from './db/redis-client';
+import { revokeToken as revokeTokenFn } from './db/redis-client';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
 import { createCustomersRouter } from './routes/customers';
@@ -128,6 +130,7 @@ type AppDeps = {
   onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
   onLoginSuccess?: (userId: string) => void;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
+  redis?: RedisClient;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -137,7 +140,7 @@ function createApp(deps: AppDeps): Express {
     sendEmail, uploadToDropbox,
   } = deps;
 
-  const authenticate = createAuthMiddleware(pool);
+  const authenticate = createAuthMiddleware(pool, deps.redis);
 
   const effectiveCreateTestBot = deps.createTestBot ?? (async () => {
     const bot = new ArchibaldBot();
@@ -365,6 +368,9 @@ function createApp(deps: AppDeps): Express {
     registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
     onLoginSuccess: deps.onLoginSuccess,
+    revokeToken: deps.redis
+      ? (jti, ttl) => revokeTokenFn(deps.redis!, jti, ttl)
+      : undefined,
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));

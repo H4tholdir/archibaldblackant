@@ -57,6 +57,7 @@ import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
+import { createRedisClient } from './db/redis-client';
 import { PasswordCache } from './password-cache';
 import { passwordEncryption } from './services/password-encryption-service';
 import { getEncryptedPassword } from './db/repositories/users';
@@ -99,6 +100,8 @@ async function bootstrap(): Promise<void> {
     host: process.env.REDIS_HOST ?? 'localhost',
     port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
   };
+
+  const sharedRedisClient = createRedisClient();
 
   const allQueues = Object.fromEntries(
     QUEUE_NAMES.map(name => [
@@ -403,6 +406,7 @@ async function bootstrap(): Promise<void> {
       );
     },
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
+    redis: sharedRedisClient,
   });
 
   const server = http.createServer(app);

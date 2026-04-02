@@ -34,6 +34,7 @@ type AuthRouterDeps = {
   encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
   onLoginSuccess?: (userId: string) => void;
+  revokeToken?: (jti: string, ttlSeconds: number) => Promise<void>;
   // MFA deps (optional — feature flag)
   getMfaSecret?: (userId: string) => Promise<MfaEncryptedSecret | null>;
   saveMfaSecret?: (userId: string, ciphertext: string, iv: string, authTag: string) => Promise<void>;
@@ -190,6 +191,11 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
   router.post('/logout', authenticateJWT, async (req: AuthRequest, res) => {
     const userId = req.user!.userId;
+    const jti = req.user!.jti;
+    if (deps.revokeToken && jti) {
+      const remainingTtl = 8 * 60 * 60; // max JWT lifetime
+      await deps.revokeToken(jti, remainingTtl).catch(() => {});
+    }
     passwordCache.clear(userId);
     void audit(deps.pool, {
       actorId: req.user!.userId,
