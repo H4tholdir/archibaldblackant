@@ -134,7 +134,17 @@ function createAdminRouter(deps: AdminRouterDeps) {
       if (typeof whitelisted !== 'boolean') {
         return res.status(400).json({ success: false, error: 'whitelisted deve essere boolean' });
       }
-      await updateWhitelist(req.params.id, whitelisted);
+      const id = req.params.id;
+      await updateWhitelist(id, whitelisted);
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'user.whitelist_changed',
+        targetType: 'user',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { whitelisted },
+      });
       res.json({ success: true });
     } catch (error) {
       logger.error('Error updating whitelist', { error });

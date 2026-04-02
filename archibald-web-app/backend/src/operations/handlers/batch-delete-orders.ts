@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
+import { audit } from '../../db/repositories/audit-log';
 import { logger } from '../../logger';
 
 type BatchDeleteOrdersData = {
@@ -86,6 +87,16 @@ async function handleBatchDeleteOrders(
   });
 
   onProgress(100, `${result.deletedIds.length} ordini eliminati`);
+
+  if (result.deletedIds.length > 0) {
+    void audit(pool, {
+      actorId: userId,
+      action: 'order.deleted',
+      targetType: 'order',
+      targetId: result.deletedIds.join(','),
+      metadata: { reason: 'manual_delete', count: result.deletedIds.length, orderIds: result.deletedIds },
+    });
+  }
 
   for (const orderId of result.deletedIds) {
     broadcast?.(userId, { event: 'ORDER_DELETE_COMPLETE', orderId });
