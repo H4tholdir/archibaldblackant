@@ -336,7 +336,7 @@ describe("generateArcaData", () => {
     expect(result.testata.NUMRIGHEPR).toBe(2);
   });
 
-  test("DESTDIV is set to 01 when subClientData present, empty otherwise", () => {
+  test("DESTDIV is always empty regardless of subClientData", () => {
     const withDest = generateArcaData(
       makeInput({
         subClientData: { ragioneSociale: "X" },
@@ -345,7 +345,7 @@ describe("generateArcaData", () => {
       ESERCIZIO,
       FIXED_DATE,
     );
-    expect(withDest.testata.DESTDIV).toBe("01");
+    expect(withDest.testata.DESTDIV).toBe("");
 
     const withoutDest = generateArcaData(
       makeInput({ subClientData: null }),

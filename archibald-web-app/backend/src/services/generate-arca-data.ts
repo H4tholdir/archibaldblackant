@@ -56,7 +56,6 @@ export function generateArcaData(
   const datadoc = formatArcaDate(dateIso);
   const numerodoc = String(ftNumber);
   const codicecf = record.subClientCodice;
-  const hasDestDiv = record.subClientData != null;
   const zona = record.subClientData?.zona ?? "0";
 
   const righe: ArcaRiga[] = record.items.map((item, idx) => {
@@ -181,7 +180,7 @@ export function generateArcaData(
     LISTINO: "1",
     ZONA: zona,
     SETTORE: "",
-    DESTDIV: hasDestDiv ? "01" : "",
+    DESTDIV: "",
     DATACONSEG: datadoc,
     TRDATA: null,
     TRORA: "",

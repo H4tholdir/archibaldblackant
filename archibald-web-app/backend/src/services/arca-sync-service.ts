@@ -203,6 +203,9 @@ function buildExecScriptDoctes(
     if (f === "NUMERODOC") {
       const padded = padNumerodoc(String(raw)).replace(/]/g, "").replace(/"/g, '""');
       lines.push(`mainPrg.WriteLine "REPLACE NUMERODOC WITH [${padded}]"`);
+    } else if (f === "TOTSCONTO" && (!raw || raw === 0)) {
+      // Skip: leave as VFP null from APPEND BLANK. Explicit 0 would display as "0"
+      // in ArcaPro's form; null displays as blank (ArcaPro uses SET NULL ON).
     } else {
       const vfpVal = formatVfpLiteral(f, raw as string | number | boolean | null);
       lines.push(`mainPrg.WriteLine "REPLACE ${f} WITH ${vfpVal}"`);
@@ -366,22 +369,23 @@ function buildExecScriptAnagrafe(sc: Subclient): string[] {
     ['AGENTE2', sc.agente2],
     ['SETTORE', sc.settore],
     ['CLASSE', sc.classe],
-    ['PAG', sc.pag],
+    ['PAG', sc.pag || '0001'],
     ['LISTINO', sc.listino],
     ['BANCA', sc.banca],
-    ['VALUTA', sc.valuta],
+    ['VALUTA', sc.valuta || 'EUR'],
     ['CODNAZIONE', sc.codNazione],
     ['ALIIVA', sc.aliiva],
     ['CONTOSCAR', sc.contoscar],
     ['TIPOFATT', sc.tipofatt],
     ['PERSDACONT', sc.persDaContattare],
     ['URL', sc.url],
-    ['CB_NAZIONE', sc.cbNazione],
+    ['CB_NAZIONE', sc.cbNazione || 'IT'],
     ['CB_BIC', sc.cbBic],
     ['CB_CIN_UE', sc.cbCinUe],
     ['CB_CIN_IT', sc.cbCinIt],
     ['ABICAB', sc.abicab],
     ['CONTOCORR', sc.contocorr],
+    ['CONTRPART', '04010101002'],
   ];
 
   for (const [field, value] of fields) {
