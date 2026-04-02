@@ -203,32 +203,19 @@ export function CustomerHistoryModal({
   const buildPendingItem = useCallback(
     async (
       a: CustomerFullHistoryOrder['articles'][number],
-      orderDiscountPercent: number,
       substituteCode?: string,
     ): Promise<PendingOrderItem & { _priceWarning?: boolean }> => {
       const effectiveCode = substituteCode ?? a.articleCode;
-      const combinedDiscount = orderDiscountPercent > 0
-        ? Math.round((1 - (1 - a.discountPercent / 100) * (1 - orderDiscountPercent / 100)) * 10000) / 100
-        : a.discountPercent;
 
-      if (isFresisClient) {
-        const fresisListinoInfo = listinoPrices.get(effectiveCode);
-        const fresisPrice = fresisListinoInfo?.price ?? a.unitPrice;
-        return {
-          articleCode: effectiveCode,
-          productName: effectiveCode,
-          description: a.articleDescription,
-          quantity: a.quantity,
-          price: fresisPrice,
-          vat: fresisListinoInfo?.vat ?? a.vatPercent,
-          discount: combinedDiscount,
-          total: arcaLineAmount(a.quantity, fresisPrice, combinedDiscount),
-        };
-      }
-
-      // Direct client: fetch current list price and calculate discount
-      const priceInfo = await priceService.getPriceAndVat(effectiveCode);
+      // Prefer cached batch result; fall back to async fetch for codes not in batch
+      // (e.g. substitute codes resolved after initial load)
+      const cachedInfo = listinoPrices.get(effectiveCode);
+      const priceInfo = cachedInfo !== undefined ? cachedInfo : await priceService.getPriceAndVat(effectiveCode);
       const currentListPrice = priceInfo?.price ?? a.unitPrice;
+
+      // Recalculate discount so that qty × currentListPrice × (1 - discount/100) equals the
+      // historical net amount. For Fresis orders, lineTotalWithVat already has the global
+      // order discount baked in by the backend.
       const lineAmountNoVat = a.lineTotalWithVat / (1 + a.vatPercent / 100);
       const calculatedDiscount =
         currentListPrice > 0
@@ -248,7 +235,7 @@ export function CustomerHistoryModal({
         _priceWarning: !isValid,
       } as PendingOrderItem & { _priceWarning?: boolean };
     },
-    [isFresisClient, listinoPrices],
+    [listinoPrices],
   );
 
   const isFresisWithSubClient = isFresisClient && subClientCodices.length > 0;
@@ -309,7 +296,7 @@ export function CustomerHistoryModal({
         return;
       }
       const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
-      const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+      const item = await buildPendingItem(article, substituteCode);
       onAddArticle(item, false);
       setAddedCount((c) => c + 1);
       setArticleBadges((prev) => {
@@ -328,10 +315,10 @@ export function CustomerHistoryModal({
   const handleDialogConfirm = useCallback(
     async (selections: SelectedWarehouseMatch[]) => {
       if (!pendingDialog) return;
-      const { article, orderDiscountPercent, orderSource } = pendingDialog;
+      const { article, orderSource } = pendingDialog;
       const warehouseCode = selections.length > 0 ? selections[0].articleCode : undefined;
       const substituteCode = warehouseCode ?? (orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined);
-      const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+      const item = await buildPendingItem(article, substituteCode);
       const enriched: PendingOrderItem = {
         ...item,
         warehouseSources: selections.length > 0
@@ -391,7 +378,7 @@ export function CustomerHistoryModal({
         }
         validPairs.push({
           originalCode: a.articleCode,
-          item: await buildPendingItem(a, order.orderDiscountPercent, substituteCode),
+          item: await buildPendingItem(a, substituteCode),
         });
       }
 
@@ -654,7 +641,7 @@ export function CustomerHistoryModal({
               handleAddGhostSingle(article, orderDiscountPercent);
             } else {
               const substituteCode = orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined;
-              const item = await buildPendingItem(article, orderDiscountPercent, substituteCode);
+              const item = await buildPendingItem(article, substituteCode);
               onAddArticle(item, false);
               setAddedCount((c) => c + 1);
               setArticleBadges((prev) => {

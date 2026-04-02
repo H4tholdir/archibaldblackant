@@ -159,6 +159,48 @@ describe('CustomerHistoryModal', () => {
     );
   });
 
+  it('buildPendingItem uses current listino price and recalculates discount for Fresis clients', async () => {
+    const listPrice = 15;
+    const article = {
+      articleCode: 'ART001',
+      articleDescription: 'Fresis Article',
+      quantity: 2,
+      unitPrice: 10,
+      discountPercent: 10,
+      lineAmount: 18,
+      lineTotalWithVat: 21.96, // 2 × 10 × 0.9 × 1.22
+      vatPercent: 22,
+    };
+    // lineAmountNoVat = 21.96 / 1.22 = 18 → discount = (1 - 18 / (2 × 15)) × 100 = 40%
+    vi.mocked(priceService.getPriceAndVatBatch).mockResolvedValue(
+      new Map([[article.articleCode, { price: listPrice, vat: 22 }]]),
+    );
+    vi.mocked(getCustomerFullHistory).mockResolvedValue([
+      mockOrder({ source: 'fresis', articles: [article] }),
+    ]);
+
+    const onAddArticle = vi.fn();
+    render(
+      <CustomerHistoryModal
+        {...defaultProps}
+        isFresisClient={true}
+        subClientCodices={['C001']}
+        onAddArticle={onAddArticle}
+      />,
+    );
+
+    await screen.findByText('ART001');
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Aggiungi' })[0]);
+
+    await waitFor(
+      () => expect(onAddArticle).toHaveBeenCalledWith(
+        expect.objectContaining({ price: listPrice, discount: 40 }),
+        false,
+      ),
+      { timeout: 3000 },
+    );
+  });
+
   it('shows "Modifica collegamenti" button when onEditMatching prop is provided', async () => {
     const onEditMatching = vi.fn();
     render(<CustomerHistoryModal {...defaultProps} onEditMatching={onEditMatching} />);
