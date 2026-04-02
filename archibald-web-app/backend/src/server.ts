@@ -14,6 +14,7 @@ import { verifyJWT } from './auth-utils';
 import { requireAdmin, createAuthMiddleware } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
 import type { RedisClient } from './db/redis-client';
+import type { SecurityAlertEvent } from './services/security-alert-service';
 import { revokeToken as revokeTokenFn } from './db/redis-client';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
@@ -134,7 +135,7 @@ type AppDeps = {
   onLoginSuccess?: (userId: string) => void;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
-  sendSecurityAlert?: (event: string, details: Record<string, unknown>) => void;
+  sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
 };
 
 function createApp(deps: AppDeps): Express {

@@ -423,7 +423,7 @@ async function bootstrap(): Promise<void> {
     },
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
-    sendSecurityAlert: (event, details) => securityAlertService.send(event as SecurityAlertEvent, details),
+    sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
   });
 
   const server = http.createServer(app);

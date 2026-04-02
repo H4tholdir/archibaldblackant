@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import type { DbPool } from '../db/pool';
@@ -10,6 +10,7 @@ import type { RedisClient } from '../db/redis-client';
 import { logger } from '../logger';
 import { audit } from '../db/repositories/audit-log';
 import { generateTotpSecret, getTotpUri, verifyTotpCode, generateRecoveryCodes } from '../services/mfa-service';
+import type { SecurityAlertEvent } from '../services/security-alert-service';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -37,7 +38,7 @@ type AuthRouterDeps = {
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
   onLoginSuccess?: (userId: string) => void;
   revokeToken?: (jti: string, ttlSeconds: number) => Promise<void>;
-  sendSecurityAlert?: (event: string, details: Record<string, unknown>) => void;
+  sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
   // MFA deps (optional — feature flag)
   getMfaSecret?: (userId: string) => Promise<MfaEncryptedSecret | null>;
   saveMfaSecret?: (userId: string, ciphertext: string, iv: string, authTag: string) => Promise<void>;
@@ -62,6 +63,29 @@ function createAuthRouter(deps: AuthRouterDeps) {
   const { getUserByUsername, getUserById, updateLastLogin, passwordCache, browserPool, generateJWT, encryptAndSavePassword } = deps;
   const router = Router();
   const authenticateWithRevocation = createAuthMiddleware(deps.pool, deps.redis);
+
+  function createMfaTokenMiddleware() {
+    return async function authenticateWithMfaToken(
+      req: AuthRequest,
+      res: express.Response,
+      next: express.NextFunction,
+    ) {
+      if (!deps.verifyMfaToken) {
+        return res.status(501).json({ success: false, error: 'MFA not configured' });
+      }
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, error: 'Token non fornito' });
+      }
+      const token = authHeader.split(' ')[1];
+      const payload = await deps.verifyMfaToken(token);
+      if (!payload) {
+        return res.status(401).json({ success: false, error: 'MFA token non valido o scaduto' });
+      }
+      req.user = { userId: payload.userId, username: '', role: 'agent', modules: [], jti: '' };
+      next();
+    };
+  }
 
   const loginRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -107,7 +131,6 @@ function createAuthRouter(deps: AuthRouterDeps) {
           userAgent: req.headers['user-agent'],
           metadata: { username },
         });
-        deps.sendSecurityAlert?.('login_failed_admin', { username, ip: req.ip, reason: 'user_not_found' });
         return res.status(401).json({ success: false, error: 'Credenziali non valide o utente non autorizzato' });
       }
 
@@ -151,25 +174,33 @@ function createAuthRouter(deps: AuthRouterDeps) {
         Promise.resolve(deps.onLoginSuccess(user.id)).catch(() => {});
       }
 
-      if (user.mfaEnabled && (user.role === 'admin' || user.role === 'ufficio') && deps.generateMfaToken) {
-        const mfaToken = await deps.generateMfaToken(user.id);
-        return res.json({ success: true, status: 'mfa_required', mfaToken });
+      if (user.role === 'admin' || user.role === 'ufficio') {
+        if (!deps.generateMfaToken) {
+          logger.error('MFA enforcement required but generateMfaToken not configured', { userId: user.id, role: user.role });
+          return res.status(503).json({ success: false, error: 'Servizio temporaneamente non disponibile' });
+        }
+        if (user.mfaEnabled) {
+          const mfaToken = await deps.generateMfaToken(user.id);
+          return res.json({ success: true, status: 'mfa_required', mfaToken });
+        } else {
+          const setupToken = await deps.generateMfaToken(user.id);
+          void audit(deps.pool, {
+            actorId: user.id,
+            actorRole: user.role,
+            action: 'mfa.setup_required',
+            ipAddress: req.ip,
+          });
+          return res.json({ success: true, status: 'mfa_setup_required', setupToken });
+        }
       }
 
-      if (!user.mfaEnabled && (user.role === 'admin' || user.role === 'ufficio') && deps.generateMfaToken) {
-        const setupToken = await deps.generateMfaToken(user.id);
-        void audit(deps.pool, {
-          actorId: user.id,
-          actorRole: user.role,
-          action: 'mfa.setup_required',
-          ipAddress: req.ip,
-        });
-        return res.json({ success: true, status: 'mfa_setup_required', setupToken });
-      }
-
-      if (user.mfaEnabled && deps.generateMfaToken) {
-        const mfaToken = await deps.generateMfaToken(user.id);
-        return res.json({ success: true, status: 'mfa_required', mfaToken });
+      if (user.mfaEnabled) {
+        if (!deps.generateMfaToken) {
+          logger.warn('User has MFA enabled but generateMfaToken not configured — skipping MFA check', { userId: user.id });
+        } else {
+          const mfaToken = await deps.generateMfaToken(user.id);
+          return res.json({ success: true, status: 'mfa_required', mfaToken });
+        }
       }
 
       const token = await generateJWT({
@@ -313,7 +344,9 @@ function createAuthRouter(deps: AuthRouterDeps) {
     });
   });
 
-  router.post('/mfa-setup', authenticateWithRevocation, async (req: AuthRequest, res) => {
+  const authenticateWithMfaToken = createMfaTokenMiddleware();
+
+  router.post('/mfa-setup', authenticateWithMfaToken, async (req: AuthRequest, res) => {
     if (!deps.encryptSecret || !deps.saveMfaSecret) {
       return res.status(501).json({ success: false, error: 'MFA setup not configured' });
     }
@@ -326,7 +359,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({ success: true, data: { uri, secret } });
   });
 
-  router.post('/mfa-confirm', authenticateWithRevocation, async (req: AuthRequest, res) => {
+  router.post('/mfa-confirm', authenticateWithMfaToken, async (req: AuthRequest, res) => {
     if (!deps.getMfaSecret || !deps.decryptSecret || !deps.saveRecoveryCodes || !deps.enableMfa) {
       return res.status(501).json({ success: false, error: 'MFA not configured' });
     }

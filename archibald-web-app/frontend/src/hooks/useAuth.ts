@@ -226,6 +226,26 @@ export function useAuth() {
       // Use existing login API (same as manual login)
       const response = await authApi.login({ username, password });
 
+      if (response.status === 'mfa_required') {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaToken: response.mfaToken ?? null,
+        }));
+        return false;
+      }
+
+      if (response.status === 'mfa_setup_required') {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaSetupToken: response.setupToken ?? null,
+        }));
+        return false;
+      }
+
       if (response.success && response.token && response.user) {
         localStorage.setItem(TOKEN_KEY, response.token);
         setState({
