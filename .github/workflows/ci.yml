@@ -26,6 +26,10 @@ jobs:
         working-directory: archibald-web-app/backend
         run: npm ci
 
+      - name: Security audit backend
+        working-directory: archibald-web-app/backend
+        run: npm audit --audit-level=high
+
       - name: Run TypeScript type check
         working-directory: archibald-web-app/backend
         run: npx tsc --noEmit
@@ -52,6 +56,10 @@ jobs:
       - name: Install dependencies
         working-directory: archibald-web-app/frontend
         run: npm ci
+
+      - name: Security audit frontend
+        working-directory: archibald-web-app/frontend
+        run: npm audit --audit-level=high
 
       - name: Run TypeScript type check
         working-directory: archibald-web-app/frontend
