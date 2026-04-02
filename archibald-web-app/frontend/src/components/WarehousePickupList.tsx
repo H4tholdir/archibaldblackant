@@ -25,13 +25,14 @@ function formatDateShort(iso: string): string {
 
 function orderDisplayName(order: WarehousePickupOrder): string {
   if (order.orderNumber?.startsWith("warehouse-")) return "Ordine completato direttamente dal magazzino";
+  if (order.orderNumber?.startsWith("ghost-")) return "Articoli da storico";
   return order.orderNumber ?? "—";
 }
 
 function buildPrintHtml(
   orders: WarehousePickupOrder[],
   selectedDate: string,
-  checkedIds: Set<number>,
+  checkedIds: Set<string>,
   totalArticles: number,
   totalPieces: number,
   agentName: string,
@@ -49,18 +50,21 @@ function buildPrintHtml(
     const articleRows = order.articles.map((article) => {
       const isChecked = checkedIds.has(article.id);
       const isSold = article.status === "venduto";
+      const isGhost = article.isGhost;
       const strike = isChecked ? "text-decoration:line-through;color:#999;" : "";
+      const provenienza = isGhost
+        ? '<span style="background:#f3e5f5;color:#6a1b9a;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">Storico</span>'
+        : `<span style="background:#fff3e0;color:#e65100;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">${article.boxName}</span>`;
+      const statoHtml = isGhost
+        ? '<span style="background:#f3e5f5;color:#6a1b9a;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">Ghost</span>'
+        : `<span style="background:${isSold ? "#e8f5e9" : "#fff8e1"};color:${isSold ? "#2e7d32" : "#f57f17"};padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">${isSold ? "Venduto" : "Riservato"}</span>`;
       return `
-        <tr style="border-bottom:1px solid #e0e0e0;${isChecked ? "opacity:0.6;" : ""}">
+        <tr style="border-bottom:1px solid #e0e0e0;${isChecked ? "opacity:0.6;" : ""}${isGhost ? "background:#fdf4ff;" : ""}">
           <td style="padding:7px 10px;text-align:center;font-size:14px;">${isChecked ? "☑" : "☐"}</td>
-          <td style="padding:7px 10px;font-family:monospace;font-size:11px;font-weight:700;color:#1565c0;${strike}">${article.articleCode}</td>
+          <td style="padding:7px 10px;font-family:monospace;font-size:11px;font-weight:700;color:${isGhost ? "#6a1b9a" : "#1565c0"};${strike}">${article.articleCode}</td>
           <td style="padding:7px 10px;font-size:11px;${strike}">${article.articleDescription ?? "—"}</td>
-          <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#e65100;">${article.boxName}</td>
-          <td style="padding:7px 10px;text-align:center;">
-            <span style="background:${isSold ? "#e8f5e9" : "#fff8e1"};color:${isSold ? "#2e7d32" : "#f57f17"};padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;">
-              ${isSold ? "Venduto" : "Riservato"}
-            </span>
-          </td>
+          <td style="padding:7px 10px;font-size:11px;font-weight:700;">${provenienza}</td>
+          <td style="padding:7px 10px;text-align:center;">${statoHtml}</td>
           <td style="padding:7px 10px;text-align:center;font-weight:700;font-size:12px;">${article.quantity}</td>
         </tr>`;
     }).join("");
@@ -144,7 +148,7 @@ export function WarehousePickupList() {
   const [orders, setOrders] = useState<WarehousePickupOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setCheckedIds(new Set());
@@ -164,7 +168,7 @@ export function WarehousePickupList() {
     }
   };
 
-  const toggleChecked = (id: number) => {
+  const toggleChecked = (id: string) => {
     setCheckedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -367,6 +371,11 @@ export function WarehousePickupList() {
               <span style={{ fontSize: "12px", color: "#888" }}>
                 {formatDate(order.creationDate)}
               </span>
+              {order.articles.some((a) => a.isGhost) && (
+                <span style={{ background: "#f3e5f5", color: "#6a1b9a", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600 }}>
+                  👻 storico
+                </span>
+              )}
               <span
                 style={{
                   background: "#e8f5e9",
@@ -398,12 +407,13 @@ export function WarehousePickupList() {
               {order.articles.map((article) => {
                 const isChecked = checkedIds.has(article.id);
                 const isSold = article.status === "venduto";
+                const isGhost = article.isGhost;
                 return (
                   <tr
                     key={article.id}
                     style={{
                       borderBottom: "1px solid #f0f0f0",
-                      background: isChecked ? "#f1f8e9" : undefined,
+                      background: isChecked ? (isGhost ? "#f5e6ff" : "#f1f8e9") : (isGhost ? "#fdf4ff" : undefined),
                       opacity: isChecked ? 0.7 : 1,
                     }}
                   >
@@ -412,7 +422,7 @@ export function WarehousePickupList() {
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleChecked(article.id)}
-                        style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#4caf50" }}
+                        style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: isGhost ? "#9c27b0" : "#4caf50" }}
                       />
                     </td>
                     <td style={{ padding: "10px 12px" }}>
@@ -420,7 +430,7 @@ export function WarehousePickupList() {
                         style={{
                           fontFamily: "monospace",
                           fontSize: "12px",
-                          color: isChecked ? "#aaa" : "#1565c0",
+                          color: isChecked ? "#aaa" : (isGhost ? "#6a1b9a" : "#1565c0"),
                           fontWeight: 600,
                           textDecoration: isChecked ? "line-through" : undefined,
                         }}
@@ -432,38 +442,41 @@ export function WarehousePickupList() {
                       {article.articleDescription ?? "—"}
                     </td>
                     <td style={{ padding: "10px 12px" }}>
-                      <span
-                        style={{
-                          background: "#fff3e0",
-                          color: "#e65100",
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {article.boxName}
-                      </span>
+                      {isGhost ? (
+                        <span style={{ background: "#f3e5f5", color: "#6a1b9a", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 600 }}>
+                          Storico
+                        </span>
+                      ) : (
+                        <span style={{ background: "#fff3e0", color: "#e65100", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 600 }}>
+                          {article.boxName}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      {isGhost ? (
+                        <span style={{ background: "#f3e5f5", color: "#6a1b9a", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600 }}>
+                          Ghost
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            background: isSold ? "#e8f5e9" : "#fff8e1",
+                            color: isSold ? "#2e7d32" : "#f57f17",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isSold ? "Venduto" : "Riservato"}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>
                       <span
                         style={{
-                          background: isSold ? "#e8f5e9" : "#fff8e1",
-                          color: isSold ? "#2e7d32" : "#f57f17",
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {isSold ? "Venduto" : "Riservato"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                      <span
-                        style={{
-                          background: "#e3f2fd",
-                          color: "#0d47a1",
+                          background: isGhost ? "#f3e5f5" : "#e3f2fd",
+                          color: isGhost ? "#6a1b9a" : "#0d47a1",
                           padding: "3px 10px",
                           borderRadius: "12px",
                           fontSize: "13px",

@@ -142,7 +142,7 @@ async function syncOrders(
 
         if (oldTransferStatus === 'Modifica' && newTransferStatus !== 'Modifica') {
           try {
-            const sold = await batchMarkSold(pool, userId, order.id, {
+            const sold = await batchMarkSold(pool, userId, `pending-${order.id}`, {
               customerName: order.customerName,
               orderNumber: order.orderNumber,
               orderDate: order.date,

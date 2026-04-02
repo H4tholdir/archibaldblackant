@@ -945,13 +945,14 @@ async function getOrderHistoryByCustomer(
 }
 
 type WarehousePickupArticle = {
-  id: number;
+  id: string;
   articleCode: string;
   articleDescription: string | null;
   quantity: number;
   boxName: string;
-  status: 'venduto' | 'riservato';
+  status: 'venduto' | 'riservato' | 'ghost';
   subClientName: string | null;
+  isGhost: boolean;
 };
 
 type WarehousePickupOrder = {
@@ -967,13 +968,14 @@ type WarehousePickupRow = {
   order_number: string;
   customer_name: string;
   creation_date: string;
-  item_id: number;
+  item_id: string;
   article_code: string;
   article_description: string | null;
   quantity: number;
   box_name: string;
-  status: 'venduto' | 'riservato';
+  status: 'venduto' | 'riservato' | 'ghost';
   sub_client_name: string | null;
+  is_ghost: boolean;
 };
 
 async function getWarehousePickupsByDate(
@@ -987,13 +989,14 @@ async function getWarehousePickupsByDate(
        COALESCE(o.order_number, wi.order_number)         AS order_number,
        COALESCE(o.customer_name, wi.customer_name)       AS customer_name,
        COALESCE(o.creation_date, wi.order_date)          AS creation_date,
-       wi.id AS item_id,
+       'wh-' || wi.id::text                              AS item_id,
        wi.article_code,
        wi.description AS article_description,
        wi.quantity,
        wi.box_name,
        CASE WHEN wi.sold_in_order IS NOT NULL THEN 'venduto' ELSE 'riservato' END AS status,
-       wi.sub_client_name
+       wi.sub_client_name,
+       FALSE AS is_ghost
      FROM agents.warehouse_items wi
      LEFT JOIN agents.order_records o
        ON o.id = COALESCE(wi.sold_in_order, wi.reserved_for_order)
@@ -1001,7 +1004,30 @@ async function getWarehousePickupsByDate(
      WHERE wi.user_id = $1
        AND (wi.sold_in_order IS NOT NULL OR wi.reserved_for_order IS NOT NULL)
        AND DATE(wi.order_date) = $2::date
-     ORDER BY wi.order_date ASC, COALESCE(o.order_number, wi.order_number) ASC, wi.id ASC`,
+
+     UNION ALL
+
+     SELECT
+       po.id                                                                   AS order_id,
+       'ghost-' || po.id                                                       AS order_number,
+       po.customer_name                                                        AS customer_name,
+       to_timestamp(po.created_at / 1000.0)::text                             AS creation_date,
+       'gh-' || po.id || '-' || (item->>'articleCode')                        AS item_id,
+       item->>'articleCode'                                                    AS article_code,
+       COALESCE(item->>'description', item->>'productName')                   AS article_description,
+       (item->>'quantity')::int                                                AS quantity,
+       'ghost'                                                                 AS box_name,
+       'ghost'                                                                 AS status,
+       po.sub_client_name                                                      AS sub_client_name,
+       TRUE                                                                    AS is_ghost
+     FROM agents.pending_orders po,
+          jsonb_array_elements(po.items_json) AS item
+     WHERE po.user_id = $1
+       AND (item->>'isGhostArticle')::boolean IS TRUE
+       AND po.status IN ('pending', 'syncing', 'error')
+       AND DATE(to_timestamp(po.created_at / 1000.0) AT TIME ZONE 'Europe/Rome') = $2::date
+
+     ORDER BY creation_date ASC, order_number ASC, item_id ASC`,
     [userId, date],
   );
 
@@ -1026,6 +1052,7 @@ async function getWarehousePickupsByDate(
       boxName: row.box_name,
       status: row.status,
       subClientName: row.sub_client_name,
+      isGhost: row.is_ghost,
     });
   }
 

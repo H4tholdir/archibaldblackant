@@ -3,13 +3,14 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 const API_BASE = "";
 
 export type WarehousePickupArticle = {
-  id: number;
+  id: string;
   articleCode: string;
   articleDescription: string | null;
   quantity: number;
   boxName: string;
-  status: 'venduto' | 'riservato';
+  status: 'venduto' | 'riservato' | 'ghost';
   subClientName: string | null;
+  isGhost: boolean;
 };
 
 export type WarehousePickupOrder = {

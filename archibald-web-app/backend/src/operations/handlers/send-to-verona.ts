@@ -74,7 +74,7 @@ async function handleSendToVerona(
     [sentToVeronaAt, data.orderId, userId],
   );
 
-  await batchMarkSold(pool, userId, data.orderId, { orderDate: sentToVeronaAt });
+  await batchMarkSold(pool, userId, `pending-${data.orderId}`, { orderDate: sentToVeronaAt });
 
   broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId: data.orderId } });
 
