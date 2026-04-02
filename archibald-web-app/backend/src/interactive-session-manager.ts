@@ -17,7 +17,7 @@ type InteractiveSession = {
   erpId: string | null;
 };
 
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 10 * 60 * 1000;
 
 function createInteractiveSessionManager() {
   const sessions = new Map<string, InteractiveSession>();
