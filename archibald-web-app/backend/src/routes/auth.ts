@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import type { DbPool } from '../db/pool';
-import { authenticateJWT } from '../middleware/auth';
+import { createAuthMiddleware } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
+import type { RedisClient } from '../db/redis-client';
 import { logger } from '../logger';
 import { audit } from '../db/repositories/audit-log';
 import { generateTotpSecret, getTotpUri, verifyTotpCode, generateRecoveryCodes } from '../services/mfa-service';
@@ -25,6 +26,7 @@ type MfaEncryptedSecret = { ciphertext: string; iv: string; authTag: string };
 
 type AuthRouterDeps = {
   pool: DbPool;
+  redis?: RedisClient;
   getUserByUsername: (username: string) => Promise<User | null>;
   getUserById: (userId: string) => Promise<User | null>;
   updateLastLogin: (userId: string) => Promise<void>;
@@ -58,6 +60,7 @@ const loginSchema = z.object({
 function createAuthRouter(deps: AuthRouterDeps) {
   const { getUserByUsername, getUserById, updateLastLogin, passwordCache, browserPool, generateJWT, encryptAndSavePassword } = deps;
   const router = Router();
+  const authenticateWithRevocation = createAuthMiddleware(deps.pool, deps.redis);
 
   const loginRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -172,7 +175,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     }
   });
 
-  router.post('/refresh-credentials', authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/refresh-credentials', authenticateWithRevocation, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const parsed = z.object({ password: z.string().min(1, 'Password richiesta') }).safeParse(req.body);
@@ -189,7 +192,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     }
   });
 
-  router.post('/logout', authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/logout', authenticateWithRevocation, async (req: AuthRequest, res) => {
     const userId = req.user!.userId;
     const jti = req.user!.jti;
     if (deps.revokeToken && jti) {
@@ -207,7 +210,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({ success: true, data: { message: 'Logout effettuato con successo' } });
   });
 
-  router.post('/refresh', refreshRateLimiter, authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/refresh', refreshRateLimiter, authenticateWithRevocation, async (req: AuthRequest, res) => {
     try {
       const user = req.user!;
       const cachedPassword = passwordCache.get(user.userId);
@@ -253,7 +256,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     }
   });
 
-  router.get('/me', authenticateJWT, async (req: AuthRequest, res) => {
+  router.get('/me', authenticateWithRevocation, async (req: AuthRequest, res) => {
     const user = await getUserById(req.user!.userId);
     if (!user) {
       return res.status(404).json({ success: false, error: 'Utente non trovato' });
@@ -274,7 +277,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     });
   });
 
-  router.post('/mfa-setup', authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/mfa-setup', authenticateWithRevocation, async (req: AuthRequest, res) => {
     if (!deps.encryptSecret || !deps.saveMfaSecret) {
       return res.status(501).json({ success: false, error: 'MFA setup not configured' });
     }
@@ -287,7 +290,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({ success: true, data: { uri, secret } });
   });
 
-  router.post('/mfa-confirm', authenticateJWT, async (req: AuthRequest, res) => {
+  router.post('/mfa-confirm', authenticateWithRevocation, async (req: AuthRequest, res) => {
     if (!deps.getMfaSecret || !deps.decryptSecret || !deps.saveRecoveryCodes || !deps.enableMfa) {
       return res.status(501).json({ success: false, error: 'MFA not configured' });
     }

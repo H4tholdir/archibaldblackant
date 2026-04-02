@@ -86,7 +86,10 @@ function createAuthMiddleware(pool: DbPool, redis?: RedisClient) {
       return res.status(401).json({ error: "Token non valido o scaduto" });
     }
 
-    if (payload && redis && payload.jti) {
+    if (payload && redis) {
+      if (!payload.jti) {
+        return res.status(401).json({ error: "Token non valido: jti mancante" });
+      }
       const revoked = await isTokenRevoked(redis, payload.jti);
       if (revoked) {
         return res.status(401).json({ error: "Token revocato" });

@@ -352,6 +352,7 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/auth', createAuthRouter({
     pool,
+    redis: deps.redis,
     getUserByUsername: (username) => usersRepo.getUserByUsername(pool, username),
     getUserById: (userId) => usersRepo.getUserById(pool, userId),
     updateLastLogin: (userId) => usersRepo.updateLastLogin(pool, userId),
