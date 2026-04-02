@@ -79,6 +79,15 @@ function createAuthRouter(deps: AuthRouterDeps) {
     message: { success: false, error: "Limite refresh raggiunto. Riprova tra un'ora." },
   });
 
+  const mfaVerifyRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Troppi tentativi MFA. Riprova tra 15 minuti.' },
+    keyGenerator: (req) => req.ip ?? 'unknown',
+  });
+
   router.post('/login', loginRateLimiter, async (req, res) => {
     try {
       const parsed = loginSchema.safeParse(req.body);
@@ -319,7 +328,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({ success: true, data: { recoveryCodes: plaintext } });
   });
 
-  router.post('/mfa-verify', async (req, res) => {
+  router.post('/mfa-verify', mfaVerifyRateLimiter, async (req, res) => {
     if (!deps.verifyMfaToken || !deps.getMfaSecret || !deps.decryptSecret || !deps.consumeRecoveryCode || !deps.getUserById) {
       return res.status(501).json({ success: false, error: 'MFA not configured' });
     }

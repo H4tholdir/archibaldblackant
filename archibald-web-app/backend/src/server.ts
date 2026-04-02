@@ -7,7 +7,10 @@ import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
 import type { SyncScheduler } from './sync/sync-scheduler';
 import type { WebSocketServerModule } from './realtime/websocket-server';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import * as jose from 'jose';
 import type { JWTPayload } from './auth-utils';
+import { verifyJWT } from './auth-utils';
 import { requireAdmin, createAuthMiddleware } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
 import type { RedisClient } from './db/redis-client';
@@ -372,6 +375,43 @@ function createApp(deps: AppDeps): Express {
     revokeToken: deps.redis
       ? (jti, ttl) => revokeTokenFn(deps.redis!, jti, ttl)
       : undefined,
+    getMfaSecret: async (userId) => {
+      const result = await usersRepo.getMfaSecret(pool, userId);
+      if (!result) return null;
+      return { ciphertext: result.encrypted, iv: result.iv, authTag: result.authTag };
+    },
+    saveMfaSecret: (userId, ciphertext, iv, authTag) =>
+      usersRepo.saveMfaSecret(pool, userId, ciphertext, iv, authTag),
+    enableMfa: (userId) => usersRepo.enableMfa(pool, userId),
+    saveRecoveryCodes: (userId, hashes) => usersRepo.saveRecoveryCodes(pool, userId, hashes),
+    consumeRecoveryCode: (userId, code) => usersRepo.consumeRecoveryCode(pool, userId, code),
+    encryptSecret: async (plainSecret) => {
+      const keyBuf = createHash('sha256').update(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production').digest();
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', keyBuf, iv);
+      const ciphertext = Buffer.concat([cipher.update(plainSecret, 'utf8'), cipher.final()]);
+      const authTag = cipher.getAuthTag();
+      return { ciphertext: ciphertext.toString('hex'), iv: iv.toString('hex'), authTag: authTag.toString('hex') };
+    },
+    decryptSecret: async (ciphertextHex, ivHex, authTagHex) => {
+      const keyBuf = createHash('sha256').update(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production').digest();
+      const decipher = createDecipheriv('aes-256-gcm', keyBuf, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+      return Buffer.concat([decipher.update(Buffer.from(ciphertextHex, 'hex')), decipher.final()]).toString('utf8');
+    },
+    generateMfaToken: async (userId) => {
+      const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production');
+      return new jose.SignJWT({ userId, purpose: 'mfa' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(jwtSecret);
+    },
+    verifyMfaToken: async (token) => {
+      const payload = await verifyJWT(token);
+      if (!payload || (payload as unknown as { purpose?: string }).purpose !== 'mfa') return null;
+      return { userId: payload.userId };
+    },
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
