@@ -687,7 +687,7 @@ export function CustomerCard({
                     <a
                       href={`mailto:${customer.email}`}
                       onClick={(e) => e.stopPropagation()}
-                      style={{ color: "#1976d2" }}
+                      style={{ color: 'inherit', textDecoration: 'underline' }}
                     >
                       {customer.email}
                     </a>
