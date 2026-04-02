@@ -333,7 +333,7 @@ export default function OrderFormSimple() {
 
   const lastPurchaseByArticle = useMemo((): Map<string, LastPurchaseResult | null> => {
     if (!customerHistoryCache) return new Map();
-    return new Map(items.map(item => [item.id, findLastPurchase(customerHistoryCache, item.article)]));
+    return new Map(items.map(item => [item.id, findLastPurchase(customerHistoryCache, item.productName)]));
   }, [customerHistoryCache, items]);
 
   // Reset activeMatchLevel when no product is selected
