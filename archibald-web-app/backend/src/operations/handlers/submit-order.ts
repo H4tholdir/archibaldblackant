@@ -454,6 +454,11 @@ async function handleSubmitOrder(
 
   });
 
+  pool.query(
+    `UPDATE agents.customers SET last_activity_at = NOW() WHERE erp_id = $1 AND user_id = $2`,
+    [data.customerId, userId],
+  ).catch(() => {});
+
   if (!isWarehouseOnly) {
     const transferred = await batchTransfer(pool, userId, [`pending-${data.pendingOrderId}`], orderId);
     logger.info('[SubmitOrder] Warehouse reservations transferred to Archibald order', {
