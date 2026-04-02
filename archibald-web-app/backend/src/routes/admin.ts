@@ -14,6 +14,7 @@ import {
   getExceptionById,
 } from '../db/repositories/tracking-exceptions';
 import { generateClaimPdf } from '../services/fedex-claim-pdf';
+import { eraseCustomerPersonalData, hasActiveOrders } from '../db/repositories/gdpr';
 
 type AdminJob = {
   jobId: string;
@@ -437,6 +438,50 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (err) {
       logger.error('Error generating claim PDF', { err });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/customers/:id/gdpr-erase', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const parsed = z.object({ reason: z.string().min(10) }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+      const { reason } = parsed.data;
+
+      const active = await hasActiveOrders(deps.pool, id);
+      if (active) {
+        return res.status(409).json({ success: false, error: 'Impossibile cancellare: ordini attivi per questo cliente' });
+      }
+
+      await eraseCustomerPersonalData(deps.pool, id);
+
+      const fieldsErased = ['name', 'street', 'city', 'postal_code', 'email', 'phone', 'mobile', 'pec', 'sdi', 'fiscal_code'];
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'customer.erased',
+        targetType: 'customer',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { reason, fieldsErased },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          customerId: id,
+          erasedAt: new Date().toISOString(),
+          fieldsErased,
+          retainedFor: 'fiscal_obligation_10y',
+          reason,
+        },
+      });
+    } catch (error) {
+      logger.error('Error erasing customer GDPR data', { error });
+      res.status(500).json({ success: false, error: 'Errore cancellazione dati GDPR' });
     }
   });
 
