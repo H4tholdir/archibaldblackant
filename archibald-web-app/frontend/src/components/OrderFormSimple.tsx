@@ -6230,7 +6230,6 @@ export default function OrderFormSimple() {
             handleCustomerSearch(createCustomerPrefill);
           }
         }}
-        contextMode="order"
         prefillName={createCustomerPrefill}
       />
     </div>

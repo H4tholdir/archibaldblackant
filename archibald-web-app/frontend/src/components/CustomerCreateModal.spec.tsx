@@ -244,7 +244,7 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
 
-  it('CUSTOMER_INTERACTIVE_FAILED avanza ad anagrafica in fallback senza bloccare', async () => {
+  it('CUSTOMER_INTERACTIVE_FAILED rimane sullo step VAT e mostra un errore visibile', async () => {
     const user = userEvent.setup();
     render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
 
@@ -259,13 +259,13 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'Bot crash' });
 
     await waitFor(() => {
-      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+      expect(screen.getByText(/Bot crash/i)).toBeInTheDocument();
     });
-    // Nessun errore mostrato — il fallback è trasparente per l'utente
-    expect(screen.queryByText(/errore/i)).not.toBeInTheDocument();
+    // Rimane sullo step VAT — il campo nome non è presente
+    expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
 
-  it('CUSTOMER_VAT_DUPLICATE tardivo (dopo risoluzione) viene ignorato', async () => {
+  it('CUSTOMER_VAT_DUPLICATE tardivo (dopo INTERACTIVE_FAILED) viene ignorato', async () => {
     const user = userEvent.setup();
     render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
 
@@ -277,19 +277,19 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
       expect(customerService.beginInteractiveSession).toHaveBeenCalled();
     });
 
-    // Prima risoluzione: INTERACTIVE_FAILED avanza ad anagrafica
-    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session' });
+    // Prima risoluzione: INTERACTIVE_FAILED mostra errore e resta su VAT
+    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'timeout' });
     await waitFor(() => {
-      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+      expect(screen.getByText(/timeout/i)).toBeInTheDocument();
     });
 
     // Evento tardivo: VAT_DUPLICATE arriva dopo — deve essere ignorato
     fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '99999' });
 
-    // Utente rimane su anagrafica, nessun errore P.IVA mostrato
+    // Utente rimane sul passo VAT; l'errore originale non viene sovrascritto da VAT_DUPLICATE
     await new Promise((r) => setTimeout(r, 50));
-    expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
-    expect(screen.queryByText(/già nell'ERP/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/già nell'ERP.*99999/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
   });
 
   it('CUSTOMER_VAT_DUPLICATE mostra errore e rimane su step VAT', async () => {

@@ -46,7 +46,6 @@ interface CustomerCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  contextMode?: "standalone" | "order";
   prefillName?: string;
 }
 
@@ -89,7 +88,6 @@ export function CustomerCreateModal({
   isOpen,
   onClose,
   onSaved,
-  contextMode = "standalone",
   prefillName,
 }: CustomerCreateModalProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>({ kind: "vat" });
@@ -123,7 +121,6 @@ export function CustomerCreateModal({
   const [paymentTermsHighlight, setPaymentTermsHighlight] = useState(0);
 
   const [saving, setSaving] = useState(false);
-  const [pendingSave, setPendingSave] = useState(false);
   const [processingState, setProcessingState] = useState<ProcessingState>("idle");
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -174,7 +171,6 @@ export function CustomerCreateModal({
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setSaving(false);
-      setPendingSave(false);
       setProcessingState("idle");
       setTaskId(null);
       setProgress(0);
@@ -244,11 +240,11 @@ export function CustomerCreateModal({
         const p = payload as { sessionId: string; error?: string };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
         if (erpCheckResolvedRef.current) return;
-        // erpValidated remains false — save path will use fallback fresh-bot.
-        // Clear the session so heartbeat stops and handleSave skips pendingSave wait.
         resolveErpCheck();
         setInteractiveSessionId(null);
-        setCurrentStep({ kind: "anagrafica" });
+        setVatError(
+          p.error ?? "Verifica ERP non riuscita. Controlla la P.IVA e riprova.",
+        );
       }),
     );
 
@@ -310,23 +306,6 @@ export function CustomerCreateModal({
       cancelled = true;
     };
   }, [taskId, subscribe, onSaved, onClose]);
-
-  // --- pendingSave: wait for erpValidated or timeout 60s ---
-  useEffect(() => {
-    if (pendingSave && erpValidated) {
-      setPendingSave(false);
-      void performSave();
-    }
-  }, [pendingSave, erpValidated]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!pendingSave) return;
-    const timeout = setTimeout(() => {
-      setPendingSave(false);
-      void performSave();
-    }, 60_000);
-    return () => clearTimeout(timeout);
-  }, [pendingSave]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
 
@@ -432,12 +411,6 @@ export function CustomerCreateModal({
         setFormData((f) => ({ ...f, name: f.name || result.name! }));
       }
 
-      if (contextMode === "order") {
-        // In order mode no ERP check — advance immediately
-        setCurrentStep({ kind: "anagrafica" });
-        return;
-      }
-
       // ERP check phase: remain on step 1 with spinner while bot validates.
       // vatChecking stays true; derived spinner label uses interactiveSessionId.
       // WS handlers (VAT_RESULT / INTERACTIVE_FAILED / VAT_DUPLICATE) clear it and advance.
@@ -477,18 +450,15 @@ export function CustomerCreateModal({
     try {
       const dataToSend: CustomerFormData = { ...formData, addresses: localAddresses };
 
-      let resultTaskId: string | null = null;
-
-      if (interactiveSessionId) {
-        const result = await customerService.saveInteractiveCustomer(
-          interactiveSessionId,
-          dataToSend,
-        );
-        resultTaskId = result.taskId;
-      } else {
-        const result = await customerService.createCustomer(dataToSend);
-        resultTaskId = result.taskId;
+      if (!interactiveSessionId) {
+        setError("Sessione ERP non disponibile. Torna al primo passo e verifica la P.IVA.");
+        return;
       }
+
+      const { taskId: resultTaskId } = await customerService.saveInteractiveCustomer(
+        interactiveSessionId,
+        dataToSend,
+      );
 
       if (resultTaskId) {
         setTaskId(resultTaskId);
@@ -507,11 +477,6 @@ export function CustomerCreateModal({
   };
 
   const handleSave = () => {
-    if (!erpValidated && interactiveSessionId && contextMode !== "order") {
-      setSaving(true);
-      setPendingSave(true);
-      return;
-    }
     void performSave();
   };
 
@@ -2133,7 +2098,7 @@ export function CustomerCreateModal({
         {currentStep.kind === "riepilogo" && !isProcessing && (
           <div>
             {/* ERP validation banner */}
-            {!erpValidated && interactiveSessionId && contextMode !== 'order' && (
+            {!erpValidated && interactiveSessionId && (
               <div
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
@@ -2253,11 +2218,7 @@ export function CustomerCreateModal({
                   cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                {saving
-                  ? pendingSave
-                    ? "In attesa del gestionale..."
-                    : "Salvataggio..."
-                  : "Crea Cliente"}
+                {saving ? "Salvataggio..." : "Crea Cliente"}
               </button>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
