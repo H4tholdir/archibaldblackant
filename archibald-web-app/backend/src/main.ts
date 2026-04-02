@@ -69,6 +69,8 @@ import { PDFParserProductsService } from './pdf-parser-products-service';
 import { pdfParserService } from './pdf-parser-service';
 import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from './parser-adapters';
 import { createApp } from './server';
+import { createSecurityAlertService } from './services/security-alert-service';
+import type { SecurityAlertEvent } from './services/security-alert-service';
 import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
 import { retryOnSessionExpired } from './utils/retry-on-session-expired';
@@ -93,6 +95,18 @@ async function bootstrap(): Promise<void> {
     applied: migrationResult.applied.length,
     skipped: migrationResult.skipped.length,
   });
+
+  const securityAlertService = createSecurityAlertService(
+    {
+      host: process.env.SMTP_HOST ?? '',
+      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+      user: process.env.SMTP_USER ?? '',
+      pass: process.env.SMTP_PASS ?? '',
+      from: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? '',
+      secure: process.env.SMTP_SECURE === 'true',
+    },
+    process.env.SECURITY_ALERT_EMAIL ?? '',
+  );
 
   const agentLock = createAgentLock();
 
@@ -261,7 +275,9 @@ async function bootstrap(): Promise<void> {
     refreshAgentActivityCache().catch(err => logger.warn('Agent activity cache refresh failed', { error: String(err) }));
   }, 5 * 60 * 1000);
 
-  const circuitBreaker = createCircuitBreaker(pool);
+  const circuitBreaker = createCircuitBreaker(pool, (event, details) => {
+    securityAlertService.send(event as SecurityAlertEvent, details);
+  });
 
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
@@ -407,6 +423,7 @@ async function bootstrap(): Promise<void> {
     },
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
+    sendSecurityAlert: (event, details) => securityAlertService.send(event as SecurityAlertEvent, details),
   });
 
   const server = http.createServer(app);

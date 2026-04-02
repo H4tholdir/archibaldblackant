@@ -134,6 +134,7 @@ type AppDeps = {
   onLoginSuccess?: (userId: string) => void;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
+  sendSecurityAlert?: (event: string, details: Record<string, unknown>) => void;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -412,6 +413,7 @@ function createApp(deps: AppDeps): Express {
       if (!payload || (payload as unknown as { purpose?: string }).purpose !== 'mfa') return null;
       return { userId: payload.userId };
     },
+    sendSecurityAlert: deps.sendSecurityAlert,
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
