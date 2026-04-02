@@ -37,6 +37,7 @@ type AuthRouterDeps = {
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
   onLoginSuccess?: (userId: string) => void;
   revokeToken?: (jti: string, ttlSeconds: number) => Promise<void>;
+  sendSecurityAlert?: (event: string, details: Record<string, unknown>) => void;
   // MFA deps (optional — feature flag)
   getMfaSecret?: (userId: string) => Promise<MfaEncryptedSecret | null>;
   saveMfaSecret?: (userId: string, ciphertext: string, iv: string, authTag: string) => Promise<void>;
@@ -106,6 +107,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
           userAgent: req.headers['user-agent'],
           metadata: { username },
         });
+        deps.sendSecurityAlert?.('login_failed_admin', { username, ip: req.ip, reason: 'user_not_found' });
         return res.status(401).json({ success: false, error: 'Credenziali non valide o utente non autorizzato' });
       }
 
@@ -130,6 +132,9 @@ function createAuthRouter(deps: AuthRouterDeps) {
             userAgent: req.headers['user-agent'],
             metadata: { username },
           });
+          if (deps.sendSecurityAlert && (user.role === 'admin' || user.role === 'ufficio')) {
+            deps.sendSecurityAlert('login_failed_admin', { username, ip: req.ip, reason: 'bad_password' });
+          }
           return res.status(401).json({ success: false, error: 'Credenziali non valide' });
         }
       }
@@ -147,6 +152,22 @@ function createAuthRouter(deps: AuthRouterDeps) {
       }
 
       if (user.mfaEnabled && (user.role === 'admin' || user.role === 'ufficio') && deps.generateMfaToken) {
+        const mfaToken = await deps.generateMfaToken(user.id);
+        return res.json({ success: true, status: 'mfa_required', mfaToken });
+      }
+
+      if (!user.mfaEnabled && (user.role === 'admin' || user.role === 'ufficio') && deps.generateMfaToken) {
+        const setupToken = await deps.generateMfaToken(user.id);
+        void audit(deps.pool, {
+          actorId: user.id,
+          actorRole: user.role,
+          action: 'mfa.setup_required',
+          ipAddress: req.ip,
+        });
+        return res.json({ success: true, status: 'mfa_setup_required', setupToken });
+      }
+
+      if (user.mfaEnabled && deps.generateMfaToken) {
         const mfaToken = await deps.generateMfaToken(user.id);
         return res.json({ success: true, status: 'mfa_required', mfaToken });
       }
