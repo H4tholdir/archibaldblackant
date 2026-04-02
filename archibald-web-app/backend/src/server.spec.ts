@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { createApp, type AppDeps } from './server';
 import { generateJWT } from './auth-utils';
 import type { Express } from 'express';
@@ -134,6 +134,43 @@ function createMockDeps(): AppDeps {
     uploadToDropbox: vi.fn().mockResolvedValue({ path: '/test' }),
   };
 }
+
+describe('CORS and CSP security', () => {
+  const originalCorsOrigins = process.env.CORS_ORIGINS;
+
+  afterEach(() => {
+    if (originalCorsOrigins === undefined) {
+      delete process.env.CORS_ORIGINS;
+    } else {
+      process.env.CORS_ORIGINS = originalCorsOrigins;
+    }
+  });
+
+  test('returns CSP header and allows CORS for whitelisted origin', async () => {
+    process.env.CORS_ORIGINS = 'https://formicanera.com';
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://formicanera.com');
+
+    expect(res.headers['content-security-policy']).toBeDefined();
+    expect(res.headers['access-control-allow-origin']).toBe('https://formicanera.com');
+  });
+
+  test('rejects CORS from unknown origin', async () => {
+    process.env.CORS_ORIGINS = 'https://formicanera.com';
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://evil.com');
+
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
 
 describe('createApp', () => {
   test('returns an Express app with health endpoint', async () => {
