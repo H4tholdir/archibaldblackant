@@ -8,6 +8,7 @@ import type { User, UserRole } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
 import { logger } from '../logger';
 import { audit } from '../db/repositories/audit-log';
+import { generateTotpSecret, getTotpUri, verifyTotpCode, generateRecoveryCodes } from '../services/mfa-service';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -20,6 +21,8 @@ type BrowserPoolLike = {
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
+type MfaEncryptedSecret = { ciphertext: string; iv: string; authTag: string };
+
 type AuthRouterDeps = {
   pool: DbPool;
   getUserByUsername: (username: string) => Promise<User | null>;
@@ -31,6 +34,16 @@ type AuthRouterDeps = {
   encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
   registerDevice?: (userId: string, deviceIdentifier: string, platform: string, deviceName: string) => Promise<unknown>;
   onLoginSuccess?: (userId: string) => void;
+  // MFA deps (optional — feature flag)
+  getMfaSecret?: (userId: string) => Promise<MfaEncryptedSecret | null>;
+  saveMfaSecret?: (userId: string, ciphertext: string, iv: string, authTag: string) => Promise<void>;
+  enableMfa?: (userId: string) => Promise<void>;
+  saveRecoveryCodes?: (userId: string, hashes: string[]) => Promise<void>;
+  consumeRecoveryCode?: (userId: string, code: string) => Promise<boolean>;
+  encryptSecret?: (plaintext: string) => Promise<MfaEncryptedSecret>;
+  decryptSecret?: (ciphertext: string, iv: string, authTag: string) => Promise<string>;
+  generateMfaToken?: (userId: string) => Promise<string>;
+  verifyMfaToken?: (token: string) => Promise<{ userId: string } | null>;
 };
 
 const loginSchema = z.object({
@@ -118,6 +131,11 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
       if (deps.onLoginSuccess) {
         Promise.resolve(deps.onLoginSuccess(user.id)).catch(() => {});
+      }
+
+      if (user.mfaEnabled && (user.role === 'admin' || user.role === 'ufficio') && deps.generateMfaToken) {
+        const mfaToken = await deps.generateMfaToken(user.id);
+        return res.json({ success: true, status: 'mfa_required', mfaToken });
       }
 
       const token = await generateJWT({
@@ -248,6 +266,75 @@ function createAuthRouter(deps: AuthRouterDeps) {
         },
       },
     });
+  });
+
+  router.post('/mfa-setup', authenticateJWT, async (req: AuthRequest, res) => {
+    if (!deps.encryptSecret || !deps.saveMfaSecret) {
+      return res.status(501).json({ success: false, error: 'MFA setup not configured' });
+    }
+    const userId = req.user!.userId;
+    const secret = generateTotpSecret();
+    const uri = getTotpUri(secret, req.user!.username);
+    const { ciphertext, iv, authTag } = await deps.encryptSecret(secret);
+    await deps.saveMfaSecret(userId, ciphertext, iv, authTag);
+    void audit(deps.pool, { actorId: userId, actorRole: req.user!.role, action: 'mfa.setup_initiated', ipAddress: req.ip });
+    res.json({ success: true, data: { uri, secret } });
+  });
+
+  router.post('/mfa-confirm', authenticateJWT, async (req: AuthRequest, res) => {
+    if (!deps.getMfaSecret || !deps.decryptSecret || !deps.saveRecoveryCodes || !deps.enableMfa) {
+      return res.status(501).json({ success: false, error: 'MFA not configured' });
+    }
+    const parsed = z.object({ code: z.string().length(6) }).safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: 'Codice OTP deve essere di 6 cifre' });
+    }
+    const { code } = parsed.data;
+    const userId = req.user!.userId;
+    const stored = await deps.getMfaSecret(userId);
+    if (!stored) return res.status(400).json({ success: false, error: 'MFA setup non iniziato' });
+    const secret = await deps.decryptSecret(stored.ciphertext, stored.iv, stored.authTag);
+    if (!verifyTotpCode(secret, code)) {
+      return res.status(401).json({ success: false, error: 'Codice OTP non valido' });
+    }
+    const { plaintext, hashed } = await generateRecoveryCodes();
+    await deps.saveRecoveryCodes(userId, hashed);
+    await deps.enableMfa(userId);
+    void audit(deps.pool, { actorId: userId, actorRole: req.user!.role, action: 'mfa.enrollment_completed', ipAddress: req.ip });
+    res.json({ success: true, data: { recoveryCodes: plaintext } });
+  });
+
+  router.post('/mfa-verify', async (req, res) => {
+    if (!deps.verifyMfaToken || !deps.getMfaSecret || !deps.decryptSecret || !deps.consumeRecoveryCode || !deps.getUserById) {
+      return res.status(501).json({ success: false, error: 'MFA not configured' });
+    }
+    const parsed = z.object({
+      mfaToken: z.string(),
+      code: z.string().min(6).max(16),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: 'Formato richiesta non valido' });
+    }
+    const { mfaToken, code } = parsed.data;
+    const payload = await deps.verifyMfaToken(mfaToken);
+    if (!payload) return res.status(401).json({ success: false, error: 'MFA token non valido o scaduto' });
+    const user = await deps.getUserById(payload.userId);
+    if (!user) return res.status(401).json({ success: false, error: 'Utente non trovato' });
+    const stored = await deps.getMfaSecret(payload.userId);
+    if (!stored) return res.status(400).json({ success: false, error: 'MFA non configurato' });
+    const secret = await deps.decryptSecret(stored.ciphertext, stored.iv, stored.authTag);
+    let verified = verifyTotpCode(secret, code);
+    if (!verified && code.length === 16) {
+      verified = await deps.consumeRecoveryCode(payload.userId, code);
+      if (verified) void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.recovery_code_used', ipAddress: req.ip });
+    }
+    if (!verified) {
+      void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_failed', ipAddress: req.ip });
+      return res.status(401).json({ success: false, error: 'Codice OTP non valido' });
+    }
+    void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_success', ipAddress: req.ip });
+    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, modules: user.modules, jti: '' });
+    res.json({ success: true, token, user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role } });
   });
 
   return router;
