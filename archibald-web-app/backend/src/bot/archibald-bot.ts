@@ -10715,115 +10715,76 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const result = await this.page.evaluate(
-      (regex: string, val: string) => {
-        const w = window as any;
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const input = inputs.find((i) =>
-          new RegExp(regex).test(i.id),
-        ) as HTMLInputElement | null;
-        if (!input) return { found: false, inputId: "", method: "" };
+    // Locate the input and scroll it into view
+    const inputId = await this.page.evaluate((regex: string) => {
+      const input = Array.from(document.querySelectorAll("input")).find((i) =>
+        new RegExp(regex).test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      return input.id;
+    }, fieldRegex.source);
 
-        input.scrollIntoView({ block: "center" });
-
-        // Find DevExpress control that owns this input or a parent element
-        const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (collection) {
-          let comboControl: any = null;
-
-          // Strategy 1: match via GetInputElement()
-          collection.ForEachControl((c: any) => {
-            if (comboControl) return;
-            try {
-              const el = c.GetInputElement?.();
-              if (el === input || (el && el.id === input.id)) {
-                comboControl = c;
-                return;
-              }
-            } catch {}
-            // Strategy 2: the combo's main element contains our input
-            try {
-              const mainEl = c.GetMainElement?.();
-              if (mainEl && mainEl.contains(input)) {
-                if (
-                  typeof c.GetItemCount === "function" ||
-                  typeof c.SetSelectedIndex === "function"
-                ) {
-                  comboControl = c;
-                }
-              }
-            } catch {}
-          });
-
-          if (comboControl) {
-            // Try to find the item and select by index (most reliable)
-            if (typeof comboControl.GetItemCount === "function") {
-              const count = comboControl.GetItemCount();
-              for (let i = 0; i < count; i++) {
-                const itemText =
-                  typeof comboControl.GetItem === "function"
-                    ? comboControl.GetItem(i)?.text
-                    : null;
-                if (itemText === val) {
-                  if (typeof comboControl.SetSelectedIndex === "function") {
-                    comboControl.SetSelectedIndex(i);
-                    return {
-                      found: true,
-                      inputId: input.id,
-                      method: "api-SetSelectedIndex",
-                      actual: input.value,
-                    };
-                  }
-                }
-              }
-            }
-
-            if (typeof comboControl.SetText === "function") {
-              comboControl.SetText(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetText",
-                actual: input.value,
-              };
-            }
-
-            if (typeof comboControl.SetValue === "function") {
-              comboControl.SetValue(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetValue",
-                actual: input.value,
-              };
-            }
-          }
-        }
-
-        // Fallback: type text, ArrowDown, Enter
-        input.focus();
-        input.click();
-        input.select();
-        document.execCommand("insertText", false, "");
-        document.execCommand("insertText", false, val);
-
-        return {
-          found: true,
-          inputId: input.id,
-          method: "keyboard-fallback",
-          actual: input.value,
-        };
-      },
-      fieldRegex.source,
-      value,
-    );
-
-    if (!result.found) {
+    if (!inputId) {
       throw new Error(`ComboBox input not found: ${fieldRegex}`);
     }
 
-    if (result.method === "keyboard-fallback") {
-      await this.wait(500);
+    // Strategy 1: click the dropdown button (_DDb suffix), wait for popup list, click item
+    // This is the certified pattern — SetSelectedIndex does not update the visible value.
+    const dropdownBtnId = inputId.replace(/_I$/, "_DDb");
+    const dropdownClicked = await this.page.evaluate((btnId: string) => {
+      const btn = document.getElementById(btnId);
+      if (btn && (btn as HTMLElement).offsetParent !== null) {
+        (btn as HTMLElement).click();
+        return true;
+      }
+      return false;
+    }, dropdownBtnId);
+
+    let method = "keyboard-fallback";
+
+    if (dropdownClicked) {
+      try {
+        // Wait for the dropdown list popup to appear
+        await this.page.waitForFunction(
+          () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
+          { timeout: 3000, polling: 100 },
+        );
+
+        const itemClicked = await this.page.evaluate((val: string) => {
+          const items = Array.from(document.querySelectorAll('[class*="dxeListBoxItem"]'));
+          const target = items.find((el) => el.textContent?.trim() === val);
+          if (target) {
+            (target as HTMLElement).click();
+            return true;
+          }
+          return false;
+        }, value);
+
+        if (itemClicked) {
+          method = "click-listbox";
+        } else {
+          // Item not found in popup — press Escape to close and fall through
+          await this.page.keyboard.press("Escape");
+          await this.wait(200);
+        }
+      } catch {
+        // Popup did not appear — fall through to keyboard fallback
+        await this.page.keyboard.press("Escape").catch(() => {});
+      }
+    }
+
+    if (method === "keyboard-fallback") {
+      // Fallback: focus input, type value, ArrowDown to select, Enter to confirm
+      await this.page.evaluate((id: string, val: string) => {
+        const input = document.getElementById(id) as HTMLInputElement;
+        if (!input) return;
+        input.focus();
+        input.click();
+        input.select();
+        document.execCommand("insertText", false, val);
+      }, inputId, value);
+      await this.wait(300);
       await this.page.keyboard.press("ArrowDown");
       await this.wait(200);
       await this.page.keyboard.press("Enter");
@@ -10833,18 +10794,18 @@ export class ArchibaldBot {
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 5000,
-      label: `combo-${result.inputId}`,
+      label: `combo-${inputId}`,
     });
 
     const actual = await this.page.evaluate((id: string) => {
       const input = document.getElementById(id) as HTMLInputElement;
       return input?.value || "";
-    }, result.inputId);
+    }, inputId);
 
     logger.debug("setDevExpressComboBox done", {
-      id: result.inputId,
+      id: inputId,
       requested: value,
-      method: result.method,
+      method,
       actual,
     });
   }
@@ -13253,8 +13214,9 @@ export class ArchibaldBot {
   } | null> {
     if (!this.page) return null;
     try {
+      const numericId = erpId.replace(/\./g, '');
       await this.page.goto(
-        `${config.archibald.url}/CUSTTABLE_DetailView/${erpId}/`,
+        `${config.archibald.url}/CUSTTABLE_DetailView/${numericId}/`,
         { waitUntil: "domcontentloaded", timeout: 30000 },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
@@ -14363,10 +14325,24 @@ export class ArchibaldBot {
       label: "tab-principale-interactive",
     });
 
-    // 1. NAME
+    if (!isVatOnForm && customerData.vatNumber) {
+      // 1. VATNUM first — triggers ~2.6s XHR callback that overwrites CAP and NAMEALIAS.
+      // Everything that depends on those fields must come AFTER this callback settles.
+      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.wait(3000);
+      await this.waitForDevExpressIdle({ timeout: 8000, label: "vat-callback-create" });
+
+      const vatValidated = await this.page.evaluate(() => {
+        const el = document.querySelector('[id*="VATVALIDE"]');
+        return el ? (el as HTMLInputElement).value ?? el.textContent?.trim() : null;
+      });
+      logger.info(`[completeCustomerCreation] VATVALIDE dopo callback: ${vatValidated}`);
+    }
+
+    // 2. NAME
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
-    // 2. FISCALCODE
+    // 3. FISCALCODE — only if explicitly provided; never fall back to VAT number
     if (customerData.fiscalCode) {
       await this.typeDevExpressField(
         /xaf_dviFISCALCODE_Edit_I$/,
@@ -14374,7 +14350,7 @@ export class ArchibaldBot {
       );
     }
 
-    // 3. PEC (LEGALEMAIL)
+    // 4. PEC (LEGALEMAIL)
     if (customerData.pec) {
       await this.typeDevExpressField(
         /xaf_dviLEGALEMAIL_Edit_I$/,
@@ -14382,7 +14358,7 @@ export class ArchibaldBot {
       );
     }
 
-    // 4. SDI (LEGALAUTHORITY)
+    // 5. SDI (LEGALAUTHORITY)
     if (customerData.sdi) {
       await this.typeDevExpressField(
         /xaf_dviLEGALAUTHORITY_Edit_I$/,
@@ -14390,7 +14366,7 @@ export class ArchibaldBot {
       );
     }
 
-    // 5. STREET
+    // 6. STREET
     if (customerData.street) {
       await this.typeDevExpressField(
         /xaf_dviSTREET_Edit_I$/,
@@ -14400,28 +14376,30 @@ export class ArchibaldBot {
 
     await this.emitProgress("customer.field");
 
-    // 6. PHONE
+    // 7. PHONE
     if (customerData.phone) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
-    // 7. CELLULARPHONE (mobile)
-    if (customerData.mobile !== undefined) {
+    // 8. CELLULARPHONE (mobile) — only if explicitly provided; never copy phone
+    if (customerData.mobile) {
       await this.typeDevExpressField(
         /xaf_dviCELLULARPHONE_Edit_I$/,
         customerData.mobile,
       );
     }
 
-    // 8. EMAIL
+    // 9. EMAIL
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
-    // 9. URL — ERP enforces a hard regex pattern, empty string fails validation.
-    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "nd.it");
+    // 10. URL — only if explicitly provided; no fallback value
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+    }
 
-    // 10. CAP popup → auto-fills CITY, COUNTY, STATE, COUNTRYREGIONID
+    // 11. CAP popup → auto-fills CITY, COUNTY, STATE, COUNTRYREGIONID
     await this.emitProgress("customer.lookup");
     if (customerData.postalCode) {
       try {
@@ -14441,14 +14419,7 @@ export class ArchibaldBot {
       }
     }
 
-    // 11. VATNUM — ~2.6s XHR callback in create mode; skip if already on form from /begin phase.
-    if (!isVatOnForm && customerData.vatNumber) {
-      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
-      await this.wait(5000);
-      await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-callback-create" });
-    }
-
-    // 12. NAMEALIAS — re-set explicitly after VATNUM; FISCALCODE→NAMEALIAS overwrite bug
+    // 12. NAMEALIAS — re-set explicitly after VATNUM callback; FISCALCODE→NAMEALIAS overwrite bug
     // means VATNUM callback can clobber it. Always re-write so the value persists.
     try {
       await this.typeDevExpressField(
@@ -14544,7 +14515,13 @@ export class ArchibaldBot {
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
-    const customerProfileId = await this.getCustomerProfileId(customerData.name);
+    // Fix 5: read numeric ID directly from URL (most reliable — avoids ListView search on page 2+)
+    const savedUrl = this.page.url();
+    const urlMatch = savedUrl.match(/CUSTTABLE_DetailView(?:Agent)?\/(\d+)\//);
+    const customerProfileId = urlMatch
+      ? urlMatch[1]
+      : await this.getCustomerProfileId(customerData.name);
+
     logger.info("Interactive: customer created successfully", {
       customerProfileId,
       name: customerData.name,
