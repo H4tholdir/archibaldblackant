@@ -10751,17 +10751,21 @@ export class ArchibaldBot {
           { timeout: 3000, polling: 100 },
         );
 
-        const itemClicked = await this.page.evaluate((val: string) => {
+        // Use real mouse coordinates so DevExpress receives a genuine click event.
+        // element.click() in page.evaluate does NOT trigger DevExpress's internal
+        // selection handler for ComboBox items — only a real mouse click does.
+        const itemCoords = await this.page.evaluate((val: string) => {
           const items = Array.from(document.querySelectorAll('[class*="dxeListBoxItem"]'));
-          const target = items.find((el) => el.textContent?.trim() === val);
-          if (target) {
-            (target as HTMLElement).click();
-            return true;
-          }
-          return false;
+          const target =
+            items.find((el) => el.textContent?.trim() === val) ??
+            items.find((el) => el.textContent?.trim().toLowerCase().includes(val.toLowerCase()));
+          if (!target) return null;
+          const r = (target as HTMLElement).getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }, value);
 
-        if (itemClicked) {
+        if (itemCoords) {
+          await this.page.mouse.click(itemCoords.x, itemCoords.y);
           method = "click-listbox";
         } else {
           // Item not found in popup — press Escape to close and fall through
@@ -10775,20 +10779,103 @@ export class ArchibaldBot {
     }
 
     if (method === "keyboard-fallback") {
-      // Fallback: focus input, type value, ArrowDown to select, Enter to confirm
-      await this.page.evaluate((id: string, val: string) => {
-        const input = document.getElementById(id) as HTMLInputElement;
-        if (!input) return;
-        input.focus();
-        input.click();
-        input.select();
-        document.execCommand("insertText", false, val);
-      }, inputId, value);
+      // Strategy 1b: use DevExpress ShowDropDown() API directly.
+      // Certified method from DevExpress docs: ASPxClientDropDownEdit.ShowDropDown()
+      // This is more reliable than input.click() which only dispatches a JS click event
+      // (no mousedown) and may not trigger the DevExpress dropdown open handler.
+      const openedViaApi = await this.page.evaluate((id: string) => {
+        // Find control in the DevExpress control collection by matching input element
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const col = (window as any).ASPx?.GetControlCollection?.();
+        if (!col) return false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let ctrl: any = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        col.ForEachControl((c: any) => {
+          if (c.GetInputElement?.()?.id === id) ctrl = c;
+        });
+        if (ctrl && typeof ctrl.ShowDropDown === "function") {
+          ctrl.ShowDropDown();
+          return true;
+        }
+        return false;
+      }, inputId);
+
+      if (!openedViaApi) {
+        // Fallback: real mouse click on the right edge of input (dropdown arrow area).
+        // Generates genuine CDP mousedown/mouseup events unlike input.click() in evaluate.
+        const inputCoords = await this.page.evaluate((id: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (!input) return null;
+          input.scrollIntoView({ block: "center" });
+          const r = input.getBoundingClientRect();
+          return { x: r.right - 8, y: r.y + r.height / 2 };
+        }, inputId);
+        if (inputCoords) {
+          await this.page.mouse.click(inputCoords.x, inputCoords.y);
+        }
+      }
       await this.wait(300);
-      await this.page.keyboard.press("ArrowDown");
-      await this.wait(200);
-      await this.page.keyboard.press("Enter");
-      await this.wait(200);
+
+      let popupOpenedViaInput = false;
+      try {
+        await this.page.waitForFunction(
+          () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
+          { timeout: 3000, polling: 100 },
+        );
+        popupOpenedViaInput = true;
+      } catch {
+        // Popup did not open — fall through to keyboard
+      }
+
+      if (popupOpenedViaInput) {
+        const itemCoords = await this.page.evaluate((val: string) => {
+          const items = Array.from(document.querySelectorAll('[class*="dxeListBoxItem"]'));
+          const target =
+            items.find((el) => el.textContent?.trim() === val) ??
+            items.find((el) => el.textContent?.trim().toLowerCase().includes(val.toLowerCase()));
+          if (!target) return null;
+          const r = (target as HTMLElement).getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }, value);
+
+        if (itemCoords) {
+          await this.page.mouse.click(itemCoords.x, itemCoords.y);
+          method = "click-input-listbox";
+        } else {
+          await this.page.keyboard.press("Escape");
+          await this.wait(200);
+          // Final fallback: type + ArrowDown + Enter
+          await this.page.evaluate((id: string, val: string) => {
+            const input = document.getElementById(id) as HTMLInputElement;
+            if (!input) return;
+            input.focus();
+            input.click();
+            input.select();
+            document.execCommand("insertText", false, val);
+          }, inputId, value);
+          await this.wait(300);
+          await this.page.keyboard.press("ArrowDown");
+          await this.wait(200);
+          await this.page.keyboard.press("Enter");
+          await this.wait(200);
+        }
+      } else {
+        // Final fallback: focus input, type value, ArrowDown to select, Enter to confirm
+        await this.page.evaluate((id: string, val: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (!input) return;
+          input.focus();
+          input.click();
+          input.select();
+          document.execCommand("insertText", false, val);
+        }, inputId, value);
+        await this.wait(300);
+        await this.page.keyboard.press("ArrowDown");
+        await this.wait(200);
+        await this.page.keyboard.press("Enter");
+        await this.wait(200);
+      }
     }
 
     await this.page.keyboard.press("Tab");
@@ -10807,6 +10894,36 @@ export class ArchibaldBot {
       requested: value,
       method,
       actual,
+    });
+  }
+
+  private async injectFieldsViaNativeSetter(
+    fields: { regex: RegExp; value: string }[],
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    const serialized = fields
+      .filter((f) => f.value !== "")
+      .map((f) => ({ regex: f.regex.source, value: f.value }));
+    if (serialized.length === 0) return;
+
+    await this.page.evaluate((entries) => {
+      for (const { regex, value } of entries) {
+        const el = Array.from(document.querySelectorAll("input, textarea")).find(
+          (i) => new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!el) continue;
+        const proto =
+          el.tagName === "TEXTAREA"
+            ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (setter) setter.call(el, value);
+        else el.value = value;
+      }
+    }, serialized);
+
+    logger.info("injectFieldsViaNativeSetter: injected fields before save", {
+      fields: serialized.map((f) => f.regex),
     });
   }
 
@@ -14342,13 +14459,9 @@ export class ArchibaldBot {
     // 2. NAME
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
-    // 3. FISCALCODE — only if explicitly provided; never fall back to VAT number
-    if (customerData.fiscalCode) {
-      await this.typeDevExpressField(
-        /xaf_dviFISCALCODE_Edit_I$/,
-        customerData.fiscalCode,
-      );
-    }
+    // 3. FISCALCODE — injected via native setter before save (see step "pre-save inject").
+    // Typing FISCALCODE + Tab triggers a server XHR that resets the field to ""; native setter
+    // bypasses that callback and keeps the value stable until the save POST.
 
     // 4. PEC (LEGALEMAIL)
     if (customerData.pec) {
@@ -14358,13 +14471,7 @@ export class ArchibaldBot {
       );
     }
 
-    // 5. SDI (LEGALAUTHORITY)
-    if (customerData.sdi) {
-      await this.typeDevExpressField(
-        /xaf_dviLEGALAUTHORITY_Edit_I$/,
-        customerData.sdi,
-      );
-    }
+    // 5. SDI (LEGALAUTHORITY) — injected via native setter before save (same reason as CF above).
 
     // 6. STREET
     if (customerData.street) {
@@ -14511,6 +14618,15 @@ export class ArchibaldBot {
     // Step 2: "Indirizzo alt." tab — write all alt addresses (full replace)
     await this.emitProgress("customer.tab.indirizzo");
     await this.writeAltAddresses(customerData.addresses ?? []);
+
+    // Pre-save inject: CF and SDI cannot be typed normally because their blur event triggers
+    // a server XHR that resets both fields to "". Native setter bypasses that callback.
+    // These fields are still in the DOM (just hidden under the Principale tab), so the save
+    // POST includes their values when DevExpress serializes all xaf_dvi inputs.
+    await this.injectFieldsViaNativeSetter([
+      { regex: /xaf_dviFISCALCODE_Edit_I$/, value: customerData.fiscalCode ?? "" },
+      { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: customerData.sdi ?? "" },
+    ]);
 
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();

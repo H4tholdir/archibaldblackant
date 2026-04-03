@@ -197,7 +197,7 @@ describe('createInteractiveSessionManager', () => {
     test('removes expired sessions', async () => {
       const sessionId = manager.createSession('user-1');
       const session = manager.getSession(sessionId, 'user-1')!;
-      session.updatedAt = Date.now() - 11 * 60 * 1000;
+      session.updatedAt = Date.now() - 25 * 60 * 60 * 1000;
 
       const expired = await manager.cleanupExpired();
 
@@ -219,7 +219,7 @@ describe('createInteractiveSessionManager', () => {
       const bot = createMockBot();
       manager.setBot(sessionId, bot);
       const session = manager.getSession(sessionId, 'user-1')!;
-      session.updatedAt = Date.now() - 11 * 60 * 1000;
+      session.updatedAt = Date.now() - 25 * 60 * 60 * 1000;
 
       await manager.cleanupExpired();
 
