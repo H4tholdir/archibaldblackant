@@ -6047,7 +6047,19 @@ export class ArchibaldBot {
         await this.fillOrderNotes(notesText);
 
         // STEP 9.45: Save to persist notes before the N/A workaround's double save
-        await this.clickSaveOnly();
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await this.clickSaveOnly();
+            break;
+          } catch (saveError) {
+            logger.warn(`notes save attempt ${attempt}/3 failed`, {
+              error: saveError instanceof Error ? saveError.message : String(saveError),
+            });
+            if (attempt === 3) throw saveError;
+            await this.wait(2000);
+            await this.waitForDevExpressIdle({ timeout: 10000, label: `notes-save-retry-idle-${attempt}` });
+          }
+        }
         await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
       }
 
