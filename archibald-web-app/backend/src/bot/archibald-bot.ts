@@ -11857,12 +11857,31 @@ export class ArchibaldBot {
     });
   }
 
-  private async saveAndCloseCustomer(): Promise<void> {
+  private async saveAndCloseCustomer(saveInPlace = false): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.info("Saving customer (Salva e chiudi)");
+    logger.info(saveInPlace ? "Saving customer (Salvare in-place)" : "Saving customer (Salva e chiudi)");
 
     const saveAttempt = async (): Promise<boolean> => {
+      // saveInPlace: real mouse click on the always-visible "Salvare" toolbar button.
+      // Certified in E2E (2026-04-03) — more reliable than the dropdown path because
+      // "Salva e chiudi" is hidden inside a dropdown and requires two interactions.
+      if (saveInPlace) {
+        const coords = await this.page!.evaluate(() => {
+          const btn = Array.from(document.querySelectorAll("a, span, td"))
+            .find((el) => (el as HTMLElement).textContent?.trim() === "Salvare" && (el as HTMLElement).offsetParent !== null);
+          if (!btn) return null;
+          const r = btn.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        });
+        if (coords) {
+          await this.page!.mouse.click(coords.x, coords.y);
+          logger.info("Clicked Salvare via real mouse (saveInPlace)", coords);
+          return true;
+        }
+        logger.warn("saveInPlace: Salvare button not found, falling through to dropdown");
+      }
+
       let directSaveClicked = await this.clickElementByText(
         "Salva e chiudi",
         {
@@ -14629,7 +14648,7 @@ export class ArchibaldBot {
     ]);
 
     await this.emitProgress("customer.save");
-    await this.saveAndCloseCustomer();
+    await this.saveAndCloseCustomer(/* saveInPlace */ true);
 
     // Fix 5: read numeric ID directly from URL (most reliable — avoids ListView search on page 2+)
     const savedUrl = this.page.url();
