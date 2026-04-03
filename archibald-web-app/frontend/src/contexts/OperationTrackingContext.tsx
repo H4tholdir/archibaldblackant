@@ -18,6 +18,7 @@ type TrackedOperation = {
   status: "queued" | "active" | "completed" | "failed";
   progress: number;
   label: string;
+  completedLabel?: string;
   error?: string;
   startedAt: number;
   dismissedAt?: number;
@@ -25,7 +26,7 @@ type TrackedOperation = {
 
 type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
-  trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string) => void;
+  trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string) => void;
   dismissOperation: (orderId: string) => void;
 };
 
@@ -175,7 +176,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                   ...op,
                   status: "completed" as const,
                   progress: 100,
-                  label: "Ordine completato",
+                  label: op.completedLabel ?? "Ordine completato",
                 }
               : op,
           );
@@ -223,14 +224,14 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   }, []);
 
   const trackOperation = useCallback(
-    (orderId: string, jobId: string, displayName: string, initialLabel?: string) => {
+    (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string) => {
       const label = initialLabel || "In coda...";
       setOperations((prev) => {
         const existing = prev.find((op) => op.orderId === orderId);
         if (existing) {
           return prev.map((op) =>
             op.orderId === orderId
-              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label }
+              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label, completedLabel }
               : op,
           );
         }
@@ -243,6 +244,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             status: "queued" as const,
             progress: 0,
             label,
+            completedLabel,
             startedAt: Date.now(),
           },
         ];
