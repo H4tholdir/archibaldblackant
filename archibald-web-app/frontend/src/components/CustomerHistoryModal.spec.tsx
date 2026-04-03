@@ -190,6 +190,10 @@ describe('CustomerHistoryModal', () => {
     );
 
     await screen.findByText('ART001');
+    // Wait for getPriceAndVatBatch to have been called and listinoPrices state to update
+    await waitFor(() => expect(priceService.getPriceAndVatBatch).toHaveBeenCalled());
+    await act(async () => {});
+
     fireEvent.click(screen.getAllByRole('button', { name: '+ Aggiungi' })[0]);
 
     await waitFor(
