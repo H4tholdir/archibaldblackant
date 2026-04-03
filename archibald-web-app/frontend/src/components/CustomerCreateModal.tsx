@@ -448,7 +448,12 @@ export function CustomerCreateModal({
     setBotError(null);
 
     try {
-      const dataToSend: CustomerFormData = { ...formData, addresses: localAddresses };
+      const dataToSend: CustomerFormData = {
+        ...formData,
+        addresses: localAddresses,
+        phone: formData.phone !== "+39" ? formData.phone : "",
+        mobile: formData.mobile !== "+39" ? formData.mobile : "",
+      };
 
       if (!interactiveSessionId) {
         setError("Sessione ERP non disponibile. Torna al primo passo e verifica la P.IVA.");
