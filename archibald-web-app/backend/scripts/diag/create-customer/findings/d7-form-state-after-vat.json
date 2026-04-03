@@ -1,0 +1,930 @@
+{
+  "certifiedAt": "2026-04-02T22:44:41.348Z",
+  "description": "Stato form dopo VATNUM callback: campi modificati, timing, IVA_VALIDATA",
+  "testVatnum": "15576861007",
+  "vatCallbackMs": 2601,
+  "xhrSettle": {
+    "settleMs": 504,
+    "xhrCount": 0
+  },
+  "changesFromVat": [
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l61$xaf_dviVATNUM_Edit_EditorClientInfo",
+      "shortName": "VATNUM_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|36|1Partita IVA: non deve essere vuoto.#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_State",
+      "shortName": "VATNUM_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_I",
+      "shortName": "VATNUM",
+      "before": "",
+      "after": "15576861007"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l68$xaf_dviVATLASTCHECKEDDATE_Edit_EditorClientInfo",
+      "shortName": "VATLASTCHECKEDDATE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_State",
+      "shortName": "VATLASTCHECKEDDATE_Edit_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_DDD_State",
+      "shortName": "VATLASTCHECKEDDATE_Edit_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_DDD_C_State",
+      "shortName": "VATLASTCHECKEDDATE_Edit_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l75$xaf_dviVATVALIEDE_Edit_EditorClientInfo",
+      "shortName": "VATVALIEDE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_State",
+      "shortName": "VATVALIEDE_Edit_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_L_State",
+      "shortName": "VATVALIEDE_Edit_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l82$xaf_dviVATADDRESS_Edit_EditorClientInfo",
+      "shortName": "VATADDRESS_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l112$xaf_l112$xaf_dviACCOUNTNUM_Edit_EditorClientInfo",
+      "shortName": "ACCOUNTNUM_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l121$xaf_l121$xaf_dviID_Edit_EditorClientInfo",
+      "shortName": "ID_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l121_xaf_l121_xaf_dviID_Edit_State",
+      "shortName": "ID_Edit_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;0&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l138$xaf_dviNAME_Edit_EditorClientInfo",
+      "shortName": "NAME_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|22|1Input missing symbols#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l138_xaf_dviNAME_Edit_State",
+      "shortName": "NAME_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l193$xaf_dviNAMEALIAS_Edit_EditorClientInfo",
+      "shortName": "NAMEALIAS_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l206$xaf_dviDLVMODE_Edit_EditorClientInfo",
+      "shortName": "DLVMODE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_State",
+      "shortName": "DLVMODE_Edit_dropdown_DD_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L_State",
+      "shortName": "DLVMODE_Edit_dropdown_DD_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l219$xaf_dviFISCALCODE_Edit_EditorClientInfo",
+      "shortName": "FISCALCODE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l219_xaf_dviFISCALCODE_Edit_State",
+      "shortName": "FISCALCODE_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l244$xaf_dviCURRENCY_Edit_EditorClientInfo",
+      "shortName": "CURRENCY_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l257$xaf_dviBRASCRMATTENTIONTO_Edit_EditorClientInfo",
+      "shortName": "BRASCRMATTENTIONTO_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l284$xaf_l284$xaf_dviFISCALCODEVALIDE_Edit_EditorClientInfo",
+      "shortName": "FISCALCODEVALIDE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_State",
+      "shortName": "FISCALCODEVALIDE_Edit_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_L_State",
+      "shortName": "FISCALCODEVALIDE_Edit_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l298$xaf_l298$xaf_dviFISCALCODELASTCHECKDATE_Edit_EditorClientInfo",
+      "shortName": "FISCALCODELASTCHECKDATE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_State",
+      "shortName": "FISCALCODELASTCHECKDATE_Edit_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_DDD_State",
+      "shortName": "FISCALCODELASTCHECKDATE_Edit_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_DDD_C_State",
+      "shortName": "FISCALCODELASTCHECKDATE_Edit_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l309$xaf_dviCUSTINFO_Edit_EditorClientInfo",
+      "shortName": "CUSTINFO_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l329$xaf_dviBUSINESSSECTORID_Edit_EditorClientInfo",
+      "shortName": "BUSINESSSECTORID_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_DDD_State",
+      "shortName": "BUSINESSSECTORID_Edit_dropdown_DD_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_DDD_L_State",
+      "shortName": "BUSINESSSECTORID_Edit_dropdown_DD_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l336$xaf_dviPAYMTERMID_Edit_EditorClientInfo",
+      "shortName": "PAYMTERMID_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_Edit_State",
+      "shortName": "PAYMTERMID_Edit_find_Edit_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l343$xaf_dviLEGALEMAIL_Edit_EditorClientInfo",
+      "shortName": "LEGALEMAIL_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l350$xaf_dviLEGALAUTHORITY_Edit_EditorClientInfo",
+      "shortName": "LEGALAUTHORITY_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l364$xaf_dviBLOCKED_Edit_EditorClientInfo",
+      "shortName": "BLOCKED_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_State",
+      "shortName": "BLOCKED_Edit_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_L_State",
+      "shortName": "BLOCKED_Edit_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l377$xaf_dviADDRESS_Edit_EditorClientInfo",
+      "shortName": "ADDRESS_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l384$xaf_dviSTREET_Edit_EditorClientInfo",
+      "shortName": "STREET_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l384_xaf_dviSTREET_Edit_State",
+      "shortName": "STREET_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l399$xaf_l399$xaf_dviLOGISTICSADDRESSZIPCODE_Edit_EditorClientInfo",
+      "shortName": "LOGISTICSADDRESSZIPCODE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|47|1Indirizzo logistico CAP non deve essere vuoto.ImageUrl|4|143|1/Archibald/DXX.axd?handlerName=ImageResource&amp;name=State_Validation_Invalid&amp;enbl=True&amp;fldr=TemplatesV2Images&amp;v=f2b22f49fa96fe1272012dccc1e20399#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_State",
+      "shortName": "LOGISTICSADDRESSZIPCODE_Edit_find_Edit_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;,&quot;validationState&quot;:&quot;-Indirizzo logistico CAP non deve essere vuoto.&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l407$xaf_l407$xaf_dviCOUNTRYREGIONID_Edit_EditorClientInfo",
+      "shortName": "COUNTRYREGIONID_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l414$xaf_dviCITY_Edit_EditorClientInfo",
+      "shortName": "CITY_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l429$xaf_l429$xaf_dviCOUNTY_Edit_EditorClientInfo",
+      "shortName": "COUNTY_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l437$xaf_l437$xaf_dviSTATE_Edit_EditorClientInfo",
+      "shortName": "STATE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l465$xaf_dviPHONE_Edit_EditorClientInfo",
+      "shortName": "PHONE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|33|1Telefono: non deve essere vuoto.ImageUrl|4|143|1/Archibald/DXX.axd?handlerName=ImageResource&amp;name=State_Validation_Warning&amp;enbl=True&amp;fldr=TemplatesV2Images&amp;v=6c3af1024c3d08b6fe528a48102900a7#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l465_xaf_dviPHONE_Edit_State",
+      "shortName": "PHONE_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;-Telefono: non deve essere vuoto.&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l472$xaf_dviCELLULARPHONE_Edit_EditorClientInfo",
+      "shortName": "CELLULARPHONE_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l472_xaf_dviCELLULARPHONE_Edit_State",
+      "shortName": "CELLULARPHONE_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l479$xaf_dviEMAIL_Edit_EditorClientInfo",
+      "shortName": "EMAIL_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l479_xaf_dviEMAIL_Edit_State",
+      "shortName": "EMAIL_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l486$xaf_dviURL_Edit_EditorClientInfo",
+      "shortName": "URL_Edit_EditorClientInfo",
+      "before": "",
+      "after": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l486_xaf_dviURL_Edit_State",
+      "shortName": "URL_Edit_State",
+      "before": "",
+      "after": "{&quot;validationState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_ToolBar_Menu_State",
+      "shortName": "SALESTABLEs_ToolBar_Menu_State",
+      "before": "",
+      "after": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_State",
+      "before": "",
+      "after": "{&quot;keys&quot;:[],&quot;callbackState&quot;:&quot;tsAzrBFb9duEEinaSwTIaGhsP0yW6A/kkMnFKxCir6QYKk+WZMwmVjQ4L3Ipo31WD2SmxHq8a7zd8KOvNkdbmWmf7KrLTnrzUwxaNPUJNhmn+uisGEIqDHKm3FiObMi7j1RnlmDpsCoV0m4/pPEDWrryuOm4pMxDFb2IcezEGOvojnJCE4uDDEJfUU2rVr0RZFCkb9xwJBFy+UB6nV4/YsLoL33wrwDajJ9kziqoz1xUDK7eQGQkxlGIgOSU/5tlTqehXFfb4e6wgbIS7n5lNIwBM9qtQ5R5P9K4eJCfDVH51ZAEQXUsyDamcLUE90FH8OOJ7BeJ+IXcld41zEJwtL3wcOI1ZdFK9hX+5Z+P4EYnvTHBz4k6rveOxvoKsckewXsw+2Cc5l2c8PMfhmU/Ixo28J5XMEVMvvcOmY3g7XJLyfMjBjgDr4+4f0AvZormasv56rL8vDV81pcy/UlxIof7rIbAE31k0uIcpJ/i/m2wzoLDEhaBREqs4uGj4/btKwBjk7naXOAuMBWRtGlt197qBBOp4kYivjCmkZioeRSiFSuTloRfDkjuRmoLWdMvuQipRZ4facd+3KEh4gPA9IAwwULNyU2ZkFK3+SFev9C6F4XLfQbHRfgtrHROaVQqXxPqKldje1fnfRx24FL+HalSbamrM3n93qRAzcKChnnwEN/niVnA/pKXFKBm8/UFHNJIbYPbM9gvT94Q87Y/K9ppRI6B3/flcqLrhvB2S4SKz6Qa5ofAaXpDlHbSHSZtm27cVMqvZiE9ToQXjr5JAEbMR5LcivNIBUdHeKeCzbH79qySq3QQqo3Qj35bZxWk4dJLp4rHPFnuliS0fwfdAJn5WGUb7+P8BLQAZ+V9V3WA0btgf5JAJ0u+3W7nto7uu3OrjoVlqsDZ0VAu0mYdBJtRL24CtAfajr4inK+rYS0AkpOPfqlKp64jxlaSRGpMfRhS+4XmlLYWCrTFan76IUkslhHQ4gl5JyBQViUB4cUhzxwKO3O0mw7QAarGcuZlHm8q+sdbxT9UG5xHitOm6zBg4MDHFHpJnFfUEeXQYxMKkFCcnwfGs9oRnPMv8f2cWVDilL/HAdo37paI9W9RNKjCI10986R4YNBYaXnJE3lz+zPeWLKrvMKME3h8I8ZSrOoHhqM6pkQMdCir0ufX6UtDCmkQY8aNF3O8beqfsOwWtLm4NQWtB7W3yJqgHWhnKFKMei+moyUG2feFGpd1wlFK7zYtzW9BFcxZPTxFJnMTRz+PiCP/WsC6qyfNuqmcdAhV+4OWAzUfrg2xuBchV6IAu6KtnIDEnM9RbK93WZv06GRPL3jtuWdopYFyXx7B67ueTybEUNyy7I8jCz5BfLzWRq8gWPvHeg/uGFI76+LkcSqf7k0x6MEsE+th4BYim+iJY9PfUG36qu2Zi2hJiMiANoyi10Cm4zPfkdpxFB2/PRnbqekvqCbRolQDsyN0Ya2tskTvlURJtEsXLqUs3A9dV7nHBf1rukLgC/l3bP8V45tCd651Pmjvbf4mPPded7ykqsEiNYVEVJqPs08iigMU7f8xVKCHPwWDpVBt2ivfyOITe3F/5Grm/7TpN7DgDjUvTnW0cWYyGNG26BSNhkTXiTTLBv/VpkFae5J0Pi5IIgqj1H4KlM0A64ylmizrTG4o4jKNaWQL9QzNrjUNNMFCLJ91QQYxBRJsb3L04kHl8LeOx9/xBvOnazvm2t2L5sBtktwf/e5WEWwgCL3ChLeku18r0Kp7SrZ12fo9UjKpjGrofn+nUL25I9yex9T30DzQAdQCFvOOGKaKxbt2TNE/myNee06ObE1EpQFubeIWCiRpk98YUc4OTuUYyjSIOLaw4F6lfmWw8UxMWxl/nWLAiih9CdlMFz2YS5UcVs4=&quot;,&quot;groupLevelState&quot;:{},&quot;selection&quot;:&quot;&quot;,&quot;toolbar&quot;:null}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_custwindow_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_custwindow_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXHFP_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXHFP_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFilterRowMenu_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFilterRowMenu_State",
+      "before": "",
+      "after": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Columns_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Columns_State",
+      "before": "",
+      "after": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Footer_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Footer_State",
+      "before": "",
+      "after": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXCDWindow_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXCDWindow_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXCDWindow_DXCDPageControl_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXCDWindow_DXCDPageControl_State",
+      "before": "",
+      "after": "{&quot;activeTabIndex&quot;:0}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_C_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_C_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_C_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_C_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_C_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_C_State",
+      "before": "",
+      "after": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_State",
+      "before": "",
+      "after": "{&quot;rawValue&quot;:&quot;&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_State",
+      "before": "",
+      "after": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}"
+    },
+    {
+      "fieldId": "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_L_State",
+      "shortName": "SALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_L_State",
+      "before": "",
+      "after": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+    }
+  ],
+  "fieldsOfInterest": {
+    "VATNUM": "15576861007",
+    "NAMEALIAS": "BRACIO SOCIETA' A RE",
+    "NAME": "BRACIO SOCIETA' A RESPONSABILITA' LIMITATA SEMPLIFICATA",
+    "LEGALEMAIL": "",
+    "LEGALAUTHORITY": "",
+    "LOGISTICSADDRESSZIPCODE": "N/A",
+    "CITY": "",
+    "COUNTY": "",
+    "STATE": "",
+    "COUNTRYREGIONID": ""
+  },
+  "ivaValidata": null,
+  "fullSnapshotAfterVat": {
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l61$xaf_dviVATNUM_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|36|1Partita IVA: non deve essere vuoto.#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_I": "15576861007",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l68$xaf_dviVATLASTCHECKEDDATE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l75$xaf_dviVATVALIEDE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_VI": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_I": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_L_VI": "No",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l54$xaf_l82$xaf_dviVATADDRESS_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l112$xaf_l112$xaf_dviACCOUNTNUM_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l121$xaf_l121$xaf_dviID_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l121_xaf_l121_xaf_dviID_Edit_State": "{&quot;rawValue&quot;:&quot;0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l121_xaf_l121_xaf_dviID_Edit_I": "0",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l138$xaf_dviNAME_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|22|1Input missing symbols#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l138_xaf_dviNAME_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l138_xaf_dviNAME_Edit_I": "BRACIO SOCIETA' A RESPONSABILITA' LIMITATA SEMPLIFICATA",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l193$xaf_dviNAMEALIAS_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l193_xaf_dviNAMEALIAS_Edit_I": "BRACIO SOCIETA' A RE",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l206$xaf_dviDLVMODE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_VI": "xafkidemovb.Module.CRMKI.DLVMODE(0)",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L_VI": "xafkidemovb.Module.CRMKI.DLVMODE(0)",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l180$xaf_l219$xaf_dviFISCALCODE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l219_xaf_dviFISCALCODE_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l244$xaf_dviCURRENCY_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l244_xaf_dviCURRENCY_Edit_I": "EUR",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l257$xaf_dviBRASCRMATTENTIONTO_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l284$xaf_l284$xaf_dviFISCALCODEVALIDE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_VI": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_I": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_L_VI": "No",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l231$xaf_l298$xaf_l298$xaf_dviFISCALCODELASTCHECKDATE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l88$xaf_l309$xaf_dviCUSTINFO_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l329$xaf_dviBUSINESSSECTORID_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l336$xaf_dviPAYMTERMID_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_Edit_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_Edit_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_HDN": "xafkidemovb.Module.CRMKI.PAYMTERM(0)",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l343$xaf_dviLEGALEMAIL_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l350$xaf_dviLEGALAUTHORITY_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l315$xaf_l364$xaf_dviBLOCKED_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_VI": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_I": "No",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_L_VI": "No",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l377$xaf_dviADDRESS_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l384$xaf_dviSTREET_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l384_xaf_dviSTREET_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l399$xaf_l399$xaf_dviLOGISTICSADDRESSZIPCODE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|47|1Indirizzo logistico CAP non deve essere vuoto.ImageUrl|4|143|1/Archibald/DXX.axd?handlerName=ImageResource&amp;name=State_Validation_Invalid&amp;enbl=True&amp;fldr=TemplatesV2Images&amp;v=f2b22f49fa96fe1272012dccc1e20399#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_State": "{&quot;rawValue&quot;:&quot;&quot;,&quot;validationState&quot;:&quot;-Indirizzo logistico CAP non deve essere vuoto.&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I": "N/A",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l407$xaf_l407$xaf_dviCOUNTRYREGIONID_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l414$xaf_dviCITY_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l429$xaf_l429$xaf_dviCOUNTY_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l370$xaf_l437$xaf_l437$xaf_dviSTATE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275#&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l465$xaf_dviPHONE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|33|1Telefono: non deve essere vuoto.ImageUrl|4|143|1/Archibald/DXX.axd?handlerName=ImageResource&amp;name=State_Validation_Warning&amp;enbl=True&amp;fldr=TemplatesV2Images&amp;v=6c3af1024c3d08b6fe528a48102900a7#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l465_xaf_dviPHONE_Edit_State": "{&quot;validationState&quot;:&quot;-Telefono: non deve essere vuoto.&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l472$xaf_dviCELLULARPHONE_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l472_xaf_dviCELLULARPHONE_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l479$xaf_dviEMAIL_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l479_xaf_dviEMAIL_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical$v3_29123152$MainLayoutEdit$xaf_l44_pg$xaf_l458$xaf_l486$xaf_dviURL_Edit_EditorClientInfo": "{&quot;data&quot;:&quot;12|#|ObjectHash|4|9|127434275ErrorText|4|1|1ImageUrl|4|1|1#&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l486_xaf_dviURL_Edit_State": "{&quot;validationState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_ToolBar_Menu_State": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_State": "{&quot;keys&quot;:[],&quot;callbackState&quot;:&quot;tsAzrBFb9duEEinaSwTIaGhsP0yW6A/kkMnFKxCir6QYKk+WZMwmVjQ4L3Ipo31WD2SmxHq8a7zd8KOvNkdbmWmf7KrLTnrzUwxaNPUJNhmn+uisGEIqDHKm3FiObMi7j1RnlmDpsCoV0m4/pPEDWrryuOm4pMxDFb2IcezEGOvojnJCE4uDDEJfUU2rVr0RZFCkb9xwJBFy+UB6nV4/YsLoL33wrwDajJ9kziqoz1xUDK7eQGQkxlGIgOSU/5tlTqehXFfb4e6wgbIS7n5lNIwBM9qtQ5R5P9K4eJCfDVH51ZAEQXUsyDamcLUE90FH8OOJ7BeJ+IXcld41zEJwtL3wcOI1ZdFK9hX+5Z+P4EYnvTHBz4k6rveOxvoKsckewXsw+2Cc5l2c8PMfhmU/Ixo28J5XMEVMvvcOmY3g7XJLyfMjBjgDr4+4f0AvZormasv56rL8vDV81pcy/UlxIof7rIbAE31k0uIcpJ/i/m2wzoLDEhaBREqs4uGj4/btKwBjk7naXOAuMBWRtGlt197qBBOp4kYivjCmkZioeRSiFSuTloRfDkjuRmoLWdMvuQipRZ4facd+3KEh4gPA9IAwwULNyU2ZkFK3+SFev9C6F4XLfQbHRfgtrHROaVQqXxPqKldje1fnfRx24FL+HalSbamrM3n93qRAzcKChnnwEN/niVnA/pKXFKBm8/UFHNJIbYPbM9gvT94Q87Y/K9ppRI6B3/flcqLrhvB2S4SKz6Qa5ofAaXpDlHbSHSZtm27cVMqvZiE9ToQXjr5JAEbMR5LcivNIBUdHeKeCzbH79qySq3QQqo3Qj35bZxWk4dJLp4rHPFnuliS0fwfdAJn5WGUb7+P8BLQAZ+V9V3WA0btgf5JAJ0u+3W7nto7uu3OrjoVlqsDZ0VAu0mYdBJtRL24CtAfajr4inK+rYS0AkpOPfqlKp64jxlaSRGpMfRhS+4XmlLYWCrTFan76IUkslhHQ4gl5JyBQViUB4cUhzxwKO3O0mw7QAarGcuZlHm8q+sdbxT9UG5xHitOm6zBg4MDHFHpJnFfUEeXQYxMKkFCcnwfGs9oRnPMv8f2cWVDilL/HAdo37paI9W9RNKjCI10986R4YNBYaXnJE3lz+zPeWLKrvMKME3h8I8ZSrOoHhqM6pkQMdCir0ufX6UtDCmkQY8aNF3O8beqfsOwWtLm4NQWtB7W3yJqgHWhnKFKMei+moyUG2feFGpd1wlFK7zYtzW9BFcxZPTxFJnMTRz+PiCP/WsC6qyfNuqmcdAhV+4OWAzUfrg2xuBchV6IAu6KtnIDEnM9RbK93WZv06GRPL3jtuWdopYFyXx7B67ueTybEUNyy7I8jCz5BfLzWRq8gWPvHeg/uGFI76+LkcSqf7k0x6MEsE+th4BYim+iJY9PfUG36qu2Zi2hJiMiANoyi10Cm4zPfkdpxFB2/PRnbqekvqCbRolQDsyN0Ya2tskTvlURJtEsXLqUs3A9dV7nHBf1rukLgC/l3bP8V45tCd651Pmjvbf4mPPded7ykqsEiNYVEVJqPs08iigMU7f8xVKCHPwWDpVBt2ivfyOITe3F/5Grm/7TpN7DgDjUvTnW0cWYyGNG26BSNhkTXiTTLBv/VpkFae5J0Pi5IIgqj1H4KlM0A64ylmizrTG4o4jKNaWQL9QzNrjUNNMFCLJ91QQYxBRJsb3L04kHl8LeOx9/xBvOnazvm2t2L5sBtktwf/e5WEWwgCL3ChLeku18r0Kp7SrZ12fo9UjKpjGrofn+nUL25I9yex9T30DzQAdQCFvOOGKaKxbt2TNE/myNee06ObE1EpQFubeIWCiRpk98YUc4OTuUYyjSIOLaw4F6lfmWw8UxMWxl/nWLAiih9CdlMFz2YS5UcVs4=&quot;,&quot;groupLevelState&quot;:{},&quot;selection&quot;:&quot;&quot;,&quot;toolbar&quot;:null}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_custwindow_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXHFP_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXHFP_TPCFCm1_O_I": "OK",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXHFP_TPCFCm1_C_I": "Cancel",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFilterRowMenu_State": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Columns_State": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXContextMenu_Footer_State": "{&quot;selectedItemIndexPath&quot;:&quot;&quot;,&quot;checkedState&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXCDWindow_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXCDWindow_DXCDPageControl_State": "{&quot;activeTabIndex&quot;:0}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol3_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol11_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol12_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol13_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol14_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol15_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol16_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol19_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol22_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol27_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol43_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol54_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol59_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol68_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol75_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol76_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol78_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_State": "{&quot;rawValue&quot;:&quot;N&quot;,&quot;useMinDateInsteadOfNull&quot;:false}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol86_DDD_C_State": "{&quot;visibleDate&quot;:&quot;04/03/2026&quot;,&quot;initialVisibleDate&quot;:&quot;04/03/2026&quot;,&quot;selectedDates&quot;:[]}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_State": "{&quot;rawValue&quot;:&quot;&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_I": "N/A",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_State": "{&quot;windowsState&quot;:&quot;0:0:-1:0:0:0:-10000:-10000:1:0:0:0&quot;}",
+    "Vertical_v3_29123152_MainLayoutEdit_xaf_l1504_pg_xaf_l1510_xaf_dviSALESTABLEs_v4_16243991_LE_v4_DXFREditorcol87_DDD_L_State": "{&quot;CustomCallback&quot;:&quot;&quot;}"
+  },
+  "notes": "Form NOT saved. Browser closed without save."
+}

@@ -1,0 +1,140 @@
+{
+  "certifiedAt": "2026-04-03T00:02:46.209Z",
+  "description": "E2E test creazione cliente CENTRO DENTISTICO D.G.F.",
+  "customerData": {
+    "name": "CENTRO DENTISTICO D.G.F. di FORTINO ANNA s.a.s.",
+    "vatNumber": "04464890658",
+    "fiscalCode": "04464890658",
+    "sdi": "DUDU0GE",
+    "pec": null,
+    "street": "Via Siniscalchi, 62",
+    "postalCode": "84014",
+    "phone": "+390000000000",
+    "mobile": "+390000000000",
+    "email": null,
+    "url": "nd.it",
+    "deliveryMode": null,
+    "paymentTerms": null,
+    "lineDiscount": "N/A",
+    "sector": null,
+    "attentionTo": null,
+    "notes": null
+  },
+  "capLookupResult": {
+    "success": true,
+    "btnId": "Vertical_v3_23314307_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0",
+    "searchInputId": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+    "rowClicked": {
+      "id": "FindDialog_v13_33728308_LE_v13_DXDataRow0",
+      "text": "84014Nocera InferioreCampaniaSAIT"
+    },
+    "okClicked": "FindDialog_PopupActions_Menu_DXI0_T",
+    "autoFill": {
+      "LOGISTICSADDRESSZIPCODE": "84014",
+      "CITY": "Nocera Inferiore",
+      "COUNTY": "SA",
+      "STATE": "Campania",
+      "COUNTRYREGIONID": "IT"
+    }
+  },
+  "snapshotBeforeSave": {
+    "xaf_dviVATNUM_Edit_I": "04464890658",
+    "xaf_dviVATLASTCHECKEDDATE_Edit_I": "03/04/2026 02:03:35",
+    "xaf_dviVATVALIEDE_Edit_VI": "Yes",
+    "xaf_dviVATVALIEDE_Edit_I": "Sì",
+    "xaf_dviVATVALIEDE_Edit_DDD_L_VI": "Yes",
+    "xaf_dviVATADDRESS_Edit_I": "CENTRO DENTISTICO D.G.F. DI FORTINO ANNA & C. S.A.S.\nVIA DOMENICO ANTONIO SINISCALCHI 62\n84014 NOCERA INFERIORE\nStato:ATTIVA\nId:60d1d9a150531255850c112b",
+    "xaf_dviID_Edit_I": "0",
+    "xaf_dviNAME_Edit_I": "CENTRO DENTISTICO D.G.F. di FORTINO ANNA s.a.s.",
+    "xaf_dviNAMEALIAS_Edit_I": "CENTRO DENTISTICO D.",
+    "xaf_dviDLVMODE_Edit_dropdown_DD_VI": "xafkidemovb.Module.CRMKI.DLVMODE(0)",
+    "xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L_VI": "xafkidemovb.Module.CRMKI.DLVMODE(0)",
+    "xaf_dviFISCALCODE_Edit_I": "04464890658",
+    "xaf_dviCURRENCY_Edit_I": "EUR",
+    "xaf_dviFISCALCODEVALIDE_Edit_VI": "Yes",
+    "xaf_dviFISCALCODEVALIDE_Edit_I": "Sì",
+    "xaf_dviFISCALCODEVALIDE_Edit_DDD_L_VI": "Yes",
+    "xaf_dviFISCALCODELASTCHECKDATE_Edit_I": "03/04/2026",
+    "xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I": "N/A",
+    "xaf_dviPAYMTERMID_Edit_find_Edit_I": "N/A",
+    "xaf_dviLEGALEMAIL_Edit_I": "04464890658@impresa.italia.it",
+    "xaf_dviLEGALAUTHORITY_Edit_I": "DUDU0GE",
+    "xaf_dviBLOCKED_Edit_VI": "No",
+    "xaf_dviBLOCKED_Edit_I": "No",
+    "xaf_dviBLOCKED_Edit_DDD_L_VI": "No",
+    "xaf_dviADDRESS_Edit_I": "DENTISTICO D.\n84014 Nocera Inferiore SA",
+    "xaf_dviSTREET_Edit_I": "DENTISTICO D.",
+    "xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I": "84014",
+    "xaf_dviCOUNTRYREGIONID_Edit_I": "IT",
+    "xaf_dviCITY_Edit_I": "Nocera Inferiore",
+    "xaf_dviCOUNTY_Edit_I": "SA",
+    "xaf_dviSTATE_Edit_I": "Campania",
+    "xaf_dviPHONE_Edit_I": "+390000000000",
+    "xaf_dviCELLULARPHONE_Edit_I": "+390000000000",
+    "xaf_dviURL_Edit_I": "nd.it",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXHFP_TPCFCm1_O_I": "OK",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXHFP_TPCFCm1_C_I": "Cancel",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol3_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol11_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol12_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol13_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol14_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol15_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol16_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol43_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol54_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol68_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol75_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol76_I": "N/A",
+    "xaf_dviSALESTABLEs_v4_42551501_LE_v4_DXFREditorcol87_I": "N/A"
+  },
+  "saveResult": {
+    "step1": {
+      "opened": true,
+      "via": "direct-click",
+      "id": "Vertical_mainMenu_Menu_DXI1_T",
+      "text": "SalvareSalvare"
+    },
+    "step2": {
+      "clicked": true,
+      "via": "popup",
+      "id": "",
+      "text": "Salvare"
+    }
+  },
+  "urlAfterSave": "https://4.231.124.90/Archibald/CUSTTABLE_DetailView/57405/?ScrollPosition=0_497&mode=Edit",
+  "validationErrors": [],
+  "erpId": {
+    "numericId": "57405",
+    "formatted": "57.405",
+    "url": "https://4.231.124.90/Archibald/CUSTTABLE_DetailView/57405/?ScrollPosition=0_497&mode=Edit"
+  },
+  "saveSucceeded": true,
+  "readback": {
+    "NAME": "CENTRO DENTISTICO D.G.F. di FORTINO ANNA s.a.s.",
+    "NAMEALIAS": "CENTRO DENTISTICO D.",
+    "VATNUM": "04464890658",
+    "FISCALCODE": "04464890658",
+    "LEGALEMAIL": "04464890658@impresa.italia.it",
+    "LEGALAUTHORITY": "DUDU0GE",
+    "STREET": "DENTISTICO D.",
+    "LOGISTICSADDRESSZIPCODE": "84014",
+    "CITY": "Nocera Inferiore",
+    "COUNTY": "SA",
+    "STATE": "Campania",
+    "COUNTRYREGIONID": "IT",
+    "PHONE": "+390000000000",
+    "CELLULARPHONE": "+390000000000",
+    "EMAIL": "04464890658@impresa.italia.it",
+    "URL": "nd.it",
+    "BRASCRMATTENTIONTO": "",
+    "CUSTINFO": ""
+  },
+  "divergences": [
+    {
+      "field": "STREET",
+      "sent": "Via Siniscalchi, 62",
+      "actual": "DENTISTICO D."
+    }
+  ]
+}

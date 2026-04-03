@@ -155,6 +155,7 @@ type CustomerFormInput = {
   county?: string;
   state?: string;
   country?: string;
+  lineDiscount?: string;
 };
 
 type UpsertResult = {
@@ -621,6 +622,24 @@ async function updateCustomerBotStatus(
   );
 }
 
+async function updateCustomerErpId(
+  pool: DbPool,
+  userId: string,
+  tempErpId: string,
+  realErpId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET erp_id = $1, updated_at = NOW()
+     WHERE erp_id = $2 AND user_id = $3`,
+    [realErpId, tempErpId, userId],
+  );
+  await pool.query(
+    `UPDATE agents.customer_addresses SET erp_id = $1
+     WHERE erp_id = $2 AND user_id = $3`,
+    [realErpId, tempErpId, userId],
+  );
+}
+
 async function updateArchibaldName(
   pool: DbPool,
   userId: string,
@@ -743,6 +762,7 @@ export {
   deleteCustomers,
   upsertSingleCustomer,
   updateCustomerBotStatus,
+  updateCustomerErpId,
   updateArchibaldName,
   updateVatValidatedAt,
   updateAgentNotes,

@@ -1,0 +1,109 @@
+{
+  "certifiedAt": "2026-04-02T22:38:35.447Z",
+  "description": "Flusso completo save nuovo cliente ERP — certificazione da esecuzioni reali + archibald-bot.ts",
+
+  "saveBtnCertified": {
+    "mechanism": "Two-step: (1) click top-level 'SalvareSalvare' span to open dropdown; (2) click 'Salvare' from popup submenu",
+    "step1_selector": "span[id*='mainMenu_Menu_DXI1_T']",
+    "step1_textContent": "SalvareSalvare",
+    "step2_inPopup": "element with textContent === 'Salvare' inside [class*='dxm-popup'] or [class*='dxm-content']",
+    "note": "NOT 'Salva e chiudi' — 'Salvare' keeps form open in edit mode"
+  },
+
+  "urlPatternAfterSave": {
+    "pattern": "/CUSTTABLE_DetailView/{numericId}/?mode=Edit",
+    "example": "/CUSTTABLE_DetailView/57396/?mode=Edit",
+    "regex": "/CUSTTABLE_DetailView\\/(\\d+)\\//",
+    "profileIdFormat": "numericId with dots as thousands separator: 57396 → '57.396'",
+    "note": "'Salvare' (not 'Salva e chiudi') keeps form open — URL stays at ?NewObject=true until form saved with valid data. With Salva e chiudi, URL changes to /CUSTTABLE_DetailView/{numericId}/?mode=View"
+  },
+
+  "erpIdStrategies": {
+    "strategy1_fromUrl": "regex /CUSTTABLE_DetailView\\/(\\d+)\\// on current URL",
+    "strategy2_fromForm": "read input[id*='xaf_dviID_Edit_I'].value — available in edit mode after save",
+    "strategy3_fromList": "search ListView by name as fallback"
+  },
+
+  "mandatoryFieldsForSave": {
+    "hard_errors_block_save": [
+      "NAME (xaf_dviNAME_Edit_I)",
+      "VATNUM (xaf_dviVATNUM_Edit_I) — must be unique across all customers",
+      "STREET (xaf_dviSTREET_Edit_I) — 'Via: non deve essere vuoto'",
+      "LOGISTICSADDRESSZIPCODE via popup (xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I) — 'Indirizzo logistico CAP non deve essere vuoto'",
+      "FISCALCODE (xaf_dviFISCALCODE_Edit_I) — 'codice fiscale: non deve essere vuoto'",
+      "LEGALEMAIL/PEC (xaf_dviLEGALEMAIL_Edit_I) — 'PEC: non deve essere vuoto'",
+      "LEGALAUTHORITY/SDI (xaf_dviLEGALAUTHORITY_Edit_I) — 'SDI: non deve essere vuoto'",
+      "VATVALIDE = Yes — 'IVA validata: non deve essere uguale a 0' (VATNUM must be validated)",
+      "PHONE (xaf_dviPHONE_Edit_I) — must match ^\\+[1-9]\\d{1,15}$ (international format)",
+      "CELLULARPHONE/MOBILE (xaf_dviCELLULARPHONE_Edit_I) — same international format",
+      "URL (xaf_dviURL_Edit_I) — must match ERP URL pattern; production bot uses 'nd.it' as fallback"
+    ]
+  },
+
+  "certifiedWriteOrder": {
+    "from_archibald_bot_createCustomer": [
+      "1. NAME",
+      "2. FISCALCODE",
+      "3. LEGALEMAIL (PEC)",
+      "4. LEGALAUTHORITY (SDI)",
+      "5. STREET",
+      "6. PHONE",
+      "7. CELLULARPHONE (MOBILE)",
+      "8. EMAIL",
+      "9. URL (fallback 'nd.it')",
+      "10. CAP via popup (LOGISTICSADDRESSZIPCODE)",
+      "11. VATNUM — MUST BE LAST, wait 5000ms + waitForDevExpressIdle after Tab",
+      "12. NAMEALIAS — after VATNUM (FISCALCODE XHR overwrites it)"
+    ],
+    "critical_note": "VATNUM written LAST: Phase C/D XHR callbacks (from NAME/SDI/PEC Tab presses) silently clear VATNUM. Writing after all other fields ensures value persists."
+  },
+
+  "capPopupFlow": {
+    "trigger": "img[id*='LOGISTICSADDRESSZIPCODE'][id*='B0'] — last matching button",
+    "iframe_wait": "page.frames().find(f => f.url().includes('FindPopup=true'))",
+    "search_input": "FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_I",
+    "type_delay": "100ms required — DevExpress SAC fires textChanged callbacks between chars",
+    "search_btn": "inputId.replace(/_Ed_I$/, '_Ed_B1') — i.e. FindDialog_SAC_Menu_ITCNT0_xaf_a0_Ed_B1",
+    "row_click": "tr[class*='dxgvDataRow'] — find matching row then click td inside it",
+    "ok_btn": "FindDialog_PopupActions_Menu_DXI0_T — MUST click to confirm",
+    "wait_close": "waitForFunction(() => !frames().some(f => f.url().includes('FindPopup=true')))",
+    "auto_fill": "After OK: LOGISTICSADDRESSZIPCODE, CITY, COUNTY, STATE, COUNTRYREGIONID auto-populated"
+  },
+
+  "nameAliasAutoFill": {
+    "behavior": "NAME auto-fills NAMEALIAS with first 20 chars after Tab",
+    "example": "ZZTEST_DIAG_D6_1775... → 'ZZTEST_DIAG_D6_17751' (truncated at 20 chars)",
+    "must_overwrite": "NAMEALIAS must be explicitly re-typed after VATNUM because FISCALCODE XHR overwrites it"
+  },
+
+  "vatValidation": {
+    "field": "xaf_dviVATVALIEDE_Edit_I — combo 'Sì'/'No'",
+    "erpRejects": "Save blocked if VATVALIDE = 0 (No)",
+    "how_validated": "Typing VATNUM triggers async XHR validation; if VAT is valid, VATVALIDE auto-sets to 'Sì'"
+  },
+
+  "rawDiagRun": {
+    "testName": "ZZTEST_DIAG_D6_1775169515446",
+    "timestamp": "2026-04-02T22:38:35.446Z",
+    "urlBefore": "https://4.231.124.90/Archibald/CUSTTABLE_DetailView/?NewObject=true",
+    "saveBtnFound": { "step1": "Vertical_mainMenu_Menu_DXI1_T", "step2": "popup Salvare" },
+    "capAutoFill": {
+      "LOGISTICSADDRESSZIPCODE": "80038",
+      "CITY": "Pomigliano d'Arco",
+      "COUNTY": "NA",
+      "STATE": "Campania",
+      "COUNTRYREGIONID": "IT"
+    },
+    "snapshotSuccessfullyFilled": [
+      "NAME", "NAMEALIAS", "VATNUM", "STREET", "LOGISTICSADDRESSZIPCODE",
+      "CITY", "COUNTY", "STATE", "COUNTRYREGIONID", "PHONE", "CELLULARPHONE",
+      "EMAIL", "URL", "ADDRESS (combined auto-fill)"
+    ],
+    "remainingBlockers": [
+      "FISCALCODE XHR callback clears PEC after FISCALCODE Tab",
+      "VATVALIDE stays 'No' because test VAT is not real",
+      "PEC field appears to reset after XHR (possibly email format validation)"
+    ],
+    "validationErrorsObserved": "ErrorLabel class — hard blockers: FISCALCODE, VATVALIDE, PEC, SDI"
+  }
+}

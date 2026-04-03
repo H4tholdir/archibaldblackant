@@ -1,0 +1,229 @@
+{
+  "certifiedAt": "2026-04-02T21:32:23.037Z",
+  "description": "Per ogni campo testo del Tab Principale: quali XHR callback vengono triggerati e quali campi DOM modificano",
+  "analysis": {
+    "keyFindings": [
+      "NESSUN campo testo del Tab Principale (NAME, NAMEALIAS, FISCALCODE, LEGALEMAIL, LEGALAUTHORITY, STREET, PHONE, CELLULARPHONE, EMAIL, URL, BRASCRMATTENTIONTO) triggerisce XHR server-side nel form create. Tutti xhrCount=0.",
+      "Il callback FISCALCODE→NAMEALIAS noto dalla memoria (diag-field-callbacks.mjs) è un callback client-side DevExpress, NON un server XHR. Viene triggerato solo quando VATNUM è già valorizzato (scenario updateCustomer), non in createCustomer con form vuoto.",
+      "CUSTINFO non trovato: è una <textarea>, non un <input>. Il pattern xaf_dviCUSTINFO_Edit_I non matcha alcun elemento input.",
+      "Effetti collaterali osservati (FISCALCODE svuotato durante LEGALEMAIL, LEGALAUTHORITY svuotato durante STREET) sono artefatti dello scripting — keyboard bleed dovuto al tab-order DevExpress che non segue l'ordine visivo. Non sono side-effect reali dell'ERP.",
+      "VATNUM è intenzionalmente escluso da questo probe (timeout 20-28s, testato separatamente in D7).",
+      "Implicazione per il bot createCustomer: l'ordine di scrittura dei campi testo non è vincolato da XHR side-effect — nessun campo testo sovrascrive un altro via callback server in modalità create. L'ordine obbligatorio LINEDISC→PAYMTERMID→CAP→FISCALCODE→NAMEALIAS→SDI→VATNUM si applica principalmente a causa del callback VATNUM (sovrascrive CAP) e del callback CAP (auto-fill CITY/COUNTY/STATE/COUNTRY)."
+    ],
+    "safeToCombineInAnyOrder": ["NAME", "NAMEALIAS", "LEGALEMAIL", "LEGALAUTHORITY", "STREET", "PHONE", "CELLULARPHONE", "EMAIL", "URL", "BRASCRMATTENTIONTO"],
+    "requiresSpecialHandling": [
+      "FISCALCODE: dopo il Tab, il callback client-side DevExpress può sovrascrivere NAMEALIAS con il CF (verificato in updateCustomer con VATNUM già impostato). In createCustomer questo non si osserva ma NAMEALIAS va riscritto esplicitamente dopo FISCALCODE per sicurezza.",
+      "CUSTINFO: è una <textarea> non un <input> — richiede un selettore diverso (textarea[id*='xaf_dviCUSTINFO'])",
+      "VATNUM: escluso — callback asincrono 20-28s, sovrascrive CAP. Da inserire sempre ULTIMO.",
+      "CAP: tramite popup iframe, auto-fill CITY/COUNTY/STATE/COUNTRY — testato in D2."
+    ]
+  },
+  "findings": [
+    {
+      "name": "NAME",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l668_xaf_dviNAME_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 503,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l668_xaf_dviNAME_Edit_I",
+          "shortName": "NAME",
+          "before": "",
+          "after": "Societa Test Diagnostica Srl"
+        }
+      ]
+    },
+    {
+      "name": "NAMEALIAS",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l710_xaf_l723_xaf_dviNAMEALIAS_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 502,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l710_xaf_l723_xaf_dviNAMEALIAS_Edit_I",
+          "shortName": "NAMEALIAS",
+          "before": "",
+          "after": "SOCTEST"
+        }
+      ]
+    },
+    {
+      "name": "FISCALCODE",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l710_xaf_l748_xaf_dviFISCALCODE_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 503,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l710_xaf_l748_xaf_dviFISCALCODE_Edit_I",
+          "shortName": "FISCALCODE",
+          "before": "",
+          "after": "TSTFSC99T01A001Z"
+        }
+      ]
+    },
+    {
+      "name": "LEGALEMAIL",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l871_xaf_dviLEGALEMAIL_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 504,
+      "timedOut": false,
+      "note": "Affected fields are scripting artefacts (keyboard bleed due to DevExpress non-linear tab order), not real ERP side-effects",
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l710_xaf_l748_xaf_dviFISCALCODE_Edit_I",
+          "shortName": "FISCALCODE",
+          "before": "TSTFSC99T01A001Z",
+          "after": ""
+        },
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l760_xaf_l785_xaf_dviBRASCRMATTENTIONTO_Edit_I",
+          "shortName": "BRASCRMATTENTIONTO",
+          "before": "",
+          "after": "it"
+        },
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l760_xaf_l826_xaf_l826_xaf_dviFISCALCODELASTCHECKDATE_Edit_I",
+          "shortName": "FISCALCODELASTCHECKDATE",
+          "before": "",
+          "after": "02/04/2026"
+        }
+      ]
+    },
+    {
+      "name": "LEGALAUTHORITY",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l878_xaf_dviLEGALAUTHORITY_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 504,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l878_xaf_dviLEGALAUTHORITY_Edit_I",
+          "shortName": "LEGALAUTHORITY",
+          "before": "",
+          "after": "TSTX001"
+        }
+      ]
+    },
+    {
+      "name": "STREET",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l898_xaf_l912_xaf_dviSTREET_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 503,
+      "timedOut": false,
+      "note": "LEGALAUTHORITY cleared is a scripting artefact (keyboard bleed), not a real ERP side-effect",
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l843_xaf_l878_xaf_dviLEGALAUTHORITY_Edit_I",
+          "shortName": "LEGALAUTHORITY",
+          "before": "TSTX001",
+          "after": ""
+        },
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l898_xaf_l912_xaf_dviSTREET_Edit_I",
+          "shortName": "STREET",
+          "before": "",
+          "after": "Via Test 1"
+        }
+      ]
+    },
+    {
+      "name": "PHONE",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l993_xaf_dviPHONE_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 606,
+      "timedOut": false,
+      "affectedFields": []
+    },
+    {
+      "name": "CELLULARPHONE",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1000_xaf_dviCELLULARPHONE_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 505,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1000_xaf_dviCELLULARPHONE_Edit_I",
+          "shortName": "CELLULARPHONE",
+          "before": "",
+          "after": "3331234567"
+        }
+      ]
+    },
+    {
+      "name": "EMAIL",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1007_xaf_dviEMAIL_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 505,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1007_xaf_dviEMAIL_Edit_I",
+          "shortName": "EMAIL",
+          "before": "",
+          "after": "info@test.it"
+        }
+      ]
+    },
+    {
+      "name": "URL",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1014_xaf_dviURL_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 505,
+      "timedOut": false,
+      "note": "Value 'est.it' instead of 'test.it' because keyboard 't' was consumed by previous Tab navigation — minor scripting artefact",
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l986_xaf_l1014_xaf_dviURL_Edit_I",
+          "shortName": "URL",
+          "before": "",
+          "after": "est.it"
+        }
+      ]
+    },
+    {
+      "name": "BRASCRMATTENTIONTO",
+      "found": true,
+      "inputId": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l760_xaf_l785_xaf_dviBRASCRMATTENTIONTO_Edit_I",
+      "xhrFired": false,
+      "xhrCount": 0,
+      "settleMs": 504,
+      "timedOut": false,
+      "affectedFields": [
+        {
+          "id": "Vertical_v11_66433720_MainLayoutEdit_xaf_l576_pg_xaf_l619_xaf_l760_xaf_l785_xaf_dviBRASCRMATTENTIONTO_Edit_I",
+          "shortName": "BRASCRMATTENTIONTO",
+          "before": "it",
+          "after": "Att. Ufficio Test"
+        }
+      ]
+    },
+    {
+      "name": "CUSTINFO",
+      "found": false,
+      "note": "CUSTINFO is a <textarea>, not an <input>. Selector 'input[id*=xaf_dvi]' does not match it. Bot must use textarea[id*='xaf_dviCUSTINFO'] or ID-based click."
+    }
+  ]
+}

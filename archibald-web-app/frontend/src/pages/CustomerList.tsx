@@ -160,7 +160,6 @@ export function CustomerList() {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onSaved={() => { setCreateModalOpen(false); void fetchCustomers(); }}
-        contextMode="standalone"
       />
     </div>
   );

@@ -1,0 +1,1550 @@
+{
+  "certifiedAt": "2026-04-02T21:59:07.720Z",
+  "description": "D4 certified: opzioni di ogni dropdown del form nuovo cliente. Metodo: A6 window-scan GetItem/GetItemCount. XHR side-effects: nessuno. Tab visitati tutti.",
+  "keyFindings": [
+    "DLVMODE (tab Principale): 11 opzioni — N/A + 10 modalità corrieri (FedEx, UPS, GLS, ecc.). Nessun XHR side-effect.",
+    "BUSINESSSECTORID (tab Principale): 5 opzioni — N/A + concessionari + Spett. Laboratorio + Spett. Studio.",
+    "BLOCKED (tab Principale): 3 opzioni — No / Fattura: (Invoice) / Completo (Complete).",
+    "VATVALIEDE/FISCALCODEVALIDE (tab Principale): 2 opzioni — No / Sì (Yes). Queste sono read-only in create.",
+    "LINEDISC (tab Prezzi e sconti): usa CustomCallback (lazy XHR). Opzioni visibili: N/A / \"\" / \"Discount to get street price\". Il campo usa valori interni tipo \"xafkidemovb.Module.CRMKI.PRICEDISCGROUP(223)\".",
+    "PRICEGROUP (tab Prezzi e sconti): 3 opzioni — N/A / \"\" / \"DETTAGLIO (consigliato)\". CustomCallback come LINEDISC.",
+    "BRASCRMOPENMONDAY/TUESDAY/.../SUNDAY (tab Orari di consegna): 2 opzioni — \"Chiuso:\" (closed) / \"Open\" (open).",
+    "CUSTGROUP / CUSTSTATUS / BRASCRMTYPE: NON trovati su nessun tab del form create. Probabilmente non presenti in CUSTTABLE_DetailViewAgent.",
+    "XHR side-effects: NESSUN dropdown causa side-effect su altri campi quando aperto/chiuso."
+  ],
+  "summary": {
+    "totalDropdownsFound": 22,
+    "missingPriorityCombos": [
+      "CUSTGROUP",
+      "CUSTSTATUS",
+      "BRASCRMTYPE"
+    ],
+    "dropdownsWithOptions": [
+      {
+        "fieldName": "VATVALIEDE",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "No",
+            "value": "No"
+          },
+          {
+            "text": "Sì",
+            "value": "Yes"
+          }
+        ]
+      },
+      {
+        "fieldName": "DLVMODE",
+        "optionCount": 11,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(0)"
+          },
+          {
+            "text": "Airenterprise",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(6)"
+          },
+          {
+            "text": "Destinatario",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(4)"
+          },
+          {
+            "text": "FedEx",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(9)"
+          },
+          {
+            "text": "General Logistic Systems Spa",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(5)"
+          },
+          {
+            "text": "Mittente",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(3)"
+          },
+          {
+            "text": "Mototaxi",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(1)"
+          },
+          {
+            "text": "Poste Italiane",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(7)"
+          },
+          {
+            "text": "UPS - International Express Saver",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(8)"
+          },
+          {
+            "text": "UPS Italia",
+            "value": "xafkidemovb.Module.CRMKI.DLVMODE(2)"
+          }
+        ]
+      },
+      {
+        "fieldName": "FISCALCODEVALIDE",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "No",
+            "value": "No"
+          },
+          {
+            "text": "Sì",
+            "value": "Yes"
+          }
+        ]
+      },
+      {
+        "fieldName": "BUSINESSSECTORID",
+        "optionCount": 5,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(0)"
+          },
+          {
+            "text": "concessionari",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(1)"
+          },
+          {
+            "text": "Spett. Laboratorio Odontotecnico",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(3)"
+          },
+          {
+            "text": "Spett. Studio Dentistico",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(2)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BLOCKED",
+        "optionCount": 3,
+        "options": [
+          {
+            "text": "No",
+            "value": "No"
+          },
+          {
+            "text": "Fattura:",
+            "value": "Invoice"
+          },
+          {
+            "text": "Completo",
+            "value": "Complete"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENMONDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENTUESDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENWEDNESDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENTHURSDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENFRIDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENSATURDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMOPENSUNDAY",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "Chiuso:",
+            "value": "closed"
+          },
+          {
+            "text": "Open",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMTYPEOFPRACTICE",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.BRASCRMTYPEOFPRACTICE(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMPRIMARYSIC",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.BRASCRMPRIMARYSIC(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMPRIMARYSPECIALTY_ID",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "0",
+            "value": "xafkidemovb.Module.CRMKI.PRIMARYSPECIALTY(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMTYPOFBUYER_ID",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.BRASCRMTYPOFBUYER(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BRASCRMMEDICALSCOOL",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.BRASCRMMEDICALSCOOL(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "BUSRELTYPEID",
+        "optionCount": 10,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(0)"
+          },
+          {
+            "text": "Combined business-relation",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(8)"
+          },
+          {
+            "text": "Customer from Concessionario",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(1)"
+          },
+          {
+            "text": "Debitor",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(2)"
+          },
+          {
+            "text": "Kreditor",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(3)"
+          },
+          {
+            "text": "New customer from Archibald with sales order",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(5)"
+          },
+          {
+            "text": "Potential customer from Concessionario",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(7)"
+          },
+          {
+            "text": "Potential customer from database Italia",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(6)"
+          },
+          {
+            "text": "Prospect  from Archibald",
+            "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(4)"
+          }
+        ]
+      },
+      {
+        "fieldName": "PRICEGROUP",
+        "optionCount": 3,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+          },
+          {
+            "text": "DETTAGLIO (consigliato)",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(2)"
+          }
+        ]
+      },
+      {
+        "fieldName": "LINEDISC",
+        "optionCount": 3,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+          },
+          {
+            "text": "Discount to get street price",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(223)"
+          }
+        ]
+      },
+      {
+        "fieldName": "MULTILINEDISC",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+          }
+        ]
+      },
+      {
+        "fieldName": "ENDDISC",
+        "optionCount": 2,
+        "options": [
+          {
+            "text": "N/A",
+            "value": null
+          },
+          {
+            "text": "",
+            "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+          }
+        ]
+      }
+    ],
+    "xhrSideEffects": {
+      "DLVMODE": [],
+      "BUSINESSSECTORID": [],
+      "LINEDISC": [],
+      "PRICEGROUP": []
+    }
+  },
+  "deduplicatedDropdowns": [
+    {
+      "key": "3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_DDD_L",
+      "fieldName": "VATVALIEDE",
+      "count": 2,
+      "items": [
+        {
+          "text": "No",
+          "value": "No"
+        },
+        {
+          "text": "Sì",
+          "value": "Yes"
+        }
+      ]
+    },
+    {
+      "key": "tEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L",
+      "fieldName": "DLVMODE",
+      "count": 11,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(0)"
+        },
+        {
+          "text": "Airenterprise",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(6)"
+        },
+        {
+          "text": "Destinatario",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(4)"
+        },
+        {
+          "text": "FedEx",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(9)"
+        },
+        {
+          "text": "General Logistic Systems Spa",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(5)"
+        },
+        {
+          "text": "Mittente",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(3)"
+        },
+        {
+          "text": "Mototaxi",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(1)"
+        },
+        {
+          "text": "Poste Italiane",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(7)"
+        },
+        {
+          "text": "UPS - International Express Saver",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(8)"
+        },
+        {
+          "text": "UPS Italia",
+          "value": "xafkidemovb.Module.CRMKI.DLVMODE(2)"
+        }
+      ]
+    },
+    {
+      "key": "xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_DDD_L",
+      "fieldName": "FISCALCODEVALIDE",
+      "count": 2,
+      "items": [
+        {
+          "text": "No",
+          "value": "No"
+        },
+        {
+          "text": "Sì",
+          "value": "Yes"
+        }
+      ]
+    },
+    {
+      "key": "Edit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BUSINESSSECTORID",
+      "count": 5,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(0)"
+        },
+        {
+          "text": "concessionari",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(1)"
+        },
+        {
+          "text": "Spett. Laboratorio Odontotecnico",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(3)"
+        },
+        {
+          "text": "Spett. Studio Dentistico",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSSECTORGROUP(2)"
+        }
+      ]
+    },
+    {
+      "key": "v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_DDD_L",
+      "fieldName": "BLOCKED",
+      "count": 3,
+      "items": [
+        {
+          "text": "No",
+          "value": "No"
+        },
+        {
+          "text": "Fattura:",
+          "value": "Invoice"
+        },
+        {
+          "text": "Completo",
+          "value": "Complete"
+        }
+      ]
+    },
+    {
+      "key": "utEdit_xaf_l44_pg_xaf_l497_xaf_l512_xaf_l512_xaf_dviBRASCRMOPENMONDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENMONDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "tEdit_xaf_l44_pg_xaf_l497_xaf_l552_xaf_l552_xaf_dviBRASCRMOPENTUESDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENTUESDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "dit_xaf_l44_pg_xaf_l497_xaf_l597_xaf_l597_xaf_dviBRASCRMOPENWEDNESDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENWEDNESDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "Edit_xaf_l44_pg_xaf_l497_xaf_l647_xaf_l647_xaf_dviBRASCRMOPENTHURSDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENTHURSDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "utEdit_xaf_l44_pg_xaf_l497_xaf_l702_xaf_l702_xaf_dviBRASCRMOPENFRIDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENFRIDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "Edit_xaf_l44_pg_xaf_l748_xaf_l763_xaf_l763_xaf_dviBRASCRMOPENSATURDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENSATURDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "utEdit_xaf_l44_pg_xaf_l748_xaf_l803_xaf_l803_xaf_dviBRASCRMOPENSUNDAY_Edit_DDD_L",
+      "fieldName": "BRASCRMOPENSUNDAY",
+      "count": 2,
+      "items": [
+        {
+          "text": "Chiuso:",
+          "value": "closed"
+        },
+        {
+          "text": "Open",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "key": "g_xaf_l897_xaf_l905_xaf_l932_xaf_dviBRASCRMTYPEOFPRACTICE_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BRASCRMTYPEOFPRACTICE",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.BRASCRMTYPEOFPRACTICE(0)"
+        }
+      ]
+    },
+    {
+      "key": "44_pg_xaf_l897_xaf_l905_xaf_l941_xaf_dviBRASCRMPRIMARYSIC_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BRASCRMPRIMARYSIC",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.BRASCRMPRIMARYSIC(0)"
+        }
+      ]
+    },
+    {
+      "key": "_l897_xaf_l905_xaf_l950_xaf_dviBRASCRMPRIMARYSPECIALTY_ID_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BRASCRMPRIMARYSPECIALTY_ID",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "0",
+          "value": "xafkidemovb.Module.CRMKI.PRIMARYSPECIALTY(0)"
+        }
+      ]
+    },
+    {
+      "key": "97_xaf_l958_xaf_l967_xaf_l977_xaf_dviBRASCRMTYPOFBUYER_ID_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BRASCRMTYPOFBUYER_ID",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.BRASCRMTYPOFBUYER(0)"
+        }
+      ]
+    },
+    {
+      "key": "897_xaf_l958_xaf_l967_xaf_l987_xaf_dviBRASCRMMEDICALSCOOL_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BRASCRMMEDICALSCOOL",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.BRASCRMMEDICALSCOOL(0)"
+        }
+      ]
+    },
+    {
+      "key": "_l44_pg_xaf_l1238_xaf_l1297_xaf_l1333_xaf_dviBUSRELTYPEID_Edit_dropdown_DD_DDD_L",
+      "fieldName": "BUSRELTYPEID",
+      "count": 10,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(0)"
+        },
+        {
+          "text": "Combined business-relation",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(8)"
+        },
+        {
+          "text": "Customer from Concessionario",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(1)"
+        },
+        {
+          "text": "Debitor",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(2)"
+        },
+        {
+          "text": "Kreditor",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(3)"
+        },
+        {
+          "text": "New customer from Archibald with sales order",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(5)"
+        },
+        {
+          "text": "Potential customer from Concessionario",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(7)"
+        },
+        {
+          "text": "Potential customer from database Italia",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(6)"
+        },
+        {
+          "text": "Prospect  from Archibald",
+          "value": "xafkidemovb.Module.CRMKI.SMMBUSRELTYPEGROUP(4)"
+        }
+      ]
+    },
+    {
+      "key": "youtEdit_xaf_l44_pg_xaf_l1461_xaf_l1468_xaf_dviPRICEGROUP_Edit_dropdown_DD_DDD_L",
+      "fieldName": "PRICEGROUP",
+      "count": 3,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+        },
+        {
+          "text": "DETTAGLIO (consigliato)",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(2)"
+        }
+      ]
+    },
+    {
+      "key": "LayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1475_xaf_dviLINEDISC_Edit_dropdown_DD_DDD_L",
+      "fieldName": "LINEDISC",
+      "count": 3,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+        },
+        {
+          "text": "Discount to get street price",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(223)"
+        }
+      ]
+    },
+    {
+      "key": "tEdit_xaf_l44_pg_xaf_l1461_xaf_l1482_xaf_dviMULTILINEDISC_Edit_dropdown_DD_DDD_L",
+      "fieldName": "MULTILINEDISC",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+        }
+      ]
+    },
+    {
+      "key": "nLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1489_xaf_dviENDDISC_Edit_dropdown_DD_DDD_L",
+      "fieldName": "ENDDISC",
+      "count": 2,
+      "items": [
+        {
+          "text": "N/A",
+          "value": null
+        },
+        {
+          "text": "",
+          "value": "xafkidemovb.Module.CRMKI.PRICEDISCGROUP(0)"
+        }
+      ]
+    }
+  ],
+  "allInputsByTab": {
+    "Principale": [
+      {
+        "fieldName": "VATNUM",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "VATLASTCHECKEDDATE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "VATVALIEDE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_I",
+        "value": "No",
+        "type": "text"
+      },
+      {
+        "fieldName": "ACCOUNTNUM",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l112_xaf_l112_xaf_dviACCOUNTNUM_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "ID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l121_xaf_l121_xaf_dviID_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "NAME",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l138_xaf_dviNAME_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "NAMEALIAS",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l193_xaf_dviNAMEALIAS_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "DLVMODE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "FISCALCODE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l219_xaf_dviFISCALCODE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "CURRENCY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l244_xaf_dviCURRENCY_Edit_I",
+        "value": "EUR",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMATTENTIONTO",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l257_xaf_dviBRASCRMATTENTIONTO_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "FISCALCODEVALIDE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_I",
+        "value": "No",
+        "type": "text"
+      },
+      {
+        "fieldName": "FISCALCODELASTCHECKDATE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BUSINESSSECTORID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "PAYMTERMID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_Edit_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "LEGALEMAIL",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l343_xaf_dviLEGALEMAIL_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "LEGALAUTHORITY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l350_xaf_dviLEGALAUTHORITY_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BLOCKED",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_I",
+        "value": "No",
+        "type": "text"
+      },
+      {
+        "fieldName": "STREET",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l384_xaf_dviSTREET_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "LOGISTICSADDRESSZIPCODE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "COUNTRYREGIONID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l407_xaf_l407_xaf_dviCOUNTRYREGIONID_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "CITY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l414_xaf_dviCITY_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "COUNTY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l429_xaf_l429_xaf_dviCOUNTY_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "STATE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l437_xaf_l437_xaf_dviSTATE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "PHONE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l465_xaf_dviPHONE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "CELLULARPHONE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l472_xaf_dviCELLULARPHONE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "EMAIL",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l479_xaf_dviEMAIL_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "URL",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l458_xaf_l486_xaf_dviURL_Edit_I",
+        "value": "",
+        "type": "text"
+      }
+    ],
+    "Orari di consegna": [
+      {
+        "fieldName": "BRASCRMOPENMONDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l512_xaf_l512_xaf_dviBRASCRMOPENMONDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESMON",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l520_xaf_l520_xaf_dviBRASCRMOPENINGTIMESMON_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENTUESDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l552_xaf_l552_xaf_dviBRASCRMOPENTUESDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESTUE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l561_xaf_l561_xaf_dviBRASCRMOPENINGTIMESTUE_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENWEDNESDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l597_xaf_l597_xaf_dviBRASCRMOPENWEDNESDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESWED",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l607_xaf_l607_xaf_dviBRASCRMOPENINGTIMESWED_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENTHURSDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l647_xaf_l647_xaf_dviBRASCRMOPENTHURSDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESTHU",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l658_xaf_l658_xaf_dviBRASCRMOPENINGTIMESTHU_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENFRIDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l702_xaf_l702_xaf_dviBRASCRMOPENFRIDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESFRI",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l497_xaf_l714_xaf_l714_xaf_dviBRASCRMOPENINGTIMESFRI_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENSATURDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l748_xaf_l763_xaf_l763_xaf_dviBRASCRMOPENSATURDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESSAT",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l748_xaf_l771_xaf_l771_xaf_dviBRASCRMOPENINGTIMESSAT_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENSUNDAY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l748_xaf_l803_xaf_l803_xaf_dviBRASCRMOPENSUNDAY_Edit_I",
+        "value": "Chiuso:",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMOPENINGTIMESSUN",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l748_xaf_l812_xaf_l812_xaf_dviBRASCRMOPENINGTIMESSUN_Edit_I",
+        "value": "__:__-__:__",
+        "type": "text"
+      }
+    ],
+    "Info CRM": [
+      {
+        "fieldName": "BRASCRMLASTCALLTM",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l850_xaf_dviBRASCRMLASTCALLTM_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMRECALLDATE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l858_xaf_dviBRASCRMRECALLDATE_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMLASTVISIT",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l866_xaf_dviBRASCRMLASTVISIT_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMYEAROFGRADUATION",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l874_xaf_dviBRASCRMYEAROFGRADUATION_Edit_I",
+        "value": "0000",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMYEARFIRSTAPPEARED",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l882_xaf_dviBRASCRMYEARFIRSTAPPEARED_Edit_I",
+        "value": "0000",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMYEARESTABLISHED",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l842_xaf_l890_xaf_dviBRASCRMYEARESTABLISHED_Edit_I",
+        "value": "0000",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMTYPEOFPRACTICE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l905_xaf_l932_xaf_dviBRASCRMTYPEOFPRACTICE_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMPRIMARYSIC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l905_xaf_l941_xaf_dviBRASCRMPRIMARYSIC_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMPRIMARYSPECIALTY_ID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l905_xaf_l950_xaf_dviBRASCRMPRIMARYSPECIALTY_ID_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMTYPOFBUYER_ID",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l967_xaf_l977_xaf_dviBRASCRMTYPOFBUYER_ID_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMMEDICALSCOOL",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l967_xaf_l987_xaf_dviBRASCRMMEDICALSCOOL_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMNAMEOFBUYER",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l967_xaf_l997_xaf_dviBRASCRMNAMEOFBUYER_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMNODENTALHYG",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l1026_xaf_l1036_xaf_dviBRASCRMNODENTALHYG_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMNODENTISTS",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l1026_xaf_l1046_xaf_dviBRASCRMNODENTISTS_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMHYGIENIST",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l897_xaf_l958_xaf_l1026_xaf_l1056_xaf_dviBRASCRMHYGIENIST_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMASONUM",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1093_xaf_l1101_xaf_dviBRASCRMASONUM_Edit_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMSALESVOLUME",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1093_xaf_l1109_xaf_dviBRASCRMSALESVOLUME_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMEMPLOYEESIZE",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1093_xaf_l1125_xaf_dviBRASCRMEMPLOYEESIZE_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMNOCHAIRS",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1093_xaf_l1133_xaf_dviBRASCRMNOCHAIRS_Edit_I",
+        "value": "0",
+        "type": "text"
+      },
+      {
+        "fieldName": "BRASCRMPATIENTSSEENWEEKLY",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1093_xaf_l1141_xaf_dviBRASCRMPATIENTSSEENWEEKLY_Edit_I",
+        "value": "0",
+        "type": "text"
+      }
+    ],
+    "Altre informazioni": [],
+    "Prezzi e sconti": [],
+    "Tabelle di vendita": [
+      {
+        "fieldName": "PRICEGROUP",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1468_xaf_dviPRICEGROUP_Edit_dropdown_DD_I",
+        "value": "DETTAGLIO (consigliato)",
+        "type": "text"
+      },
+      {
+        "fieldName": "LINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1475_xaf_dviLINEDISC_Edit_dropdown_DD_I",
+        "value": "Discount to get street price",
+        "type": "text"
+      },
+      {
+        "fieldName": "MULTILINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1482_xaf_dviMULTILINEDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "ENDDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1489_xaf_dviENDDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      }
+    ],
+    "Documento di trasporto del cliente": [
+      {
+        "fieldName": "PRICEGROUP",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1468_xaf_dviPRICEGROUP_Edit_dropdown_DD_I",
+        "value": "DETTAGLIO (consigliato)",
+        "type": "text"
+      },
+      {
+        "fieldName": "LINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1475_xaf_dviLINEDISC_Edit_dropdown_DD_I",
+        "value": "Discount to get street price",
+        "type": "text"
+      },
+      {
+        "fieldName": "MULTILINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1482_xaf_dviMULTILINEDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "ENDDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1489_xaf_dviENDDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_ToolBar_Menu_ITCNT3_xaf_a2_Cb_I",
+        "value": "Tutti",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol27_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol6_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol30_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol7_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol8_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol29_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol4_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol28_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol1_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol17_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol14_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol0_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1516_xaf_dviCUSTPACKINGSLIPJOURs_v5_1835445_LE_v5_DXFREditorcol12_I",
+        "value": "",
+        "type": "text"
+      }
+    ],
+    "Fatture dei clienti": [
+      {
+        "fieldName": "PRICEGROUP",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1468_xaf_dviPRICEGROUP_Edit_dropdown_DD_I",
+        "value": "DETTAGLIO (consigliato)",
+        "type": "text"
+      },
+      {
+        "fieldName": "LINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1475_xaf_dviLINEDISC_Edit_dropdown_DD_I",
+        "value": "Discount to get street price",
+        "type": "text"
+      },
+      {
+        "fieldName": "MULTILINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1482_xaf_dviMULTILINEDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "ENDDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1489_xaf_dviENDDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_ToolBar_Menu_ITCNT3_xaf_a2_Cb_I",
+        "value": "Tutti",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol17_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol16_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol29_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol31_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol36_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol7_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol37_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol15_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol28_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol2_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol6_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol0_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol27_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol26_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol35_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol24_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol23_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "?",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l1504_pg_xaf_l1522_xaf_dviCUSTINVOICEJOURs_v6_55738234_LE_v6_DXFREditorcol30_I",
+        "value": "",
+        "type": "text"
+      }
+    ],
+    "Indirizzo alt.": [
+      {
+        "fieldName": "PRICEGROUP",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1468_xaf_dviPRICEGROUP_Edit_dropdown_DD_I",
+        "value": "DETTAGLIO (consigliato)",
+        "type": "text"
+      },
+      {
+        "fieldName": "LINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1475_xaf_dviLINEDISC_Edit_dropdown_DD_I",
+        "value": "Discount to get street price",
+        "type": "text"
+      },
+      {
+        "fieldName": "MULTILINEDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1482_xaf_dviMULTILINEDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      },
+      {
+        "fieldName": "ENDDISC",
+        "id": "Vertical_v3_1048686_MainLayoutEdit_xaf_l44_pg_xaf_l1461_xaf_l1489_xaf_dviENDDISC_Edit_dropdown_DD_I",
+        "value": "",
+        "type": "text"
+      }
+    ]
+  },
+  "persistenceResults": [
+    {
+      "field": "DLVMODE",
+      "targetOption": "Airenterprise",
+      "setResult": "SetSelectedIndex(2) on DLVMODE_Edit_dropdown_DD_DDD_L",
+      "valueAfterSet": "",
+      "tabSwitchedTo": "Orari di consegna",
+      "valueAfterTabSwitch": "",
+      "persists": true
+    }
+  ]
+}
