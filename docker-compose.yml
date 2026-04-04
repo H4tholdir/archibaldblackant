@@ -21,12 +21,10 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
-      - ./data:/app/data  # Persist SQLite databases
       - ./logs:/app/logs  # Persist logs
     depends_on:
       redis:

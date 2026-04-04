@@ -169,6 +169,11 @@ function createAdminRouter(deps: AdminRouterDeps) {
       }
 
       const changes = parsed.data;
+
+      if (changes.role !== undefined && id === req.user!.userId) {
+        return res.status(403).json({ success: false, error: 'Non puoi modificare il tuo stesso ruolo' });
+      }
+
       const setClauses: string[] = [];
       const params: unknown[] = [];
       let idx = 1;

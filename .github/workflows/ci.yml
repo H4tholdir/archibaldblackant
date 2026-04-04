@@ -34,6 +34,10 @@ jobs:
         working-directory: archibald-web-app/backend
         run: npx tsc --noEmit
 
+      - name: Run backend tests
+        working-directory: archibald-web-app/backend
+        run: npm test
+
       - name: Run linting
         working-directory: archibald-web-app/backend
         run: npm run lint || echo "Linting completed with warnings"

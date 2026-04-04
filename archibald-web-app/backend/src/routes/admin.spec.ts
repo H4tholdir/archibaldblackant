@@ -384,6 +384,40 @@ describe('createAdminRouter', () => {
     });
   });
 
+  describe('PATCH /api/admin/users/:id', () => {
+    beforeEach(() => {
+      deps.pool = { query: vi.fn().mockResolvedValue({ rows: [] }) } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns 403 when admin tries to change their own role', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ role: 'agent' });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: 'Non puoi modificare il tuo stesso ruolo' });
+    });
+
+    test('allows admin to change their own whitelisted field (not a role change)', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ whitelisted: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('allows admin to change another user role', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/u1')
+        .send({ role: 'ufficio' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
   describe('GET /api/admin/audit-log', () => {
     const mockAuditRows = [
       {
