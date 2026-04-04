@@ -843,13 +843,9 @@ export function CustomerProfilePage() {
             {/* 8. Indirizzi alternativi */}
             <SectionCard refProp={sectionRefs.addresses} title="Indirizzi alternativi" isEditMode={editMode}>
               <div>
-                {/* Header: bottone aggiungi + badge modificato */}
+                {/* Header: bottone aggiungi */}
                 {editMode && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    {localAddresses !== null && (
-                      <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>● modificato</span>
-                    )}
-                    <div style={{ flex: 1 }} />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                     <button
                       onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
                       style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '3px 8px', fontSize: '12px', cursor: 'pointer' }}
