@@ -364,6 +364,7 @@ function createApp(deps: AppDeps): Express {
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>
       customersRepo.updateAgentNotes(pool, userId, erpId, notes),
+    getMyCustomers: (userId) => customersRepo.getMyCustomers(pool, userId),
     getCustomerSyncMetrics: async () => {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
       const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');

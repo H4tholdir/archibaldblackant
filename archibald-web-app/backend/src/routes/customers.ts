@@ -51,6 +51,7 @@ type CustomersRouterDeps = {
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
   updateAgentNotes?: (userId: string, erpId: string, notes: string | null) => Promise<void>;
+  getMyCustomers?: (userId: string) => Promise<Customer[]>;
 };
 
 const createCustomerSchema = z.object({
@@ -142,6 +143,11 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      const mine = req.query.mine === 'true';
+      if (mine && deps.getMyCustomers) {
+        const customers = await deps.getMyCustomers(userId);
+        return res.json({ success: true, data: { customers, total: customers.length } });
+      }
       const search = req.query.search as string | undefined;
       const customers = await getCustomers(userId, search);
       res.json({ success: true, data: { customers, total: customers.length } });

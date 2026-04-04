@@ -47,8 +47,10 @@ export function CustomerList() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [myCustomers, setMyCustomers] = useState<Customer[]>([]);
+  const [searchCustomers, setSearchCustomers] = useState<Customer[]>([]);
+  const [loadingMine, setLoadingMine] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [isCreationMinimized, setIsCreationMinimized] = useState(false);
@@ -68,30 +70,47 @@ export function CustomerList() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchCustomers = useCallback(async () => {
+  // Fetch "I miei clienti" once on mount
+  const fetchMyCustomers = useCallback(async () => {
     const token = localStorage.getItem('archibald_jwt');
     if (!token) return;
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (debouncedSearch) params.append('search', debouncedSearch);
-    params.append('limit', debouncedSearch ? '100' : '200');
+    setLoadingMine(true);
+    const res = await fetch('/api/customers?mine=true', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { setLoadingMine(false); return; }
+    const body = await res.json();
+    if (body.success) setMyCustomers(body.data.customers);
+    setLoadingMine(false);
+  }, []);
+
+  useEffect(() => { void fetchMyCustomers(); }, [fetchMyCustomers]);
+
+  // Fetch search results
+  const fetchSearch = useCallback(async () => {
+    if (!debouncedSearch) { setSearchCustomers([]); return; }
+    const token = localStorage.getItem('archibald_jwt');
+    if (!token) return;
+    setLoadingSearch(true);
+    const params = new URLSearchParams({ search: debouncedSearch, limit: '100' });
     const res = await fetch(`/api/customers?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) { setLoading(false); return; }
+    if (!res.ok) { setLoadingSearch(false); return; }
     const body = await res.json();
-    if (body.success) setCustomers(body.data.customers);
-    setLoading(false);
+    if (body.success) setSearchCustomers(body.data.customers);
+    setLoadingSearch(false);
   }, [debouncedSearch]);
 
-  useEffect(() => { void fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => { void fetchSearch(); }, [fetchSearch]);
 
-  // Lazy-load foto
+  // Lazy-load foto for visible customers
+  const visibleCustomers = debouncedSearch ? searchCustomers : myCustomers;
   useEffect(() => {
-    if (customers.length === 0) return;
+    if (visibleCustomers.length === 0) return;
     let cancelled = false;
     const load = async () => {
-      for (const c of customers) {
+      for (const c of visibleCustomers) {
         if (cancelled || customerPhotos[c.erpId] !== undefined) continue;
         const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
         if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
@@ -99,7 +118,7 @@ export function CustomerList() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [customers]);
+  }, [visibleCustomers]);
 
   const handleClick = (erpId: string) => {
     addRecent(erpId);
@@ -108,18 +127,19 @@ export function CustomerList() {
   };
 
   const recentCustomers = recents
-    .map(id => customers.find(c => c.erpId === id))
+    .map(id => myCustomers.find(c => c.erpId === id))
     .filter((c): c is Customer => c !== undefined);
   const recentIds = new Set(recents);
-  const nonRecentCustomers = customers.filter(c => !recentIds.has(c.erpId));
+  const nonRecentMyCustomers = myCustomers.filter(c => !recentIds.has(c.erpId));
 
-  // Smart groups — solo quando non c'è ricerca attiva
-  const groupDaContattare = nonRecentCustomers.filter(c => customerBadge(c) === 'inattivo' || !c.lastOrderDate);
-  const groupDaTenereDocchio = nonRecentCustomers.filter(c => {
+  // Smart groups (solo su "I miei clienti", non sulla ricerca)
+  const groupDaContattare = nonRecentMyCustomers.filter(c => customerBadge(c) === 'inattivo');
+  const groupDaTenereDocchio = nonRecentMyCustomers.filter(c => {
     if (!c.lastOrderDate || customerBadge(c) !== null) return false;
     return true; // badge null = 90-180 giorni
   });
-  const groupAttivi = nonRecentCustomers.filter(c => customerBadge(c) === 'attivo');
+  const groupAttivi = nonRecentMyCustomers.filter(c => customerBadge(c) === 'attivo');
+  const groupSenzaOrdini = nonRecentMyCustomers.filter(c => !c.lastOrderDate);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
@@ -127,7 +147,7 @@ export function CustomerList() {
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Clienti</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>{customers.length} clienti</div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>{myCustomers.length} clienti</div>
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
@@ -142,7 +162,7 @@ export function CustomerList() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca nome, telefono, P.IVA…"
+            placeholder="Cerca in tutti i clienti…"
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -157,66 +177,91 @@ export function CustomerList() {
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && (
-          <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
-        )}
-
-        {!debouncedSearch ? (
+        {debouncedSearch ? (
           <>
-            {recentCustomers.length > 0 && (
+            {loadingSearch && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Ricerca…</div>
+            )}
+            {!loadingSearch && (
               <>
-                <SectionLabel>Recenti</SectionLabel>
-                {recentCustomers.map(c => (
+                <SectionLabel count={searchCustomers.length}>Risultati</SectionLabel>
+                {searchCustomers.map(c => (
                   <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                 ))}
+                {searchCustomers.length === 0 && (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Nessun cliente trovato
+                  </div>
+                )}
               </>
-            )}
-
-            {groupDaContattare.length > 0 && (
-              <>
-                <SectionLabel icon="🔴" count={groupDaContattare.length} hint="Nessun ordine o ultimo ordine oltre 6 mesi fa">Da contattare</SectionLabel>
-                {groupDaContattare.map(c => (
-                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-                ))}
-              </>
-            )}
-
-            {groupDaTenereDocchio.length > 0 && (
-              <>
-                <SectionLabel icon="🟡" count={groupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
-                {groupDaTenereDocchio.map(c => (
-                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-                ))}
-              </>
-            )}
-
-            {groupAttivi.length > 0 && (
-              <>
-                <SectionLabel icon="🟢" count={groupAttivi.length} hint="Ultimo ordine negli ultimi 3 mesi">Attivi</SectionLabel>
-                {groupAttivi.map(c => (
-                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-                ))}
-              </>
-            )}
-
-            {!loading && customers.length === 0 && (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                Nessun cliente trovato
-              </div>
-            )}
-
-            {!loading && customers.length > 0 && (
-              <div style={{ padding: '12px 16px', textAlign: 'center', color: '#cbd5e1', fontSize: 11 }}>
-                Cerca per trovare qualsiasi cliente
-              </div>
             )}
           </>
         ) : (
           <>
-            <SectionLabel count={nonRecentCustomers.length}>Risultati</SectionLabel>
-            {nonRecentCustomers.map(c => (
-              <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-            ))}
+            {loadingMine && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
+            )}
+
+            {!loadingMine && (
+              <>
+                {recentCustomers.length > 0 && (
+                  <>
+                    <SectionLabel>Recenti</SectionLabel>
+                    {recentCustomers.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupDaContattare.length > 0 && (
+                  <>
+                    <SectionLabel icon="🔴" count={groupDaContattare.length} hint="Nessun ordine negli ultimi 6 mesi">Da contattare</SectionLabel>
+                    {groupDaContattare.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupDaTenereDocchio.length > 0 && (
+                  <>
+                    <SectionLabel icon="🟡" count={groupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
+                    {groupDaTenereDocchio.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupAttivi.length > 0 && (
+                  <>
+                    <SectionLabel icon="🟢" count={groupAttivi.length} hint="Ordine negli ultimi 3 mesi">Attivi</SectionLabel>
+                    {groupAttivi.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupSenzaOrdini.length > 0 && (
+                  <>
+                    <SectionLabel icon="⚪" count={groupSenzaOrdini.length} hint="Nessun ordine registrato">Nuovi clienti</SectionLabel>
+                    {groupSenzaOrdini.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {myCustomers.length === 0 && (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Nessun cliente trovato
+                  </div>
+                )}
+
+                {myCustomers.length > 0 && (
+                  <div style={{ padding: '12px 16px', textAlign: 'center', color: '#cbd5e1', fontSize: 11 }}>
+                    Cerca per trovare qualsiasi cliente
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
@@ -274,7 +319,7 @@ export function CustomerList() {
         isOpen={createModalOpen}
         isMinimized={isCreationMinimized}
         onClose={() => { setCreateModalOpen(false); setIsCreationMinimized(false); }}
-        onSaved={() => { setCreateModalOpen(false); setIsCreationMinimized(false); void fetchCustomers(); }}
+        onSaved={() => { setCreateModalOpen(false); setIsCreationMinimized(false); void fetchMyCustomers(); }}
         onMinimize={(name) => { setIsCreationMinimized(true); setMinimizedCreationName(name); }}
       />
     </div>

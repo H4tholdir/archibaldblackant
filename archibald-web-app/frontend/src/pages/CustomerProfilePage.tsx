@@ -396,9 +396,10 @@ export function CustomerProfilePage() {
 
         {/* ── Top bar ───────────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          {isMobile && (
-            <button onClick={() => navigate('/customers')} style={{ border: 'none', background: 'none', fontSize: 22, color: '#2563eb', cursor: 'pointer', lineHeight: 1 }}>‹</button>
-          )}
+          <button
+            onClick={() => navigate('/customers')}
+            style={{ border: 'none', background: 'none', fontSize: 13, color: '#2563eb', cursor: 'pointer', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, flexShrink: 0, padding: '2px 0' }}
+          >‹ Clienti</button>
           <div style={{ flex: 1, fontSize: 16, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer.name}</div>
           {!editMode ? (
             <button
@@ -621,8 +622,8 @@ export function CustomerProfilePage() {
           <div style={{
             display: 'grid',
             gridTemplateColumns: (isDesktop || isTablet) ? '1fr 1fr' : '1fr',
-            gap: '16px',
-            padding: isMobile ? '16px' : '24px',
+            gap: '12px',
+            padding: isMobile ? '12px' : '16px',
           }}>
 
             {/* 1. Contatti */}
@@ -1119,23 +1120,24 @@ function SectionCard({
     <div
       ref={refProp}
       style={{
-        background: isEditMode ? '#eff6ff' : 'white',
-        border: '1px solid #f1f5f9',
+        background: isEditMode ? '#eff6ff' : '#fafafa',
+        border: `1px solid ${isEditMode ? '#bfdbfe' : '#e8eef4'}`,
         borderRadius: '12px',
         overflow: 'hidden',
         marginBottom: '0',
       }}
     >
       <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #f1f5f9',
+        padding: '8px 14px',
+        borderBottom: `1px solid ${isEditMode ? '#bfdbfe' : '#e8eef4'}`,
+        background: isEditMode ? '#dbeafe' : '#edf2f7',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <h3 style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
           {title}
         </h3>
       </div>
-      <div style={{ padding: '12px 16px' }}>
+      <div style={{ padding: '10px 14px' }}>
         {children}
       </div>
     </div>
@@ -1153,8 +1155,8 @@ function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, m
   maxLength?: number;
 }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
-      <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px', minWidth: '100px' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #e8eef4', gap: '8px' }}>
+      <span style={{ fontSize: '11px', color: '#94a3b8', flexShrink: 0, minWidth: '96px', letterSpacing: '0.1px' }}>{label}</span>
       {isEditing && fieldKey && onChange ? (
         <div style={{ flex: 1, position: 'relative' }}>
           <input
@@ -1162,7 +1164,7 @@ function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, m
             onChange={(e) => onChange(fieldKey, e.target.value)}
             onFocus={onInputFocus}
             maxLength={maxLength}
-            style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: maxLength ? '4px 36px 4px 8px' : '4px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: maxLength ? '4px 36px 4px 8px' : '4px 8px', fontSize: '13px', background: 'white', color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
           />
           {maxLength && (
             <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: (value?.length ?? 0) >= maxLength ? '#ef4444' : '#94a3b8', pointerEvents: 'none' }}>
@@ -1171,7 +1173,7 @@ function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, m
           )}
         </div>
       ) : (
-        <span style={{ fontSize: '13px', color: value ? '#1e293b' : '#e2e8f0', fontWeight: value ? 400 : 300 }}>
+        <span style={{ flex: 1, fontSize: '13px', color: value ? '#1e293b' : '#cbd5e1', fontWeight: value ? 500 : 300, background: value ? '#fff' : 'transparent', borderRadius: '5px', padding: value ? '3px 7px' : '3px 0', border: value ? '1px solid #e8eef4' : 'none' }}>
           {value ?? '—'}
         </span>
       )}
