@@ -61,6 +61,10 @@ export function CustomerProfilePage() {
   const [editMode, setEditMode] = useState(false);
   const [pendingEdits, setPendingEdits] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveLabel, setSaveLabel] = useState('');
+  const [vatValidating, setVatValidating] = useState(false);
+  const [vatValidated, setVatValidated] = useState(false);
 
   const { trackOperation } = useOperationTracking();
 
@@ -141,31 +145,72 @@ export function CustomerProfilePage() {
 
   function enterEditMode() {
     setEditMode(true);
+    setVatValidated(false);
   }
 
   function exitEditMode() {
     setEditMode(false);
     setPendingEdits({});
+    setVatValidated(false);
+  }
+
+  function handleFieldChange(key: string, val: string) {
+    setPendingEdits((prev) => ({ ...prev, [key]: val }));
   }
 
   async function handleSave() {
     if (pendingCount === 0 || saving || !customer) return;
     setSaving(true);
+    setSaveProgress(5);
+    setSaveLabel('Connessione...');
     try {
       const { jobId } = await enqueueOperation('update-customer', { erpId, name: customer.name, ...pendingEdits });
       trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`);
+      setSaveProgress(15);
+      setSaveLabel('Operazione in coda...');
       await pollJobUntilDone(jobId, {
-        onProgress: (_p, _label) => { /* handled by GlobalOperationBanner */ },
+        onProgress: (p, label) => {
+          setSaveProgress(p);
+          if (label) setSaveLabel(label);
+        },
       });
+      setSaveProgress(100);
+      setSaveLabel('Completato');
       toastService.success('Cliente aggiornato');
       setEditMode(false);
       setPendingEdits({});
+      setVatValidated(false);
       const reloaded = await fetchCustomer(erpId);
       setCustomer(reloaded);
     } catch {
       toastService.error('Errore durante il salvataggio');
     } finally {
       setSaving(false);
+      setSaveProgress(0);
+      setSaveLabel('');
+    }
+  }
+
+  async function handleVatValidation() {
+    if (!customer) return;
+    setVatValidating(true);
+    try {
+      const jwt = localStorage.getItem('archibald_jwt') ?? '';
+      const res = await fetch('/api/customers/interactive/start-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({
+          customerProfile: customer.erpId,
+          vatNumber: pendingEdits.vatNumber ?? customer.vatNumber,
+        }),
+      });
+      if (res.ok) {
+        setVatValidated(true);
+      }
+    } catch {
+      // silent
+    } finally {
+      setVatValidating(false);
     }
   }
 
@@ -234,12 +279,30 @@ export function CustomerProfilePage() {
             <button onClick={() => navigate('/customers')} style={{ border: 'none', background: 'none', fontSize: 22, color: '#2563eb', cursor: 'pointer', lineHeight: 1 }}>‹</button>
           )}
           <div style={{ flex: 1, fontSize: 16, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer.name}</div>
-          <button
-            onClick={editMode ? exitEditMode : enterEditMode}
-            style={{ padding: '5px 12px', background: editMode ? '#fff' : '#2563eb', color: editMode ? '#2563eb' : 'white', border: editMode ? '1.5px solid #2563eb' : 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-          >
-            {editMode ? 'Modifica' : '✎ Modifica'}
-          </button>
+          {!editMode ? (
+            <button
+              onClick={enterEditMode}
+              style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+            >
+              ✎ Modifica
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => { void handleSave(); }}
+                disabled={saving}
+                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 12 }}
+              >
+                💾 Salva
+              </button>
+              <button
+                onClick={exitEditMode}
+                style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: 12 }}
+              >
+                ✕ Annulla
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
@@ -432,6 +495,42 @@ export function CustomerProfilePage() {
           </div>
         </div>
 
+        {/* ── VAT Track B banner ────────────────────────────────────────── */}
+        {editMode && !vatValidated && !customer.vatValidatedAt && (
+          <div style={{
+            background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: '8px',
+            padding: '10px 14px', margin: '0 16px 12px',
+            display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0,
+          }}>
+            <span style={{ color: '#92400e', fontWeight: 700, flex: 1, fontSize: '12px' }}>
+              ⚠ P.IVA non validata — Devi validarla prima di poter salvare.
+            </span>
+            {vatValidating ? (
+              <span style={{ fontSize: '12px', color: '#92400e' }}>Verifica in corso (~30s)...</span>
+            ) : (
+              <button
+                onClick={() => { void handleVatValidation(); }}
+                style={{
+                  background: '#fbbf24', border: 'none', borderRadius: '6px',
+                  padding: '4px 10px', fontWeight: 700, cursor: 'pointer', fontSize: '12px',
+                }}
+              >Valida ora →</button>
+            )}
+          </div>
+        )}
+
+        {/* ── Progress bar ──────────────────────────────────────────────── */}
+        {saving && (
+          <div style={{ padding: '0 16px 12px', flexShrink: 0 }}>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+              {saveLabel || 'Aggiornamento in corso...'}
+            </div>
+            <div style={{ height: '4px', background: '#e2e8f0', borderRadius: '2px' }}>
+              <div style={{ height: '100%', width: `${saveProgress}%`, background: '#2563eb', borderRadius: '2px', transition: 'width .3s ease' }} />
+            </div>
+          </div>
+        )}
+
         {/* ── Area sezioni (scrollabile) ─────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{
@@ -443,19 +542,19 @@ export function CustomerProfilePage() {
 
             {/* 1. Contatti */}
             <SectionCard refProp={sectionRefs.contacts} title="Contatti" isEditMode={editMode}>
-              <FieldRow label="Telefono" value={pendingEdits.phone ?? customer.phone} />
-              <FieldRow label="Mobile" value={pendingEdits.mobile ?? customer.mobile} />
-              <FieldRow label="Email" value={pendingEdits.email ?? customer.email} />
-              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} />
-              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} />
-              <FieldRow label="Sito web" value={pendingEdits.url ?? customer.url} />
+              <FieldRow label="Telefono" value={pendingEdits.phone ?? customer.phone} fieldKey="phone" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Mobile" value={pendingEdits.mobile ?? customer.mobile} fieldKey="mobile" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Email" value={pendingEdits.email ?? customer.email} fieldKey="email" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} fieldKey="pec" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} fieldKey="sdi" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Sito web" value={pendingEdits.url ?? customer.url} fieldKey="url" isEditing={editMode} onChange={handleFieldChange} />
             </SectionCard>
 
             {/* 2. Indirizzo */}
             <SectionCard refProp={sectionRefs.address} title="Indirizzo principale" isEditMode={editMode}>
-              <FieldRow label="Via" value={pendingEdits.street ?? customer.street} />
-              <FieldRow label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} />
-              <FieldRow label="Città" value={pendingEdits.postalCodeCity ?? customer.city} />
+              <FieldRow label="Via" value={pendingEdits.street ?? customer.street} fieldKey="street" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} fieldKey="postalCode" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Città" value={pendingEdits.postalCodeCity ?? customer.city} fieldKey="postalCodeCity" isEditing={editMode} onChange={handleFieldChange} />
               <FieldRow label="Provincia" value={customer.county ?? null} />
               <FieldRow label="Regione" value={customer.state ?? null} />
               <FieldRow label="Paese" value={customer.country ?? null} />
@@ -463,34 +562,53 @@ export function CustomerProfilePage() {
 
             {/* 3. Anagrafica */}
             <SectionCard refProp={sectionRefs.anagrafica} title="Anagrafica" isEditMode={editMode}>
-              <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} />
+              <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} fieldKey="name" isEditing={editMode} onChange={handleFieldChange} />
               <FieldRow label="Alias" value={customer.nameAlias ?? null} />
-              <FieldRow label="Attenzione a" value={pendingEdits.attentionTo ?? customer.attentionTo} />
-              <FieldRow label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} />
-              <FieldRow label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} />
+              <FieldRow label="Attenzione a" value={pendingEdits.attentionTo ?? customer.attentionTo} fieldKey="attentionTo" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} fieldKey="sector" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} fieldKey="fiscalCode" isEditing={editMode} onChange={handleFieldChange} />
             </SectionCard>
 
             {/* 4. Dati Fiscali */}
             <SectionCard refProp={sectionRefs.fiscal} title="Dati Fiscali" isEditMode={editMode}>
-              <FieldRow label="P.IVA" value={customer.vatNumber} />
-              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} />
-              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} />
+              {customer.vatValidatedAt ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px', minWidth: '100px' }}>P.IVA</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', color: '#1e293b' }}>{customer.vatNumber ?? '—'}</span>
+                    <span style={{ fontSize: '10px', background: '#dcfce7', color: '#166534', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>✓ Validata</span>
+                  </div>
+                </div>
+              ) : (
+                <FieldRow label="P.IVA" value={pendingEdits.vatNumber ?? customer.vatNumber} fieldKey="vatNumber" isEditing={editMode} onChange={handleFieldChange} />
+              )}
+              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} fieldKey="pec" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} fieldKey="sdi" isEditing={editMode} onChange={handleFieldChange} />
               <FieldRow label="Validata" value={customer.vatValidatedAt ? '✓ Validata' : '✗ Non validata'} />
             </SectionCard>
 
             {/* 5. Commerciale */}
             <SectionCard refProp={sectionRefs.commercial} title="Commerciale" isEditMode={editMode}>
               <FieldRow label="Listino" value={customer.priceGroup ?? null} />
-              <FieldRow label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} />
-              <FieldRow label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} />
-              <FieldRow label="Modalità consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms ?? null} />
+              <FieldRow label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} fieldKey="lineDiscount" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} fieldKey="paymentTerms" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Modalità consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms ?? null} fieldKey="deliveryMode" isEditing={editMode} onChange={handleFieldChange} />
             </SectionCard>
 
             {/* 6. Note */}
             <SectionCard refProp={sectionRefs.notes} title="Note" isEditMode={editMode}>
-              <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
-                {(pendingEdits.notes ?? customer.notes) || <span style={{ color: '#94a3b8' }}>Nessuna nota</span>}
-              </div>
+              {editMode ? (
+                <textarea
+                  value={pendingEdits.notes ?? customer.notes ?? ''}
+                  onChange={(e) => handleFieldChange('notes', e.target.value)}
+                  rows={4}
+                  style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '6px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              ) : (
+                <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                  {(pendingEdits.notes ?? customer.notes) || <span style={{ color: '#94a3b8' }}>Nessuna nota</span>}
+                </div>
+              )}
             </SectionCard>
 
             {/* 7. Note interne agente */}
@@ -661,13 +779,27 @@ function SectionCard({
 }
 
 
-function FieldRow({ label, value }: { label: string; value: string | null | undefined }) {
+function FieldRow({ label, value, fieldKey, isEditing, onChange }: {
+  label: string;
+  value: string | null | undefined;
+  fieldKey?: string;
+  isEditing?: boolean;
+  onChange?: (key: string, val: string) => void;
+}) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #f8fafc' }}>
-      <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px' }}>{label}</span>
-      <span style={{ fontSize: '13px', color: value ? '#1e293b' : '#e2e8f0', fontWeight: value ? 400 : 300 }}>
-        {value ?? '—'}
-      </span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
+      <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px', minWidth: '100px' }}>{label}</span>
+      {isEditing && fieldKey && onChange ? (
+        <input
+          value={value ?? ''}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          style={{ flex: 1, border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none' }}
+        />
+      ) : (
+        <span style={{ fontSize: '13px', color: value ? '#1e293b' : '#e2e8f0', fontWeight: value ? 400 : 300 }}>
+          {value ?? '—'}
+        </span>
+      )}
     </div>
   );
 }
