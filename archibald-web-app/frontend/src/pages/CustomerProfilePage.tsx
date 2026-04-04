@@ -75,8 +75,6 @@ export function CustomerProfilePage() {
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const heroWrapperRef = useRef<HTMLDivElement>(null);
-  const heroNaturalHeightRef = useRef(0);
   const [activeRemindersCount] = useState(0);
   const [_isNewReminderOpen, setIsNewReminderOpen] = useState(false);
   const urgentRemindersText: string | null = null;
@@ -100,38 +98,6 @@ export function CustomerProfilePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Measure hero natural height once data is loaded so the scroll driver knows the full range.
-  useEffect(() => {
-    if (isDesktop || loading) return;
-    if (heroWrapperRef.current) {
-      heroNaturalHeightRef.current = heroWrapperRef.current.scrollHeight;
-    }
-  }, [isDesktop, loading]);
-
-  // Scroll-driven hero collapse: hero shrinks 1:1 with scroll position — no snap.
-  useEffect(() => {
-    if (isDesktop || loading) return;
-    const el = scrollContainerRef.current;
-    if (!el) return;
-
-    const onScroll = () => {
-      const heroH = heroNaturalHeightRef.current;
-      const wrapper = heroWrapperRef.current;
-      if (!heroH || !wrapper) return;
-      const scrolled = el.scrollTop;
-      if (scrolled <= 0) {
-        wrapper.style.height = '';
-        wrapper.style.opacity = '1';
-        return;
-      }
-      const progress = Math.min(1, scrolled / heroH);
-      wrapper.style.height = `${Math.round(heroH * (1 - progress))}px`;
-      wrapper.style.opacity = progress > 0.3 ? `${Math.max(0, 1 - (progress - 0.3) / 0.7).toFixed(3)}` : '1';
-    };
-
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [isDesktop, loading]);
 
   const sectionRefs = {
     contacts: useRef<HTMLDivElement>(null),
@@ -188,12 +154,12 @@ export function CustomerProfilePage() {
   function enterEditMode() {
     setEditMode(true);
     setVatValidated(false);
-    // Reset hero to full height and scroll to top
-    if (heroWrapperRef.current) {
-      heroWrapperRef.current.style.height = '';
-      heroWrapperRef.current.style.opacity = '1';
+    // Scroll to top — desktop uses inner container, mobile uses app-main
+    if (isDesktop && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    } else {
+      document.querySelector('.app-main')?.scrollTo(0, 0);
     }
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     window.scrollTo(0, 0);
     setLocalAddresses([...addresses]);
   }
@@ -395,7 +361,7 @@ export function CustomerProfilePage() {
   ];
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={isDesktop ? { display: 'flex', height: '100vh', overflow: 'hidden' } : {}}>
       {isDesktop && (
         <div style={{ width: '200px', flexShrink: 0, borderRight: '1px solid #f1f5f9', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 12px', gap: '12px', background: '#fff' }}>
           {/* Avatar con completeness ring */}
@@ -446,10 +412,10 @@ export function CustomerProfilePage() {
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={isDesktop ? { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' } : {}}>
 
         {/* ── Top bar ───────────────────────────────────────────────────────── */}
-        <div style={{ background: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        <div style={{ background: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0, ...(isDesktop ? {} : { position: 'sticky' as const, top: 0, zIndex: 10 }) }}>
           <button
             onClick={() => navigate('/customers')}
             style={{ border: 'none', background: 'none', fontSize: 13, color: '#2563eb', cursor: 'pointer', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, flexShrink: 0, padding: '2px 0' }}
@@ -482,12 +448,7 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        {!isDesktop && <div ref={heroWrapperRef} style={{
-          background: '#fff',
-          borderBottom: '1px solid #f1f5f9',
-          flexShrink: 0,
-          overflow: 'hidden',
-        }}>
+        {!isDesktop && <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px 0' }}>
             {/* Avatar con completeness ring */}
             <div style={{ position: 'relative', marginBottom: '12px' }}>
@@ -679,8 +640,8 @@ export function CustomerProfilePage() {
           </div>
         )}
 
-        {/* ── Area sezioni (scrollabile) ─────────────────────────────────── */}
-        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
+        {/* ── Area sezioni ─────────────────────────────────────────────────── */}
+        <div ref={scrollContainerRef} style={isDesktop ? { flex: 1, overflowY: 'auto' } : {}}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: (isDesktop || isTablet) ? '1fr 1fr' : '1fr',

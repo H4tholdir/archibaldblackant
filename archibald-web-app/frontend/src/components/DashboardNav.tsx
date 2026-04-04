@@ -26,8 +26,8 @@ export function DashboardNav() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // On mobile, customer profile has its own top bar — hide the global nav entirely.
-  if (isMobile && /^\/customers\/[^/]+/.test(location.pathname)) return null;
+  // On mobile at customer profile, nav is non-sticky so it scrolls away naturally.
+  const navIsScrollable = isMobile && /^\/customers\/[^/]+/.test(location.pathname);
 
   const handleLogout = async () => {
     await auth.logout();
@@ -161,7 +161,7 @@ export function DashboardNav() {
         style={{
           background: "#2c3e50",
           padding: "15px",
-          position: "sticky",
+          position: navIsScrollable ? "relative" : "sticky",
           top: 0,
           zIndex: 100,
           display: "flex",
