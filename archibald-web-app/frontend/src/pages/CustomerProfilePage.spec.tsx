@@ -34,6 +34,19 @@ vi.mock('../components/CustomerListSidebar', () => ({
 vi.mock('../components/PhotoCropModal', () => ({
   PhotoCropModal: () => <div data-testid="photo-crop-modal" />,
 }));
+vi.mock('../services/reminders.service', () => ({
+  listCustomerReminders: vi.fn().mockResolvedValue([]),
+  createReminder: vi.fn(),
+  patchReminder: vi.fn(),
+  deleteReminder: vi.fn(),
+  REMINDER_TYPE_LABELS: {},
+  REMINDER_TYPE_COLORS: {},
+  REMINDER_PRIORITY_COLORS: {},
+  REMINDER_PRIORITY_LABELS: {},
+  RECURRENCE_OPTIONS: [],
+  formatDueAt: vi.fn().mockReturnValue({ label: '', urgent: false }),
+  computeDueDateFromChip: vi.fn().mockReturnValue(new Date().toISOString()),
+}));
 
 const mockCustomer = {
   erpId: 'A001', name: 'Rossi Mario', vatNumber: '06104510653',
@@ -97,7 +110,7 @@ describe('CustomerProfilePage — ProfileHero', () => {
   test('pulsante 📷 apre l input file', async () => {
     renderProfile();
     await waitFor(() => screen.getAllByText('Rossi Mario'));
-    const photoBtn = screen.getByRole('button', { name: /📷/i });
+    const photoBtn = screen.getByRole('button', { name: /Cambia foto/i });
     expect(photoBtn).toBeInTheDocument();
   });
 
@@ -111,10 +124,13 @@ describe('CustomerProfilePage — ProfileHero', () => {
     await waitFor(() => screen.getByText('Chiama'));
   });
 
-  test('quick action WhatsApp è assente quando mobile è null', async () => {
+  test('quick action WhatsApp è disabilitata quando mobile è null', async () => {
     renderProfile(); // mockCustomer.mobile === null
     await waitFor(() => screen.getAllByText('Rossi Mario'));
-    expect(screen.queryByText('WhatsApp')).toBeNull();
+    const whatsappLabel = screen.getByText('WhatsApp');
+    const whatsappWrapper = whatsappLabel.closest('div');
+    const whatsappBtn = whatsappWrapper?.querySelector('button');
+    expect(whatsappBtn).toBeDisabled();
   });
 });
 
@@ -208,24 +224,23 @@ describe('CustomerProfilePage — Storico ordini', () => {
     return renderProfile();
   }
 
-  test('mostra ordini dell anno corrente per default', async () => {
+  test('mostra tutti gli ordini per default', async () => {
     renderProfileWithOrders();
     await waitFor(() => screen.getByText('N° 12345'));
-    expect(screen.queryByText('N° 12300')).toBeNull();
+    expect(screen.getByText('N° 12300')).toBeInTheDocument();
   });
 
-  test('chip "Anno scorso" mostra ordini anno precedente', async () => {
+  test('chip "Quest\'anno" mostra solo ordini anno corrente', async () => {
     renderProfileWithOrders();
-    await waitFor(() => screen.getByText('Anno scorso'));
-    fireEvent.click(screen.getByText('Anno scorso'));
-    await waitFor(() => expect(screen.getByText('N° 12300')).toBeInTheDocument());
-    expect(screen.queryByText('N° 12345')).toBeNull();
+    await waitFor(() => screen.getByText("Quest'anno"));
+    fireEvent.click(screen.getByText("Quest'anno"));
+    await waitFor(() => expect(screen.getByText('N° 12345')).toBeInTheDocument());
+    expect(screen.queryByText('N° 12300')).toBeNull();
   });
 
   test('chip "Tutto" mostra tutti gli ordini', async () => {
     renderProfileWithOrders();
     await waitFor(() => screen.getByText('Tutto'));
-    fireEvent.click(screen.getByText('Tutto'));
     await waitFor(() => {
       expect(screen.getByText('N° 12345')).toBeInTheDocument();
       expect(screen.getByText('N° 12300')).toBeInTheDocument();
@@ -252,9 +267,11 @@ describe('CustomerProfilePage — indirizzi alternativi', () => {
     const mod = await import('../services/customer-addresses');
     renderProfile();
     await waitFor(() => screen.getByText('Magazzino Nord'));
-    fireEvent.click(screen.getByRole('button', { name: /Elimina/i }));
+    // Elimina buttons are only visible in edit mode
+    fireEvent.click(getModifyButton());
+    fireEvent.click(screen.getByRole('button', { name: /Elimina Magazzino Nord/i }));
     // Inline confirm
-    fireEvent.click(screen.getByRole('button', { name: /Conferma/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Conferma eliminazione/i }));
     await waitFor(() => expect(vi.mocked(mod.deleteCustomerAddress)).toHaveBeenCalledWith('A001', 1));
   });
 });

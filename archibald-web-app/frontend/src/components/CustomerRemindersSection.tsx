@@ -23,7 +23,7 @@ export function CustomerRemindersSection({ customerProfile, openNewForm, onNewFo
   const [completionNote, setCompletionNote] = React.useState('');
 
   React.useEffect(() => {
-    listCustomerReminders(customerProfile, filter).then(setReminders);
+    listCustomerReminders(customerProfile, filter).then(setReminders).catch(() => {});
   }, [customerProfile, filter]);
 
   React.useEffect(() => {
