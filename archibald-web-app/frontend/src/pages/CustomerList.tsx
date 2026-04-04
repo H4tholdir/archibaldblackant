@@ -74,7 +74,7 @@ export function CustomerList() {
     setLoading(true);
     const params = new URLSearchParams();
     if (debouncedSearch) params.append('search', debouncedSearch);
-    params.append('limit', debouncedSearch ? '100' : '50');
+    params.append('limit', debouncedSearch ? '100' : '200');
     const res = await fetch(`/api/customers?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -111,7 +111,15 @@ export function CustomerList() {
     .map(id => customers.find(c => c.erpId === id))
     .filter((c): c is Customer => c !== undefined);
   const recentIds = new Set(recents);
-  const allCustomers = customers.filter(c => !recentIds.has(c.erpId));
+  const nonRecentCustomers = customers.filter(c => !recentIds.has(c.erpId));
+
+  // Smart groups — solo quando non c'è ricerca attiva
+  const groupDaContattare = nonRecentCustomers.filter(c => customerBadge(c) === 'inattivo' || !c.lastOrderDate);
+  const groupDaTenereDocchio = nonRecentCustomers.filter(c => {
+    if (!c.lastOrderDate || customerBadge(c) !== null) return false;
+    return true; // badge null = 90-180 giorni
+  });
+  const groupAttivi = nonRecentCustomers.filter(c => customerBadge(c) === 'attivo');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
@@ -153,19 +161,64 @@ export function CustomerList() {
           <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
         )}
 
-        {recentCustomers.length > 0 && !debouncedSearch && (
+        {!debouncedSearch ? (
           <>
-            <SectionLabel>Recenti</SectionLabel>
-            {recentCustomers.map(c => (
+            {recentCustomers.length > 0 && (
+              <>
+                <SectionLabel>Recenti</SectionLabel>
+                {recentCustomers.map(c => (
+                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                ))}
+              </>
+            )}
+
+            {groupDaContattare.length > 0 && (
+              <>
+                <SectionLabel icon="🔴" count={groupDaContattare.length} hint="Nessun ordine o ultimo ordine oltre 6 mesi fa">Da contattare</SectionLabel>
+                {groupDaContattare.map(c => (
+                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                ))}
+              </>
+            )}
+
+            {groupDaTenereDocchio.length > 0 && (
+              <>
+                <SectionLabel icon="🟡" count={groupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
+                {groupDaTenereDocchio.map(c => (
+                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                ))}
+              </>
+            )}
+
+            {groupAttivi.length > 0 && (
+              <>
+                <SectionLabel icon="🟢" count={groupAttivi.length} hint="Ultimo ordine negli ultimi 3 mesi">Attivi</SectionLabel>
+                {groupAttivi.map(c => (
+                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                ))}
+              </>
+            )}
+
+            {!loading && customers.length === 0 && (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                Nessun cliente trovato
+              </div>
+            )}
+
+            {!loading && customers.length > 0 && (
+              <div style={{ padding: '12px 16px', textAlign: 'center', color: '#cbd5e1', fontSize: 11 }}>
+                Cerca per trovare qualsiasi cliente
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <SectionLabel count={nonRecentCustomers.length}>Risultati</SectionLabel>
+            {nonRecentCustomers.map(c => (
               <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
             ))}
           </>
         )}
-
-        <SectionLabel>{debouncedSearch ? `Risultati (${allCustomers.length})` : 'Tutti (A–Z)'}</SectionLabel>
-        {allCustomers.map(c => (
-          <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-        ))}
       </div>
 
       {isCreationMinimized && createModalOpen && (
@@ -229,10 +282,14 @@ export function CustomerList() {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, icon, count, hint }: { children: React.ReactNode; icon?: string; count?: number; hint?: string }) {
   return (
-    <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-      {children}
+    <div style={{ padding: '10px 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }} title={hint}>
+      {icon && <span style={{ fontSize: 10 }}>{icon}</span>}
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{children}</span>
+      {count !== undefined && (
+        <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>({count})</span>
+      )}
     </div>
   );
 }
