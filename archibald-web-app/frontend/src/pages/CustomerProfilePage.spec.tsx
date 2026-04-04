@@ -164,7 +164,8 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
     renderProfile();
     await waitFor(() => getModifyButton());
     fireEvent.click(getModifyButton());
-    expect(screen.getByText(/Modalità modifica attiva/)).toBeInTheDocument();
+    // Il banner "Modalità modifica" è stato rimosso — verifichiamo che Salva e Annulla siano presenti
+    expect(screen.getByRole('button', { name: /Annulla/ })).toBeInTheDocument();
   });
 
   test('FAB appare dopo aver modificato un campo', async () => {
@@ -190,9 +191,8 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
     await waitFor(() => getModifyButton());
     fireEvent.click(getModifyButton());
     fireEvent.change(screen.getByDisplayValue('081 552 1234'), { target: { value: '099 999 9999' } });
-    fireEvent.click(screen.getByText('Annulla modifiche'));
+    fireEvent.click(screen.getByRole('button', { name: /✕ Annulla/ }));
     expect(screen.queryByText(/Salva/)).toBeNull();
-    expect(screen.queryByText(/Modalità modifica/)).toBeNull();
   });
 
   test('tap FAB chiama enqueueOperation una sola volta con tutti i campi', async () => {

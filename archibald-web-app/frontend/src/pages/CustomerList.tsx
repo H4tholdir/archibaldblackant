@@ -41,11 +41,13 @@ const BADGE_STYLE: Record<'attivo' | 'inattivo', React.CSSProperties> = {
   inattivo: { background: '#fef9c3', color: '#854d0e', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
 };
 
+const SEARCH_STORAGE_KEY = 'customers_search_v1';
+
 // ── Component ────────────────────────────────────────────────────────────────
 export function CustomerList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [myCustomers, setMyCustomers] = useState<Customer[]>([]);
   const [searchCustomers, setSearchCustomers] = useState<Customer[]>([]);
@@ -63,6 +65,9 @@ export function CustomerList() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Persist search in sessionStorage
+  useEffect(() => { sessionStorage.setItem(SEARCH_STORAGE_KEY, search); }, [search]);
 
   // Debounce search
   useEffect(() => {

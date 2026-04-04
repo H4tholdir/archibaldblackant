@@ -312,15 +312,15 @@ export function CustomerProfilePage() {
     );
   }
 
-  type QuickAction = { icon: string; label: string; bg: string; color: string; onClick: () => void; disabled?: boolean; badgeCount?: number };
+  type QuickAction = { icon: string; label: string; bg: string; onClick: () => void; disabled?: boolean; badgeCount?: number };
   const quickActions: QuickAction[] = [
-    { icon: '📋', label: 'Crea nuovo Ordine', bg: '#1d4ed8', color: '#bfdbfe', onClick: () => navigate(`/order?customerId=${customer.erpId}`) },
-    { icon: '📞', label: 'Chiama', bg: '#166534', color: '#86efac', disabled: !(customer.mobile ?? customer.phone), onClick: () => { const p = customer.mobile ?? customer.phone; if (p) window.open(`tel:${p}`); } },
-    { icon: '💬', label: 'WhatsApp', bg: '#15803d', color: '#bbf7d0', disabled: !customer.mobile, onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
-    { icon: '✉', label: 'Email', bg: '#7e22ce', color: '#d8b4fe', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
-    { icon: '📍', label: 'Indicazioni', bg: '#92400e', color: '#fde68a', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
-    { icon: '📊', label: 'Analisi e Storico', bg: '#1e3a5f', color: '#93c5fd', onClick: () => scrollToSection('storico') },
-    { icon: '🔔', label: 'Promemoria', bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b', color: '#fca5a5', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => { scrollToSection('reminders'); setIsNewReminderOpen(true); } },
+    { icon: '🗒️', label: 'Crea nuovo Ordine', bg: '#2563eb', onClick: () => navigate(`/order?customerId=${customer.erpId}`) },
+    { icon: '📞', label: 'Chiama', bg: '#16a34a', disabled: !(customer.mobile ?? customer.phone), onClick: () => { const p = customer.mobile ?? customer.phone; if (p) window.open(`tel:${p}`); } },
+    { icon: '💬', label: 'WhatsApp', bg: '#25D366', disabled: !customer.mobile, onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
+    { icon: '✉️', label: 'Email', bg: '#EA4335', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
+    { icon: '📍', label: 'Indicazioni', bg: '#4285F4', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
+    { icon: '📊', label: 'Analisi e Storico', bg: '#475569', onClick: () => scrollToSection('storico') },
+    { icon: '🔔', label: 'Promemoria', bg: activeRemindersCount > 0 ? '#ef4444' : '#f59e0b', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => { scrollToSection('reminders'); setIsNewReminderOpen(true); } },
   ];
 
   return (
@@ -330,6 +330,7 @@ export function CustomerProfilePage() {
           {/* Avatar con completeness ring */}
           <div style={{ position: 'relative' }}>
             <div
+              title={isComplete ? 'Profilo completo' : `Profilo incompleto — ${missingCount} ${missingCount === 1 ? 'campo mancante' : 'campi mancanti'}`}
               style={{ width: 160, height: 160, borderRadius: '50%', border: isComplete ? '3px solid #22c55e' : '3px dashed #f59e0b', overflow: 'hidden', background: photoUrl ? 'transparent' : avatarGradient(erpId), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}
               onClick={() => photoInputRef.current?.click()}
             >
@@ -340,42 +341,38 @@ export function CustomerProfilePage() {
               )}
             </div>
             {!isComplete && (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', color: 'white', borderRadius: '20px', padding: '2px 6px', fontSize: '10px', fontWeight: 700 }}>{missingCount}</div>
+              <div title={`${missingCount} ${missingCount === 1 ? 'campo obbligatorio mancante' : 'campi obbligatori mancanti'}: nome, P.IVA, PEC/SDI, indirizzo, CAP, città`} style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', color: 'white', borderRadius: '20px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, cursor: 'default' }}>{missingCount}</div>
             )}
             <button
               onClick={() => photoInputRef.current?.click()}
               aria-label="Cambia foto"
-              style={{ position: 'absolute', bottom: 4, right: 4, width: '28px', height: '28px', borderRadius: '50%', background: 'white', border: '2px solid #1e293b', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ position: 'absolute', bottom: 2, right: 2, width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >📷</button>
           </div>
-          <button
-            onClick={() => photoInputRef.current?.click()}
-            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '11px', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-          >Cambia foto</button>
           {/* Nome */}
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '176px' }}>{customer.name}</div>
           {/* Completeness bar */}
-          <div style={{ width: '100%' }}>
-            <div style={{ height: '4px', background: '#e2e8f0', borderRadius: '2px', marginBottom: '4px' }}>
-              <div style={{ height: '100%', width: `${completenessPercent}%`, background: isComplete ? '#22c55e' : '#f59e0b', borderRadius: '2px' }} />
+          <div style={{ width: '100%' }} title={`Completezza profilo: ${completenessPercent}% — ${isComplete ? 'tutti i campi compilati' : `mancano ${missingCount} ${missingCount === 1 ? 'campo' : 'campi'}`}`}>
+            <div style={{ height: '5px', background: '#e2e8f0', borderRadius: '3px', marginBottom: '4px' }}>
+              <div style={{ height: '100%', width: `${completenessPercent}%`, background: isComplete ? '#22c55e' : '#f59e0b', borderRadius: '3px' }} />
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
               Profilo {completenessPercent}%{!isComplete ? ` — ${missingCount} mancanti` : ''}
             </div>
           </div>
           {/* Vertical action buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
             {quickActions.map(({ icon, label, bg, onClick, disabled, badgeCount }) => (
               <button
                 key={label}
                 onClick={onClick}
                 disabled={!!disabled}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', background: disabled ? '#f1f5f9' : bg, color: disabled ? '#94a3b8' : 'white', border: 'none', borderRadius: '8px', padding: '7px 10px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1, fontSize: '12px', fontWeight: 600, position: 'relative' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', background: disabled ? '#f1f5f9' : bg, color: disabled ? '#94a3b8' : 'white', border: 'none', borderRadius: '10px', padding: '8px 11px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, fontSize: '12px', fontWeight: 600, position: 'relative' }}
               >
-                <span style={{ fontSize: '15px' }}>{icon}</span>
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>{icon}</span>
                 <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
                 {badgeCount !== undefined && badgeCount > 0 && (
-                  <span style={{ background: '#ef4444', color: 'white', borderRadius: '10px', padding: '1px 5px', fontSize: '9px', fontWeight: 800 }}>{badgeCount}</span>
+                  <span style={{ background: 'rgba(255,255,255,0.3)', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 800 }}>{badgeCount}</span>
                 )}
               </button>
             ))}
@@ -384,15 +381,6 @@ export function CustomerProfilePage() {
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* ── Edit mode banner ─────────────────────────────────────────────── */}
-        {editMode && (
-          <div style={{ background: '#fef3c7', borderBottom: '1px solid #fde68a', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600 }}>✎ Modalità modifica attiva — clicca qualsiasi campo per modificarlo</span>
-            <span style={{ flex: 1 }} />
-            <button onClick={exitEditMode} style={{ border: 'none', background: 'none', fontSize: 11, color: '#6b7280', cursor: 'pointer' }}>Annulla modifiche</button>
-          </div>
-        )}
 
         {/* ── Top bar ───────────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
@@ -582,28 +570,42 @@ export function CustomerProfilePage() {
         </div>}
 
         {/* ── VAT Track B banner ────────────────────────────────────────── */}
-        {editMode && !vatValidated && !customer.vatValidatedAt && (
-          <div style={{
-            background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: '8px',
-            padding: '10px 14px', margin: '0 16px 12px',
-            display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0,
-          }}>
-            <span style={{ color: '#92400e', fontWeight: 700, flex: 1, fontSize: '12px' }}>
-              ⚠ P.IVA non validata — Devi validarla prima di poter salvare.
-            </span>
-            {vatValidating ? (
-              <span style={{ fontSize: '12px', color: '#92400e' }}>Verifica in corso (~30s)...</span>
-            ) : (
-              <button
-                onClick={() => { void handleVatValidation(); }}
-                style={{
-                  background: '#fbbf24', border: 'none', borderRadius: '6px',
-                  padding: '4px 10px', fontWeight: 700, cursor: 'pointer', fontSize: '12px',
-                }}
-              >Valida ora →</button>
-            )}
-          </div>
-        )}
+        {editMode && !vatValidated && !customer.vatValidatedAt && (() => {
+          const effectiveVat = pendingEdits.vatNumber ?? customer.vatNumber ?? '';
+          if (!effectiveVat) {
+            return (
+              <div style={{
+                background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '8px',
+                padding: '10px 14px', margin: '0 16px 12px',
+                display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0,
+              }}>
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>⚠️</span>
+                <span style={{ color: '#9a3412', fontSize: '12px', lineHeight: '1.5' }}>
+                  <strong>P.IVA mancante.</strong> Inserisci il numero di Partita IVA nel campo <em>Dati Fiscali → P.IVA</em> qui sotto, poi premi <strong>Valida ora</strong> per sbloccare il salvataggio.
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div style={{
+              background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: '8px',
+              padding: '10px 14px', margin: '0 16px 12px',
+              display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0,
+            }}>
+              <span style={{ color: '#92400e', fontWeight: 700, flex: 1, fontSize: '12px' }}>
+                ⚠ P.IVA non ancora validata — premi Valida ora per sbloccare il salvataggio.
+              </span>
+              {vatValidating ? (
+                <span style={{ fontSize: '12px', color: '#92400e' }}>Verifica in corso (~30s)...</span>
+              ) : (
+                <button
+                  onClick={() => { void handleVatValidation(); }}
+                  style={{ background: '#f59e0b', border: 'none', borderRadius: '6px', padding: '5px 12px', fontWeight: 700, cursor: 'pointer', fontSize: '12px', color: 'white' }}
+                >Valida ora →</button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Progress bar ──────────────────────────────────────────────── */}
         {saving && (
@@ -694,7 +696,7 @@ export function CustomerProfilePage() {
                   </div>
                 </div>
               ) : (
-                <FieldRow label="P.IVA" value={pendingEdits.vatNumber ?? customer.vatNumber} fieldKey="vatNumber" isEditing={editMode} onChange={handleFieldChange} />
+                <FieldRow label="P.IVA" value={pendingEdits.vatNumber ?? customer.vatNumber} fieldKey="vatNumber" isEditing={editMode} onChange={handleFieldChange} highlight={editMode && !customer.vatValidatedAt && !(pendingEdits.vatNumber ?? customer.vatNumber)} />
               )}
               <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} fieldKey="pec" isEditing={editMode} onChange={handleFieldChange} />
               <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} fieldKey="sdi" isEditing={editMode && !customer.vatValidatedAt} onChange={(key, val) => handleFieldChange(key, val.toUpperCase())} />
@@ -1145,7 +1147,7 @@ function SectionCard({
 }
 
 
-function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, maxLength }: {
+function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, maxLength, highlight }: {
   label: string;
   value: string | null | undefined;
   fieldKey?: string;
@@ -1153,10 +1155,11 @@ function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, m
   onChange?: (key: string, val: string) => void;
   onInputFocus?: () => void;
   maxLength?: number;
+  highlight?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #e8eef4', gap: '8px' }}>
-      <span style={{ fontSize: '11px', color: '#94a3b8', flexShrink: 0, minWidth: '96px', letterSpacing: '0.1px' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', padding: highlight ? '5px 14px' : '5px 0', borderBottom: '1px solid #e8eef4', gap: '8px', background: highlight ? '#fff7ed' : undefined, margin: highlight ? '0 -14px' : undefined, borderRadius: highlight ? '4px' : undefined }}>
+      <span style={{ fontSize: '12px', color: highlight ? '#ea580c' : '#475569', flexShrink: 0, minWidth: '96px', fontWeight: highlight ? 700 : 500 }}>{label}</span>
       {isEditing && fieldKey && onChange ? (
         <div style={{ flex: 1, position: 'relative' }}>
           <input
@@ -1164,7 +1167,7 @@ function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, m
             onChange={(e) => onChange(fieldKey, e.target.value)}
             onFocus={onInputFocus}
             maxLength={maxLength}
-            style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: maxLength ? '4px 36px 4px 8px' : '4px 8px', fontSize: '13px', background: 'white', color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', border: highlight ? '2px solid #f97316' : '1px solid #bfdbfe', borderRadius: '6px', padding: maxLength ? '4px 36px 4px 8px' : '4px 8px', fontSize: '13px', background: highlight ? '#fff7ed' : 'white', color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
           />
           {maxLength && (
             <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: (value?.length ?? 0) >= maxLength ? '#ef4444' : '#94a3b8', pointerEvents: 'none' }}>
