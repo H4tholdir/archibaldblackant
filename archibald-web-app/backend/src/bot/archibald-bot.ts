@@ -13924,12 +13924,10 @@ export class ArchibaldBot {
       }
     }
 
-    // 2. Tab "Principale"
-    const mainTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T0T"]');
-    if (mainTabEl) {
-      await mainTabEl.click();
-      await this.waitForDevExpressIdle({ timeout: 5000, label: 'main-tab' });
-    }
+    // 2. Tab "Principale" — use openCustomerTab (text-based, language-aware) to ensure
+    // the main tab is active and its fields are rendered in the DOM before writing.
+    await this.openCustomerTab("Principale");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'main-tab' });
 
     // 2a. Lookup fields
     if (diff.paymentTerms !== undefined) {

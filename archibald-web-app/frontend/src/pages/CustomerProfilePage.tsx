@@ -372,11 +372,6 @@ export function CustomerProfilePage() {
             {!isComplete && (
               <div title={`${missingCount} ${missingCount === 1 ? 'campo obbligatorio mancante' : 'campi obbligatori mancanti'}: nome, P.IVA, PEC/SDI, indirizzo, CAP, città`} style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', color: 'white', borderRadius: '20px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, cursor: 'default' }}>{missingCount}</div>
             )}
-            <button
-              onClick={() => photoInputRef.current?.click()}
-              aria-label="Cambia foto"
-              style={{ position: 'absolute', bottom: 2, right: 2, width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >📷</button>
           </div>
           {/* Nome */}
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '176px' }}>{customer.name}</div>
@@ -479,17 +474,6 @@ export function CustomerProfilePage() {
                   {missingCount} mancanti
                 </div>
               )}
-              <button
-                onClick={() => photoInputRef.current?.click()}
-                aria-label="Cambia foto"
-                style={{
-                  position: 'absolute', bottom: 4, right: 4,
-                  width: '32px', height: '32px', borderRadius: '50%',
-                  background: 'white', border: '2px solid #1e293b',
-                  cursor: 'pointer', fontSize: '14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >📷</button>
             </div>
 
             {/* Nome + bell reminder */}

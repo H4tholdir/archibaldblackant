@@ -105,13 +105,12 @@ describe('CustomerProfilePage — ProfileHero', () => {
     await waitFor(() => screen.getByText('RM')); // iniziali Rossi Mario
   });
 
-  test('pulsante 📷 apre l input file', async () => {
-    // Force mobile viewport so the hero section (containing the photo button) is rendered
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
+  test('input file per cambio foto è presente nel DOM', async () => {
     renderProfile();
     await waitFor(() => screen.getAllByText('Rossi Mario'));
-    const photoBtn = screen.getByRole('button', { name: /Cambia foto/i });
-    expect(photoBtn).toBeInTheDocument();
+    // L'avatar è cliccabile direttamente — non c'è più il pulsante 📷
+    const fileInput = document.querySelector('input[type="file"][accept*="image"]');
+    expect(fileInput).toBeInTheDocument();
   });
 
   test('quick action Crea nuovo Ordine è presente', async () => {
