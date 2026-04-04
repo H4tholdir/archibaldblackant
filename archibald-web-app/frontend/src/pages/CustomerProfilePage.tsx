@@ -14,6 +14,7 @@ import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 import { toastService } from '../services/toast.service';
 import { useOperationTracking } from '../contexts/OperationTrackingContext';
+import { CustomerRemindersSection } from '../components/CustomerRemindersSection';
 
 type PendingEdits = {
   name?: string;
@@ -728,9 +729,11 @@ export function CustomerProfilePage() {
             {/* 10. Promemoria — full width */}
             <div ref={sectionRefs.reminders} id="reminders-section" style={{ gridColumn: isTablet ? '1 / -1' : 'auto' }}>
               <SectionCard title="Promemoria" isEditMode={false}>
-                <div style={{ color: '#94a3b8', fontSize: '13px' }}>
-                  Sezione promemoria (sarà implementata in Task 14)
-                </div>
+                <CustomerRemindersSection
+                  customerProfile={customer.erpId}
+                  openNewForm={_isNewReminderOpen}
+                  onNewFormClose={() => setIsNewReminderOpen(false)}
+                />
               </SectionCard>
             </div>
 
