@@ -35,6 +35,7 @@ type PendingEdits = {
   lineDiscount?: string;
   sector?: string;
   notes?: string;
+  agentNotes?: string;
   addresses?: AddressEntry[];
 };
 
@@ -292,8 +293,8 @@ export function CustomerProfilePage() {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => { void handleSave(); }}
-                disabled={saving}
-                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 12 }}
+                disabled={saving || (!customer.vatValidatedAt && !vatValidated)}
+                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: (saving || (!customer.vatValidatedAt && !vatValidated)) ? 'default' : 'pointer', opacity: (saving || (!customer.vatValidatedAt && !vatValidated)) ? 0.7 : 1, fontSize: 12 }}
               >
                 💾 Salva
               </button>
@@ -615,9 +616,18 @@ export function CustomerProfilePage() {
 
             {/* 7. Note interne agente */}
             <SectionCard refProp={sectionRefs.agentNotes} title="Note interne" isEditMode={editMode}>
-              <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
-                {customer.agentNotes || <span style={{ color: '#94a3b8' }}>Nessuna nota interna</span>}
-              </div>
+              {editMode ? (
+                <textarea
+                  value={pendingEdits.agentNotes ?? customer.agentNotes ?? ''}
+                  onChange={(e) => handleFieldChange('agentNotes', e.target.value)}
+                  rows={4}
+                  style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '6px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              ) : (
+                <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                  {(pendingEdits.agentNotes ?? customer.agentNotes) || <span style={{ color: '#94a3b8' }}>Nessuna nota interna</span>}
+                </div>
+              )}
             </SectionCard>
 
             {/* 8. Indirizzi alternativi */}
@@ -743,7 +753,7 @@ export function CustomerProfilePage() {
         {/* Save FAB */}
         {editMode && pendingCount > 0 && (
           <button
-            disabled={saving}
+            disabled={saving || (!customer.vatValidatedAt && !vatValidated)}
             onClick={() => { void handleSave(); }}
             style={{
               position: 'fixed',

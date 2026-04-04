@@ -57,6 +57,7 @@ const mockCustomer = {
   deliveryTerms: 'Standard', sector: 'Florovivaismo',
   lineDiscount: 'N/A', paymentTerms: '30gg DFFM', notes: null,
   lastOrderDate: '2025-10-15', createdAt: Date.now(),
+  vatValidatedAt: '2026-01-01T00:00:00Z',
 };
 
 function renderProfile(erpId = 'A001') {
