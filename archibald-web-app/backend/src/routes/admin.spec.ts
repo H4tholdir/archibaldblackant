@@ -493,4 +493,87 @@ describe('createAdminRouter', () => {
       expect(res.body.success).toBe(false);
     });
   });
+
+  describe('POST /api/admin/customers/:id/gdpr-erase', () => {
+    const customerId = 'cust-profile-1';
+    const validReason = 'Richiesta cancellazione GDPR da parte del cliente';
+
+    function makeGdprPool(activeOrderCount: string) {
+      return {
+        query: vi.fn().mockResolvedValue({ rows: [{ count: activeOrderCount }] }),
+        withTransaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) =>
+          fn({ query: vi.fn().mockResolvedValue({ rows: [] }) }),
+        ),
+      } as unknown as AdminRouterDeps['pool'];
+    }
+
+    test('returns 400 when reason is missing', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when reason is too short', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: 'short' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 409 when customer has active orders', async () => {
+      deps.pool = makeGdprPool('2');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
+    });
+
+    test('returns 200 with erasure summary when no active orders', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          customerId,
+          erasedAt: expect.any(String),
+          fieldsErased: expect.arrayContaining(['name', 'email', 'fiscal_code']),
+          retainedFor: 'fiscal_obligation_10y',
+          reason: validReason,
+        },
+      });
+    });
+
+    test('calls withTransaction to erase personal data', async () => {
+      const pool = makeGdprPool('0');
+      deps.pool = pool;
+      app = createApp(deps);
+
+      await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(pool.withTransaction).toHaveBeenCalledOnce();
+    });
+  });
 });
