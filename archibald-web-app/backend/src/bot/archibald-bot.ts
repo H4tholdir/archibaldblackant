@@ -13880,19 +13880,46 @@ export class ArchibaldBot {
 
   async navigateToEditCustomerById(erpId: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    const cleanId = erpId.replace(/,/g, '');
-    logger.info("navigateToEditCustomerById: navigating directly to edit mode", { erpId: cleanId });
+    // Remove dots (ERP format) and commas for clean numeric ID
+    const cleanId = erpId.replace(/[.,]/g, '');
+    logger.info("navigateToEditCustomerById: navigating to view mode first", { erpId: cleanId });
 
+    // Navigate to VIEW mode first — XAF renders all ComboBoxes (including BUSINESSSECTORID)
+    // only through the normal UI flow. Going directly to ?mode=Edit skips initialization.
     await this.page.goto(
-      `${config.archibald.url}/CUSTTABLE_DetailView/${cleanId}/?mode=Edit`,
-      { waitUntil: "networkidle2", timeout: 60000 },
+      `${config.archibald.url}/CUSTTABLE_DetailView/${cleanId}/`,
+      { waitUntil: "domcontentloaded", timeout: 30000 },
     );
 
     if (this.page.url().includes("Login.aspx")) {
       throw new Error("Sessione scaduta: reindirizzato al login");
     }
 
-    await this.waitForDevExpressIdle({ timeout: 15000, label: 'navigate-edit-customer' });
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    // Click "Modifica" / "Edit" button to enter edit mode (same as buildCustomerSnapshot)
+    const editClicked = await this.page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll("a, button"))
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .find(
+          (el) =>
+            /modif|edit/i.test((el as HTMLElement).title ?? "") ||
+            /modif|edit/i.test(el.textContent?.trim() ?? ""),
+        );
+      if (btn) { (btn as HTMLElement).click(); return true; }
+      return false;
+    });
+
+    if (!editClicked) {
+      throw new Error(`navigateToEditCustomerById: pulsante Modifica non trovato per erpId=${cleanId}`);
+    }
+
+    await this.page.waitForFunction(
+      () => window.location.href.includes("mode=Edit"),
+      { timeout: 8000, polling: 300 },
+    ).catch(() => {});
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
     logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
   }
 
