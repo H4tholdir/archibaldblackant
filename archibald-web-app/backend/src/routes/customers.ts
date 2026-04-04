@@ -315,8 +315,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       if (!deps.updateAgentNotes) {
         return res.status(503).json({ error: 'Agent notes not available' });
       }
-      const body = req.body as { notes?: string | null };
-      await deps.updateAgentNotes(userId, erpId, body.notes ?? null);
+      const body = req.body as { agentNotes?: string; notes?: string | null };
+      const notesValue = body.agentNotes !== undefined ? body.agentNotes : (body.notes ?? null);
+      await deps.updateAgentNotes(userId, erpId, notesValue);
       res.json({ success: true });
     } catch (err) {
       logger.error('PATCH /customers/:erpId/agent-notes error', { error: String(err) });

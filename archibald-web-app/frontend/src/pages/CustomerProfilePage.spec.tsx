@@ -114,9 +114,9 @@ describe('CustomerProfilePage — ProfileHero', () => {
     expect(photoBtn).toBeInTheDocument();
   });
 
-  test('quick action Ordine è presente', async () => {
+  test('quick action Crea nuovo Ordine è presente', async () => {
     renderProfile();
-    await waitFor(() => screen.getByText('Ordine'));
+    await waitFor(() => screen.getByText('Crea nuovo Ordine'));
   });
 
   test('quick action Chiama è presente', async () => {

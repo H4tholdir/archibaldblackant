@@ -26,6 +26,7 @@ type OrderArticleRow = {
   vat_percent: number | null;
   line_total_with_vat: number | null;
   line_amount: number | null;
+  raw_order_total: string | null;
 };
 
 type FresisHistoryRow = {
@@ -48,8 +49,17 @@ type HistoryParams = {
   subClientCodices?: string[];
 };
 
+function parseItalianAmount(raw: string | null): number {
+  if (!raw) return 0;
+  const cleaned = raw.replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+type OrderAccumulator = FullHistoryOrder & { rawOrderTotal: string | null };
+
 function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
-  const ordersMap = new Map<string, FullHistoryOrder>();
+  const ordersMap = new Map<string, OrderAccumulator>();
 
   for (const row of rows) {
     if (!ordersMap.has(row.order_id)) {
@@ -64,6 +74,7 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
         customerCity: row.customer_city ?? undefined,
         customerRagioneSociale: row.customer_rag_sociale ?? undefined,
         articles: [],
+        rawOrderTotal: row.raw_order_total,
       });
     }
     const order = ordersMap.get(row.order_id)!;
@@ -82,7 +93,14 @@ function mapOrderArticleRows(rows: OrderArticleRow[]): FullHistoryOrder[] {
     order.totalAmount = Math.round((order.totalAmount + lineTotalWithVat) * 100) / 100;
   }
 
-  return Array.from(ordersMap.values());
+  return Array.from(ordersMap.values()).map((order) => {
+    if (order.totalAmount === 0) {
+      const fallback = parseItalianAmount(order.rawOrderTotal);
+      if (fallback > 0) order.totalAmount = fallback;
+    }
+    const { rawOrderTotal: _rawOrderTotal, ...rest } = order;
+    return rest;
+  });
 }
 
 function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
@@ -178,7 +196,8 @@ async function getCustomerFullHistory(
              a.discount_percent,
              a.vat_percent,
              a.line_total_with_vat,
-             a.line_amount
+             a.line_amount,
+             o.total_amount AS raw_order_total
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
            LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num

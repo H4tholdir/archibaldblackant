@@ -50,6 +50,7 @@ import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
+import { createCapLookupRouter } from './routes/cap-lookup';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
@@ -890,6 +891,8 @@ function createApp(deps: AppDeps): Express {
       getCustomerFullHistory: (userId, params) => getCustomerFullHistory(pool, userId, params),
     }),
   );
+
+  app.use('/api/cap-lookup', authenticate, createCapLookupRouter(pool));
 
   app.use('/api/sub-client-matches', authenticate, createSubClientMatchesRouter({
     getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, userId, codice),
