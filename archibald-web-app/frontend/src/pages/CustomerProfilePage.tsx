@@ -250,7 +250,7 @@ export function CustomerProfilePage() {
             <div style={{ position: 'relative', marginBottom: '12px' }}>
               <div
                 style={{
-                  width: 180, height: 180, borderRadius: '50%',
+                  width: isMobile ? 180 : 160, height: isMobile ? 180 : 160, borderRadius: '50%',
                   border: isComplete ? '3px solid #22c55e' : '3px dashed #f59e0b',
                   overflow: 'hidden',
                   background: photoUrl ? 'transparent' : avatarGradient(erpId),
@@ -263,7 +263,7 @@ export function CustomerProfilePage() {
                 {photoUrl ? (
                   <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <span style={{ fontSize: '64px', fontWeight: 800, color: 'white' }}>
+                  <span style={{ fontSize: isMobile ? '64px' : '56px', fontWeight: 800, color: 'white' }}>
                     {customerInitials(customer.name)}
                   </span>
                 )}
