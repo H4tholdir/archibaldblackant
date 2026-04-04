@@ -24,7 +24,7 @@ describe('exportCustomerData', () => {
       .mockResolvedValueOnce({ rows: [mockArticle] })
       .mockResolvedValueOnce({ rows: [mockSubClient] });
 
-    const pool = { query } as unknown as Parameters<typeof exportCustomerData>[0];
+    const pool = { query, withTransaction: vi.fn(), end: vi.fn(), getStats: vi.fn() } as unknown as DbPool;
 
     const result = await exportCustomerData(pool, 'cp-1');
 
