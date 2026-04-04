@@ -18,8 +18,6 @@ vi.mock('../api/customer-full-history', () => ({
 }));
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn().mockResolvedValue([]),
-  addCustomerAddress: vi.fn(),
-  deleteCustomerAddress: vi.fn(),
 }));
 vi.mock('../api/operations', () => ({
   enqueueOperation: vi.fn().mockResolvedValue({ jobId: 'j1' }),
@@ -28,11 +26,21 @@ vi.mock('../api/operations', () => ({
 vi.mock('../contexts/OperationTrackingContext', () => ({
   useOperationTracking: () => ({ trackOperation: vi.fn() }),
 }));
-vi.mock('../components/CustomerListSidebar', () => ({
-  CustomerListSidebar: () => <div data-testid="sidebar" />,
-}));
 vi.mock('../components/PhotoCropModal', () => ({
   PhotoCropModal: () => <div data-testid="photo-crop-modal" />,
+}));
+vi.mock('../services/reminders.service', () => ({
+  listCustomerReminders: vi.fn().mockResolvedValue([]),
+  createReminder: vi.fn(),
+  patchReminder: vi.fn(),
+  deleteReminder: vi.fn(),
+  REMINDER_TYPE_LABELS: {},
+  REMINDER_TYPE_COLORS: {},
+  REMINDER_PRIORITY_COLORS: {},
+  REMINDER_PRIORITY_LABELS: {},
+  RECURRENCE_OPTIONS: [],
+  formatDueAt: vi.fn().mockReturnValue({ label: '', urgent: false }),
+  computeDueDateFromChip: vi.fn().mockReturnValue(new Date().toISOString()),
 }));
 
 const mockCustomer = {
@@ -44,6 +52,7 @@ const mockCustomer = {
   deliveryTerms: 'Standard', sector: 'Florovivaismo',
   lineDiscount: 'N/A', paymentTerms: '30gg DFFM', notes: null,
   lastOrderDate: '2025-10-15', createdAt: Date.now(),
+  vatValidatedAt: '2026-01-01T00:00:00Z',
 };
 
 function renderProfile(erpId = 'A001') {
@@ -90,14 +99,18 @@ describe('CustomerProfilePage — shell', () => {
 
 describe('CustomerProfilePage — ProfileHero', () => {
   test('mostra le iniziali dell avatar quando non c è foto', async () => {
+    // Force mobile viewport so the hero is visible
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile();
     await waitFor(() => screen.getByText('RM')); // iniziali Rossi Mario
   });
 
   test('pulsante 📷 apre l input file', async () => {
+    // Force mobile viewport so the hero section (containing the photo button) is rendered
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile();
     await waitFor(() => screen.getAllByText('Rossi Mario'));
-    const photoBtn = screen.getByRole('button', { name: /📷/i });
+    const photoBtn = screen.getByRole('button', { name: /Cambia foto/i });
     expect(photoBtn).toBeInTheDocument();
   });
 
@@ -111,10 +124,15 @@ describe('CustomerProfilePage — ProfileHero', () => {
     await waitFor(() => screen.getByText('Chiama'));
   });
 
-  test('quick action WhatsApp è assente quando mobile è null', async () => {
+  test('quick action WhatsApp è disabilitata quando mobile è null', async () => {
+    // Force mobile viewport so the hero is visible (buttons have icon + label in separate elements)
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile(); // mockCustomer.mobile === null
     await waitFor(() => screen.getAllByText('Rossi Mario'));
-    expect(screen.queryByText('WhatsApp')).toBeNull();
+    const whatsappLabel = screen.getByText('WhatsApp');
+    const whatsappWrapper = whatsappLabel.closest('div');
+    const whatsappBtn = whatsappWrapper?.querySelector('button');
+    expect(whatsappBtn).toBeDisabled();
   });
 });
 
@@ -208,24 +226,23 @@ describe('CustomerProfilePage — Storico ordini', () => {
     return renderProfile();
   }
 
-  test('mostra ordini dell anno corrente per default', async () => {
+  test('mostra tutti gli ordini per default', async () => {
     renderProfileWithOrders();
     await waitFor(() => screen.getByText('N° 12345'));
-    expect(screen.queryByText('N° 12300')).toBeNull();
+    expect(screen.getByText('N° 12300')).toBeInTheDocument();
   });
 
-  test('chip "Anno scorso" mostra ordini anno precedente', async () => {
+  test('chip "Quest\'anno" mostra solo ordini anno corrente', async () => {
     renderProfileWithOrders();
-    await waitFor(() => screen.getByText('Anno scorso'));
-    fireEvent.click(screen.getByText('Anno scorso'));
-    await waitFor(() => expect(screen.getByText('N° 12300')).toBeInTheDocument());
-    expect(screen.queryByText('N° 12345')).toBeNull();
+    await waitFor(() => screen.getByText("Quest'anno"));
+    fireEvent.click(screen.getByText("Quest'anno"));
+    await waitFor(() => expect(screen.getByText('N° 12345')).toBeInTheDocument());
+    expect(screen.queryByText('N° 12300')).toBeNull();
   });
 
   test('chip "Tutto" mostra tutti gli ordini', async () => {
     renderProfileWithOrders();
     await waitFor(() => screen.getByText('Tutto'));
-    fireEvent.click(screen.getByText('Tutto'));
     await waitFor(() => {
       expect(screen.getByText('N° 12345')).toBeInTheDocument();
       expect(screen.getByText('N° 12300')).toBeInTheDocument();
@@ -248,13 +265,14 @@ describe('CustomerProfilePage — indirizzi alternativi', () => {
     await waitFor(() => screen.getByText('Magazzino Nord'));
   });
 
-  test('pulsante elimina chiama deleteCustomerAddress dopo conferma', async () => {
-    const mod = await import('../services/customer-addresses');
+  test('pulsante elimina rimuove l indirizzo dalla lista dopo conferma', async () => {
     renderProfile();
     await waitFor(() => screen.getByText('Magazzino Nord'));
-    fireEvent.click(screen.getByRole('button', { name: /Elimina/i }));
+    // Elimina buttons are only visible in edit mode
+    fireEvent.click(getModifyButton());
+    fireEvent.click(screen.getByRole('button', { name: /Elimina Magazzino Nord/i }));
     // Inline confirm
-    fireEvent.click(screen.getByRole('button', { name: /Conferma/i }));
-    await waitFor(() => expect(vi.mocked(mod.deleteCustomerAddress)).toHaveBeenCalledWith('A001', 1));
+    fireEvent.click(screen.getByRole('button', { name: /Conferma eliminazione/i }));
+    await waitFor(() => expect(screen.queryByText('Magazzino Nord')).toBeNull());
   });
 });

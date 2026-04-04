@@ -42,6 +42,8 @@ import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
 import { createNotificationsRouter } from './routes/notifications';
 import * as notificationsRepo from './db/repositories/notifications';
+import { createRemindersRouter } from './routes/reminders';
+import { createCustomerRemindersRouter } from './routes/customer-reminders';
 import { createTrackingRouter } from './routes/tracking';
 import { createBonusesRouter } from './routes/bonuses';
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
@@ -336,6 +338,9 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
+  app.use('/api/customers/:customerProfile/reminders', authenticate,
+    createCustomerRemindersRouter({ pool }));
+  app.use('/api/reminders', authenticate, createRemindersRouter({ pool }));
 
   app.use('/api/customers', authenticate, createCustomersRouter({
     queue,

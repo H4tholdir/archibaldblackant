@@ -10,7 +10,7 @@ import { config } from "../config";
 import { logger } from "../logger";
 import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
-import type { OrderData, AddressEntry } from "../types";
+import type { OrderData, AddressEntry, CustomerDiff, CustomerSnapshot } from "../types";
 import type { AltAddress, CustomerAddress } from '../db/repositories/customer-addresses';
 import type { SubmitOrderData, OrderHeaderData } from '../operations/handlers/submit-order';
 import {
@@ -13876,6 +13876,203 @@ export class ArchibaldBot {
 
     await this.waitForDevExpressReady({ timeout: 10000 });
     logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
+  }
+
+  async navigateToEditCustomerById(erpId: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    const cleanId = erpId.replace(/,/g, '');
+    logger.info("navigateToEditCustomerById: navigating directly to edit mode", { erpId: cleanId });
+
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_DetailView/${cleanId}/?mode=Edit`,
+      { waitUntil: "networkidle2", timeout: 60000 },
+    );
+
+    if (this.page.url().includes("Login.aspx")) {
+      throw new Error("Sessione scaduta: reindirizzato al login");
+    }
+
+    await this.waitForDevExpressIdle({ timeout: 15000, label: 'navigate-edit-customer' });
+    logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
+  }
+
+  async updateCustomerSurgical(
+    diff: CustomerDiff,
+    addresses?: AddressEntry[],
+  ): Promise<NonNullable<CustomerSnapshot>> {
+    if (!this.page) throw new Error("Browser page is null");
+    logger.info("updateCustomerSurgical: start", { diffKeys: Object.keys(diff) });
+
+    // 1. Tab "Prezzi e sconti" (se necessario)
+    if (diff.lineDiscount !== undefined || diff.priceGroup !== undefined) {
+      const pricesTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T1T"]');
+      if (pricesTabEl) {
+        await pricesTabEl.click();
+        await this.waitForDevExpressIdle({ timeout: 5000, label: 'prices-tab' });
+      }
+      if (diff.lineDiscount !== undefined) {
+        await this.setDevExpressComboBox(
+          /xaf_dviSALESLINEDISCGROUP_Edit_dropdown_DD_I$/,
+          diff.lineDiscount,
+        );
+      }
+      if (diff.priceGroup !== undefined) {
+        await this.setDevExpressComboBox(
+          /xaf_dviPRICEGROUP_Edit_dropdown_DD_I$/,
+          diff.priceGroup,
+        );
+      }
+    }
+
+    // 2. Tab "Principale"
+    const mainTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T0T"]');
+    if (mainTabEl) {
+      await mainTabEl.click();
+      await this.waitForDevExpressIdle({ timeout: 5000, label: 'main-tab' });
+    }
+
+    // 2a. Lookup fields
+    if (diff.paymentTerms !== undefined) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
+        diff.paymentTerms,
+      );
+    }
+    if (diff.postalCode !== undefined) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+        diff.postalCode,
+        diff.postalCodeCity,
+      );
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'postalcode-autofill' });
+    }
+
+    // 2b. Combo fields
+    if (diff.deliveryMode !== undefined) {
+      await this.setDevExpressComboBox(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        diff.deliveryMode,
+      );
+    }
+    if (diff.sector !== undefined) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        diff.sector,
+      );
+    }
+
+    // 2c. Testo — ordine fisso
+    if (diff.name !== undefined) {
+      await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, diff.name);
+      await this.typeDevExpressField(/SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/, diff.name);
+      await this.waitForDevExpressIdle({ timeout: 3000, label: 'name-written' });
+    }
+
+    // BUG 2 FIX: FISCALCODE callback sovrascrive NAMEALIAS — waitIdle poi re-write NAMEALIAS
+    if (diff.fiscalCode !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviFISCALCODE_Edit_I$/, value: diff.fiscalCode },
+      ]);
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'fiscalcode-callback' });
+      if (diff.nameAlias !== undefined) {
+        await this.typeDevExpressField(
+          /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+          diff.nameAlias,
+        );
+      }
+    } else if (diff.nameAlias !== undefined) {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        diff.nameAlias,
+      );
+    }
+
+    if (diff.pec !== undefined) {
+      await this.typeDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, diff.pec);
+    }
+
+    // BUG 3 FIX: SDI usa injectFieldsViaNativeSetter
+    if (diff.sdi !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: diff.sdi },
+      ]);
+    }
+
+    if (diff.street !== undefined) {
+      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+    }
+    if (diff.phone !== undefined) {
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
+    }
+    if (diff.mobile !== undefined) {
+      await this.typeDevExpressField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
+    }
+    if (diff.email !== undefined) {
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, diff.email);
+    }
+    if (diff.url !== undefined) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, diff.url);
+    }
+    if (diff.attentionTo !== undefined) {
+      await this.typeDevExpressField(/xaf_dviBRASCRMATTENTIONTO_Edit_I$/, diff.attentionTo);
+    }
+
+    // BUG 4 FIX: NOTES usa textarea selector
+    if (diff.notes !== undefined) {
+      const notesEl = await this.page.$('textarea[id*="xaf_dviCUSTINFO"]');
+      if (notesEl) {
+        await notesEl.click({ clickCount: 3 });
+        await this.page.keyboard.down('Control');
+        await this.page.keyboard.press('KeyA');
+        await this.page.keyboard.up('Control');
+        await this.page.keyboard.press('Delete');
+        await this.page.keyboard.type(diff.notes, { delay: 10 });
+      }
+    }
+
+    // 3. Re-write campi vulnerabili a race condition
+    if (diff.fiscalCode !== undefined && diff.street !== undefined) {
+      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+    }
+    const finalNameAlias = diff.nameAlias ?? diff.name;
+    if (finalNameAlias !== undefined) {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        finalNameAlias,
+      );
+    }
+
+    // 4. BUG 1 FIX: VATNUM scritto SOLO se nel diff (Track B)
+    if (diff.vatNumber !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviVATNUM_Edit_I$/, value: diff.vatNumber },
+      ]);
+      await this.waitForDevExpressIdle({ timeout: 30000, label: 'vatnum-callback' });
+    }
+
+    // 5. Indirizzi alternativi (solo se forniti)
+    if (addresses !== undefined) {
+      await this.writeAltAddresses(addresses);
+    }
+
+    // 6. Save
+    await this.saveAndCloseCustomer();
+
+    // 7. Snapshot — ricava erpId dall'URL corrente dopo save
+    const currentUrl = this.page.url();
+    const urlParts = currentUrl.split('/').filter(Boolean);
+    // URL pattern: .../CUSTTABLE_DetailView/{erpId}/?mode=...
+    const detailViewIdx = urlParts.findIndex((p) => p.includes('CUSTTABLE_DetailView'));
+    const erpId = detailViewIdx >= 0 ? urlParts[detailViewIdx + 1]?.replace(/,/g, '') ?? '' : '';
+
+    logger.info("updateCustomerSurgical: reading snapshot", { erpId });
+    const snapshot = await this.buildCustomerSnapshot(erpId || currentUrl);
+    logger.info("updateCustomerSurgical: completed", { erpId });
+
+    if (snapshot === null) {
+      throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${erpId}`);
+    }
+    return snapshot;
   }
 
   async readEditFormFieldValues(): Promise<Record<string, string>> {
