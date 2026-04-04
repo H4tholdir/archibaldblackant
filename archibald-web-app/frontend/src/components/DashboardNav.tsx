@@ -26,6 +26,9 @@ export function DashboardNav() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // On mobile, customer profile has its own top bar — hide the global nav entirely.
+  if (isMobile && /^\/customers\/[^/]+/.test(location.pathname)) return null;
+
   const handleLogout = async () => {
     await auth.logout();
     setIsMenuOpen(false);

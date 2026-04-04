@@ -75,8 +75,8 @@ export function CustomerProfilePage() {
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  const heroWrapperRef = useRef<HTMLDivElement>(null);
+  const heroNaturalHeightRef = useRef(0);
   const [activeRemindersCount] = useState(0);
   const [_isNewReminderOpen, setIsNewReminderOpen] = useState(false);
   const urgentRemindersText: string | null = null;
@@ -100,24 +100,37 @@ export function CustomerProfilePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Collapsing hero on scroll (mobile/tablet only).
-  // Re-runs when loading completes so scrollContainerRef.current is populated.
+  // Measure hero natural height once data is loaded so the scroll driver knows the full range.
   useEffect(() => {
     if (isDesktop || loading) return;
-    const THRESHOLD = 60;
+    if (heroWrapperRef.current) {
+      heroNaturalHeightRef.current = heroWrapperRef.current.scrollHeight;
+    }
+  }, [isDesktop, loading]);
+
+  // Scroll-driven hero collapse: hero shrinks 1:1 with scroll position — no snap.
+  useEffect(() => {
+    if (isDesktop || loading) return;
     const el = scrollContainerRef.current;
+    if (!el) return;
 
-    const check = () => {
-      const inner = el?.scrollTop ?? 0;
-      setHeroCollapsed(inner > THRESHOLD || window.scrollY > THRESHOLD);
+    const onScroll = () => {
+      const heroH = heroNaturalHeightRef.current;
+      const wrapper = heroWrapperRef.current;
+      if (!heroH || !wrapper) return;
+      const scrolled = el.scrollTop;
+      if (scrolled <= 0) {
+        wrapper.style.height = '';
+        wrapper.style.opacity = '1';
+        return;
+      }
+      const progress = Math.min(1, scrolled / heroH);
+      wrapper.style.height = `${Math.round(heroH * (1 - progress))}px`;
+      wrapper.style.opacity = progress > 0.3 ? `${Math.max(0, 1 - (progress - 0.3) / 0.7).toFixed(3)}` : '1';
     };
 
-    el?.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('scroll', check, { passive: true });
-    return () => {
-      el?.removeEventListener('scroll', check);
-      window.removeEventListener('scroll', check);
-    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
   }, [isDesktop, loading]);
 
   const sectionRefs = {
@@ -175,8 +188,11 @@ export function CustomerProfilePage() {
   function enterEditMode() {
     setEditMode(true);
     setVatValidated(false);
-    setHeroCollapsed(false);
-    // Riporta il contenuto in cima così i banner VAT/completezza sono visibili
+    // Reset hero to full height and scroll to top
+    if (heroWrapperRef.current) {
+      heroWrapperRef.current.style.height = '';
+      heroWrapperRef.current.style.opacity = '1';
+    }
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     window.scrollTo(0, 0);
     setLocalAddresses([...addresses]);
@@ -466,13 +482,11 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        {!isDesktop && <div style={{
+        {!isDesktop && <div ref={heroWrapperRef} style={{
           background: '#fff',
-          borderBottom: heroCollapsed ? 'none' : '1px solid #f1f5f9',
+          borderBottom: '1px solid #f1f5f9',
           flexShrink: 0,
           overflow: 'hidden',
-          maxHeight: heroCollapsed ? '0px' : '1000px',
-          transition: 'max-height 0.35s ease, border-bottom 0.2s ease',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px 0' }}>
             {/* Avatar con completeness ring */}
