@@ -101,10 +101,9 @@ export function CustomerProfilePage() {
   }, []);
 
   // Collapsing hero on scroll (mobile/tablet only).
-  // Listens to BOTH the inner scroll container AND window scroll because the layout
-  // (DashboardNav sticky above CustomerProfilePage) means either element may scroll.
+  // Re-runs when loading completes so scrollContainerRef.current is populated.
   useEffect(() => {
-    if (isDesktop) return;
+    if (isDesktop || loading) return;
     const THRESHOLD = 60;
     const el = scrollContainerRef.current;
 
@@ -119,7 +118,7 @@ export function CustomerProfilePage() {
       el?.removeEventListener('scroll', check);
       window.removeEventListener('scroll', check);
     };
-  }, [isDesktop]);
+  }, [isDesktop, loading]);
 
   const sectionRefs = {
     contacts: useRef<HTMLDivElement>(null),
