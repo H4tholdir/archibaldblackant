@@ -1,18 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { CustomerDiff } from '../../types';
-
-function buildCustomerDiff(
-  original: Record<string, string | null>,
-  edited: Record<string, string | null>,
-): CustomerDiff {
-  const diff: Record<string, unknown> = {};
-  for (const key of Object.keys(edited)) {
-    if (edited[key] !== original[key]) {
-      diff[key] = edited[key];
-    }
-  }
-  return diff as CustomerDiff;
-}
+import { buildCustomerDiff } from './update-customer';
 
 describe('buildCustomerDiff', () => {
   test('diff vuoto se nessuna modifica', () => {

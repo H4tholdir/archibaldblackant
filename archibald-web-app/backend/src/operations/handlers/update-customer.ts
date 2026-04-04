@@ -64,9 +64,7 @@ async function handleUpdateCustomer(
     if (milestone) onProgress(milestone.progress, milestone.label);
   });
 
-  onProgress(15, 'Navigazione scheda cliente');
   await bot.navigateToEditCustomerById(erpId);
-  onProgress(25, 'Form edit aperto');
 
   // agentNotes è solo DB — non viene passato al bot ERP
   const { agentNotes, ...erpDiff } = diff;
@@ -91,21 +89,17 @@ async function handleUpdateCustomer(
        payment_terms    = COALESCE($12, payment_terms),
        attention_to     = COALESCE($13, attention_to),
        notes            = COALESCE($14, notes),
-       vat_validated_at = CASE
-         WHEN $15 = 'Sì' THEN COALESCE(vat_validated_at, NOW())
-         ELSE vat_validated_at
-       END,
-       street           = COALESCE($18, street),
-       vat_number       = COALESCE($19, vat_number),
-       pec              = COALESCE($20, pec),
-       sdi              = COALESCE($21, sdi),
-       phone            = COALESCE($22, phone),
-       mobile           = COALESCE($23, mobile),
-       email            = COALESCE($24, email),
-       url              = COALESCE($25, url),
-       delivery_terms   = COALESCE($26, delivery_terms),
+       street           = COALESCE($17, street),
+       vat_number       = COALESCE($18, vat_number),
+       pec              = COALESCE($19, pec),
+       sdi              = COALESCE($20, sdi),
+       phone            = COALESCE($21, phone),
+       mobile           = COALESCE($22, mobile),
+       email            = COALESCE($23, email),
+       url              = COALESCE($24, url),
+       delivery_terms   = COALESCE($25, delivery_terms),
        updated_at       = NOW()
-     WHERE erp_id = $16 AND user_id = $17`,
+     WHERE erp_id = $15 AND user_id = $16`,
     [
       snapshot.name ?? null,
       snapshot.nameAlias ?? null,
@@ -121,7 +115,6 @@ async function handleUpdateCustomer(
       snapshot.paymentTerms ?? null,
       snapshot.attentionTo ?? null,
       snapshot.notes ?? null,
-      snapshot.vatValidated ?? null,
       erpId, userId,
       snapshot.street ?? null,
       snapshot.vatNumber ?? null,
