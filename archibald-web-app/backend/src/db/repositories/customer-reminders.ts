@@ -114,9 +114,10 @@ function computeNextDueAt(completedAt: Date, recurrenceDays: number | null): Dat
   return next;
 }
 
-function isReminderEffectivelyActive(reminder: { status: string; snoozed_until: string | null }): boolean {
+function isReminderEffectivelyActive(reminder: { status: string; snoozed_until: string | Date | null }): boolean {
   if (reminder.status === 'snoozed' && reminder.snoozed_until !== null) {
-    return new Date(reminder.snoozed_until) < new Date();
+    const until = typeof reminder.snoozed_until === 'string' ? new Date(reminder.snoozed_until) : reminder.snoozed_until;
+    return until < new Date();
   }
   return reminder.status === 'active';
 }
@@ -181,17 +182,19 @@ async function patchReminder(
   params: PatchReminderParams,
 ): Promise<Reminder> {
   const completedAt = params.status === 'done' ? 'NOW()' : 'completed_at';
+  const updateRecurrence = 'recurrenceDays' in params;
+  const recurrenceValue = params.recurrenceDays ?? null;
   const { rows } = await pool.query<ReminderRow>(
     `UPDATE agents.customer_reminders
      SET
        priority        = COALESCE($3::varchar, priority),
        due_at          = COALESCE($4::timestamptz, due_at),
-       recurrence_days = CASE WHEN $5::text IS NOT NULL THEN $5::int ELSE recurrence_days END,
-       note            = COALESCE($6::text, note),
-       notify_via      = COALESCE($7::varchar, notify_via),
-       status          = COALESCE($8::varchar, status),
-       snoozed_until   = COALESCE($9::timestamptz, snoozed_until),
-       completion_note = COALESCE($10::text, completion_note),
+       recurrence_days = CASE WHEN $5::boolean THEN $6::int ELSE recurrence_days END,
+       note            = COALESCE($7::text, note),
+       notify_via      = COALESCE($8::varchar, notify_via),
+       status          = COALESCE($9::varchar, status),
+       snoozed_until   = COALESCE($10::timestamptz, snoozed_until),
+       completion_note = COALESCE($11::text, completion_note),
        completed_at    = ${completedAt},
        updated_at      = NOW()
      WHERE id = $1 AND user_id = $2
@@ -201,7 +204,8 @@ async function patchReminder(
       userId,
       params.priority ?? null,
       params.dueAt ?? null,
-      params.recurrenceDays !== undefined ? String(params.recurrenceDays) : null,
+      updateRecurrence,
+      recurrenceValue,
       params.note !== undefined ? params.note : null,
       params.notifyVia ?? null,
       params.status ?? null,

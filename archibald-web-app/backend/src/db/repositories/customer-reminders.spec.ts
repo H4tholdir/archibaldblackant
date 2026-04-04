@@ -286,12 +286,13 @@ describe('patchReminder', () => {
     expect(pool.queryCalls).toHaveLength(1);
   });
 
-  test('passes null for recurrenceDays param when not provided', async () => {
+  test('passes updateRecurrence=false and recurrenceValue=null when recurrenceDays not provided', async () => {
     const pool = createMockPool([{ rows: [makeReminderRow()] }]);
     await patchReminder(pool, TEST_USER_ID, TEST_REMINDER_ID, { priority: 'normal' });
     const params = pool.queryCalls[0].params as unknown[];
-    // recurrence_days is param index 4 (0-based)
-    expect(params[4]).toBeNull();
+    // $5 = updateRecurrence flag (false = do not update), $6 = recurrenceValue
+    expect(params[4]).toBe(false);
+    expect(params[5]).toBeNull();
   });
 });
 
