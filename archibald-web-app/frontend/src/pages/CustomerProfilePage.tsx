@@ -657,7 +657,7 @@ export function CustomerProfilePage() {
                   return next;
                 });
               }} />
-              <FieldRow label="Nome di ricerca" value={pendingEdits.nameAlias ?? customer.nameAlias ?? null} fieldKey="nameAlias" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="Nome di ricerca" value={pendingEdits.nameAlias ?? customer.nameAlias ?? null} fieldKey="nameAlias" isEditing={editMode} onChange={handleFieldChange} maxLength={20} />
               <FieldRow label="Attenzione a" value={pendingEdits.attentionTo ?? customer.attentionTo} fieldKey="attentionTo" isEditing={editMode} onChange={handleFieldChange} />
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', minWidth: '100px' }}>Settore</span>
@@ -1141,24 +1141,33 @@ function SectionCard({
 }
 
 
-function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus }: {
+function FieldRow({ label, value, fieldKey, isEditing, onChange, onInputFocus, maxLength }: {
   label: string;
   value: string | null | undefined;
   fieldKey?: string;
   isEditing?: boolean;
   onChange?: (key: string, val: string) => void;
   onInputFocus?: () => void;
+  maxLength?: number;
 }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
       <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px', minWidth: '100px' }}>{label}</span>
       {isEditing && fieldKey && onChange ? (
-        <input
-          value={value ?? ''}
-          onChange={(e) => onChange(fieldKey, e.target.value)}
-          onFocus={onInputFocus}
-          style={{ flex: 1, border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none' }}
-        />
+        <div style={{ flex: 1, position: 'relative' }}>
+          <input
+            value={value ?? ''}
+            onChange={(e) => onChange(fieldKey, e.target.value)}
+            onFocus={onInputFocus}
+            maxLength={maxLength}
+            style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: '6px', padding: maxLength ? '4px 36px 4px 8px' : '4px 8px', fontSize: '13px', background: '#eff6ff', color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
+          />
+          {maxLength && (
+            <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: (value?.length ?? 0) >= maxLength ? '#ef4444' : '#94a3b8', pointerEvents: 'none' }}>
+              {value?.length ?? 0}/{maxLength}
+            </span>
+          )}
+        </div>
       ) : (
         <span style={{ fontSize: '13px', color: value ? '#1e293b' : '#e2e8f0', fontWeight: value ? 400 : 300 }}>
           {value ?? '—'}
