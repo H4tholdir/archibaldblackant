@@ -47,16 +47,20 @@ Le sezioni nella main area (tutte sempre visibili, non a tab):
 
 | Viewport | Dimensione | Forma |
 |---|---|---|
-| Mobile | **130px** | circolare (`border-radius: 50%`) |
-| Tablet | **130px** | circolare |
-| Desktop (sidebar) | **120px** | arrotondato (`border-radius: 20px`) |
+| Mobile | **180px** | circolare (`border-radius: 50%`) |
+| Tablet | **180px** | circolare (`border-radius: 50%`) |
+| Desktop (sidebar) | **160px** | circolare (`border-radius: 50%`) |
+
+Coerenza di forma su tutti i viewport: sempre circolare. La sidebar desktop si allarga da 160px a **200px** per ospitare l'avatar da 160px con padding adeguato.
+
+Dimensioni scelte per permettere il riconoscimento facciale del medico/cliente nelle visite successive: il volto deve essere immediatamente riconoscibile, non solo "identificabile come persona".
 
 Gradiente sfondo: `linear-gradient(135deg, #3b82f6, #8b5cf6)`. Fallback: prime 2 iniziali, peso 800, colore bianco.  
-Bottone 📷 in basso a destra dell'avatar (24–28px, sfondo bianco, bordo `#1e293b`): apre file picker O fotocamera → `PhotoCropModal` con crop/scale/rotate completi (da ripristinare).
+Bottone 📷 in basso a destra dell'avatar (28–32px, sfondo bianco, bordo `#1e293b`): apre file picker O fotocamera → `PhotoCropModal` con crop/scale/rotate completi (da ripristinare).
 
 **Completeness indicator (NON SVG ring — CSS border + banner):**
 
-- **Anello CSS attorno all'avatar**: `border: 3px dashed #f59e0b` se incompleto · `border: 3px solid #22c55e` se completo (desktop: `border-radius: 24px` per coerenza con forma arrotondata)
+- **Anello CSS attorno all'avatar**: `border: 3px dashed #f59e0b` se incompleto · `border: 3px solid #22c55e` se completo (sempre `border-radius: 50%` su tutti i viewport)
 - **Badge numerico sull'avatar** (top-right assoluto): sfondo `#f59e0b`, testo bianco, es. "3 mancanti"
 - **Banner lineare giallo sotto l'hero** (mobile/tablet): `background: #fffbeb`, progress bar con percentuale + freccia "Completa →"
 - **Desktop (sidebar)**: barra lineare orizzontale (`height: 4px`, `background: #22c55e`) + testo "Profilo 70% — 3 mancanti"
@@ -92,7 +96,7 @@ Calcolato su: `name, vatNumber, vatValidatedAt, pec|sdi, street, postalCode, pos
 ### 2.3 Layout per viewport
 
 **Mobile (< 640px):**
-- Hero in colonna: avatar 130px centrato + nome + quick stats in riga (3 valori) + banner completezza + quick actions in griglia flex-wrap
+- Hero in colonna: avatar 180px centrato + nome + quick stats in riga (3 valori) + banner completezza + quick actions in griglia flex-wrap
 - Main area: sezioni scrollabili in colonna singola (field layout: **label a sinistra, valore a destra** — non grid)
 - Campi vuoti: "—" grigio chiaro (`#e2e8f0`)
 
@@ -101,7 +105,7 @@ Calcolato su: `name, vatNumber, vatValidatedAt, pec|sdi, street, postalCode, pos
 - Main area: sezioni in griglia 2 colonne
 
 **Desktop (> 1024px):**
-- Sidebar fissa 160px: avatar 120px arrotondato + nome + completeness bar lineare + 6 action buttons verticali
+- Sidebar fissa **200px**: avatar 160px circolare + nome + completeness bar lineare + action buttons verticali
 - Main area: section-cards in griglia 2 colonne, layout label/value come desktop card
 
 ### 2.4 Sezione Storico ordini (inline)
