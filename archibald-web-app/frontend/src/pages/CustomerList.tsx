@@ -43,12 +43,17 @@ const BADGE_STYLE: Record<'attivo' | 'inattivo', React.CSSProperties> = {
 
 const SEARCH_STORAGE_KEY = 'customers_search_v1';
 
+// Cache foto in memoria — persiste tra rimontaggio del componente nella stessa sessione
+const photoCache = new Map<string, string | null>();
+
 // ── Component ────────────────────────────────────────────────────────────────
 export function CustomerList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(() => searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const initialSearch = searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '';
+  const [search, setSearch] = useState(initialSearch);
+  // Inizializzato con lo stesso valore di search per evitare flash della lista completa al ritorno
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [myCustomers, setMyCustomers] = useState<Customer[]>([]);
   const [searchCustomers, setSearchCustomers] = useState<Customer[]>([]);
   const [loadingMine, setLoadingMine] = useState(false);
@@ -113,15 +118,30 @@ export function CustomerList() {
   const visibleCustomers = debouncedSearch ? searchCustomers : myCustomers;
   useEffect(() => {
     if (visibleCustomers.length === 0) return;
-    let cancelled = false;
-    const load = async () => {
-      for (const c of visibleCustomers) {
-        if (cancelled || customerPhotos[c.erpId] !== undefined) continue;
-        const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
-        if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
+
+    // Applica subito i valori già in cache (sincrono, nessun flash)
+    const cachedNow: Record<string, string | null> = {};
+    const toFetch = visibleCustomers.filter(c => {
+      if (photoCache.has(c.erpId)) {
+        cachedNow[c.erpId] = photoCache.get(c.erpId) ?? null;
+        return false;
       }
-    };
-    void load();
+      return customerPhotos[c.erpId] === undefined;
+    });
+    if (Object.keys(cachedNow).length > 0) {
+      setCustomerPhotos(prev => ({ ...prev, ...cachedNow }));
+    }
+    if (toFetch.length === 0) return;
+
+    let cancelled = false;
+    // Carica in parallelo invece che in sequenza
+    void Promise.all(
+      toFetch.map(async c => {
+        const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
+        photoCache.set(c.erpId, url);
+        if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
+      })
+    );
     return () => { cancelled = true; };
   }, [visibleCustomers]);
 
