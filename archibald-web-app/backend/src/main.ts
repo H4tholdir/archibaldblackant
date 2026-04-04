@@ -606,8 +606,8 @@ async function bootstrap(): Promise<void> {
         if (!initialized) { await bot.initialize(); initialized = true; }
       };
       return {
-        updateCustomer: async (erpId, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(erpId, customerData as never, originalName); },
-        buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
+        navigateToEditCustomerById: async (erpId) => { await ensureInit(); return bot.navigateToEditCustomerById(erpId); },
+        updateCustomerSurgical: async (diff, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, addresses); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),
