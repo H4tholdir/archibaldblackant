@@ -242,32 +242,61 @@ export function CustomerProfilePage() {
       toastService.error('Inserisci un numero di P.IVA prima di validare');
       return;
     }
-    setVatValidating(true);
-    try {
-      const jwt = localStorage.getItem('archibald_jwt') ?? '';
-      const res = await fetch('/api/customers/vat-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
-        body: JSON.stringify({ vatNumber }),
-      });
-      if (!res.ok) {
-        toastService.error('Errore durante la verifica della P.IVA');
+
+    // Passo 1: checksum locale per feedback immediato su formato errato
+    const jwt = localStorage.getItem('archibald_jwt') ?? '';
+    const checksumRes = await fetch('/api/customers/vat-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ vatNumber }),
+    });
+    if (checksumRes.ok) {
+      const checksumBody = await checksumRes.json() as { success: boolean; data?: { valid: boolean } };
+      if (!checksumBody.data?.valid) {
+        toastService.error('P.IVA non valida (formato checksum errato)');
         return;
       }
-      const body = await res.json() as { success: boolean; data?: { valid: boolean } };
-      if (body.data?.valid) {
-        setVatValidated(true);
-        toastService.success('P.IVA verificata ✓');
-        // Aggiunge vatNumber ai pendingEdits anche se invariato:
-        // il backend chiama updateVatValidatedAt quando diff.vatNumber è presente
-        setPendingEdits(prev => ({ ...prev, vatNumber: vatNumber }));
-      } else {
-        toastService.error('P.IVA non valida o non trovata nel registro VIES');
-      }
+    }
+
+    // Passo 2: bot ERP — scrive la P.IVA su Archibald, legge snapshot, setta vatValidatedAt in DB
+    setVatValidating(true);
+    setSaving(true);
+    setSaveProgress(5);
+    setSaveLabel('Validazione P.IVA su Archibald (~30s)...');
+    try {
+      const { jobId } = await enqueueOperation('update-customer', {
+        erpId,
+        diff: { vatNumber },
+      });
+      trackOperation(erpId, jobId, customer.name, `Validazione P.IVA ${customer.name}`);
+      await pollJobUntilDone(jobId, {
+        onProgress: (p, label) => {
+          setSaveProgress(p);
+          if (label) setSaveLabel(label);
+        },
+      });
+
+      // Passo 3: ricarica cliente — campi auto-popolati dall'ERP + vatValidatedAt settato
+      const reloaded = await fetchCustomer(erpId);
+      setCustomer(reloaded);
+      const reloadedAddresses = await getCustomerAddresses(erpId);
+      setAddresses(reloadedAddresses);
+
+      // vatNumber è già salvato in ERP — lo rimuoviamo dai pendingEdits per evitare il doppio write
+      setPendingEdits(prev => {
+        const next = { ...prev };
+        delete next.vatNumber;
+        return next;
+      });
+      setVatValidated(true);
+      toastService.success('P.IVA validata e registrata ✓');
     } catch {
-      toastService.error('Errore di connessione durante la verifica');
+      toastService.error('Errore durante la validazione P.IVA con il bot');
     } finally {
       setVatValidating(false);
+      setSaving(false);
+      setSaveProgress(0);
+      setSaveLabel('');
     }
   }
 
