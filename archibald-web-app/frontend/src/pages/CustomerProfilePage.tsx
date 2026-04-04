@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import type { RefObject, ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Customer } from '../types/customer';
 import type { CustomerAddress } from '../types/customer-address';
@@ -60,7 +61,6 @@ export function CustomerProfilePage() {
   const [editMode, setEditMode] = useState(false);
   const [pendingEdits, setPendingEdits] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
-  const [storicoFilter, setStoricoFilter] = useState<'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'>('anno');
 
   const { trackOperation } = useOperationTracking();
 
@@ -76,14 +76,33 @@ export function CustomerProfilePage() {
   const urgentRemindersText: string | null = null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 641 && window.innerWidth < 1024);
 
   useEffect(() => {
     function handleResize() {
       setIsMobile(window.innerWidth < 768);
+      setIsTablet(window.innerWidth >= 641 && window.innerWidth < 1024);
     }
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const sectionRefs = {
+    contacts: useRef<HTMLDivElement>(null),
+    address: useRef<HTMLDivElement>(null),
+    anagrafica: useRef<HTMLDivElement>(null),
+    fiscal: useRef<HTMLDivElement>(null),
+    commercial: useRef<HTMLDivElement>(null),
+    notes: useRef<HTMLDivElement>(null),
+    agentNotes: useRef<HTMLDivElement>(null),
+    addresses: useRef<HTMLDivElement>(null),
+    storico: useRef<HTMLDivElement>(null),
+    reminders: useRef<HTMLDivElement>(null),
+  };
+
+  function scrollToSection(key: keyof typeof sectionRefs) {
+    sectionRefs[key].current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   useEffect(() => {
     if (!erpId) return;
@@ -127,10 +146,6 @@ export function CustomerProfilePage() {
   function exitEditMode() {
     setEditMode(false);
     setPendingEdits({});
-  }
-
-  function setField(key: keyof PendingEdits, value: string) {
-    setPendingEdits(prev => ({ ...prev, [key]: value }));
   }
 
   async function handleSave() {
@@ -179,22 +194,6 @@ export function CustomerProfilePage() {
   const completenessPercent = Math.round((completedFields / totalCompletenessFields) * 100);
   const missingCount = totalCompletenessFields - completedFields;
   const isComplete = missingCount === 0;
-
-  function filterOrders(allOrders: CustomerFullHistoryOrder[], filter: 'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'): CustomerFullHistoryOrder[] {
-    if (filter === 'tutto') return allOrders;
-    const now = new Date();
-    const year = now.getFullYear();
-    return allOrders.filter(o => {
-      const d = new Date(o.orderDate);
-      if (filter === 'anno') return d.getFullYear() === year;
-      if (filter === 'anno_prec') return d.getFullYear() === year - 1;
-      const diffMs = now.getTime() - d.getTime();
-      const DAY = 86_400_000;
-      if (filter === 'mese') return diffMs < 30 * DAY;
-      if (filter === 'trimestre') return diffMs < 90 * DAY;
-      return true;
-    });
-  }
 
   if (loading) {
     return (
@@ -312,7 +311,7 @@ export function CustomerProfilePage() {
               </h1>
               {activeRemindersCount > 0 && (
                 <button
-                  onClick={() => document.getElementById('reminders-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={() => scrollToSection('reminders')}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative' }}
                 >
                   <span style={{ fontSize: '18px' }}>🔔</span>
@@ -434,184 +433,153 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Area sezioni (scrollabile) ─────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isTablet ? '1fr 1fr' : '1fr',
+            gap: '16px',
+            padding: isMobile ? '16px' : '24px',
+          }}>
 
-          {/* Contatti */}
-          <SectionCard
-            title="Contatti"
-            editMode={editMode}
-            pendingKeys={['phone', 'mobile', 'email', 'pec', 'sdi', 'url']}
-            pendingEdits={pendingEdits}
-          >
-            <FieldCell label="Telefono" value={pendingEdits.phone ?? customer.phone} originalValue={customer.phone} editKey="phone" editMode={editMode} setField={setField} />
-            <FieldCell label="Mobile" value={pendingEdits.mobile ?? customer.mobile} originalValue={customer.mobile} editKey="mobile" editMode={editMode} setField={setField} />
-            <FieldCell label="Email" value={pendingEdits.email ?? customer.email} originalValue={customer.email} editKey="email" editMode={editMode} setField={setField} />
-            <FieldCell label="PEC" value={pendingEdits.pec ?? customer.pec} originalValue={customer.pec} editKey="pec" editMode={editMode} setField={setField} />
-            <FieldCell label="SDI" value={pendingEdits.sdi ?? customer.sdi} originalValue={customer.sdi} editKey="sdi" editMode={editMode} setField={setField} />
-            <FieldCell label="URL" value={pendingEdits.url ?? customer.url} originalValue={customer.url} editKey="url" editMode={editMode} setField={setField} />
-          </SectionCard>
+            {/* 1. Contatti */}
+            <SectionCard refProp={sectionRefs.contacts} title="Contatti" isEditMode={editMode}>
+              <FieldRow label="Telefono" value={pendingEdits.phone ?? customer.phone} />
+              <FieldRow label="Mobile" value={pendingEdits.mobile ?? customer.mobile} />
+              <FieldRow label="Email" value={pendingEdits.email ?? customer.email} />
+              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} />
+              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} />
+              <FieldRow label="Sito web" value={pendingEdits.url ?? customer.url} />
+            </SectionCard>
 
-          {/* Indirizzo */}
-          <SectionCard
-            title="Indirizzo"
-            editMode={editMode}
-            pendingKeys={['street', 'postalCode', 'postalCodeCity']}
-            pendingEdits={pendingEdits}
-          >
-            <FieldCell label="Via" value={pendingEdits.street ?? customer.street} originalValue={customer.street} editKey="street" editMode={editMode} setField={setField} />
-            <FieldCell label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} originalValue={customer.postalCode} editKey="postalCode" editMode={editMode} setField={setField} />
-            <FieldCell label="Città" value={pendingEdits.postalCodeCity ?? customer.city} originalValue={customer.city} editKey="postalCodeCity" editMode={editMode} setField={setField} />
-            <FieldCell label="Provincia" value={customer.county ?? null} readOnly />
-            <FieldCell label="Regione" value={customer.state ?? null} readOnly />
-            <FieldCell label="Paese" value={customer.country ?? null} readOnly />
-          </SectionCard>
+            {/* 2. Indirizzo */}
+            <SectionCard refProp={sectionRefs.address} title="Indirizzo principale" isEditMode={editMode}>
+              <FieldRow label="Via" value={pendingEdits.street ?? customer.street} />
+              <FieldRow label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} />
+              <FieldRow label="Città" value={pendingEdits.postalCodeCity ?? customer.city} />
+              <FieldRow label="Provincia" value={customer.county ?? null} />
+              <FieldRow label="Regione" value={customer.state ?? null} />
+              <FieldRow label="Paese" value={customer.country ?? null} />
+            </SectionCard>
 
-          {/* Commerciale */}
-          <SectionCard
-            title="Commerciale"
-            editMode={editMode}
-            pendingKeys={['deliveryMode', 'paymentTerms', 'lineDiscount']}
-            pendingEdits={pendingEdits}
-          >
-            <FieldCell label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} originalValue={customer.lineDiscount ?? null} editKey="lineDiscount" editMode={editMode} setField={setField} />
-            <FieldCell label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} originalValue={customer.paymentTerms ?? null} editKey="paymentTerms" editMode={editMode} setField={setField} />
-            <FieldCell label="Consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms} originalValue={customer.deliveryTerms} editKey="deliveryMode" editMode={editMode} setField={setField} />
-          </SectionCard>
+            {/* 3. Anagrafica */}
+            <SectionCard refProp={sectionRefs.anagrafica} title="Anagrafica" isEditMode={editMode}>
+              <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} />
+              <FieldRow label="Alias" value={customer.nameAlias ?? null} />
+              <FieldRow label="Attenzione a" value={pendingEdits.attentionTo ?? customer.attentionTo} />
+              <FieldRow label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} />
+              <FieldRow label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} />
+            </SectionCard>
 
-          {/* Anagrafica */}
-          <SectionCard
-            title="Anagrafica"
-            editMode={editMode}
-            pendingKeys={['name', 'vatNumber', 'fiscalCode', 'sector', 'attentionTo', 'notes']}
-            pendingEdits={pendingEdits}
-          >
-            <FieldCell label="Ragione sociale" value={pendingEdits.name ?? customer.name} originalValue={customer.name} editKey="name" editMode={editMode} setField={setField} />
-            <FieldCell label="P.IVA" value={customer.vatNumber} readOnly />
-            <FieldCell label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} originalValue={customer.fiscalCode} editKey="fiscalCode" editMode={editMode} setField={setField} />
-            <FieldCell label="Settore" value={pendingEdits.sector ?? customer.sector ?? null} originalValue={customer.sector ?? null} editKey="sector" editMode={editMode} setField={setField} />
-            <FieldCell label="Att.ne" value={pendingEdits.attentionTo ?? customer.attentionTo} originalValue={customer.attentionTo} editKey="attentionTo" editMode={editMode} setField={setField} />
-            <FieldCell label="Note" value={pendingEdits.notes ?? customer.notes ?? null} originalValue={customer.notes ?? null} editKey="notes" editMode={editMode} setField={setField} isTextarea />
-          </SectionCard>
+            {/* 4. Dati Fiscali */}
+            <SectionCard refProp={sectionRefs.fiscal} title="Dati Fiscali" isEditMode={editMode}>
+              <FieldRow label="P.IVA" value={customer.vatNumber} />
+              <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} />
+              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} />
+              <FieldRow label="Validata" value={customer.vatValidatedAt ? '✓ Validata' : '✗ Non validata'} />
+            </SectionCard>
 
-          {/* Indirizzi alternativi */}
-          <div style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              Indirizzi alternativi
-              <button
-                onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
-                style={{ border: 'none', background: '#eff6ff', color: '#2563eb', borderRadius: 6, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
-              >+ Aggiungi</button>
-            </div>
+            {/* 5. Commerciale */}
+            <SectionCard refProp={sectionRefs.commercial} title="Commerciale" isEditMode={editMode}>
+              <FieldRow label="Listino" value={customer.priceGroup ?? null} />
+              <FieldRow label="Sconto linea" value={pendingEdits.lineDiscount ?? customer.lineDiscount ?? null} />
+              <FieldRow label="Pagamento" value={pendingEdits.paymentTerms ?? customer.paymentTerms ?? null} />
+              <FieldRow label="Modalità consegna" value={pendingEdits.deliveryMode ?? customer.deliveryTerms ?? null} />
+            </SectionCard>
 
-            {addresses.length === 0 && !addAddrForm && (
-              <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun indirizzo alternativo</div>
-            )}
-
-            {addresses.map(addr => (
-              <div key={addr.id} style={{ padding: '8px 14px', borderTop: '1px solid #f8fafc', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{addr.nome ?? addr.tipo}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>{[addr.via, addr.citta].filter(Boolean).join(', ')}</div>
-                </div>
-                {deleteAddrConfirmId === addr.id ? (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      aria-label="Conferma eliminazione"
-                      onClick={async () => {
-                        await deleteCustomerAddress(erpId, addr.id);
-                        setAddresses(prev => prev.filter(a => a.id !== addr.id));
-                        setDeleteAddrConfirmId(null);
-                      }}
-                      style={{ padding: '3px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
-                    >Conferma</button>
-                    <button onClick={() => setDeleteAddrConfirmId(null)} style={{ padding: '3px 8px', background: '#f1f5f9', border: 'none', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}>Annulla</button>
-                  </div>
-                ) : (
-                  <button
-                    aria-label={`Elimina ${addr.nome ?? addr.tipo}`}
-                    onClick={() => setDeleteAddrConfirmId(addr.id)}
-                    style={{ padding: '3px 8px', background: '#fff', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}
-                  >Elimina</button>
-                )}
+            {/* 6. Note */}
+            <SectionCard refProp={sectionRefs.notes} title="Note" isEditMode={editMode}>
+              <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                {(pendingEdits.notes ?? customer.notes) || <span style={{ color: '#94a3b8' }}>Nessuna nota</span>}
               </div>
-            ))}
+            </SectionCard>
 
-            {addAddrForm && (
-              <div style={{ padding: '10px 14px', borderTop: '1px solid #f8fafc', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(['via', 'citta', 'cap', 'nome'] as const).map(field => (
-                  <input
-                    key={field}
-                    placeholder={field === 'nome' ? 'Descrizione (es. Magazzino)' : field === 'via' ? 'Via' : field === 'citta' ? 'Città' : 'CAP'}
-                    value={(addAddrForm as Record<string, string>)[field] ?? ''}
-                    onChange={e => setAddAddrForm(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                    style={{ fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', outline: 'none' }}
-                  />
-                ))}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={async () => {
-                      const created = await addCustomerAddress(erpId, addAddrForm);
-                      setAddresses(prev => [...prev, created]);
-                      setAddAddrForm(null);
-                    }}
-                    style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                  >Salva indirizzo</button>
-                  <button onClick={() => setAddAddrForm(null)} style={{ padding: '5px 12px', background: '#f1f5f9', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Annulla</button>
-                </div>
+            {/* 7. Note interne agente */}
+            <SectionCard refProp={sectionRefs.agentNotes} title="Note interne" isEditMode={editMode}>
+              <div style={{ fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                {customer.agentNotes || <span style={{ color: '#94a3b8' }}>Nessuna nota interna</span>}
               </div>
-            )}
-          </div>
+            </SectionCard>
 
-          {/* Storico ordini */}
-          <div id="storico-section" style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              Storico ordini
-              <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{filterOrders(orders, storicoFilter).length} ordini</span>
-            </div>
-
-            {/* Filtri chip */}
-            <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px', flexWrap: 'wrap' }}>
-              {([
-                { key: 'mese', label: 'Questo mese' },
-                { key: 'trimestre', label: 'Ultimi 3m' },
-                { key: 'anno', label: "Quest'anno" },
-                { key: 'anno_prec', label: 'Anno scorso' },
-                { key: 'tutto', label: 'Tutto' },
-              ] as const).map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setStoricoFilter(key)}
-                  style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: storicoFilter === key ? 700 : 400, border: `1px solid ${storicoFilter === key ? '#2563eb' : '#e2e8f0'}`, background: storicoFilter === key ? '#eff6ff' : '#fff', color: storicoFilter === key ? '#1d4ed8' : '#64748b', cursor: 'pointer' }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Lista ordini */}
-            {(() => {
-              const filteredOrders = filterOrders(orders, storicoFilter);
-              return filteredOrders.length === 0 ? (
-                <div style={{ padding: '8px 14px 14px', fontSize: 12, color: '#94a3b8' }}>Nessun ordine nel periodo selezionato</div>
+            {/* 8. Indirizzi alternativi */}
+            <SectionCard refProp={sectionRefs.addresses} title="Indirizzi alternativi" isEditMode={editMode}>
+              {addresses.length === 0 && !addAddrForm ? (
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>Nessun indirizzo alternativo</span>
               ) : (
-                filteredOrders.map(o => (
-                  <div
-                    key={o.orderId}
-                    onClick={() => navigate(`/orders?highlight=${encodeURIComponent(o.orderId)}`)}
-                    style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #f8fafc', cursor: 'pointer' }}
-                  >
+                addresses.map(addr => (
+                  <div key={addr.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: '8px' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>N° {o.orderNumber}</div>
-                      <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(o.orderDate).toLocaleDateString('it-IT')}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{addr.nome ?? addr.tipo}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>{[addr.via, addr.citta].filter(Boolean).join(', ')}</div>
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                      €{o.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                    <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>›</span>
+                    {deleteAddrConfirmId === addr.id ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          aria-label="Conferma eliminazione"
+                          onClick={async () => {
+                            await deleteCustomerAddress(erpId, addr.id);
+                            setAddresses(prev => prev.filter(a => a.id !== addr.id));
+                            setDeleteAddrConfirmId(null);
+                          }}
+                          style={{ padding: '3px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                        >Conferma</button>
+                        <button onClick={() => setDeleteAddrConfirmId(null)} style={{ padding: '3px 8px', background: '#f1f5f9', border: 'none', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}>Annulla</button>
+                      </div>
+                    ) : (
+                      <button
+                        aria-label={`Elimina ${addr.nome ?? addr.tipo}`}
+                        onClick={() => setDeleteAddrConfirmId(addr.id)}
+                        style={{ padding: '3px 8px', background: '#fff', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}
+                      >Elimina</button>
+                    )}
                   </div>
                 ))
-              );
-            })()}
+              )}
+              <button
+                onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
+                style={{ border: 'none', background: '#eff6ff', color: '#2563eb', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginTop: addresses.length > 0 ? '8px' : 0 }}
+              >+ Aggiungi indirizzo</button>
+              {addAddrForm && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                  {(['via', 'citta', 'cap', 'nome'] as const).map(field => (
+                    <input
+                      key={field}
+                      placeholder={field === 'nome' ? 'Descrizione (es. Magazzino)' : field === 'via' ? 'Via' : field === 'citta' ? 'Città' : 'CAP'}
+                      value={(addAddrForm as Record<string, string>)[field] ?? ''}
+                      onChange={e => setAddAddrForm(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                      style={{ fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', outline: 'none' }}
+                    />
+                  ))}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={async () => {
+                        const created = await addCustomerAddress(erpId, addAddrForm);
+                        setAddresses(prev => [...prev, created]);
+                        setAddAddrForm(null);
+                      }}
+                      style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                    >Salva indirizzo</button>
+                    <button onClick={() => setAddAddrForm(null)} style={{ padding: '5px 12px', background: '#f1f5f9', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Annulla</button>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+
+            {/* 9. Storico ordini — full width */}
+            <div ref={sectionRefs.storico} style={{ gridColumn: isTablet ? '1 / -1' : 'auto' }}>
+              <SectionCard title="Storico ordini" isEditMode={false}>
+                <StoricoOrdiniSection orders={orders} customerName={customer.name} navigate={navigate} />
+              </SectionCard>
+            </div>
+
+            {/* 10. Promemoria — full width */}
+            <div ref={sectionRefs.reminders} id="reminders-section" style={{ gridColumn: isTablet ? '1 / -1' : 'auto' }}>
+              <SectionCard title="Promemoria" isEditMode={false}>
+                <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+                  Sezione promemoria (sarà implementata in Task 14)
+                </div>
+              </SectionCard>
+            </div>
+
           </div>
         </div>
 
@@ -657,67 +625,158 @@ export function CustomerProfilePage() {
 }
 
 
-function SectionCard({ title, editMode, pendingKeys, pendingEdits, children }: {
+function SectionCard({
+  refProp, title, children, isEditMode,
+}: {
+  refProp?: RefObject<HTMLDivElement | null>;
   title: string;
-  editMode: boolean;
-  pendingKeys: string[];
-  pendingEdits: Record<string, unknown>;
-  children: React.ReactNode;
+  children: ReactNode;
+  isEditMode?: boolean;
 }) {
-  const modifiedCount = pendingKeys.filter(k => pendingEdits[k] !== undefined).length;
-  const hasChanges = modifiedCount > 0;
   return (
-    <div style={{ background: '#fff', borderRadius: 12, marginBottom: 10, border: `1px solid ${hasChanges ? '#fde68a' : '#f1f5f9'}`, overflow: 'hidden' }}>
-      <div style={{ padding: '10px 14px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase', background: hasChanges ? '#fffbeb' : undefined, display: 'flex', alignItems: 'center', gap: 8 }}>
-        {title}
-        {editMode && hasChanges && (
-          <span style={{ background: '#f59e0b', color: 'white', fontSize: 9, padding: '1px 6px', borderRadius: 8, fontWeight: 700, textTransform: 'none', letterSpacing: 0 }}>{modifiedCount} modif{modifiedCount === 1 ? 'a' : 'iche'}</span>
-        )}
+    <div
+      ref={refProp}
+      style={{
+        background: isEditMode ? '#eff6ff' : 'white',
+        border: '1px solid #f1f5f9',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        marginBottom: '0',
+      }}
+    >
+      <div style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid #f1f5f9',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          {title}
+        </h3>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+      <div style={{ padding: '12px 16px' }}>
         {children}
       </div>
     </div>
   );
 }
 
-function FieldCell({ label, value, originalValue, editKey, editMode, setField, readOnly, isTextarea }: {
-  label: string;
-  value: string | null | undefined;
-  originalValue?: string | null | undefined;
-  editKey?: keyof PendingEdits;
-  editMode?: boolean;
-  setField?: (key: keyof PendingEdits, value: string) => void;
-  readOnly?: boolean;
-  isTextarea?: boolean;
-}) {
-  const isModified = editMode && !readOnly && value !== originalValue && originalValue !== undefined;
-  const canEdit = editMode && !readOnly && editKey && setField;
-  const displayVal = value ?? '—';
+
+function FieldRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #f8fafc' }}>
+      <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, marginRight: '8px' }}>{label}</span>
+      <span style={{ fontSize: '13px', color: value ? '#1e293b' : '#e2e8f0', fontWeight: value ? 400 : 300 }}>
+        {value ?? '—'}
+      </span>
+    </div>
+  );
+}
+
+function MonthlyBarChart({ orders }: { orders: CustomerFullHistoryOrder[] }) {
+  const now = new Date();
+  const months = Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (7 - i), 1);
+    return { label: d.toLocaleDateString('it-IT', { month: 'short' }), month: d.getMonth(), year: d.getFullYear() };
+  });
+  const monthlyRevenues = months.map((m) =>
+    orders
+      .filter((o) => {
+        const d = new Date(o.orderDate);
+        return d.getMonth() === m.month && d.getFullYear() === m.year;
+      })
+      .reduce((s, o) => s + o.totalAmount, 0)
+  );
+  const maxRevenue = Math.max(...monthlyRevenues, 1);
+  return (
+    <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end', height: '60px', padding: '8px 0' }}>
+      {months.map((m, i) => {
+        const revenue = monthlyRevenues[i];
+        const h = Math.max(4, Math.round((revenue / maxRevenue) * 52));
+        return (
+          <div key={`${m.year}-${m.month}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+            <div style={{ width: '100%', height: `${h}px`, background: revenue > 0 ? '#1d4ed8' : '#334155', borderRadius: '2px 2px 0 0' }} />
+            <span style={{ fontSize: '9px', color: '#94a3b8' }}>{m.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StoricoOrdiniSection({ orders, customerName: _customerName, navigate }: { orders: CustomerFullHistoryOrder[]; customerName: string; navigate: (path: string) => void }) {
+  const [filter, setFilter] = useState<'tutto' | 'anno' | '3mesi' | 'mese'>('tutto');
+  const now = new Date();
+
+  const filtered = orders.filter((o) => {
+    const d = new Date(o.orderDate);
+    if (filter === 'anno') return d.getFullYear() === now.getFullYear();
+    if (filter === '3mesi') return d >= new Date(now.getTime() - 90 * 86400000);
+    if (filter === 'mese') return d >= new Date(now.getTime() - 30 * 86400000);
+    return true;
+  });
+
+  const revenueThisYear = orders
+    .filter((o) => new Date(o.orderDate).getFullYear() === now.getFullYear())
+    .reduce((s, o) => s + o.totalAmount, 0);
+  const avgPerOrder = filtered.length > 0 ? filtered.reduce((s, o) => s + o.totalAmount, 0) / filtered.length : 0;
+  const lastOrder = orders[0];
 
   return (
-    <div style={{ padding: '8px 14px', borderTop: '1px solid #f8fafc', background: isModified ? '#fffbeb' : undefined }}>
-      <div style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-        {label}
-        {isModified && <span style={{ width: 5, height: 5, background: '#f59e0b', borderRadius: '50%', display: 'inline-block' }} />}
+    <div style={{ margin: '-12px -16px' }}>
+      <MonthlyBarChart orders={orders} />
+      <div style={{ display: 'flex', gap: '16px', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+        {[
+          { value: revenueThisYear.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }), label: 'Fatturato anno' },
+          { value: avgPerOrder.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }), label: 'Media/ordine' },
+          { value: lastOrder ? new Date(lastOrder.orderDate).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '—', label: 'Ultimo ordine' },
+        ].map(({ value, label }) => (
+          <div key={label} style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: '16px', fontWeight: 800 }}>{value}</div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>{label}</div>
+          </div>
+        ))}
       </div>
-      {canEdit ? (
-        isTextarea ? (
-          <textarea
-            value={value ?? ''}
-            onChange={e => setField!(editKey!, e.target.value)}
-            style={{ fontSize: 12, border: `1.5px solid ${value !== undefined ? '#f59e0b' : '#e2e8f0'}`, borderRadius: 5, padding: '3px 7px', width: '100%', background: value !== undefined ? '#fef9c3' : '#f8fafc', outline: 'none', resize: 'vertical', minHeight: 48, fontFamily: 'inherit', color: '#1e293b' }}
-          />
-        ) : (
-          <input
-            value={value ?? ''}
-            onChange={e => setField!(editKey!, e.target.value)}
-            style={{ fontSize: 12, border: `1.5px solid ${value !== undefined ? '#f59e0b' : '#e2e8f0'}`, borderRadius: 5, padding: '3px 7px', width: '100%', boxSizing: 'border-box', background: value !== undefined ? '#fef9c3' : '#f8fafc', outline: 'none', color: '#1e293b' }}
-          />
-        )
-      ) : (
-        <div style={{ fontSize: 12, color: readOnly ? '#94a3b8' : '#1e293b', fontWeight: readOnly ? 400 : 500 }}>{displayVal}</div>
-      )}
+      <div style={{ display: 'flex', gap: '8px', padding: '8px 16px', flexWrap: 'wrap' }}>
+        {(['tutto', 'anno', '3mesi', 'mese'] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '4px 10px', borderRadius: '20px', cursor: 'pointer',
+            border: filter === f ? '2px solid #2563eb' : '1px solid #e2e8f0',
+            background: filter === f ? '#eff6ff' : '#f8fafc',
+            color: filter === f ? '#1d4ed8' : '#64748b',
+            fontWeight: filter === f ? 700 : 400, fontSize: '12px',
+          }}>
+            {{ tutto: 'Tutto', anno: "Quest'anno", '3mesi': '3 mesi', mese: 'Mese' }[f]}
+          </button>
+        ))}
+        <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>{filtered.length} ordini</span>
+      </div>
+      <div>
+        {filtered.map((o) => {
+          const isRecent = new Date(o.orderDate) >= new Date(now.getTime() - 30 * 86400000);
+          return (
+            <div
+              key={o.orderId}
+              onClick={() => navigate(`/orders?highlight=${encodeURIComponent(o.orderId)}`)}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', borderBottom: '1px solid #f8fafc', cursor: 'pointer' }}
+            >
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isRecent ? '#1d4ed8' : '#94a3b8', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>N° {o.orderNumber}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(o.orderDate).toLocaleDateString('it-IT')}</div>
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                {o.totalAmount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+              </div>
+              <span style={{ color: '#94a3b8', fontSize: '16px' }}>›</span>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+            Nessun ordine nel periodo selezionato
+          </div>
+        )}
+      </div>
     </div>
   );
 }
