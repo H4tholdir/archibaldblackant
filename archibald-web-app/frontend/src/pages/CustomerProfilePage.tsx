@@ -258,6 +258,9 @@ export function CustomerProfilePage() {
       if (body.data?.valid) {
         setVatValidated(true);
         toastService.success('P.IVA verificata ✓');
+        // Aggiunge vatNumber ai pendingEdits anche se invariato:
+        // il backend chiama updateVatValidatedAt quando diff.vatNumber è presente
+        setPendingEdits(prev => ({ ...prev, vatNumber: vatNumber }));
       } else {
         toastService.error('P.IVA non valida o non trovata nel registro VIES');
       }
@@ -282,7 +285,6 @@ export function CustomerProfilePage() {
   const completenessFields = [
     customer?.name,
     customer?.vatNumber,
-    customer?.vatValidatedAt,
     (customer?.pec ?? customer?.sdi),
     customer?.street,
     customer?.postalCode,
