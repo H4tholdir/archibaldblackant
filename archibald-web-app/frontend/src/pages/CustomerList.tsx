@@ -160,6 +160,8 @@ export function CustomerList() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f1f5f9', borderRadius: 10, padding: '8px 12px' }}>
           <span style={{ fontSize: 13, color: '#94a3b8' }}>🔍</span>
           <input
+            type="search"
+            name="customer-search-field"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca in tutti i clienti…"
