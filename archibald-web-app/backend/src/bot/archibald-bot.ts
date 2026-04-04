@@ -13939,7 +13939,11 @@ export class ArchibaldBot {
       );
     }
     if (diff.postalCode !== undefined) {
-      await this.typeDevExpressField(/xaf_dviZIPCODE_Edit_I$/, diff.postalCode);
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+        diff.postalCode,
+        diff.postalCodeCity,
+      );
       await this.waitForDevExpressIdle({ timeout: 8000, label: 'postalcode-autofill' });
     }
 
@@ -13959,6 +13963,7 @@ export class ArchibaldBot {
 
     // 2c. Testo — ordine fisso
     if (diff.name !== undefined) {
+      await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, diff.name);
       await this.typeDevExpressField(/SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/, diff.name);
       await this.waitForDevExpressIdle({ timeout: 3000, label: 'name-written' });
     }
@@ -14000,13 +14005,13 @@ export class ArchibaldBot {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
     }
     if (diff.mobile !== undefined) {
-      await this.typeDevExpressField(/xaf_dviCELLULAR_Edit_I$/, diff.mobile);
+      await this.typeDevExpressField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
     }
     if (diff.email !== undefined) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, diff.email);
     }
     if (diff.url !== undefined) {
-      await this.typeDevExpressField(/xaf_dviWWW_Edit_I$/, diff.url);
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, diff.url);
     }
     if (diff.attentionTo !== undefined) {
       await this.typeDevExpressField(/xaf_dviBRASCRMATTENTIONTO_Edit_I$/, diff.attentionTo);
@@ -14029,7 +14034,7 @@ export class ArchibaldBot {
     if (diff.fiscalCode !== undefined && diff.street !== undefined) {
       await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
     }
-    const finalNameAlias = diff.nameAlias ?? (diff.name !== undefined ? diff.name : undefined);
+    const finalNameAlias = diff.nameAlias ?? diff.name;
     if (finalNameAlias !== undefined) {
       await this.typeDevExpressField(
         /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
