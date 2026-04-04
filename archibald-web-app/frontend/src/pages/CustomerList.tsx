@@ -54,6 +54,13 @@ export function CustomerList() {
   const [isCreationMinimized, setIsCreationMinimized] = useState(false);
   const [minimizedCreationName, setMinimizedCreationName] = useState('');
   const [recents, setRecents] = useState<string[]>(getRecents());
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    function handleResize() { setIsMobile(window.innerWidth < 768); }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -129,6 +136,10 @@ export function CustomerList() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca nome, telefono, P.IVA…"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            data-form-type="other"
             style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
           />
           {search && (
@@ -186,6 +197,25 @@ export function CustomerList() {
           </span>
           <span style={{ fontSize: 12, opacity: 0.8 }}>Tocca per riaprire</span>
         </div>
+      )}
+
+      {isMobile && (
+        <button
+          onClick={() => setCreateModalOpen(true)}
+          style={{
+            position: 'fixed', bottom: '24px', right: '24px',
+            width: '56px', height: '56px',
+            background: '#2563eb', color: 'white',
+            border: 'none', borderRadius: '50%',
+            fontSize: '28px', lineHeight: 1,
+            boxShadow: '0 4px 16px rgba(37,99,235,.4)',
+            cursor: 'pointer', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          aria-label="Nuovo Cliente"
+        >
+          ＋
+        </button>
       )}
 
       <CustomerCreateModal

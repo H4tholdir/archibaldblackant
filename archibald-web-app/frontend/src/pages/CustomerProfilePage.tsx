@@ -261,7 +261,7 @@ export function CustomerProfilePage() {
 
           {/* Quick actions primarie */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-            <QuickAction icon="📋" label="Ordine" color="#eff6ff" onClick={() => navigate('/')} />
+            <QuickAction icon="📋" label="Ordine" color="#eff6ff" onClick={() => navigate(`/order?customerId=${customer.erpId}`)} />
             <QuickAction icon="📞" label="Chiama" color="#dcfce7" onClick={() => { const p = customer.mobile ?? customer.phone; if (p) window.location.href = `tel:${p}`; }} />
             {customer.mobile && (
               <QuickAction icon="💬" label="WhatsApp" color="#fef9c3" onClick={() => window.open(`https://wa.me/${customer.mobile!.replace(/\D/g, '')}`, '_blank')} />
