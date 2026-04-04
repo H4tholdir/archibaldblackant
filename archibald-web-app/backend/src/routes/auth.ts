@@ -117,7 +117,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     windowMs: 15 * 60 * 1000,
     max: 5,
     keyGenerator: (req) => req.ip ?? 'unknown',
-    message: { error: 'Troppi tentativi di setup MFA. Riprova tra 15 minuti.' },
+    message: { success: false, error: 'Troppi tentativi di setup MFA. Riprova tra 15 minuti.' },
     legacyHeaders: false,
     standardHeaders: true,
   });
@@ -361,7 +361,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     }
     const userId = req.user!.userId;
     const user = await deps.getUserById(userId);
-    if (!user) return res.status(401).json({ error: 'Utente non trovato' });
+    if (!user) return res.status(401).json({ success: false, error: 'Utente non trovato' });
     const secret = generateTotpSecret();
     const uri = getTotpUri(secret, user.username);
     const { ciphertext, iv, authTag } = await deps.encryptSecret(secret);

@@ -257,7 +257,7 @@ describe('createAuthRouter', () => {
       };
     }
 
-    test('response contains uri but NOT secret', async () => {
+    test('response contains otpauth uri but NOT secret', async () => {
       const d = depsWithMfaSetup();
       const app = createApp(d);
       const res = await request(app)
@@ -265,24 +265,13 @@ describe('createAuthRouter', () => {
         .set('Authorization', 'Bearer valid-mfa-token');
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty('uri');
-      expect(res.body.data).not.toHaveProperty('secret');
+      expect(res.body).toEqual({
+        success: true,
+        data: { uri: expect.stringMatching(/^otpauth:\/\/totp\//) },
+      });
     });
 
-    test('response uri is a non-empty string', async () => {
-      const d = depsWithMfaSetup();
-      const app = createApp(d);
-      const res = await request(app)
-        .post('/api/auth/mfa-setup')
-        .set('Authorization', 'Bearer valid-mfa-token');
-
-      expect(res.status).toBe(200);
-      expect(typeof res.body.data.uri).toBe('string');
-      expect(res.body.data.uri.length).toBeGreaterThan(0);
-    });
-
-    test('returns 429 after 5 requests within the rate limit window', async () => {
+    test('returns 429 with success:false after 5 requests within the rate limit window', async () => {
       const d = depsWithMfaSetup();
       const app = createApp(d);
 
@@ -297,6 +286,7 @@ describe('createAuthRouter', () => {
         .set('Authorization', 'Bearer valid-mfa-token');
 
       expect(res.status).toBe(429);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
     });
   });
 
