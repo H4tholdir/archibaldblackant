@@ -408,6 +408,15 @@ describe('createAdminRouter', () => {
       expect(res.body.success).toBe(true);
     });
 
+    test('allows admin to change their own modules field (not a role change)', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ modules: ['warehouse'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
     test('allows admin to change another user role', async () => {
       const res = await request(app)
         .patch('/api/admin/users/u1')
