@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { eraseCustomerPersonalData, hasActiveOrders } from './gdpr';
+import { eraseCustomerPersonalData, exportCustomerData, hasActiveOrders } from './gdpr';
 import type { DbPool } from '../pool';
 
 function makePool(rows: unknown[] = []) {
@@ -10,6 +10,33 @@ function makePool(rows: unknown[] = []) {
     getStats: vi.fn(),
   } as unknown as DbPool;
 }
+
+describe('exportCustomerData', () => {
+  it('calls pool.query exactly 4 times and returns shaped CustomerExport', async () => {
+    const mockCustomer = { customer_profile: 'cp-1', name: 'Acme Srl' };
+    const mockOrder = { id: 'ord-1', customer_profile_id: 'cp-1' };
+    const mockArticle = { id: 'art-1', order_id: 'ord-1' };
+    const mockSubClient = { codice: 'SC001', matched_customer_profile_id: 'cp-1' };
+
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [mockCustomer] })
+      .mockResolvedValueOnce({ rows: [mockOrder] })
+      .mockResolvedValueOnce({ rows: [mockArticle] })
+      .mockResolvedValueOnce({ rows: [mockSubClient] });
+
+    const pool = { query } as unknown as Parameters<typeof exportCustomerData>[0];
+
+    const result = await exportCustomerData(pool, 'cp-1');
+
+    expect(query).toHaveBeenCalledTimes(4);
+    expect(result).toEqual({
+      customer: mockCustomer,
+      orders: [mockOrder],
+      orderArticles: [mockArticle],
+      subClients: [mockSubClient],
+    });
+  });
+});
 
 describe('hasActiveOrders', () => {
   it('returns true when pending orders exist', async () => {

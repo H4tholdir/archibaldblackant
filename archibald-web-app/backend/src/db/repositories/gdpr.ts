@@ -1,5 +1,41 @@
 import type { DbPool } from '../pool';
 
+export type CustomerExport = {
+  customer: Record<string, unknown> | null;
+  orders: Record<string, unknown>[];
+  orderArticles: Record<string, unknown>[];
+  subClients: Record<string, unknown>[];
+};
+
+export async function exportCustomerData(pool: DbPool, customerProfile: string): Promise<CustomerExport> {
+  const [customerResult, ordersResult, articlesResult, subClientsResult] = await Promise.all([
+    pool.query(`SELECT * FROM agents.customers WHERE customer_profile = $1`, [customerProfile]),
+    pool.query(`SELECT * FROM agents.order_records WHERE customer_profile_id = $1 ORDER BY created_at DESC`, [customerProfile]),
+    pool.query(
+      `SELECT oa.* FROM agents.order_articles oa
+       JOIN agents.order_records o ON oa.order_id = o.id
+       WHERE o.customer_profile_id = $1`,
+      [customerProfile],
+    ),
+    pool.query(
+      `SELECT sc.* FROM shared.sub_clients sc
+       WHERE sc.matched_customer_profile_id = $1
+          OR sc.codice IN (
+            SELECT sub_client_codice FROM shared.sub_client_customer_matches
+            WHERE customer_profile_id = $1
+          )`,
+      [customerProfile],
+    ),
+  ]);
+
+  return {
+    customer: customerResult.rows[0] ?? null,
+    orders: ordersResult.rows,
+    orderArticles: articlesResult.rows,
+    subClients: subClientsResult.rows,
+  };
+}
+
 export async function hasActiveOrders(pool: DbPool, customerProfile: string): Promise<boolean> {
   const { rows } = await pool.query<{ count: string }>(
     `SELECT COUNT(*) AS count FROM agents.order_records

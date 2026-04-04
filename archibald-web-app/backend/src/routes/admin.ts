@@ -14,7 +14,7 @@ import {
   getExceptionById,
 } from '../db/repositories/tracking-exceptions';
 import { generateClaimPdf } from '../services/fedex-claim-pdf';
-import { eraseCustomerPersonalData, hasActiveOrders } from '../db/repositories/gdpr';
+import { eraseCustomerPersonalData, exportCustomerData, hasActiveOrders } from '../db/repositories/gdpr';
 import { buildMailtoLink } from '../services/security-alert-service';
 import { config } from '../config';
 
@@ -504,6 +504,30 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (err) {
       logger.error('Error generating claim PDF', { err });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/customers/:id/export', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const data = await exportCustomerData(deps.pool, id);
+      const filename = `customer-export-${id}-${new Date().toISOString().split('T')[0]}.json`;
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'customer.data_exported',
+        targetType: 'customer',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { filename },
+      });
+
+      res
+        .setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+        .json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Errore durante l\'export dei dati' });
     }
   });
 

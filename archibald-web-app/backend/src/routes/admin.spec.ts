@@ -494,6 +494,47 @@ describe('createAdminRouter', () => {
     });
   });
 
+  describe('GET /api/admin/customers/:id/export', () => {
+    const customerId = 'cust-profile-42';
+
+    beforeEach(() => {
+      deps.pool = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+      } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns 200 with success and data structure', async () => {
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          customer: null,
+          orders: [],
+          orderArticles: [],
+          subClients: [],
+        },
+      });
+    });
+
+    test('sets Content-Disposition header containing the customer id', async () => {
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toContain(customerId);
+    });
+
+    test('returns 500 when pool query fails', async () => {
+      (deps.pool.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
+    });
+  });
+
   describe('POST /api/admin/customers/:id/gdpr-erase', () => {
     const customerId = 'cust-profile-1';
     const validReason = 'Richiesta cancellazione GDPR da parte del cliente';
