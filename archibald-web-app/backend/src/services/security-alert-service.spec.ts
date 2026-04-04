@@ -43,9 +43,10 @@ describe('buildMailtoLink', () => {
   const event: SecurityAlertEvent = 'login_failed_admin';
   const details = { ip: '1.2.3.4', username: 'frankie' };
 
-  it('produces a mailto: URL', () => {
+  it('produces a mailto: URL with the encoded email address', () => {
     const link = buildMailtoLink(alertEmail, event, details);
-    expect(link).toMatch(/^mailto:admin@example\.com\?/);
+    expect(link).toMatch(/^mailto:/);
+    expect(link).toContain(encodeURIComponent(alertEmail));
   });
 
   it('encodes the event name in the subject', () => {

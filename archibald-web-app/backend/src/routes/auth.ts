@@ -113,6 +113,15 @@ function createAuthRouter(deps: AuthRouterDeps) {
     keyGenerator: (req) => req.ip ?? 'unknown',
   });
 
+  const mfaSetupRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req) => req.ip ?? 'unknown',
+    message: { error: 'Troppi tentativi di setup MFA. Riprova tra 15 minuti.' },
+    legacyHeaders: false,
+    standardHeaders: true,
+  });
+
   router.post('/login', loginRateLimiter, async (req, res) => {
     try {
       const parsed = loginSchema.safeParse(req.body);
@@ -346,20 +355,22 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
   const authenticateWithMfaToken = createMfaTokenMiddleware();
 
-  router.post('/mfa-setup', authenticateWithMfaToken, async (req: AuthRequest, res) => {
+  router.post('/mfa-setup', mfaSetupRateLimiter, authenticateWithMfaToken, async (req: AuthRequest, res) => {
     if (!deps.encryptSecret || !deps.saveMfaSecret) {
       return res.status(501).json({ success: false, error: 'MFA setup not configured' });
     }
     const userId = req.user!.userId;
+    const user = await deps.getUserById(userId);
+    if (!user) return res.status(401).json({ error: 'Utente non trovato' });
     const secret = generateTotpSecret();
-    const uri = getTotpUri(secret, req.user!.username);
+    const uri = getTotpUri(secret, user.username);
     const { ciphertext, iv, authTag } = await deps.encryptSecret(secret);
     await deps.saveMfaSecret(userId, ciphertext, iv, authTag);
     void audit(deps.pool, { actorId: userId, actorRole: req.user!.role, action: 'mfa.setup_initiated', ipAddress: req.ip });
-    res.json({ success: true, data: { uri, secret } });
+    res.json({ success: true, data: { uri } });
   });
 
-  router.post('/mfa-confirm', authenticateWithMfaToken, async (req: AuthRequest, res) => {
+  router.post('/mfa-confirm', mfaSetupRateLimiter, authenticateWithMfaToken, async (req: AuthRequest, res) => {
     if (!deps.getMfaSecret || !deps.decryptSecret || !deps.saveRecoveryCodes || !deps.enableMfa) {
       return res.status(501).json({ success: false, error: 'MFA not configured' });
     }

@@ -15,6 +15,8 @@ import {
 } from '../db/repositories/tracking-exceptions';
 import { generateClaimPdf } from '../services/fedex-claim-pdf';
 import { eraseCustomerPersonalData, hasActiveOrders } from '../db/repositories/gdpr';
+import { buildMailtoLink } from '../services/security-alert-service';
+import { config } from '../config';
 
 type AdminJob = {
   jobId: string;
@@ -553,7 +555,13 @@ function createAdminRouter(deps: AdminRouterDeps) {
          ORDER BY occurred_at DESC
          LIMIT 50`,
       );
-      res.json({ data: rows });
+      const rowsWithMailto = rows.map(row => ({
+        ...row,
+        mailtoUrl: config.security.alertEmail
+          ? buildMailtoLink(config.security.alertEmail, row.metadata?.event, row.metadata ?? {})
+          : null,
+      }));
+      res.json({ data: rowsWithMailto });
     } catch (error) {
       logger.error('Error fetching security alerts', { error });
       res.status(500).json({ success: false, error: 'Errore recupero security alerts' });

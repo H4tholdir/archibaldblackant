@@ -22,5 +22,5 @@ export function buildMailtoLink(alertEmail: string, event: SecurityAlertEvent, d
   const timestamp = new Date().toISOString();
   const subject = encodeURIComponent(`[ARCHIBALD SECURITY] ${event} — ${timestamp}`);
   const body = encodeURIComponent(`Evento: ${event}\nTimestamp: ${timestamp}\n\nDettagli:\n${JSON.stringify(details, null, 2)}`);
-  return `mailto:${alertEmail}?subject=${subject}&body=${body}`;
+  return `mailto:${encodeURIComponent(alertEmail)}?subject=${subject}&body=${body}`;
 }

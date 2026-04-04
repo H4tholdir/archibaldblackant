@@ -247,6 +247,59 @@ describe('createAuthRouter', () => {
     });
   });
 
+  describe('POST /api/auth/mfa-setup', () => {
+    function depsWithMfaSetup(): AuthRouterDeps {
+      return {
+        ...createMockDeps(),
+        verifyMfaToken: vi.fn().mockResolvedValue({ userId: 'user-1' }),
+        encryptSecret: vi.fn().mockResolvedValue({ ciphertext: 'ct', iv: 'iv', authTag: 'at' }),
+        saveMfaSecret: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    test('response contains uri but NOT secret', async () => {
+      const d = depsWithMfaSetup();
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/mfa-setup')
+        .set('Authorization', 'Bearer valid-mfa-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveProperty('uri');
+      expect(res.body.data).not.toHaveProperty('secret');
+    });
+
+    test('response uri is a non-empty string', async () => {
+      const d = depsWithMfaSetup();
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/mfa-setup')
+        .set('Authorization', 'Bearer valid-mfa-token');
+
+      expect(res.status).toBe(200);
+      expect(typeof res.body.data.uri).toBe('string');
+      expect(res.body.data.uri.length).toBeGreaterThan(0);
+    });
+
+    test('returns 429 after 5 requests within the rate limit window', async () => {
+      const d = depsWithMfaSetup();
+      const app = createApp(d);
+
+      for (let i = 0; i < 5; i++) {
+        await request(app)
+          .post('/api/auth/mfa-setup')
+          .set('Authorization', 'Bearer valid-mfa-token');
+      }
+
+      const res = await request(app)
+        .post('/api/auth/mfa-setup')
+        .set('Authorization', 'Bearer valid-mfa-token');
+
+      expect(res.status).toBe(429);
+    });
+  });
+
   describe('POST /api/auth/login — MFA enforcement', () => {
     const adminNoMfa = { id: 'u-admin', username: 'adminuser', fullName: 'Admin', role: 'admin', whitelisted: true, mfaEnabled: false, modules: [] };
     const adminWithMfa = { ...adminNoMfa, mfaEnabled: true };
