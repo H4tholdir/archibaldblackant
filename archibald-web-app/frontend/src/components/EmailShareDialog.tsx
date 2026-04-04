@@ -167,6 +167,9 @@ export function EmailShareDialog({
                 fontFamily: "inherit",
               }}
             />
+            <small style={{ color: "#888", fontSize: 11, display: "block", marginTop: 4 }}>
+              Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.
+            </small>
           </div>
         </div>
 

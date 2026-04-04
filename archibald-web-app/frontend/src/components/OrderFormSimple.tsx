@@ -4731,6 +4731,9 @@ export default function OrderFormSimple() {
                 boxSizing: "border-box",
               }}
             />
+            <small style={{ color: "#888", fontSize: 11, display: "block", marginTop: 4 }}>
+              Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.
+            </small>
           </div>
 
           {/* Totals Summary */}
