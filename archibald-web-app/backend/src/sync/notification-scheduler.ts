@@ -2,6 +2,7 @@ import type { DbPool } from '../db/pool';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import { createNotification } from '../services/notification-service';
 import { markAchieved as markAchievedCondition } from '../db/repositories/bonus-conditions';
+import { getInactiveCustomers } from '../db/repositories/retention';
 import { logger } from '../logger';
 
 const DAILY_CHECK_MS = 24 * 60 * 60 * 1000;
@@ -241,6 +242,33 @@ async function checkMissingOrderDocuments(pool: DbPool, deps: NotificationServic
   return rows.length;
 }
 
+const RETENTION_THRESHOLD_MONTHS = 24;
+
+async function checkRetentionPolicy(pool: DbPool, deps: NotificationServiceDeps): Promise<void> {
+  if (new Date().getUTCDay() !== 0) return;
+
+  const { rows: users } = await pool.query<{ id: string }>(
+    `SELECT DISTINCT user_id AS id FROM agents.customers WHERE deleted_at IS NULL`,
+  );
+  for (const user of users) {
+    const inactive = await getInactiveCustomers(pool, user.id, RETENTION_THRESHOLD_MONTHS);
+    if (inactive.length > 0) {
+      await createNotification(deps, {
+        target: 'user',
+        userId: user.id,
+        type: 'customer_inactive_retention',
+        severity: 'warning',
+        title: 'Clienti da verificare per policy di conservazione',
+        body: `${inactive.length} ${inactive.length === 1 ? 'cliente non ha avuto' : 'clienti non hanno avuto'} attività negli ultimi ${RETENTION_THRESHOLD_MONTHS} mesi. Verifica se i dati devono essere conservati.`,
+        data: {
+          count: inactive.length,
+          customerProfiles: inactive.map((c) => c.customerProfile),
+        },
+      });
+    }
+  }
+}
+
 function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps) {
   const timers: NodeJS.Timeout[] = [];
 
@@ -258,6 +286,9 @@ function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps
         });
         checkMissingOrderDocuments(pool, deps).catch((error) => {
           logger.error('Failed to check missing order documents', { error });
+        });
+        checkRetentionPolicy(pool, deps).catch((error) => {
+          logger.error('Failed to check retention policy', { error });
         });
       }, DAILY_CHECK_MS),
     );
@@ -279,5 +310,7 @@ export {
   checkOverduePayments,
   checkBudgetMilestones,
   checkMissingOrderDocuments,
+  checkRetentionPolicy,
+  RETENTION_THRESHOLD_MONTHS,
   DAILY_CHECK_MS,
 };
