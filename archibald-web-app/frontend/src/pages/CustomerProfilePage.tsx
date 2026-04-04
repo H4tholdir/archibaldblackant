@@ -6,7 +6,7 @@ import type { CustomerAddress } from '../types/customer-address';
 import type { AddressEntry } from '../types/customer-form-data';
 import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
-import { getCustomerAddresses, addCustomerAddress, deleteCustomerAddress } from '../services/customer-addresses';
+import { getCustomerAddresses, addCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../services/customer-addresses';
 import { customerService } from '../services/customers.service';
 import { CustomerListSidebar } from '../components/CustomerListSidebar';
 import { PhotoCropModal } from '../components/PhotoCropModal';
@@ -69,6 +69,7 @@ export function CustomerProfilePage() {
   const { trackOperation } = useOperationTracking();
 
   const [deleteAddrConfirmId, setDeleteAddrConfirmId] = useState<number | null>(null);
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
   const [addAddrForm, setAddAddrForm] = useState<AddressEntry | null>(null);
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
@@ -620,66 +621,101 @@ export function CustomerProfilePage() {
 
             {/* 8. Indirizzi alternativi */}
             <SectionCard refProp={sectionRefs.addresses} title="Indirizzi alternativi" isEditMode={editMode}>
-              {addresses.length === 0 && !addAddrForm ? (
-                <span style={{ color: '#94a3b8', fontSize: '13px' }}>Nessun indirizzo alternativo</span>
-              ) : (
-                addresses.map(addr => (
-                  <div key={addr.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{addr.nome ?? addr.tipo}</div>
-                      <div style={{ fontSize: 10, color: '#64748b' }}>{[addr.via, addr.citta].filter(Boolean).join(', ')}</div>
-                    </div>
-                    {deleteAddrConfirmId === addr.id ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          aria-label="Conferma eliminazione"
-                          onClick={async () => {
-                            await deleteCustomerAddress(erpId, addr.id);
-                            setAddresses(prev => prev.filter(a => a.id !== addr.id));
-                            setDeleteAddrConfirmId(null);
-                          }}
-                          style={{ padding: '3px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
-                        >Conferma</button>
-                        <button onClick={() => setDeleteAddrConfirmId(null)} style={{ padding: '3px 8px', background: '#f1f5f9', border: 'none', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}>Annulla</button>
-                      </div>
+              <div>
+                {/* Header: bottone aggiungi visibile solo in edit mode */}
+                {editMode && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                    <button
+                      onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
+                      style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '3px 8px', fontSize: '12px', cursor: 'pointer' }}
+                    >+ Aggiungi</button>
+                  </div>
+                )}
+
+                {/* Lista indirizzi esistenti */}
+                {addresses.length === 0 && !addAddrForm && (
+                  <span style={{ color: '#94a3b8', fontSize: '13px' }}>Nessun indirizzo alternativo</span>
+                )}
+                {addresses.map(addr => (
+                  <div key={addr.id} style={{ marginBottom: '8px', borderBottom: '1px solid #f8fafc', paddingBottom: '8px' }}>
+                    {editingAddressId === addr.id ? (
+                      <AddressInlineEditForm
+                        value={{ tipo: addr.tipo, nome: addr.nome ?? undefined, via: addr.via ?? undefined, cap: addr.cap ?? undefined, citta: addr.citta ?? undefined }}
+                        onSave={async (draft) => {
+                          const updated = await updateCustomerAddress(erpId, addr.id, draft);
+                          setAddresses(prev => prev.map(a => a.id === addr.id ? updated : a));
+                          setEditingAddressId(null);
+                        }}
+                        onCancel={() => setEditingAddressId(null)}
+                      />
                     ) : (
-                      <button
-                        aria-label={`Elimina ${addr.nome ?? addr.tipo}`}
-                        onClick={() => setDeleteAddrConfirmId(addr.id)}
-                        style={{ padding: '3px 8px', background: '#fff', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 10, cursor: 'pointer' }}
-                      >Elimina</button>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{addr.nome ?? addr.tipo}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>
+                            {[addr.via, addr.cap, addr.citta].filter(Boolean).join(', ')}
+                          </div>
+                          {(addr.via ?? addr.citta) && (
+                            <a
+                              href={`https://maps.google.com/?daddr=${encodeURIComponent([addr.via, addr.citta].filter(Boolean).join(', '))}&travelmode=driving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: '11px', color: '#2563eb' }}
+                            >Indicazioni</a>
+                          )}
+                        </div>
+                        {editMode && (
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              aria-label={`Modifica ${addr.nome ?? addr.tipo}`}
+                              onClick={() => { setEditingAddressId(addr.id); setDeleteAddrConfirmId(null); }}
+                              style={{ border: '1px solid #e2e8f0', background: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            >Modifica</button>
+                            <button
+                              aria-label={`Elimina ${addr.nome ?? addr.tipo}`}
+                              onClick={() => { setDeleteAddrConfirmId(addr.id); setEditingAddressId(null); }}
+                              style={{ border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', borderRadius: '4px', padding: '3px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            >Elimina</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {deleteAddrConfirmId === addr.id && (
+                      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px', marginTop: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#dc2626' }}>Rimuovere questo indirizzo?</span>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                          <button
+                            aria-label="Conferma eliminazione"
+                            onClick={async () => {
+                              await deleteCustomerAddress(erpId, addr.id);
+                              setAddresses(prev => prev.filter(a => a.id !== addr.id));
+                              setDeleteAddrConfirmId(null);
+                            }}
+                            style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '12px', cursor: 'pointer' }}
+                          >Elimina</button>
+                          <button
+                            onClick={() => setDeleteAddrConfirmId(null)}
+                            style={{ background: '#f1f5f9', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '12px', cursor: 'pointer' }}
+                          >Annulla</button>
+                        </div>
+                      </div>
                     )}
                   </div>
-                ))
-              )}
-              <button
-                onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
-                style={{ border: 'none', background: '#eff6ff', color: '#2563eb', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginTop: addresses.length > 0 ? '8px' : 0 }}
-              >+ Aggiungi indirizzo</button>
-              {addAddrForm && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-                  {(['via', 'citta', 'cap', 'nome'] as const).map(field => (
-                    <input
-                      key={field}
-                      placeholder={field === 'nome' ? 'Descrizione (es. Magazzino)' : field === 'via' ? 'Via' : field === 'citta' ? 'Città' : 'CAP'}
-                      value={(addAddrForm as Record<string, string>)[field] ?? ''}
-                      onChange={e => setAddAddrForm(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                      style={{ fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', outline: 'none' }}
-                    />
-                  ))}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={async () => {
-                        const created = await addCustomerAddress(erpId, addAddrForm);
-                        setAddresses(prev => [...prev, created]);
-                        setAddAddrForm(null);
-                      }}
-                      style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                    >Salva indirizzo</button>
-                    <button onClick={() => setAddAddrForm(null)} style={{ padding: '5px 12px', background: '#f1f5f9', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Annulla</button>
-                  </div>
-                </div>
-              )}
+                ))}
+
+                {/* Form per nuovo indirizzo */}
+                {addAddrForm && (
+                  <AddressInlineEditForm
+                    value={addAddrForm}
+                    onSave={async (draft) => {
+                      const created = await addCustomerAddress(erpId, draft);
+                      setAddresses(prev => [...prev, created]);
+                      setAddAddrForm(null);
+                    }}
+                    onCancel={() => setAddAddrForm(null)}
+                  />
+                )}
+              </div>
             </SectionCard>
 
             {/* 9. Storico ordini — full width */}
@@ -742,6 +778,50 @@ export function CustomerProfilePage() {
   );
 }
 
+
+function AddressInlineEditForm({ value, onSave, onCancel }: {
+  value: AddressEntry;
+  onSave: (v: AddressEntry) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<AddressEntry>(value);
+  const [saving, setSaving] = useState(false);
+  const fields: { key: keyof AddressEntry; label: string; placeholder: string }[] = [
+    { key: 'nome', label: 'Descrizione', placeholder: 'es. Magazzino' },
+    { key: 'via', label: 'Via', placeholder: 'Via e numero civico' },
+    { key: 'cap', label: 'CAP', placeholder: '00000' },
+    { key: 'citta', label: 'Città', placeholder: 'Città' },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {fields.map(({ key, label, placeholder }) => (
+        <div key={key} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', color: '#64748b', minWidth: '80px', flexShrink: 0 }}>{label}</span>
+          <input
+            value={draft[key] ?? ''}
+            placeholder={placeholder}
+            onChange={(e) => setDraft(prev => ({ ...prev, [key]: e.target.value }))}
+            style={{ flex: 1, border: '1px solid #bfdbfe', borderRadius: '4px', padding: '4px 8px', fontSize: '12px', background: '#eff6ff', outline: 'none' }}
+          />
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+        <button
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            try { await onSave(draft); } finally { setSaving(false); }
+          }}
+          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}
+        >{saving ? 'Salvataggio…' : 'Salva'}</button>
+        <button
+          onClick={onCancel}
+          style={{ background: '#f1f5f9', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
+        >Annulla</button>
+      </div>
+    </div>
+  );
+}
 
 function SectionCard({
   refProp, title, children, isEditMode,
