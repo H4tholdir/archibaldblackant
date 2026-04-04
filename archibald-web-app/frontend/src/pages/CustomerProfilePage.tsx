@@ -561,16 +561,11 @@ function FieldCell({ label, value, originalValue, editKey, editMode, setField, r
       </div>
       {canEdit ? (
         isTextarea ? (
-          <div>
-            <textarea
-              value={value ?? ''}
-              onChange={e => setField!(editKey!, e.target.value)}
-              style={{ fontSize: 12, border: `1.5px solid ${value !== undefined ? '#f59e0b' : '#e2e8f0'}`, borderRadius: 5, padding: '3px 7px', width: '100%', background: value !== undefined ? '#fef9c3' : '#f8fafc', outline: 'none', resize: 'vertical', minHeight: 48, fontFamily: 'inherit', color: '#1e293b' }}
-            />
-            <small style={{ color: '#888', fontSize: 11, display: 'block', marginTop: 4 }}>
-              Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.
-            </small>
-          </div>
+          <textarea
+            value={value ?? ''}
+            onChange={e => setField!(editKey!, e.target.value)}
+            style={{ fontSize: 12, border: `1.5px solid ${value !== undefined ? '#f59e0b' : '#e2e8f0'}`, borderRadius: 5, padding: '3px 7px', width: '100%', background: value !== undefined ? '#fef9c3' : '#f8fafc', outline: 'none', resize: 'vertical', minHeight: 48, fontFamily: 'inherit', color: '#1e293b' }}
+          />
         ) : (
           <input
             value={value ?? ''}
@@ -582,6 +577,11 @@ function FieldCell({ label, value, originalValue, editKey, editMode, setField, r
         <div style={{ fontSize: 12, color: readOnly ? '#94a3b8' : '#1e293b', fontWeight: readOnly ? 400 : 500 }}>
           {renderValue && value ? renderValue(value) : displayVal}
         </div>
+      )}
+      {isTextarea && (
+        <small style={{ color: '#888', fontSize: 11, display: 'block', marginTop: 4 }}>
+          Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.
+        </small>
       )}
     </div>
   );
