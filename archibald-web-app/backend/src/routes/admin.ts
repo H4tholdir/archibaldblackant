@@ -544,6 +544,22 @@ function createAdminRouter(deps: AdminRouterDeps) {
     }
   });
 
+  router.get('/security-alerts', async (_req: AuthRequest, res) => {
+    try {
+      const { rows } = await deps.pool.query(
+        `SELECT id, occurred_at, metadata
+         FROM system.audit_log
+         WHERE action = 'security.alert' AND occurred_at > NOW() - INTERVAL '7 days'
+         ORDER BY occurred_at DESC
+         LIMIT 50`,
+      );
+      res.json({ data: rows });
+    } catch (error) {
+      logger.error('Error fetching security alerts', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero security alerts' });
+    }
+  });
+
   router.get('/audit-log', async (req: AuthRequest, res) => {
     try {
       const { actorId, action, targetType, from, to, page = '1' } = req.query as Record<string, string>;

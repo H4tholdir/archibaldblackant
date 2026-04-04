@@ -96,17 +96,7 @@ async function bootstrap(): Promise<void> {
     skipped: migrationResult.skipped.length,
   });
 
-  const securityAlertService = createSecurityAlertService(
-    {
-      host: process.env.SMTP_HOST ?? '',
-      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
-      user: process.env.SMTP_USER ?? '',
-      pass: process.env.SMTP_PASS ?? '',
-      from: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? '',
-      secure: process.env.SMTP_SECURE === 'true',
-    },
-    process.env.SECURITY_ALERT_EMAIL ?? '',
-  );
+  const securityAlertService = createSecurityAlertService(pool);
 
   const agentLock = createAgentLock();
 

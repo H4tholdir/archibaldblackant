@@ -1,59 +1,68 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockSendMail = vi.fn().mockResolvedValue({ messageId: 'test-id' });
-vi.mock('nodemailer', () => ({
-  default: {
-    createTransport: vi.fn(() => ({ sendMail: mockSendMail })),
-  },
-}));
+const mockAudit = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('../db/repositories/audit-log', () => ({ audit: mockAudit }));
 
-import { createSecurityAlertService } from './security-alert-service';
+import { createSecurityAlertService, buildMailtoLink } from './security-alert-service';
+import type { SecurityAlertEvent } from './security-alert-service';
+import type { DbPool } from '../db/pool';
 
-const smtpConfig = {
-  host: 'smtp.example.com',
-  port: 587,
-  secure: false,
-  user: 'alerts@example.com',
-  pass: 'secret',
-  from: 'alerts@example.com',
-};
+const mockPool = {} as DbPool;
 
 describe('createSecurityAlertService', () => {
-  beforeEach(() => mockSendMail.mockClear());
+  beforeEach(() => mockAudit.mockClear());
 
-  it('sends email with event type in subject', async () => {
-    const svc = createSecurityAlertService(smtpConfig, 'admin@example.com');
-    await svc.send('circuit_breaker_triggered', { userId: 'user1', syncType: 'agent-sync' });
-    expect(mockSendMail).toHaveBeenCalledOnce();
-    const call = mockSendMail.mock.calls[0][0];
-    expect(call.subject).toContain('circuit_breaker_triggered');
-    expect(call.to).toBe('admin@example.com');
+  it('calls audit with action security.alert and actorRole system', () => {
+    const svc = createSecurityAlertService(mockPool);
+    svc.send('circuit_breaker_triggered', { userId: 'user1', syncType: 'agent-sync' });
+    expect(mockAudit).toHaveBeenCalledOnce();
+    expect(mockAudit).toHaveBeenCalledWith(mockPool, {
+      action: 'security.alert',
+      actorRole: 'system',
+      metadata: { event: 'circuit_breaker_triggered', userId: 'user1', syncType: 'agent-sync' },
+    });
   });
 
-  it('swallows errors silently', async () => {
-    mockSendMail.mockRejectedValueOnce(new Error('SMTP down'));
-    const svc = createSecurityAlertService(smtpConfig, 'admin@example.com');
-    await expect(svc.send('backup_failed', {})).resolves.toBeUndefined();
+  it('spreads details into metadata alongside event', () => {
+    const svc = createSecurityAlertService(mockPool);
+    svc.send('backup_failed', { reason: 'timeout', attempt: 3 });
+    const call = mockAudit.mock.calls[0][1];
+    expect(call.metadata).toEqual({ event: 'backup_failed', reason: 'timeout', attempt: 3 });
   });
 
-  it('does nothing when SMTP not configured', async () => {
-    const svc = createSecurityAlertService(
-      { host: '', port: 587, secure: false, user: '', pass: '', from: '' },
-      'admin@example.com',
-    );
-    await svc.send('backup_failed', {});
-    expect(mockSendMail).not.toHaveBeenCalled();
+  it('calls audit even when details is empty', () => {
+    const svc = createSecurityAlertService(mockPool);
+    svc.send('high_error_rate', {});
+    expect(mockAudit).toHaveBeenCalledOnce();
+    expect(mockAudit.mock.calls[0][1].metadata).toEqual({ event: 'high_error_rate' });
+  });
+});
+
+describe('buildMailtoLink', () => {
+  const alertEmail = 'admin@example.com';
+  const event: SecurityAlertEvent = 'login_failed_admin';
+  const details = { ip: '1.2.3.4', username: 'frankie' };
+
+  it('produces a mailto: URL', () => {
+    const link = buildMailtoLink(alertEmail, event, details);
+    expect(link).toMatch(/^mailto:admin@example\.com\?/);
   });
 
-  it('uses smtp user as from address when from is empty', async () => {
-    const user = 'alerts@example.com';
-    const svc = createSecurityAlertService(
-      { host: 'smtp.example.com', port: 587, secure: false, user, pass: 'secret', from: '' },
-      'admin@example.com',
-    );
-    await svc.send('backup_failed', {});
-    expect(mockSendMail).toHaveBeenCalledOnce();
-    const call = mockSendMail.mock.calls[0][0];
-    expect(call.from).toBe(user);
+  it('encodes the event name in the subject', () => {
+    const link = buildMailtoLink(alertEmail, event, details);
+    expect(decodeURIComponent(link)).toContain('login_failed_admin');
+  });
+
+  it('encodes the details JSON in the body', () => {
+    const link = buildMailtoLink(alertEmail, event, details);
+    const decoded = decodeURIComponent(link);
+    expect(decoded).toContain('1.2.3.4');
+    expect(decoded).toContain('frankie');
+  });
+
+  it('includes both subject and body query params', () => {
+    const link = buildMailtoLink(alertEmail, event, details);
+    expect(link).toContain('subject=');
+    expect(link).toContain('&body=');
   });
 });
