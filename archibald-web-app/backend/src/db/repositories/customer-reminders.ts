@@ -3,9 +3,9 @@ import type { DbPool } from '../pool';
 type Brand<T, B> = T & { __brand: B };
 type ReminderId = Brand<number, 'ReminderId'>;
 
-type ReminderStatus = 'active' | 'snoozed' | 'done';
-type ReminderPriority = 'normal' | 'urgent';
-type ReminderType = 'commercial_contact' | 'follow_up' | 'payment' | 'other';
+type ReminderStatus = 'active' | 'snoozed' | 'done' | 'cancelled';
+type ReminderPriority = 'urgent' | 'normal' | 'low';
+type ReminderType = 'commercial_contact' | 'offer_followup' | 'payment' | 'contract_renewal' | 'anniversary' | 'custom';
 type ReminderNotifyVia = 'app' | 'email';
 type ReminderFilter = 'active' | 'done' | 'all';
 
