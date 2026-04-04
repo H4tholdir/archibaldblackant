@@ -28,5 +28,19 @@ export async function eraseCustomerPersonalData(pool: DbPool, customerProfile: s
        WHERE customer_profile = $2`,
       [erasedMarker, customerProfile],
     );
+    await tx.query(
+      `UPDATE shared.sub_clients SET
+         pers_da_contattare = CASE WHEN pers_da_contattare IS NOT NULL THEN $1 ELSE NULL END,
+         email              = CASE WHEN email IS NOT NULL THEN $1 ELSE NULL END,
+         email_amministraz  = CASE WHEN email_amministraz IS NOT NULL THEN $1 ELSE NULL END,
+         telefono           = CASE WHEN telefono IS NOT NULL THEN $1 ELSE NULL END,
+         cod_fiscale        = CASE WHEN cod_fiscale IS NOT NULL THEN $1 ELSE NULL END,
+         partita_iva        = CASE WHEN partita_iva IS NOT NULL THEN $1 ELSE NULL END
+       WHERE codice IN (
+         SELECT sub_client_codice FROM shared.sub_client_customer_matches
+         WHERE customer_profile_id = $2
+       ) OR matched_customer_profile_id = $2`,
+      [erasedMarker, customerProfile],
+    );
   });
 }
