@@ -74,7 +74,9 @@ export function CustomerProfilePage() {
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
   const [activeRemindersCount] = useState(0);
   const [_isNewReminderOpen, setIsNewReminderOpen] = useState(false);
   const urgentRemindersText: string | null = null;
@@ -97,6 +99,16 @@ export function CustomerProfilePage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Collapsing hero on scroll (mobile/tablet only)
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || isDesktop) return;
+    const THRESHOLD = 80;
+    const onScroll = () => setHeroCollapsed(el.scrollTop > THRESHOLD);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [isDesktop]);
 
   const sectionRefs = {
     contacts: useRef<HTMLDivElement>(null),
@@ -153,6 +165,7 @@ export function CustomerProfilePage() {
   function enterEditMode() {
     setEditMode(true);
     setVatValidated(false);
+    setHeroCollapsed(false);
     setLocalAddresses([...addresses]);
   }
 
@@ -440,7 +453,14 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        {!isDesktop && <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        {!isDesktop && <div style={{
+          background: '#fff',
+          borderBottom: heroCollapsed ? 'none' : '1px solid #f1f5f9',
+          flexShrink: 0,
+          overflow: 'hidden',
+          maxHeight: heroCollapsed ? '0px' : '1000px',
+          transition: 'max-height 0.35s ease, border-bottom 0.2s ease',
+        }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px 0' }}>
             {/* Avatar con completeness ring */}
             <div style={{ position: 'relative', marginBottom: '12px' }}>
@@ -633,7 +653,7 @@ export function CustomerProfilePage() {
         )}
 
         {/* ── Area sezioni (scrollabile) ─────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: (isDesktop || isTablet) ? '1fr 1fr' : '1fr',
