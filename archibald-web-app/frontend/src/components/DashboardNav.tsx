@@ -166,11 +166,13 @@ export function DashboardNav() {
           justifyContent: "space-between",
         }}
       >
-        {/* Logo */}
-        <div
+        {/* Logo — click → home */}
+        <Link
+          to="/"
           style={{
             display: "flex",
             alignItems: "center",
+            textDecoration: "none",
           }}
         >
           <img
@@ -182,7 +184,7 @@ export function DashboardNav() {
               maxWidth: "200px",
             }}
           />
-        </div>
+        </Link>
 
         {/* Notification bell + Hamburger button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

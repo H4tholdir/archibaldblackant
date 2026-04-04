@@ -75,9 +75,6 @@ export function CustomerProfilePage() {
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // Sentinel at the bottom of the hero: IntersectionObserver fires when it leaves viewport
-  // regardless of which element (window vs inner div) is doing the scrolling
-  const heroSentinelRef = useRef<HTMLDivElement>(null);
 
   const [heroCollapsed, setHeroCollapsed] = useState(false);
   const [activeRemindersCount] = useState(0);
@@ -103,19 +100,25 @@ export function CustomerProfilePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Collapsing hero on scroll (mobile/tablet only) — IntersectionObserver on a sentinel
-  // placed at the bottom of the hero. Works regardless of which element scrolls
-  // (window, .app-main, or inner div).
+  // Collapsing hero on scroll (mobile/tablet only).
+  // Listens to BOTH the inner scroll container AND window scroll because the layout
+  // (DashboardNav sticky above CustomerProfilePage) means either element may scroll.
   useEffect(() => {
     if (isDesktop) return;
-    const sentinel = heroSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setHeroCollapsed(!entry.isIntersecting),
-      { threshold: 0 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
+    const THRESHOLD = 60;
+    const el = scrollContainerRef.current;
+
+    const check = () => {
+      const inner = el?.scrollTop ?? 0;
+      setHeroCollapsed(inner > THRESHOLD || window.scrollY > THRESHOLD);
+    };
+
+    el?.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('scroll', check, { passive: true });
+    return () => {
+      el?.removeEventListener('scroll', check);
+      window.removeEventListener('scroll', check);
+    };
   }, [isDesktop]);
 
   const sectionRefs = {
@@ -174,6 +177,9 @@ export function CustomerProfilePage() {
     setEditMode(true);
     setVatValidated(false);
     setHeroCollapsed(false);
+    // Riporta il contenuto in cima così i banner VAT/completezza sono visibili
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    window.scrollTo(0, 0);
     setLocalAddresses([...addresses]);
   }
 
@@ -608,8 +614,6 @@ export function CustomerProfilePage() {
               ))}
             </div>
           </div>
-          {/* Sentinel: quando esce dal viewport l'hero collassa */}
-          <div ref={heroSentinelRef} style={{ height: 1 }} />
         </div>}
 
         {/* ── VAT Track B banner ────────────────────────────────────────── */}
