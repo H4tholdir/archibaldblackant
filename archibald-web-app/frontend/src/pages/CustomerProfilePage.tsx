@@ -17,6 +17,7 @@ import { CustomerRemindersSection } from '../components/CustomerRemindersSection
 
 type PendingEdits = {
   name?: string;
+  nameAlias?: string;
   vatNumber?: string;
   fiscalCode?: string;
   pec?: string;
@@ -33,7 +34,7 @@ type PendingEdits = {
   paymentTerms?: string;
   sector?: string;
   notes?: string;
-  addresses?: AddressEntry[];
+  agentNotes?: string;
 };
 
 async function fetchCustomer(erpId: string): Promise<Customer> {
@@ -85,6 +86,7 @@ export function CustomerProfilePage() {
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 641 && window.innerWidth < 1024);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [localAddresses, setLocalAddresses] = useState<CustomerAddress[] | null>(null);
+  const [mainCapOptions, setMainCapOptions] = useState<{ city: string; county: string | null; state: string | null }[]>([]);
 
   useEffect(() => {
     function handleResize() {
@@ -159,6 +161,31 @@ export function CustomerProfilePage() {
     setPendingEdits({});
     setVatValidated(false);
     setLocalAddresses(null);
+    setMainCapOptions([]);
+  }
+
+  async function handleMainCapChange(cap: string) {
+    handleFieldChange('postalCode', cap);
+    if (cap.length === 5 && /^\d{5}$/.test(cap)) {
+      try {
+        const jwt = localStorage.getItem('archibald_jwt') ?? '';
+        const res = await fetch(`/api/cap-lookup?cap=${cap}`, { headers: { Authorization: `Bearer ${jwt}` } });
+        if (res.ok) {
+          const body = await res.json() as { success: boolean; data: { city: string; county: string | null; state: string | null }[] };
+          const options = body.data ?? [];
+          if (options.length === 1) {
+            handleFieldChange('postalCodeCity', options[0].city);
+            setMainCapOptions([]);
+          } else {
+            setMainCapOptions(options);
+          }
+        }
+      } catch {
+        setMainCapOptions([]);
+      }
+    } else {
+      setMainCapOptions([]);
+    }
   }
 
   function handleFieldChange(key: string, val: string) {
@@ -171,10 +198,9 @@ export function CustomerProfilePage() {
     setSaveProgress(5);
     setSaveLabel('Connessione...');
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         erpId,
-        name: customer.name,
-        ...pendingEdits,
+        diff: pendingEdits,
         ...(localAddresses !== null ? {
           addresses: localAddresses.map(a => ({ tipo: a.tipo, nome: a.nome ?? undefined, via: a.via ?? undefined, cap: a.cap ?? undefined, citta: a.citta ?? undefined }))
         } : {}),
@@ -211,22 +237,32 @@ export function CustomerProfilePage() {
 
   async function handleVatValidation() {
     if (!customer) return;
+    const vatNumber = pendingEdits.vatNumber ?? customer.vatNumber ?? '';
+    if (!vatNumber) {
+      toastService.error('Inserisci un numero di P.IVA prima di validare');
+      return;
+    }
     setVatValidating(true);
     try {
       const jwt = localStorage.getItem('archibald_jwt') ?? '';
-      const res = await fetch('/api/customers/interactive/start-edit', {
+      const res = await fetch('/api/customers/vat-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
-        body: JSON.stringify({
-          customerProfile: customer.erpId,
-          vatNumber: pendingEdits.vatNumber ?? customer.vatNumber,
-        }),
+        body: JSON.stringify({ vatNumber }),
       });
-      if (res.ok) {
+      if (!res.ok) {
+        toastService.error('Errore durante la verifica della P.IVA');
+        return;
+      }
+      const body = await res.json() as { success: boolean; data?: { valid: boolean } };
+      if (body.data?.valid) {
         setVatValidated(true);
+        toastService.success('P.IVA verificata ✓');
+      } else {
+        toastService.error('P.IVA non valida o non trovata nel registro VIES');
       }
     } catch {
-      // silent
+      toastService.error('Errore di connessione durante la verifica');
     } finally {
       setVatValidating(false);
     }
@@ -281,8 +317,8 @@ export function CustomerProfilePage() {
     { icon: '💬', label: 'WhatsApp', bg: '#15803d', color: '#bbf7d0', disabled: !customer.mobile, onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
     { icon: '✉', label: 'Email', bg: '#7e22ce', color: '#d8b4fe', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
     { icon: '📍', label: 'Indicazioni', bg: '#92400e', color: '#fde68a', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
-    { icon: '🔔', label: 'Allerta', bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b', color: '#fca5a5', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => { scrollToSection('reminders'); setIsNewReminderOpen(true); } },
-    { icon: '📊', label: 'Analisi', bg: '#1e3a5f', color: '#93c5fd', onClick: () => scrollToSection('storico') },
+    { icon: '📊', label: 'Analisi e Storico', bg: '#1e3a5f', color: '#93c5fd', onClick: () => scrollToSection('storico') },
+    { icon: '🔔', label: 'Promemoria', bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b', color: '#fca5a5', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => { scrollToSection('reminders'); setIsNewReminderOpen(true); } },
   ];
 
   return (
@@ -310,6 +346,10 @@ export function CustomerProfilePage() {
               style={{ position: 'absolute', bottom: 4, right: 4, width: '28px', height: '28px', borderRadius: '50%', background: 'white', border: '2px solid #1e293b', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >📷</button>
           </div>
+          <button
+            onClick={() => photoInputRef.current?.click()}
+            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '11px', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+          >Cambia foto</button>
           {/* Nome */}
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '176px' }}>{customer.name}</div>
           {/* Completeness bar */}
@@ -430,20 +470,6 @@ export function CustomerProfilePage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >📷</button>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                style={{ display: 'none' }}
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = ev => { if (ev.target?.result) setPhotoCropSrc(ev.target.result as string); };
-                  reader.readAsDataURL(file);
-                  e.target.value = '';
-                }}
-              />
             </div>
 
             {/* Nome + bell reminder */}
@@ -608,8 +634,15 @@ export function CustomerProfilePage() {
             {/* 2. Indirizzo */}
             <SectionCard refProp={sectionRefs.address} title="Indirizzo principale" isEditMode={editMode}>
               <FieldRow label="Via" value={pendingEdits.street ?? customer.street} fieldKey="street" isEditing={editMode} onChange={handleFieldChange} />
-              <FieldRow label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} fieldKey="postalCode" isEditing={editMode} onChange={handleFieldChange} />
-              <FieldRow label="Città" value={pendingEdits.postalCodeCity ?? customer.city} fieldKey="postalCodeCity" isEditing={editMode} onChange={handleFieldChange} />
+              <FieldRow label="CAP" value={pendingEdits.postalCode ?? customer.postalCode} fieldKey="postalCode" isEditing={editMode} onChange={(_key, val) => { void handleMainCapChange(val); }} />
+              {editMode && mainCapOptions.length > 1 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '4px 0 4px 108px' }}>
+                  {mainCapOptions.map((opt) => (
+                    <button key={opt.city} onClick={() => { handleFieldChange('postalCodeCity', opt.city); setMainCapOptions([]); }} style={{ background: '#dbeafe', border: '1px solid #93c5fd', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', color: '#1d4ed8' }}>{opt.city}</button>
+                  ))}
+                </div>
+              )}
+              <FieldRow label="Città" value={pendingEdits.postalCodeCity ?? customer.city} isEditing={false} />
               <FieldRow label="Provincia" value={customer.county ?? null} />
               <FieldRow label="Regione" value={customer.state ?? null} />
               <FieldRow label="Paese" value={customer.country ?? null} />
@@ -617,8 +650,14 @@ export function CustomerProfilePage() {
 
             {/* 3. Anagrafica */}
             <SectionCard refProp={sectionRefs.anagrafica} title="Anagrafica" isEditMode={editMode}>
-              <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} fieldKey="name" isEditing={editMode} onChange={handleFieldChange} />
-              <FieldRow label="Nome di ricerca" value={customer.nameAlias ?? null} />
+              <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} fieldKey="name" isEditing={editMode} onChange={(key, val) => {
+                setPendingEdits(prev => {
+                  const next: PendingEdits = { ...prev, [key]: val };
+                  if (prev.nameAlias === undefined) next.nameAlias = val;
+                  return next;
+                });
+              }} />
+              <FieldRow label="Nome di ricerca" value={pendingEdits.nameAlias ?? customer.nameAlias ?? null} fieldKey="nameAlias" isEditing={editMode} onChange={handleFieldChange} />
               <FieldRow label="Attenzione a" value={pendingEdits.attentionTo ?? customer.attentionTo} fieldKey="attentionTo" isEditing={editMode} onChange={handleFieldChange} />
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', minWidth: '100px' }}>Settore</span>
@@ -911,6 +950,21 @@ export function CustomerProfilePage() {
           </button>
         )}
       </div>
+
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: 'none' }}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => { if (ev.target?.result) setPhotoCropSrc(ev.target.result as string); };
+          reader.readAsDataURL(file);
+          e.target.value = '';
+        }}
+      />
 
       {photoCropSrc !== null && (
         <PhotoCropModal

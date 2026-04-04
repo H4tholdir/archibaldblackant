@@ -54,10 +54,10 @@ describe('CustomerList', () => {
     expect(screen.getByText('inattivo')).toBeInTheDocument();
   });
 
-  test('pulsante + apre CustomerCreateModal', async () => {
+  test('pulsante Nuovo Cliente apre CustomerCreateModal', async () => {
     render(<MemoryRouter><CustomerList /></MemoryRouter>);
     await waitFor(() => screen.getByText('Rossi Mario'));
-    fireEvent.click(screen.getByRole('button', { name: '+' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nuovo Cliente/i }));
     expect(screen.getByTestId('create-modal')).toBeInTheDocument();
   });
 

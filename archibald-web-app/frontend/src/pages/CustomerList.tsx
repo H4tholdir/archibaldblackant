@@ -123,9 +123,8 @@ export function CustomerList() {
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
-          aria-label="+"
-          style={{ width: 32, height: 32, background: '#2563eb', border: 'none', borderRadius: '50%', color: 'white', fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >+</button>
+          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        ><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span> Nuovo Cliente</button>
       </div>
 
       {/* Search */}

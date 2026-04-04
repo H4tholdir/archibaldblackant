@@ -207,8 +207,10 @@ describe('CustomerProfilePage — edit mode + FAB', () => {
       expect(enqueueOperation).toHaveBeenCalledTimes(1);
       expect(enqueueOperation).toHaveBeenCalledWith('update-customer', expect.objectContaining({
         erpId: 'A001',
-        phone: '099 111',
-        email: 'x@y.it',
+        diff: expect.objectContaining({
+          phone: '099 111',
+          email: 'x@y.it',
+        }),
       }));
     });
   });
