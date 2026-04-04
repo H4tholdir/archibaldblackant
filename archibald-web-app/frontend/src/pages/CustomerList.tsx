@@ -134,14 +134,22 @@ export function CustomerList() {
     if (toFetch.length === 0) return;
 
     let cancelled = false;
-    // Carica in parallelo invece che in sequenza
-    void Promise.all(
-      toFetch.map(async c => {
-        const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
-        photoCache.set(c.erpId, url);
-        if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
-      })
-    );
+    // Carica con concorrenza limitata (max 5 richieste simultanee) per non sovraccaricare il backend
+    const CONCURRENCY = 5;
+    const load = async () => {
+      for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
+        if (cancelled) break;
+        const batch = toFetch.slice(i, i + CONCURRENCY);
+        await Promise.all(
+          batch.map(async c => {
+            const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
+            photoCache.set(c.erpId, url);
+            if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
+          })
+        );
+      }
+    };
+    void load();
     return () => { cancelled = true; };
   }, [visibleCustomers]);
 

@@ -75,6 +75,9 @@ export function CustomerProfilePage() {
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Sentinel at the bottom of the hero: IntersectionObserver fires when it leaves viewport
+  // regardless of which element (window vs inner div) is doing the scrolling
+  const heroSentinelRef = useRef<HTMLDivElement>(null);
 
   const [heroCollapsed, setHeroCollapsed] = useState(false);
   const [activeRemindersCount] = useState(0);
@@ -100,14 +103,19 @@ export function CustomerProfilePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Collapsing hero on scroll (mobile/tablet only)
+  // Collapsing hero on scroll (mobile/tablet only) — IntersectionObserver on a sentinel
+  // placed at the bottom of the hero. Works regardless of which element scrolls
+  // (window, .app-main, or inner div).
   useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el || isDesktop) return;
-    const THRESHOLD = 80;
-    const onScroll = () => setHeroCollapsed(el.scrollTop > THRESHOLD);
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    if (isDesktop) return;
+    const sentinel = heroSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setHeroCollapsed(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [isDesktop]);
 
   const sectionRefs = {
@@ -600,6 +608,8 @@ export function CustomerProfilePage() {
               ))}
             </div>
           </div>
+          {/* Sentinel: quando esce dal viewport l'hero collassa */}
+          <div ref={heroSentinelRef} style={{ height: 1 }} />
         </div>}
 
         {/* ── VAT Track B banner ────────────────────────────────────────── */}
