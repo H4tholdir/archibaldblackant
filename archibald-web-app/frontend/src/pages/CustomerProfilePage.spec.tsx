@@ -18,8 +18,6 @@ vi.mock('../api/customer-full-history', () => ({
 }));
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn().mockResolvedValue([]),
-  addCustomerAddress: vi.fn(),
-  deleteCustomerAddress: vi.fn(),
 }));
 vi.mock('../api/operations', () => ({
   enqueueOperation: vi.fn().mockResolvedValue({ jobId: 'j1' }),
@@ -27,9 +25,6 @@ vi.mock('../api/operations', () => ({
 }));
 vi.mock('../contexts/OperationTrackingContext', () => ({
   useOperationTracking: () => ({ trackOperation: vi.fn() }),
-}));
-vi.mock('../components/CustomerListSidebar', () => ({
-  CustomerListSidebar: () => <div data-testid="sidebar" />,
 }));
 vi.mock('../components/PhotoCropModal', () => ({
   PhotoCropModal: () => <div data-testid="photo-crop-modal" />,
@@ -104,11 +99,15 @@ describe('CustomerProfilePage — shell', () => {
 
 describe('CustomerProfilePage — ProfileHero', () => {
   test('mostra le iniziali dell avatar quando non c è foto', async () => {
+    // Force mobile viewport so the hero is visible
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile();
     await waitFor(() => screen.getByText('RM')); // iniziali Rossi Mario
   });
 
   test('pulsante 📷 apre l input file', async () => {
+    // Force mobile viewport so the hero section (containing the photo button) is rendered
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile();
     await waitFor(() => screen.getAllByText('Rossi Mario'));
     const photoBtn = screen.getByRole('button', { name: /Cambia foto/i });
@@ -126,6 +125,8 @@ describe('CustomerProfilePage — ProfileHero', () => {
   });
 
   test('quick action WhatsApp è disabilitata quando mobile è null', async () => {
+    // Force mobile viewport so the hero is visible (buttons have icon + label in separate elements)
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
     renderProfile(); // mockCustomer.mobile === null
     await waitFor(() => screen.getAllByText('Rossi Mario'));
     const whatsappLabel = screen.getByText('WhatsApp');
@@ -264,8 +265,7 @@ describe('CustomerProfilePage — indirizzi alternativi', () => {
     await waitFor(() => screen.getByText('Magazzino Nord'));
   });
 
-  test('pulsante elimina chiama deleteCustomerAddress dopo conferma', async () => {
-    const mod = await import('../services/customer-addresses');
+  test('pulsante elimina rimuove l indirizzo dalla lista dopo conferma', async () => {
     renderProfile();
     await waitFor(() => screen.getByText('Magazzino Nord'));
     // Elimina buttons are only visible in edit mode
@@ -273,6 +273,6 @@ describe('CustomerProfilePage — indirizzi alternativi', () => {
     fireEvent.click(screen.getByRole('button', { name: /Elimina Magazzino Nord/i }));
     // Inline confirm
     fireEvent.click(screen.getByRole('button', { name: /Conferma eliminazione/i }));
-    await waitFor(() => expect(vi.mocked(mod.deleteCustomerAddress)).toHaveBeenCalledWith('A001', 1));
+    await waitFor(() => expect(screen.queryByText('Magazzino Nord')).toBeNull());
   });
 });

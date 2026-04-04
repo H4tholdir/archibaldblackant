@@ -6,9 +6,8 @@ import type { CustomerAddress } from '../types/customer-address';
 import type { AddressEntry } from '../types/customer-form-data';
 import type { CustomerFullHistoryOrder } from '../api/customer-full-history';
 import { getCustomerFullHistory } from '../api/customer-full-history';
-import { getCustomerAddresses, addCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../services/customer-addresses';
+import { getCustomerAddresses } from '../services/customer-addresses';
 import { customerService } from '../services/customers.service';
-import { CustomerListSidebar } from '../components/CustomerListSidebar';
 import { PhotoCropModal } from '../components/PhotoCropModal';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
@@ -84,11 +83,14 @@ export function CustomerProfilePage() {
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 641 && window.innerWidth < 1024);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [localAddresses, setLocalAddresses] = useState<CustomerAddress[] | null>(null);
 
   useEffect(() => {
     function handleResize() {
       setIsMobile(window.innerWidth < 768);
       setIsTablet(window.innerWidth >= 641 && window.innerWidth < 1024);
+      setIsDesktop(window.innerWidth >= 1024);
     }
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -149,12 +151,14 @@ export function CustomerProfilePage() {
   function enterEditMode() {
     setEditMode(true);
     setVatValidated(false);
+    setLocalAddresses([...addresses]);
   }
 
   function exitEditMode() {
     setEditMode(false);
     setPendingEdits({});
     setVatValidated(false);
+    setLocalAddresses(null);
   }
 
   function handleFieldChange(key: string, val: string) {
@@ -167,7 +171,15 @@ export function CustomerProfilePage() {
     setSaveProgress(5);
     setSaveLabel('Connessione...');
     try {
-      const { jobId } = await enqueueOperation('update-customer', { erpId, name: customer.name, ...pendingEdits });
+      const payload = {
+        erpId,
+        name: customer.name,
+        ...pendingEdits,
+        ...(localAddresses !== null ? {
+          addresses: localAddresses.map(a => ({ tipo: a.tipo, nome: a.nome ?? undefined, via: a.via ?? undefined, cap: a.cap ?? undefined, citta: a.citta ?? undefined }))
+        } : {}),
+      };
+      const { jobId } = await enqueueOperation('update-customer', payload);
       trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`);
       setSaveProgress(15);
       setSaveLabel('Operazione in coda...');
@@ -185,6 +197,9 @@ export function CustomerProfilePage() {
       setVatValidated(false);
       const reloaded = await fetchCustomer(erpId);
       setCustomer(reloaded);
+      const reloadedAddresses = await getCustomerAddresses(erpId);
+      setAddresses(reloadedAddresses);
+      setLocalAddresses(null);
     } catch {
       toastService.error('Errore durante il salvataggio');
     } finally {
@@ -259,10 +274,63 @@ export function CustomerProfilePage() {
     );
   }
 
+  type QuickAction = { icon: string; label: string; bg: string; color: string; onClick: () => void; disabled?: boolean; badgeCount?: number };
+  const quickActions: QuickAction[] = [
+    { icon: '📋', label: 'Ordine', bg: '#1d4ed8', color: '#bfdbfe', onClick: () => navigate(`/order?customerId=${customer.erpId}`) },
+    { icon: '📞', label: 'Chiama', bg: '#166534', color: '#86efac', disabled: !(customer.mobile ?? customer.phone), onClick: () => { const p = customer.mobile ?? customer.phone; if (p) window.open(`tel:${p}`); } },
+    { icon: '💬', label: 'WhatsApp', bg: '#15803d', color: '#bbf7d0', disabled: !customer.mobile, onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
+    { icon: '✉', label: 'Email', bg: '#7e22ce', color: '#d8b4fe', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
+    { icon: '📍', label: 'Indicazioni', bg: '#92400e', color: '#fde68a', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
+    { icon: '🔔', label: 'Allerta', bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b', color: '#fca5a5', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => setIsNewReminderOpen(true) },
+    { icon: '📊', label: 'Analisi', bg: '#1e3a5f', color: '#93c5fd', onClick: () => setIsAnalysisOpen(true) },
+  ];
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {!isMobile && (
-        <CustomerListSidebar activeErpId={customer.erpId} />
+      {isDesktop && (
+        <div style={{ width: '200px', flexShrink: 0, borderRight: '1px solid #f1f5f9', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 12px', gap: '12px', background: '#fff' }}>
+          {/* Avatar con completeness ring */}
+          <div style={{ position: 'relative' }}>
+            <div style={{ width: 160, height: 160, borderRadius: '50%', border: isComplete ? '3px solid #22c55e' : '3px dashed #f59e0b', overflow: 'hidden', background: photoUrl ? 'transparent' : avatarGradient(erpId), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {photoUrl ? (
+                <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '56px', fontWeight: 800, color: 'white' }}>{customerInitials(customer.name)}</span>
+              )}
+            </div>
+            {!isComplete && (
+              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', color: 'white', borderRadius: '20px', padding: '2px 6px', fontSize: '10px', fontWeight: 700 }}>{missingCount}</div>
+            )}
+          </div>
+          {/* Nome */}
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '176px' }}>{customer.name}</div>
+          {/* Completeness bar */}
+          <div style={{ width: '100%' }}>
+            <div style={{ height: '4px', background: '#e2e8f0', borderRadius: '2px', marginBottom: '4px' }}>
+              <div style={{ height: '100%', width: `${completenessPercent}%`, background: isComplete ? '#22c55e' : '#f59e0b', borderRadius: '2px' }} />
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
+              Profilo {completenessPercent}%{!isComplete ? ` — ${missingCount} mancanti` : ''}
+            </div>
+          </div>
+          {/* Vertical action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+            {quickActions.map(({ icon, label, bg, onClick, disabled, badgeCount }) => (
+              <button
+                key={label}
+                onClick={onClick}
+                disabled={!!disabled}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', background: disabled ? '#f1f5f9' : bg, color: disabled ? '#94a3b8' : 'white', border: 'none', borderRadius: '8px', padding: '7px 10px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1, fontSize: '12px', fontWeight: 600, position: 'relative' }}
+              >
+                <span style={{ fontSize: '15px' }}>{icon}</span>
+                <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
+                {badgeCount !== undefined && badgeCount > 0 && (
+                  <span style={{ background: '#ef4444', color: 'white', borderRadius: '10px', padding: '1px 5px', fontSize: '9px', fontWeight: 800 }}>{badgeCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -309,7 +377,7 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        {!isDesktop && <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px 0' }}>
             {/* Avatar con completeness ring */}
             <div style={{ position: 'relative', marginBottom: '12px' }}>
@@ -448,29 +516,7 @@ export function CustomerProfilePage() {
 
             {/* Quick actions — 7 pulsanti */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '16px' }}>
-              {([
-                { icon: '📋', label: 'Ordine', bg: '#1d4ed8', color: '#bfdbfe',
-                  onClick: () => navigate(`/order?customerId=${customer.erpId}`) },
-                { icon: '📞', label: 'Chiama', bg: '#166534', color: '#86efac',
-                  disabled: !(customer.mobile ?? customer.phone),
-                  onClick: () => { const p = customer.mobile ?? customer.phone; if (p) window.open(`tel:${p}`); } },
-                { icon: '💬', label: 'WhatsApp', bg: '#15803d', color: '#bbf7d0',
-                  disabled: !customer.mobile,
-                  onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
-                { icon: '✉', label: 'Email', bg: '#7e22ce', color: '#d8b4fe',
-                  disabled: !customer.email,
-                  onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
-                { icon: '📍', label: 'Indicazioni', bg: '#92400e', color: '#fde68a',
-                  disabled: !customer.street,
-                  onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
-                { icon: '🔔', label: 'Allerta',
-                  bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b',
-                  color: '#fca5a5',
-                  badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined,
-                  onClick: () => setIsNewReminderOpen(true) },
-                { icon: '📊', label: 'Analisi', bg: '#1e3a5f', color: '#93c5fd',
-                  onClick: () => setIsAnalysisOpen(true) },
-              ] as Array<{ icon: string; label: string; bg: string; color: string; onClick: () => void; disabled?: boolean; badgeCount?: number }>).map(({ icon, label, bg, color: _color, onClick, disabled, badgeCount }) => (
+              {quickActions.map(({ icon, label, bg, onClick, disabled, badgeCount }) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                   <button
                     onClick={onClick}
@@ -496,7 +542,7 @@ export function CustomerProfilePage() {
               ))}
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* ── VAT Track B banner ────────────────────────────────────────── */}
         {editMode && !vatValidated && !customer.vatValidatedAt && (
@@ -538,7 +584,7 @@ export function CustomerProfilePage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isTablet ? '1fr 1fr' : '1fr',
+            gridTemplateColumns: (isDesktop || isTablet) ? '1fr 1fr' : '1fr',
             gap: '16px',
             padding: isMobile ? '16px' : '24px',
           }}>
@@ -633,9 +679,13 @@ export function CustomerProfilePage() {
             {/* 8. Indirizzi alternativi */}
             <SectionCard refProp={sectionRefs.addresses} title="Indirizzi alternativi" isEditMode={editMode}>
               <div>
-                {/* Header: bottone aggiungi visibile solo in edit mode */}
+                {/* Header: bottone aggiungi + badge modificato */}
                 {editMode && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    {localAddresses !== null && (
+                      <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>● modificato</span>
+                    )}
+                    <div style={{ flex: 1 }} />
                     <button
                       onClick={() => setAddAddrForm({ tipo: 'Consegna' })}
                       style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '3px 8px', fontSize: '12px', cursor: 'pointer' }}
@@ -644,17 +694,16 @@ export function CustomerProfilePage() {
                 )}
 
                 {/* Lista indirizzi esistenti */}
-                {addresses.length === 0 && !addAddrForm && (
+                {(localAddresses ?? addresses).length === 0 && !addAddrForm && (
                   <span style={{ color: '#94a3b8', fontSize: '13px' }}>Nessun indirizzo alternativo</span>
                 )}
-                {addresses.map(addr => (
+                {(localAddresses ?? addresses).map(addr => (
                   <div key={addr.id} style={{ marginBottom: '8px', borderBottom: '1px solid #f8fafc', paddingBottom: '8px' }}>
                     {editingAddressId === addr.id ? (
                       <AddressInlineEditForm
                         value={{ tipo: addr.tipo, nome: addr.nome ?? undefined, via: addr.via ?? undefined, cap: addr.cap ?? undefined, citta: addr.citta ?? undefined }}
                         onSave={async (draft) => {
-                          const updated = await updateCustomerAddress(erpId, addr.id, draft);
-                          setAddresses(prev => prev.map(a => a.id === addr.id ? updated : a));
+                          setLocalAddresses(prev => (prev ?? addresses).map(a => a.id === addr.id ? { ...a, ...draft } : a));
                           setEditingAddressId(null);
                         }}
                         onCancel={() => setEditingAddressId(null)}
@@ -697,9 +746,8 @@ export function CustomerProfilePage() {
                         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                           <button
                             aria-label="Conferma eliminazione"
-                            onClick={async () => {
-                              await deleteCustomerAddress(erpId, addr.id);
-                              setAddresses(prev => prev.filter(a => a.id !== addr.id));
+                            onClick={() => {
+                              setLocalAddresses(prev => (prev ?? addresses).filter(a => a.id !== addr.id));
                               setDeleteAddrConfirmId(null);
                             }}
                             style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '12px', cursor: 'pointer' }}
@@ -719,8 +767,8 @@ export function CustomerProfilePage() {
                   <AddressInlineEditForm
                     value={addAddrForm}
                     onSave={async (draft) => {
-                      const created = await addCustomerAddress(erpId, draft);
-                      setAddresses(prev => [...prev, created]);
+                      const tempId = -Date.now();
+                      setLocalAddresses(prev => [...(prev ?? addresses), { id: tempId, erpId, tipo: draft.tipo ?? 'Consegna', nome: draft.nome ?? null, via: draft.via ?? null, cap: draft.cap ?? null, citta: draft.citta ?? null, contea: null, stato: null, idRegione: null, contra: null }]);
                       setAddAddrForm(null);
                     }}
                     onCancel={() => setAddAddrForm(null)}
@@ -730,14 +778,14 @@ export function CustomerProfilePage() {
             </SectionCard>
 
             {/* 9. Storico ordini — full width */}
-            <div ref={sectionRefs.storico} style={{ gridColumn: isTablet ? '1 / -1' : 'auto' }}>
+            <div ref={sectionRefs.storico} style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
               <SectionCard title="Storico ordini" isEditMode={false}>
                 <StoricoOrdiniSection orders={orders} customerName={customer.name} navigate={navigate} />
               </SectionCard>
             </div>
 
             {/* 10. Promemoria — full width */}
-            <div ref={sectionRefs.reminders} id="reminders-section" style={{ gridColumn: isTablet ? '1 / -1' : 'auto' }}>
+            <div ref={sectionRefs.reminders} id="reminders-section" style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
               <SectionCard title="Promemoria" isEditMode={false}>
                 <CustomerRemindersSection
                   customerProfile={customer.erpId}
