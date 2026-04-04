@@ -586,9 +586,8 @@ export function CustomerCreateModal({
   const handleBackdropClick = () => {
     if (isProcessing && onMinimize) {
       onMinimize(formData.name || "");
-    } else if (!isProcessing) {
-      onClose();
     }
+    // click fuori non chiude mai la modale — solo ESC o la X
   };
 
   // --- Render ---
