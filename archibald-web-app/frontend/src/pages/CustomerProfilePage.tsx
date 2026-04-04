@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Customer } from '../types/customer';
 import type { CustomerAddress } from '../types/customer-address';
@@ -69,6 +69,11 @@ export function CustomerProfilePage() {
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeRemindersCount] = useState(0);
+  const [_isNewReminderOpen, setIsNewReminderOpen] = useState(false);
+  const [_isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const urgentRemindersText: string | null = null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -149,6 +154,32 @@ export function CustomerProfilePage() {
     }
   }
 
+  const quickStats = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const thisYearOrders = orders.filter(
+      (o) => new Date(o.orderDate).getFullYear() === currentYear,
+    );
+    const totalOrders = orders.length;
+    const revenueThisYear = thisYearOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const lastOrderDate = orders[0]?.orderDate ?? null;
+    return { totalOrders, revenueThisYear, lastOrderDate };
+  }, [orders]);
+
+  const completenessFields = [
+    customer?.name,
+    customer?.vatNumber,
+    customer?.vatValidatedAt,
+    (customer?.pec ?? customer?.sdi),
+    customer?.street,
+    customer?.postalCode,
+    customer?.city,
+  ];
+  const completedFields = completenessFields.filter(Boolean).length;
+  const totalCompletenessFields = completenessFields.length;
+  const completenessPercent = Math.round((completedFields / totalCompletenessFields) * 100);
+  const missingCount = totalCompletenessFields - completedFields;
+  const isComplete = missingCount === 0;
+
   function filterOrders(allOrders: CustomerFullHistoryOrder[], filter: 'mese' | 'trimestre' | 'anno' | 'anno_prec' | 'tutto'): CustomerFullHistoryOrder[] {
     if (filter === 'tutto') return allOrders;
     const now = new Date();
@@ -213,73 +244,193 @@ export function CustomerProfilePage() {
         </div>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <div style={{ background: '#fff', padding: '20px 16px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-          {/* Avatar */}
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <div style={{
-              width: isMobile ? 80 : 72,
-              height: isMobile ? 80 : 72,
-              borderRadius: isMobile ? '50%' : 16,
-              background: photoUrl ? undefined : avatarGradient(erpId),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: isMobile ? 28 : 26, fontWeight: 700, color: 'white',
-              border: `2px solid ${editMode ? '#f59e0b' : '#fff'}`,
-              boxShadow: `0 0 0 2px ${editMode ? '#f59e0b' : '#3b82f6'}`,
-              overflow: 'hidden',
-            }}>
-              {photoUrl
-                ? <img src={photoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                : customerInitials(customer.name)
-              }
+        <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px 0' }}>
+            {/* Avatar con completeness ring */}
+            <div style={{ position: 'relative', marginBottom: '12px' }}>
+              <div
+                style={{
+                  width: 180, height: 180, borderRadius: '50%',
+                  border: isComplete ? '3px solid #22c55e' : '3px dashed #f59e0b',
+                  overflow: 'hidden',
+                  background: photoUrl ? 'transparent' : avatarGradient(erpId),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '64px', fontWeight: 800, color: 'white' }}>
+                    {customerInitials(customer.name)}
+                  </span>
+                )}
+              </div>
+              {!isComplete && (
+                <div style={{
+                  position: 'absolute', top: 4, right: 4,
+                  background: '#f59e0b', color: 'white',
+                  borderRadius: '20px', padding: '2px 8px',
+                  fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap',
+                }}>
+                  {missingCount} mancanti
+                </div>
+              )}
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                aria-label="Cambia foto"
+                style={{
+                  position: 'absolute', bottom: 4, right: 4,
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: 'white', border: '2px solid #1e293b',
+                  cursor: 'pointer', fontSize: '14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >📷</button>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = ev => { if (ev.target?.result) setPhotoCropSrc(ev.target.result as string); };
+                  reader.readAsDataURL(file);
+                  e.target.value = '';
+                }}
+              />
             </div>
-            <button
-              onClick={() => photoInputRef.current?.click()}
-              aria-label="📷"
-              style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, background: '#2563eb', border: '2px solid #fff', borderRadius: '50%', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}
-            >📷</button>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = ev => { if (ev.target?.result) setPhotoCropSrc(ev.target.result as string); };
-                reader.readAsDataURL(file);
-                e.target.value = '';
-              }}
-            />
-          </div>
 
-          {/* Nome + meta */}
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 3, textAlign: 'center' }}>{customer.name}</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12, textAlign: 'center' }}>
-            {[customer.vatNumber && `P.IVA ${customer.vatNumber}`, customer.city].filter(Boolean).join(' · ')}
-          </div>
+            {/* Nome + bell reminder */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
+                {customer.name}
+              </h1>
+              {activeRemindersCount > 0 && (
+                <button
+                  onClick={() => document.getElementById('reminders-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative' }}
+                >
+                  <span style={{ fontSize: '18px' }}>🔔</span>
+                  <span style={{
+                    position: 'absolute', top: -4, right: -4,
+                    background: '#ef4444', color: 'white', borderRadius: '50%',
+                    width: '16px', height: '16px', fontSize: '10px', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{activeRemindersCount}</span>
+                </button>
+              )}
+            </div>
 
-          {/* Quick actions primarie */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-            <QuickAction icon="📋" label="Ordine" color="#eff6ff" onClick={() => navigate(`/order?customerId=${customer.erpId}`)} />
-            <QuickAction icon="📞" label="Chiama" color="#dcfce7" onClick={() => { const p = customer.mobile ?? customer.phone; if (p) window.location.href = `tel:${p}`; }} />
-            {customer.mobile && (
-              <QuickAction icon="💬" label="WhatsApp" color="#fef9c3" onClick={() => window.open(`https://wa.me/${customer.mobile!.replace(/\D/g, '')}`, '_blank')} />
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: '12px', textAlign: 'center' }}>
+              {[customer.vatNumber && `P.IVA ${customer.vatNumber}`, customer.city].filter(Boolean).join(' · ')}
+            </div>
+
+            {urgentRemindersText && (
+              <div style={{ fontSize: '12px', color: '#f97316', fontWeight: 600, marginBottom: '8px' }}>
+                ⏰ {urgentRemindersText}
+              </div>
             )}
-            <QuickAction icon="🕐" label="Storico" color="#f1f5f9" onClick={() => document.getElementById('storico-section')?.scrollIntoView({ behavior: 'smooth' })} />
-          </div>
 
-          {/* Quick actions secondarie (condizionali) */}
-          {(customer.email || (customer.street && customer.city)) && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              {customer.email && (
-                <QuickAction icon="✉" label="Email" color="#f1f5f9" onClick={() => { window.location.href = `mailto:${customer.email}`; }} />
-              )}
-              {customer.street && customer.city && (
-                <QuickAction icon="📍" label="Maps" color="#f1f5f9" onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(`${customer.street}, ${customer.city}`)}`, '_blank')} />
-              )}
+            {/* Quick stats */}
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '12px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>{quickStats.totalOrders}</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>ordini</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  {quickStats.revenueThisYear.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>fatturato anno</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  {quickStats.lastOrderDate
+                    ? new Date(quickStats.lastOrderDate).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+                    : '—'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>ultimo ordine</div>
+              </div>
             </div>
-          )}
+
+            {/* Banner completezza */}
+            {!isComplete && (
+              <div style={{
+                background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px',
+                padding: '8px 12px', marginBottom: '12px', width: '100%', maxWidth: '380px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 600 }}>
+                    Profilo {completenessPercent}%
+                  </span>
+                  <span
+                    style={{ fontSize: '12px', color: '#2563eb', cursor: 'pointer', fontWeight: 600 }}
+                    onClick={() => setEditMode(true)}
+                  >
+                    Completa →
+                  </span>
+                </div>
+                <div style={{ height: '4px', background: '#fde68a', borderRadius: '2px' }}>
+                  <div style={{ height: '100%', width: `${completenessPercent}%`, background: '#f59e0b', borderRadius: '2px' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Quick actions — 7 pulsanti */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '16px' }}>
+              {([
+                { icon: '📋', label: 'Ordine', bg: '#1d4ed8', color: '#bfdbfe',
+                  onClick: () => navigate(`/order?customerId=${customer.erpId}`) },
+                { icon: '📞', label: 'Chiama', bg: '#166534', color: '#86efac',
+                  disabled: !(customer.mobile ?? customer.phone),
+                  onClick: () => { const p = customer.mobile ?? customer.phone; if (p) window.open(`tel:${p}`); } },
+                { icon: '💬', label: 'WhatsApp', bg: '#15803d', color: '#bbf7d0',
+                  disabled: !customer.mobile,
+                  onClick: () => { if (customer.mobile) window.open(`https://wa.me/${customer.mobile.replace(/\D/g, '')}`); } },
+                { icon: '✉', label: 'Email', bg: '#7e22ce', color: '#d8b4fe',
+                  disabled: !customer.email,
+                  onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
+                { icon: '📍', label: 'Indicazioni', bg: '#92400e', color: '#fde68a',
+                  disabled: !customer.street,
+                  onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
+                { icon: '🔔', label: 'Allerta',
+                  bg: activeRemindersCount > 0 ? '#7f1d1d' : '#1e293b',
+                  color: '#fca5a5',
+                  badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined,
+                  onClick: () => setIsNewReminderOpen(true) },
+                { icon: '📊', label: 'Analisi', bg: '#1e3a5f', color: '#93c5fd',
+                  onClick: () => setIsAnalysisOpen(true) },
+              ] as Array<{ icon: string; label: string; bg: string; color: string; onClick: () => void; disabled?: boolean; badgeCount?: number }>).map(({ icon, label, bg, color: _color, onClick, disabled, badgeCount }) => (
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    onClick={onClick}
+                    disabled={!!disabled}
+                    style={{
+                      width: '44px', height: '44px', background: disabled ? '#94a3b8' : bg,
+                      borderRadius: '12px', border: 'none', cursor: disabled ? 'default' : 'pointer',
+                      fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      position: 'relative', opacity: disabled ? 0.5 : 1,
+                    }}
+                  >
+                    {icon}
+                    {badgeCount !== undefined && badgeCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -4, right: -4,
+                        background: '#ef4444', color: 'white', borderRadius: '8px',
+                        padding: '0 4px', fontSize: '9px', fontWeight: 800,
+                      }}>{badgeCount}</span>
+                    )}
+                  </button>
+                  <span style={{ fontSize: '10px', color: '#64748b' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Area sezioni (scrollabile) ─────────────────────────────────── */}
@@ -505,14 +656,6 @@ export function CustomerProfilePage() {
   );
 }
 
-function QuickAction({ icon, label, color, onClick }: { icon: string; label: string; color: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-      <div style={{ width: 40, height: 40, background: color, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{icon}</div>
-      <div style={{ fontSize: 10, color: '#64748b', fontWeight: 500 }}>{label}</div>
-    </button>
-  );
-}
 
 function SectionCard({ title, editMode, pendingKeys, pendingEdits, children }: {
   title: string;
