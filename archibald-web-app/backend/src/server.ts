@@ -442,16 +442,16 @@ function createApp(deps: AppDeps): Express {
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
       getCustomerProgressMilestone: (category: string) => {
         const milestones: Record<string, { progress: number; label: string }> = {
-          'customer.navigation': { progress: 10, label: 'Navigazione al form cliente' },
-          'customer.tab.prezzi': { progress: 15, label: 'Configurazione prezzi e sconti' },
-          'customer.tab.indirizzo': { progress: 25, label: 'Indirizzo di consegna' },
-          'customer.tab.principale': { progress: 35, label: 'Compilazione dati principali' },
-          'customer.lookup': { progress: 45, label: 'Selezione termini e CAP' },
-          'customer.search': { progress: 20, label: 'Ricerca cliente' },
-          'customer.edit_loaded': { progress: 30, label: 'Form cliente caricato' },
-          'customer.field': { progress: 60, label: 'Compilazione campi' },
-          'customer.save': { progress: 80, label: 'Salvataggio in corso' },
-          'customer.complete': { progress: 95, label: 'Cliente salvato' },
+          'customer.navigation':     { progress:  5, label: 'Navigazione al form cliente' },
+          'customer.edit_loaded':    { progress: 15, label: 'Form cliente caricato' },
+          'customer.search':         { progress: 20, label: 'Ricerca cliente' },
+          'customer.tab.principale': { progress: 30, label: 'Compilazione dati principali' },
+          'customer.field':          { progress: 45, label: 'Compilazione campi' },
+          'customer.lookup':         { progress: 55, label: 'Selezione termini e CAP' },
+          'customer.tab.prezzi':     { progress: 65, label: 'Configurazione prezzi e sconti' },
+          'customer.tab.indirizzo':  { progress: 75, label: 'Indirizzi di consegna' },
+          'customer.save':           { progress: 85, label: 'Salvataggio in corso' },
+          'customer.complete':       { progress: 95, label: 'Cliente salvato' },
         };
         return milestones[category] ?? null;
       },

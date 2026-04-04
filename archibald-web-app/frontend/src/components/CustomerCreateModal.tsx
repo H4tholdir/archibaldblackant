@@ -46,6 +46,8 @@ interface CustomerCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onMinimize?: (name: string) => void;
+  isMinimized?: boolean;
   prefillName?: string;
 }
 
@@ -88,6 +90,8 @@ export function CustomerCreateModal({
   isOpen,
   onClose,
   onSaved,
+  onMinimize,
+  isMinimized = false,
   prefillName,
 }: CustomerCreateModalProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>({ kind: "vat" });
@@ -306,6 +310,21 @@ export function CustomerCreateModal({
       cancelled = true;
     };
   }, [taskId, subscribe, onSaved, onClose]);
+
+  // ESC handler: minimizza se il bot sta girando, altrimenti chiude
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (isProcessing && onMinimize) {
+        onMinimize(formData.name || "");
+      } else if (!isProcessing) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isProcessing, onMinimize, onClose, formData.name]);
 
   if (!isOpen) return null;
 
@@ -564,9 +583,18 @@ export function CustomerCreateModal({
     { label: "Note", value: formData.notes || "" },
   ].filter((row) => row.value.trim().length > 0);
 
+  const handleBackdropClick = () => {
+    if (isProcessing && onMinimize) {
+      onMinimize(formData.name || "");
+    } else if (!isProcessing) {
+      onClose();
+    }
+  };
+
   // --- Render ---
   return (
     <div
+      onClick={handleBackdropClick}
       style={{
         position: "fixed",
         top: 0,
@@ -574,7 +602,7 @@ export function CustomerCreateModal({
         right: 0,
         bottom: 0,
         backgroundColor: isMobile ? "white" : "rgba(0, 0, 0, 0.5)",
-        display: "flex",
+        display: isMinimized ? "none" : "flex",
         alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
         zIndex: 10000,
@@ -584,6 +612,7 @@ export function CustomerCreateModal({
       }}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "#fff",
           borderRadius: isMobile ? "0" : "16px",
@@ -1074,15 +1103,32 @@ export function CustomerCreateModal({
                   type="text"
                   value={formData.postalCode}
                   onChange={(e) => {
+                    const cap = e.target.value;
                     setFormData((f) => ({
                       ...f,
-                      postalCode: e.target.value,
+                      postalCode: cap,
                       postalCodeCity: "",
                       county: "",
                       state: "",
                       country: "",
                     }));
                     setCapDisambigEntries([]);
+                    if (cap.length === 5) {
+                      const entries = CAP_BY_CODE.get(cap);
+                      if (entries && entries.length === 1) {
+                        setFormData((f) => ({
+                          ...f,
+                          postalCode: cap,
+                          postalCodeCity: entries[0].citta,
+                          postalCodeCountry: entries[0].paese,
+                          county: entries[0].contea,
+                          state: entries[0].stato,
+                          country: entries[0].paese,
+                        }));
+                      } else if (entries && entries.length > 1) {
+                        setCapDisambigEntries(entries);
+                      }
+                    }
                   }}
                   onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                   maxLength={5}
@@ -1114,13 +1160,7 @@ export function CustomerCreateModal({
                   autoComplete="off"
                   type="text"
                   value={formData.postalCodeCity}
-                  onChange={(e) =>
-                    setFormData((f) => ({
-                      ...f,
-                      postalCodeCity: e.target.value,
-                    }))
-                  }
-                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  readOnly
                   placeholder="Auto-compilata dal CAP"
                   style={{
                     width: "100%",
@@ -1130,6 +1170,9 @@ export function CustomerCreateModal({
                     borderRadius: "10px",
                     outline: "none",
                     boxSizing: "border-box",
+                    backgroundColor: formData.postalCodeCity ? "#f8fafc" : "#fafafa",
+                    color: formData.postalCodeCity ? "#333" : "#aaa",
+                    cursor: "default",
                   }}
                 />
               </div>

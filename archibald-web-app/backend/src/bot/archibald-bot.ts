@@ -14425,7 +14425,6 @@ export class ArchibaldBot {
     );
 
     // 14–18: remaining lookups and combos — return to Principale tab first
-    await this.emitProgress("customer.tab.principale");
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({

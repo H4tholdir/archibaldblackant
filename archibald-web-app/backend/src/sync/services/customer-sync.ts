@@ -193,7 +193,8 @@ async function syncCustomers(
       const placeholders = parsedIds.map((_, i) => `$${i + 2}`).join(', ');
       const { rows: toDelete } = await pool.query<{ erp_id: string; account_num: string | null; name: string }>(
         `SELECT erp_id, account_num, name FROM agents.customers
-         WHERE user_id = $1 AND erp_id NOT IN (${placeholders}) AND deleted_at IS NULL`,
+         WHERE user_id = $1 AND erp_id NOT IN (${placeholders}) AND deleted_at IS NULL
+           AND account_num IS NOT NULL`,
         [userId, ...parsedIds],
       );
       if (toDelete.length > 0) {

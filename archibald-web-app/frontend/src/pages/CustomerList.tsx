@@ -51,6 +51,8 @@ export function CustomerList() {
   const [loading, setLoading] = useState(false);
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [isCreationMinimized, setIsCreationMinimized] = useState(false);
+  const [minimizedCreationName, setMinimizedCreationName] = useState('');
   const [recents, setRecents] = useState<string[]>(getRecents());
 
   // Debounce search
@@ -156,10 +158,42 @@ export function CustomerList() {
         ))}
       </div>
 
+      {isCreationMinimized && createModalOpen && (
+        <div
+          onClick={() => setIsCreationMinimized(false)}
+          style={{
+            position: 'fixed',
+            bottom: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: '#1976d2',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            cursor: 'pointer',
+            minWidth: 220,
+            maxWidth: '90vw',
+          }}
+        >
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#90caf9', flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
+          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
+            {minimizedCreationName ? `Creazione ${minimizedCreationName} in corso…` : 'Creazione cliente in corso…'}
+          </span>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>Tocca per riaprire</span>
+        </div>
+      )}
+
       <CustomerCreateModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSaved={() => { setCreateModalOpen(false); void fetchCustomers(); }}
+        isMinimized={isCreationMinimized}
+        onClose={() => { setCreateModalOpen(false); setIsCreationMinimized(false); }}
+        onSaved={() => { setCreateModalOpen(false); setIsCreationMinimized(false); void fetchCustomers(); }}
+        onMinimize={(name) => { setIsCreationMinimized(true); setMinimizedCreationName(name); }}
       />
     </div>
   );
