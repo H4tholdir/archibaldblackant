@@ -315,6 +315,43 @@ async function getCustomers(
   return rows.map(mapRowToCustomer);
 }
 
+async function getMyCustomers(pool: DbPool, userId: string): Promise<Customer[]> {
+  const { rows } = await pool.query<CustomerRow & { effective_last_order_date: string | null }>(
+    `SELECT
+       c.erp_id, c.user_id, c.account_num, c.name,
+       c.vat_number, c.fiscal_code, c.sdi, c.pec,
+       c.phone, c.mobile, c.email, c.url, c.attention_to,
+       c.street, c.logistics_address, c.postal_code, c.city,
+       c.customer_type, c.type, c.delivery_terms, c.description,
+       c.last_order_date, c.actual_order_count, c.actual_sales,
+       c.previous_order_count_1, c.previous_sales_1,
+       c.previous_order_count_2, c.previous_sales_2,
+       c.external_account_number, c.our_account_number,
+       c.hash, c.last_sync, c.created_at, c.updated_at, c.bot_status, c.archibald_name,
+       NULL::bytea AS photo, c.vat_validated_at,
+       c.sector, c.price_group, c.line_discount, c.payment_terms, c.notes,
+       c.name_alias, c.county, c.state, c.country, c.agent_notes,
+       (SELECT MAX(o.creation_date) FROM agents.order_records o
+        WHERE o.user_id = c.user_id AND o.customer_account_num = c.account_num
+       ) AS effective_last_order_date
+     FROM agents.customers c
+     WHERE c.user_id = $1
+       AND c.hidden = FALSE
+       AND c.deleted_at IS NULL
+       AND c.account_num IS NOT NULL
+       AND c.account_num IN (
+         SELECT DISTINCT customer_account_num FROM agents.order_records
+         WHERE user_id = $1 AND customer_account_num IS NOT NULL
+       )
+     ORDER BY effective_last_order_date DESC NULLS LAST, c.name ASC`,
+    [userId],
+  );
+  return rows.map(row => {
+    const customer = mapRowToCustomer(row);
+    return { ...customer, lastOrderDate: row.effective_last_order_date ?? customer.lastOrderDate };
+  });
+}
+
 async function getHiddenCustomers(pool: DbPool, userId: string): Promise<Customer[]> {
   const { rows } = await pool.query<CustomerRow>(
     `SELECT ${COLUMNS_WITHOUT_PHOTO} FROM agents.customers
@@ -750,6 +787,7 @@ async function updateAgentNotes(
 
 export {
   getCustomers,
+  getMyCustomers,
   getHiddenCustomers,
   setCustomerHidden,
   getCustomerByProfile,
