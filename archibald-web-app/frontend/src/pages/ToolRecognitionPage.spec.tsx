@@ -88,8 +88,9 @@ describe('ToolRecognitionPage — Stato 1 (idle viewfinder)', () => {
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
+    const remainingScans = dailyLimit - usedToday
     await waitFor(() =>
-      expect(screen.getByText(/7 scan/i)).toBeInTheDocument()
+      expect(screen.getByText(new RegExp(`${remainingScans} scan`, 'i'))).toBeInTheDocument()
     )
   })
 

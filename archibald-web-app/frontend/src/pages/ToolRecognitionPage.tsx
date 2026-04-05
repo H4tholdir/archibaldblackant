@@ -6,10 +6,8 @@ import {
   identifyInstrument as _identifyInstrument,
   getRecognitionBudget,
   submitRecognitionFeedback as _submitRecognitionFeedback,
-  type IdentifyResponse,
-  type ProductMatch as _ProductMatch,
-  type BudgetState,
 } from '../api/recognition'
+import type { IdentifyResponse as _IdentifyResponse, ProductMatch as _ProductMatch, BudgetState } from '../api/recognition'
 
 type PageState =
   | 'loading'
@@ -62,9 +60,6 @@ export function ToolRecognitionPage() {
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
   const [flashOn, setFlashOn] = useState(false)
-  const [_identifyResult, _setIdentifyResult] = useState<IdentifyResponse | null>(null)
-  const [_capturedBase64, _setCapturedBase64] = useState<string | null>(null)
-
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
     if (!token) return
@@ -228,7 +223,7 @@ export function ToolRecognitionPage() {
           </button>
 
           <button
-            onClick={() => { /* implemented in Task F3 */ }}
+            onClick={() => {}}
             aria-label="Scatta foto"
             style={{
               width: 64, height: 64, borderRadius: '50%',
