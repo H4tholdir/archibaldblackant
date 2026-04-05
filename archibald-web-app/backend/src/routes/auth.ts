@@ -328,9 +328,29 @@ function createAuthRouter(deps: AuthRouterDeps) {
           role: user.role,
           whitelisted: user.whitelisted,
           lastLoginAt: user.lastLoginAt,
+          mfaEnabled: user.mfaEnabled,
         },
       },
     });
+  });
+
+  router.post('/mfa-begin-setup', authenticateWithRevocation, async (req: AuthRequest, res) => {
+    if (!deps.generateMfaToken) {
+      return res.status(501).json({ success: false, error: 'MFA non configurato' });
+    }
+    const user = await deps.getUserById(req.user!.userId);
+    if (!user) return res.status(404).json({ success: false, error: 'Utente non trovato' });
+    if (user.mfaEnabled) {
+      return res.status(400).json({ success: false, error: 'MFA già attivo' });
+    }
+    const setupToken = await deps.generateMfaToken(req.user!.userId);
+    void audit(deps.pool, {
+      actorId: req.user!.userId,
+      actorRole: req.user!.role,
+      action: 'mfa.setup_initiated',
+      ipAddress: req.ip,
+    });
+    res.json({ success: true, setupToken });
   });
 
   const authenticateWithMfaToken = createMfaTokenMiddleware();

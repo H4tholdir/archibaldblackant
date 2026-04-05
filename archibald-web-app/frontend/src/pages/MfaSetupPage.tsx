@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 type Props = {
   setupToken: string;
   onComplete: () => void;
+  completeLabel?: string;
 };
 
-export function MfaSetupPage({ setupToken, onComplete }: Props) {
+export function MfaSetupPage({ setupToken, onComplete, completeLabel = 'Continua' }: Props) {
   const [uri, setUri] = useState('');
   const [code, setCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
@@ -55,11 +57,21 @@ export function MfaSetupPage({ setupToken, onComplete }: Props) {
   if (step === 'scan') return (
     <div style={{ maxWidth: 400, margin: '0 auto', padding: 24 }}>
       <h2>Attiva autenticazione a due fattori</h2>
-      <p>Scansiona questo URI con Google Authenticator, Authy, o 1Password:</p>
-      <code style={{ wordBreak: 'break-all', display: 'block', background: '#f4f4f4', padding: 12, borderRadius: 4, fontSize: 12 }}>
-        {uri}
-      </code>
-      <p style={{ marginTop: 16 }}>Dopo la scansione, inserisci il primo codice a 6 cifre:</p>
+      <p>Scansiona il codice QR con Google Authenticator, Authy o 1Password:</p>
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0', padding: 12, background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0' }}>
+        <QRCodeSVG value={uri} size={200} />
+      </div>
+      <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
+        Oppure inserisci manualmente l'URI:&nbsp;
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(uri)}
+          style={{ fontSize: 11, padding: '2px 8px', cursor: 'pointer', borderRadius: 4, border: '1px solid #ccc', background: '#f5f5f5' }}
+        >
+          Copia
+        </button>
+      </p>
+      <p>Dopo la scansione, inserisci il primo codice a 6 cifre:</p>
       <form onSubmit={handleConfirm} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input
           type="text"
@@ -84,7 +96,7 @@ export function MfaSetupPage({ setupToken, onComplete }: Props) {
       <ul style={{ fontFamily: 'monospace', lineHeight: 2 }}>
         {recoveryCodes.map((c) => <li key={c}>{c}</li>)}
       </ul>
-      <button onClick={onComplete}>Ho salvato i recovery codes — Continua</button>
+      <button onClick={onComplete}>Ho salvato i recovery codes — {completeLabel}</button>
     </div>
   );
 

@@ -38,8 +38,17 @@ export interface User {
   role: UserRole;
   whitelisted: boolean;
   lastLoginAt: number | null;
+  mfaEnabled?: boolean;
   isImpersonating?: boolean;
   realAdminName?: string;
+}
+
+export async function mfaBeginSetup(token: string): Promise<{ success: boolean; setupToken?: string; error?: string }> {
+  const response = await fetchWithRetry(`${API_BASE}/api/auth/mfa-begin-setup`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.json();
 }
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {

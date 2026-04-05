@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { formatCurrencyWithCurrency } from "../utils/format-currency";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { BonusesTab } from "../components/BonusesTab";
+import { MfaSetupPage } from "./MfaSetupPage";
+import * as authApi from "../api/auth";
 
 interface TargetData {
   yearlyTarget: number;
@@ -51,6 +53,37 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [validationError, setValidationError] = useState<string>("");
+
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+  const [mfaSetupToken, setMfaSetupToken] = useState<string | null>(null);
+  const [mfaSetupLoading, setMfaSetupLoading] = useState(false);
+
+  // Load MFA status on mount
+  useEffect(() => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    authApi.getMe(token)
+      .then((data) => { if (data.success) setMfaEnabled(data.data?.user.mfaEnabled ?? false); })
+      .catch(() => {});
+  }, []);
+
+  const handleEnableMfa = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setMfaSetupLoading(true);
+    try {
+      const res = await authApi.mfaBeginSetup(token);
+      if (res.success && res.setupToken) {
+        setMfaSetupToken(res.setupToken);
+      } else {
+        setToast({ message: res.error ?? 'Errore avvio setup MFA', type: 'error' });
+      }
+    } catch {
+      setToast({ message: 'Errore di connessione', type: 'error' });
+    } finally {
+      setMfaSetupLoading(false);
+    }
+  };
 
   // Load current target on mount
   useEffect(() => {
@@ -309,7 +342,51 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* Section 2: Configuration Editor */}
+      {/* Section 2: Security */}
+      <div style={styles.card}>
+        <h2 style={styles.sectionTitle}>Sicurezza</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, color: '#2c3e50' }}>Autenticazione a due fattori (2FA)</p>
+            <p style={{ margin: '4px 0 0', fontSize: 14, color: '#7f8c8d' }}>
+              {mfaEnabled === null ? 'Caricamento...' : mfaEnabled ? 'Attiva — il tuo account è protetto con OTP.' : 'Non attiva — consigliata per account admin.'}
+            </p>
+          </div>
+          {mfaEnabled === false && (
+            <button
+              onClick={handleEnableMfa}
+              disabled={mfaSetupLoading}
+              style={{ ...styles.buttonPrimary, fontSize: 14, padding: '10px 18px', ...(mfaSetupLoading ? styles.buttonDisabled : {}) }}
+            >
+              {mfaSetupLoading ? 'Avvio...' : 'Abilita 2FA'}
+            </button>
+          )}
+          {mfaEnabled === true && (
+            <span style={{ background: '#27ae60', color: '#fff', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
+              Attiva
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* MFA Setup Modal */}
+      {mfaSetupToken && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 460, width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <MfaSetupPage
+              setupToken={mfaSetupToken}
+              completeLabel="Ho finito"
+              onComplete={() => {
+                setMfaSetupToken(null);
+                setMfaEnabled(true);
+                setToast({ message: '2FA attivato con successo!', type: 'success' });
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Section 3: Configuration Editor */}
       <div style={styles.card}>
         <h2 style={styles.sectionTitle}>Configurazione Obiettivi</h2>
 

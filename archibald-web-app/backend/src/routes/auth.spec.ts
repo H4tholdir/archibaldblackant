@@ -25,6 +25,7 @@ function createMockDeps(): AuthRouterDeps {
       role: 'agent',
       whitelisted: true,
       lastLoginAt: 1708300000000,
+      mfaEnabled: false,
     }),
     updateLastLogin: vi.fn().mockResolvedValue(undefined),
     passwordCache: {
@@ -223,7 +224,7 @@ describe('createAuthRouter', () => {
   });
 
   describe('GET /api/auth/me', () => {
-    test('returns user profile', async () => {
+    test('returns user profile including mfaEnabled', async () => {
       const app = createApp(deps);
       const token = await createAuthToken();
       const res = await request(app)
@@ -233,6 +234,7 @@ describe('createAuthRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.username).toBe('agent1');
+      expect(res.body.data.user.mfaEnabled).toBe(false);
     });
 
     test('returns 404 for missing user', async () => {
@@ -244,6 +246,54 @@ describe('createAuthRouter', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/auth/mfa-begin-setup', () => {
+    test('returns setupToken when user has mfaEnabled=false', async () => {
+      const d = { ...createMockDeps(), generateMfaToken: vi.fn().mockResolvedValue('setup-token-xyz') };
+      const app = createApp(d);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/mfa-begin-setup')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, setupToken: 'setup-token-xyz' });
+    });
+
+    test('returns 400 when mfaEnabled is already true', async () => {
+      const d = { ...createMockDeps(), generateMfaToken: vi.fn().mockResolvedValue('token') };
+      (d.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'user-1', username: 'agent1', fullName: 'Agent One', role: 'agent',
+        whitelisted: true, lastLoginAt: null, mfaEnabled: true,
+      });
+      const app = createApp(d);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/mfa-begin-setup')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/già attivo/i);
+    });
+
+    test('returns 501 when generateMfaToken is not configured', async () => {
+      const app = createApp(createMockDeps());
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/mfa-begin-setup')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(501);
+    });
+
+    test('returns 401 without auth token', async () => {
+      const d = { ...createMockDeps(), generateMfaToken: vi.fn().mockResolvedValue('token') };
+      const app = createApp(d);
+      const res = await request(app).post('/api/auth/mfa-begin-setup');
+
+      expect(res.status).toBe(401);
     });
   });
 
