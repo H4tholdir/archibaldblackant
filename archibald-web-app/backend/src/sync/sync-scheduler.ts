@@ -34,6 +34,8 @@ type DeleteExpiredFn = () => Promise<number>;
 
 type CheckRemindersFn = (userId: string) => Promise<void>;
 
+type DeleteExpiredCacheFn = () => Promise<number>;
+
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getAgentsByActivity: GetAgentsByActivityFn,
@@ -41,6 +43,7 @@ function createSyncScheduler(
   getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn,
   deleteExpiredNotifications?: DeleteExpiredFn,
   checkCustomerReminders?: CheckRemindersFn,
+  deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -184,6 +187,16 @@ function createSyncScheduler(
         }, msUntil8) as unknown as NodeJS.Timeout;
       }
       pendingTimeouts.push(scheduleNextEightAm());
+    }
+
+    if (deleteExpiredRecognitionCache) {
+      timers.push(
+        setInterval(() => {
+          deleteExpiredRecognitionCache().catch((error) => {
+            logger.error('Failed to delete expired recognition cache', { error });
+          });
+        }, CLEANUP_INTERVAL_MS),
+      );
     }
   }
 

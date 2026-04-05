@@ -45,7 +45,11 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
   createReadVatStatusHandler,
+  createKometCodeParserHandler,
+  createKometWebScraperHandler,
+  createRecognitionFeedbackHandler,
 } from './operations/handlers';
+import { createVisionService } from './services/anthropic-vision-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { getRemindersOverdueOrToday } from './db/repositories/customer-reminders';
 import { createNotification, type CreateNotificationParams } from './services/notification-service';
@@ -298,6 +302,7 @@ async function bootstrap(): Promise<void> {
         });
       }
     },
+    () => import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)),
   );
 
   const wsServer = createWebSocketServer({
@@ -413,6 +418,13 @@ async function bootstrap(): Promise<void> {
     return { path: result.result.path_display ?? dropboxPath };
   };
 
+  const callVisionApi = config.recognition.anthropicApiKey
+    ? createVisionService({
+        apiKey: config.recognition.anthropicApiKey,
+        timeoutMs: config.recognition.timeoutMs,
+      })
+    : undefined;
+
   const app = createApp({
     pool,
     queue,
@@ -437,6 +449,9 @@ async function bootstrap(): Promise<void> {
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
+    callVisionApi,
+    recognitionDailyLimit: config.recognition.dailyLimit,
+    recognitionTimeoutMs: config.recognition.timeoutMs,
   });
 
   const server = http.createServer(app);
@@ -1083,6 +1098,9 @@ async function bootstrap(): Promise<void> {
       },
     ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
+    'komet-code-parser': createKometCodeParserHandler({ pool }),
+    'komet-web-scraper': createKometWebScraperHandler({ pool }),
+    'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
   };
 
   const processor = createOperationProcessor({
