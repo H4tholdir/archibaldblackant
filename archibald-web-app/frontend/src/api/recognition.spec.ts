@@ -4,7 +4,7 @@ import { identifyInstrument, getRecognitionBudget, submitRecognitionFeedback, ge
 import type { IdentifyResponse, BudgetState, ProductEnrichment } from './recognition'
 
 vi.mock('../utils/fetch-with-retry', () => ({
-  fetchWithRetry: vi.fn().mockImplementation((...args: Parameters<typeof fetch>) => fetch(...args)),
+  fetchWithRetry: vi.fn().mockImplementation((...args: [string, RequestInit?]) => fetch(...args)),
 }))
 
 const TOKEN = 'test-jwt-token'
@@ -61,7 +61,9 @@ describe('getRecognitionBudget', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('calls GET /api/recognition/budget with auth header and returns budget state', async () => {
-    const mockBudget: BudgetState = { usedToday: 42, dailyLimit: 500, throttleLevel: 'warning' }
+    const usedToday = 42
+    const dailyLimit = 500
+    const mockBudget: BudgetState = { usedToday, dailyLimit, throttleLevel: 'warning' }
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true, json: () => Promise.resolve(mockBudget),
     } as unknown as Response)

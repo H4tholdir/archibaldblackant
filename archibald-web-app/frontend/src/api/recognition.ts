@@ -1,8 +1,6 @@
 // archibald-web-app/frontend/src/api/recognition.ts
 import { fetchWithRetry } from '../utils/fetch-with-retry'
 
-// ── Tipi condivisi ──────────────────────────────────────────────────────────
-
 export type ThrottleLevel = 'normal' | 'warning' | 'limited'
 
 export type InstrumentFeatures = {
@@ -92,8 +90,6 @@ export type ProductEnrichment = {
     cacheHit:   boolean
   }> | null
 }
-
-// ── Funzioni API ─────────────────────────────────────────────────────────────
 
 /**
  * identifyInstrument: usa raw fetch con AbortController 40s.
