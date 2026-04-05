@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getDeviceId } from '../utils/device-id';
 
 type Props = {
   mfaToken: string;
@@ -10,6 +11,7 @@ export function MfaVerifyStep({ mfaToken, onSuccess, onCancel }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,10 +21,13 @@ export function MfaVerifyStep({ mfaToken, onSuccess, onCancel }: Props) {
       const res = await fetch('/api/auth/mfa-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mfaToken, code }),
+        body: JSON.stringify({ mfaToken, code, rememberDevice, deviceId: getDeviceId() }),
       });
       const data = await res.json();
       if (data.success) {
+        if (data.trustToken) {
+          localStorage.setItem('archibald_mfa_trust', data.trustToken);
+        }
         onSuccess(data.token, data.user);
       } else {
         setError(data.error ?? 'Codice non valido');
@@ -51,6 +56,14 @@ export function MfaVerifyStep({ mfaToken, onSuccess, onCancel }: Props) {
         autoFocus
       />
       {error && <p style={{ color: 'red', margin: 0 }}>{error}</p>}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={rememberDevice}
+          onChange={(e) => setRememberDevice(e.target.checked)}
+        />
+        Ricorda questo dispositivo per 30 giorni
+      </label>
       <button type="submit" disabled={loading || code.length < 6}>
         {loading ? 'Verifica...' : 'Verifica'}
       </button>

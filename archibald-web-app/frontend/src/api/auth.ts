@@ -10,6 +10,7 @@ export interface LoginRequest {
   deviceId?: string;
   platform?: string;
   deviceName?: string;
+  trustToken?: string;
 }
 
 export interface LoginResponse {
@@ -61,6 +62,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
     deviceId: credentials.deviceId || getDeviceId(),
     platform: credentials.platform || getPlatform(),
     deviceName: credentials.deviceName || getDeviceName(),
+    trustToken: localStorage.getItem('archibald_mfa_trust') ?? undefined,
   };
 
   const response = await fetchWithRetry(`${API_BASE}/api/auth/login`, {

@@ -168,6 +168,7 @@ export function useAuth() {
 
     FresisHistoryRealtimeService.getInstance().reset();
 
+    localStorage.removeItem('archibald_mfa_trust');
     localStorage.removeItem(TOKEN_KEY);
     setState({
       isAuthenticated: false,
