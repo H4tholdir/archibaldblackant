@@ -14101,10 +14101,27 @@ export class ArchibaldBot {
     await this.waitForDevExpressReady({ timeout: 15000 });
     await this.waitForDevExpressIdle({ timeout: 5000, label: 'post-save-settle' });
 
-    // 7. Snapshot — read directly from the current (already open) edit form.
+    const cleanId = erpId.replace(/[.,]/g, '');
+
+    // 7. Snapshot — if still in edit mode (saveInPlace succeeded), read directly from
+    // the current form. If saveInPlace fell back to "Salva e chiudi" and navigated away,
+    // fall back to buildCustomerSnapshot with the known erpId.
+    const stillInEditMode = await this.page.evaluate(
+      () => window.location.href.includes('mode=Edit'),
+    );
+    if (!stillInEditMode) {
+      logger.warn("updateCustomerSurgical: page navigated away after save, falling back to buildCustomerSnapshot", { erpId: cleanId });
+      const snapshot = await this.buildCustomerSnapshot(cleanId);
+      if (snapshot === null) {
+        throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${cleanId}`);
+      }
+      logger.info("updateCustomerSurgical: completed via buildCustomerSnapshot", { erpId: cleanId });
+      return snapshot;
+    }
+
+    // Read directly from the current (already open) edit form.
     await this.openCustomerTab("Principale");
 
-    const cleanId = erpId.replace(/[.,]/g, '');
     logger.info("updateCustomerSurgical: reading snapshot from open form", { erpId: cleanId });
 
     const mainFields = await this.page.evaluate(() => {
