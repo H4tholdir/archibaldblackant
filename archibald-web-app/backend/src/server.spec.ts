@@ -50,6 +50,13 @@ vi.mock('./pdf-parser-invoices-service', () => ({
   },
 }));
 
+vi.mock('./bot/archibald-bot', () => ({
+  ArchibaldBot: vi.fn().mockImplementation(() => ({
+    initializeDedicatedBrowser: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 import { pdfParserService } from './pdf-parser-service';
 import { PDFParserProductsService } from './pdf-parser-products-service';
 import { PDFParserPricesService } from './pdf-parser-prices-service';
