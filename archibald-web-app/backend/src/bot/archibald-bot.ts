@@ -14038,8 +14038,14 @@ export class ArchibaldBot {
       ]);
     }
 
+    // BUG 5 FIX: ADDRESS triggers an ERP Tab-blur callback that clears the value
+    // when set via page.type(). Use injectFieldsViaNativeSetter to bypass the
+    // keyboard path and let the form save pick up the DOM value directly.
     if (diff.street !== undefined) {
-      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviADDRESS_Edit_I$/, value: diff.street },
+      ]);
+      await this.waitForDevExpressIdle({ timeout: 5000, label: 'address-inject' });
     }
     if (diff.phone !== undefined) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
@@ -14070,9 +14076,12 @@ export class ArchibaldBot {
       }
     }
 
-    // 3. Re-write campi vulnerabili a race condition
-    if (diff.fiscalCode !== undefined && diff.street !== undefined) {
-      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+    // 3. Re-inject ADDRESS prima del salvataggio — garantisce che nessun callback
+    // ERP (fiscalCode, vatNumber, ecc.) abbia sovrascritto il valore nel frattempo.
+    if (diff.street !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviADDRESS_Edit_I$/, value: diff.street },
+      ]);
     }
     const finalNameAlias = diff.nameAlias ?? diff.name;
     if (finalNameAlias !== undefined) {
