@@ -1,4 +1,4 @@
--- Migration 045: Immutable audit log for GDPR/NIS2 compliance
+-- Migration 046: Immutable audit log for GDPR/NIS2 compliance
 
 CREATE TABLE IF NOT EXISTS system.audit_log (
   id            BIGSERIAL PRIMARY KEY,

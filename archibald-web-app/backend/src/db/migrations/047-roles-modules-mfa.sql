@@ -1,4 +1,4 @@
--- Migration 046: Expanded roles, per-user modules, MFA support
+-- Migration 047: Expanded roles, per-user modules, MFA support
 
 -- Expand role constraint to support new roles
 ALTER TABLE agents.users DROP CONSTRAINT IF EXISTS users_role_check;

@@ -75,6 +75,9 @@ describe('eraseCustomerPersonalData', () => {
     expect(firstCall[1][1]).toBe(customerProfile);
 
     expect(secondCall[0]).toEqual(expect.stringContaining('shared.sub_clients'));
+    expect(secondCall[0]).toEqual(expect.stringContaining('ragione_sociale'));
+    expect(secondCall[0]).toEqual(expect.stringContaining('telefono2'));
+    expect(secondCall[0]).toEqual(expect.stringContaining('telefono3'));
     expect(secondCall[0]).toEqual(expect.stringContaining('cod_fiscale'));
     expect(secondCall[0]).toEqual(expect.stringContaining('pers_da_contattare'));
     expect(secondCall[1][1]).toBe(customerProfile);

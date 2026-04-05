@@ -66,10 +66,13 @@ export async function eraseCustomerPersonalData(pool: DbPool, customerProfile: s
     );
     await tx.query(
       `UPDATE shared.sub_clients SET
+         ragione_sociale    = $1,
          pers_da_contattare = CASE WHEN pers_da_contattare IS NOT NULL THEN $1 ELSE NULL END,
          email              = CASE WHEN email IS NOT NULL THEN $1 ELSE NULL END,
          email_amministraz  = CASE WHEN email_amministraz IS NOT NULL THEN $1 ELSE NULL END,
          telefono           = CASE WHEN telefono IS NOT NULL THEN $1 ELSE NULL END,
+         telefono2          = CASE WHEN telefono2 IS NOT NULL THEN $1 ELSE NULL END,
+         telefono3          = CASE WHEN telefono3 IS NOT NULL THEN $1 ELSE NULL END,
          cod_fiscale        = CASE WHEN cod_fiscale IS NOT NULL THEN $1 ELSE NULL END,
          partita_iva        = CASE WHEN partita_iva IS NOT NULL THEN $1 ELSE NULL END
        WHERE codice IN (

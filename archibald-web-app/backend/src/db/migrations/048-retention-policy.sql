@@ -1,4 +1,4 @@
--- Migration 047: GDPR retention policy support
+-- Migration 048: GDPR retention policy support
 
 -- last_activity_at: updated on every order placement, used by retention scheduler
 ALTER TABLE agents.customers ADD COLUMN IF NOT EXISTS
