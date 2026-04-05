@@ -1594,6 +1594,10 @@ export function splitArticlesByWarehouse<T extends SplittableArticle>(
   return { nonWarehouse, warehouse };
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function generateKtExportVbs(
   pool: DbPool,
   userId: string,
@@ -1653,6 +1657,28 @@ export async function generateKtExportVbs(
     }
   }
 
+  // Sort KT per data ASC prima dell'assegnazione numeri
+  ktOrders.sort((a, b) => (a.creationDate ?? '').localeCompare(b.creationDate ?? ''));
+
+  // Carica effectiveLastDate per esercizio: max(last_date) da FT e KT counter
+  const effectiveLastDateByEsercizio = new Map<string, string>();
+  for (const esercizio of uniqueEsercizi) {
+    const { rows } = await pool.query<{ max_date: string }>(
+      `SELECT COALESCE(MAX(last_date)::text, '') AS max_date
+       FROM agents.ft_counter
+       WHERE user_id = $1 AND esercizio = $2 AND tipodoc IN ('FT', 'KT')`,
+      [userId, esercizio],
+    );
+    effectiveLastDateByEsercizio.set(esercizio, rows[0]?.max_date ?? '');
+  }
+  // Estende effectiveLastDate con le date degli FT nel batch corrente
+  for (const ft of ftExportRecords) {
+    const ftDate = (ft.arcaData.testata.DATADOC as string | undefined) ?? '';
+    const esercizio = String(ft.arcaData.testata.ESERCIZIO || '').trim() || currentYear;
+    const cur = effectiveLastDateByEsercizio.get(esercizio) ?? '';
+    if (ftDate > cur) effectiveLastDateByEsercizio.set(esercizio, ftDate);
+  }
+
   for (const order of ktOrders) {
     if (!order.articlesSyncedAt) continue;
     const erpId = order.customerAccountNum
@@ -1667,10 +1693,14 @@ export async function generateKtExportVbs(
     if (articles.length === 0) continue;
 
     const esercizio = order.creationDate?.slice(0, 4) || currentYear;
+    const effectiveLastDate = effectiveLastDateByEsercizio.get(esercizio) ?? '';
+    const rawDate = order.creationDate?.slice(0, 10) ?? todayIso();
+    const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate;
+    effectiveLastDateByEsercizio.set(esercizio, docDate);
 
     const orderParam = {
       id: order.id,
-      creationDate: order.creationDate,
+      creationDate: docDate,
       customerName: order.customerName,
       discountPercent: order.discountPercent,
       notes: order.notes,
@@ -1693,7 +1723,7 @@ export async function generateKtExportVbs(
 
     // Generate KT only if there are non-warehouse articles
     if (nonWarehouseArticles.length > 0) {
-      const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
+      const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT', docDate);
       const arcaData = generateArcaDataFromOrder(
         orderParam,
         nonWarehouseArticles.map(toArticleForKt),
@@ -1711,7 +1741,7 @@ export async function generateKtExportVbs(
 
     // Generate FT companion for warehouse articles (if any)
     if (warehouseArticles.length > 0) {
-      const ftNum = await getNextDocNumber(pool, userId, esercizio, 'FT');
+      const ftNum = await getNextDocNumber(pool, userId, esercizio, 'FT', docDate);
       const arcaDataFt = generateArcaDataFromOrder(
         orderParam,
         warehouseArticles.map(toArticleForKt),
@@ -1825,6 +1855,12 @@ export async function generateKtExportVbs(
     );
     logger.info(`Arca sync: ${anagrafeExportRecords.length} subclients to export to ANAGRAFE`);
   }
+
+  exportRecords.sort((a, b) =>
+    ((a.arcaData.testata.DATADOC as string | undefined) ?? '').localeCompare(
+      (b.arcaData.testata.DATADOC as string | undefined) ?? '',
+    ),
+  );
 
   let vbsScript: VbsResult | null = null;
   if (exportRecords.length > 0 || anagrafeExportRecords.length > 0) {

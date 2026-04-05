@@ -788,6 +788,7 @@ function createMockPool(overrides?: {
     warehouse_sources_json: string | null;
     created_at: string;
   }>;
+  lastDateByEsercizio?: Map<string, string>;
 }): DbPool {
   const existingIds = overrides?.existingIds ?? [];
   const existingInvoiceNumbers = overrides?.existingInvoiceNumbers ?? [];
@@ -800,6 +801,7 @@ function createMockPool(overrides?: {
   const pwaSourceRows = overrides?.pwaSourceRows ?? [];
   const subclientRows = overrides?.subclientRows ?? [];
   const orderArticlesRows = overrides?.orderArticlesRows ?? [];
+  const lastDateByEsercizio = overrides?.lastDateByEsercizio;
 
   return {
     query: vi.fn().mockImplementation((text: string, params?: unknown[]) => {
@@ -838,6 +840,12 @@ function createMockPool(overrides?: {
         };
       }
       if (text.includes("FROM agents.ft_counter") && text.includes("tipodoc IN")) {
+        if (text.includes("max_date")) {
+          // effectiveLastDate SELECT: return last_date per esercizio
+          const esercizio = params?.[1] as string | undefined;
+          const maxDate = (esercizio && lastDateByEsercizio?.get(esercizio)) ?? '';
+          return { rows: [{ max_date: maxDate }], rowCount: 1 };
+        }
         // Counter alignment SELECT: return 0 so no-op in unit tests
         return { rows: [{ max_last: 0 }], rowCount: 1 };
       }
@@ -1726,6 +1734,71 @@ describe('splitArticlesByWarehouse', () => {
       // generateKtExportVbs returns exportedOrderIds so the route handler can
       // apply the idempotency guard (AND arca_kt_synced_at IS NULL) atomically.
       expect(result.exportedOrderIds).toContain(GAP_ORDER_ID);
+    },
+    60000,
+  );
+
+  const DATE_ORDER_USER = "test-user-dates";
+  const DATE_ORDER_ESERCIZIO = "2026";
+  const LAST_DATE = "2026-04-01";
+  const OLD_CREATION_DATE = "2026-03-10T00:00:00Z";  // < LAST_DATE
+
+  test(
+    "KT con creation_date < last_date riceve DATADOC = last_date",
+    async () => {
+      const ktOrder = {
+        id: "order-old-date",
+        order_number: "ORD-OLD",
+        customer_name: "Cliente Old",
+        customer_account_num: "profile-old-date",
+        creation_date: OLD_CREATION_DATE,
+        discount_percent: null,
+        order_description: null,
+        articles_synced_at: "2026-03-10T10:00:00Z",
+      };
+
+      const subclientRow = {
+        codice: "C00OLD",
+        ragione_sociale: "Subclient Old",
+        suppl_ragione_sociale: null,
+        indirizzo: null, cap: null, localita: null, prov: null,
+        telefono: null, fax: null, email: null, partita_iva: null,
+        cod_fiscale: null, zona: null, pers_da_contattare: null,
+        email_amministraz: null, agente: null, agente2: null,
+        settore: null, classe: null, pag: "RB60", listino: "01",
+        banca: null, valuta: "EUR", aliiva: null, contoscar: null,
+        tipofatt: null, telefono2: null, telefono3: null, url: null,
+        cb_bic: null, cb_cin_ue: null, cb_cin_it: null, abicab: null,
+        contocorr: null, cb_nazione: null,
+        matched_customer_profile_id: "profile-old-date",
+        match_confidence: null,
+        arca_synced_at: null,
+        customer_match_count: 1,
+        sub_client_match_count: 1,
+      };
+
+      const articleRow = {
+        id: 1, order_id: "order-old-date", user_id: DATE_ORDER_USER,
+        article_code: "ART-001", article_description: "Test Article",
+        quantity: 2, unit_price: 100, discount_percent: 0,
+        line_amount: 200, vat_percent: 22, vat_amount: 44,
+        line_total_with_vat: 244, warehouse_quantity: null,
+        warehouse_sources_json: null, created_at: "2026-03-10T00:00:00Z",
+      };
+
+      const pool = createMockPool({
+        ktEligibleOrders: [ktOrder],
+        subclientRows: [subclientRow],
+        orderArticlesRows: [articleRow],
+        lastDateByEsercizio: new Map([[DATE_ORDER_ESERCIZIO, LAST_DATE]]),
+      });
+
+      const result = await generateKtExportVbs(pool, DATE_ORDER_USER, []);
+
+      expect(result.ktExported).toBe(1);
+      // Il VBS deve contenere DATADOC = LAST_DATE (non OLD_CREATION_DATE)
+      expect(result.vbsScript?.vbs).toContain(`REPLACE DATADOC WITH {^${LAST_DATE}}`);
+      expect(result.vbsScript?.vbs).not.toContain(`REPLACE DATADOC WITH {^${OLD_CREATION_DATE.slice(0, 10)}}`);
     },
     60000,
   );
