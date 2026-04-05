@@ -23,7 +23,7 @@ async function resetBudgetIfExpired(pool: DbPool): Promise<void> {
     `UPDATE system.recognition_budget SET
        used_today     = 0,
        throttle_level = 'normal',
-       reset_at       = date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day' AT TIME ZONE 'Europe/Rome',
+       reset_at       = (date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day') AT TIME ZONE 'Europe/Rome',
        updated_at     = NOW()
      WHERE id = 1 AND NOW() > reset_at`,
   );

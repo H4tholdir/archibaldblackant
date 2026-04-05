@@ -103,7 +103,7 @@ INSERT INTO system.recognition_budget (id, daily_limit, reset_at)
 VALUES (
   1,
   500,
-  date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day' AT TIME ZONE 'Europe/Rome'
+  (date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day') AT TIME ZONE 'Europe/Rome'
 )
 ON CONFLICT (id) DO NOTHING;
 
