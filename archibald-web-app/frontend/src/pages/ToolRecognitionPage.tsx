@@ -175,7 +175,11 @@ export function ToolRecognitionPage() {
         setPageState('filter_needed')
       } else {
         setPageState('idle')
-        if (state === 'error') setErrorMessage(response.result.message)
+        if (state === 'not_found') {
+          setErrorMessage('Strumento non riconosciuto. Riprova con migliore illuminazione.')
+        } else if (state === 'error') {
+          setErrorMessage(response.result.message)
+        }
       }
     } catch {
       setPageState('idle')
@@ -537,7 +541,13 @@ export function ToolRecognitionPage() {
             {question.options.map(opt => (
               <button
                 key={opt.value}
-                onClick={() => navigate(`/products?shape=${extractedFeatures.shape_family}&material=${extractedFeatures.material}&${question.field}=${opt.value}`)}
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  if (extractedFeatures.shape_family) params.set('shape', extractedFeatures.shape_family)
+                  if (extractedFeatures.material) params.set('material', extractedFeatures.material)
+                  params.set(question.field, opt.value)
+                  navigate(`/products?${params.toString()}`)
+                }}
                 style={{
                   background: '#1a1000', border: '1px solid #f59e0b',
                   borderRadius: 12, padding: '16px 12px',
