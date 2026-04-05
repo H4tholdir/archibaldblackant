@@ -453,7 +453,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
       return res.status(401).json({ success: false, error: 'Codice OTP non valido' });
     }
     void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_success', ipAddress: req.ip });
-    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, modules: user.modules });
+    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, deviceId: parsed.data.deviceId || undefined, modules: user.modules });
     let trustToken: string | undefined;
     if (parsed.data.rememberDevice && parsed.data.deviceId && deps.createTrustToken) {
       trustToken = await deps.createTrustToken(user.id, parsed.data.deviceId);
