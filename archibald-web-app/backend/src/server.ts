@@ -18,6 +18,7 @@ import type { SecurityAlertEvent } from './services/security-alert-service';
 import { revokeToken as revokeTokenFn } from './db/redis-client';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
+import { createTrustToken, verifyTrustToken } from './db/repositories/mfa-trusted-devices';
 import { createCustomersRouter } from './routes/customers';
 import { createProductsRouter } from './routes/products';
 import { createOrdersRouter } from './routes/orders';
@@ -417,6 +418,8 @@ function createApp(deps: AppDeps): Express {
       if (!payload || (payload as unknown as { purpose?: string }).purpose !== 'mfa') return null;
       return { userId: payload.userId };
     },
+    createTrustToken: (userId, deviceId) => createTrustToken(pool, userId, deviceId),
+    verifyTrustToken: (userId, deviceId, rawToken) => verifyTrustToken(pool, userId, deviceId, rawToken),
     sendSecurityAlert: deps.sendSecurityAlert,
   }));
 
