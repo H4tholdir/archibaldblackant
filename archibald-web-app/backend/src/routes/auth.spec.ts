@@ -195,6 +195,19 @@ describe('createAuthRouter', () => {
       expect(res.status).toBe(200);
       expect(deps.passwordCache.clear).toHaveBeenCalledWith('user-1');
     });
+
+    test('revoca tutti i device trust token al logout', async () => {
+      const revokeAllTrustDevices = vi.fn().mockResolvedValue(undefined);
+      const d = { ...createMockDeps(), revokeAllTrustDevices };
+      const app = createApp(d);
+      const token = await createAuthToken();
+      const res = await request(app)
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(revokeAllTrustDevices).toHaveBeenCalledWith('user-1');
+    });
   });
 
   describe('POST /api/auth/refresh', () => {

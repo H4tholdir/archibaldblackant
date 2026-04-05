@@ -51,6 +51,7 @@ type AuthRouterDeps = {
   verifyMfaToken?: (token: string) => Promise<{ userId: string } | null>;
   verifyTrustToken?: (userId: string, deviceId: string, rawToken: string) => Promise<boolean>;
   createTrustToken?: (userId: string, deviceId: string) => Promise<string>;
+  revokeAllTrustDevices?: (userId: string) => Promise<void>;
 };
 
 const loginSchema = z.object({
@@ -277,6 +278,9 @@ function createAuthRouter(deps: AuthRouterDeps) {
       const exp = (req.user as JWTPayload).exp;
       const remainingTtl = exp ? Math.max(1, exp - Math.floor(Date.now() / 1000)) : 8 * 60 * 60;
       await deps.revokeToken(jti, remainingTtl).catch(() => {});
+    }
+    if (deps.revokeAllTrustDevices) {
+      await deps.revokeAllTrustDevices(userId).catch(() => {});
     }
     passwordCache.clear(userId);
     void audit(deps.pool, {

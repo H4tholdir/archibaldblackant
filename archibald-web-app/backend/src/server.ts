@@ -18,7 +18,7 @@ import type { SecurityAlertEvent } from './services/security-alert-service';
 import { revokeToken as revokeTokenFn } from './db/redis-client';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
-import { createTrustToken, verifyTrustToken } from './db/repositories/mfa-trusted-devices';
+import { createTrustToken, verifyTrustToken, revokeAllTrustTokens } from './db/repositories/mfa-trusted-devices';
 import { createCustomersRouter } from './routes/customers';
 import { createProductsRouter } from './routes/products';
 import { createOrdersRouter } from './routes/orders';
@@ -420,6 +420,7 @@ function createApp(deps: AppDeps): Express {
     },
     createTrustToken: (userId, deviceId) => createTrustToken(pool, userId, deviceId),
     verifyTrustToken: (userId, deviceId, rawToken) => verifyTrustToken(pool, userId, deviceId, rawToken),
+    revokeAllTrustDevices: (userId) => revokeAllTrustTokens(pool, userId),
     sendSecurityAlert: deps.sendSecurityAlert,
   }));
 

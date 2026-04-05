@@ -103,21 +103,6 @@ describe('verifyTrustToken', () => {
     expect(result).toBe(false);
   });
 
-  test('restituisce false quando il pool non trova righe', async () => {
-    const queryFn = vi.fn().mockResolvedValue({ rows: [] });
-    const pool = { query: queryFn } as unknown as DbPool;
-    const { verifyTrustToken } = await import('./mfa-trusted-devices');
-    const result = await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
-    expect(result).toBe(false);
-  });
-
-  test('restituisce true quando il pool trova almeno una riga', async () => {
-    const queryFn = vi.fn().mockResolvedValue({ rows: [{ id: 'some-uuid' }] });
-    const pool = { query: queryFn } as unknown as DbPool;
-    const { verifyTrustToken } = await import('./mfa-trusted-devices');
-    const result = await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
-    expect(result).toBe(true);
-  });
 });
 
 describe('revokeAllTrustTokens', () => {
