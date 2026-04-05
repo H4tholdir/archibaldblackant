@@ -118,6 +118,8 @@ Claude Haiku 4.5 Vision API
 ### Migration: `049-tool-recognition-pkb.sql`
 
 ```sql
+BEGIN;
+
 -- Feature index per recognition engine (derivato da codici prodotto)
 CREATE TABLE IF NOT EXISTS shared.instrument_features (
   product_id         TEXT PRIMARY KEY REFERENCES shared.products(id) ON DELETE CASCADE,
@@ -125,8 +127,7 @@ CREATE TABLE IF NOT EXISTS shared.instrument_features (
                                       -- diabolo, torpedo, flame, wheel, egg, bud, etc.
   material           TEXT NOT NULL,   -- tungsten_carbide, diamond, diamond_diao,
                                       -- steel, ceramic, polymer, sonic_tip, ultrasonic
-  grit_level         TEXT,            -- ultra_fine, extra_fine, fine, standard, coarse,
-                                      -- super_coarse (NULL per non-diamond)
+  -- grit_level rimosso: ridondante con grit_ring_color (mappatura 1:1 nella sezione 2)
   grit_ring_color    TEXT,            -- white, yellow, red, blue, green, black, none
   shank_type         TEXT NOT NULL,   -- fg, fgs, fgl, fgxl, ca
   shank_diameter_mm  DOUBLE PRECISION NOT NULL DEFAULT 1.6,
@@ -142,7 +143,7 @@ CREATE TABLE IF NOT EXISTS shared.instrument_features (
 CREATE INDEX IF NOT EXISTS idx_instrument_features_shape    ON shared.instrument_features(shape_family);
 CREATE INDEX IF NOT EXISTS idx_instrument_features_material ON shared.instrument_features(material);
 CREATE INDEX IF NOT EXISTS idx_instrument_features_shank    ON shared.instrument_features(shank_type);
-CREATE INDEX IF NOT EXISTS idx_instrument_features_grit     ON shared.instrument_features(grit_level);
+CREATE INDEX IF NOT EXISTS idx_instrument_features_grit     ON shared.instrument_features(grit_ring_color);
 CREATE INDEX IF NOT EXISTS idx_instrument_features_size     ON shared.instrument_features(head_size_mm);
 -- Indice composto per lookup recognition
 CREATE INDEX IF NOT EXISTS idx_instrument_features_lookup   
@@ -206,18 +207,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_competitor_unique
 
 -- Budget pool giornaliero condiviso
 CREATE TABLE IF NOT EXISTS system.recognition_budget (
-  id             SERIAL PRIMARY KEY,
+  id             INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),  -- singleton: una sola riga
   daily_limit    INTEGER NOT NULL DEFAULT 500,  -- chiamate API max al giorno (tutti gli utenti)
   used_today     INTEGER NOT NULL DEFAULT 0,
   throttle_level TEXT NOT NULL DEFAULT 'normal'  -- normal, warning (>80%), limited (>95%)
                    CHECK (throttle_level IN ('normal', 'warning', 'limited')),
-  reset_at       TIMESTAMPTZ NOT NULL,           -- mezzanotte UTC+1
+  reset_at       TIMESTAMPTZ NOT NULL,           -- mezzanotte ora italiana (UTC+1/+2)
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO system.recognition_budget (daily_limit, reset_at)
-VALUES (500, NOW()::DATE + INTERVAL '1 day' + INTERVAL '23 hours')
-ON CONFLICT DO NOTHING;
+INSERT INTO system.recognition_budget (id, daily_limit, reset_at)
+VALUES (1, 500, date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day' AT TIME ZONE 'Europe/Rome')
+ON CONFLICT (id) DO NOTHING;
 
 -- Cache risultati riconoscimento (30 giorni, by image hash)
 CREATE TABLE IF NOT EXISTS system.recognition_cache (
@@ -234,7 +235,7 @@ CREATE INDEX IF NOT EXISTS idx_cache_expires ON system.recognition_cache(expires
 -- Log per analytics e rate-limit soft
 CREATE TABLE IF NOT EXISTS system.recognition_log (
   id             SERIAL PRIMARY KEY,
-  user_id        TEXT NOT NULL,
+  user_id        TEXT NOT NULL REFERENCES agents.users(id) ON DELETE CASCADE,
   image_hash     TEXT NOT NULL,
   cache_hit      BOOLEAN NOT NULL DEFAULT FALSE,
   product_id     TEXT,              -- trovato
@@ -248,6 +249,8 @@ CREATE TABLE IF NOT EXISTS system.recognition_log (
 CREATE INDEX IF NOT EXISTS idx_reclog_user    ON system.recognition_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_reclog_date    ON system.recognition_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_reclog_product ON system.recognition_log(product_id);
+
+COMMIT;
 ```
 
 ---
@@ -256,17 +259,17 @@ CREATE INDEX IF NOT EXISTS idx_reclog_product ON system.recognition_log(product_
 
 ### `POST /api/recognition/identify`
 
-**Input:** `{ image: string (base64 JPEG/PNG), userId: string }`  
+**Input:** `{ image: string (base64 JPEG/PNG) }` — `userId` viene da `req.user!.userId` (JWT), NON accettato dal client (prevenzione privilege escalation).  
 **Output:** `RecognitionResult`
 
 ```typescript
 type RecognitionResult =
-  | { state: 'match';         product: ProductMatch; confidence: number }
-  | { state: 'shortlist';     candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures }
-  | { state: 'filter_needed'; extractedFeatures: InstrumentFeatures; question: FilterQuestion }
-  | { state: 'not_found';     extractedFeatures: InstrumentFeatures | null }
-  | { state: 'budget_exhausted'; throttleLevel: 'warning' | 'limited' }
-  | { state: 'error';         message: string }
+  | { state: 'match';           product: ProductMatch; confidence: number }
+  | { state: 'shortlist';       candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures }
+  | { state: 'filter_needed';   extractedFeatures: InstrumentFeatures; question: FilterQuestion }
+  | { state: 'not_found';       extractedFeatures: InstrumentFeatures | null }
+  | { state: 'budget_exhausted' }  // hard stop — dettagli budget sempre in IdentifyResponse.budgetState
+  | { state: 'error';           message: string }
 
 type InstrumentFeatures = {
   shape_family:    string | null
@@ -277,25 +280,50 @@ type InstrumentFeatures = {
   shank_px:        number | null   // pixel larghezza gambo nel frame
   confidence:      number          // 0-1, stima AI sulla qualità dell'estrazione
 }
+
+type ProductMatch = {
+  productId:     string
+  productName:   string
+  familyCode:    string
+  headSizeMm:    number
+  shankType:     string
+  thumbnailUrl:  string | null
+  confidence:    number          // 0-1, calcolato dal match engine
+}
+
+type FilterQuestion = {
+  field:   'head_size_mm' | 'grit_ring_color' | 'shank_type'
+  prompt:  string   // es. "Che diametro vedi?"
+  options: Array<{ label: string; value: string }>
+}
 ```
 
 ### Pipeline step-by-step
 
 ```
-1. Auth check (utente autenticato)
+1. Auth check (req.user! autenticato — userId sempre da JWT)
    ↓
-2. Hash immagine (SHA-256)
+2. Hash immagine (SHA-256 LATO SERVER sul buffer decodificato):
+   crypto.createHash('sha256').update(Buffer.from(image, 'base64')).digest('hex')
    ↓
 3. Cache lookup (system.recognition_cache)
    → HIT: restituisci risultato cached, logga cache_hit=true, FINE
    ↓
-4. Budget check (system.recognition_budget)
-   → used_today >= daily_limit: restituisci budget_exhausted
-   → used_today >= 95%: throttle_level='limited' (solo admin)
-   → used_today >= 80%: throttle_level='warning' (continua)
+4. Budget check (system.recognition_budget) — con SELECT FOR UPDATE (atomico)
+   Reset lazy: se NOW() > reset_at → UPDATE SET used_today=0, throttle_level='normal',
+     reset_at=date_trunc('day', NOW() AT TIME ZONE 'Europe/Rome') + INTERVAL '1 day' AT TIME ZONE 'Europe/Rome'
+   Poi:
+   → used_today >= daily_limit → { state: 'budget_exhausted' }  (hard stop, tutti)
+   → throttle_level == 'limited' AND req.user.role != 'admin' → { state: 'budget_exhausted' }
+   → throttle_level == 'warning' → continua, throttle_level incluso in IdentifyResponse.budgetState
+   (Il campo throttle_level nel response serve solo come avviso UI — non blocca non-admin)
    ↓
-5. Claude Haiku 4.5 Vision API — Feature Extraction Prompt
-   → Input: immagine base64 + prompt strutturato
+5. Claude Vision API (model: 'claude-haiku-4-5') — Feature Extraction Prompt
+   → Timeout: 15 secondi (AbortSignal via AbortController)
+   → Se timeout o errore HTTP 5xx: { state: 'error', message: 'Servizio temporaneamente non disponibile' }
+   → Se timeout: NON incrementare used_today, NON scrivere recognition_log
+   → NON fare retry automatici (ogni tentativo costa e consuma budget)
+   → Input: immagine base64 + prompt strutturato, max_tokens: 256
    → Output: InstrumentFeatures JSON
    ↓
 6. Calcolo dimensione testa (se head_px e shank_px disponibili)
@@ -303,17 +331,24 @@ type InstrumentFeatures = {
    → arrotonda alla taglia ISO più vicina: [0.5,0.6,0.7,0.8,0.9,1.0,1.2,1.4,1.6,1.8,2.1,2.3,2.5,2.7,2.9,3.1,3.5]
    ↓
 7. DB Lookup (shared.instrument_features)
-   WHERE shape_family = ?
-     AND material = ?
-     AND (grit_ring_color = ? OR grit_ring_color IS NULL)
-     AND shank_type = ?
-     AND head_size_mm BETWEEN (calc_size - 0.15) AND (calc_size + 0.15)
+   Se calc_size IS NOT NULL (shank visibile):
+     WHERE shape_family = ?
+       AND material = ?
+       AND (grit_ring_color = ? OR grit_ring_color IS NULL)
+       AND shank_type = ?
+       AND head_size_mm BETWEEN (calc_size - 0.15) AND (calc_size + 0.15)
+   Se calc_size IS NULL (shank non visibile → omettere filtro dimensione):
+     WHERE shape_family = ?
+       AND material = ?
+       AND (grit_ring_color = ? OR grit_ring_color IS NULL)
+       AND shank_type = ?
+       -- head_size_mm omesso: gestito tramite filter_needed in step 8
    ↓
 8. Decisione adattiva (UX states):
-   → 1 match:           state='match', confidence>=90% → naviga diretto
-   → 2-4 match:         state='shortlist'
-   → >4 match o dim=?:  state='filter_needed' + domanda filtro
-   → 0 match:           state='not_found' con features estratte
+   → 1 match:                state='match', confidence>=90% → naviga diretto
+   → 2-4 match:              state='shortlist'
+   → >4 match OR calc_size IS NULL: state='filter_needed' + domanda filtro
+   → 0 match:                state='not_found' con features estratte
    ↓
 9. Salva in cache (30 giorni)
    Incrementa budget.used_today
@@ -322,8 +357,12 @@ type InstrumentFeatures = {
 
 ### Prompt Claude Vision (Feature Extraction)
 
+Parametri chiamata API: `model: 'claude-haiku-4-5'`, `max_tokens: 256`, timeout 15s via AbortController.
+
 ```
 You are a dental instrument identification system.
+If multiple instruments are visible, analyze only the LARGEST or MOST CENTERED one.
+If no dental instrument is visible, return all fields as null with confidence: 0.
 Analyze the photo and extract the following features as JSON.
 Be precise. If you cannot determine a field with confidence, set it to null.
 
@@ -412,6 +451,9 @@ function calculateHeadSizeMm(
 **Trigger:** una tantum all'attivazione + ogni nuovo prodotto in `shared.products`  
 **Logica:** decodifica codice articolo → popola `shared.instrument_features`
 
+**Coverage FAMILY_MAP:**
+Il mapping mostrato di seguito è esemplificativo. Prima dell'implementazione, estrarre tutti i family codes presenti in `shared.products` (`SELECT DISTINCT SPLIT_PART(id, '.', 1) FROM shared.products`) e completare il `FAMILY_MAP` con almeno le famiglie più comuni (Top 20 per volume ordini da `agents.order_articles`). Prodotti con family code non mappato: `parseKometCode` ritorna `null` → skip silenzioso senza errore. Loggare il count di prodotti skippati per monitorare la coverage al primo deploy.
+
 ```typescript
 // Mapping famiglie → features
 const FAMILY_MAP: Record<string, Partial<InstrumentFeatures>> = {
@@ -474,10 +516,12 @@ function parseKometCode(productId: string): Partial<InstrumentFeatures> | null {
 
 ```
 Per ogni prodotto in shared.products:
-  1. Costruisci URL immagine: 
-     https://www.kometdental.com/uploads/03di_{ID}_{SHANK}_{SIZE}_450.png
-  2. Verifica che l'immagine esista (HEAD request)
-  3. Se esiste: download → local_path → INSERT shared.product_gallery
+  1. Costruisci URL immagine (pattern validato — verificare su 10+ prodotti prima del deploy):
+     const [familyCode, shankCode, sizeCode] = productId.split('.')
+     // Esempio: H1.314.016 → 03di_H1_314_016_450.png
+     const imageUrl = `https://www.kometdental.com/uploads/03di_${familyCode}_${shankCode}_${sizeCode}_450.png`
+  2. HEAD request per verificare esistenza (con User-Agent e gestione errori)
+  3. Se HEAD restituisce 200: download → local_path → INSERT shared.product_gallery
      (image_type='instrument_white_bg', source='kometdental.com')
   4. Scrapa pagina famiglia su kometdental.com:
      - Descrizione clinica → shared.product_details.clinical_description
@@ -486,23 +530,32 @@ Per ogni prodotto in shared.products:
      - Foto marketing/microscope/clinical → shared.product_gallery
 ```
 
+**HTTP requests verso kometdental.com:**
+- `User-Agent: 'Mozilla/5.0 (compatible; ArchibaldBot/1.0)'`
+- Se HEAD → 404: skip prodotto, `local_path=null`, nessun errore
+- Se HEAD → 403/429: interrompere il job, schedulare retry dopo 24h
+- Se sito irraggiungibile: log warning, continuare al prossimo prodotto
+
 **Rate limiting:** max 2 richieste/secondo verso kometdental.com (rispettoso).
 
 ### Job 3: PDF Image Extractor (`komet-pdf-extractor`)
 
 **Queue:** `enrichment`  
 **Trigger:** una tantum, poi manuale a ogni nuovo catalogo  
-**Input:** `/app/assets/catalogo_komet_2025.pdf`  
+**Input:** `/app/assets/catalogo_komet_2025.pdf` (caricato nel volume Docker `product-images`, non baked nell'immagine)  
+**Libreria:** `pdfjs-dist` (puro JS, nessuna dipendenza nativa — no GraphicsMagick, no ImageMagick)  
 **Logica:**
-- Usa `pdf2pic` o `pdfjs-dist` per estrarre immagini per-pagina
-- Abbina ogni immagine al codice articolo tramite testo OCR adiacente
+- Usa `pdfjs-dist` per estrarre immagini per-pagina
+- Abbina ogni immagine al codice articolo tramite regex sul testo della pagina PDF (il catalogo è PDF con testo selezionabile, non scansione OCR)
 - Carica in `shared.product_gallery` (image_type='instrument_white_bg', source='catalog_pdf')
 
 ### Job 4: Recognition Feedback (`recognition-feedback`)
 
-**Trigger:** ogni conferma positiva di riconoscimento dall'agente  
+**Trigger:** endpoint `POST /api/recognition/feedback` (vedi sezione 10) — ogni conferma positiva dall'agente  
 **Logica:**
-- Foto scattata dall'agente → ridimensiona a max 800px → comprimi → salva su VPS
+- Il job recupera l'immagine dalla `system.recognition_cache` tramite `image_hash` (evita reinvio dal client)
+- Ridimensiona a max 800px lato lungo con `sharp` (npm: `sharp`)
+- Comprimi JPEG qualità 80 → salva in `/app/assets/product-images/{product_id}/field/{timestamp}_{userId}.jpg`
 - `INSERT shared.product_gallery` (image_type='field_scan', source='agent:{userId}')
 - Questi diventano il training set naturale per Fase 3 (CLIP)
 
@@ -554,12 +607,18 @@ Accessibile da:
 - Shortcut nella barra di ricerca articoli
 - Quick action dalla scheda cliente ("Identifica fresa del cliente")
 
-### 4 Stati UX (Adaptive, Approach C)
+### 5 Stati UX (Adaptive, Approach C)
+
+#### Stato 0: Permission Denied (camera non autorizzata)
+- Schermata "Consenti l'accesso alla fotocamera nelle impostazioni del dispositivo"
+- Link fallback "🔍 Cerca manualmente" → naviga a `/products`
+- Trigger: `getUserMedia` lancia `NotAllowedError` o `NotFoundError`
 
 #### Stato 1: Idle (Viewfinder)
+- Camera constraints: `{ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } }` — fotocamera posteriore obbligatoria
 - Camera feed live con overlay corners verdi
 - Hint: "Inquadra la fresa intera — includi il gambo"
-- Budget residuo (es. "7 scan rimasti oggi")
+- Budget residuo (es. "7 scan rimasti oggi"); se throttle_level='warning': banner giallo "Budget quasi esaurito"
 - Pulsante flash toggle
 - Pulsante scatto (cerchio bianco)
 
@@ -571,8 +630,8 @@ Accessibile da:
 #### Stato 3A: Match (confidenza ≥ 90%)
 - Card verde con mini-preview dello strumento
 - Nome, codice, famiglia, badge features (forma, materiale, grana, gambo)
-- CTA primaria: **"Apri scheda prodotto →"**
-- Link secondario: "Non è questo — mostra altri"
+- CTA primaria: **"Apri scheda prodotto →"** → al tocco, chiama `POST /api/recognition/feedback` con `{ imageHash, productId, confirmedByUser: true }` poi naviga
+- Link secondario: "Non è questo — mostra altri" → transizione a Stato 3B con query ampliata (rimuovere filtro `head_size_mm`, mantenere `shape_family + material + grit_ring_color`); se 0 risultati ampliati → Stato 3C
 
 #### Stato 3B: Shortlist (confidenza 60-89%)
 - Header: "X candidati trovati — scegli il corretto"
@@ -584,6 +643,13 @@ Accessibile da:
 - "Ho riconosciuto: [famiglia]. Non riesco a distinguere la variante."
 - 2-3 domande rapide con opzioni large-tap (es. "Che diametro vedi? Piccola/Media/Grande")
 - Oppure: "📷 Rifai foto col gambo in vista" (abilita misura automatica)
+
+### Fetch timeout
+
+`POST /api/recognition/identify` NON usa `fetchWithRetry` standard (hard cap 20s). Usare wrapper dedicato con `totalTimeout: 40000ms` (40 secondi). Il backend deve rilevare abort del client:
+```typescript
+req.on('close', () => { if (!res.headersSent) abortController.abort() })
+```
 
 ### Architettura scroll
 
@@ -619,7 +685,7 @@ La scheda prodotto attuale viene **estesa** (non sostituita) con nuove sezioni c
 
 1. **Gallery interattiva** — swipeable, thumbnails laterali, tipo immagine visibile
 2. **Badge features** — forma, materiale, grana (con ring color), gambo, rpm max
-3. **Selettore misure** — chip interattivi, aggiornano codice + prezzo in real-time
+3. **Selettore misure** — chip interattivi con varianti di taglia. Sorgente dati: `getProductVariants(articleName)` già in `products.ts`, inclusa nel response di `GET /api/products/:id/enrichment` come `sizeVariants: ProductMatch[]` (stesso `family_code` + `shank_type`, ordinati per `head_size_mm`). Selezione variante → navigazione a `/products/:newId` (non aggiornamento in-page)
 4. **Performance** (se disponibile da PKB) — barre vs standard di mercato
 5. **Indicazioni cliniche** (collassabile) — procedure, video, note d'uso
 6. **Storico riconoscimenti** — date, agenti, confidenza (flywheel visibile)
@@ -643,23 +709,44 @@ La scheda prodotto attuale viene **estesa** (non sostituita) con nuove sezioni c
 ```typescript
 // Request
 interface IdentifyRequest {
-  image:  string   // base64, max 4MB, JPEG/PNG/WEBP
-  userId: string
+  image: string   // base64, max 4MB, JPEG/PNG/WEBP
+  // userId NON accettato dal client — sempre da req.user!.userId (JWT)
 }
 
 // Response
 interface IdentifyResponse {
-  result: RecognitionResult
+  result:      RecognitionResult
   budgetState: { usedToday: number; dailyLimit: number; throttleLevel: ThrottleLevel }
   processingMs: number
 }
 ```
 
-**Rate limit:** 10 richieste/minuto per utente (anti-spam, indipendente dal budget).
+**Rate limit:** 10 richieste/minuto per utente (anti-spam, indipendente dal budget).  
+**Timeout client:** usare wrapper fetch con `totalTimeout: 40000ms` (non `fetchWithRetry` standard).
 
 ### `GET /api/recognition/budget`
 
 Restituisce stato corrente del budget (usato da indicatore in-app).
+
+### `POST /api/recognition/feedback`
+
+Conferma positiva del riconoscimento da parte dell'agente — accoda job `recognition-feedback`.
+
+```typescript
+// Request
+interface FeedbackRequest {
+  imageHash:       string   // SHA-256 già calcolato, presente in recognition_cache
+  productId:       string
+  confirmedByUser: boolean
+}
+// Response
+interface FeedbackResponse {
+  queued: boolean
+}
+// Logica: recupera immagine dalla recognition_cache tramite imageHash (NON reinviata dal client)
+// Se confirmedByUser=true → accoda recognition-feedback job
+// Se imageHash non in cache → queued: false, nessun errore
+```
 
 ### `GET /api/products/:id/enrichment`
 
@@ -670,6 +757,13 @@ Restituisce dati PKB per la scheda prodotto arricchita:
   details:     ProductDetails | null
   gallery:     ProductGalleryImage[]
   competitors: CompetitorEquivalent[]   // sempre vuoto in Fase 1
+  sizeVariants: ProductMatch[]          // varianti taglia stesso family_code+shank_type
+  recognitionHistory: Array<{
+    scannedAt:  string    // ISO timestamp
+    agentId:    string    // per mostrare iniziali, non nome completo
+    confidence: number
+    cacheHit:   boolean
+  }> | null               // null se nessuna scansione; max 10 entries, ordinate DESC
 }
 ```
 
@@ -694,8 +788,23 @@ Restituisce dati PKB per la scheda prodotto arricchita:
 ### E2E (before deploy)
 
 - Flusso completo: apertura camera → scatto foto di fresa test → risultato → navigazione scheda
-- Verifica tutti i 4 stati UX con immagini di test predisposte
-- Test responsive su iOS Safari standalone (niente `window.confirm`)
+- Verifica tutti gli stati UX con immagini di test predisposte:
+
+```
+/archibald-web-app/backend/src/test-fixtures/recognition/
+  fresa-match.jpg      → mock Vision API ritorna H1.314.016 features (1 match atteso → state='match')
+  fresa-shortlist.jpg  → mock ritorna features senza dimensione (2-4 match → state='shortlist')
+  fresa-filter.jpg     → mock ritorna features incomplete (>4 match → state='filter_needed')
+  non-fresa.jpg        → mock ritorna confidence: 0, tutti null (→ state='not_found')
+```
+
+Mock Vision API via dependency injection nel router (stesso pattern test esistenti):
+```typescript
+createRecognitionRouter({ pool, anthropicClient: mockAnthropicClient })
+```
+
+- Test responsive su iOS Safari standalone (niente `window.confirm` — tutti i dialoghi inline)
+- Verificare `facingMode: 'environment'` attivo (fotocamera posteriore) su dispositivo reale
 
 ---
 
@@ -727,23 +836,92 @@ Restituisce dati PKB per la scheda prodotto arricchita:
 - **Privacy:** le foto scattate dagli agenti sono associate al `product_id`, mai al cliente — nessuna implicazione GDPR
 - **DIAO rose-gold:** la riconoscibilità altissima del colore oro-rosa rende il DIAO il caso di test ideale per la validazione del sistema
 
+### Nuove env vars (`.env.production` + `config.ts`)
+
+```
+ANTHROPIC_API_KEY          # chiave API Anthropic (richiesta, non default)
+RECOGNITION_DAILY_LIMIT    # override budget giornaliero (default 500)
+RECOGNITION_TIMEOUT_MS     # timeout Vision API in ms (default 15000)
+```
+
+In `config.ts` aggiungere:
+```typescript
+recognition: {
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  dailyLimit:  parseInt(process.env.RECOGNITION_DAILY_LIMIT  ?? '500',   10),
+  timeoutMs:   parseInt(process.env.RECOGNITION_TIMEOUT_MS   ?? '15000', 10),
+}
+```
+
+### Nuove dipendenze npm (backend)
+
+```
+@anthropic-ai/sdk   — Vision API client
+sharp               — resize immagini field scan (binari nativi: richiede rebuild immagine Docker)
+pdfjs-dist          — estrazione immagini catalogo PDF (puro JS, no binari nativi)
+```
+
+### `operation-types.ts` — nuovi job da aggiungere
+
+```typescript
+// Aggiungere all'array OPERATION_TYPES:
+'komet-code-parser',       // queue: enrichment, priority: 5
+'komet-web-scraper',       // queue: enrichment, priority: 8
+'komet-pdf-extractor',     // queue: enrichment, priority: 9
+'recognition-feedback',    // queue: enrichment, priority: 3
+```
+
+### Docker — nuovo volume persistente
+
+Aggiungere in `docker-compose.yml`:
+```yaml
+services:
+  backend:
+    volumes:
+      - backend-cache:/app/.cache
+      - backend-logs:/app/logs
+      - product-images:/app/assets/product-images   # NUOVO
+
+volumes:
+  product-images:   # NUOVO — persiste tra deploy e rebuild
+```
+
+Il catalogo PDF (`catalogo_komet_2025.pdf`) va copiato nel volume durante il setup iniziale — **non** baked nell'immagine Docker.
+
+### Cache cleanup giornaliero
+
+Aggiungere al daily cleanup del `sync-scheduler` (già presente con `deleteExpiredNotifications`):
+```sql
+DELETE FROM system.recognition_cache WHERE expires_at < NOW()
+```
+
+### Audit log compliance
+
+La chiamata `POST /api/recognition/identify` comporta l'invio di immagini a un API esterna (Anthropic). Se Komet richiede audit trail per il DPA, aggiungere una scrittura in `system.audit_log` (migration 046) per ogni chiamata Vision API. Da chiarire con il cliente prima dell'implementazione — la spec attuale **non** prescrive questo audit per default.
+
 ---
 
 ## 14. Priorità di Implementazione
 
 | Fase | Componente | Priorità |
 |------|-----------|----------|
-| 0 | Migration 049 + Code Parser | P0 — prerequisito tutto |
-| 0 | Web Scraper immagini kometdental.com | P0 — prerequisito gallery |
+| 0 | Env vars + `config.ts` + dipendenze npm | P0 — prerequisito tutto |
+| 0 | Docker volume `product-images` | P0 — prerequisito immagini |
+| 0 | `operation-types.ts` — 4 nuovi job | P0 — prerequisito BullMQ |
+| 0 | Migration 049 | P0 — prerequisito DB |
+| 0 | Code Parser (`komet-code-parser`) + FAMILY_MAP completo | P0 — prerequisito recognition |
+| 0 | Web Scraper immagini (`komet-web-scraper`) | P0 — prerequisito gallery |
 | 1 | `POST /api/recognition/identify` (pipeline completa) | P0 |
-| 1 | `/recognition` page — stati 1,2,3A | P0 |
-| 1 | Gallery prodotto (instrument_white_bg) | P0 |
-| 1 | Badge features + selettore misure | P1 |
+| 1 | `/recognition` page — stati 0,1,2,3A | P0 |
+| 1 | Gallery prodotto (`instrument_white_bg`) | P0 |
+| 1 | `POST /api/recognition/feedback` | P1 |
+| 1 | Badge features + selettore misure (`sizeVariants`) | P1 |
 | 1 | Stati 3B e 3C scanner | P1 |
-| 1 | Budget system + throttle | P1 |
+| 1 | Budget system + throttle (reset lazy, singleton) | P1 |
 | 1 | Performance bars + indicazioni cliniche | P2 |
 | 1 | Storico riconoscimenti in scheda | P2 |
-| 1 | PDF Extractor (catalogo) | P2 |
-| 1 | Recognition feedback → gallery | P2 |
+| 1 | PDF Extractor (`komet-pdf-extractor`) | P2 |
+| 1 | Recognition feedback → gallery (Job 4) | P2 |
+| 1 | Cache cleanup nel daily scheduler | P2 |
 | 1 | Layout tablet + desktop | P2 |
 | 2 | Competitor equivalents | Fase 2 |
