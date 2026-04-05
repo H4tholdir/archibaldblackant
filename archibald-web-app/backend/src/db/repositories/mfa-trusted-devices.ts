@@ -8,15 +8,16 @@ export async function createTrustToken(
 ): Promise<string> {
   const raw = randomBytes(32).toString('hex');
   const hash = createHash('sha256').update(raw).digest('hex');
-  // Rimuovi vecchio token per lo stesso (user_id, device_id) prima di inserire
-  await pool.query(
-    'DELETE FROM agents.mfa_trusted_devices WHERE user_id = $1 AND device_id = $2',
-    [userId, deviceId],
-  );
-  await pool.query(
-    'INSERT INTO agents.mfa_trusted_devices (user_id, device_id, trust_token_hash) VALUES ($1, $2, $3)',
-    [userId, deviceId, hash],
-  );
+  await pool.withTransaction(async (tx) => {
+    await tx.query(
+      'DELETE FROM agents.mfa_trusted_devices WHERE user_id = $1 AND device_id = $2',
+      [userId, deviceId],
+    );
+    await tx.query(
+      'INSERT INTO agents.mfa_trusted_devices (user_id, device_id, trust_token_hash) VALUES ($1, $2, $3)',
+      [userId, deviceId, hash],
+    );
+  });
   return raw;
 }
 

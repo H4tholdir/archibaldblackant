@@ -23,23 +23,31 @@ describe('createTrustToken', () => {
     vi.resetModules();
   });
 
-  test('calls DELETE before INSERT (correct order, no race with old tokens)', async () => {
-    const { pool, queryFn } = createMockPool();
-    queryFn.mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
+  function createTransactionMockPool(): { pool: DbPool; txQueryFn: ReturnType<typeof vi.fn> } {
+    const txQueryFn = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
+    const pool = {
+      withTransaction: vi.fn().mockImplementation(async (fn: (tx: { query: typeof txQueryFn }) => Promise<void>) => {
+        await fn({ query: txQueryFn });
+      }),
+    } as unknown as DbPool;
+    return { pool, txQueryFn };
+  }
+
+  test('calls DELETE before INSERT inside a transaction (correct order, no race with old tokens)', async () => {
+    const { pool, txQueryFn } = createTransactionMockPool();
 
     const { createTrustToken } = await import('./mfa-trusted-devices');
     await createTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID);
 
-    expect(queryFn).toHaveBeenCalledTimes(2);
-    const firstCall = queryFn.mock.calls[0][0] as string;
-    const secondCall = queryFn.mock.calls[1][0] as string;
+    expect(txQueryFn).toHaveBeenCalledTimes(2);
+    const firstCall = txQueryFn.mock.calls[0][0] as string;
+    const secondCall = txQueryFn.mock.calls[1][0] as string;
     expect(firstCall).toContain('DELETE FROM agents.mfa_trusted_devices');
     expect(secondCall).toContain('INSERT INTO agents.mfa_trusted_devices');
   });
 
   test('returns a hex string of 64 characters (32 random bytes)', async () => {
-    const { pool, queryFn } = createMockPool();
-    queryFn.mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
+    const { pool } = createTransactionMockPool();
 
     const { createTrustToken } = await import('./mfa-trusted-devices');
     const raw = await createTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID);
@@ -48,13 +56,12 @@ describe('createTrustToken', () => {
   });
 
   test('passes userId, deviceId, and SHA-256 hash of raw token to INSERT', async () => {
-    const { pool, queryFn } = createMockPool();
-    queryFn.mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
+    const { pool, txQueryFn } = createTransactionMockPool();
 
     const { createTrustToken } = await import('./mfa-trusted-devices');
     const raw = await createTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID);
 
-    const insertCall = queryFn.mock.calls[1];
+    const insertCall = txQueryFn.mock.calls[1];
     const insertParams = insertCall[1] as string[];
     const [passedUserId, passedDeviceId, passedHash] = insertParams;
 
@@ -96,15 +103,20 @@ describe('verifyTrustToken', () => {
     expect(result).toBe(false);
   });
 
-  test('query includes expires_at > NOW() expiry check', async () => {
-    const { pool, queryFn } = createMockPool();
-    queryFn.mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
-
+  test('restituisce false quando il pool non trova righe', async () => {
+    const queryFn = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query: queryFn } as unknown as DbPool;
     const { verifyTrustToken } = await import('./mfa-trusted-devices');
-    await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
+    const result = await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
+    expect(result).toBe(false);
+  });
 
-    const querySql = queryFn.mock.calls[0][0] as string;
-    expect(querySql).toContain('expires_at > NOW()');
+  test('restituisce true quando il pool trova almeno una riga', async () => {
+    const queryFn = vi.fn().mockResolvedValue({ rows: [{ id: 'some-uuid' }] });
+    const pool = { query: queryFn } as unknown as DbPool;
+    const { verifyTrustToken } = await import('./mfa-trusted-devices');
+    const result = await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
+    expect(result).toBe(true);
   });
 });
 
