@@ -172,7 +172,7 @@ describe('ProductDetailPage — performance e CTA', () => {
       expect(screen.getByText('Durata')).toBeInTheDocument()
     )
     expect(screen.getByText('Affilatura')).toBeInTheDocument()
-    expect(screen.getByText(/160\.?000 RPM|160000 rpm/i)).toBeInTheDocument()
+    expect(screen.getByText(/160[.,]?000\s*RPM/i)).toBeInTheDocument()
   })
 
   it('mostra tab competitor con label "Fase 2"', async () => {

@@ -299,8 +299,9 @@ function EnrichmentSection({ enrichment, product }: { enrichment: ProductEnrichm
         </div>
       )}
 
-      {enrichment.details?.performanceData && (() => {
-        const pd = enrichment.details!.performanceData!
+      {(() => {
+        const pd = enrichment.details?.performanceData
+        if (!pd) return null
         return (
           <div style={{ padding: '20px 20px 0' }}>
             <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
