@@ -443,7 +443,15 @@ describe('createAdminRouter', () => {
     ];
 
     beforeEach(() => {
-      deps.pool = { query: vi.fn().mockResolvedValue({ rows: mockAuditRows }) } as unknown as AdminRouterDeps['pool'];
+      deps.pool = {
+        query: vi.fn().mockImplementation((sql: string) =>
+          Promise.resolve(
+            (sql as string).includes('COUNT')
+              ? { rows: [{ total: String(mockAuditRows.length) }] }
+              : { rows: mockAuditRows },
+          ),
+        ),
+      } as unknown as AdminRouterDeps['pool'];
       app = createApp(deps);
     });
 
@@ -451,7 +459,7 @@ describe('createAdminRouter', () => {
       const res = await request(app).get('/api/admin/audit-log');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, data: mockAuditRows, page: 1 });
+      expect(res.body).toEqual({ success: true, data: mockAuditRows, page: 1, total: mockAuditRows.length });
     });
 
     test('filters by action and passes it as SQL param', async () => {

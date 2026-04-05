@@ -617,15 +617,22 @@ function createAdminRouter(deps: AdminRouterDeps) {
       const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
       params.push(50, offset);
 
-      const { rows } = await deps.pool.query(
-        `SELECT id, occurred_at, actor_id, actor_role, action, target_type, target_id, ip_address, metadata
-         FROM system.audit_log ${where}
-         ORDER BY occurred_at DESC
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        params,
-      );
+      const [{ rows }, { rows: countRows }] = await Promise.all([
+        deps.pool.query(
+          `SELECT id, occurred_at, actor_id, actor_role, action, target_type, target_id, ip_address, metadata
+           FROM system.audit_log ${where}
+           ORDER BY occurred_at DESC
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          params,
+        ),
+        deps.pool.query<{ total: string }>(
+          `SELECT COUNT(*) AS total FROM system.audit_log ${where}`,
+          params.slice(0, -2),
+        ),
+      ]);
 
-      res.json({ success: true, data: rows, page: pageNum });
+      const total = parseInt(countRows[0]?.total ?? '0', 10);
+      res.json({ success: true, data: rows, page: pageNum, total });
     } catch (error) {
       logger.error('Error fetching audit log', { error });
       res.status(500).json({ success: false, error: 'Errore recupero audit log' });
