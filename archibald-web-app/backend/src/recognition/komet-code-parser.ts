@@ -1,6 +1,6 @@
 type ParsedFeatures = {
-  shape_family:      string | null
-  material:          string | null
+  shape_family:      string
+  material:          string
   grit_ring_color:   string | null
   family_code:       string
   shank_type:        string
