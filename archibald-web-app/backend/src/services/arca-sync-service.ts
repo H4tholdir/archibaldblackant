@@ -1104,6 +1104,10 @@ function mapToFresisHistoryInput(row: FresisHistoryRow): FresisHistoryInput {
   };
 }
 
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function performArcaSync(
   pool: DbPool,
   userId: string,
@@ -1350,7 +1354,8 @@ export async function performArcaSync(
     if (!isNaN(numInt) && takenSet?.has(numInt)) {
       // NUMERO_P conflict: this NUMERODOC is occupied by a different doc type (e.g. FT 326 vs KT 326)
       const tipodocForCounter = (tipodoc === "KT" ? "KT" : "FT") as "FT" | "KT";
-      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodocForCounter, arcaData.testata.DATADOC as string);
+      const renumberDate = (arcaData.testata.DATADOC as string | null) ?? todayIsoDate();
+      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodocForCounter, renumberDate);
       arcaData.testata.NUMERODOC = String(newNum);
       for (const riga of arcaData.righe) riga.NUMERODOC = String(newNum);
       const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
@@ -1494,7 +1499,8 @@ export async function performArcaSync(
       continue;
     }
 
-    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc, arcaData.testata.DATADOC as string);
+    const renumberDate = (arcaData.testata.DATADOC as string | null) ?? todayIsoDate();
+    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc, renumberDate);
 
     const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
     arcaData.testata.NUMERODOC = String(newNum);
@@ -1633,6 +1639,8 @@ export async function generateKtExportVbs(
   // Align FT and KT counters to global max(FT, KT) before assigning numbers.
   // generateKtExportVbs can run between syncs; without this, the KT counter may lag
   // behind the FT counter and produce numbers that already exist as FT (NUMERO_P conflict).
+  // Note: last_date is NOT updated here — it is loaded in effectiveLastDateByEsercizio below
+  // (MAX across both FT+KT), which is the authoritative source for docDate computation.
   const uniqueEsercizi = new Set(
     ktOrders.map((o) => o.creationDate?.slice(0, 4) || currentYear),
   );
