@@ -508,16 +508,19 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
 
     lines.push(`' --- ${sanitizeVbsComment(invoiceNumber)} ---`);
     lines.push("Err.Clear");
-    // Idempotency: skip if document already exists in Arca (prevents re-run duplicates).
+    // Idempotency: skip if ANY document with same NUMERODOC+ESERCIZIO exists in Arca.
     // Use ALLTRIM() to handle any leading/trailing space padding — NUMERODOC is 8-char
     // in the DBF but padNumerodoc produces 6-char values; VFP OLE DB SET EXACT ON would
     // make '   326' != '   326  ' without ALLTRIM.
-    lines.push(`Set rs = conn.Execute("SELECT COUNT(*) FROM doctes WHERE ALLTRIM(NUMERODOC) = '${numerodocTrimmed}' AND ALLTRIM(TIPODOC) = '${tipodocTrimmed}' AND ALLTRIM(ESERCIZIO) = '${esercizioTrimmed}'")`);
+    // NOTE: TIPODOC is intentionally excluded — FT and KT share CODCNT="001" in the
+    // NUMERO_P candidate index, so FT N and KT N cannot coexist. Checking only
+    // NUMERODOC+ESERCIZIO prevents the TABLEUPDATE uniqueness violation.
+    lines.push(`Set rs = conn.Execute("SELECT COUNT(*) FROM doctes WHERE ALLTRIM(NUMERODOC) = '${numerodocTrimmed}' AND ALLTRIM(ESERCIZIO) = '${esercizioTrimmed}'")`);
     lines.push("docAlreadyExists = (Err.Number = 0 And Not rs.EOF And rs.Fields(0).Value > 0)");
     lines.push("If Err.Number = 0 Then rs.Close");
     lines.push("Err.Clear");
     lines.push("If docAlreadyExists Then");
-    lines.push(`  logFile.WriteLine "SKIP ${sanitizeVbsComment(invoiceNumber)}: already exists in Arca"`);
+    lines.push(`  logFile.WriteLine "SKIP ${sanitizeVbsComment(invoiceNumber)}: NUMERODOC already taken in Arca (NUMERO_P conflict)"`);
     lines.push("  okCount = okCount + 1");
     lines.push("Else");
     for (const l of buildExecScriptDoctes(testata)) {

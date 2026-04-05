@@ -625,6 +625,18 @@ describe("generateVbsScript", () => {
     expect(idempotencyChecks).toBe(2);
   });
 
+  test("idempotency check omits TIPODOC per prevenire NUMERO_P cross-type conflict", () => {
+    const arcaDataKt = makeArcaData({ testata: { NUMERODOC: "   416", TIPODOC: "KT", ESERCIZIO: "2026" } });
+    const records: VbsExportRecord[] = [{ invoiceNumber: "KT 416/2026", arcaData: arcaDataKt }];
+    const result = generateVbsScript(records);
+    // Query deve controllare solo NUMERODOC+ESERCIZIO, senza TIPODOC nella SELECT,
+    // così FT 416 esistente causa lo skip (evitando la TABLEUPDATE che fallirebbe).
+    // numerodocTrimmed applica .trim() prima di finire nella query SQL.
+    expect(result.vbs).toContain("ALLTRIM(NUMERODOC) = '416' AND ALLTRIM(ESERCIZIO) = '2026'");
+    // TIPODOC non deve comparire nella SELECT COUNT idempotency (può però comparire nei REPLACE successivi)
+    expect(result.vbs).not.toContain("AND ALLTRIM(TIPODOC)");
+  });
+
   test("pads NUMERODOC to 6 chars right-aligned", () => {
     const arcaData = makeArcaData({
       testata: { NUMERODOC: "     1" },
