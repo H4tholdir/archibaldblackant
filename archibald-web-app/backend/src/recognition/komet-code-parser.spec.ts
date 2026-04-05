@@ -17,27 +17,42 @@ describe('parseKometCode', () => {
   });
 
   test('parses DIAO round FG (KP6801.314.016)', () => {
-    const result = parseKometCode('KP6801.314.016');
-    expect(result).not.toBeNull();
-    expect(result!.material).toBe('diamond_diao');
-    expect(result!.shank_type).toBe('fg');
-    expect(result!.head_size_mm).toBe(1.6);
+    expect(parseKometCode('KP6801.314.016')).toEqual({
+      shape_family:      'round',
+      material:          'diamond_diao',
+      grit_ring_color:   'green',
+      family_code:       'KP6801',
+      shank_type:        'fg',
+      shank_diameter_mm: 1.6,
+      head_size_code:    '016',
+      head_size_mm:      1.6,
+    });
   });
 
   test('parses CA shank (H2.204.010)', () => {
-    const result = parseKometCode('H2.204.010');
-    expect(result).not.toBeNull();
-    expect(result!.shank_type).toBe('ca');
-    expect(result!.shank_diameter_mm).toBe(2.35);
-    expect(result!.head_size_mm).toBe(1.0);
+    expect(parseKometCode('H2.204.010')).toEqual({
+      shape_family:      'inverted_cone',
+      material:          'tungsten_carbide',
+      grit_ring_color:   null,
+      family_code:       'H2',
+      shank_type:        'ca',
+      shank_diameter_mm: 2.35,
+      head_size_code:    '010',
+      head_size_mm:      1.0,
+    });
   });
 
   test('parses diamond fine red ring (8801.314.018)', () => {
-    const result = parseKometCode('8801.314.018');
-    expect(result).not.toBeNull();
-    expect(result!.material).toBe('diamond');
-    expect(result!.grit_ring_color).toBe('red');
-    expect(result!.head_size_mm).toBe(1.8);
+    expect(parseKometCode('8801.314.018')).toEqual({
+      shape_family:      'round',
+      material:          'diamond',
+      grit_ring_color:   'red',
+      family_code:       '8801',
+      shank_type:        'fg',
+      shank_diameter_mm: 1.6,
+      head_size_code:    '018',
+      head_size_mm:      1.8,
+    });
   });
 
   test('returns null for unknown family code (ZZZ.314.016)', () => {

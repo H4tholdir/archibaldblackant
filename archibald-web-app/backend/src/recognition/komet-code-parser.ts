@@ -17,11 +17,6 @@ const SHANK_TYPE_MAP: Record<string, string> = {
   '204': 'ca',
 };
 
-const SHANK_DIAMETER_MAP: Record<string, number> = {
-  '314': 1.6, '313': 1.6, '315': 1.6, '316': 1.6,
-  '204': 2.35,
-};
-
 type FamilyFeatures = {
   shape_family:    string
   material:        string
@@ -29,7 +24,6 @@ type FamilyFeatures = {
 };
 
 const FAMILY_MAP: Record<string, FamilyFeatures> = {
-  // Tungsten Carbide
   'H1':    { shape_family: 'round',             material: 'tungsten_carbide', grit_ring_color: null },
   'H1S':   { shape_family: 'round',             material: 'tungsten_carbide', grit_ring_color: null },
   'H1SE':  { shape_family: 'round',             material: 'tungsten_carbide', grit_ring_color: null },
@@ -44,7 +38,6 @@ const FAMILY_MAP: Record<string, FamilyFeatures> = {
   'H4':    { shape_family: 'wheel',             material: 'tungsten_carbide', grit_ring_color: null },
   'H6':    { shape_family: 'cylinder',          material: 'tungsten_carbide', grit_ring_color: null },
   'H64':   { shape_family: 'cylinder',          material: 'tungsten_carbide', grit_ring_color: null },
-  // Diamond standard (grit inferred from numeric prefix)
   '801':   { shape_family: 'round',              material: 'diamond', grit_ring_color: 'blue'   },
   '8801':  { shape_family: 'round',              material: 'diamond', grit_ring_color: 'red'    },
   '6801':  { shape_family: 'round',              material: 'diamond', grit_ring_color: 'green'  },
@@ -59,7 +52,6 @@ const FAMILY_MAP: Record<string, FamilyFeatures> = {
   '856':   { shape_family: 'pear',               material: 'diamond', grit_ring_color: 'blue'   },
   '8856':  { shape_family: 'pear',               material: 'diamond', grit_ring_color: 'red'    },
   '881':   { shape_family: 'cylinder',           material: 'diamond', grit_ring_color: 'blue'   },
-  // Diamond DIAO (rose-gold)
   'KP6801': { shape_family: 'round',             material: 'diamond_diao', grit_ring_color: 'green' },
   'KP6837': { shape_family: 'cylinder',          material: 'diamond_diao', grit_ring_color: 'green' },
   'KP6881': { shape_family: 'cylinder',          material: 'diamond_diao', grit_ring_color: 'green' },
@@ -68,7 +60,6 @@ const FAMILY_MAP: Record<string, FamilyFeatures> = {
   'KP8801': { shape_family: 'round',             material: 'diamond_diao', grit_ring_color: 'red'   },
 };
 
-// ISO standard head sizes in mm
 const ISO_SIZES_MM = [
   0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
   1.2, 1.4, 1.6, 1.8, 2.1, 2.3,
@@ -91,7 +82,7 @@ function parseKometCode(productId: string): ParsedFeatures | null {
     ...features,
     family_code:       familyCode,
     shank_type:        SHANK_TYPE_MAP[shankCode] ?? 'fg',
-    shank_diameter_mm: SHANK_DIAMETER_MAP[shankCode] ?? 1.6,
+    shank_diameter_mm: SHANK_DIAMETERS_MM[SHANK_TYPE_MAP[shankCode] ?? 'fg'] ?? 1.6,
     head_size_code:    sizeCode,
     head_size_mm:      parseInt(sizeCode, 10) / 10,
   };
