@@ -13203,7 +13203,7 @@ export class ArchibaldBot {
       const numericId = erpId.replace(/\./g, '');
       await this.page.goto(
         `${config.archibald.url}/CUSTTABLE_DetailView/${numericId}/`,
-        { waitUntil: "domcontentloaded", timeout: 30000 },
+        { waitUntil: "domcontentloaded", timeout: 60000 },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
 
@@ -13936,6 +13936,7 @@ export class ArchibaldBot {
 
   async updateCustomerSurgical(
     diff: CustomerDiff,
+    erpId: string,
     addresses?: AddressEntry[],
   ): Promise<NonNullable<CustomerSnapshot>> {
     if (!this.page) throw new Error("Browser page is null");
@@ -14038,14 +14039,8 @@ export class ArchibaldBot {
       ]);
     }
 
-    // BUG 5 FIX: ADDRESS triggers an ERP Tab-blur callback that clears the value
-    // when set via page.type(). Use injectFieldsViaNativeSetter to bypass the
-    // keyboard path and let the form save pick up the DOM value directly.
     if (diff.street !== undefined) {
-      await this.injectFieldsViaNativeSetter([
-        { regex: /xaf_dviADDRESS_Edit_I$/, value: diff.street },
-      ]);
-      await this.waitForDevExpressIdle({ timeout: 5000, label: 'address-inject' });
+      await this.typeDevExpressField(/xaf_dviSTREET_Edit_I$/, diff.street);
     }
     if (diff.phone !== undefined) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
@@ -14076,13 +14071,7 @@ export class ArchibaldBot {
       }
     }
 
-    // 3. Re-inject ADDRESS prima del salvataggio — garantisce che nessun callback
-    // ERP (fiscalCode, vatNumber, ecc.) abbia sovrascritto il valore nel frattempo.
-    if (diff.street !== undefined) {
-      await this.injectFieldsViaNativeSetter([
-        { regex: /xaf_dviADDRESS_Edit_I$/, value: diff.street },
-      ]);
-    }
+    // 3. Re-write NAMEALIAS — garantisce che nessun callback precedente l'abbia sovrascritto
     const finalNameAlias = diff.nameAlias ?? diff.name;
     if (finalNameAlias !== undefined) {
       await this.typeDevExpressField(
@@ -14108,18 +14097,13 @@ export class ArchibaldBot {
     await this.saveAndCloseCustomer();
 
     // 7. Snapshot — ricava erpId dall'URL corrente dopo save
-    const currentUrl = this.page.url();
-    const urlParts = currentUrl.split('/').filter(Boolean);
-    // URL pattern: .../CUSTTABLE_DetailView/{erpId}/?mode=...
-    const detailViewIdx = urlParts.findIndex((p) => p.includes('CUSTTABLE_DetailView'));
-    const erpId = detailViewIdx >= 0 ? urlParts[detailViewIdx + 1]?.replace(/,/g, '') ?? '' : '';
-
-    logger.info("updateCustomerSurgical: reading snapshot", { erpId });
-    const snapshot = await this.buildCustomerSnapshot(erpId || currentUrl);
-    logger.info("updateCustomerSurgical: completed", { erpId });
+    const cleanId = erpId.replace(/[.,]/g, '');
+    logger.info("updateCustomerSurgical: reading snapshot", { erpId: cleanId });
+    const snapshot = await this.buildCustomerSnapshot(cleanId);
+    logger.info("updateCustomerSurgical: completed", { erpId: cleanId });
 
     if (snapshot === null) {
-      throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${erpId}`);
+      throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${cleanId}`);
     }
     return snapshot;
   }

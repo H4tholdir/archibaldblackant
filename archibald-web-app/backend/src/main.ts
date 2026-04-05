@@ -618,7 +618,7 @@ async function bootstrap(): Promise<void> {
       };
       return {
         navigateToEditCustomerById: async (erpId) => { await ensureInit(); return bot.navigateToEditCustomerById(erpId); },
-        updateCustomerSurgical: async (diff, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, addresses); },
+        updateCustomerSurgical: async (diff, erpId, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, erpId, addresses); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),
