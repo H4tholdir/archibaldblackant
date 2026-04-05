@@ -30,22 +30,21 @@ async function resetBudgetIfExpired(pool: DbPool): Promise<void> {
 }
 
 async function incrementUsedToday(pool: DbPool): Promise<{ newCount: number; throttleLevel: ThrottleLevel } | null> {
-  const { rows } = await pool.query<{ used_today: number; daily_limit: number }>(
+  const { rows } = await pool.query<{ used_today: number; throttle_level: ThrottleLevel }>(
     `UPDATE system.recognition_budget SET
-       used_today   = used_today + 1,
-       updated_at   = NOW()
+       used_today     = used_today + 1,
+       throttle_level = CASE
+         WHEN (used_today + 1)::float / daily_limit >= 0.95 THEN 'limited'
+         WHEN (used_today + 1)::float / daily_limit >= 0.80 THEN 'warning'
+         ELSE 'normal'
+       END,
+       updated_at = NOW()
      WHERE id = 1 AND used_today < daily_limit
-     RETURNING used_today, daily_limit`,
+     RETURNING used_today, throttle_level`,
   );
   const row = rows[0];
   if (!row) return null;
-  const pct = row.used_today / row.daily_limit;
-  const throttleLevel: ThrottleLevel = pct >= 0.95 ? 'limited' : pct >= 0.80 ? 'warning' : 'normal';
-  await pool.query(
-    `UPDATE system.recognition_budget SET throttle_level = $1 WHERE id = 1`,
-    [throttleLevel],
-  );
-  return { newCount: row.used_today, throttleLevel };
+  return { newCount: row.used_today, throttleLevel: row.throttle_level };
 }
 
 export { getBudgetRow, resetBudgetIfExpired, incrementUsedToday };

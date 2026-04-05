@@ -91,8 +91,7 @@ async function runRecognitionPipeline(
 
   const cached = await getCached(deps.pool, imageHash);
   if (cached) {
-    const { allowed, budgetState } = await checkBudget(deps.pool, userId, role);
-    void allowed;
+    const { budgetState } = await checkBudget(deps.pool, userId, role);
     return {
       result:          cached.result_json as RecognitionResult,
       budgetState,

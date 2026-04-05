@@ -30,6 +30,7 @@ services:
       - SECURITY_ALERT_EMAIL=${SECURITY_ALERT_EMAIL}
     volumes:
       - ./logs:/app/logs  # Persist logs
+      - product-images:/app/assets/product-images
     depends_on:
       redis:
         condition: service_healthy
@@ -100,6 +101,7 @@ services:
 
 volumes:
   redis-data:
+  product-images:
 
 networks:
   archibald-net:

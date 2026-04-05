@@ -86,8 +86,12 @@ async function lookupByFeatures(
     conditions.push(`f.material = $${idx++}`);
     values.push(params.material);
   }
-  conditions.push(`(f.grit_ring_color = $${idx++} OR f.grit_ring_color IS NULL)`);
-  values.push(params.grit_ring_color);
+  if (params.grit_ring_color !== null) {
+    conditions.push(`f.grit_ring_color = $${idx++}`);
+    values.push(params.grit_ring_color);
+  } else {
+    conditions.push(`f.grit_ring_color IS NULL`);
+  }
 
   conditions.push(`f.shank_type = $${idx++}`);
   values.push(params.shank_type);
