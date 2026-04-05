@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToolRecognitionPage } from './ToolRecognitionPage'
 import * as recognitionApi from '../api/recognition'
+import type { IdentifyResponse } from '../api/recognition'
 
 // Mock getUserMedia
 function mockGetUserMedia(impl: () => Promise<MediaStream | never>) {
@@ -143,5 +144,127 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
     await waitFor(() =>
       expect(screen.getByText(/Budget giornaliero esaurito/i)).toBeInTheDocument()
     )
+  })
+})
+
+const MATCH_RESPONSE: IdentifyResponse = {
+  result: {
+    state: 'match',
+    product: {
+      productId: 'H1.314.016', productName: 'TC Round FG Ø1.6', familyCode: 'H1',
+      headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.95,
+    },
+    confidence: 0.95,
+  },
+  budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
+  processingMs: 800, imageHash: 'abc123', broadCandidates: [],
+}
+
+describe('ToolRecognitionPage — Stato 3A (match)', () => {
+  it('mostra card match con pulsante "Apri scheda prodotto"', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
+    vi.spyOn(recognitionApi, 'submitRecognitionFeedback').mockResolvedValue({ queued: true })
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Apri scheda prodotto/i })).toBeInTheDocument()
+    )
+    expect(screen.getByText('TC Round FG Ø1.6')).toBeInTheDocument()
+    expect(screen.getByText('H1.314.016')).toBeInTheDocument()
+  })
+
+  it('chiama submitRecognitionFeedback prima di navigare quando si clicca "Apri scheda"', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
+    const feedbackSpy = vi.spyOn(recognitionApi, 'submitRecognitionFeedback').mockResolvedValue({ queued: true })
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await waitFor(() => screen.getByRole('button', { name: /Apri scheda prodotto/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Apri scheda prodotto/i }))
+
+    expect(feedbackSpy).toHaveBeenCalledWith(TOKEN, {
+      imageHash: 'abc123',
+      productId: 'H1.314.016',
+      confirmedByUser: true,
+    })
+  })
+})
+
+describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
+  it('mostra lista candidati con link a scheda prodotto', async () => {
+    const shortlistResponse: IdentifyResponse = {
+      result: {
+        state: 'shortlist',
+        candidates: [
+          { productId: 'H1.314.014', productName: 'TC Round Ø1.4', familyCode: 'H1', headSizeMm: 1.4, shankType: 'fg', thumbnailUrl: null, confidence: 0.82 },
+          { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.75 },
+        ],
+        extractedFeatures: {
+          shape_family: 'round', material: 'tungsten_carbide',
+          grit_ring_color: null, shank_type: 'fg',
+          head_px: null, shank_px: null, confidence: 0.78,
+        },
+      },
+      budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 900, imageHash: 'def456', broadCandidates: [],
+    }
+
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(shortlistResponse)
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/2 candidati trovati/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText('TC Round Ø1.4')).toBeInTheDocument()
+    expect(screen.getByText('TC Round Ø1.6')).toBeInTheDocument()
+  })
+})
+
+describe('ToolRecognitionPage — Stato 3C (filter needed)', () => {
+  it('mostra domanda con opzioni large-tap', async () => {
+    const filterResponse: IdentifyResponse = {
+      result: {
+        state: 'filter_needed',
+        extractedFeatures: {
+          shape_family: 'round', material: 'diamond',
+          grit_ring_color: null, shank_type: 'fg',
+          head_px: null, shank_px: null, confidence: 0.45,
+        },
+        question: {
+          field: 'grit_ring_color',
+          prompt: 'Che colore ha il ring sulla fresa?',
+          options: [
+            { label: 'Rosso (fine)', value: 'red' },
+            { label: 'Blu (standard)', value: 'blue' },
+            { label: 'Verde (grossolano)', value: 'green' },
+          ],
+        },
+      },
+      budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 700, imageHash: 'ghi789', broadCandidates: [],
+    }
+
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(filterResponse)
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText('Che colore ha il ring sulla fresa?')).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: 'Rosso (fine)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blu (standard)' })).toBeInTheDocument()
   })
 })
