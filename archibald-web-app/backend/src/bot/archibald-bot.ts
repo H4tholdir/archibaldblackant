@@ -14093,18 +14093,72 @@ export class ArchibaldBot {
       await this.writeAltAddresses(addresses);
     }
 
-    // 6. Save
-    await this.saveAndCloseCustomer();
+    // 6. Save in-place — the page stays in edit mode, no navigation needed for snapshot.
+    // "Salva e chiudi" caused the ERP server to be busy post-save (60s+ navigation timeout).
+    await this.saveAndCloseCustomer(/* saveInPlace */ true);
 
-    // 7. Snapshot — ricava erpId dall'URL corrente dopo save
+    // Wait for the form to refresh with server-side values after save.
+    await this.waitForDevExpressReady({ timeout: 15000 });
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'post-save-settle' });
+
+    // 7. Snapshot — read directly from the current (already open) edit form.
+    await this.openCustomerTab("Principale");
+
     const cleanId = erpId.replace(/[.,]/g, '');
-    logger.info("updateCustomerSurgical: reading snapshot", { erpId: cleanId });
-    const snapshot = await this.buildCustomerSnapshot(cleanId);
-    logger.info("updateCustomerSurgical: completed", { erpId: cleanId });
+    logger.info("updateCustomerSurgical: reading snapshot from open form", { erpId: cleanId });
 
-    if (snapshot === null) {
-      throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${cleanId}`);
-    }
+    const mainFields = await this.page.evaluate(() => {
+      const g = (re: string) => {
+        const pat = new RegExp(re);
+        return (
+          (Array.from(document.querySelectorAll("input, textarea")) as (HTMLInputElement | HTMLTextAreaElement)[])
+            .find((el) => el.offsetParent !== null && pat.test(el.id))?.value ?? null
+        );
+      };
+      return {
+        internalId:   g("dviID_Edit_I$"),
+        name:         g("dviNAME_Edit_I$"),
+        nameAlias:    g("dviNAMEALIAS_Edit_I$"),
+        vatNumber:    g("dviVATNUM_Edit_I$"),
+        vatValidated: g("dviVATVALIEDE_Edit_I$"),
+        fiscalCode:   g("dviFISCALCODE_Edit_I$"),
+        pec:          g("dviLEGALEMAIL_Edit_I$"),
+        sdi:          g("dviLEGALAUTHORITY_Edit_I$"),
+        notes:        g("dviCUSTINFO_Edit_I$"),
+        street:       g("dviSTREET_Edit_I$"),
+        postalCode:   g("dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I$"),
+        city:         g("dviCITY_Edit_I$"),
+        county:       g("dviCOUNTY_Edit_I$"),
+        state:        g("dviSTATE_Edit_I$"),
+        country:      g("dviCOUNTRYREGIONID_Edit_I$"),
+        phone:        g("dviPHONE_Edit_I$"),
+        mobile:       g("dviCELLULARPHONE_Edit_I$"),
+        email:        g("dviEMAIL_Edit_I$"),
+        url:          g("dviURL_Edit_I$"),
+        attentionTo:  g("dviBRASCRMATTENTIONTO_Edit_I$"),
+        deliveryMode: g("dviDLVMODE_Edit_dropdown_DD_I$"),
+        paymentTerms: g("dviPAYMTERMID_Edit_find_Edit_I$"),
+        sector:       g("dviBUSINESSSECTORID_Edit_dropdown_DD_I$"),
+      };
+    });
+
+    await this.openCustomerTab("Prezzi e sconti");
+    const prezziFields = await this.page.evaluate(() => {
+      const g = (re: string) => {
+        const pat = new RegExp(re);
+        return (
+          (Array.from(document.querySelectorAll("input")) as HTMLInputElement[])
+            .find((el) => el.offsetParent !== null && pat.test(el.id))?.value ?? null
+        );
+      };
+      return {
+        priceGroup:   g("dviPRICEGROUP_Edit_dropdown_DD_I$"),
+        lineDiscount: g("dviLINEDISC_Edit_dropdown_DD_I$"),
+      };
+    });
+
+    const snapshot = { ...mainFields, ...prezziFields };
+    logger.info("updateCustomerSurgical: completed", { erpId: cleanId });
     return snapshot;
   }
 
