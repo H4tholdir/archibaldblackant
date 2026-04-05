@@ -6,7 +6,7 @@ import {
   identifyInstrument,
   getRecognitionBudget,
 } from '../api/recognition'
-import type { IdentifyResponse, BudgetState } from '../api/recognition'
+import type { BudgetState } from '../api/recognition'
 
 type PageState =
   | 'loading'
@@ -59,13 +59,9 @@ export function ToolRecognitionPage() {
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
   const [flashOn, setFlashOn] = useState(false)
-  const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null)
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  void identifyResult
-  void errorMessage
 
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
@@ -108,7 +104,6 @@ export function ToolRecognitionPage() {
       await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] })
       setFlashOn(next)
     } catch {
-      // Torch not supported — ignore silently
     }
   }, [flashOn])
 
@@ -137,7 +132,6 @@ export function ToolRecognitionPage() {
       setAnalyzeStep(1)
       const response = await identifyInstrument(token, base64)
       setAnalyzeStep(2)
-      setIdentifyResult(response)
 
       const { state } = response.result
       if (state === 'budget_exhausted') {
@@ -322,6 +316,22 @@ export function ToolRecognitionPage() {
           pointerEvents: 'none',
         }}>
           Tieni fermo e scatta
+        </div>
+      )}
+
+      {errorMessage && (
+        <div style={{
+          position: 'absolute',
+          bottom: 148,
+          left: 16, right: 16,
+          background: 'rgba(239, 68, 68, 0.15)',
+          borderRadius: 8,
+          padding: '8px 16px',
+          color: '#f87171',
+          fontSize: 13,
+          textAlign: 'center',
+        }}>
+          {errorMessage}
         </div>
       )}
 
