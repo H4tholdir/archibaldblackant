@@ -183,26 +183,6 @@ function createAuthRouter(deps: AuthRouterDeps) {
         Promise.resolve(deps.onLoginSuccess(user.id)).catch(() => {});
       }
 
-      if (user.role === 'admin' || user.role === 'ufficio') {
-        if (!deps.generateMfaToken) {
-          logger.error('MFA enforcement required but generateMfaToken not configured', { userId: user.id, role: user.role });
-          return res.status(503).json({ success: false, error: 'Servizio temporaneamente non disponibile' });
-        }
-        if (user.mfaEnabled) {
-          const mfaToken = await deps.generateMfaToken(user.id);
-          return res.json({ success: true, status: 'mfa_required', mfaToken });
-        } else {
-          const setupToken = await deps.generateMfaToken(user.id);
-          void audit(deps.pool, {
-            actorId: user.id,
-            actorRole: user.role,
-            action: 'mfa.setup_required',
-            ipAddress: req.ip,
-          });
-          return res.json({ success: true, status: 'mfa_setup_required', setupToken });
-        }
-      }
-
       if (user.mfaEnabled) {
         if (!deps.generateMfaToken) {
           logger.warn('User has MFA enabled but generateMfaToken not configured — skipping MFA check', { userId: user.id });
