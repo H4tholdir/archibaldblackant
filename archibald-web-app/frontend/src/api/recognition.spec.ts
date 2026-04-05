@@ -110,10 +110,10 @@ describe('getProductEnrichment', () => {
       json: () => Promise.resolve({ features: null, details: null, gallery: [], competitors: [], sizeVariants: [], recognitionHistory: null }),
     } as Response)
 
-    await getProductEnrichment(TOKEN, 'H1.314.016')
+    await getProductEnrichment(TOKEN, 'H1/314 016')
 
     const fetchMock = vi.mocked(global.fetch)
     const [url] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [string]
-    expect(url).toBe('/api/products/H1.314.016/enrichment')
+    expect(url).toBe('/api/products/H1%2F314%20016/enrichment')
   })
 })
