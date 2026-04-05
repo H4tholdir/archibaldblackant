@@ -1,4 +1,4 @@
-// @ts-nocheck
+import type { ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -26,20 +26,20 @@ vi.mock('./hooks/useToast', () => ({
   useToast: () => [],
 }))
 vi.mock('./contexts/WebSocketContext', () => ({
-  WebSocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  WebSocketProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useWebSocket: () => ({ socket: null, isConnected: false }),
   useWebSocketContext: () => ({ subscribe: vi.fn(() => vi.fn()), isConnected: false }),
 }))
 vi.mock('./contexts/NotificationsContext', () => ({
-  NotificationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  NotificationsProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useNotifications: () => ({ notifications: [], unreadCount: 0 }),
 }))
 vi.mock('./contexts/OperationTrackingContext', () => ({
-  OperationTrackingProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  OperationTrackingProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useOperationTracking: () => ({}),
 }))
 vi.mock('./contexts/PrivacyContext', () => ({
-  PrivacyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PrivacyProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   usePrivacy: () => ({ isPrivacyMode: false, togglePrivacy: vi.fn() }),
 }))
 vi.mock('./components/DashboardNav', () => ({
@@ -70,16 +70,15 @@ vi.mock('./services/toast.service', () => ({
   toastService: { error: vi.fn(), success: vi.fn(), info: vi.fn(), remove: vi.fn() },
 }))
 
-// Replace BrowserRouter with a passthrough so MemoryRouter from the test controls routing
+// BrowserRouter is replaced so the MemoryRouter from the test controls routing
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
   return {
     ...actual,
-    BrowserRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    BrowserRouter: ({ children }: { children: ReactNode }) => <>{children}</>,
   }
 })
 
-// Mock the target check fetch so TargetWizard is not shown
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: true,

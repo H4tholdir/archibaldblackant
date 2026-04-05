@@ -482,6 +482,21 @@ function AppRouter() {
               }
             />
 
+            {/* Product Detail route — must come BEFORE /products */}
+            <Route
+              path="/products/:productId"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ProductDetailPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                  </footer>
+                </div>
+              }
+            />
+
             {/* Products route */}
             <Route
               path="/products"
@@ -640,21 +655,6 @@ function AppRouter() {
                   <main className="app-main" style={{ padding: "0" }}>
                     <ToolRecognitionPage />
                   </main>
-                </div>
-              }
-            />
-
-            {/* Product Detail route — must come BEFORE /products */}
-            <Route
-              path="/products/:productId"
-              element={
-                <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
-                    <ProductDetailPage />
-                  </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />
