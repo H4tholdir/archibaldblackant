@@ -43,7 +43,7 @@ async function getRecognitionHistory(
      LIMIT $2`,
     [productId, limit],
   );
-  return rows;
+  return rows as Array<{ scanned_at: Date; agent_id: string; confidence: number | null; cache_hit: boolean }>;
 }
 
 export { appendRecognitionLog, getRecognitionHistory };
