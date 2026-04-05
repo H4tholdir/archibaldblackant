@@ -159,3 +159,34 @@ describe('ProductDetailPage — selettore misure', () => {
     expect(screen.getByText('Ø1.8')).toBeInTheDocument()
   })
 })
+
+describe('ProductDetailPage — performance e CTA', () => {
+  beforeEach(() => {
+    vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(FULL_ENRICHMENT)
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
+  })
+
+  it('mostra barre performance quando performance_data è disponibile', async () => {
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByText('Durata')).toBeInTheDocument()
+    )
+    expect(screen.getByText('Affilatura')).toBeInTheDocument()
+    expect(screen.getByText(/160\.?000 RPM|160000 rpm/i)).toBeInTheDocument()
+  })
+
+  it('mostra tab competitor con label "Fase 2"', async () => {
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByText(/Competitor/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/Fase 2|prossimamente|coming soon/i)).toBeInTheDocument()
+  })
+
+  it('mostra pulsante "Aggiungi all\'ordine" nella CTA sticky', async () => {
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Aggiungi all.ordine/i })).toBeInTheDocument()
+    )
+  })
+})

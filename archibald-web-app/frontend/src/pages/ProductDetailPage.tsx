@@ -7,6 +7,7 @@ import type { Product } from '../api/products'
 
 export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
+  const navigate = useNavigate()
 
   const [product, setProduct] = useState<Product | null>(null)
   const [enrichment, setEnrichment] = useState<ProductEnrichment | null>(null)
@@ -106,6 +107,24 @@ export function ProductDetailPage() {
       </div>
 
       <EnrichmentSection enrichment={enrichment} product={product} />
+
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: '#111', borderTop: '1px solid #1f2937',
+        padding: '16px 20px', display: 'flex', justifyContent: 'flex-end',
+        zIndex: 50,
+      }}>
+        <button
+          onClick={() => navigate(`/order?productId=${encodeURIComponent(product.id)}`)}
+          style={{
+            background: '#2563eb', color: '#fff', border: 'none',
+            borderRadius: 12, padding: '14px 24px',
+            fontSize: 15, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Aggiungi all'ordine
+        </button>
+      </div>
     </div>
   )
 }
@@ -277,6 +296,76 @@ function EnrichmentSection({ enrichment, product }: { enrichment: ProductEnrichm
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {enrichment.details?.performanceData && (() => {
+        const pd = enrichment.details!.performanceData!
+        return (
+          <div style={{ padding: '20px 20px 0' }}>
+            <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
+              PERFORMANCE
+            </div>
+            {[
+              { label: 'Durata', value: pd.durabilityPct },
+              { label: 'Affilatura', value: pd.sharpnessPct },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#d1d5db', fontSize: 13 }}>{label}</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{value}%</span>
+                </div>
+                <div style={{ background: '#1f2937', borderRadius: 4, height: 6 }}>
+                  <div style={{
+                    width: `${value}%`, height: '100%',
+                    background: value >= 80 ? '#4ade80' : value >= 60 ? '#facc15' : '#f87171',
+                    borderRadius: 4,
+                  }} />
+                </div>
+              </div>
+            ))}
+            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 8 }}>
+              Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
+            </div>
+          </div>
+        )
+      })()}
+
+      <div style={{ padding: '20px 20px 0' }}>
+        <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
+          COMPETITOR
+        </div>
+        <div style={{
+          background: '#111', border: '1px solid #1f2937', borderRadius: 12,
+          padding: 20, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+          <div style={{ color: '#4b5563', fontSize: 14 }}>
+            Equivalenti disponibili in Fase 2
+          </div>
+        </div>
+      </div>
+
+      {enrichment.details?.clinicalDescription && (
+        <div style={{ padding: '20px 20px 0' }}>
+          <details>
+            <summary style={{
+              color: '#9ca3af', fontSize: 12, fontWeight: 600,
+              letterSpacing: 1, cursor: 'pointer', listStyle: 'none',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>INDICAZIONI CLINICHE</span>
+              <span>▼</span>
+            </summary>
+            <div style={{ marginTop: 12, color: '#d1d5db', fontSize: 14, lineHeight: 1.6 }}>
+              {enrichment.details.clinicalDescription}
+            </div>
+            {enrichment.details.procedures && (
+              <div style={{ marginTop: 8, color: '#9ca3af', fontSize: 13 }}>
+                {enrichment.details.procedures}
+              </div>
+            )}
+          </details>
         </div>
       )}
     </>
