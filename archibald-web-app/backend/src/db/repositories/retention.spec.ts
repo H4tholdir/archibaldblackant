@@ -24,6 +24,8 @@ describe('getInactiveCustomers', () => {
     const [sql, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
     expect(sql).toEqual(expect.stringContaining('agents.customers'));
     expect(sql).toEqual(expect.stringContaining('last_activity_at'));
+    expect(sql).toEqual(expect.stringContaining("($2 || ' months')::INTERVAL"));
+    expect(sql).toEqual(expect.stringContaining('ORDER BY last_activity_at ASC'));
     expect(params[0]).toBe(userId);
     expect(params[1]).toBe(thresholdMonths);
   });
