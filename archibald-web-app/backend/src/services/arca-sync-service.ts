@@ -1695,7 +1695,7 @@ export async function generateKtExportVbs(
     const esercizio = order.creationDate?.slice(0, 4) || currentYear;
     const effectiveLastDate = effectiveLastDateByEsercizio.get(esercizio) ?? '';
     const rawDate = order.creationDate?.slice(0, 10) ?? todayIso();
-    const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate;
+    const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate; // YYYY-MM-DD lexicographic = chronological
     effectiveLastDateByEsercizio.set(esercizio, docDate);
 
     const orderParam = {
