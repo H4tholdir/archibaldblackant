@@ -68,6 +68,7 @@ export function DashboardNav() {
     { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
+    { path: "/recognition", label: "📷 Identifica strumento" },
     { path: "/profile", label: "👤 Profilo" },
     { path: "/fresis-history", label: "📋 Storico Fresis" },
     { path: "/revenue-report", label: "📊 Rapporto Ricavi" },

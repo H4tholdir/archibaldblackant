@@ -24,6 +24,8 @@ import { CustomerList } from "./pages/CustomerList";
 
 import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
+import { ToolRecognitionPage } from "./pages/ToolRecognitionPage";
+import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
 import { ProductVariationsPage } from "./pages/ProductVariationsPage";
@@ -622,6 +624,33 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <NotificationsPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                  </footer>
+                </div>
+              }
+            />
+
+            {/* Tool Recognition route */}
+            <Route
+              path="/recognition"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ToolRecognitionPage />
+                  </main>
+                </div>
+              }
+            />
+
+            {/* Product Detail route — must come BEFORE /products */}
+            <Route
+              path="/products/:productId"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ProductDetailPage />
                   </main>
                   <footer className="app-footer">
                     <p>v1.0.0 • Formicanera by Francesco Formicola</p>
