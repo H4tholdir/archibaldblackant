@@ -10702,6 +10702,17 @@ export class ArchibaldBot {
         timeout: 8000,
         label: `typed-retry-${inputId}`,
       });
+
+      const retryActual = await this.page.evaluate((id: string) => {
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        return input?.value ?? "";
+      }, inputId);
+
+      if (retryActual !== effectiveValue) {
+        throw new Error(
+          `typeDevExpressField: mismatch persists after retry — field "${inputId}" expected "${effectiveValue}", got "${retryActual}"`,
+        );
+      }
     }
 
     logger.debug("typeDevExpressField done", { id: inputId, value: effectiveValue });
@@ -13962,6 +13973,10 @@ export class ArchibaldBot {
         /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
         diff.paymentTerms,
       );
+      // The paymentTerms lookup triggers an ERP server callback that can take 10-15s.
+      // Without this extra settle, subsequent text field writes fail silently because
+      // the delayed callback arrives mid-write and re-renders the form fields.
+      await this.waitForDevExpressIdle({ timeout: 15000, label: 'paymentterms-settle' });
     }
     if (diff.postalCode !== undefined) {
       await this.selectFromDevExpressLookup(
