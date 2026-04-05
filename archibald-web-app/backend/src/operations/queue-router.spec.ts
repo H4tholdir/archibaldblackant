@@ -27,6 +27,9 @@ describe('getQueueForOperation', () => {
     'sync-customer-addresses': 'enrichment',
     'sync-products': 'shared-sync',
     'sync-prices': 'shared-sync',
+    'komet-code-parser': 'enrichment',
+    'komet-web-scraper': 'enrichment',
+    'recognition-feedback': 'enrichment',
   };
 
   test.each(OPERATION_TYPES.map(type => [type, expectedRouting[type]] as const))(
@@ -76,9 +79,9 @@ describe('getQueueForOperation', () => {
     expect(agentSyncOps).toHaveLength(4);
   });
 
-  test('enrichment queue contains 4 operations', () => {
+  test('enrichment queue contains 7 operations', () => {
     const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
-    expect(enrichmentOps).toHaveLength(4);
+    expect(enrichmentOps).toHaveLength(7);
   });
 
   test('shared-sync queue contains 2 operations', () => {

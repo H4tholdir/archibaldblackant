@@ -26,6 +26,9 @@ const QUEUE_ROUTING: Record<OperationType, QueueName> = {
   'sync-customer-addresses': 'enrichment',
   'sync-products': 'shared-sync',
   'sync-prices': 'shared-sync',
+  'komet-code-parser':    'enrichment',
+  'komet-web-scraper':    'enrichment',
+  'recognition-feedback': 'enrichment',
 };
 
 function getQueueForOperation(type: OperationType): QueueName {
