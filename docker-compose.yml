@@ -24,6 +24,10 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      # Security: restrict CORS to known frontend origins (comma-separated)
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://formicanera.com}
+      # Security: email address that receives mailto security alert links
+      - SECURITY_ALERT_EMAIL=${SECURITY_ALERT_EMAIL}
     volumes:
       - ./logs:/app/logs  # Persist logs
     depends_on:
