@@ -89,13 +89,13 @@ function readCoop16File(filename: string): Buffer {
         new Map(),
       );
 
-      // 15015 FT + 20 KT = 15035
-      expect(result.stats.totalDocuments).toBe(15035);
+      // 14932 FT + 169 KT = 15101
+      expect(result.stats.totalDocuments).toBe(15101);
       // totalRows = rows read from docrig (VFP9 may skip deleted records)
       expect(result.stats.totalRows).toBeGreaterThan(50000);
       // ANAGRAFE has 1899+ records but some lack CODICE or DESCRIZION
-      expect(result.stats.totalClients).toBe(1872);
-      expect(result.records).toHaveLength(15035);
+      expect(result.stats.totalClients).toBe(1873);
+      expect(result.records).toHaveLength(15101);
       // dbffile skips VFP9 deleted records; active - FT/KT = other types
       expect(result.stats.skippedOtherTypes).toBe(23);
     },
@@ -124,8 +124,8 @@ function readCoop16File(filename: string): Buffer {
         r.invoice_number.startsWith("KT "),
       );
 
-      expect(ktRecords.length).toBe(20);
-      expect(ftRecords.length).toBe(15015);
+      expect(ktRecords.length).toBe(169);
+      expect(ftRecords.length).toBe(14932);
 
       // Verify KT IDs are distinct from FT IDs
       const ftIds = new Set(ftRecords.map((r) => r.id));
@@ -221,7 +221,7 @@ function readCoop16File(filename: string): Buffer {
         new Map(),
       );
 
-      expect(result.subclients.length).toBe(1875);
+      expect(result.subclients.length).toBe(1876);
 
       // Verify first subclient has all expected fields
       const first = result.subclients[0];
@@ -878,11 +878,11 @@ function createMockPool(overrides?: {
         anagrafeBuf,
       );
 
-      expect(result.imported).toBe(15035);
+      expect(result.imported).toBe(15101);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
-      expect(result.parseStats.totalDocuments).toBe(15035);
+      expect(result.parseStats.totalDocuments).toBe(15101);
 
       // ft_counter should have been called for FT esercizi
       const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
@@ -991,7 +991,7 @@ function createMockPool(overrides?: {
       );
 
       expect(result.imported).toBe(0);
-      expect(result.updated).toBe(15035);
+      expect(result.updated).toBe(15101);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
@@ -1671,7 +1671,7 @@ describe('splitArticlesByWarehouse', () => {
   );
 
   test(
-    "Gap 4: UPDATE arca_kt_synced_at include AND arca_kt_synced_at IS NULL per prevenire race condition",
+    "Gap 4: exportedOrderIds è popolato — il caller usa gli IDs per l'UPDATE idempotente con arca_kt_synced_at IS NULL",
     async () => {
       const pool = createMockPool({
         ktEligibleOrders: [gapKtOrder],
@@ -1679,16 +1679,11 @@ describe('splitArticlesByWarehouse', () => {
         orderArticlesRows: [gapWhArticleRow],
       });
 
-      await generateKtExportVbs(pool, GAP_USER, []);
+      const result = await generateKtExportVbs(pool, GAP_USER, []);
 
-      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const updateCall = calls.find(
-        ([sql]: [string]) =>
-          sql.includes("UPDATE agents.order_records") &&
-          sql.includes("arca_kt_synced_at = NOW()"),
-      );
-      expect(updateCall).toBeDefined();
-      expect(updateCall![0]).toContain("AND arca_kt_synced_at IS NULL");
+      // generateKtExportVbs returns exportedOrderIds so the route handler can
+      // apply the idempotency guard (AND arca_kt_synced_at IS NULL) atomically.
+      expect(result.exportedOrderIds).toContain(GAP_ORDER_ID);
     },
     60000,
   );

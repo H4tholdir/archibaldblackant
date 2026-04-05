@@ -373,6 +373,11 @@ function createMockDeps(): AppDeps {
       navigateToCustomerSearch: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
     }),
+    createTestBot: vi.fn().mockResolvedValue({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      login: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    }),
   };
 }
 
