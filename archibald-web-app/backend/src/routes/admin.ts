@@ -527,6 +527,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
         .setHeader('Content-Disposition', `attachment; filename="${filename}"`)
         .json({ success: true, data });
     } catch (err) {
+      logger.error('Error exporting customer data', { error: err });
       res.status(500).json({ success: false, error: 'Errore durante l\'export dei dati' });
     }
   });
@@ -587,7 +588,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
       const rowsWithMailto = rows.map(row => ({
         ...row,
         mailtoUrl: config.security.alertEmail
-          ? buildMailtoLink(config.security.alertEmail, row.metadata?.event, row.metadata ?? {})
+          ? buildMailtoLink(config.security.alertEmail, (row.metadata?.event as string | undefined) ?? 'unknown', row.metadata ?? {})
           : null,
       }));
       res.json({ data: rowsWithMailto });

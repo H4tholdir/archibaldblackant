@@ -18,7 +18,7 @@ export function createSecurityAlertService(pool: DbPool): { send: (event: Securi
   return { send };
 }
 
-export function buildMailtoLink(alertEmail: string, event: SecurityAlertEvent, details: Record<string, unknown>): string {
+export function buildMailtoLink(alertEmail: string, event: SecurityAlertEvent | string, details: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   const subject = encodeURIComponent(`[ARCHIBALD SECURITY] ${event} — ${timestamp}`);
   const body = encodeURIComponent(`Evento: ${event}\nTimestamp: ${timestamp}\n\nDettagli:\n${JSON.stringify(details, null, 2)}`);
