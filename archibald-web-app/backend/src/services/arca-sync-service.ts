@@ -691,6 +691,7 @@ export type NativeParseResult = {
     skippedOtherTypes: number;
   };
   maxNumerodocByKey: Map<string, number>;
+  maxDateByKey: Map<string, string>;        // "esercizio|tipodoc" → max DATADOC (YYYY-MM-DD)
   arcaDocMap: Map<string, FresisHistoryRow>;
   arcaDocKeys: Set<string>;
   arcaClientMap: Map<string, string>;  // 3-part key → codicecf
@@ -819,6 +820,7 @@ export async function parseNativeArcaFiles(
     const records: FresisHistoryRow[] = [];
     let skippedOtherTypes = 0;
     const maxNumerodocByKey = new Map<string, number>();
+    const maxDateByKey = new Map<string, string>();
     const arcaDocMap = new Map<string, FresisHistoryRow>();
     const arcaDocKeys = new Set<string>();
     const arcaClientMap = new Map<string, string>();  // 3-part key → codicecf
@@ -856,6 +858,14 @@ export async function parseNativeArcaFiles(
         const currentMax = maxNumerodocByKey.get(trackingKey) ?? 0;
         if (numDocInt > currentMax) {
           maxNumerodocByKey.set(trackingKey, numDocInt);
+        }
+      }
+
+      const datadocIso = formatDate(datadoc)?.slice(0, 10) ?? '';
+      if (datadocIso) {
+        const currentMaxDate = maxDateByKey.get(trackingKey) ?? '';
+        if (datadocIso > currentMaxDate) {
+          maxDateByKey.set(trackingKey, datadocIso);
         }
       }
 
@@ -1020,6 +1030,7 @@ export async function parseNativeArcaFiles(
         skippedOtherTypes,
       },
       maxNumerodocByKey,
+      maxDateByKey,
       arcaDocMap,
       arcaDocKeys,
       arcaClientMap,
@@ -1247,32 +1258,45 @@ export async function performArcaSync(
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
     if (tipodoc !== "FT" && tipodoc !== "KT") continue;
+    const maxDate = parsed.maxDateByKey.get(key) ?? null;
     await pool.query(
-      `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number, last_date)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (esercizio, user_id, tipodoc)
-       DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
-      [esercizio, userId, tipodoc, maxNum],
+       DO UPDATE SET
+         last_number = GREATEST(agents.ft_counter.last_number, $4),
+         last_date   = GREATEST(agents.ft_counter.last_date, $5)`,
+      [esercizio, userId, tipodoc, maxNum, maxDate],
     );
   }
 
   // Ensure BOTH FT and KT counters >= global max(FT, KT): both share CODCNT="001" in the
   // NUMERO_P candidate index, so any number used by one type blocks the other.
   const globalMaxByEsercizio = new Map<string, number>();
+  const globalMaxDateByEsercizio = new Map<string, string>();
   for (const [key, maxNum] of parsed.maxNumerodocByKey) {
     const [esercizio, tipodoc] = key.split("|");
     if (tipodoc !== "FT" && tipodoc !== "KT") continue;
     const cur = globalMaxByEsercizio.get(esercizio) ?? 0;
     if (maxNum > cur) globalMaxByEsercizio.set(esercizio, maxNum);
   }
+  for (const [key, maxDate] of parsed.maxDateByKey) {
+    const [esercizio, tipodoc] = key.split("|");
+    if (tipodoc !== "FT" && tipodoc !== "KT") continue;
+    const cur = globalMaxDateByEsercizio.get(esercizio) ?? '';
+    if (maxDate > cur) globalMaxDateByEsercizio.set(esercizio, maxDate);
+  }
   for (const [esercizio, globalMax] of globalMaxByEsercizio) {
+    const globalMaxDate = globalMaxDateByEsercizio.get(esercizio) ?? null;
     for (const tipodoc of ["FT", "KT"] as const) {
       await pool.query(
-        `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO agents.ft_counter (esercizio, user_id, tipodoc, last_number, last_date)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (esercizio, user_id, tipodoc)
-         DO UPDATE SET last_number = GREATEST(agents.ft_counter.last_number, $4)`,
-        [esercizio, userId, tipodoc, globalMax],
+         DO UPDATE SET
+           last_number = GREATEST(agents.ft_counter.last_number, $4),
+           last_date   = GREATEST(agents.ft_counter.last_date, $5)`,
+        [esercizio, userId, tipodoc, globalMax, globalMaxDate],
       );
     }
   }
@@ -1326,7 +1350,7 @@ export async function performArcaSync(
     if (!isNaN(numInt) && takenSet?.has(numInt)) {
       // NUMERO_P conflict: this NUMERODOC is occupied by a different doc type (e.g. FT 326 vs KT 326)
       const tipodocForCounter = (tipodoc === "KT" ? "KT" : "FT") as "FT" | "KT";
-      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodocForCounter);
+      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodocForCounter, arcaData.testata.DATADOC as string);
       arcaData.testata.NUMERODOC = String(newNum);
       for (const riga of arcaData.righe) riga.NUMERODOC = String(newNum);
       const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
@@ -1470,7 +1494,7 @@ export async function performArcaSync(
       continue;
     }
 
-    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc);
+    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc, arcaData.testata.DATADOC as string);
 
     const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
     arcaData.testata.NUMERODOC = String(newNum);

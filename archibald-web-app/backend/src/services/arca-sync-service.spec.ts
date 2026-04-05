@@ -1449,6 +1449,36 @@ function createMockPool(overrides?: {
     },
     60000,
   );
+
+  test(
+    "aggiorna last_date in ft_counter con date YYYY-MM-DD valide da doctes.dbf",
+    async () => {
+      const doctesBuf = readCoop16File("doctes.dbf");
+      const docrigBuf = readCoop16File("docrig.dbf");
+      const anagrafeBuf = readCoop16File("ANAGRAFE.DBF");
+      const pool = createMockPool();
+
+      await performArcaSync(pool, TEST_USER_ID, doctesBuf, docrigBuf, anagrafeBuf);
+
+      const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const lastDateUpdates = queryCalls.filter(
+        ([sql]: [string]) =>
+          typeof sql === 'string' &&
+          sql.includes('ft_counter') &&
+          sql.includes('last_date'),
+      );
+      expect(lastDateUpdates.length).toBeGreaterThan(0);
+
+      // Verify that the last_date param is either null or a valid YYYY-MM-DD string
+      for (const [, params] of lastDateUpdates) {
+        const dateParam = (params as unknown[])[4];
+        if (dateParam !== null) {
+          expect(dateParam as string).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        }
+      }
+    },
+    120000,
+  );
 });
 
 describe('splitArticlesByWarehouse', () => {
