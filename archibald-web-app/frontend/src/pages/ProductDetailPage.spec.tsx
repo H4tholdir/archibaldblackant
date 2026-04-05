@@ -90,3 +90,72 @@ describe('ProductDetailPage — loading e dati base', () => {
     )
   })
 })
+
+const FULL_ENRICHMENT: ProductEnrichment = {
+  features: {
+    shape_family: 'round', material: 'diamond', grit_ring_color: 'red',
+    shank_type: 'fg', head_px: null, shank_px: null, confidence: 0.99,
+  },
+  details: {
+    clinicalDescription: 'Per rifinitura smalto e dentina',
+    procedures: 'Usare a 150.000 RPM con irrigazione',
+    performanceData: { durabilityPct: 85, sharpnessPct: 90, controlStars: 4, maxRpm: 160000, minSprayMl: 30 },
+    videoUrl: null, pdfUrl: null, sourceUrl: null,
+  },
+  gallery: [
+    { id: 1, imageUrl: 'https://example.com/img1.png', localPath: null, imageType: 'instrument_white_bg', source: 'kometdental.com', sortOrder: 0, width: 450, height: 450 },
+    { id: 2, imageUrl: 'https://example.com/img2.jpg', localPath: null, imageType: 'clinical', source: 'kometdental.com', sortOrder: 1, width: 800, height: 600 },
+  ],
+  competitors: [],
+  sizeVariants: [
+    { productId: 'H1.314.012', productName: 'TC Round Ø1.2', familyCode: 'H1', headSizeMm: 1.2, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
+    { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
+    { productId: 'H1.314.018', productName: 'TC Round Ø1.8', familyCode: 'H1', headSizeMm: 1.8, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
+  ],
+  recognitionHistory: [
+    { scannedAt: '2026-04-04T14:30:00Z', agentId: 'agent-1', confidence: 0.95, cacheHit: false },
+  ],
+}
+
+describe('ProductDetailPage — gallery', () => {
+  beforeEach(() => {
+    vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(FULL_ENRICHMENT)
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
+  })
+
+  it('mostra la prima immagine della gallery', async () => {
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: /strumento|prodotto|gallery/i })).toBeInTheDocument()
+    )
+  })
+})
+
+describe('ProductDetailPage — badge features', () => {
+  beforeEach(() => {
+    vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(FULL_ENRICHMENT)
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
+  })
+
+  it('mostra badge forma, materiale, grana e gambo', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Round')).toBeInTheDocument())
+    expect(screen.getByText('Diamond')).toBeInTheDocument()
+    expect(screen.getByText('Fine Rosso')).toBeInTheDocument()
+    expect(screen.getByText('FG')).toBeInTheDocument()
+  })
+})
+
+describe('ProductDetailPage — selettore misure', () => {
+  beforeEach(() => {
+    vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(FULL_ENRICHMENT)
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
+  })
+
+  it('mostra chip per ogni variante di misura', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Ø1.2')).toBeInTheDocument())
+    expect(screen.getByText('Ø1.6')).toBeInTheDocument()
+    expect(screen.getByText('Ø1.8')).toBeInTheDocument()
+  })
+})
