@@ -16,6 +16,24 @@ const EMPTY_ENRICHMENT: ProductEnrichment = {
   competitors: [], sizeVariants: [], recognitionHistory: null,
 }
 
+const MOCK_PRODUCT = {
+  id: 'H1.314.016',
+  name: 'TC Round FG Ø1.6',
+  price: 12.50,
+  vat: 22,
+  articleName: 'TC Round',
+}
+
+const MOCK_PRODUCTS_RESPONSE = {
+  success: true,
+  data: {
+    products: [MOCK_PRODUCT],
+    totalCount: 1,
+    returnedCount: 1,
+    limited: false,
+  },
+}
+
 function renderPage(productId = 'H1.314.016') {
   return render(
     <MemoryRouter initialEntries={[`/products/${productId}`]}>
@@ -37,17 +55,7 @@ describe('ProductDetailPage — loading e dati base', () => {
 
   it('mostra nome prodotto quando il fetch va a buon fine', async () => {
     vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(EMPTY_ENRICHMENT)
-    vi.spyOn(productsApi, 'getProducts').mockResolvedValue({
-      success: true,
-      data: {
-        products: [{
-          id: 'H1.314.016', name: 'TC Round FG Ø1.6',
-          price: 12.50, vat: 22,
-          articleName: 'TC Round',
-        }],
-        totalCount: 1, returnedCount: 1, limited: false,
-      },
-    })
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
 
     renderPage()
 
@@ -59,13 +67,7 @@ describe('ProductDetailPage — loading e dati base', () => {
 
   it('mostra prezzo prodotto formattato', async () => {
     vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(EMPTY_ENRICHMENT)
-    vi.spyOn(productsApi, 'getProducts').mockResolvedValue({
-      success: true,
-      data: {
-        products: [{ id: 'H1.314.016', name: 'TC Round FG Ø1.6', price: 12.50, vat: 22, articleName: 'TC Round' }],
-        totalCount: 1, returnedCount: 1, limited: false,
-      },
-    })
+    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
 
     renderPage()
 
