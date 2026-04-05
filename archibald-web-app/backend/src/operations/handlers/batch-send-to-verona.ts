@@ -126,7 +126,8 @@ async function handleBatchSendToVerona(
     );
 
     for (const row of fresis.rows) {
-      const ftNumber = await getNextFtNumber(pool, userId, esercizio, 'FT');
+      const docDate = new Date().toISOString().slice(0, 10);
+      const ftNumber = await getNextFtNumber(pool, userId, esercizio, 'FT', docDate);
 
       type GenerateItemWithGhost = GenerateInput['items'][number] & { isGhostArticle?: boolean };
       const exportItems = (row.items as GenerateItemWithGhost[])

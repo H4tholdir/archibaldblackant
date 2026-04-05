@@ -9,6 +9,10 @@ import { generateVbsScript } from '../services/arca-sync-service';
 import { getNextDocNumber } from '../services/ft-counter';
 import { logger } from '../logger';
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const ktSyncSchema = z.object({
   orderIds: z.array(z.string().min(1)).min(1),
   matchOverrides: z.record(z.string(), z.string()).optional(),
@@ -32,7 +36,6 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
       const userId = req.user!.userId;
       const { orderIds, matchOverrides } = parsed.data;
 
-      // Fetch orders
       const { rows: orders } = await pool.query<{
         id: string;
         order_number: string;
@@ -52,6 +55,9 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
       if (orders.length === 0) {
         return res.status(404).json({ success: false, error: 'Nessun ordine trovato' });
       }
+
+      // Ordina per data ASC: garantisce NUMERO_P monotono
+      orders.sort((a, b) => (a.creation_date ?? '').localeCompare(b.creation_date ?? ''));
 
       // Build subclient lookup
       const allSubclients = await getAllSubclients(pool);
@@ -73,6 +79,20 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
       const accountNumToErpId = new Map<string, string>();
       for (const c of customerRows) {
         accountNumToErpId.set(c.account_num, c.erp_id);
+      }
+
+      // Pre-carica effectiveLastDate per ogni esercizio distinto
+      const currentYear = new Date().getFullYear().toString();
+      const uniqueEsercizi = new Set(orders.map((o) => o.creation_date?.slice(0, 4) ?? currentYear));
+      const effectiveLastDateByEsercizio = new Map<string, string>();
+      for (const esercizio of uniqueEsercizi) {
+        const { rows: counterRows } = await pool.query<{ max_date: string }>(
+          `SELECT COALESCE(MAX(last_date)::text, '') AS max_date
+           FROM agents.ft_counter
+           WHERE user_id = $1 AND esercizio = $2 AND tipodoc IN ('FT', 'KT')`,
+          [userId, esercizio],
+        );
+        effectiveLastDateByEsercizio.set(esercizio, counterRows[0]?.max_date ?? '');
       }
 
       const errors: string[] = [];
@@ -103,13 +123,18 @@ function createKtSyncRouter(deps: KtSyncRouterDeps) {
           continue;
         }
 
-        const esercizio = order.creation_date?.slice(0, 4) || new Date().getFullYear().toString();
-        const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT');
+        const esercizio = order.creation_date?.slice(0, 4) ?? currentYear;
+        const effectiveLastDate = effectiveLastDateByEsercizio.get(esercizio) ?? '';
+        const rawDate = order.creation_date?.slice(0, 10) ?? todayIso();
+        const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate; // YYYY-MM-DD lexicographic = chronological
+        effectiveLastDateByEsercizio.set(esercizio, docDate);
+
+        const docNumber = await getNextDocNumber(pool, userId, esercizio, 'KT', docDate);
 
         const arcaData = generateArcaDataFromOrder(
           {
             id: order.id,
-            creationDate: order.creation_date,
+            creationDate: docDate,
             customerName: order.customer_name,
             discountPercent: order.discount_percent != null ? parseFloat(order.discount_percent) : null,
             notes: order.order_description,

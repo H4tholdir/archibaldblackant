@@ -23,14 +23,14 @@ describe('getNextDocNumber', () => {
     const pool = createMockPool();
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
     const { getNextDocNumber } = await import('./ft-counter');
-    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT')).toBe(1);
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT', TEST_DOC_DATE)).toBe(1);
   });
 
   test('returns 1 for first KT call', async () => {
     const pool = createMockPool();
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
     const { getNextDocNumber } = await import('./ft-counter');
-    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT')).toBe(1);
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT', TEST_DOC_DATE)).toBe(1);
   });
 
   test('passes esercizio, userId, tipodoc as params', async () => {
@@ -46,7 +46,7 @@ describe('getNextDocNumber', () => {
     const pool = createMockPool();
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
     const { getNextDocNumber } = await import('./ft-counter');
-    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT');
+    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT', TEST_DOC_DATE);
     const [text] = vi.mocked(pool.query).mock.calls[0];
     expect(text).toContain('INSERT INTO agents.ft_counter');
     expect(text).toContain('ON CONFLICT');
@@ -57,7 +57,7 @@ describe('getNextDocNumber', () => {
     const pool = createMockPool();
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 42 }], rowCount: 1 } as any);
     const { getNextDocNumber } = await import('./ft-counter');
-    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT')).toBe(42);
+    expect(await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT', TEST_DOC_DATE)).toBe(42);
   });
 
   test('SQL include last_date e GREATEST', async () => {
@@ -79,12 +79,19 @@ describe('getNextDocNumber', () => {
     expect(params).toEqual([TEST_ESERCIZIO, TEST_USER_ID, 'KT', TEST_DOC_DATE]);
   });
 
-  test('usa oggi come docDate quando il parametro è omesso', async () => {
+  test('docDate più recente avanza last_date rispetto a una chiamata precedente', async () => {
     const pool = createMockPool();
+    // Prima chiamata: docDate = '2026-03-01'
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
     const { getNextDocNumber } = await import('./ft-counter');
-    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT');
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
-    expect((params as unknown[])[3]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT', '2026-03-01');
+    const [, params1] = vi.mocked(pool.query).mock.calls[0];
+    expect((params1 as unknown[])[3]).toBe('2026-03-01');
+
+    // Seconda chiamata: docDate più recente
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 2 }], rowCount: 1 } as any);
+    await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT', '2026-04-01');
+    const [, params2] = vi.mocked(pool.query).mock.calls[1];
+    expect((params2 as unknown[])[3]).toBe('2026-04-01');
   });
 });

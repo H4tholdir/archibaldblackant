@@ -281,14 +281,14 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, ftNumber: 42, esercizio: expect.any(String) });
-      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', expect.any(String));
+      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', expect.any(String), expect.any(String));
     });
 
     test('accepts custom esercizio parameter', async () => {
       const res = await request(app).get('/api/fresis-history/next-ft-number?esercizio=2025');
 
       expect(res.status).toBe(200);
-      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', '2025');
+      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', '2025', expect.any(String));
     });
   });
 

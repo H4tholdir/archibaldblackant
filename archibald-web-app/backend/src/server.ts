@@ -814,7 +814,7 @@ function createApp(deps: AppDeps): Express {
         errors: parseResult.errors,
       };
     },
-    getNextFtNumber: (userId, esercizio) => getNextFtNumber(pool, userId, esercizio, 'FT'),
+    getNextFtNumber: (userId, esercizio, docDate) => getNextFtNumber(pool, userId, esercizio, 'FT', docDate),
     updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
     reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
     getGhostArticleSuggestions: (userId) => fresisHistoryRepo.getGhostArticleSuggestions(pool, userId),

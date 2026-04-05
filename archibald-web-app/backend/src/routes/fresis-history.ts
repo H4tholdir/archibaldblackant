@@ -27,7 +27,7 @@ type FresisHistoryRouterDeps = {
   searchOrders: (userId: string, query: string) => Promise<unknown[]>;
   exportArca: (userId: string, from?: string, to?: string) => Promise<{ zipBuffer: Buffer; stats: ExportStats }>;
   importArca: (userId: string, files: Array<{ originalName: string; buffer: Buffer }>) => Promise<{ success: boolean; imported?: number; errors?: string[] }>;
-  getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
+  getNextFtNumber: (userId: string, esercizio: string, docDate: string) => Promise<number>;
   updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
   reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
   getGhostArticleSuggestions: (userId: string) => Promise<GhostArticleSuggestion[]>;
@@ -218,7 +218,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
   router.get('/next-ft-number', async (req: AuthRequest, res) => {
     try {
       const esercizio = (req.query.esercizio as string) || new Date().getFullYear().toString();
-      const nextNumber = await getNextFtNumber(req.user!.userId, esercizio);
+      const nextNumber = await getNextFtNumber(req.user!.userId, esercizio, new Date().toISOString().slice(0, 10));
       res.json({ success: true, ftNumber: nextNumber, esercizio });
     } catch (error) {
       logger.error('Error getting next FT number', { error });
@@ -319,7 +319,7 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
           if (exportItems.length === 0) {
             continue;
           }
-          const ftNumber = await getNextFtNumber(req.user!.userId, esercizio);
+          const ftNumber = await getNextFtNumber(req.user!.userId, esercizio, new Date().toISOString().slice(0, 10));
           const input: GenerateInput = {
             subClientCodice: record.subClientCodice,
             subClientName: record.subClientName,
