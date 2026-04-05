@@ -810,10 +810,18 @@ Expected: FAIL — `docDate` è la data originale dell'ordine, non `LAST_DATE`.
 
 - [ ] **Step 3: Implementa le modifiche in `kt-sync.ts`**
 
-Sostituisci il corpo del handler `router.post('/', ...)` in `kt-sync.ts` con questa versione aggiornata. Le modifiche chiave rispetto al codice originale sono:
+Aggiungi la helper `todayIso` in cima al file (dopo gli import, prima di `ktSyncSchema`):
+
+```typescript
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+```
+
+Poi sostituisci il corpo del handler `router.post('/', ...)` con questa versione aggiornata. Modifiche chiave rispetto al codice originale:
 - sort `orders` per `creation_date ASC`
 - `effectiveLastDateByEsercizio`: query `MAX(last_date)` per ogni esercizio distinto
-- per ogni ordine: computa `docDate = max(creation_date, effectiveLastDate)`
+- per ogni ordine: computa `docDate = max(creation_date, effectiveLastDate)` usando `todayIso()` come fallback
 - aggiorna `effectiveLastDateByEsercizio` dopo ogni ordine
 - passa `docDate` a `getNextDocNumber` e usa `docDate` come `creationDate` in `generateArcaDataFromOrder`
 
@@ -915,7 +923,7 @@ Sostituisci il corpo del handler `router.post('/', ...)` in `kt-sync.ts` con que
 
         const esercizio = order.creation_date?.slice(0, 4) ?? currentYear;
         const effectiveLastDate = effectiveLastDateByEsercizio.get(esercizio) ?? '';
-        const rawDate = order.creation_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+        const rawDate = order.creation_date?.slice(0, 10) ?? todayIso();
         const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate;
         effectiveLastDateByEsercizio.set(esercizio, docDate);
 
@@ -1003,18 +1011,25 @@ async function getNextDocNumber(
 
 Rimuovi anche la funzione `todayIso()` da `ft-counter.ts` (non è più necessaria lì — è definita in `arca-sync-service.ts` e `kt-sync.ts` localmente se serve, ma in realtà non serve più).
 
-- [ ] **Step 5: Aggiorna il test `usa oggi come docDate quando il parametro è omesso`**
+- [ ] **Step 5: Sostituisci il test `usa oggi come docDate quando il parametro è omesso`**
 
-Ora che `docDate` è obbligatorio, quel test non ha più senso. Eliminalo da `ft-counter.spec.ts`. Sostituiscilo con uno che verifica che il tipo sia corretto:
+Ora che `docDate` è obbligatorio, quel test non ha più senso. Eliminalo da `ft-counter.spec.ts`. Sostituiscilo con un test che verifica il comportamento corretto di GREATEST con due docDate distinte (invariante del dominio: il contatore avanza solo in avanti):
 
 ```typescript
-test('richiede esattamente 5 argomenti (docDate obbligatorio)', async () => {
+test('docDate più recente avanza last_date rispetto a una chiamata precedente', async () => {
   const pool = createMockPool();
+  // Prima chiamata: last_date = DATE_1
   vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 1 }], rowCount: 1 } as any);
   const { getNextDocNumber } = await import('./ft-counter');
-  // Chiamata valida con tutti i parametri
-  const result = await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'FT', TEST_DOC_DATE);
-  expect(result).toBe(1);
+  await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT', '2026-03-01');
+  const [, params1] = vi.mocked(pool.query).mock.calls[0];
+  expect((params1 as unknown[])[3]).toBe('2026-03-01');
+
+  // Seconda chiamata: docDate > prima, deve aggiornare last_date
+  vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ last_number: 2 }], rowCount: 1 } as any);
+  await getNextDocNumber(pool, TEST_USER_ID, TEST_ESERCIZIO, 'KT', '2026-04-01');
+  const [, params2] = vi.mocked(pool.query).mock.calls[1];
+  expect((params2 as unknown[])[3]).toBe('2026-04-01');
 });
 ```
 
