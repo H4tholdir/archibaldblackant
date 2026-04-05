@@ -46,7 +46,8 @@ interface CustomerCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  contextMode?: "standalone" | "order";
+  onMinimize?: (name: string) => void;
+  isMinimized?: boolean;
   prefillName?: string;
 }
 
@@ -89,7 +90,8 @@ export function CustomerCreateModal({
   isOpen,
   onClose,
   onSaved,
-  contextMode = "standalone",
+  onMinimize,
+  isMinimized = false,
   prefillName,
 }: CustomerCreateModalProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>({ kind: "vat" });
@@ -123,7 +125,6 @@ export function CustomerCreateModal({
   const [paymentTermsHighlight, setPaymentTermsHighlight] = useState(0);
 
   const [saving, setSaving] = useState(false);
-  const [pendingSave, setPendingSave] = useState(false);
   const [processingState, setProcessingState] = useState<ProcessingState>("idle");
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -174,7 +175,6 @@ export function CustomerCreateModal({
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setSaving(false);
-      setPendingSave(false);
       setProcessingState("idle");
       setTaskId(null);
       setProgress(0);
@@ -244,11 +244,11 @@ export function CustomerCreateModal({
         const p = payload as { sessionId: string; error?: string };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
         if (erpCheckResolvedRef.current) return;
-        // erpValidated remains false — save path will use fallback fresh-bot.
-        // Clear the session so heartbeat stops and handleSave skips pendingSave wait.
         resolveErpCheck();
         setInteractiveSessionId(null);
-        setCurrentStep({ kind: "anagrafica" });
+        setVatError(
+          p.error ?? "Verifica ERP non riuscita. Controlla la P.IVA e riprova.",
+        );
       }),
     );
 
@@ -311,22 +311,20 @@ export function CustomerCreateModal({
     };
   }, [taskId, subscribe, onSaved, onClose]);
 
-  // --- pendingSave: wait for erpValidated or timeout 60s ---
+  // ESC handler: minimizza se il bot sta girando, altrimenti chiude
   useEffect(() => {
-    if (pendingSave && erpValidated) {
-      setPendingSave(false);
-      void performSave();
-    }
-  }, [pendingSave, erpValidated]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!pendingSave) return;
-    const timeout = setTimeout(() => {
-      setPendingSave(false);
-      void performSave();
-    }, 60_000);
-    return () => clearTimeout(timeout);
-  }, [pendingSave]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (isProcessing && onMinimize) {
+        onMinimize(formData.name || "");
+      } else if (!isProcessing) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isProcessing, onMinimize, onClose, formData.name]);
 
   if (!isOpen) return null;
 
@@ -432,12 +430,6 @@ export function CustomerCreateModal({
         setFormData((f) => ({ ...f, name: f.name || result.name! }));
       }
 
-      if (contextMode === "order") {
-        // In order mode no ERP check — advance immediately
-        setCurrentStep({ kind: "anagrafica" });
-        return;
-      }
-
       // ERP check phase: remain on step 1 with spinner while bot validates.
       // vatChecking stays true; derived spinner label uses interactiveSessionId.
       // WS handlers (VAT_RESULT / INTERACTIVE_FAILED / VAT_DUPLICATE) clear it and advance.
@@ -475,20 +467,22 @@ export function CustomerCreateModal({
     setBotError(null);
 
     try {
-      const dataToSend: CustomerFormData = { ...formData, addresses: localAddresses };
+      const dataToSend: CustomerFormData = {
+        ...formData,
+        addresses: localAddresses,
+        phone: formData.phone !== "+39" ? formData.phone : "",
+        mobile: formData.mobile !== "+39" ? formData.mobile : "",
+      };
 
-      let resultTaskId: string | null = null;
-
-      if (interactiveSessionId) {
-        const result = await customerService.saveInteractiveCustomer(
-          interactiveSessionId,
-          dataToSend,
-        );
-        resultTaskId = result.taskId;
-      } else {
-        const result = await customerService.createCustomer(dataToSend);
-        resultTaskId = result.taskId;
+      if (!interactiveSessionId) {
+        setError("Sessione ERP non disponibile. Torna al primo passo e verifica la P.IVA.");
+        return;
       }
+
+      const { taskId: resultTaskId } = await customerService.saveInteractiveCustomer(
+        interactiveSessionId,
+        dataToSend,
+      );
 
       if (resultTaskId) {
         setTaskId(resultTaskId);
@@ -507,11 +501,6 @@ export function CustomerCreateModal({
   };
 
   const handleSave = () => {
-    if (!erpValidated && interactiveSessionId && contextMode !== "order") {
-      setSaving(true);
-      setPendingSave(true);
-      return;
-    }
     void performSave();
   };
 
@@ -594,9 +583,17 @@ export function CustomerCreateModal({
     { label: "Note", value: formData.notes || "" },
   ].filter((row) => row.value.trim().length > 0);
 
+  const handleBackdropClick = () => {
+    if (isProcessing && onMinimize) {
+      onMinimize(formData.name || "");
+    }
+    // click fuori non chiude mai la modale — solo ESC o la X
+  };
+
   // --- Render ---
   return (
     <div
+      onClick={handleBackdropClick}
       style={{
         position: "fixed",
         top: 0,
@@ -604,7 +601,7 @@ export function CustomerCreateModal({
         right: 0,
         bottom: 0,
         backgroundColor: isMobile ? "white" : "rgba(0, 0, 0, 0.5)",
-        display: "flex",
+        display: isMinimized ? "none" : "flex",
         alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
         zIndex: 10000,
@@ -614,6 +611,7 @@ export function CustomerCreateModal({
       }}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "#fff",
           borderRadius: isMobile ? "0" : "16px",
@@ -1104,15 +1102,32 @@ export function CustomerCreateModal({
                   type="text"
                   value={formData.postalCode}
                   onChange={(e) => {
+                    const cap = e.target.value;
                     setFormData((f) => ({
                       ...f,
-                      postalCode: e.target.value,
+                      postalCode: cap,
                       postalCodeCity: "",
                       county: "",
                       state: "",
                       country: "",
                     }));
                     setCapDisambigEntries([]);
+                    if (cap.length === 5) {
+                      const entries = CAP_BY_CODE.get(cap);
+                      if (entries && entries.length === 1) {
+                        setFormData((f) => ({
+                          ...f,
+                          postalCode: cap,
+                          postalCodeCity: entries[0].citta,
+                          postalCodeCountry: entries[0].paese,
+                          county: entries[0].contea,
+                          state: entries[0].stato,
+                          country: entries[0].paese,
+                        }));
+                      } else if (entries && entries.length > 1) {
+                        setCapDisambigEntries(entries);
+                      }
+                    }
                   }}
                   onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                   maxLength={5}
@@ -1144,13 +1159,7 @@ export function CustomerCreateModal({
                   autoComplete="off"
                   type="text"
                   value={formData.postalCodeCity}
-                  onChange={(e) =>
-                    setFormData((f) => ({
-                      ...f,
-                      postalCodeCity: e.target.value,
-                    }))
-                  }
-                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+                  readOnly
                   placeholder="Auto-compilata dal CAP"
                   style={{
                     width: "100%",
@@ -1160,6 +1169,9 @@ export function CustomerCreateModal({
                     borderRadius: "10px",
                     outline: "none",
                     boxSizing: "border-box",
+                    backgroundColor: formData.postalCodeCity ? "#f8fafc" : "#fafafa",
+                    color: formData.postalCodeCity ? "#333" : "#aaa",
+                    cursor: "default",
                   }}
                 />
               </div>
@@ -2136,7 +2148,7 @@ export function CustomerCreateModal({
         {currentStep.kind === "riepilogo" && !isProcessing && (
           <div>
             {/* ERP validation banner */}
-            {!erpValidated && interactiveSessionId && contextMode !== 'order' && (
+            {!erpValidated && interactiveSessionId && (
               <div
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
@@ -2256,11 +2268,7 @@ export function CustomerCreateModal({
                   cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                {saving
-                  ? pendingSave
-                    ? "In attesa del gestionale..."
-                    : "Salvataggio..."
-                  : "Crea Cliente"}
+                {saving ? "Salvataggio..." : "Crea Cliente"}
               </button>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button

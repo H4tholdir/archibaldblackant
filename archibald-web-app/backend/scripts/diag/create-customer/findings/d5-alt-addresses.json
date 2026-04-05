@@ -1,0 +1,472 @@
+{
+  "certifiedAt": "2026-04-02T22:11:57.817Z",
+  "description": "CRUD indirizzi alternativi: tab discovery, struttura griglia ADDRESSes, flusso new-row inline edit, opzioni TYPE combo.",
+  "tabsOnPage": [
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_AT0",
+      "text": "Principale",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_T1",
+      "text": "Orari di consegna",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_T2",
+      "text": "Info CRM",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_T3",
+      "text": "Altre informazioni",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_T4",
+      "text": "Prezzi e sconti",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_AT0",
+      "text": "Tabelle di vendita",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_T1",
+      "text": "Documento di trasporto del cliente",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_T2",
+      "text": "Fatture dei clienti",
+      "tag": "LI"
+    },
+    {
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_T3",
+      "text": "Indirizzo alt.",
+      "tag": "LI"
+    }
+  ],
+  "tabNavigation": {
+    "label": "Indirizzo alt.",
+    "clicked": true,
+    "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_T3",
+    "tag": "LI"
+  },
+  "gridScan": {
+    "newBtns": [],
+    "toolbars": [
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_UPToolBar",
+        "tag": "DIV",
+        "text": "Esportare in",
+        "title": ""
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar",
+        "tag": "DIV",
+        "text": "Esportare in",
+        "title": ""
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu",
+        "tag": "DIV",
+        "text": "Esportare in",
+        "title": ""
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI0_",
+        "tag": "LI",
+        "text": "",
+        "title": "Formatta tutte le impostazioni create per la vista Indirizzi."
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI0_T",
+        "tag": "A",
+        "text": "",
+        "title": "Formatta tutte le impostazioni create per la vista Indirizzi."
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI0_Img",
+        "tag": "IMG",
+        "text": "",
+        "title": ""
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI1_IS",
+        "tag": "LI",
+        "text": "",
+        "title": ""
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI1_",
+        "tag": "LI",
+        "text": "Esportare in",
+        "title": "Esportare in PDF File"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_ToolBar_Menu_DXI1_T",
+        "tag": "A",
+        "text": "Esportare in",
+        "title": "Esportare in PDF File"
+      }
+    ],
+    "headers": [
+      "TIPO",
+      "NOME",
+      "VIA:",
+      "INDIRIZZO LOGISTICO CODICE POSTALE",
+      "CITTÀ",
+      "CONTEA",
+      "STATO",
+      "ID REGIONE CONTEA"
+    ],
+    "gridContainers": [
+      {
+        "id": "headerTable",
+        "tag": "TABLE"
+      },
+      {
+        "id": "menuInnerTable",
+        "tag": "TABLE"
+      },
+      {
+        "id": "menuContainer",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l40_CardTable",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l48",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_l61_ctbl",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_WebEditorContainer",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_ET",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_l68_ctbl",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_WebEditorContainer",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_l75_ctbl",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_WebEditorContainer",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l82_xaf_l82_ctbl",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l82_WebEditorContainer",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l82_xaf_dviVATADDRESS_Edit",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l103",
+        "tag": "TABLE"
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l112_xaf_l112_xaf_l112_ctbl",
+        "tag": "TABLE"
+      }
+    ],
+    "existingRows": 1,
+    "visibleInputs": [
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l61_xaf_dviVATNUM_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l68_xaf_dviVATLASTCHECKEDDATE_Edit_I",
+        "value": "",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l54_xaf_l75_xaf_dviVATVALIEDE_Edit_I",
+        "value": "No",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l112_xaf_l112_xaf_dviACCOUNTNUM_Edit_I",
+        "value": "",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l121_xaf_l121_xaf_dviID_Edit_I",
+        "value": "0",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l138_xaf_dviNAME_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l193_xaf_dviNAMEALIAS_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l206_xaf_dviDLVMODE_Edit_dropdown_DD_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l180_xaf_l219_xaf_dviFISCALCODE_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l244_xaf_dviCURRENCY_Edit_I",
+        "value": "EUR",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l257_xaf_dviBRASCRMATTENTIONTO_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l284_xaf_l284_xaf_dviFISCALCODEVALIDE_Edit_I",
+        "value": "No",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l88_xaf_l231_xaf_l298_xaf_l298_xaf_dviFISCALCODELASTCHECKDATE_Edit_I",
+        "value": "",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l329_xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I",
+        "value": "N/A",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l336_xaf_dviPAYMTERMID_Edit_find_Edit_I",
+        "value": "N/A",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l343_xaf_dviLEGALEMAIL_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l350_xaf_dviLEGALAUTHORITY_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l315_xaf_l364_xaf_dviBLOCKED_Edit_I",
+        "value": "No",
+        "readOnly": true
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l384_xaf_dviSTREET_Edit_I",
+        "value": "",
+        "readOnly": false
+      },
+      {
+        "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l44_pg_xaf_l370_xaf_l399_xaf_l399_xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I",
+        "value": "N/A",
+        "readOnly": true
+      }
+    ]
+  },
+  "newRowProbe": {
+    "clickResult": {
+      "found": true,
+      "method": "AddNewRow-window-global",
+      "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7"
+    },
+    "newInputIds": [],
+    "editnewInputs": []
+  },
+  "typeCombo": {
+    "windowScan": [
+      {
+        "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7_DXFREditorcol19_DDD_L",
+        "count": 4,
+        "items": [
+          {
+            "text": "Ufficio",
+            "value": "Business"
+          },
+          {
+            "text": "Fattura",
+            "value": "Facture"
+          },
+          {
+            "text": "Consegna",
+            "value": "Delivery"
+          },
+          {
+            "text": "Indir. cons. alt.",
+            "value": "AlternateDelivery"
+          }
+        ]
+      },
+      {
+        "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7_DXFREditorcol19",
+        "count": 4,
+        "items": [
+          {
+            "text": "Ufficio",
+            "value": "Business"
+          },
+          {
+            "text": "Fattura",
+            "value": "Facture"
+          },
+          {
+            "text": "Consegna",
+            "value": "Delivery"
+          },
+          {
+            "text": "Indir. cons. alt.",
+            "value": "AlternateDelivery"
+          }
+        ]
+      }
+    ],
+    "editnewTypeBtn": {
+      "found": false
+    },
+    "domItems": []
+  },
+  "cancelResult": {
+    "remainingEditnew": []
+  },
+  "fullProbeOnNewForm": {
+    "iaddResult": {
+      "found": true,
+      "id": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7_IADD",
+      "method": "IADD-btn"
+    },
+    "afterIADD": {
+      "editnewInputs": [],
+      "editRows": [],
+      "allAddrInputs": []
+    },
+    "newClicked": {
+      "found": true,
+      "method": "AddNewRow",
+      "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7"
+    },
+    "editnewFields": [],
+    "typeOptionsBeforeClick": [],
+    "typeOptionsAfterClick": {
+      "domItems": [],
+      "windowItems": []
+    }
+  },
+  "windowGlobals": [
+    {
+      "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7_DXFREditorcol19_DDD_L",
+      "type": "combo",
+      "count": 4,
+      "items": [
+        {
+          "text": "Ufficio",
+          "value": "Business"
+        },
+        {
+          "text": "Fattura",
+          "value": "Facture"
+        },
+        {
+          "text": "Consegna",
+          "value": "Delivery"
+        },
+        {
+          "text": "Indir. cons. alt.",
+          "value": "AlternateDelivery"
+        }
+      ]
+    },
+    {
+      "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7_DXFREditorcol19",
+      "type": "combo",
+      "count": 4,
+      "items": [
+        {
+          "text": "Ufficio",
+          "value": "Business"
+        },
+        {
+          "text": "Fattura",
+          "value": "Facture"
+        },
+        {
+          "text": "Consegna",
+          "value": "Delivery"
+        },
+        {
+          "text": "Indir. cons. alt.",
+          "value": "AlternateDelivery"
+        }
+      ]
+    },
+    {
+      "key": "Vertical_v3_18088849_MainLayoutEdit_xaf_l1504_pg_xaf_l1529_xaf_dviADDRESSes_v7_64209789_LE_v7",
+      "type": "grid",
+      "hasStartEditRow": true,
+      "hasUpdateEdit": true
+    }
+  ],
+  "existingCustomerProbe": {
+    "editClicked": {
+      "url": "https://4.231.124.90/Archibald/Default.aspx",
+      "hasEditMode": false,
+      "hasSaveBtn": false
+    },
+    "tabNav": {
+      "clicked": false
+    },
+    "existingRows": [],
+    "addNewResult": {
+      "found": false
+    },
+    "editRowScan": {
+      "editnewInputs": [],
+      "allAddrInputs": [],
+      "editRows": [],
+      "comboBtns": []
+    }
+  }
+}

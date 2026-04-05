@@ -54,6 +54,7 @@ type CustomersRouterDeps = {
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
   updateAgentNotes?: (userId: string, erpId: string, notes: string | null) => Promise<void>;
+  getMyCustomers?: (userId: string) => Promise<Customer[]>;
 };
 
 const createCustomerSchema = z.object({
@@ -154,6 +155,11 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      const mine = req.query.mine === 'true';
+      if (mine && deps.getMyCustomers) {
+        const customers = await deps.getMyCustomers(userId);
+        return res.json({ success: true, data: { customers, total: customers.length } });
+      }
       const search = req.query.search as string | undefined;
       const customers = await getCustomers(userId, search);
       res.json({ success: true, data: { customers, total: customers.length } });
@@ -337,8 +343,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       if (!deps.updateAgentNotes) {
         return res.status(503).json({ error: 'Agent notes not available' });
       }
-      const body = req.body as { notes?: string | null };
-      await deps.updateAgentNotes(userId, erpId, body.notes ?? null);
+      const body = req.body as { agentNotes?: string; notes?: string | null };
+      const notesValue = body.agentNotes !== undefined ? body.agentNotes : (body.notes ?? null);
+      await deps.updateAgentNotes(userId, erpId, notesValue);
       res.json({ success: true });
     } catch (err) {
       logger.error('PATCH /customers/:erpId/agent-notes error', { error: String(err) });

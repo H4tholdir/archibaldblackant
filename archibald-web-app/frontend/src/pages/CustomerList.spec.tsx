@@ -17,17 +17,21 @@ vi.mock('../components/CustomerCreateModal', () => ({
   CustomerCreateModal: () => <div data-testid="create-modal" />,
 }));
 
-const mockCustomers = [
-  { erpId: 'A001', name: 'Rossi Mario', city: 'Napoli', phone: '081 123', lastOrderDate: null, createdAt: Date.now() },
+const mockMyCustomers = [
+  { erpId: 'A001', name: 'Rossi Mario', city: 'Napoli', phone: '081 123', lastOrderDate: '2025-12-01', createdAt: Date.now() },
   { erpId: 'B002', name: 'Bianchi Srl', city: 'Milano', phone: null, lastOrderDate: '2024-01-01', createdAt: Date.now() - 400 * 86_400_000 },
 ];
 
+function makeFetch(customers: typeof mockMyCustomers) {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ success: true, data: { customers } }),
+  });
+}
+
 beforeEach(() => {
   mockNavigate.mockClear();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ success: true, data: { customers: mockCustomers } }),
-  }));
+  vi.stubGlobal('fetch', makeFetch(mockMyCustomers));
   vi.stubGlobal('localStorage', {
     getItem: vi.fn().mockImplementation((key: string) => key === 'archibald_jwt' ? 'fake-jwt' : null),
     setItem: vi.fn(),
@@ -54,10 +58,10 @@ describe('CustomerList', () => {
     expect(screen.getByText('inattivo')).toBeInTheDocument();
   });
 
-  test('pulsante + apre CustomerCreateModal', async () => {
+  test('pulsante Nuovo Cliente apre CustomerCreateModal', async () => {
     render(<MemoryRouter><CustomerList /></MemoryRouter>);
     await waitFor(() => screen.getByText('Rossi Mario'));
-    fireEvent.click(screen.getByRole('button', { name: '+' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nuovo Cliente/i }));
     expect(screen.getByTestId('create-modal')).toBeInTheDocument();
   });
 
@@ -70,5 +74,14 @@ describe('CustomerList', () => {
       const lastUrl = calls[calls.length - 1][0] as string;
       expect(lastUrl).toContain('search=rossi');
     }, { timeout: 600 });
+  });
+
+  test('fetch iniziale usa mine=true', async () => {
+    render(<MemoryRouter><CustomerList /></MemoryRouter>);
+    await waitFor(() => {
+      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+      const firstUrl = calls[0][0] as string;
+      expect(firstUrl).toContain('mine=true');
+    });
   });
 });

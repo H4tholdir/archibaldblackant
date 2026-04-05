@@ -26,6 +26,9 @@ export function DashboardNav() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // On mobile at customer profile, nav is non-sticky so it scrolls away naturally.
+  const navIsScrollable = isMobile && /^\/customers\/[^/]+/.test(location.pathname);
+
   const handleLogout = async () => {
     await auth.logout();
     setIsMenuOpen(false);
@@ -158,7 +161,7 @@ export function DashboardNav() {
         style={{
           background: "#2c3e50",
           padding: "15px",
-          position: "sticky",
+          position: navIsScrollable ? "relative" : "sticky",
           top: 0,
           zIndex: 100,
           display: "flex",
@@ -166,11 +169,13 @@ export function DashboardNav() {
           justifyContent: "space-between",
         }}
       >
-        {/* Logo */}
-        <div
+        {/* Logo — click → home */}
+        <Link
+          to="/"
           style={{
             display: "flex",
             alignItems: "center",
+            textDecoration: "none",
           }}
         >
           <img
@@ -182,7 +187,7 @@ export function DashboardNav() {
               maxWidth: "200px",
             }}
           />
-        </div>
+        </Link>
 
         {/* Notification bell + Hamburger button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

@@ -10,7 +10,7 @@ import { config } from "../config";
 import { logger } from "../logger";
 import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
-import type { OrderData, AddressEntry } from "../types";
+import type { OrderData, AddressEntry, CustomerDiff, CustomerSnapshot } from "../types";
 import type { AltAddress, CustomerAddress } from '../db/repositories/customer-addresses';
 import type { SubmitOrderData, OrderHeaderData } from '../operations/handlers/submit-order';
 import {
@@ -22,6 +22,8 @@ import {
   normalizeLookupText,
 } from "../variant-selection";
 import { buildOrderNotesText } from '../utils/order-notes';
+import { diffSnapshot } from './customer-snapshot-diff.js';
+import type { FieldDivergence } from './customer-snapshot-diff.js';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -6047,7 +6049,19 @@ export class ArchibaldBot {
         await this.fillOrderNotes(notesText);
 
         // STEP 9.45: Save to persist notes before the N/A workaround's double save
-        await this.clickSaveOnly();
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await this.clickSaveOnly();
+            break;
+          } catch (saveError) {
+            logger.warn(`notes save attempt ${attempt}/3 failed`, {
+              error: saveError instanceof Error ? saveError.message : String(saveError),
+            });
+            if (attempt === 3) throw saveError;
+            await this.wait(2000);
+            await this.waitForDevExpressIdle({ timeout: 10000, label: `notes-save-retry-idle-${attempt}` });
+          }
+        }
         await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
       }
 
@@ -10713,137 +10727,215 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const result = await this.page.evaluate(
-      (regex: string, val: string) => {
-        const w = window as any;
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const input = inputs.find((i) =>
-          new RegExp(regex).test(i.id),
-        ) as HTMLInputElement | null;
-        if (!input) return { found: false, inputId: "", method: "" };
+    // Locate the input and scroll it into view
+    const inputId = await this.page.evaluate((regex: string) => {
+      const input = Array.from(document.querySelectorAll("input")).find((i) =>
+        new RegExp(regex).test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      return input.id;
+    }, fieldRegex.source);
 
-        input.scrollIntoView({ block: "center" });
-
-        // Find DevExpress control that owns this input or a parent element
-        const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (collection) {
-          let comboControl: any = null;
-
-          // Strategy 1: match via GetInputElement()
-          collection.ForEachControl((c: any) => {
-            if (comboControl) return;
-            try {
-              const el = c.GetInputElement?.();
-              if (el === input || (el && el.id === input.id)) {
-                comboControl = c;
-                return;
-              }
-            } catch {}
-            // Strategy 2: the combo's main element contains our input
-            try {
-              const mainEl = c.GetMainElement?.();
-              if (mainEl && mainEl.contains(input)) {
-                if (
-                  typeof c.GetItemCount === "function" ||
-                  typeof c.SetSelectedIndex === "function"
-                ) {
-                  comboControl = c;
-                }
-              }
-            } catch {}
-          });
-
-          if (comboControl) {
-            // Try to find the item and select by index (most reliable)
-            if (typeof comboControl.GetItemCount === "function") {
-              const count = comboControl.GetItemCount();
-              for (let i = 0; i < count; i++) {
-                const itemText =
-                  typeof comboControl.GetItem === "function"
-                    ? comboControl.GetItem(i)?.text
-                    : null;
-                if (itemText === val) {
-                  if (typeof comboControl.SetSelectedIndex === "function") {
-                    comboControl.SetSelectedIndex(i);
-                    return {
-                      found: true,
-                      inputId: input.id,
-                      method: "api-SetSelectedIndex",
-                      actual: input.value,
-                    };
-                  }
-                }
-              }
-            }
-
-            if (typeof comboControl.SetText === "function") {
-              comboControl.SetText(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetText",
-                actual: input.value,
-              };
-            }
-
-            if (typeof comboControl.SetValue === "function") {
-              comboControl.SetValue(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetValue",
-                actual: input.value,
-              };
-            }
-          }
-        }
-
-        // Fallback: type text, ArrowDown, Enter
-        input.focus();
-        input.click();
-        input.select();
-        document.execCommand("insertText", false, "");
-        document.execCommand("insertText", false, val);
-
-        return {
-          found: true,
-          inputId: input.id,
-          method: "keyboard-fallback",
-          actual: input.value,
-        };
-      },
-      fieldRegex.source,
-      value,
-    );
-
-    if (!result.found) {
+    if (!inputId) {
       throw new Error(`ComboBox input not found: ${fieldRegex}`);
     }
 
-    if (result.method === "keyboard-fallback") {
-      await this.wait(500);
-      await this.page.keyboard.press("ArrowDown");
-      await this.wait(200);
-      await this.page.keyboard.press("Enter");
-      await this.wait(200);
+    // Strategy 1: click the dropdown button (_DDb suffix), wait for popup list, click item
+    // This is the certified pattern — SetSelectedIndex does not update the visible value.
+    const dropdownBtnId = inputId.replace(/_I$/, "_DDb");
+    const dropdownClicked = await this.page.evaluate((btnId: string) => {
+      const btn = document.getElementById(btnId);
+      if (btn && (btn as HTMLElement).offsetParent !== null) {
+        (btn as HTMLElement).click();
+        return true;
+      }
+      return false;
+    }, dropdownBtnId);
+
+    let method = "keyboard-fallback";
+
+    if (dropdownClicked) {
+      try {
+        // Wait for the dropdown list popup to appear
+        await this.page.waitForFunction(
+          () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
+          { timeout: 3000, polling: 100 },
+        );
+
+        // Use real mouse coordinates so DevExpress receives a genuine click event.
+        // element.click() in page.evaluate does NOT trigger DevExpress's internal
+        // selection handler for ComboBox items — only a real mouse click does.
+        const itemCoords = await this.page.evaluate((val: string) => {
+          const items = Array.from(document.querySelectorAll('[class*="dxeListBoxItem"]'));
+          const target =
+            items.find((el) => el.textContent?.trim() === val) ??
+            items.find((el) => el.textContent?.trim().toLowerCase().includes(val.toLowerCase()));
+          if (!target) return null;
+          const r = (target as HTMLElement).getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }, value);
+
+        if (itemCoords) {
+          await this.page.mouse.click(itemCoords.x, itemCoords.y);
+          method = "click-listbox";
+        } else {
+          // Item not found in popup — press Escape to close and fall through
+          await this.page.keyboard.press("Escape");
+          await this.wait(200);
+        }
+      } catch {
+        // Popup did not appear — fall through to keyboard fallback
+        await this.page.keyboard.press("Escape").catch(() => {});
+      }
+    }
+
+    if (method === "keyboard-fallback") {
+      // Strategy 1b: use DevExpress ShowDropDown() API directly.
+      // Certified method from DevExpress docs: ASPxClientDropDownEdit.ShowDropDown()
+      // This is more reliable than input.click() which only dispatches a JS click event
+      // (no mousedown) and may not trigger the DevExpress dropdown open handler.
+      const openedViaApi = await this.page.evaluate((id: string) => {
+        // Find control in the DevExpress control collection by matching input element
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const col = (window as any).ASPx?.GetControlCollection?.();
+        if (!col) return false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let ctrl: any = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        col.ForEachControl((c: any) => {
+          if (c.GetInputElement?.()?.id === id) ctrl = c;
+        });
+        if (ctrl && typeof ctrl.ShowDropDown === "function") {
+          ctrl.ShowDropDown();
+          return true;
+        }
+        return false;
+      }, inputId);
+
+      if (!openedViaApi) {
+        // Fallback: real mouse click on the right edge of input (dropdown arrow area).
+        // Generates genuine CDP mousedown/mouseup events unlike input.click() in evaluate.
+        const inputCoords = await this.page.evaluate((id: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (!input) return null;
+          input.scrollIntoView({ block: "center" });
+          const r = input.getBoundingClientRect();
+          return { x: r.right - 8, y: r.y + r.height / 2 };
+        }, inputId);
+        if (inputCoords) {
+          await this.page.mouse.click(inputCoords.x, inputCoords.y);
+        }
+      }
+      await this.wait(300);
+
+      let popupOpenedViaInput = false;
+      try {
+        await this.page.waitForFunction(
+          () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
+          { timeout: 3000, polling: 100 },
+        );
+        popupOpenedViaInput = true;
+      } catch {
+        // Popup did not open — fall through to keyboard
+      }
+
+      if (popupOpenedViaInput) {
+        const itemCoords = await this.page.evaluate((val: string) => {
+          const items = Array.from(document.querySelectorAll('[class*="dxeListBoxItem"]'));
+          const target =
+            items.find((el) => el.textContent?.trim() === val) ??
+            items.find((el) => el.textContent?.trim().toLowerCase().includes(val.toLowerCase()));
+          if (!target) return null;
+          const r = (target as HTMLElement).getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }, value);
+
+        if (itemCoords) {
+          await this.page.mouse.click(itemCoords.x, itemCoords.y);
+          method = "click-input-listbox";
+        } else {
+          await this.page.keyboard.press("Escape");
+          await this.wait(200);
+          // Final fallback: type + ArrowDown + Enter
+          await this.page.evaluate((id: string, val: string) => {
+            const input = document.getElementById(id) as HTMLInputElement;
+            if (!input) return;
+            input.focus();
+            input.click();
+            input.select();
+            document.execCommand("insertText", false, val);
+          }, inputId, value);
+          await this.wait(300);
+          await this.page.keyboard.press("ArrowDown");
+          await this.wait(200);
+          await this.page.keyboard.press("Enter");
+          await this.wait(200);
+        }
+      } else {
+        // Final fallback: focus input, type value, ArrowDown to select, Enter to confirm
+        await this.page.evaluate((id: string, val: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (!input) return;
+          input.focus();
+          input.click();
+          input.select();
+          document.execCommand("insertText", false, val);
+        }, inputId, value);
+        await this.wait(300);
+        await this.page.keyboard.press("ArrowDown");
+        await this.wait(200);
+        await this.page.keyboard.press("Enter");
+        await this.wait(200);
+      }
     }
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 5000,
-      label: `combo-${result.inputId}`,
+      label: `combo-${inputId}`,
     });
 
     const actual = await this.page.evaluate((id: string) => {
       const input = document.getElementById(id) as HTMLInputElement;
       return input?.value || "";
-    }, result.inputId);
+    }, inputId);
 
     logger.debug("setDevExpressComboBox done", {
-      id: result.inputId,
+      id: inputId,
       requested: value,
-      method: result.method,
+      method,
       actual,
+    });
+  }
+
+  private async injectFieldsViaNativeSetter(
+    fields: { regex: RegExp; value: string }[],
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    const serialized = fields
+      .filter((f) => f.value !== "")
+      .map((f) => ({ regex: f.regex.source, value: f.value }));
+    if (serialized.length === 0) return;
+
+    await this.page.evaluate((entries) => {
+      for (const { regex, value } of entries) {
+        const el = Array.from(document.querySelectorAll("input, textarea")).find(
+          (i) => new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!el) continue;
+        const proto =
+          el.tagName === "TEXTAREA"
+            ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (setter) setter.call(el, value);
+        else el.value = value;
+      }
+    }, serialized);
+
+    logger.info("injectFieldsViaNativeSetter: injected fields before save", {
+      fields: serialized.map((f) => f.regex),
     });
   }
 
@@ -11777,12 +11869,31 @@ export class ArchibaldBot {
     });
   }
 
-  private async saveAndCloseCustomer(): Promise<void> {
+  private async saveAndCloseCustomer(saveInPlace = false): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.info("Saving customer (Salva e chiudi)");
+    logger.info(saveInPlace ? "Saving customer (Salvare in-place)" : "Saving customer (Salva e chiudi)");
 
     const saveAttempt = async (): Promise<boolean> => {
+      // saveInPlace: real mouse click on the always-visible "Salvare" toolbar button.
+      // Certified in E2E (2026-04-03) — more reliable than the dropdown path because
+      // "Salva e chiudi" is hidden inside a dropdown and requires two interactions.
+      if (saveInPlace) {
+        const coords = await this.page!.evaluate(() => {
+          const btn = Array.from(document.querySelectorAll("a, span, td"))
+            .find((el) => (el as HTMLElement).textContent?.trim() === "Salvare" && (el as HTMLElement).offsetParent !== null);
+          if (!btn) return null;
+          const r = btn.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        });
+        if (coords) {
+          await this.page!.mouse.click(coords.x, coords.y);
+          logger.info("Clicked Salvare via real mouse (saveInPlace)", coords);
+          return true;
+        }
+        logger.warn("saveInPlace: Salvare button not found, falling through to dropdown");
+      }
+
       let directSaveClicked = await this.clickElementByText(
         "Salva e chiudi",
         {
@@ -12992,181 +13103,8 @@ export class ArchibaldBot {
 
     await this.emitProgress("customer.edit_loaded");
 
-    logger.info("Customer form loaded, filling fields");
-
-    // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
-    await this.openCustomerTab("Prezzi e sconti");
-    await this.dismissDevExpressPopups();
-
-    try {
-      await this.page.waitForFunction(
-        () => {
-          const input = document.querySelector(
-            'input[id*="LINEDISC"][id$="_I"]',
-          ) as HTMLInputElement | null;
-          return input && input.offsetParent !== null;
-        },
-        { timeout: 10000, polling: 200 },
-      );
-    } catch {
-      logger.warn("LINEDISC not found after tab switch, retrying...");
-      await this.openCustomerTab("Prezzi e sconti");
-      await this.dismissDevExpressPopups();
-      await this.wait(1000);
-    }
-
-    await this.setDevExpressComboBox(
-      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-      customerData.lineDiscount || "N/A",
-    );
-
-    // Step 2: Back to "Principale" tab — fill ALL fields last so they persist at save time
-    // Order: lookups first (they trigger callbacks), then combo boxes, then text fields
-    await this.openCustomerTab("Principale");
-    await this.dismissDevExpressPopups();
-    await this.waitForDevExpressIdle({
-      timeout: 5000,
-      label: "tab-principale",
-    });
-
-    // Phase A: Lookups (trigger server callbacks that may reset other fields)
-    if (customerData.paymentTerms) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
-        customerData.paymentTerms,
-      );
-    }
-
-    if (customerData.postalCode) {
-      try {
-        await this.selectFromDevExpressLookup(
-          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-          customerData.postalCode,
-          customerData.postalCodeCity,
-        );
-      } catch (capErr) {
-        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
-          error: String(capErr),
-        });
-        await this.page.keyboard.press("Escape");
-        await this.wait(500);
-        await this.page.keyboard.press("Escape");
-        await this.wait(300);
-      }
-    }
-
-    // Phase B: Combo boxes (after lookups so they don't get cleared)
-    if (customerData.deliveryMode) {
-      await this.setDevExpressComboBox(
-        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
-        customerData.deliveryMode,
-      );
-    }
-
-    if (customerData.sector) {
-      await this.setDevExpressComboBox(
-        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
-        customerData.sector,
-      );
-    }
-
-    // Phase D: All other text fields (after VAT callback completed)
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
-
-    if (customerData.fiscalCode) {
-      await this.typeDevExpressField(
-        /xaf_dviFISCALCODE_Edit_I$/,
-        customerData.fiscalCode,
-      );
-    }
-
-    if (customerData.pec) {
-      await this.typeDevExpressField(
-        /xaf_dviLEGALEMAIL_Edit_I$/,
-        customerData.pec,
-      );
-    }
-
-    if (customerData.sdi) {
-      await this.typeDevExpressField(
-        /xaf_dviLEGALAUTHORITY_Edit_I$/,
-        customerData.sdi,
-      );
-    }
-
-    if (customerData.street) {
-      await this.typeDevExpressField(
-        /xaf_dviSTREET_Edit_I$/,
-        customerData.street,
-      );
-    }
-
-    await this.emitProgress("customer.field");
-
-    if (customerData.phone) {
-      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
-    }
-
-    if (customerData.mobile) {
-      await this.typeDevExpressField(
-        /xaf_dviCELLULARPHONE_Edit_I$/,
-        customerData.mobile,
-      );
-    }
-
-    if (customerData.email) {
-      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-    }
-
-    // URL: ERP enforces a hard regex pattern — empty string fails validation.
-    // Write "nd.it" (non disponibile) as fallback when no URL is provided.
-    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "nd.it");
-
-    if (customerData.attentionTo) {
-      await this.typeDevExpressField(
-        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
-        customerData.attentionTo,
-      );
-    }
-
-    if (customerData.notes) {
-      await this.typeDevExpressField(
-        /xaf_dviCUSTINFO_Edit_I$/,
-        customerData.notes,
-      );
-    }
-
-    await this.ensureNameFieldBeforeSave(customerData.name);
-
-    // VATNUM written last: Phase C XHR callbacks (from NAME/SDI/PEC Tab presses) silently
-    // clear the field even when the immediate mismatch check passes. Writing after all
-    // other fields ensures the value persists into the save.
-    if (customerData.vatNumber) {
-      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
-      await this.wait(5000);
-      await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-validation-final" });
-    }
-
-    // NAMEALIAS written after VATNUM: FISCALCODE XHR callback overwrites the ERP-auto-filled
-    // NAMEALIAS (first 20 chars of NAME) with the fiscal code value. Writing explicitly here,
-    // after all other callbacks have settled, ensures the correct customer name is preserved.
-    await this.typeDevExpressField(/dviNAMEALIAS_Edit_I$/, customerData.name);
-
-    // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
-    await this.writeAltAddresses(customerData.addresses ?? []);
-
-    await this.emitProgress("customer.save");
-    await this.saveAndCloseCustomer();
-
-    const customerProfileId = await this.getCustomerProfileId(customerData.name);
-    logger.info("Customer created successfully", {
-      customerProfileId,
-      name: customerData.name,
-    });
-
-    await this.emitProgress("customer.complete");
-
-    return customerProfileId;
+    logger.info("Customer form loaded, delegating to completeCustomerCreation");
+    return this.completeCustomerCreation(customerData, false);
   }
 
   private async getCustomerProfileId(fallbackName?: string): Promise<string> {
@@ -13251,8 +13189,9 @@ export class ArchibaldBot {
   } | null> {
     if (!this.page) return null;
     try {
+      const numericId = erpId.replace(/\./g, '');
       await this.page.goto(
-        `${config.archibald.url}/CUSTTABLE_DetailView/${erpId}/`,
+        `${config.archibald.url}/CUSTTABLE_DetailView/${numericId}/`,
         { waitUntil: "domcontentloaded", timeout: 30000 },
       );
       await this.waitForDevExpressReady({ timeout: 10000 });
@@ -13346,6 +13285,21 @@ export class ArchibaldBot {
       });
       return null;
     }
+  }
+
+  async buildSnapshotWithDiff(
+    erpId: string,
+    formData: import('../types.js').CustomerFormData,
+  ): Promise<{ snapshot: import('../types.js').CustomerSnapshot; divergences: FieldDivergence[] }> {
+    const snapshot = await this.buildCustomerSnapshot(erpId);
+    const divergences = diffSnapshot(snapshot, formData);
+    if (divergences.length > 0) {
+      console.warn(`[buildSnapshotWithDiff] ${divergences.length} divergences for ERP ID ${erpId}:`);
+      for (const d of divergences) {
+        console.warn(`  ${d.field}: sent="${d.sent}" actual="${d.actual}"`);
+      }
+    }
+    return { snapshot, divergences };
   }
 
   async readCustomerVatStatus(
@@ -13924,6 +13878,228 @@ export class ArchibaldBot {
     logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
   }
 
+  async navigateToEditCustomerById(erpId: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+    // Remove dots (ERP format) and commas for clean numeric ID
+    const cleanId = erpId.replace(/[.,]/g, '');
+    logger.info("navigateToEditCustomerById: navigating to view mode first", { erpId: cleanId });
+
+    // Navigate to VIEW mode first — XAF renders all ComboBoxes (including BUSINESSSECTORID)
+    // only through the normal UI flow. Going directly to ?mode=Edit skips initialization.
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_DetailView/${cleanId}/`,
+      { waitUntil: "domcontentloaded", timeout: 30000 },
+    );
+
+    if (this.page.url().includes("Login.aspx")) {
+      throw new Error("Sessione scaduta: reindirizzato al login");
+    }
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    // Click "Modifica" / "Edit" button to enter edit mode (same as buildCustomerSnapshot)
+    const editClicked = await this.page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll("a, button"))
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .find(
+          (el) =>
+            /modif|edit/i.test((el as HTMLElement).title ?? "") ||
+            /modif|edit/i.test(el.textContent?.trim() ?? ""),
+        );
+      if (btn) { (btn as HTMLElement).click(); return true; }
+      return false;
+    });
+
+    if (!editClicked) {
+      throw new Error(`navigateToEditCustomerById: pulsante Modifica non trovato per erpId=${cleanId}`);
+    }
+
+    await this.page.waitForFunction(
+      () => window.location.href.includes("mode=Edit"),
+      { timeout: 8000, polling: 300 },
+    ).catch(() => {});
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+    logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
+  }
+
+  async updateCustomerSurgical(
+    diff: CustomerDiff,
+    addresses?: AddressEntry[],
+  ): Promise<NonNullable<CustomerSnapshot>> {
+    if (!this.page) throw new Error("Browser page is null");
+    logger.info("updateCustomerSurgical: start", { diffKeys: Object.keys(diff) });
+
+    // 1. Tab "Prezzi e sconti" (se necessario)
+    if (diff.lineDiscount !== undefined || diff.priceGroup !== undefined) {
+      const pricesTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T1T"]');
+      if (pricesTabEl) {
+        await pricesTabEl.click();
+        await this.waitForDevExpressIdle({ timeout: 5000, label: 'prices-tab' });
+      }
+      if (diff.lineDiscount !== undefined) {
+        await this.setDevExpressComboBox(
+          /xaf_dviSALESLINEDISCGROUP_Edit_dropdown_DD_I$/,
+          diff.lineDiscount,
+        );
+      }
+      if (diff.priceGroup !== undefined) {
+        await this.setDevExpressComboBox(
+          /xaf_dviPRICEGROUP_Edit_dropdown_DD_I$/,
+          diff.priceGroup,
+        );
+      }
+    }
+
+    // 2. Tab "Principale" — use openCustomerTab (text-based, language-aware) to ensure
+    // the main tab is active and its fields are rendered in the DOM before writing.
+    await this.openCustomerTab("Principale");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'main-tab' });
+
+    // 2a. Lookup fields
+    if (diff.paymentTerms !== undefined) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
+        diff.paymentTerms,
+      );
+    }
+    if (diff.postalCode !== undefined) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+        diff.postalCode,
+        diff.postalCodeCity,
+      );
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'postalcode-autofill' });
+    }
+
+    // 2b. Combo fields
+    if (diff.deliveryMode !== undefined) {
+      await this.setDevExpressComboBox(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        diff.deliveryMode,
+      );
+    }
+    if (diff.sector !== undefined) {
+      await this.setDevExpressComboBox(
+        /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
+        diff.sector,
+      );
+    }
+
+    // 2c. Testo — ordine fisso
+    if (diff.name !== undefined) {
+      await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, diff.name);
+      await this.typeDevExpressField(/SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/, diff.name);
+      await this.waitForDevExpressIdle({ timeout: 3000, label: 'name-written' });
+    }
+
+    // BUG 2 FIX: FISCALCODE callback sovrascrive NAMEALIAS — waitIdle poi re-write NAMEALIAS
+    if (diff.fiscalCode !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviFISCALCODE_Edit_I$/, value: diff.fiscalCode },
+      ]);
+      await this.waitForDevExpressIdle({ timeout: 8000, label: 'fiscalcode-callback' });
+      if (diff.nameAlias !== undefined) {
+        await this.typeDevExpressField(
+          /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+          diff.nameAlias,
+        );
+      }
+    } else if (diff.nameAlias !== undefined) {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        diff.nameAlias,
+      );
+    }
+
+    if (diff.pec !== undefined) {
+      await this.typeDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, diff.pec);
+    }
+
+    // BUG 3 FIX: SDI usa injectFieldsViaNativeSetter
+    if (diff.sdi !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: diff.sdi },
+      ]);
+    }
+
+    if (diff.street !== undefined) {
+      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+    }
+    if (diff.phone !== undefined) {
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
+    }
+    if (diff.mobile !== undefined) {
+      await this.typeDevExpressField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
+    }
+    if (diff.email !== undefined) {
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, diff.email);
+    }
+    if (diff.url !== undefined) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, diff.url);
+    }
+    if (diff.attentionTo !== undefined) {
+      await this.typeDevExpressField(/xaf_dviBRASCRMATTENTIONTO_Edit_I$/, diff.attentionTo);
+    }
+
+    // BUG 4 FIX: NOTES usa textarea selector
+    if (diff.notes !== undefined) {
+      const notesEl = await this.page.$('textarea[id*="xaf_dviCUSTINFO"]');
+      if (notesEl) {
+        await notesEl.click({ clickCount: 3 });
+        await this.page.keyboard.down('Control');
+        await this.page.keyboard.press('KeyA');
+        await this.page.keyboard.up('Control');
+        await this.page.keyboard.press('Delete');
+        await this.page.keyboard.type(diff.notes, { delay: 10 });
+      }
+    }
+
+    // 3. Re-write campi vulnerabili a race condition
+    if (diff.fiscalCode !== undefined && diff.street !== undefined) {
+      await this.typeDevExpressField(/xaf_dviADDRESS_Edit_I$/, diff.street);
+    }
+    const finalNameAlias = diff.nameAlias ?? diff.name;
+    if (finalNameAlias !== undefined) {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        finalNameAlias,
+      );
+    }
+
+    // 4. BUG 1 FIX: VATNUM scritto SOLO se nel diff (Track B)
+    if (diff.vatNumber !== undefined) {
+      await this.injectFieldsViaNativeSetter([
+        { regex: /xaf_dviVATNUM_Edit_I$/, value: diff.vatNumber },
+      ]);
+      await this.waitForDevExpressIdle({ timeout: 30000, label: 'vatnum-callback' });
+    }
+
+    // 5. Indirizzi alternativi (solo se forniti)
+    if (addresses !== undefined) {
+      await this.writeAltAddresses(addresses);
+    }
+
+    // 6. Save
+    await this.saveAndCloseCustomer();
+
+    // 7. Snapshot — ricava erpId dall'URL corrente dopo save
+    const currentUrl = this.page.url();
+    const urlParts = currentUrl.split('/').filter(Boolean);
+    // URL pattern: .../CUSTTABLE_DetailView/{erpId}/?mode=...
+    const detailViewIdx = urlParts.findIndex((p) => p.includes('CUSTTABLE_DetailView'));
+    const erpId = detailViewIdx >= 0 ? urlParts[detailViewIdx + 1]?.replace(/,/g, '') ?? '' : '';
+
+    logger.info("updateCustomerSurgical: reading snapshot", { erpId });
+    const snapshot = await this.buildCustomerSnapshot(erpId || currentUrl);
+    logger.info("updateCustomerSurgical: completed", { erpId });
+
+    if (snapshot === null) {
+      throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${erpId}`);
+    }
+    return snapshot;
+  }
+
   async readEditFormFieldValues(): Promise<Record<string, string>> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -14327,14 +14503,123 @@ export class ArchibaldBot {
 
   async completeCustomerCreation(
     customerData: import("../types").CustomerFormData,
+    isVatOnForm: boolean = false,
   ): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 
     logger.info("Interactive: completing customer creation", {
       name: customerData.name,
+      isVatOnForm,
     });
 
-    // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
+    // Step 1: "Principale" tab — fill text fields in certified write order so that
+    // XHR callbacks from earlier Tab presses have settled before dependent fields.
+    await this.emitProgress("customer.tab.principale");
+    await this.openCustomerTab("Principale");
+    await this.dismissDevExpressPopups();
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "tab-principale-interactive",
+    });
+
+    if (!isVatOnForm && customerData.vatNumber) {
+      // 1. VATNUM first — triggers ~2.6s XHR callback that overwrites CAP and NAMEALIAS.
+      // Everything that depends on those fields must come AFTER this callback settles.
+      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.wait(3000);
+      await this.waitForDevExpressIdle({ timeout: 8000, label: "vat-callback-create" });
+
+      const vatValidated = await this.page.evaluate(() => {
+        const el = document.querySelector('[id*="VATVALIDE"]');
+        return el ? (el as HTMLInputElement).value ?? el.textContent?.trim() : null;
+      });
+      logger.info(`[completeCustomerCreation] VATVALIDE dopo callback: ${vatValidated}`);
+    }
+
+    // 2. NAME
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+
+    // 3. FISCALCODE — injected via native setter before save (see step "pre-save inject").
+    // Typing FISCALCODE + Tab triggers a server XHR that resets the field to ""; native setter
+    // bypasses that callback and keeps the value stable until the save POST.
+
+    // 4. PEC (LEGALEMAIL)
+    if (customerData.pec) {
+      await this.typeDevExpressField(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
+    }
+
+    // 5. SDI (LEGALAUTHORITY) — injected via native setter before save (same reason as CF above).
+
+    // 6. STREET
+    if (customerData.street) {
+      await this.typeDevExpressField(
+        /xaf_dviSTREET_Edit_I$/,
+        customerData.street,
+      );
+    }
+
+    await this.emitProgress("customer.field");
+
+    // 7. PHONE
+    if (customerData.phone) {
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+    }
+
+    // 8. CELLULARPHONE (mobile) — only if explicitly provided; never copy phone
+    if (customerData.mobile) {
+      await this.typeDevExpressField(
+        /xaf_dviCELLULARPHONE_Edit_I$/,
+        customerData.mobile,
+      );
+    }
+
+    // 9. EMAIL
+    if (customerData.email) {
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    // 10. URL — only if explicitly provided; no fallback value
+    if (customerData.url) {
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+    }
+
+    // 11. CAP popup → auto-fills CITY, COUNTY, STATE, COUNTRYREGIONID
+    await this.emitProgress("customer.lookup");
+    if (customerData.postalCode) {
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
+    }
+
+    // 12. NAMEALIAS — re-set explicitly after VATNUM callback; FISCALCODE→NAMEALIAS overwrite bug
+    // means VATNUM callback can clobber it. Always re-write so the value persists.
+    try {
+      await this.typeDevExpressField(
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
+        customerData.name,
+      );
+    } catch {
+      logger.warn("completeCustomerCreation: NAMEALIAS field not found — skipping");
+    }
+
+    await this.ensureNameFieldBeforeSave(customerData.name);
+
+    // 13. LINEDISC combo (Prezzi e sconti tab)
     await this.emitProgress("customer.tab.prezzi");
     await this.openCustomerTab("Prezzi e sconti");
     await this.dismissDevExpressPopups();
@@ -14361,17 +14646,15 @@ export class ArchibaldBot {
       customerData.lineDiscount || "N/A",
     );
 
-    // Step 2: Back to "Principale" tab — fill ALL fields last so they persist at save time
-    await this.emitProgress("customer.tab.principale");
+    // 14–18: remaining lookups and combos — return to Principale tab first
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
       timeout: 5000,
-      label: "tab-principale-interactive",
+      label: "tab-principale-post-linedisc",
     });
 
-    // Phase A: Lookups (trigger server callbacks that may reset other fields)
-    await this.emitProgress("customer.lookup");
+    // 14. PAYMTERMID popup
     if (customerData.paymentTerms) {
       await this.selectFromDevExpressLookup(
         /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
@@ -14379,25 +14662,7 @@ export class ArchibaldBot {
       );
     }
 
-    if (customerData.postalCode) {
-      try {
-        await this.selectFromDevExpressLookup(
-          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-          customerData.postalCode,
-          customerData.postalCodeCity,
-        );
-      } catch (capErr) {
-        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
-          error: String(capErr),
-        });
-        await this.page.keyboard.press("Escape");
-        await this.wait(500);
-        await this.page.keyboard.press("Escape");
-        await this.wait(300);
-      }
-    }
-
-    // Phase B: Combo boxes
+    // 15. DLVMODE combo
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -14405,6 +14670,7 @@ export class ArchibaldBot {
       );
     }
 
+    // 16. SECTOR combo (BUSINESSSECTORID)
     if (customerData.sector) {
       await this.setDevExpressComboBox(
         /xaf_dviBUSINESSSECTORID_Edit_dropdown_DD_I$/,
@@ -14412,65 +14678,7 @@ export class ArchibaldBot {
       );
     }
 
-    // Phase D: Text fields (set after lookups so they don't get cleared)
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
-
-    if (customerData.fiscalCode) {
-      await this.typeDevExpressField(
-        /xaf_dviFISCALCODE_Edit_I$/,
-        customerData.fiscalCode,
-      );
-    }
-
-    if (customerData.pec) {
-      await this.typeDevExpressField(
-        /xaf_dviLEGALEMAIL_Edit_I$/,
-        customerData.pec,
-      );
-    }
-
-    if (customerData.sdi) {
-      await this.typeDevExpressField(
-        /xaf_dviLEGALAUTHORITY_Edit_I$/,
-        customerData.sdi,
-      );
-    }
-
-    if (customerData.street) {
-      await this.typeDevExpressField(
-        /xaf_dviSTREET_Edit_I$/,
-        customerData.street,
-      );
-    }
-
-    await this.emitProgress("customer.field");
-
-    if (customerData.phone) {
-      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
-    }
-
-    if (customerData.mobile !== undefined) {
-      await this.typeDevExpressField(
-        /xaf_dviCELLULARPHONE_Edit_I$/,
-        customerData.mobile,
-      );
-    }
-
-    if (customerData.email) {
-      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-    }
-
-    // URL: ERP enforces a hard regex pattern — empty string fails validation.
-    // Write "nd.it" (non disponibile) as fallback when no URL is provided.
-    await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url || "nd.it");
-
-    if (customerData.attentionTo) {
-      await this.typeDevExpressField(
-        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
-        customerData.attentionTo,
-      );
-    }
-
+    // 17. CUSTINFO notes (textarea — typeDevExpressField handles textarea via querySelectorAll)
     if (customerData.notes) {
       await this.typeDevExpressField(
         /xaf_dviCUSTINFO_Edit_I$/,
@@ -14478,52 +14686,37 @@ export class ArchibaldBot {
       );
     }
 
-    // Re-type STREET at the end to fix race conditions: rapid XHR callbacks (from
-    // NAME/SDI Tab presses) can fire mid-typing and corrupt the field.  Writing it last
-    // lets all earlier XHRs settle before we commit the final value.
-    if (customerData.street) {
-      await this.typeDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
-    }
-
-    // Set NOME DI RICERCA (SEARCHNAME/NAMEALIAS) explicitly — DevExpress does not
-    // auto-generate it reliably in create mode.  Mirrors what the edit flow already does.
-    try {
+    // 18. ATTENTIONAND (BRASCRMATTENTIONTO)
+    if (customerData.attentionTo) {
       await this.typeDevExpressField(
-        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
-        customerData.name,
-      );
-    } catch {
-      logger.warn("completeCustomerCreation: NAMEALIAS field not found — skipping");
-    }
-
-    await this.ensureNameFieldBeforeSave(customerData.name);
-
-    // Re-set delivery mode after all text-field retries: XHR callbacks triggered by
-    // Tab presses on NAME/SDI can reset combo-box selections.
-    if (customerData.deliveryMode) {
-      await this.setDevExpressComboBox(
-        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
-        customerData.deliveryMode,
+        /xaf_dviBRASCRMATTENTIONTO_Edit_I$/,
+        customerData.attentionTo,
       );
     }
 
-    // VATNUM written last: Phase D XHR callbacks (from NAME/SDI/PEC Tab presses) silently
-    // clear the field even when the immediate mismatch check passes. Writing after all
-    // other fields ensures the value persists into the save.
-    if (customerData.vatNumber) {
-      await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
-      await this.wait(5000);
-      await this.waitForDevExpressIdle({ timeout: 10000, label: "vat-validation-interactive-final" });
-    }
-
-    // Step 3: "Indirizzo alt." tab — write all alt addresses (full replace)
+    // Step 2: "Indirizzo alt." tab — write all alt addresses (full replace)
     await this.emitProgress("customer.tab.indirizzo");
     await this.writeAltAddresses(customerData.addresses ?? []);
 
-    await this.emitProgress("customer.save");
-    await this.saveAndCloseCustomer();
+    // Pre-save inject: CF and SDI cannot be typed normally because their blur event triggers
+    // a server XHR that resets both fields to "". Native setter bypasses that callback.
+    // These fields are still in the DOM (just hidden under the Principale tab), so the save
+    // POST includes their values when DevExpress serializes all xaf_dvi inputs.
+    await this.injectFieldsViaNativeSetter([
+      { regex: /xaf_dviFISCALCODE_Edit_I$/, value: customerData.fiscalCode ?? "" },
+      { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: customerData.sdi ?? "" },
+    ]);
 
-    const customerProfileId = await this.getCustomerProfileId(customerData.name);
+    await this.emitProgress("customer.save");
+    await this.saveAndCloseCustomer(/* saveInPlace */ true);
+
+    // Fix 5: read numeric ID directly from URL (most reliable — avoids ListView search on page 2+)
+    const savedUrl = this.page.url();
+    const urlMatch = savedUrl.match(/CUSTTABLE_DetailView(?:Agent)?\/(\d+)\//);
+    const customerProfileId = urlMatch
+      ? urlMatch[1]
+      : await this.getCustomerProfileId(customerData.name);
+
     logger.info("Interactive: customer created successfully", {
       customerProfileId,
       name: customerData.name,

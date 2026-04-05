@@ -32,12 +32,15 @@ const IDLE_AGENT_MULTIPLIER = 4;
 
 type DeleteExpiredFn = () => Promise<number>;
 
+type CheckRemindersFn = (userId: string) => Promise<void>;
+
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getAgentsByActivity: GetAgentsByActivityFn,
   getOrdersNeedingArticleSync?: GetOrdersNeedingArticleSyncFn,
   getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn,
   deleteExpiredNotifications?: DeleteExpiredFn,
+  checkCustomerReminders?: CheckRemindersFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -152,6 +155,35 @@ function createSyncScheduler(
           });
         }, CLEANUP_INTERVAL_MS),
       );
+    }
+
+    if (checkCustomerReminders) {
+      function scheduleNextEightAm(): NodeJS.Timeout {
+        const now = new Date();
+        const next8 = new Date(now);
+        next8.setHours(8, 0, 0, 0);
+        if (next8 <= now) next8.setDate(next8.getDate() + 1);
+        const msUntil8 = next8.getTime() - now.getTime();
+
+        return setTimeout(() => {
+          const { active } = getAgentsByActivity();
+          for (const userId of active) {
+            checkCustomerReminders!(userId).catch((err) => {
+              logger.error('checkCustomerReminders failed', { userId, error: err });
+            });
+          }
+          const daily = setInterval(() => {
+            const { active: agents } = getAgentsByActivity();
+            for (const id of agents) {
+              checkCustomerReminders!(id).catch((err) => {
+                logger.error('checkCustomerReminders failed', { userId: id, error: err });
+              });
+            }
+          }, 24 * 60 * 60 * 1000);
+          timers.push(daily);
+        }, msUntil8) as unknown as NodeJS.Timeout;
+      }
+      pendingTimeouts.push(scheduleNextEightAm());
     }
   }
 
@@ -274,4 +306,5 @@ export {
   type GetOrdersNeedingArticleSyncFn,
   type GetCustomersNeedingAddressSyncFn,
   type DeleteExpiredFn,
+  type CheckRemindersFn,
 };

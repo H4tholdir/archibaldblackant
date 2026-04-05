@@ -102,6 +102,33 @@ export type CustomerSnapshot = {
   lineDiscount: string | null;
 } | null;
 
+export type CustomerDiff = Partial<{
+  name: string;
+  nameAlias: string;
+  fiscalCode: string;
+  vatNumber: string;
+  pec: string;
+  sdi: string;
+  street: string;
+  postalCode: string;
+  postalCodeCity: string;
+  county: string;
+  state: string;
+  country: string;
+  phone: string;
+  mobile: string;
+  email: string;
+  url: string;
+  deliveryMode: string;
+  paymentTerms: string;
+  sector: string;
+  priceGroup: string;
+  lineDiscount: string;
+  attentionTo: string;
+  notes: string;
+  agentNotes: string;
+}>;
+
 export type ApiResponse<T = unknown> = {
   success: boolean;
   data?: T;

@@ -48,12 +48,15 @@ import { createHiddenOrdersRouter } from './routes/hidden-orders';
 import { createOrderVerificationRouter } from './routes/order-verification-router';
 import { createNotificationsRouter } from './routes/notifications';
 import * as notificationsRepo from './db/repositories/notifications';
+import { createRemindersRouter } from './routes/reminders';
+import { createCustomerRemindersRouter } from './routes/customer-reminders';
 import { createTrackingRouter } from './routes/tracking';
 import { createBonusesRouter } from './routes/bonuses';
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
+import { createCapLookupRouter } from './routes/cap-lookup';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
@@ -418,6 +421,9 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
+  app.use('/api/customers/:customerProfile/reminders', authenticate,
+    createCustomerRemindersRouter({ pool }));
+  app.use('/api/reminders', authenticate, createRemindersRouter({ pool }));
 
   app.use('/api/customers', authenticate, createCustomersRouter({
     pool,
@@ -441,6 +447,7 @@ function createApp(deps: AppDeps): Express {
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>
       customersRepo.updateAgentNotes(pool, userId, erpId, notes),
+    getMyCustomers: (userId) => customersRepo.getMyCustomers(pool, userId),
     getCustomerSyncMetrics: async () => {
       const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
       const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
@@ -511,6 +518,7 @@ function createApp(deps: AppDeps): Express {
       broadcast: broadcastFn,
       upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+      updateCustomerErpId: (userId, tempErpId, realErpId) => customersRepo.updateCustomerErpId(pool, userId, tempErpId, realErpId),
       updateVatValidatedAt: (userId, profile) => customersRepo.updateVatValidatedAt(pool, userId, profile),
       getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
       upsertAddressesForCustomer: (userId, erpId, addresses) =>
@@ -524,16 +532,16 @@ function createApp(deps: AppDeps): Express {
       resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
       getCustomerProgressMilestone: (category: string) => {
         const milestones: Record<string, { progress: number; label: string }> = {
-          'customer.navigation': { progress: 10, label: 'Navigazione al form cliente' },
-          'customer.tab.prezzi': { progress: 15, label: 'Configurazione prezzi e sconti' },
-          'customer.tab.indirizzo': { progress: 25, label: 'Indirizzo di consegna' },
-          'customer.tab.principale': { progress: 35, label: 'Compilazione dati principali' },
-          'customer.lookup': { progress: 45, label: 'Selezione termini e CAP' },
-          'customer.search': { progress: 20, label: 'Ricerca cliente' },
-          'customer.edit_loaded': { progress: 30, label: 'Form cliente caricato' },
-          'customer.field': { progress: 60, label: 'Compilazione campi' },
-          'customer.save': { progress: 80, label: 'Salvataggio in corso' },
-          'customer.complete': { progress: 95, label: 'Cliente salvato' },
+          'customer.navigation':     { progress:  5, label: 'Navigazione al form cliente' },
+          'customer.edit_loaded':    { progress: 15, label: 'Form cliente caricato' },
+          'customer.search':         { progress: 20, label: 'Ricerca cliente' },
+          'customer.tab.principale': { progress: 30, label: 'Compilazione dati principali' },
+          'customer.field':          { progress: 45, label: 'Compilazione campi' },
+          'customer.lookup':         { progress: 55, label: 'Selezione termini e CAP' },
+          'customer.tab.prezzi':     { progress: 65, label: 'Configurazione prezzi e sconti' },
+          'customer.tab.indirizzo':  { progress: 75, label: 'Indirizzi di consegna' },
+          'customer.save':           { progress: 85, label: 'Salvataggio in corso' },
+          'customer.complete':       { progress: 95, label: 'Cliente salvato' },
         };
         return milestones[category] ?? null;
       },
@@ -969,6 +977,8 @@ function createApp(deps: AppDeps): Express {
       getCustomerFullHistory: (userId, params) => getCustomerFullHistory(pool, userId, params),
     }),
   );
+
+  app.use('/api/cap-lookup', authenticate, createCapLookupRouter(pool));
 
   app.use('/api/sub-client-matches', authenticate, createSubClientMatchesRouter({
     getMatchesForSubClient: (userId, codice) => subClientMatchesRepo.getMatchesForSubClient(pool, userId, codice),

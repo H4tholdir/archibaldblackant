@@ -436,6 +436,7 @@ describe('createCustomerInteractiveRouter', () => {
       await vi.waitFor(() => {
         expect(mockBot.completeCustomerCreation).toHaveBeenCalledWith(
           expect.objectContaining({ name: 'Test Customer' }),
+          true,
         );
       });
     });
@@ -639,6 +640,97 @@ describe('createCustomerInteractiveRouter', () => {
             state: 'Lazio',
             country: 'IT',
           }),
+          true,
+        );
+      });
+    });
+
+    test('/save passes all form fields to completeCustomerCreation with isVatOnForm=true', async () => {
+      const mockBot = createMockBot();
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'vat_complete');
+      sessionManager.setBot(sid, mockBot);
+
+      const fullPayload = {
+        name: 'Full Fields Srl',
+        vatNumber: 'IT12345678901',
+        fiscalCode: 'FLLFLD80A01H501Z',
+        pec: 'full@pec.it',
+        sdi: 'XYZ1234',
+        street: 'Via Completa 10',
+        postalCode: '20100',
+        phone: '0212345678',
+        mobile: '3331234567',
+        email: 'full@example.it',
+        url: 'https://full.example.it',
+        deliveryMode: 'Express',
+        paymentTerms: 'Net30',
+        lineDiscount: 'Discount to get street price',
+        sector: 'concessionari',
+        attentionTo: 'Giulia Bianchi',
+        notes: 'Note complete',
+        county: 'MI',
+        state: 'Lombardia',
+        country: 'IT',
+      };
+
+      await request(app)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send(fullPayload);
+
+      await vi.waitFor(() => {
+        expect(mockBot.completeCustomerCreation).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Full Fields Srl',
+            vatNumber: 'IT12345678901',
+            fiscalCode: 'FLLFLD80A01H501Z',
+            pec: 'full@pec.it',
+            sdi: 'XYZ1234',
+            street: 'Via Completa 10',
+            postalCode: '20100',
+            phone: '0212345678',
+            mobile: '3331234567',
+            email: 'full@example.it',
+            url: 'https://full.example.it',
+            deliveryMode: 'Express',
+            paymentTerms: 'Net30',
+            lineDiscount: 'Discount to get street price',
+            sector: 'concessionari',
+            attentionTo: 'Giulia Bianchi',
+            notes: 'Note complete',
+            county: 'MI',
+            state: 'Lombardia',
+            country: 'IT',
+          }),
+          true,
+        );
+      });
+    });
+
+    test('/save calls updateCustomerErpId with tempProfile and real ERP ID returned by bot', async () => {
+      const realErpId = 'REAL-ERP-55.777';
+      const mockBot = createMockBot();
+      mockBot.completeCustomerCreation.mockResolvedValue(realErpId);
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'vat_complete');
+      sessionManager.setBot(sid, mockBot);
+
+      const updateCustomerErpId = vi.fn().mockResolvedValue(undefined);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        updateCustomerErpId,
+      };
+      const customApp = createApp(customDeps);
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send({ name: 'Erp Id Update Srl', vatNumber: 'IT12345678901' });
+
+      await vi.waitFor(() => {
+        expect(updateCustomerErpId).toHaveBeenCalledWith(
+          'user-1',
+          expect.stringMatching(/^TEMP-\d+$/),
+          realErpId,
         );
       });
     });
@@ -693,6 +785,46 @@ describe('createCustomerInteractiveRouter', () => {
         const vatResult = broadcasts.find((b: unknown) => (b as { type?: string }).type === 'CUSTOMER_VAT_RESULT');
         expect(vatResult).toBeTruthy();
       });
+    });
+
+    test('broadcast CUSTOMER_VAT_DUPLICATE e distrugge sessione quando P.IVA già usata nell\'ERP', async () => {
+      const duplicateErpId = '55.999';
+      const mockBot = createMockBot();
+      (mockBot.submitVatAndReadAutofill as ReturnType<typeof vi.fn>).mockResolvedValue({
+        lastVatCheck: '2026-04-02',
+        vatValidated: 'Si',
+        vatAddress: 'Via Duplicata 1',
+        parsed: { companyName: 'Dup Srl', street: 'Via Duplicata', postalCode: '00100', city: 'Roma', vatStatus: 'active', internalId: '999' },
+        pec: '',
+        sdi: '0000000',
+        erpDuplicateCustomerId: duplicateErpId,
+      });
+      const broadcasts: unknown[] = [];
+      const customDeps = createMockDeps(sessionManager);
+      (customDeps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(mockBot);
+      (customDeps.broadcast as ReturnType<typeof vi.fn>).mockImplementation((_userId: string, msg: unknown) => {
+        broadcasts.push(msg);
+      });
+      const customApp = createApp(customDeps);
+
+      const res = await request(customApp)
+        .post('/api/customers/interactive/begin')
+        .send({ vatNumber: 'IT99999999999' });
+
+      expect(res.status).toBe(200);
+      const sid = res.body.data.sessionId;
+
+      await vi.waitFor(() => {
+        const dupMsg = broadcasts.find((b: unknown) => (b as { type?: string }).type === 'CUSTOMER_VAT_DUPLICATE');
+        expect(dupMsg).toEqual(
+          expect.objectContaining({
+            type: 'CUSTOMER_VAT_DUPLICATE',
+            payload: { sessionId: sid, erpCustomerId: duplicateErpId },
+          }),
+        );
+      });
+
+      expect(sessionManager.getSession(sid, 'user-1')).toBeNull();
     });
   });
 

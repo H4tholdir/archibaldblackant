@@ -47,6 +47,7 @@ import {
   createReadVatStatusHandler,
 } from './operations/handlers';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
+import { getRemindersOverdueOrToday } from './db/repositories/customer-reminders';
 import { createNotification, type CreateNotificationParams } from './services/notification-service';
 import { withAnomalyNotification } from './anomaly-notification-wrapper';
 import { createBrowserPool } from './bot/browser-pool';
@@ -275,6 +276,28 @@ async function bootstrap(): Promise<void> {
     (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
     (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
     () => deleteExpiredNotifications(pool),
+    async (userId: string) => {
+      const TYPE_LABELS: Record<string, string> = {
+        commercial_contact: '📞 Ricontatto commerciale',
+        offer_followup: '🔥 Follow-up offerta',
+        payment: '💰 Pagamento',
+        contract_renewal: '🔄 Rinnovo contratto',
+        anniversary: '🎂 Ricorrenza',
+        custom: '📋 Promemoria',
+      };
+      const due = await getRemindersOverdueOrToday(pool, userId);
+      for (const r of due) {
+        await insertNotificationRepo(pool, {
+          userId,
+          type: 'customer_reminder',
+          severity: r.priority === 'urgent' ? 'warning' : 'info',
+          title: `🔔 ${TYPE_LABELS[r.type] ?? r.type}: ${r.customerName}`,
+          body: r.note ?? 'Promemoria in scadenza',
+          data: { customerErpId: r.customerErpId, reminderId: r.id, action_url: `/customers/${r.customerErpId}` },
+          expiresAt: new Date(Date.now() + 7 * 86_400_000),
+        });
+      }
+    },
   );
 
   const wsServer = createWebSocketServer({
@@ -594,8 +617,8 @@ async function bootstrap(): Promise<void> {
         if (!initialized) { await bot.initialize(); initialized = true; }
       };
       return {
-        updateCustomer: async (erpId, customerData, originalName) => { await ensureInit(); return bot.updateCustomer(erpId, customerData as never, originalName); },
-        buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
+        navigateToEditCustomerById: async (erpId) => { await ensureInit(); return bot.navigateToEditCustomerById(erpId); },
+        updateCustomerSurgical: async (diff, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, addresses); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
     }),

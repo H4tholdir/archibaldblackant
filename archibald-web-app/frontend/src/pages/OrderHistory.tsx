@@ -798,7 +798,7 @@ export function OrderHistory() {
           throw new Error(data.message || "Errore nell'invio a Verona");
         }
       } else {
-        trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...');
+        trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...', 'Inviato a Verona');
       }
 
       setSentToVeronaIds((prev) => new Set(prev).add(modalOrderId));
@@ -904,8 +904,13 @@ export function OrderHistory() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.message || "Errore invio batch");
       if (data.jobId) {
-        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Invio a Verona...");
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Invio a Verona...", "Inviato a Verona");
       }
+      setSentToVeronaIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
       handleCancelSelection();
     } catch (err) {
       toastService.error(err instanceof Error ? err.message : "Errore invio batch a Verona");

@@ -41,17 +41,38 @@ const BADGE_STYLE: Record<'attivo' | 'inattivo', React.CSSProperties> = {
   inattivo: { background: '#fef9c3', color: '#854d0e', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
 };
 
+const SEARCH_STORAGE_KEY = 'customers_search_v1';
+
+// Cache foto in memoria — persiste tra rimontaggio del componente nella stessa sessione
+const photoCache = new Map<string, string | null>();
+
 // ── Component ────────────────────────────────────────────────────────────────
 export function CustomerList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get('search') ?? '');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(false);
+  const initialSearch = searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '';
+  const [search, setSearch] = useState(initialSearch);
+  // Inizializzato con lo stesso valore di search per evitare flash della lista completa al ritorno
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [myCustomers, setMyCustomers] = useState<Customer[]>([]);
+  const [searchCustomers, setSearchCustomers] = useState<Customer[]>([]);
+  const [loadingMine, setLoadingMine] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [isCreationMinimized, setIsCreationMinimized] = useState(false);
+  const [minimizedCreationName, setMinimizedCreationName] = useState('');
   const [recents, setRecents] = useState<string[]>(getRecents());
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    function handleResize() { setIsMobile(window.innerWidth < 768); }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Persist search in sessionStorage
+  useEffect(() => { sessionStorage.setItem(SEARCH_STORAGE_KEY, search); }, [search]);
 
   // Debounce search
   useEffect(() => {
@@ -59,38 +80,78 @@ export function CustomerList() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchCustomers = useCallback(async () => {
+  // Fetch "I miei clienti" once on mount
+  const fetchMyCustomers = useCallback(async () => {
     const token = localStorage.getItem('archibald_jwt');
     if (!token) return;
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (debouncedSearch) params.append('search', debouncedSearch);
-    params.append('limit', debouncedSearch ? '100' : '50');
+    setLoadingMine(true);
+    const res = await fetch('/api/customers?mine=true', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { setLoadingMine(false); return; }
+    const body = await res.json();
+    if (body.success) setMyCustomers(body.data.customers);
+    setLoadingMine(false);
+  }, []);
+
+  useEffect(() => { void fetchMyCustomers(); }, [fetchMyCustomers]);
+
+  // Fetch search results
+  const fetchSearch = useCallback(async () => {
+    if (!debouncedSearch) { setSearchCustomers([]); return; }
+    const token = localStorage.getItem('archibald_jwt');
+    if (!token) return;
+    setLoadingSearch(true);
+    const params = new URLSearchParams({ search: debouncedSearch, limit: '100' });
     const res = await fetch(`/api/customers?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) { setLoading(false); return; }
+    if (!res.ok) { setLoadingSearch(false); return; }
     const body = await res.json();
-    if (body.success) setCustomers(body.data.customers);
-    setLoading(false);
+    if (body.success) setSearchCustomers(body.data.customers);
+    setLoadingSearch(false);
   }, [debouncedSearch]);
 
-  useEffect(() => { void fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => { void fetchSearch(); }, [fetchSearch]);
 
-  // Lazy-load foto
+  // Lazy-load foto for visible customers
+  const visibleCustomers = debouncedSearch ? searchCustomers : myCustomers;
   useEffect(() => {
-    if (customers.length === 0) return;
+    if (visibleCustomers.length === 0) return;
+
+    // Applica subito i valori già in cache (sincrono, nessun flash)
+    const cachedNow: Record<string, string | null> = {};
+    const toFetch = visibleCustomers.filter(c => {
+      if (photoCache.has(c.erpId)) {
+        cachedNow[c.erpId] = photoCache.get(c.erpId) ?? null;
+        return false;
+      }
+      return customerPhotos[c.erpId] === undefined;
+    });
+    if (Object.keys(cachedNow).length > 0) {
+      setCustomerPhotos(prev => ({ ...prev, ...cachedNow }));
+    }
+    if (toFetch.length === 0) return;
+
     let cancelled = false;
+    // Carica con concorrenza limitata (max 5 richieste simultanee) per non sovraccaricare il backend
+    const CONCURRENCY = 5;
     const load = async () => {
-      for (const c of customers) {
-        if (cancelled || customerPhotos[c.erpId] !== undefined) continue;
-        const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
-        if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
+      for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
+        if (cancelled) break;
+        const batch = toFetch.slice(i, i + CONCURRENCY);
+        await Promise.all(
+          batch.map(async c => {
+            const url = await customerService.getPhotoUrl(c.erpId).catch(() => null);
+            photoCache.set(c.erpId, url);
+            if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
+          })
+        );
       }
     };
     void load();
     return () => { cancelled = true; };
-  }, [customers]);
+  }, [visibleCustomers]);
 
   const handleClick = (erpId: string) => {
     addRecent(erpId);
@@ -99,10 +160,19 @@ export function CustomerList() {
   };
 
   const recentCustomers = recents
-    .map(id => customers.find(c => c.erpId === id))
+    .map(id => myCustomers.find(c => c.erpId === id))
     .filter((c): c is Customer => c !== undefined);
   const recentIds = new Set(recents);
-  const allCustomers = customers.filter(c => !recentIds.has(c.erpId));
+  const nonRecentMyCustomers = myCustomers.filter(c => !recentIds.has(c.erpId));
+
+  // Smart groups (solo su "I miei clienti", non sulla ricerca)
+  const groupDaContattare = nonRecentMyCustomers.filter(c => customerBadge(c) === 'inattivo');
+  const groupDaTenereDocchio = nonRecentMyCustomers.filter(c => {
+    if (!c.lastOrderDate || customerBadge(c) !== null) return false;
+    return true; // badge null = 90-180 giorni
+  });
+  const groupAttivi = nonRecentMyCustomers.filter(c => customerBadge(c) === 'attivo');
+  const groupSenzaOrdini = nonRecentMyCustomers.filter(c => !c.lastOrderDate);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
@@ -110,13 +180,12 @@ export function CustomerList() {
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Clienti</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>{customers.length} clienti</div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>{myCustomers.length} clienti</div>
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
-          aria-label="+"
-          style={{ width: 32, height: 32, background: '#2563eb', border: 'none', borderRadius: '50%', color: 'white', fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >+</button>
+          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        ><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span> Nuovo Cliente</button>
       </div>
 
       {/* Search */}
@@ -124,9 +193,15 @@ export function CustomerList() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f1f5f9', borderRadius: 10, padding: '8px 12px' }}>
           <span style={{ fontSize: 13, color: '#94a3b8' }}>🔍</span>
           <input
+            type="search"
+            name="customer-search-field"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca nome, telefono, P.IVA…"
+            placeholder="Cerca in tutti i clienti…"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            data-form-type="other"
             style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
           />
           {search && (
@@ -137,40 +212,164 @@ export function CustomerList() {
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && (
-          <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
-        )}
-
-        {recentCustomers.length > 0 && !debouncedSearch && (
+        {debouncedSearch ? (
           <>
-            <SectionLabel>Recenti</SectionLabel>
-            {recentCustomers.map(c => (
-              <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-            ))}
+            {loadingSearch && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Ricerca…</div>
+            )}
+            {!loadingSearch && (
+              <>
+                <SectionLabel count={searchCustomers.length}>Risultati</SectionLabel>
+                {searchCustomers.map(c => (
+                  <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                ))}
+                {searchCustomers.length === 0 && (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Nessun cliente trovato
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {loadingMine && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
+            )}
+
+            {!loadingMine && (
+              <>
+                {recentCustomers.length > 0 && (
+                  <>
+                    <SectionLabel>Recenti</SectionLabel>
+                    {recentCustomers.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupDaContattare.length > 0 && (
+                  <>
+                    <SectionLabel icon="🔴" count={groupDaContattare.length} hint="Nessun ordine negli ultimi 6 mesi">Da contattare</SectionLabel>
+                    {groupDaContattare.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupDaTenereDocchio.length > 0 && (
+                  <>
+                    <SectionLabel icon="🟡" count={groupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
+                    {groupDaTenereDocchio.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupAttivi.length > 0 && (
+                  <>
+                    <SectionLabel icon="🟢" count={groupAttivi.length} hint="Ordine negli ultimi 3 mesi">Attivi</SectionLabel>
+                    {groupAttivi.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {groupSenzaOrdini.length > 0 && (
+                  <>
+                    <SectionLabel icon="⚪" count={groupSenzaOrdini.length} hint="Nessun ordine registrato">Nuovi clienti</SectionLabel>
+                    {groupSenzaOrdini.map(c => (
+                      <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                    ))}
+                  </>
+                )}
+
+                {myCustomers.length === 0 && (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Nessun cliente trovato
+                  </div>
+                )}
+
+                {myCustomers.length > 0 && (
+                  <div style={{ padding: '12px 16px', textAlign: 'center', color: '#cbd5e1', fontSize: 11 }}>
+                    Cerca per trovare qualsiasi cliente
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
-
-        <SectionLabel>{debouncedSearch ? `Risultati (${allCustomers.length})` : 'Tutti (A–Z)'}</SectionLabel>
-        {allCustomers.map(c => (
-          <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-        ))}
       </div>
+
+      {isCreationMinimized && createModalOpen && (
+        <div
+          onClick={() => setIsCreationMinimized(false)}
+          style={{
+            position: 'fixed',
+            bottom: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: '#1976d2',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            cursor: 'pointer',
+            minWidth: 220,
+            maxWidth: '90vw',
+          }}
+        >
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#90caf9', flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
+          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
+            {minimizedCreationName ? `Creazione ${minimizedCreationName} in corso…` : 'Creazione cliente in corso…'}
+          </span>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>Tocca per riaprire</span>
+        </div>
+      )}
+
+      {isMobile && (
+        <button
+          onClick={() => setCreateModalOpen(true)}
+          style={{
+            position: 'fixed', bottom: '24px', right: '24px',
+            width: '56px', height: '56px',
+            background: '#2563eb', color: 'white',
+            border: 'none', borderRadius: '50%',
+            fontSize: '28px', lineHeight: 1,
+            boxShadow: '0 4px 16px rgba(37,99,235,.4)',
+            cursor: 'pointer', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          aria-label="Nuovo Cliente"
+        >
+          ＋
+        </button>
+      )}
 
       <CustomerCreateModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSaved={() => { setCreateModalOpen(false); void fetchCustomers(); }}
-        contextMode="standalone"
+        isMinimized={isCreationMinimized}
+        onClose={() => { setCreateModalOpen(false); setIsCreationMinimized(false); }}
+        onSaved={() => { setCreateModalOpen(false); setIsCreationMinimized(false); void fetchMyCustomers(); }}
+        onMinimize={(name) => { setIsCreationMinimized(true); setMinimizedCreationName(name); }}
       />
     </div>
   );
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, icon, count, hint }: { children: React.ReactNode; icon?: string; count?: number; hint?: string }) {
   return (
-    <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-      {children}
+    <div style={{ padding: '10px 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }} title={hint}>
+      {icon && <span style={{ fontSize: 10 }}>{icon}</span>}
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{children}</span>
+      {count !== undefined && (
+        <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>({count})</span>
+      )}
     </div>
   );
 }

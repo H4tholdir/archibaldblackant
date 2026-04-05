@@ -105,44 +105,6 @@ export class CustomerService {
     return null;
   }
 
-  async createCustomer(formData: {
-    name: string;
-    vatNumber?: string;
-    pec?: string;
-    sdi?: string;
-    street?: string;
-    postalCode?: string;
-    phone?: string;
-    mobile?: string;
-    email?: string;
-    url?: string;
-    deliveryMode?: string;
-    paymentTerms?: string;
-    postalCodeCity?: string;
-    postalCodeCountry?: string;
-    fiscalCode?: string;
-    sector?: string;
-    attentionTo?: string;
-    notes?: string;
-    county?: string;
-    state?: string;
-    country?: string;
-    addresses?: Array<{ tipo: string; nome?: string; via?: string; cap?: string; citta?: string; contea?: string; stato?: string; idRegione?: string; contra?: string }>;
-  }): Promise<{ taskId: string | null }> {
-    const response = await fetchWithRetry("/api/customers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const taskId: string | undefined = data.data?.jobId;
-    return { taskId: taskId ?? null };
-  }
 
   async updateCustomer(
     erpId: string,

@@ -1,8 +1,9 @@
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
@@ -49,6 +50,7 @@
 
 .app-main {
   flex: 1;
+  min-height: 0;
   padding: 1rem;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;

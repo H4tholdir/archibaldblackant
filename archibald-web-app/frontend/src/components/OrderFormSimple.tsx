@@ -606,6 +606,21 @@ export default function OrderFormSimple() {
     loadOrderForEditing();
   }, [searchParams, navigate]);
 
+  // === PRELOAD CUSTOMER FROM URL PARAM ===
+  useEffect(() => {
+    const customerIdParam = searchParams.get('customerId');
+    if (!customerIdParam) return;
+    // Don't override if we're editing an existing order
+    if (searchParams.get('editOrderId')) return;
+
+    customerService.getCustomerById(customerIdParam).then((customer) => {
+      if (customer) {
+        setSelectedCustomer(customer);
+        setCustomerSearch(customer.name);
+      }
+    }).catch(() => {});
+  }, [searchParams]);
+
   // Track whether order was saved to prevent warehouse reservation restoration on unmount
   const orderSavedSuccessfullyRef = useRef(false);
   // Preserve original tracking data (subClientName etc.) so cleanup can restore it after batchRelease
@@ -6233,7 +6248,6 @@ export default function OrderFormSimple() {
             handleCustomerSearch(createCustomerPrefill);
           }
         }}
-        contextMode="order"
         prefillName={createCustomerPrefill}
       />
     </div>
