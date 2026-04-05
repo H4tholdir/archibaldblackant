@@ -1,7 +1,7 @@
 // archibald-web-app/frontend/src/pages/ToolRecognitionPage.spec.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import _userEvent from '@testing-library/user-event'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToolRecognitionPage } from './ToolRecognitionPage'
 import * as recognitionApi from '../api/recognition'
@@ -104,6 +104,44 @@ describe('ToolRecognitionPage — Stato 1 (idle viewfinder)', () => {
 
     await waitFor(() =>
       expect(screen.getByText(/Budget quasi esaurito/i)).toBeInTheDocument()
+    )
+  })
+})
+
+describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
+  it('mostra spinner di analisi dopo lo scatto', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockImplementation(
+      () => new Promise(() => {}) // non risolve — rimane in analisi
+    )
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/Estrazione features AI/i)).toBeInTheDocument()
+    )
+  })
+
+  it('mostra schermata budget esaurito quando result.state è budget_exhausted', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue({
+      result: { state: 'budget_exhausted' },
+      budgetState: { usedToday: 500, dailyLimit: 500, throttleLevel: 'limited' },
+      processingMs: 50,
+      imageHash: 'xyz',
+      broadCandidates: [],
+    })
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+
+    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
+    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/Budget giornaliero esaurito/i)).toBeInTheDocument()
     )
   })
 })
