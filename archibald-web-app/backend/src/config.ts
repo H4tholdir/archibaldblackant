@@ -107,6 +107,11 @@ export const config = {
     appSecret: process.env.DROPBOX_APP_SECRET || "",
     basePath: process.env.DROPBOX_BASE_PATH || "/Archibald/Preventivi",
   },
+  recognition: {
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    dailyLimit:  parseInt(process.env.RECOGNITION_DAILY_LIMIT  ?? '500',   10),
+    timeoutMs:   parseInt(process.env.RECOGNITION_TIMEOUT_MS   ?? '15000', 10),
+  },
   database: {
     host: process.env.PG_HOST || "localhost",
     port: parseInt(process.env.PG_PORT || "5432", 10),
