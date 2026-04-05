@@ -68,7 +68,25 @@ async function handleUpdateCustomer(
 
   // agentNotes è solo DB — non viene passato al bot ERP
   const { agentNotes, ...erpDiff } = diff;
-  const snapshot = await bot.updateCustomerSurgical(erpDiff, addresses);
+
+  let snapshot: NonNullable<CustomerSnapshot> | null = null;
+  try {
+    snapshot = await bot.updateCustomerSurgical(erpDiff, addresses);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('buildCustomerSnapshot')) {
+      // Il salvataggio ERP è riuscito ma il readback dello snapshot è fallito.
+      // Aggiorniamo il DB con i valori del diff (quelli che sappiamo essere stati
+      // applicati) invece di lanciare un errore che maschera il successo reale.
+      logger.warn('handleUpdateCustomer: snapshot fallito dopo save, uso diff come fallback', { erpId, error: msg });
+    } else {
+      throw err;
+    }
+  }
+
+  // Se snapshot è null (readback fallito) usiamo i valori del diff per i campi
+  // editabili e null per quelli solo-snapshot (city, priceGroup, ecc.).
+  // La COALESCE nella query preserva i valori esistenti del DB per i null.
 
   onProgress(78, 'Lettura snapshot da Archibald');
 
@@ -101,30 +119,31 @@ async function handleUpdateCustomer(
        updated_at       = NOW()
      WHERE erp_id = $15 AND user_id = $16`,
     [
-      snapshot.name ?? null,
-      snapshot.nameAlias ?? null,
-      snapshot.city ?? null,
-      snapshot.county ?? null,
-      snapshot.state ?? null,
-      snapshot.country ?? null,
-      snapshot.priceGroup ?? null,
-      snapshot.lineDiscount ?? null,
-      snapshot.postalCode ?? null,
-      snapshot.fiscalCode ?? null,
-      snapshot.sector ?? null,
-      snapshot.paymentTerms ?? null,
-      snapshot.attentionTo ?? null,
-      snapshot.notes ?? null,
+      // Snapshot-only fields (non editabili via diff): null se snapshot non disponibile
+      snapshot?.name ?? erpDiff.name ?? null,
+      snapshot?.nameAlias ?? erpDiff.nameAlias ?? null,
+      snapshot?.city ?? null,
+      snapshot?.county ?? null,
+      snapshot?.state ?? null,
+      snapshot?.country ?? null,
+      snapshot?.priceGroup ?? null,
+      snapshot?.lineDiscount ?? null,
+      snapshot?.postalCode ?? null,
+      snapshot?.fiscalCode ?? erpDiff.fiscalCode ?? null,
+      snapshot?.sector ?? erpDiff.sector ?? null,
+      snapshot?.paymentTerms ?? erpDiff.paymentTerms ?? null,
+      snapshot?.attentionTo ?? erpDiff.attentionTo ?? null,
+      snapshot?.notes ?? erpDiff.notes ?? null,
       erpId, userId,
-      snapshot.street ?? null,
-      snapshot.vatNumber ?? null,
-      snapshot.pec ?? null,
-      snapshot.sdi ?? null,
-      snapshot.phone ?? null,
-      snapshot.mobile ?? null,
-      snapshot.email ?? null,
-      snapshot.url ?? null,
-      snapshot.deliveryMode ?? null,
+      snapshot?.street ?? erpDiff.street ?? null,
+      snapshot?.vatNumber ?? erpDiff.vatNumber ?? null,
+      snapshot?.pec ?? erpDiff.pec ?? null,
+      snapshot?.sdi ?? erpDiff.sdi ?? null,
+      snapshot?.phone ?? erpDiff.phone ?? null,
+      snapshot?.mobile ?? erpDiff.mobile ?? null,
+      snapshot?.email ?? erpDiff.email ?? null,
+      snapshot?.url ?? erpDiff.url ?? null,
+      snapshot?.deliveryMode ?? erpDiff.deliveryMode ?? null,
     ],
   );
 
