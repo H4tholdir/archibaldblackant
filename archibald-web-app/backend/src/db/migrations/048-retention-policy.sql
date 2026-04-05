@@ -4,12 +4,13 @@
 ALTER TABLE agents.customers ADD COLUMN IF NOT EXISTS
   last_activity_at TIMESTAMPTZ;
 
--- Initialize from existing orders (customer_profile_id links order_records to customers)
+-- Initialize from existing orders (customer_account_num links order_records to customers.account_num)
 UPDATE agents.customers c
 SET last_activity_at = (
-  SELECT MAX(created_at)
+  SELECT MAX(o.created_at)
   FROM agents.order_records o
-  WHERE o.customer_profile_id = c.customer_profile
+  WHERE o.customer_account_num = c.account_num
+    AND o.user_id = c.user_id
 )
 WHERE last_activity_at IS NULL;
 

@@ -7,15 +7,22 @@ export type CustomerExport = {
   subClients: Record<string, unknown>[];
 };
 
-export async function exportCustomerData(pool: DbPool, customerProfile: string): Promise<CustomerExport> {
+export async function exportCustomerData(pool: DbPool, erpId: string): Promise<CustomerExport> {
   const [customerResult, ordersResult, articlesResult, subClientsResult] = await Promise.all([
-    pool.query(`SELECT * FROM agents.customers WHERE customer_profile = $1`, [customerProfile]),
-    pool.query(`SELECT * FROM agents.order_records WHERE customer_profile_id = $1 ORDER BY created_at DESC`, [customerProfile]),
+    pool.query(`SELECT * FROM agents.customers WHERE erp_id = $1`, [erpId]),
+    pool.query(
+      `SELECT o.* FROM agents.order_records o
+       JOIN agents.customers c ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
+       WHERE c.erp_id = $1
+       ORDER BY o.created_at DESC`,
+      [erpId],
+    ),
     pool.query(
       `SELECT oa.* FROM agents.order_articles oa
-       JOIN agents.order_records o ON oa.order_id = o.id
-       WHERE o.customer_profile_id = $1`,
-      [customerProfile],
+       JOIN agents.order_records o ON oa.order_id = o.id AND oa.user_id = o.user_id
+       JOIN agents.customers c ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
+       WHERE c.erp_id = $1`,
+      [erpId],
     ),
     pool.query(
       `SELECT sc.* FROM shared.sub_clients sc
@@ -24,7 +31,7 @@ export async function exportCustomerData(pool: DbPool, customerProfile: string):
             SELECT sub_client_codice FROM shared.sub_client_customer_matches
             WHERE customer_profile_id = $1
           )`,
-      [customerProfile],
+      [erpId],
     ),
   ]);
 
@@ -36,17 +43,19 @@ export async function exportCustomerData(pool: DbPool, customerProfile: string):
   };
 }
 
-export async function hasActiveOrders(pool: DbPool, customerProfile: string): Promise<boolean> {
+export async function hasActiveOrders(pool: DbPool, erpId: string): Promise<boolean> {
   const { rows } = await pool.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM agents.order_records
-     WHERE customer_profile_id = $1
-       AND current_state NOT IN ('consegnato', 'fatturato', 'pagamento_scaduto', 'pagato')`,
-    [customerProfile],
+    `SELECT COUNT(*) AS count
+     FROM agents.order_records o
+     JOIN agents.customers c ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
+     WHERE c.erp_id = $1
+       AND o.current_state NOT IN ('consegnato', 'fatturato', 'pagamento_scaduto', 'pagato')`,
+    [erpId],
   );
   return parseInt(rows[0]?.count ?? '0', 10) > 0;
 }
 
-export async function eraseCustomerPersonalData(pool: DbPool, customerProfile: string): Promise<void> {
+export async function eraseCustomerPersonalData(pool: DbPool, erpId: string): Promise<void> {
   const erasedMarker = `[GDPR_ERASED_${new Date().toISOString()}]`;
   await pool.withTransaction(async (tx) => {
     await tx.query(
@@ -61,8 +70,8 @@ export async function eraseCustomerPersonalData(pool: DbPool, customerProfile: s
          pec          = CASE WHEN pec IS NOT NULL THEN $1 ELSE NULL END,
          sdi          = CASE WHEN sdi IS NOT NULL THEN $1 ELSE NULL END,
          fiscal_code  = CASE WHEN fiscal_code IS NOT NULL THEN $1 ELSE NULL END
-       WHERE customer_profile = $2`,
-      [erasedMarker, customerProfile],
+       WHERE erp_id = $2`,
+      [erasedMarker, erpId],
     );
     await tx.query(
       `UPDATE shared.sub_clients SET
@@ -79,7 +88,7 @@ export async function eraseCustomerPersonalData(pool: DbPool, customerProfile: s
          SELECT sub_client_codice FROM shared.sub_client_customer_matches
          WHERE customer_profile_id = $2
        ) OR matched_customer_profile_id = $2`,
-      [erasedMarker, customerProfile],
+      [erasedMarker, erpId],
     );
   });
 }
