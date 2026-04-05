@@ -4,6 +4,8 @@ import { logger } from "../logger";
 import type { UserRole } from "../db/repositories/users";
 import type { DbPool } from "../db/pool";
 import { updateLastActivity } from "../db/repositories/users";
+import type { RedisClient } from "../db/redis-client";
+import { isTokenRevoked } from "../db/redis-client";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -14,6 +16,8 @@ export interface AuthRequest extends Request {
     isImpersonating?: boolean;
     realAdminId?: string;
     adminSessionId?: number;
+    modules: string[];
+    jti: string;
   };
 }
 
@@ -63,7 +67,7 @@ export async function requireAdmin(
   next();
 }
 
-function createAuthMiddleware(pool: DbPool) {
+function createAuthMiddleware(pool: DbPool, redis?: RedisClient) {
   return async function authenticateJWTWithActivity(
     req: AuthRequest,
     res: Response,
@@ -80,6 +84,18 @@ function createAuthMiddleware(pool: DbPool) {
 
     if (!payload) {
       return res.status(401).json({ error: "Token non valido o scaduto" });
+    }
+
+    if (payload && redis) {
+      if (!payload.jti) {
+        return res.status(401).json({ error: "Token non valido: jti mancante" });
+      }
+      const revoked = await isTokenRevoked(redis, payload.jti);
+      if (revoked) {
+        return res.status(401).json({ error: "Token revocato" });
+      }
+    } else if (payload && !redis && payload.jti) {
+      logger.warn('JWT revocation check skipped: Redis not configured', { jti: payload.jti });
     }
 
     req.user = payload;

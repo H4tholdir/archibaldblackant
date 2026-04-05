@@ -5,6 +5,7 @@ import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole, UserTarget } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
+import { audit } from '../db/repositories/audit-log';
 import { logger } from '../logger';
 import {
   getExceptionStats,
@@ -13,6 +14,9 @@ import {
   getExceptionById,
 } from '../db/repositories/tracking-exceptions';
 import { generateClaimPdf } from '../services/fedex-claim-pdf';
+import { eraseCustomerPersonalData, exportCustomerData, hasActiveOrders } from '../db/repositories/gdpr';
+import { buildMailtoLink } from '../services/security-alert-service';
+import { config } from '../config';
 
 type AdminJob = {
   jobId: string;
@@ -38,7 +42,7 @@ type AdminRouterDeps = {
   deleteUser: (id: string) => Promise<void>;
   updateUserTarget: (userId: string, yearlyTarget: number, currency: string, commissionRate: number, bonusAmount: number, bonusInterval: number, extraBudgetInterval: number, extraBudgetReward: number, monthlyAdvance: number, hideCommissions: boolean) => Promise<void>;
   getUserTarget: (userId: string) => Promise<UserTarget | null>;
-  generateJWT: (payload: JWTPayload) => Promise<string>;
+  generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
   createAdminSession: (adminUserId: string, targetUserId: string) => Promise<number>;
   closeAdminSession: (sessionId: number) => Promise<void>;
   getAllJobs: (limit: number, status?: string) => Promise<AdminJob[]>;
@@ -94,7 +98,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
     try {
       let users = await getAllUsers();
       const { role } = req.query;
-      if (role === 'agent' || role === 'admin') {
+      const validRoles = ['agent', 'admin', 'ufficio', 'concessionario'] as const;
+      if (validRoles.includes(role as (typeof validRoles)[number])) {
         users = users.filter((u) => u.role === role);
       }
       res.json({
@@ -102,6 +107,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
         users: users.map((u) => ({
           id: u.id, username: u.username, fullName: u.fullName,
           role: u.role, whitelisted: u.whitelisted, lastLoginAt: u.lastLoginAt,
+          modules: u.modules, mfaEnabled: u.mfaEnabled,
         })),
       });
     } catch (error) {
@@ -130,11 +136,75 @@ function createAdminRouter(deps: AdminRouterDeps) {
       if (typeof whitelisted !== 'boolean') {
         return res.status(400).json({ success: false, error: 'whitelisted deve essere boolean' });
       }
-      await updateWhitelist(req.params.id, whitelisted);
+      const id = req.params.id;
+      await updateWhitelist(id, whitelisted);
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'user.whitelist_changed',
+        targetType: 'user',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { whitelisted },
+      });
       res.json({ success: true });
     } catch (error) {
       logger.error('Error updating whitelist', { error });
       res.status(500).json({ success: false, error: 'Errore aggiornamento whitelist' });
+    }
+  });
+
+  router.patch('/users/:id', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      const parsed = z.object({
+        role: z.enum(['agent', 'admin', 'ufficio', 'concessionario']).optional(),
+        modules: z.array(z.string()).optional(),
+        whitelisted: z.boolean().optional(),
+      }).safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+
+      const changes = parsed.data;
+
+      if (changes.role !== undefined && id === req.user!.userId) {
+        return res.status(403).json({ success: false, error: 'Non puoi modificare il tuo stesso ruolo' });
+      }
+
+      const setClauses: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (changes.role !== undefined) { setClauses.push(`role = $${idx++}`); params.push(changes.role); }
+      if (changes.modules !== undefined) { setClauses.push(`modules = $${idx++}`); params.push(changes.modules); }
+      if (changes.whitelisted !== undefined) { setClauses.push(`whitelisted = $${idx++}`); params.push(changes.whitelisted); }
+
+      if (setClauses.length === 0) {
+        return res.status(400).json({ success: false, error: 'Nessun campo da aggiornare' });
+      }
+
+      params.push(id);
+      await deps.pool.query(`UPDATE agents.users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+
+      const action = 'user.updated';
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action,
+        targetType: 'user',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: changes as Record<string, unknown>,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error updating user', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento utente' });
     }
   });
 
@@ -199,6 +269,16 @@ function createAdminRouter(deps: AdminRouterDeps) {
         isImpersonating: true,
         realAdminId: adminUser.userId,
         adminSessionId,
+        modules: targetUser.modules,
+      });
+
+      void audit(deps.pool, {
+        actorId: adminUser.userId,
+        actorRole: 'admin',
+        action: 'admin.impersonation_start',
+        targetType: 'user',
+        targetId: targetUserId,
+        ipAddress: req.ip,
       });
 
       res.json({
@@ -238,6 +318,16 @@ function createAdminRouter(deps: AdminRouterDeps) {
         userId: adminUser.id,
         username: adminUser.username,
         role: adminUser.role as UserRole,
+        modules: adminUser.modules,
+      });
+
+      void audit(deps.pool, {
+        actorId: adminUser.id,
+        actorRole: 'admin',
+        action: 'admin.impersonation_end',
+        targetType: 'user',
+        targetId: user.userId,
+        ipAddress: req.ip,
       });
 
       res.json({
@@ -414,6 +504,139 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (err) {
       logger.error('Error generating claim PDF', { err });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/customers/:id/export', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const data = await exportCustomerData(deps.pool, id);
+      const filename = `customer-export-${id}-${new Date().toISOString().split('T')[0]}.json`;
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'customer.data_exported',
+        targetType: 'customer',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { filename },
+      });
+
+      res
+        .setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+        .json({ success: true, data });
+    } catch (err) {
+      logger.error('Error exporting customer data', { error: err });
+      res.status(500).json({ success: false, error: 'Errore durante l\'export dei dati' });
+    }
+  });
+
+  router.post('/customers/:id/gdpr-erase', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const parsed = z.object({ reason: z.string().min(10) }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+      const { reason } = parsed.data;
+
+      const active = await hasActiveOrders(deps.pool, id);
+      if (active) {
+        return res.status(409).json({ success: false, error: 'Impossibile cancellare: ordini attivi per questo cliente' });
+      }
+
+      await eraseCustomerPersonalData(deps.pool, id);
+
+      const fieldsErased = ['name', 'street', 'city', 'postal_code', 'email', 'phone', 'mobile', 'pec', 'sdi', 'fiscal_code'];
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'customer.erased',
+        targetType: 'customer',
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { reason, fieldsErased },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          customerId: id,
+          erasedAt: new Date().toISOString(),
+          fieldsErased,
+          retainedFor: 'fiscal_obligation_10y',
+          reason,
+        },
+      });
+    } catch (error) {
+      logger.error('Error erasing customer GDPR data', { error });
+      res.status(500).json({ success: false, error: 'Errore cancellazione dati GDPR' });
+    }
+  });
+
+  router.get('/security-alerts', async (_req: AuthRequest, res) => {
+    try {
+      const { rows } = await deps.pool.query(
+        `SELECT id, occurred_at, metadata
+         FROM system.audit_log
+         WHERE action = 'security.alert' AND occurred_at > NOW() - INTERVAL '7 days'
+         ORDER BY occurred_at DESC
+         LIMIT 50`,
+      );
+      const rowsWithMailto = rows.map(row => ({
+        ...row,
+        mailtoUrl: config.security.alertEmail
+          ? buildMailtoLink(config.security.alertEmail, (row.metadata?.event as string | undefined) ?? 'unknown', row.metadata ?? {})
+          : null,
+      }));
+      res.json({ data: rowsWithMailto });
+    } catch (error) {
+      logger.error('Error fetching security alerts', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero security alerts' });
+    }
+  });
+
+  router.get('/audit-log', async (req: AuthRequest, res) => {
+    try {
+      const { actorId, action, targetType, from, to, page = '1' } = req.query as Record<string, string>;
+      const rawPage = parseInt(page, 10);
+      const pageNum = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+      const offset = (pageNum - 1) * 50;
+
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (actorId) { conditions.push(`actor_id = $${idx++}`); params.push(actorId); }
+      if (action) { conditions.push(`action = $${idx++}`); params.push(action); }
+      if (targetType) { conditions.push(`target_type = $${idx++}`); params.push(targetType); }
+      if (from) { conditions.push(`occurred_at >= $${idx++}`); params.push(from); }
+      if (to) { conditions.push(`occurred_at <= $${idx++}`); params.push(to); }
+
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      params.push(50, offset);
+
+      const [{ rows }, { rows: countRows }] = await Promise.all([
+        deps.pool.query(
+          `SELECT id, occurred_at, actor_id, actor_role, action, target_type, target_id, ip_address, metadata
+           FROM system.audit_log ${where}
+           ORDER BY occurred_at DESC
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          params,
+        ),
+        deps.pool.query<{ total: string }>(
+          `SELECT COUNT(*) AS total FROM system.audit_log ${where}`,
+          params.slice(0, -2),
+        ),
+      ]);
+
+      const total = parseInt(countRows[0]?.total ?? '0', 10);
+      res.json({ success: true, data: rows, page: pageNum, total });
+    } catch (error) {
+      logger.error('Error fetching audit log', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero audit log' });
     }
   });
 

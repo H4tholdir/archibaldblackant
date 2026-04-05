@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { createApp, type AppDeps } from './server';
 import { generateJWT } from './auth-utils';
 import type { Express } from 'express';
@@ -134,6 +134,43 @@ function createMockDeps(): AppDeps {
     uploadToDropbox: vi.fn().mockResolvedValue({ path: '/test' }),
   };
 }
+
+describe('CORS and CSP security', () => {
+  const originalCorsOrigins = process.env.CORS_ORIGINS;
+
+  afterEach(() => {
+    if (originalCorsOrigins === undefined) {
+      delete process.env.CORS_ORIGINS;
+    } else {
+      process.env.CORS_ORIGINS = originalCorsOrigins;
+    }
+  });
+
+  test('returns CSP header and allows CORS for whitelisted origin', async () => {
+    process.env.CORS_ORIGINS = 'https://formicanera.com';
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://formicanera.com');
+
+    expect(res.headers['content-security-policy']).toBeDefined();
+    expect(res.headers['access-control-allow-origin']).toBe('https://formicanera.com');
+  });
+
+  test('rejects CORS from unknown origin', async () => {
+    process.env.CORS_ORIGINS = 'https://formicanera.com';
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://evil.com');
+
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
 
 describe('createApp', () => {
   test('returns an Express app with health endpoint', async () => {
@@ -487,7 +524,7 @@ describe('createApp', () => {
   test('GET /api/cache/export returns data with correct structure', async () => {
     const deps = createMockDeps();
     const app = createApp(deps);
-    const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent' });
+    const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [] });
 
     const response = await request(app)
       .get('/api/cache/export')
@@ -586,7 +623,7 @@ describe('cross-flow integration', () => {
         result: { customersProcessed: 10 },
       });
       const app = createApp(deps);
-      const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent' });
+      const token = await generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [] });
 
       const enqueueResponse = await request(app)
         .post('/api/operations/enqueue')

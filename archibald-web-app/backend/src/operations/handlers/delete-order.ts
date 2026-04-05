@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
+import { audit } from '../../db/repositories/audit-log';
 import { logger } from '../../logger';
 
 type DeleteOrderData = {
@@ -80,6 +81,14 @@ async function handleDeleteOrder(
   });
 
   onProgress(100, 'Ordine eliminato con successo');
+
+  void audit(pool, {
+    actorId: userId,
+    action: 'order.deleted',
+    targetType: 'order',
+    targetId: data.orderId,
+    metadata: { reason: 'manual_delete' },
+  });
 
   broadcast?.(userId, { event: 'ORDER_DELETE_COMPLETE', orderId: data.orderId });
 

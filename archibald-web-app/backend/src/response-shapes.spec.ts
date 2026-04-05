@@ -148,7 +148,7 @@ const MOCK_USER_ROW = {
 };
 
 async function makeAgentToken(): Promise<string> {
-  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent' });
+  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', modules: [] });
 }
 
 describe('response shape regression', () => {

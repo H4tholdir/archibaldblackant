@@ -5,6 +5,8 @@ import type { AuthRequest } from '../middleware/auth';
 import type { Customer, CustomerFormInput } from '../db/repositories/customers';
 import type { CustomerAddress } from '../db/repositories/customer-addresses';
 import type { OperationType } from '../operations/operation-types';
+import type { DbPool } from '../db/pool';
+import { audit } from '../db/repositories/audit-log';
 import { logger } from '../logger';
 
 const upload = multer({
@@ -31,6 +33,7 @@ type CustomerSyncMetrics = {
 };
 
 type CustomersRouterDeps = {
+  pool: DbPool;
   queue: QueueLike;
   getCustomers: (userId: string, searchQuery?: string) => Promise<Customer[]>;
   getHiddenCustomers: (userId: string) => Promise<Customer[]>;
@@ -92,7 +95,7 @@ const createCustomerSchema = z.object({
 
 function createCustomersRouter(deps: CustomersRouterDeps) {
   const {
-    queue, getCustomers, getHiddenCustomers, setCustomerHidden,
+    pool, queue, getCustomers, getHiddenCustomers, setCustomerHidden,
     getCustomerByProfile, getCustomerCount, getLastSyncTime,
     getCustomerPhoto, setCustomerPhoto, deleteCustomerPhoto,
     upsertSingleCustomer, getCustomerAddresses, updateCustomerBotStatus, updateArchibaldName,
@@ -127,6 +130,15 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       const jobId = await queue.enqueue('create-customer', userId, {
         erpId: tempProfile,
         ...formData,
+      });
+
+      void audit(pool, {
+        actorId: userId,
+        actorRole: req.user!.role,
+        action: 'customer.created',
+        targetType: 'customer',
+        targetId: tempProfile,
+        ipAddress: req.ip,
       });
 
       res.json({
@@ -286,6 +298,16 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
         erpId,
         originalName,
         ...formData,
+      });
+
+      void audit(pool, {
+        actorId: userId,
+        actorRole: req.user!.role,
+        action: 'customer.updated',
+        targetType: 'customer',
+        targetId: erpId,
+        ipAddress: req.ip,
+        metadata: { changedFields: Object.keys(formData) },
       });
 
       res.json({

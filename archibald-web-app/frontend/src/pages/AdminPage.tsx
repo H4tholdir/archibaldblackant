@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
+import { Link } from "react-router-dom";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
@@ -345,6 +346,24 @@ export function AdminPage(_props: AdminPageProps) {
   return (
     <div className="admin-page">
       <main className="admin-main">
+        <section className="admin-section">
+          <Link
+            to="/admin/access"
+            style={{
+              display: "inline-block",
+              padding: "10px 20px",
+              background: "#1976d2",
+              color: "#fff",
+              borderRadius: 8,
+              textDecoration: "none",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            Gestione accessi utenti
+          </Link>
+        </section>
+
         <section className="admin-section">
           <SyncControlPanel />
         </section>

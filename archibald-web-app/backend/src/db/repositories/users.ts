@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import type { DbPool } from '../pool';
 import type { AgentStatus } from '../../sync/activity-tracker';
 
-type UserRole = 'agent' | 'admin';
+type UserRole = 'agent' | 'admin' | 'ufficio' | 'concessionario';
 
 type User = {
   id: string;
@@ -25,6 +25,8 @@ type User = {
   extraBudgetReward: number;
   monthlyAdvance: number;
   hideCommissions: boolean;
+  modules: string[];
+  mfaEnabled: boolean;
 };
 
 type EncryptedPassword = {
@@ -55,6 +57,8 @@ type UserRow = {
   extra_budget_reward: number;
   monthly_advance: number;
   hide_commissions: boolean;
+  modules: string[] | null;
+  mfa_enabled: boolean | null;
 };
 
 type EncryptedPasswordRow = {
@@ -106,7 +110,7 @@ const USER_COLUMNS = `
   monthly_target, yearly_target, currency, target_updated_at,
   commission_rate, bonus_amount, bonus_interval,
   extra_budget_interval, extra_budget_reward, monthly_advance,
-  hide_commissions
+  hide_commissions, modules, mfa_enabled
 `;
 
 function mapRowToUser(row: UserRow): User {
@@ -131,6 +135,8 @@ function mapRowToUser(row: UserRow): User {
     extraBudgetReward: row.extra_budget_reward,
     monthlyAdvance: row.monthly_advance,
     hideCommissions: row.hide_commissions,
+    modules: row.modules ?? [],
+    mfaEnabled: row.mfa_enabled ?? false,
   };
 }
 
@@ -383,6 +389,64 @@ async function getAgentIdsByStatus(pool: DbPool, status: Extract<AgentStatus, 'a
   return result.rows.map(row => row.id);
 }
 
+type MfaSecretRow = {
+  mfa_secret_encrypted: string;
+  mfa_secret_iv: string;
+  mfa_secret_auth_tag: string;
+};
+
+type MfaRecoveryCodeRow = {
+  id: string;
+  code_hash: string;
+};
+
+async function getMfaSecret(pool: DbPool, userId: string): Promise<{ encrypted: string; iv: string; authTag: string } | null> {
+  const { rows } = await pool.query<MfaSecretRow>(
+    `SELECT mfa_secret_encrypted, mfa_secret_iv, mfa_secret_auth_tag FROM agents.users WHERE id = $1`,
+    [userId],
+  );
+  const row = rows[0];
+  if (!row?.mfa_secret_encrypted) return null;
+  return { encrypted: row.mfa_secret_encrypted, iv: row.mfa_secret_iv, authTag: row.mfa_secret_auth_tag };
+}
+
+async function saveMfaSecret(pool: DbPool, userId: string, encrypted: string, iv: string, authTag: string): Promise<void> {
+  await pool.query(
+    `UPDATE agents.users SET mfa_secret_encrypted = $1, mfa_secret_iv = $2, mfa_secret_auth_tag = $3 WHERE id = $4`,
+    [encrypted, iv, authTag, userId],
+  );
+}
+
+async function enableMfa(pool: DbPool, userId: string): Promise<void> {
+  await pool.query(`UPDATE agents.users SET mfa_enabled = TRUE WHERE id = $1`, [userId]);
+}
+
+async function saveRecoveryCodes(pool: DbPool, userId: string, hashes: string[]): Promise<void> {
+  await pool.query(`DELETE FROM agents.mfa_recovery_codes WHERE user_id = $1`, [userId]);
+  for (const hash of hashes) {
+    await pool.query(
+      `INSERT INTO agents.mfa_recovery_codes (user_id, code_hash) VALUES ($1, $2)`,
+      [userId, hash],
+    );
+  }
+}
+
+async function consumeRecoveryCode(pool: DbPool, userId: string, plainCode: string): Promise<boolean> {
+  const { rows } = await pool.query<MfaRecoveryCodeRow>(
+    `SELECT id, code_hash FROM agents.mfa_recovery_codes WHERE user_id = $1 AND used_at IS NULL`,
+    [userId],
+  );
+  const bcrypt = await import('bcryptjs');
+  for (const row of rows) {
+    const match = await bcrypt.compare(plainCode, row.code_hash);
+    if (match) {
+      await pool.query(`UPDATE agents.mfa_recovery_codes SET used_at = NOW() WHERE id = $1`, [row.id]);
+      return true;
+    }
+  }
+  return false;
+}
+
 export {
   createUser,
   getUserById,
@@ -405,6 +469,11 @@ export {
   updateLastActivity,
   getAgentIdsByStatus,
   mapRowToUser,
+  getMfaSecret,
+  saveMfaSecret,
+  enableMfa,
+  saveRecoveryCodes,
+  consumeRecoveryCode,
   type User,
   type UserRole,
   type UserRow,

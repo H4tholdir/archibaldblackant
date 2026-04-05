@@ -14,6 +14,8 @@ export interface AuthState {
   error: string | null;
   needsPinSetup: boolean;
   lastUser: { userId: string; fullName: string } | null;
+  pendingMfaToken: string | null;
+  pendingMfaSetupToken: string | null;
 }
 
 export function useAuth() {
@@ -25,6 +27,8 @@ export function useAuth() {
     error: null,
     needsPinSetup: false,
     lastUser: null,
+    pendingMfaToken: null,
+    pendingMfaSetupToken: null,
   });
 
   // Initialize: Check localStorage for existing JWT and lastUser
@@ -47,6 +51,8 @@ export function useAuth() {
               error: null,
               needsPinSetup: false,
               lastUser,
+              pendingMfaToken: null,
+              pendingMfaSetupToken: null,
             });
           } else {
             // Token invalid, clear it
@@ -80,6 +86,26 @@ export function useAuth() {
     try {
       const response = await authApi.login({ username, password });
 
+      if (response.status === 'mfa_required' && response.mfaToken) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaToken: response.mfaToken ?? null,
+        }));
+        return false;
+      }
+
+      if (response.status === 'mfa_setup_required' && response.setupToken) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaSetupToken: response.setupToken ?? null,
+        }));
+        return false;
+      }
+
       if (response.success && response.token && response.user) {
         localStorage.setItem(TOKEN_KEY, response.token);
 
@@ -106,6 +132,8 @@ export function useAuth() {
             userId: response.user.id,
             fullName: response.user.fullName,
           },
+          pendingMfaToken: null,
+          pendingMfaSetupToken: null,
         });
 
         // Start JWT auto-refresh service
@@ -149,6 +177,8 @@ export function useAuth() {
       error: null,
       needsPinSetup: false,
       lastUser: state.lastUser,
+      pendingMfaToken: null,
+      pendingMfaSetupToken: null,
     });
   };
 
@@ -196,6 +226,26 @@ export function useAuth() {
       // Use existing login API (same as manual login)
       const response = await authApi.login({ username, password });
 
+      if (response.status === 'mfa_required') {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaToken: response.mfaToken ?? null,
+        }));
+        return false;
+      }
+
+      if (response.status === 'mfa_setup_required') {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: null,
+          pendingMfaSetupToken: response.setupToken ?? null,
+        }));
+        return false;
+      }
+
       if (response.success && response.token && response.user) {
         localStorage.setItem(TOKEN_KEY, response.token);
         setState({
@@ -209,6 +259,8 @@ export function useAuth() {
             userId: response.user.id,
             fullName: response.user.fullName,
           },
+          pendingMfaToken: null,
+          pendingMfaSetupToken: null,
         });
         return true;
       } else {
@@ -252,6 +304,45 @@ export function useAuth() {
     setState((prev) => ({ ...prev, lastUser: null }));
   };
 
+  const completeMfaLogin = (
+    token: string,
+    user: authApi.User,
+    rememberCredentials: boolean = false,
+  ) => {
+    localStorage.setItem(TOKEN_KEY, token);
+
+    if (rememberCredentials) {
+      const lastUserData = {
+        userId: user.id,
+        fullName: user.fullName,
+        rememberCredentials,
+      };
+      localStorage.setItem(LAST_USER_KEY, JSON.stringify(lastUserData));
+    }
+
+    setState({
+      isAuthenticated: true,
+      user,
+      token,
+      isLoading: false,
+      error: null,
+      needsPinSetup: rememberCredentials,
+      lastUser: { userId: user.id, fullName: user.fullName },
+      pendingMfaToken: null,
+      pendingMfaSetupToken: null,
+    });
+
+    jwtRefreshService.start();
+  };
+
+  const cancelMfa = () => {
+    setState((prev) => ({ ...prev, pendingMfaToken: null, error: null }));
+  };
+
+  const cancelMfaSetup = () => {
+    setState((prev) => ({ ...prev, pendingMfaSetupToken: null, error: null }));
+  };
+
   return {
     ...state,
     login,
@@ -261,5 +352,8 @@ export function useAuth() {
     unlockWithPin,
     clearLastUser,
     switchAccount,
+    completeMfaLogin,
+    cancelMfa,
+    cancelMfaSetup,
   };
 }

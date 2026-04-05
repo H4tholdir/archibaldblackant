@@ -49,6 +49,9 @@ export const config = {
     baseUrl: process.env.SHARE_BASE_URL || "http://localhost:3000",
     pdfTtlMs: 24 * 60 * 60 * 1000,
   },
+  security: {
+    alertEmail: process.env.SECURITY_ALERT_EMAIL || '',
+  },
   smtp: {
     host: process.env.SMTP_HOST || "",
     port: parseInt(process.env.SMTP_PORT || "587", 10),

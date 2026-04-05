@@ -47,7 +47,9 @@ function mapRowToState(row: CircuitBreakerRow): CircuitBreakerState {
   };
 }
 
-function createCircuitBreaker(pool: DbPool) {
+type OnAlertFn = (event: string, details: Record<string, unknown>) => void;
+
+function createCircuitBreaker(pool: DbPool, onAlert?: OnAlertFn) {
   return {
     async isPaused(userId: string, syncType: string): Promise<boolean> {
       const { rows } = await pool.query<{ paused_until: string | null }>(
@@ -64,7 +66,11 @@ function createCircuitBreaker(pool: DbPool) {
     },
 
     async recordFailure(userId: string, syncType: string, error: string): Promise<void> {
-      await pool.query(
+      const { rows } = await pool.query<{
+        consecutive_failures: number;
+        total_failures_24h: number;
+        paused_until: string | null;
+      }>(
         `INSERT INTO system.circuit_breaker (user_id, sync_type, consecutive_failures, total_failures_24h, last_failure_at, last_error, paused_until, updated_at)
          VALUES ($1, $2, 1, 1, NOW(), $3,
            CASE WHEN 1 >= ${CONSECUTIVE_THRESHOLD} THEN NOW() + INTERVAL '${PAUSE_DURATION_MS / 1000} seconds'
@@ -82,9 +88,20 @@ function createCircuitBreaker(pool: DbPool) {
              WHEN system.circuit_breaker.consecutive_failures + 1 >= ${CONSECUTIVE_THRESHOLD}
                THEN NOW() + INTERVAL '${PAUSE_DURATION_MS / 1000} seconds'
              ELSE system.circuit_breaker.paused_until END,
-           updated_at = NOW()`,
+           updated_at = NOW()
+         RETURNING consecutive_failures, total_failures_24h, paused_until`,
         [userId, syncType, error],
       );
+
+      if (onAlert && rows.length > 0 && rows[0].paused_until) {
+        onAlert('circuit_breaker_triggered', {
+          userId,
+          syncType,
+          consecutiveFailures: rows[0].consecutive_failures,
+          totalFailures24h: rows[0].total_failures_24h,
+          pausedUntil: rows[0].paused_until,
+        });
+      }
     },
 
     async recordSuccess(userId: string, syncType: string): Promise<void> {
@@ -151,4 +168,4 @@ export {
   PAUSE_DURATION_MS,
   DAILY_PAUSE_DURATION_MS,
 };
-export type { CircuitBreakerState, CircuitBreakerRow, CircuitBreaker };
+export type { CircuitBreakerState, CircuitBreakerRow, CircuitBreaker, OnAlertFn };

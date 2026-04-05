@@ -50,7 +50,7 @@ function createApp(deps: AuthRouterDeps) {
 }
 
 async function createAuthToken() {
-  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1' });
+  return generateJWT({ userId: 'user-1', username: 'agent1', role: 'agent', deviceId: 'dev-1', modules: [] });
 }
 
 describe('createAuthRouter', () => {
@@ -244,6 +244,125 @@ describe('createAuthRouter', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/auth/mfa-setup', () => {
+    function depsWithMfaSetup(): AuthRouterDeps {
+      return {
+        ...createMockDeps(),
+        verifyMfaToken: vi.fn().mockResolvedValue({ userId: 'user-1' }),
+        encryptSecret: vi.fn().mockResolvedValue({ ciphertext: 'ct', iv: 'iv', authTag: 'at' }),
+        saveMfaSecret: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    test('response contains otpauth uri but NOT secret', async () => {
+      const d = depsWithMfaSetup();
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/mfa-setup')
+        .set('Authorization', 'Bearer valid-mfa-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { uri: expect.stringMatching(/^otpauth:\/\/totp\//) },
+      });
+    });
+
+    test('returns 429 with success:false after 5 requests within the rate limit window', async () => {
+      const d = depsWithMfaSetup();
+      const app = createApp(d);
+
+      for (let i = 0; i < 5; i++) {
+        await request(app)
+          .post('/api/auth/mfa-setup')
+          .set('Authorization', 'Bearer valid-mfa-token');
+      }
+
+      const res = await request(app)
+        .post('/api/auth/mfa-setup')
+        .set('Authorization', 'Bearer valid-mfa-token');
+
+      expect(res.status).toBe(429);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
+    });
+  });
+
+  describe('POST /api/auth/login — MFA enforcement', () => {
+    const adminNoMfa = { id: 'u-admin', username: 'adminuser', fullName: 'Admin', role: 'admin', whitelisted: true, mfaEnabled: false, modules: [] };
+    const adminWithMfa = { ...adminNoMfa, mfaEnabled: true };
+    const agentNoMfa = { id: 'u-agent', username: 'agentuser', fullName: 'Agent', role: 'agent', whitelisted: true, mfaEnabled: false, modules: [] };
+    const agentWithMfa = { ...agentNoMfa, mfaEnabled: true };
+
+    function depsWithMfa(): AuthRouterDeps {
+      return {
+        ...createMockDeps(),
+        generateMfaToken: vi.fn().mockResolvedValue('mfa-token-abc'),
+        verifyMfaToken: vi.fn().mockResolvedValue(null),
+      };
+    }
+
+    test('admin senza MFA abilitato riceve mfa_setup_required', async () => {
+      const d = depsWithMfa();
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(adminNoMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'adminuser', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, status: 'mfa_setup_required', setupToken: 'mfa-token-abc' });
+    });
+
+    test('admin con MFA abilitato riceve mfa_required', async () => {
+      const d = depsWithMfa();
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(adminWithMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'adminuser', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, status: 'mfa_required', mfaToken: 'mfa-token-abc' });
+    });
+
+    test('agent con MFA disabilitato riceve JWT direttamente', async () => {
+      const d = depsWithMfa();
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(agentNoMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agentuser', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.token).toBe('jwt-token-123');
+      expect(res.body.status).toBeUndefined();
+    });
+
+    test('agent con MFA abilitato riceve mfa_required', async () => {
+      const d = depsWithMfa();
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(agentWithMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agentuser', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, status: 'mfa_required', mfaToken: 'mfa-token-abc' });
+    });
+
+    test('admin senza generateMfaToken configurato riceve 503', async () => {
+      const d = createMockDeps();
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(adminNoMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'adminuser', password: 'pass123' });
+
+      expect(res.status).toBe(503);
     });
   });
 });

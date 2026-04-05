@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
-import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments } from './notification-scheduler';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments, checkRetentionPolicy } from './notification-scheduler';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import type { DbPool } from '../db/pool';
 
@@ -269,6 +269,75 @@ describe('checkMissingOrderDocuments', () => {
     const count = await checkMissingOrderDocuments(pool, deps);
 
     expect(count).toBe(0);
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkRetentionPolicy', () => {
+  const sunday = new Date('2026-04-05T03:00:00Z'); // Sunday UTC
+  const monday = new Date('2026-04-06T03:00:00Z'); // Monday UTC
+
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  function makeRetentionPool(usersRows: unknown[], inactiveRows: unknown[]): DbPool {
+    return {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: usersRows })   // users query
+        .mockResolvedValueOnce({ rows: inactiveRows }), // getInactiveCustomers query
+      withTransaction: vi.fn(),
+      end: vi.fn(),
+      getStats: vi.fn(),
+    } as unknown as DbPool;
+  }
+
+  test('does not query DB when not Sunday', async () => {
+    vi.setSystemTime(monday);
+    const pool = makePool([]);
+    const deps = makeDeps(pool);
+
+    await checkRetentionPolicy(pool, deps);
+
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+
+  test('creates warning notification for user with inactive customers on Sunday', async () => {
+    vi.setSystemTime(sunday);
+    const inactiveRow = { customer_profile: 'cp-1', name: 'Test Client', last_activity_at: new Date('2024-01-01') };
+    const pool = makeRetentionPool([{ id: 'U1' }], [inactiveRow]);
+    const deps = makeDeps(pool);
+
+    await checkRetentionPolicy(pool, deps);
+
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'customer_inactive_retention',
+        severity: 'warning',
+        data: { count: 1, customerProfiles: ['cp-1'] },
+      }),
+    );
+  });
+
+  test('skips notification when user has no inactive customers on Sunday', async () => {
+    vi.setSystemTime(sunday);
+    const pool = makeRetentionPool([{ id: 'U1' }], []);
+    const deps = makeDeps(pool);
+
+    await checkRetentionPolicy(pool, deps);
+
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+
+  test('sends no notifications when no users found on Sunday', async () => {
+    vi.setSystemTime(sunday);
+    const pool = makeRetentionPool([], []);
+    const deps = makeDeps(pool);
+
+    await checkRetentionPolicy(pool, deps);
+
     expect(deps.insertNotification).not.toHaveBeenCalled();
   });
 });

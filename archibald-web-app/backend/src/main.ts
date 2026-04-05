@@ -58,6 +58,7 @@ import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
+import { createRedisClient } from './db/redis-client';
 import { PasswordCache } from './password-cache';
 import { passwordEncryption } from './services/password-encryption-service';
 import { getEncryptedPassword } from './db/repositories/users';
@@ -69,6 +70,8 @@ import { PDFParserProductsService } from './pdf-parser-products-service';
 import { pdfParserService } from './pdf-parser-service';
 import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from './parser-adapters';
 import { createApp } from './server';
+import { createSecurityAlertService } from './services/security-alert-service';
+import type { SecurityAlertEvent } from './services/security-alert-service';
 import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
 import { retryOnSessionExpired } from './utils/retry-on-session-expired';
@@ -94,12 +97,16 @@ async function bootstrap(): Promise<void> {
     skipped: migrationResult.skipped.length,
   });
 
+  const securityAlertService = createSecurityAlertService(pool);
+
   const agentLock = createAgentLock();
 
   const redisConfig = {
     host: process.env.REDIS_HOST ?? 'localhost',
     port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
   };
+
+  const sharedRedisClient = createRedisClient();
 
   const allQueues = Object.fromEntries(
     QUEUE_NAMES.map(name => [
@@ -259,7 +266,9 @@ async function bootstrap(): Promise<void> {
     refreshAgentActivityCache().catch(err => logger.warn('Agent activity cache refresh failed', { error: String(err) }));
   }, 5 * 60 * 1000);
 
-  const circuitBreaker = createCircuitBreaker(pool);
+  const circuitBreaker = createCircuitBreaker(pool, (event, details) => {
+    securityAlertService.send(event as SecurityAlertEvent, details);
+  });
 
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
@@ -426,6 +435,8 @@ async function bootstrap(): Promise<void> {
       );
     },
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
+    redis: sharedRedisClient,
+    sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
   });
 
   const server = http.createServer(app);

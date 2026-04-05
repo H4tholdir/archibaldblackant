@@ -383,4 +383,246 @@ describe('createAdminRouter', () => {
       expect(response.body.success).toBe(false);
     });
   });
+
+  describe('PATCH /api/admin/users/:id', () => {
+    beforeEach(() => {
+      deps.pool = { query: vi.fn().mockResolvedValue({ rows: [] }) } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns 403 when admin tries to change their own role', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ role: 'agent' });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: 'Non puoi modificare il tuo stesso ruolo' });
+    });
+
+    test('allows admin to change their own whitelisted field (not a role change)', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ whitelisted: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('allows admin to change their own modules field (not a role change)', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/admin-1')
+        .send({ modules: ['warehouse'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('allows admin to change another user role', async () => {
+      const res = await request(app)
+        .patch('/api/admin/users/u1')
+        .send({ role: 'ufficio' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('GET /api/admin/audit-log', () => {
+    const mockAuditRows = [
+      {
+        id: 1,
+        occurred_at: '2026-04-01T10:00:00Z',
+        actor_id: 'u1',
+        actor_role: 'admin',
+        action: 'auth.login_success',
+        target_type: null,
+        target_id: null,
+        ip_address: '1.2.3.4',
+        metadata: null,
+      },
+    ];
+
+    beforeEach(() => {
+      deps.pool = {
+        query: vi.fn().mockImplementation((sql: string) =>
+          Promise.resolve(
+            (sql as string).includes('COUNT')
+              ? { rows: [{ total: String(mockAuditRows.length) }] }
+              : { rows: mockAuditRows },
+          ),
+        ),
+      } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns audit log entries without filters', async () => {
+      const res = await request(app).get('/api/admin/audit-log');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: mockAuditRows, page: 1, total: mockAuditRows.length });
+    });
+
+    test('filters by action and passes it as SQL param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?action=auth.login_success');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const querySpy = deps.pool.query as ReturnType<typeof vi.fn>;
+      const callArgs = querySpy.mock.calls[0];
+      expect(callArgs[1]).toContain('auth.login_success');
+    });
+
+    test('returns page 1 for invalid page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=abc');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(1);
+    });
+
+    test('returns page 1 for negative page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=-5');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(1);
+    });
+
+    test('returns correct page number for valid page param', async () => {
+      const res = await request(app).get('/api/admin/audit-log?page=3');
+
+      expect(res.status).toBe(200);
+      expect(res.body.page).toBe(3);
+    });
+
+    test('returns 500 when pool query fails', async () => {
+      (deps.pool.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/api/admin/audit-log');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/admin/customers/:id/export', () => {
+    const customerId = 'cust-profile-42';
+
+    beforeEach(() => {
+      deps.pool = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+      } as unknown as AdminRouterDeps['pool'];
+      app = createApp(deps);
+    });
+
+    test('returns 200 with success and data structure', async () => {
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          customer: null,
+          orders: [],
+          orderArticles: [],
+          subClients: [],
+        },
+      });
+    });
+
+    test('sets Content-Disposition header containing the customer id', async () => {
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toContain(customerId);
+    });
+
+    test('returns 500 when pool query fails', async () => {
+      (deps.pool.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get(`/api/admin/customers/${customerId}/export`);
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
+    });
+  });
+
+  describe('POST /api/admin/customers/:id/gdpr-erase', () => {
+    const customerId = 'cust-profile-1';
+    const validReason = 'Richiesta cancellazione GDPR da parte del cliente';
+
+    function makeGdprPool(activeOrderCount: string) {
+      return {
+        query: vi.fn().mockResolvedValue({ rows: [{ count: activeOrderCount }] }),
+        withTransaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) =>
+          fn({ query: vi.fn().mockResolvedValue({ rows: [] }) }),
+        ),
+      } as unknown as AdminRouterDeps['pool'];
+    }
+
+    test('returns 400 when reason is missing', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when reason is too short', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: 'short' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 409 when customer has active orders', async () => {
+      deps.pool = makeGdprPool('2');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ success: false, error: expect.any(String) });
+    });
+
+    test('returns 200 with erasure summary when no active orders', async () => {
+      deps.pool = makeGdprPool('0');
+      app = createApp(deps);
+
+      const res = await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          customerId,
+          erasedAt: expect.any(String),
+          fieldsErased: expect.arrayContaining(['name', 'email', 'fiscal_code']),
+          retainedFor: 'fiscal_obligation_10y',
+          reason: validReason,
+        },
+      });
+    });
+
+    test('calls withTransaction to erase personal data', async () => {
+      const pool = makeGdprPool('0');
+      deps.pool = pool;
+      app = createApp(deps);
+
+      await request(app)
+        .post(`/api/admin/customers/${customerId}/gdpr-erase`)
+        .send({ reason: validReason });
+
+      expect(pool.withTransaction).toHaveBeenCalledOnce();
+    });
+  });
 });

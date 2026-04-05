@@ -1,4 +1,5 @@
 import * as jose from "jose";
+import { randomUUID } from "crypto";
 import { logger } from "./logger";
 import type { UserRole } from "./db/repositories/users";
 
@@ -16,10 +17,14 @@ export interface JWTPayload {
   isImpersonating?: boolean;
   realAdminId?: string;
   adminSessionId?: number;
+  modules: string[];
+  jti: string;
+  exp?: number;
 }
 
-export async function generateJWT(payload: JWTPayload): Promise<string> {
-  const jwt = await new jose.SignJWT({ ...payload })
+export async function generateJWT(payload: Omit<JWTPayload, 'jti'>): Promise<string> {
+  const jti = randomUUID();
+  const jwt = await new jose.SignJWT({ ...payload, jti })
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime(JWT_EXPIRY)
@@ -38,6 +43,9 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
       isImpersonating: payload.isImpersonating as boolean | undefined,
       realAdminId: payload.realAdminId as string | undefined,
       adminSessionId: payload.adminSessionId as number | undefined,
+      modules: (payload.modules as string[]) || [],
+      jti: payload.jti as string,
+      exp: payload.exp as number | undefined,
     };
   } catch (error) {
     logger.warn("JWT verification failed", { error });

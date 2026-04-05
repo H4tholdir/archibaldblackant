@@ -7,9 +7,15 @@ import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
 import type { SyncScheduler } from './sync/sync-scheduler';
 import type { WebSocketServerModule } from './realtime/websocket-server';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import * as jose from 'jose';
 import type { JWTPayload } from './auth-utils';
+import { verifyJWT } from './auth-utils';
 import { requireAdmin, createAuthMiddleware } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
+import type { RedisClient } from './db/redis-client';
+import type { SecurityAlertEvent } from './services/security-alert-service';
+import { revokeToken as revokeTokenFn } from './db/redis-client';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
 import { createCustomersRouter } from './routes/customers';
@@ -98,6 +104,7 @@ import { PassThrough } from 'stream';
 import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { passwordEncryption } from './services/password-encryption-service';
+import { audit } from './db/repositories/audit-log';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -120,7 +127,7 @@ type AppDeps = {
   wsServer: WebSocketServerModule;
   passwordCache: PasswordCacheLike;
   pdfStore: PdfStoreLike;
-  generateJWT: (payload: JWTPayload) => Promise<string>;
+  generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
   verifyToken: (token: string) => Promise<{ userId: string } | null>;
   sendEmail: (to: string, subject: string, body: string, fileBuffer: Buffer, fileName: string) => Promise<{ messageId: string }>;
   uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;
@@ -130,6 +137,8 @@ type AppDeps = {
   onJobEvent?: (userId: string, callback: (event: JobEvent) => void) => () => void;
   onLoginSuccess?: (userId: string) => void;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
+  redis?: RedisClient;
+  sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -139,7 +148,7 @@ function createApp(deps: AppDeps): Express {
     sendEmail, uploadToDropbox,
   } = deps;
 
-  const authenticate = createAuthMiddleware(pool);
+  const authenticate = createAuthMiddleware(pool, deps.redis);
 
   const effectiveCreateTestBot = deps.createTestBot ?? (async () => {
     const bot = new ArchibaldBot();
@@ -151,9 +160,40 @@ function createApp(deps: AppDeps): Express {
   });
 
   const app = express();
+  app.set('trust proxy', 1); // trust first proxy (nginx)
 
-  app.use(cors());
-  app.use(helmet({ contentSecurityPolicy: false }));
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, false); // server-to-server: no CORS header needed
+      } else if (allowedOrigins.includes(origin)) {
+        callback(null, origin); // reflect whitelisted origin
+      } else {
+        callback(null, false); // block unknown origins
+      }
+    },
+    credentials: true,
+  }));
+
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // required: React uses inline styles throughout the app
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", 'wss:'],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+      },
+    },
+  }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
@@ -320,6 +360,7 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/auth', createAuthRouter({
     pool,
+    redis: deps.redis,
     getUserByUsername: (username) => usersRepo.getUserByUsername(pool, username),
     getUserById: (userId) => usersRepo.getUserById(pool, userId),
     updateLastLogin: (userId) => usersRepo.updateLastLogin(pool, userId),
@@ -336,6 +377,47 @@ function createApp(deps: AppDeps): Express {
     registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
     onLoginSuccess: deps.onLoginSuccess,
+    revokeToken: deps.redis
+      ? (jti, ttl) => revokeTokenFn(deps.redis!, jti, ttl)
+      : undefined,
+    getMfaSecret: async (userId) => {
+      const result = await usersRepo.getMfaSecret(pool, userId);
+      if (!result) return null;
+      return { ciphertext: result.encrypted, iv: result.iv, authTag: result.authTag };
+    },
+    saveMfaSecret: (userId, ciphertext, iv, authTag) =>
+      usersRepo.saveMfaSecret(pool, userId, ciphertext, iv, authTag),
+    enableMfa: (userId) => usersRepo.enableMfa(pool, userId),
+    saveRecoveryCodes: (userId, hashes) => usersRepo.saveRecoveryCodes(pool, userId, hashes),
+    consumeRecoveryCode: (userId, code) => usersRepo.consumeRecoveryCode(pool, userId, code),
+    encryptSecret: async (plainSecret) => {
+      const keyBuf = createHash('sha256').update(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production').digest();
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', keyBuf, iv);
+      const ciphertext = Buffer.concat([cipher.update(plainSecret, 'utf8'), cipher.final()]);
+      const authTag = cipher.getAuthTag();
+      return { ciphertext: ciphertext.toString('hex'), iv: iv.toString('hex'), authTag: authTag.toString('hex') };
+    },
+    decryptSecret: async (ciphertextHex, ivHex, authTagHex) => {
+      const keyBuf = createHash('sha256').update(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production').digest();
+      const decipher = createDecipheriv('aes-256-gcm', keyBuf, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+      return Buffer.concat([decipher.update(Buffer.from(ciphertextHex, 'hex')), decipher.final()]).toString('utf8');
+    },
+    generateMfaToken: async (userId) => {
+      const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-key-change-in-production');
+      return new jose.SignJWT({ userId, purpose: 'mfa' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(jwtSecret);
+    },
+    verifyMfaToken: async (token) => {
+      const payload = await verifyJWT(token);
+      if (!payload || (payload as unknown as { purpose?: string }).purpose !== 'mfa') return null;
+      return { userId: payload.userId };
+    },
+    sendSecurityAlert: deps.sendSecurityAlert,
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
@@ -344,6 +426,7 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/reminders', authenticate, createRemindersRouter({ pool }));
 
   app.use('/api/customers', authenticate, createCustomersRouter({
+    pool,
     queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
     getHiddenCustomers: (userId) => customersRepo.getHiddenCustomers(pool, userId),
@@ -523,6 +606,7 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/orders', authenticate, createOrdersRouter({
+    pool,
     queue,
     getOrdersByUser: (userId, options) => ordersRepo.getOrdersByUser(pool, userId, options),
     countOrders: (userId, options) => ordersRepo.countOrders(pool, userId, options),
@@ -545,6 +629,7 @@ function createApp(deps: AppDeps): Express {
     upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
     deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
+    audit: (event) => void audit(pool, event),
   }));
 
   app.use('/api/warehouse', authenticate, createWarehouseRouter({

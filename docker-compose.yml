@@ -21,11 +21,14 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      # Security: restrict CORS to known frontend origins (comma-separated)
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://formicanera.com}
+      # Security: email address that receives mailto security alert links
+      - SECURITY_ALERT_EMAIL=${SECURITY_ALERT_EMAIL}
     volumes:
-      - ./data:/app/data  # Persist SQLite databases
       - ./logs:/app/logs  # Persist logs
     depends_on:
       redis:
@@ -38,13 +41,13 @@ services:
     image: redis:7-alpine
     container_name: archibald-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis-data:/data  # Persist Redis AOF
     networks:
       - archibald-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -71,6 +74,29 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # PostgreSQL Backup to Hetzner Object Storage (run manually or via cron)
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: archibald-backup
+    restart: 'no'
+    env_file:
+      - .env
+    environment:
+      - PG_HOST=${PG_HOST}
+      - PG_USER=${PG_USER:-archibald}
+      - PG_DATABASE=${PG_DATABASE:-archibald}
+      - PG_PASSWORD=${PG_PASSWORD}
+      - HETZNER_S3_ENDPOINT=${HETZNER_S3_ENDPOINT}
+      - HETZNER_BUCKET=${HETZNER_BUCKET}
+      - HETZNER_ACCESS_KEY=${HETZNER_ACCESS_KEY}
+      - HETZNER_SECRET_KEY=${HETZNER_SECRET_KEY}
+    networks:
+      - archibald-net
+    profiles:
+      - backup
 
 volumes:
   redis-data:

@@ -105,6 +105,11 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
           onChange={editing ? (e) => onFieldChange?.("NOTE", e.target.value) : undefined}
           style={{ ...ARCA_FONT, width: "100%", minHeight: "120px", border: "2px inset #808080",
             backgroundColor: editing ? "#FFFFFF" : "#F0F0F0", padding: "4px 6px", boxSizing: "border-box", resize: "vertical", marginTop: "4px" }} />
+        {editing && (
+          <small style={{ color: "#888", fontSize: 11, display: "block", marginTop: 4 }}>
+            Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.
+          </small>
+        )}
       </div>
     </div>
   );

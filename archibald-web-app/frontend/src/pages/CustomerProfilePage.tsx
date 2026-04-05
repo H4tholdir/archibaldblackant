@@ -788,6 +788,7 @@ export function CustomerProfilePage() {
                   {(pendingEdits.notes ?? customer.notes) || <span style={{ color: '#94a3b8' }}>Nessuna nota</span>}
                 </div>
               )}
+              <small style={{ color: '#888', fontSize: 11, display: 'block', marginTop: 4 }}>Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.</small>
             </SectionCard>
 
             {/* 7. Note interne agente */}
@@ -830,6 +831,7 @@ export function CustomerProfilePage() {
                   {customer.agentNotes || <span style={{ color: '#94a3b8' }}>Clicca per aggiungere una nota interna...</span>}
                 </div>
               )}
+              <small style={{ color: '#888', fontSize: 11, display: 'block', marginTop: 4 }}>Non inserire dati sanitari, referenze mediche o informazioni personali di terzi.</small>
             </SectionCard>
 
             {/* 8. Indirizzi alternativi */}

@@ -6,6 +6,8 @@ import type { Order, OrderArticle, StateHistory, OrderFilterOptions, OrderNumber
 import type { OrderVerificationSnapshot } from '../db/repositories/order-verification';
 import type { OperationType } from '../operations/operation-types';
 import type { Customer } from '../db/repositories/customers';
+import type { DbPool } from '../db/pool';
+import { audit } from '../db/repositories/audit-log';
 import { logger } from '../logger';
 
 type LastSaleEntry = {
@@ -33,6 +35,7 @@ type QueueLike = {
 };
 
 type OrdersRouterDeps = {
+  pool: DbPool;
   queue: QueueLike;
   getOrdersByUser: (userId: string, options?: OrderFilterOptions) => Promise<Order[]>;
   countOrders: (userId: string, options?: OrderFilterOptions) => Promise<number>;
@@ -303,6 +306,16 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       }
 
       const jobId = await queue.enqueue('send-to-verona', userId, { orderId });
+
+      void audit(deps.pool, {
+        actorId: userId,
+        actorRole: req.user!.role,
+        action: 'order.sent_to_verona',
+        targetType: 'order',
+        targetId: orderId,
+        ipAddress: req.ip,
+      });
+
       res.json({ success: true, jobId });
     } catch (error) {
       logger.error('Error enqueuing send-to-verona', { error });
@@ -401,6 +414,17 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
       }
 
       const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds });
+
+      void audit(deps.pool, {
+        actorId: userId,
+        actorRole: req.user!.role,
+        action: 'order.batch_sent_to_verona',
+        targetType: 'order',
+        targetId: (orderIds as string[]).join(','),
+        ipAddress: req.ip,
+        metadata: { orderIds },
+      });
+
       res.json({ success: true, jobId });
     } catch (error) {
       logger.error('Error enqueuing batch-send-to-verona', { error });

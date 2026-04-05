@@ -35,6 +35,7 @@ function createMockDeps(): PendingOrdersRouterDeps {
     upsertPendingOrder: vi.fn().mockResolvedValue(upsertResult),
     deletePendingOrder: vi.fn().mockResolvedValue(true),
     broadcast: vi.fn(),
+    audit: vi.fn(),
   };
 }
 
@@ -195,6 +196,43 @@ describe('createPendingOrdersRouter', () => {
         .send({ orders: [validOrder] });
 
       expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    test('calls audit with order.created when action is created', async () => {
+      await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(deps.audit).toHaveBeenCalledWith({
+        actorId: 'user-1',
+        actorRole: 'agent',
+        action: 'order.created',
+        targetType: 'order',
+        targetId: 'po-1',
+        ipAddress: expect.any(String),
+      });
+    });
+
+    test('does not call audit when action is updated', async () => {
+      (deps.upsertPendingOrder as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'po-1', action: 'updated', serverUpdatedAt: 1708300200,
+      });
+
+      await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(deps.audit).not.toHaveBeenCalled();
+    });
+
+    test('does not call audit when upsert fails', async () => {
+      (deps.upsertPendingOrder as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db error'));
+
+      await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(deps.audit).not.toHaveBeenCalled();
     });
   });
 
