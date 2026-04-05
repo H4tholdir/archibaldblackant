@@ -185,12 +185,15 @@ describe('ToolRecognitionPage — Stato 3A (match)', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
     await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
     await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
-    await waitFor(() => screen.getByRole('button', { name: /Apri scheda prodotto/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Apri scheda prodotto/i })).toBeInTheDocument()
+    )
     await userEvent.click(screen.getByRole('button', { name: /Apri scheda prodotto/i }))
 
+    if (MATCH_RESPONSE.result.state !== 'match') throw new Error('Test setup error')
     expect(feedbackSpy).toHaveBeenCalledWith(TOKEN, {
-      imageHash: 'abc123',
-      productId: 'H1.314.016',
+      imageHash: MATCH_RESPONSE.imageHash,
+      productId: MATCH_RESPONSE.result.product.productId,
       confirmedByUser: true,
     })
   })

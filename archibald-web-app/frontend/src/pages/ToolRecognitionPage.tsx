@@ -1,5 +1,6 @@
 // archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx
 import { useState, useEffect, useRef, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -20,7 +21,7 @@ type PageState =
   | 'budget_exhausted'
 
 function Viewfinder() {
-  const cornerBase: React.CSSProperties = {
+  const cornerBase: CSSProperties = {
     position: 'absolute',
     width: 20,
     height: 20,
@@ -292,7 +293,6 @@ export function ToolRecognitionPage() {
     )
   }
 
-  // ── Stato 3A: Match ──
   if (pageState === 'match' && identifyResult?.result.state === 'match') {
     const { product, confidence } = identifyResult.result
     const { imageHash, broadCandidates } = identifyResult
@@ -423,7 +423,6 @@ export function ToolRecognitionPage() {
     )
   }
 
-  // ── Stato 3B: Shortlist ──
   if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist') {
     const { candidates, extractedFeatures } = identifyResult.result
     const maxSize = Math.max(...candidates.map(c => c.headSizeMm))
@@ -495,7 +494,6 @@ export function ToolRecognitionPage() {
     )
   }
 
-  // ── Stato 3C: Filter Needed ──
   if (pageState === 'filter_needed' && identifyResult?.result.state === 'filter_needed') {
     const { question, extractedFeatures } = identifyResult.result
 
