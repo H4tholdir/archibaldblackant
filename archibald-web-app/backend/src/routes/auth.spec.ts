@@ -304,7 +304,7 @@ describe('createAuthRouter', () => {
       };
     }
 
-    test('admin senza MFA abilitato riceve mfa_setup_required', async () => {
+    test('admin senza MFA abilitato riceve JWT direttamente (no enforcement finché frontend non supporta MFA setup)', async () => {
       const d = depsWithMfa();
       (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(adminNoMfa);
       const app = createApp(d);
@@ -313,7 +313,9 @@ describe('createAuthRouter', () => {
         .send({ username: 'adminuser', password: 'pass123' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, status: 'mfa_setup_required', setupToken: 'mfa-token-abc' });
+      expect(res.body.success).toBe(true);
+      expect(res.body.token).toBe('jwt-token-123');
+      expect(res.body.status).toBeUndefined();
     });
 
     test('admin con MFA abilitato riceve mfa_required', async () => {
@@ -354,7 +356,7 @@ describe('createAuthRouter', () => {
       expect(res.body).toEqual({ success: true, status: 'mfa_required', mfaToken: 'mfa-token-abc' });
     });
 
-    test('admin senza generateMfaToken configurato riceve 503', async () => {
+    test('admin senza generateMfaToken configurato e mfaEnabled=false riceve JWT direttamente', async () => {
       const d = createMockDeps();
       (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(adminNoMfa);
       const app = createApp(d);
@@ -362,7 +364,9 @@ describe('createAuthRouter', () => {
         .post('/api/auth/login')
         .send({ username: 'adminuser', password: 'pass123' });
 
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.token).toBe('jwt-token-123');
     });
   });
 });
