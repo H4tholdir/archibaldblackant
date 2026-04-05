@@ -49,6 +49,8 @@ type AuthRouterDeps = {
   decryptSecret?: (ciphertext: string, iv: string, authTag: string) => Promise<string>;
   generateMfaToken?: (userId: string) => Promise<string>;
   verifyMfaToken?: (token: string) => Promise<{ userId: string } | null>;
+  verifyTrustToken?: (userId: string, deviceId: string, rawToken: string) => Promise<boolean>;
+  createTrustToken?: (userId: string, deviceId: string) => Promise<string>;
 };
 
 const loginSchema = z.object({
@@ -57,6 +59,7 @@ const loginSchema = z.object({
   deviceId: z.string().optional(),
   platform: z.string().optional(),
   deviceName: z.string().optional(),
+  trustToken: z.string().optional(),
 });
 
 function createAuthRouter(deps: AuthRouterDeps) {
@@ -181,6 +184,32 @@ function createAuthRouter(deps: AuthRouterDeps) {
 
       if (deps.onLoginSuccess) {
         Promise.resolve(deps.onLoginSuccess(user.id)).catch(() => {});
+      }
+
+      if (user.mfaEnabled && parsed.data.trustToken && parsed.data.deviceId && deps.verifyTrustToken) {
+        const trusted = await deps.verifyTrustToken(user.id, parsed.data.deviceId, parsed.data.trustToken);
+        if (trusted) {
+          const token = await generateJWT({
+            userId: user.id,
+            username: user.username,
+            role: user.role as UserRole,
+            deviceId: parsed.data.deviceId,
+            modules: user.modules,
+          });
+          void audit(deps.pool, {
+            actorId: user.id,
+            actorRole: user.role,
+            action: 'auth.login_success',
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { via: 'device_trust' },
+          });
+          return res.json({
+            success: true,
+            token,
+            user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role },
+          });
+        }
       }
 
       if (user.mfaEnabled) {
@@ -400,6 +429,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
     const parsed = z.object({
       mfaToken: z.string(),
       code: z.string().min(6).max(16),
+      rememberDevice: z.boolean().optional(),
+      deviceId: z.string().optional(),
     }).safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: 'Formato richiesta non valido' });
@@ -423,7 +454,16 @@ function createAuthRouter(deps: AuthRouterDeps) {
     }
     void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_success', ipAddress: req.ip });
     const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, modules: user.modules });
-    res.json({ success: true, token, user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role } });
+    let trustToken: string | undefined;
+    if (parsed.data.rememberDevice && parsed.data.deviceId && deps.createTrustToken) {
+      trustToken = await deps.createTrustToken(user.id, parsed.data.deviceId);
+    }
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role },
+      ...(trustToken ? { trustToken } : {}),
+    });
   });
 
   return router;

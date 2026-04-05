@@ -419,4 +419,57 @@ describe('createAuthRouter', () => {
       expect(res.body.token).toBe('jwt-token-123');
     });
   });
+
+  describe('POST /api/auth/login — device trust', () => {
+    const userWithMfa = {
+      id: 'user-mfa', username: 'mfauser', fullName: 'MFA User', role: 'agent',
+      whitelisted: true, mfaEnabled: true, modules: [],
+    };
+
+    function depsWithDeviceTrust(trustValid: boolean): AuthRouterDeps {
+      return {
+        ...createMockDeps(),
+        generateMfaToken: vi.fn().mockResolvedValue('mfa-token-abc'),
+        verifyTrustToken: vi.fn().mockResolvedValue(trustValid),
+      };
+    }
+
+    test('user con mfaEnabled=true e trustToken valido riceve JWT direttamente', async () => {
+      const d = depsWithDeviceTrust(true);
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(userWithMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'mfauser', password: 'pass123', deviceId: 'dev-abc', trustToken: 'raw-token-hex' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.token).toBe('jwt-token-123');
+      expect(res.body.status).toBeUndefined();
+    });
+
+    test('user con mfaEnabled=true e trustToken non valido riceve mfa_required', async () => {
+      const d = depsWithDeviceTrust(false);
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(userWithMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'mfauser', password: 'pass123', deviceId: 'dev-abc', trustToken: 'raw-token-hex' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, status: 'mfa_required', mfaToken: 'mfa-token-abc' });
+    });
+
+    test('user con mfaEnabled=true senza trustToken riceve mfa_required', async () => {
+      const d = depsWithDeviceTrust(false);
+      (d.getUserByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(userWithMfa);
+      const app = createApp(d);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'mfauser', password: 'pass123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, status: 'mfa_required', mfaToken: 'mfa-token-abc' });
+    });
+  });
 });
