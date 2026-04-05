@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getDeviceId } from '../utils/device-id';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 type Props = {
   mfaToken: string;
@@ -18,7 +19,7 @@ export function MfaVerifyStep({ mfaToken, onSuccess, onCancel }: Props) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/mfa-verify', {
+      const res = await fetchWithRetry('/api/auth/mfa-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mfaToken, code, rememberDevice, deviceId: getDeviceId() }),

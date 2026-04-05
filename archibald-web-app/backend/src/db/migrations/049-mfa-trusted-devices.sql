@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS agents.mfa_trusted_devices (
   device_id        TEXT NOT NULL,
   trust_token_hash TEXT NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at       TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '30 days'
+  expires_at       TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '30 days',
+  UNIQUE (user_id, device_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_mfa_trusted_devices_lookup

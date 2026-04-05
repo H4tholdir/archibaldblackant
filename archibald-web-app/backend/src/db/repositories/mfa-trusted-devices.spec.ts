@@ -103,6 +103,19 @@ describe('verifyTrustToken', () => {
     expect(result).toBe(false);
   });
 
+  test('passa SHA-256 del raw token alla query, non il token in chiaro', async () => {
+    const queryFn = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query: queryFn } as unknown as DbPool;
+
+    const { verifyTrustToken } = await import('./mfa-trusted-devices');
+    await verifyTrustToken(pool, SAMPLE_USER_ID, SAMPLE_DEVICE_ID, SAMPLE_RAW_TOKEN);
+
+    const calledHash = queryFn.mock.calls[0][1]?.[2] as string;
+    const expectedHash = createHash('sha256').update(SAMPLE_RAW_TOKEN).digest('hex');
+    expect(calledHash).toBe(expectedHash);
+    expect(calledHash).not.toBe(SAMPLE_RAW_TOKEN);
+  });
+
 });
 
 describe('revokeAllTrustTokens', () => {
