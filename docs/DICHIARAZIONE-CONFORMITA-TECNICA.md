@@ -45,7 +45,7 @@ Il sistema supporta l'autenticazione a due fattori tramite TOTP (Time-based One-
 - Il segreto TOTP è cifrato con AES-256-GCM con IV casuale prima della persistenza nel database; non è mai accessibile in chiaro né alle applicazioni né al personale tecnico.
 - Il processo di setup restituisce esclusivamente l'URI TOTP per la scansione del QR code; il segreto raw non transita mai nelle risposte HTTP.
 - Sono forniti 8 codici di recupero monouso, hashati con bcrypt, per il caso di perdita del dispositivo.
-- L'MFA è **obbligatoria** per i ruoli `admin` e `ufficio`. È facoltativa per agenti e concessionari.
+- L'MFA è disponibile per tutti i ruoli tramite configurazione volontaria dal profilo utente. Non è imposta automaticamente dal sistema; l'attivazione è a discrezione dell'amministratore e dell'utente.
 - L'endpoint di configurazione MFA è protetto da rate limiting (max 5 tentativi per 15 minuti per IP).
 
 **c) Rate Limiting su tutti gli endpoint sensibili**
@@ -100,10 +100,10 @@ Il sistema mantiene un log di audit persistente e immutabile nella tabella `syst
 
 | Ruolo | Descrizione | MFA obbligatoria |
 |---|---|---|
-| `admin` | Accesso completo incluso pannello di amministrazione, audit log, gestione utenti | Sì |
-| `ufficio` | Accesso operativo avanzato (fatture, DDT, storico completo) | Sì |
-| `agent` | Accesso standard agente (clienti propri, ordini propri, prodotti) | No |
-| `concessionario` | Accesso concessionario (storico Fresis, ordini Fresis) | No |
+| `admin` | Accesso completo incluso pannello di amministrazione, audit log, gestione utenti | Facoltativa |
+| `ufficio` | Accesso operativo avanzato (fatture, DDT, storico completo) | Facoltativa |
+| `agent` | Accesso standard agente (clienti propri, ordini propri, prodotti) | Facoltativa |
+| `concessionario` | Accesso concessionario (storico Fresis, ordini Fresis) | Facoltativa |
 
 **b) Moduli per-utente**
 
@@ -209,7 +209,7 @@ Nessun servizio di email esterno è utilizzato per le notifiche di sicurezza (ge
 
 ## Art. 7 — Dichiarazione Finale
 
-Il sottoscritto dichiara sotto la propria responsabilità che le misure tecniche e organizzative descritte nel presente documento sono state effettivamente implementate nel codice sorgente del sistema Archibald PWA e sono operative o saranno operative al momento del deploy in produzione (previsto entro il 7 aprile 2026).
+Il sottoscritto dichiara sotto la propria responsabilità che le misure tecniche e organizzative descritte nel presente documento sono state effettivamente implementate nel codice sorgente del sistema Archibald PWA e sono operative in produzione dal 5 aprile 2026.
 
 Le misure implementate sono proporzionate alla natura, all'ambito, al contesto e alle finalità del trattamento, nonché ai rischi per i diritti e le libertà delle persone fisiche, come richiesto dall'art. 32(1) GDPR.
 
@@ -228,5 +228,5 @@ P.IVA: [DA INSERIRE DOPO APERTURA]
 ---
 
 *Documento generato il 2026-04-05. Versione 1.0.*  
-*Hash commit di riferimento:* `00e2f878` *(branch feat/compliance-nis2-gdpr)*  
+*Hash commit di riferimento:* `fd9f3421` *(branch master, merge PR #13 feat/compliance-nis2-gdpr)*  
 *Conservare copia firmata assieme al Data Processing Agreement (DPA-art28-gdpr.md).*

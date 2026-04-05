@@ -9,7 +9,7 @@
 
 ### Variabili d'ambiente da aggiungere al VPS (`.env` in produzione)
 
-- [ ] **`REDIS_PASSWORD`** — Generare con `openssl rand -hex 32`. Il Redis in produzione deve avere `--requirepass` attivo.
+- [x] **`REDIS_PASSWORD`** — Configurata in produzione. Redis in produzione ha `--requirepass` attivo e backend si connette correttamente.
 - [ ] **`SECURITY_ALERT_EMAIL`** — Email a cui inviare gli alert di sicurezza (es. tua email personale o aziendale).
 - [ ] **`SMTP_HOST`** — Host del provider SMTP (es. `smtp.gmail.com`, `smtp.sendgrid.net`, ecc.)
 - [ ] **`SMTP_PORT`** — Porta SMTP (587 per TLS, 465 per SSL)
@@ -24,9 +24,9 @@
 
 ### Migrazioni database (eseguire in ordine sul DB di produzione)
 
-- [ ] **Migration 045** — `045-audit-log.sql` — crea `system.audit_log` con REVOKE UPDATE/DELETE
-- [ ] **Migration 046** — `046-roles-modules-mfa.sql` — ruoli espansi, colonne MFA, tabella `mfa_recovery_codes`
-- [ ] **Migration 047** — `047-retention-policy.sql` — colonna `last_activity_at` su customers
+- [x] **Migration 046** — `046-audit-log.sql` — crea `system.audit_log` con REVOKE UPDATE/DELETE (applicata in prod il 5 aprile 2026)
+- [x] **Migration 047** — `047-roles-modules-mfa.sql` — ruoli espansi, colonne MFA, tabella `mfa_recovery_codes` (applicata in prod il 5 aprile 2026)
+- [x] **Migration 048** — `048-retention-policy.sql` — colonna `last_activity_at` su customers (applicata in prod il 5 aprile 2026)
 
 ```bash
 # Comando per eseguire le migration via VPS:
@@ -56,10 +56,10 @@ ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
 
 ### Deploy del branch
 
-- [ ] **Merge/push del branch** `feat/compliance-nis2-gdpr` su master
-- [ ] **CI/CD passa** — verificare GitHub Actions dopo il push
-- [ ] **Deploy su VPS** — il CD pipeline esegue automaticamente dopo il push a master
-- [ ] **Verificare logs backend** post-deploy per assenza di errori di startup
+- [x] **Merge/push del branch** `feat/compliance-nis2-gdpr` su master (PR #13, mergiata il 5 aprile 2026)
+- [x] **CI/CD passa** — GitHub Actions verde al commit `fd9f3421`
+- [x] **Deploy su VPS** — deploy automatico completato il 5 aprile 2026
+- [x] **Verificare logs backend** post-deploy — tutti e 5 i container healthy, nessun errore di startup
 
 ---
 
@@ -112,8 +112,8 @@ ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
 ## 🔒 3. Completamenti tecnici post-deploy
 
 - [ ] **Identificare e testare il provider SMTP** — scegliere tra: Brevo (ex Sendinblue, gratuito fino a 300 email/giorno), Mailgun, AWS SES, o Gmail con app password. Testare che gli alert arrivino a `SECURITY_ALERT_EMAIL`.
-- [ ] **Abilitare MFA** per l'account admin (Francesco) — al primo login dopo il deploy, il sistema forzerà il setup. Avere Google Authenticator, Authy o 1Password pronto.
-- [ ] **Verificare Redis password** — dopo il deploy, verificare che il backend si connetta correttamente a Redis con la nuova password.
+- [ ] **Abilitare MFA** per l'account admin (Francesco) — accedere alla PWA → Profilo → sezione "Sicurezza" → cliccare "Abilita 2FA". Avere Google Authenticator, Authy o 1Password pronto.
+- [x] **Verificare Redis password** — backend si connette correttamente a Redis con la password configurata (verificato il 5 aprile 2026).
 - [ ] **Primo backup manuale** — eseguire e verificare che il backup arrivi sul bucket Hetzner.
 - [ ] **Test login completo** — verificare il flow MFA dalla PWA su iPhone (Safari standalone) e browser desktop.
 
