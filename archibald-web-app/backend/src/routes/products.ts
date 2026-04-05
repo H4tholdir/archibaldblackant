@@ -5,6 +5,10 @@ import type { ProductRow } from '../db/repositories/products';
 import type { SyncSession, SyncStats } from '../db/repositories/sync-sessions';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
+import type { InstrumentFeatureRow } from '../db/repositories/instrument-features';
+import type { GalleryRow } from '../db/repositories/product-gallery';
+import { getProductDetails } from '../db/repositories/product-details';
+import type { ProductDetailsRow } from '../db/repositories/product-details';
 
 function mapProductRow(row: ProductRow) {
   return {
@@ -105,6 +109,11 @@ type ProductsRouterDeps = {
   getVariantPackages: (articleName: string) => Promise<string[]>;
   getVariantPriceRange: (articleName: string) => Promise<{ min: number | null; max: number | null }>;
   getProductPricesByNames?: (names: string[]) => Promise<Map<string, { price: number; vat: number } | null>>;
+  getInstrumentFeatures?: (productId: string) => Promise<InstrumentFeatureRow | null>;
+  getProductGallery?: (productId: string) => Promise<GalleryRow[]>;
+  getRecognitionHistory?: (productId: string, limit: number) => Promise<Array<{ scanned_at: Date; agent_id: string; confidence: number | null; cache_hit: boolean }>>;
+  getProductVariantsForEnrichment?: (articleName: string) => Promise<ProductRow[]>;
+  getProductDetails?: (productId: string) => Promise<ProductDetailsRow | null>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -419,6 +428,44 @@ function createProductsRouter(deps: ProductsRouterDeps) {
     } catch (error) {
       logger.error('Error fetching product changes', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero storico modifiche prodotto' });
+    }
+  });
+
+  router.get('/:productId/enrichment', async (req: AuthRequest, res) => {
+    const { productId } = req.params;
+    try {
+      const [features, gallery, history, details] = await Promise.all([
+        deps.getInstrumentFeatures ? deps.getInstrumentFeatures(productId) : Promise.resolve(null),
+        deps.getProductGallery     ? deps.getProductGallery(productId)     : Promise.resolve([]),
+        deps.getRecognitionHistory ? deps.getRecognitionHistory(productId, 10) : Promise.resolve([]),
+        deps.getProductDetails     ? deps.getProductDetails(productId)     : Promise.resolve(null),
+      ]);
+
+      let sizeVariants: ReturnType<typeof mapProductRow>[] = [];
+      if (deps.getProductVariantsForEnrichment && deps.getProductById) {
+        const product = await deps.getProductById(productId);
+        if (product?.name) {
+          const variants = await deps.getProductVariantsForEnrichment(product.name);
+          sizeVariants = variants.map(mapProductRow);
+        }
+      }
+
+      res.json({
+        features,
+        gallery,
+        details,
+        competitors: [],
+        sizeVariants,
+        recognitionHistory: history.length > 0 ? history.map((h) => ({
+          scannedAt:  h.scanned_at,
+          agentId:    h.agent_id,
+          confidence: h.confidence,
+          cacheHit:   h.cache_hit,
+        })) : null,
+      });
+    } catch (error) {
+      logger.error('Failed to fetch product enrichment', { productId, error });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
