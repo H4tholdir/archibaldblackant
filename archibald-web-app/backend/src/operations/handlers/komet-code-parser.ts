@@ -15,7 +15,7 @@ function createKometCodeParserHandler(deps: KometCodeParserDeps): OperationHandl
     onProgress(0, 'Caricamento prodotti...');
 
     const { rows: products } = await pool.query<{ id: string; name: string }>(
-      `SELECT id, name FROM shared.products WHERE name ~ '^[A-Za-z0-9]+\\.[A-Za-z0-9]{3}\\.[A-Za-z0-9]' AND deleted_at IS NULL ORDER BY id`,
+      `SELECT id, name FROM shared.products WHERE name ~ '^[A-Za-z0-9]+\\.[A-Za-z0-9]{3}\\.' AND deleted_at IS NULL ORDER BY id`,
     );
 
     let processed = 0;

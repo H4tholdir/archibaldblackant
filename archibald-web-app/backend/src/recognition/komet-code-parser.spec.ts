@@ -463,6 +463,12 @@ describe('parseKometCode', () => {
     test('1981.EM1.000 → null (numeric code = accessory holder, not a tip)', () => {
       expect(parseKometCode('1981.EM1.000')).toBeNull()
     })
+
+    test('PS.EM1. → sonic_tip (empty size code — real product format)', () => {
+      expect(parseKometCode('PS.EM1.')).toEqual(
+        expect.objectContaining({ material: 'sonic_tip', shape_family: 'sonic_tip', shank_type: 'unknown', head_size_mm: 0 }),
+      )
+    })
   })
 
   // ── Shank type normalisation ───────────────────────────────────────────────

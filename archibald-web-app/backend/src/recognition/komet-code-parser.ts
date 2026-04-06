@@ -485,8 +485,9 @@ function parseKometCode(productName: string): ParsedFeatures | null {
   // Pre-strip .R0[digit*] suffix from PROC NiTi 4-part codes (e.g. PROC4L21.204.045.R0)
   const normalized = productName.replace(/\.R0\d*$/, '')
 
-  // Allow 3-char alphanumeric shank codes (EM1/SI1/KA1/ST1) and flexible size field
-  const match = normalized.match(/^(.+?)\.([A-Z0-9]{3})\.([A-Z0-9]+)$/)
+  // Allow 3-char alphanumeric shank codes (EM1/SI1/KA1/ST1) and optional size field
+  // (ultrasonic tip products have empty size code, e.g. PS.EM1.)
+  const match = normalized.match(/^(.+?)\.([A-Z0-9]{3})\.([A-Z0-9]*)$/)
   if (!match) return null
 
   const [, familyRaw, shankCode, sizeRaw] = match as [string, string, string, string]
