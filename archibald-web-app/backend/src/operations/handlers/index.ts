@@ -18,6 +18,7 @@ export { createSyncTrackingHandler } from './sync-tracking';
 export { createSyncCustomerAddressesHandler, type SyncCustomerAddressesBot } from './sync-customer-addresses';
 export { createUpdateCustomerHandler, type UpdateCustomerBot } from './update-customer';
 export { createReadVatStatusHandler, type ReadVatStatusBot } from './read-vat-status';
+export { createRefreshCustomerHandler, type RefreshCustomerBot } from './refresh-customer';
 export { createBatchDeleteOrdersHandler, type BatchDeleteOrdersBot } from './batch-delete-orders';
 export { createBatchSendToVeronaHandler, type BatchSendToVeronaBot } from './batch-send-to-verona';
 export { createKometCodeParserHandler } from './komet-code-parser';

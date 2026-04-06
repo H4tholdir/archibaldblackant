@@ -10,6 +10,7 @@ describe('getQueueForOperation', () => {
     'create-customer': 'writes',
     'update-customer': 'writes',
     'read-vat-status': 'writes',
+    'refresh-customer': 'writes',
     'send-to-verona': 'writes',
     'batch-send-to-verona': 'writes',
     'edit-order': 'writes',
@@ -64,9 +65,9 @@ describe('getQueueForOperation', () => {
     expect(getQueueForOperation('create-customer')).toBe('writes');
   });
 
-  test('writes queue contains 10 operations', () => {
+  test('writes queue contains 11 operations', () => {
     const writesOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'writes');
-    expect(writesOps).toHaveLength(10);
+    expect(writesOps).toHaveLength(11);
   });
 
   test('bot-queue contains 1 operation', () => {

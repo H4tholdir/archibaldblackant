@@ -45,6 +45,7 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
   createReadVatStatusHandler,
+  createRefreshCustomerHandler,
   createKometCodeParserHandler,
   createKometWebScraperHandler,
   createRecognitionFeedbackHandler,
@@ -646,6 +647,14 @@ async function bootstrap(): Promise<void> {
       return {
         readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'refresh-customer': createRefreshCustomerHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      return {
+        navigateToCustomerByErpId: (erpId) => bot.navigateToCustomerByErpId(erpId),
+        readCustomerFields: () => bot.readCustomerFields(),
+        close: () => bot.close(),
       };
     }),
     'delete-order': createDeleteOrderHandler(pool, (userId) => {

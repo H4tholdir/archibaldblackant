@@ -220,6 +220,7 @@ vi.mock('./operations/handlers', () => ({
   createCreateCustomerHandler: vi.fn(() => vi.fn()),
   createUpdateCustomerHandler: vi.fn(() => vi.fn()),
   createReadVatStatusHandler: vi.fn(() => vi.fn()),
+  createRefreshCustomerHandler: vi.fn(() => vi.fn()),
   createDeleteOrderHandler: vi.fn(() => vi.fn()),
   createBatchDeleteOrdersHandler: vi.fn(() => vi.fn()),
   createEditOrderHandler: vi.fn(() => vi.fn()),
@@ -351,7 +352,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 24 operation handlers', async () => {
+  test('registers all 25 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -365,6 +366,7 @@ describe('bootstrap', () => {
       'create-customer',
       'update-customer',
       'read-vat-status',
+      'refresh-customer',
       'delete-order',
       'batch-delete-orders',
       'edit-order',
@@ -386,7 +388,7 @@ describe('bootstrap', () => {
       'komet-web-scraper',
       'recognition-feedback',
     ]));
-    expect(handlerKeys).toHaveLength(24);
+    expect(handlerKeys).toHaveLength(25);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
