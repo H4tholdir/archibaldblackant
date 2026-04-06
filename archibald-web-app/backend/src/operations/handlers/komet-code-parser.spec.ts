@@ -5,9 +5,9 @@ import type { DbPool } from '../../db/pool';
 describe('createKometCodeParserHandler', () => {
   test('processes all products and skips unknown families', async () => {
     const mockProducts = [
-      { id: 'H1.314.016', name: 'TC Round FG 1.6' },
-      { id: 'ZZZ.314.016', name: 'Unknown Family' },
-      { id: 'KP6801.314.018', name: 'DIAO Round FG 1.8' },
+      { id: '001126K2', name: 'H1.314.016' },
+      { id: '002345K1', name: 'ZZZ.314.016' },
+      { id: '003456K2', name: 'KP6801.314.018' },
     ];
     const mockPool = {
       query: vi.fn()
