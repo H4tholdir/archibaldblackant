@@ -54,7 +54,7 @@ Il bottone "✎ Modifica" viene disabilitato (`disabled={refreshing}`) e la sche
 
 | File | Modifica |
 |---|---|
-| `db/migrations/053-erp-detail-read-at.sql` | `ALTER TABLE agents.customers ADD COLUMN erp_detail_read_at TIMESTAMPTZ` |
+| `db/migrations/053-erp-detail-read-at.sql` | `ALTER TABLE agents.customers ADD COLUMN erp_detail_read_at TIMESTAMPTZ` (**nota:** 052 è riservata a Customer Photos — verificare lo stato al momento dell'implementazione) |
 | `db/repositories/customers.ts` | `setErpDetailReadAt(pool, userId, erpId): Promise<void>` |
 | `db/repositories/customers.ts` | `erp_detail_read_at` aggiunto alla SELECT e al mapping `rowToCustomer` |
 | `operations/operation-types.ts` | aggiunge `'refresh-customer'` e priorità |
@@ -87,16 +87,20 @@ async (_context, data, userId, onProgress) => {
 
 ### Bot — `readCustomerFields()`
 
-Naviga alla pagina già caricata (`navigateToCustomerByErpId` è già stato chiamato prima). Legge i campi dalla DetailView in modalità View usando i selettori `xaf_dvi*_View` della Bibbia ERP. Ritorna un oggetto `CustomerFormInput` compatibile con `upsertSingleCustomer`.
+Legge i campi dalla pagina **già caricata** da `navigateToCustomerByErpId` (non naviga di nuovo). Usa i selettori `xaf_dvi*_View` della Bibbia ERP per leggere i campi in modalità View. Ritorna un oggetto `CustomerFormInput` compatibile con `upsertSingleCustomer`.
 
-I campi da leggere sono gli stessi che il bot già scrive in `updateCustomerSurgical`: name, nameAlias, attentionTo, vatNumber, pec, sdi, fiscalCode, street, postalCode, phone, mobile, email, url, deliveryTerms, paymentTerms, sector, notes, county, state, country, priceGroup, lineDiscount.
+**Importante:** non è riusabile né `readEditFormFieldValues` (legge solo 8 campi da Edit mode, selettori `_Edit_I$`) né `buildCustomerSnapshot` (naviga autonomamente via `page.goto()` — chiamerebbe una seconda navigazione). Il metodo va scritto da zero.
+
+I campi da leggere: name, nameAlias, attentionTo, vatNumber, pec, sdi, fiscalCode, street, postalCode, phone, mobile, email, url, deliveryTerms, paymentTerms, sector, notes, county, state, country, priceGroup, lineDiscount.
+
+**Gestione `name` null:** `CustomerFormInput.name` è `required: string`. Se la View restituisce name vuoto/null, `readCustomerFields()` deve lanciare un errore (`throw new Error('Customer name not found in ERP DetailView')`) — il handler lo propagherà e il frontend atterrerà sul fallback graceful.
 
 ### Frontend — pezzi nuovi/modificati
 
 | File | Modifica |
 |---|---|
-| `db/repositories/customers.ts` (tipo `Customer`) | aggiunge campo `erpDetailReadAt: string \| null` |
-| `services/customers.ts` | espone `erpDetailReadAt` nella risposta API |
+| `frontend/src/types/customer.ts` | aggiunge campo `erpDetailReadAt: string \| null` al tipo `Customer` frontend |
+| `frontend/src/api/operations.ts` | aggiunge `'refresh-customer'` alla union type `OperationType` locale |
 | `pages/CustomerProfilePage.tsx` | `handleEnterEditMode()` sostituisce il click diretto su `enterEditMode` |
 | `pages/CustomerProfilePage.tsx` | stati: `refreshing`, `refreshProgress`, `refreshLabel` |
 | `pages/CustomerProfilePage.tsx` | overlay modale bloccante (JSX) |
@@ -142,7 +146,7 @@ Aggiunge `erpDetailReadAt` alla response shape (già serializzato da `rowToCusto
 
 ### `update-customer` — aggiornamento `erp_detail_read_at` post-save
 
-Il handler `update-customer` già legge i dati dall'ERP al termine del save (via `buildCustomerSnapshot`). Deve anche chiamare `setErpDetailReadAt(pool, userId, erpId)` dopo il save con successo, altrimenti il check di stale ignorerebbe questa lettura e triggererebbe un refresh inutile al successivo ingresso in edit mode.
+Il handler `update-customer` chiama internamente `bot.updateCustomerSurgical(...)`, che al suo termine naviga alla DetailView e chiama `buildCustomerSnapshot` per leggere i valori confermati dall'ERP. Questo costituisce una lettura ERP aggiornata. Il handler deve quindi chiamare `setErpDetailReadAt(pool, userId, erpId)` dopo il save con successo, altrimenti il check di stale ignorerebbe questa lettura e triggererebbe un refresh inutile al successivo ingresso in edit mode.
 
 ## Testing
 
@@ -157,6 +161,6 @@ Il handler `update-customer` già legge i dati dall'ERP al termine del save (via
 
 ## Migrazione e deploy
 
-- Migration `053` da applicare prima del deploy backend.
+- Migration `053` da applicare prima del deploy backend. **Verificare che 052 sia ancora libera al momento dell'implementazione** (riservata a Customer Photos in MEMORY.md, ma non ancora creata su disco).
 - Nessuna breaking change: `erp_detail_read_at` è nullable, tutti i clienti esistenti hanno `NULL` → al primo ingresso in edit mode il refresh viene sempre eseguito.
 - Nessuna modifica alle operazioni di sync esistenti.
