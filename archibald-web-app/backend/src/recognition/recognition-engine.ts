@@ -8,6 +8,7 @@ import type { LookupRow } from '../db/repositories/instrument-features';
 import { appendRecognitionLog } from '../db/repositories/recognition-log';
 import { calculateHeadSizeMm } from './komet-code-parser';
 import type { VisionApiFn } from '../services/anthropic-vision-service';
+import { measureHeadShankRatio } from '../services/image-preprocessing-service';
 import { logger } from '../logger';
 
 type EngineResult = {
@@ -201,6 +202,16 @@ async function runRecognitionPipeline(
       imageHash,
       broadCandidates: [],
     };
+  }
+
+  // Layer E: override vision ratio with pixel-accurate measurement when available
+  const measuredRatio = await measureHeadShankRatio(imageBase64);
+  if (measuredRatio !== null) {
+    logger.info('[recognition-engine] Head/shank ratio from pixel analysis', {
+      vision: features.head_shank_ratio,
+      measured: measuredRatio,
+    });
+    features = { ...features, head_shank_ratio: measuredRatio };
   }
 
   // Layer B: correct shank type using length category (FG vs HP resolution)
