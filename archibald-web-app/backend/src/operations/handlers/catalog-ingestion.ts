@@ -3,6 +3,8 @@ import type { CatalogPdfService } from '../../services/catalog-pdf-service';
 import type { OperationHandler } from '../operation-processor';
 import { logger } from '../../logger';
 
+type FamilyExtraction = Record<string, unknown>;
+
 type SonnetFn = (
   images: Array<{ base64: string; mediaType: 'image/png' }>,
   prompt: string,
@@ -79,16 +81,15 @@ async function callSonnetWithRetry(
   prompt: string,
   page: number,
 ): Promise<string | null> {
+  let lastErr: unknown;
   for (let attempt = 1; attempt <= MAX_SONNET_RETRIES; attempt++) {
     try {
       return await callSonnet(images, prompt);
     } catch (err) {
-      if (attempt === MAX_SONNET_RETRIES) {
-        logger.error('[catalog-ingestion] Sonnet failed after retries, skipping page', { page, err });
-        return null;
-      }
+      lastErr = err;
     }
   }
+  logger.error('[catalog-ingestion] Sonnet failed after retries, skipping page', { page, err: lastErr });
   return null;
 }
 
@@ -101,7 +102,12 @@ async function extractReadingGuide(deps: CatalogIngestionDeps): Promise<Record<s
   );
 
   const raw = await deps.callSonnet(images, READING_GUIDE_PROMPT);
-  const content = JSON.parse(raw) as Record<string, unknown>;
+  let content: Record<string, unknown>;
+  try {
+    content = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new Error(`[catalog-ingestion] Reading guide response was not valid JSON: ${raw.slice(0, 200)}`);
+  }
 
   await deps.pool.query(
     `INSERT INTO shared.catalog_reading_guide (content, page_range)
@@ -147,7 +153,13 @@ async function extractProductFamilies(
       continue;
     }
 
-    const families = JSON.parse(raw) as Array<Record<string, unknown>>;
+    let families: FamilyExtraction[];
+    try {
+      families = JSON.parse(raw) as FamilyExtraction[];
+    } catch {
+      logger.error('[catalog-ingestion] Page JSON parse failed, skipping', { page: p, raw: raw.slice(0, 200) });
+      continue;
+    }
     pagesProcessed += 1;
 
     if (families.length === 0) {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
 import type { CatalogPdfService } from '../../services/catalog-pdf-service';
 import type { SonnetFn } from './catalog-ingestion';
@@ -54,6 +54,10 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('createCatalogIngestionHandler', () => {
   test('handle() calls callSonnet for pages 5-9 with all 5 images', async () => {
     const pool = createMockPool();
@@ -76,21 +80,16 @@ describe('createCatalogIngestionHandler', () => {
     const firstCall = sonnetMock.mock.calls[0]!;
     const images = firstCall[0];
 
-    expect(images).toHaveLength(5);
-    expect(images.every((img) => img.mediaType === 'image/png')).toBe(true);
-    expect(images.every((img) => img.base64 === 'base64data')).toBe(true);
+    const expectedImage = { base64: 'base64data', mediaType: 'image/png' };
+    expect(images).toEqual([expectedImage, expectedImage, expectedImage, expectedImage, expectedImage]);
   });
 
   test('handle() upserts reading guide into catalog_reading_guide', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
-        .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
-        .mockResolvedValue({ rows: [] }),
-      withTransaction: vi.fn(),
-      end: vi.fn(),
-      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
-    } as unknown as DbPool;
+    const pool = createMockPool();
+    pool.query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
+      .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
+      .mockResolvedValue({ rows: [] });
 
     const catalogPdf = createMockCatalogPdf(9);
     const callSonnet: SonnetFn = vi.fn()
@@ -109,15 +108,11 @@ describe('createCatalogIngestionHandler', () => {
   });
 
   test('handle() resumes from last processed page when catalog_entries has data', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })                       // upsert reading guide
-        .mockResolvedValueOnce({ rows: [{ last_page: 15 }] })     // resume query → start from 16
-        .mockResolvedValue({ rows: [] }),
-      withTransaction: vi.fn(),
-      end: vi.fn(),
-      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
-    } as unknown as DbPool;
+    const pool = createMockPool();
+    pool.query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })                       // upsert reading guide
+      .mockResolvedValueOnce({ rows: [{ last_page: 15 }] })     // resume query → start from 16
+      .mockResolvedValue({ rows: [] });
 
     const catalogPdf = createMockCatalogPdf(17);
     const callSonnet: SonnetFn = vi.fn()
@@ -140,15 +135,11 @@ describe('createCatalogIngestionHandler', () => {
   });
 
   test('handle() skips page on Sonnet error after 3 retries and continues to next page', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
-        .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
-        .mockResolvedValue({ rows: [] }),
-      withTransaction: vi.fn(),
-      end: vi.fn(),
-      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
-    } as unknown as DbPool;
+    const pool = createMockPool();
+    pool.query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
+      .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
+      .mockResolvedValue({ rows: [] });
 
     const catalogPdf = createMockCatalogPdf(11);
 
@@ -173,16 +164,12 @@ describe('createCatalogIngestionHandler', () => {
   });
 
   test('handle() inserts families into catalog_entries for each non-empty array response', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
-        .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
-        .mockResolvedValueOnce({ rows: [] })                      // insert family on page 10
-        .mockResolvedValue({ rows: [] }),
-      withTransaction: vi.fn(),
-      end: vi.fn(),
-      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
-    } as unknown as DbPool;
+    const pool = createMockPool();
+    pool.query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })                      // upsert reading guide
+      .mockResolvedValueOnce({ rows: [{ last_page: null }] })   // resume query
+      .mockResolvedValueOnce({ rows: [] })                      // insert family on page 10
+      .mockResolvedValue({ rows: [] });
 
     const catalogPdf = createMockCatalogPdf(10);
     const callSonnet: SonnetFn = vi.fn()
