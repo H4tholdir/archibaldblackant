@@ -18,8 +18,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
-  test('all 24 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(24);
+  test('all 25 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(25);
   });
 });
 
@@ -94,6 +94,24 @@ describe('isScheduledSync', () => {
 
   test.each(nonScheduledSyncs)('%s is NOT a scheduled sync', (op) => {
     expect(isScheduledSync(op)).toBe(false);
+  });
+});
+
+describe('refresh-customer operation type', () => {
+  test('è incluso in OPERATION_TYPES', () => {
+    expect(OPERATION_TYPES).toContain('refresh-customer');
+  });
+
+  test('ha una priorità definita', () => {
+    expect(OPERATION_PRIORITIES['refresh-customer']).toBe(4);
+  });
+
+  test('non è una write operation', () => {
+    expect(isWriteOperation('refresh-customer')).toBe(false);
+  });
+
+  test('non è uno scheduled sync', () => {
+    expect(isScheduledSync('refresh-customer')).toBe(false);
   });
 });
 
