@@ -139,6 +139,7 @@ type CustomerInput = {
 
 type CustomerFormInput = {
   name: string;
+  nameAlias?: string;
   vatNumber?: string;
   pec?: string;
   sdi?: string;
