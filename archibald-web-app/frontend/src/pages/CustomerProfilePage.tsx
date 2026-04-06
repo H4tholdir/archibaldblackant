@@ -322,7 +322,7 @@ export function CustomerProfilePage() {
   const completenessFields = [
     customer?.name,
     customer?.vatNumber,
-    (customer?.pec ?? customer?.sdi),
+    (customer?.pec || customer?.sdi),
     customer?.street,
     customer?.postalCode,
     customer?.city,
