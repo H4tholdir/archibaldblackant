@@ -56,12 +56,7 @@ beforeEach(() => {
 
 describe('createCatalogIngestionHandler', () => {
   test('handle() calls callSonnet for pages 5-9 with all 5 images', async () => {
-    const pool = createMockPool([
-      () => ({ rows: [] }),                           // upsert reading guide
-      () => ({ rows: [{ last_page: null }] }),        // resume query
-      () => ({ rows: [] }),                           // insert family (page 10)
-      () => ({ rows: [] }),                           // insert family (page 11)
-    ]);
+    const pool = createMockPool();
     pool.query = vi.fn()
       .mockResolvedValueOnce({ rows: [] })            // upsert reading guide
       .mockResolvedValueOnce({ rows: [{ last_page: null }] }) // resume query
