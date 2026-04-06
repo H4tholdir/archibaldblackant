@@ -47,6 +47,7 @@ function createOperationQueue(
   const connection = new Redis({
     host: redisConfig?.host ?? process.env.REDIS_HOST ?? 'localhost',
     port: redisConfig?.port ?? parseInt(process.env.REDIS_PORT ?? '6379', 10),
+    password: process.env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: null,
   });
 
