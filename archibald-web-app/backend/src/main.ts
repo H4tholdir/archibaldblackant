@@ -1029,6 +1029,10 @@ async function bootstrap(): Promise<void> {
           data: { missingVatCount: missingCount },
         });
       },
+      async (productId: string) => {
+        await allQueues['enrichment'].enqueue('catalog-product-enrichment', 'service', { productId });
+        await allQueues['enrichment'].enqueue('web-product-enrichment', 'service', { productId }, undefined, 30_000);
+      },
     ), 'Prodotti', notifyAdmin),
     'sync-tracking': createSyncTrackingHandler(
       pool,

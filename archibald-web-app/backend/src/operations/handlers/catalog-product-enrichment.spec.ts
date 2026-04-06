@@ -143,17 +143,19 @@ describe('createCatalogProductEnrichmentHandler', () => {
       const [upsertSql, upsertParams] = queryMock.mock.calls[1] as [string, unknown[]];
       expect(upsertSql).toContain('ON CONFLICT');
 
-      const productId = upsertParams[0];
-      const familyCode = upsertParams[1];
-      const packagingUnits = upsertParams[7];
-      const sterile = upsertParams[8];
-      const singleUse = upsertParams[9];
-
-      expect(productId).toBe('879.314.014');
-      expect(familyCode).toBe('879');
-      expect(packagingUnits).toBe(10);
-      expect(sterile).toBe(true);
-      expect(singleUse).toBe(true);
+      expect(upsertParams).toEqual([
+        '879.314.014',
+        '879',
+        42,
+        'Enamel preparation',
+        160000,
+        'Use with water cooling',
+        [{ symbol: 'water', meaning: 'Water cooling required' }],
+        10,
+        true,
+        true,
+        null,
+      ]);
     });
 
     test('packaging_units, sterile, single_use are null when packaging_info is null', async () => {
@@ -171,9 +173,19 @@ describe('createCatalogProductEnrichmentHandler', () => {
 
       const [, upsertParams] = queryMock.mock.calls[1] as [string, unknown[]];
 
-      expect(upsertParams[7]).toBeNull();
-      expect(upsertParams[8]).toBeNull();
-      expect(upsertParams[9]).toBeNull();
+      expect(upsertParams).toEqual([
+        '879.314.014',
+        '879',
+        42,
+        'Enamel preparation',
+        160000,
+        'Use with water cooling',
+        [{ symbol: 'water', meaning: 'Water cooling required' }],
+        null,
+        null,
+        null,
+        null,
+      ]);
     });
   });
 });
