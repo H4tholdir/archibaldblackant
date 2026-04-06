@@ -12217,7 +12217,7 @@ export class ArchibaldBot {
 
       const alreadyClosed = await this.page.evaluate(() => {
         const u = window.location.href;
-        return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+        return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
       });
 
       if (!alreadyClosed) {
@@ -12237,14 +12237,14 @@ export class ArchibaldBot {
       }
     }
 
-    // Verify the form actually closed (URL should navigate away from DetailView,
-    // OR land on DetailView/{id}/?mode=Edit which means customer was saved successfully)
+    // Verify the form actually closed (URL should navigate away from DetailView entirely,
+    // OR land on DetailView/{id}/ in view mode — i.e. no mode=Edit, no NewObject)
     let formClosed = false;
     try {
       await this.page.waitForFunction(
         () => {
           const u = window.location.href;
-          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
         },
         { timeout: 10000, polling: 500 },
       );
@@ -12337,7 +12337,7 @@ export class ArchibaldBot {
 
         const alreadyClosed = await this.page.evaluate(() => {
           const u = window.location.href;
-          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
         });
 
         if (!alreadyClosed) {
@@ -12358,7 +12358,7 @@ export class ArchibaldBot {
           await this.page.waitForFunction(
             () => {
               const u = window.location.href;
-              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
             { timeout: 10000, polling: 500 },
           );
@@ -12384,7 +12384,7 @@ export class ArchibaldBot {
           await this.page.waitForFunction(
             () => {
               const u = window.location.href;
-              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject"));
+              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
             { timeout: 10000, polling: 500 },
           );
@@ -14097,10 +14097,15 @@ export class ArchibaldBot {
     // the ERP server has confirmed the save before we read back values.
     await this.saveAndCloseCustomer();
 
-    // Wait for the post-save page (list view) to fully load before initiating a new
-    // navigation. Without this, buildCustomerSnapshot's page.goto() races with the
-    // ongoing "Salva e chiudi" navigation and times out.
-    await this.waitForDevExpressReady({ timeout: 30000 }).catch(() => {});
+    // Wait for the post-save page to be fully loaded before buildCustomerSnapshot
+    // calls page.goto(). waitForDevExpressReady is insufficient here — it only checks
+    // DevExpress loading panels and can return while Puppeteer still has an in-flight
+    // navigation, causing a concurrent-navigation timeout in page.goto().
+    await this.page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30000 },
+    ).catch(() => {});
+    await this.waitForDevExpressIdle({ timeout: 5000, label: 'post-save-settle' }).catch(() => {});
 
     // 7. Navigate to customer detail view and read server-confirmed values.
     const cleanId = erpId.replace(/[.,]/g, '');
