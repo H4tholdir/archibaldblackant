@@ -152,11 +152,11 @@ describe('ProductDetailPage — selettore misure', () => {
     vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
   })
 
-  it('mostra chip per ogni variante di misura', async () => {
+  it('mostra chip per ogni variante di misura nel formato "016"', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Ø1.2')).toBeInTheDocument())
-    expect(screen.getByText('Ø1.6')).toBeInTheDocument()
-    expect(screen.getByText('Ø1.8')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('012')).toBeInTheDocument())
+    expect(screen.getByText('016')).toBeInTheDocument()
+    expect(screen.getByText('018')).toBeInTheDocument()
   })
 })
 
@@ -183,10 +183,11 @@ describe('ProductDetailPage — performance e CTA', () => {
     expect(screen.getByText(/Fase 2|prossimamente|coming soon/i)).toBeInTheDocument()
   })
 
-  it('mostra pulsante "Aggiungi all\'ordine" nella CTA sticky', async () => {
+  it('mostra blocco prezzo nella CTA sticky', async () => {
     renderPage()
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Aggiungi all.ordine/i })).toBeInTheDocument()
+      expect(screen.getByText('Prezzo listino')).toBeInTheDocument()
     )
+    expect(screen.getByText(/12[.,]50\s*€|€\s*12[.,]50/i)).toBeInTheDocument()
   })
 })

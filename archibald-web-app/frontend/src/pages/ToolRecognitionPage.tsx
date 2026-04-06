@@ -308,7 +308,7 @@ export function ToolRecognitionPage() {
         await submitRecognitionFeedback(token, { imageHash, productId: product.productId, confirmedByUser: true })
       } catch {
       }
-      navigate(`/products/${encodeURIComponent(product.productId)}`)
+      navigate(`/products/${encodeURIComponent(product.productId)}`, { state: { fromScanner: true } })
     }
 
     const handleNotThis = () => {
@@ -466,7 +466,7 @@ export function ToolRecognitionPage() {
             return (
               <button
                 key={c.productId}
-                onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`)}
+                onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`, { state: { fromScanner: true } })}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',

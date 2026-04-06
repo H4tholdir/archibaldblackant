@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { ProductCard } from "../components/ProductCard";
-import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, getMissingFresisDiscountCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
@@ -14,13 +14,12 @@ interface ProductFilters {
 
 export function ArticoliList() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
+  const navigate = useNavigate();
   const auth = useAuth();
   const isFresis = auth.user?.username === FRESIS_AGENT_USERNAME;
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [modalProduct, setModalProduct] = useState<Product | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<ProductFilters>({
     search: "",
   });
@@ -136,13 +135,7 @@ export function ArticoliList() {
   }, [fetchProducts]);
 
   const handleCardClick = (product: Product) => {
-    setModalProduct(product);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setModalProduct(null);
+    navigate(`/products/${encodeURIComponent(product.id)}`);
   };
 
   const handleClearFilters = () => {
@@ -716,15 +709,6 @@ export function ArticoliList() {
             ))}
           </div>
         </div>
-      )}
-
-      {/* Product Detail Modal */}
-      {modalProduct && (
-        <ProductDetailModal
-          product={modalProduct}
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-        />
       )}
 
       {/* Price Variations Modal */}

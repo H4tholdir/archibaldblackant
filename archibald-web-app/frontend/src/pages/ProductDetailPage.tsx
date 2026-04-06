@@ -1,18 +1,182 @@
+// archibald-web-app/frontend/src/pages/ProductDetailPage.tsx
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getProductEnrichment } from '../api/recognition'
 import { getProducts } from '../api/products'
-import type { ProductEnrichment } from '../api/recognition'
+import type { ProductEnrichment, ProductGalleryImage } from '../api/recognition'
 import type { Product } from '../api/products'
+
+type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor'
+
+const SHAPE_LABELS: Record<string, string> = {
+  round: 'Round', pear: 'Pear', inverted_cone: 'Inverted Cone',
+  cylinder: 'Cylinder', tapered_round_end: 'Tapered Round', flame: 'Flame',
+  torpedo: 'Torpedo', diabolo: 'Diabolo', wheel: 'Wheel', egg: 'Egg',
+  bud: 'Bud', double_cone: 'Double Cone', other: 'Other',
+}
+
+const MATERIAL_LABELS: Record<string, string> = {
+  tungsten_carbide: 'TC', diamond: 'Diamond', diamond_diao: 'DIAO',
+  steel: 'Steel', ceramic: 'Ceramic', polymer: 'Polymer',
+  sonic_tip: 'Sonic', ultrasonic: 'Ultrasonic',
+}
+
+const GRIT_COLORS: Record<string, string> = {
+  white: '#f0f0f0', yellow: '#eab308', red: '#ef4444',
+  blue: '#3b82f6', green: '#22c55e', black: '#222',
+}
+
+const GRIT_LABELS: Record<string, string> = {
+  white: 'UF Bianco', yellow: 'EF Giallo', red: 'Fine Rosso',
+  blue: 'Std Blu', green: 'Grosso Verde', black: 'SC Nero',
+}
+
+const FAMILY_LABELS: Record<string, string> = {
+  diamond_diao: 'Diamantate · DIAO',
+  diamond: 'Diamantate',
+  tungsten_carbide: 'Carburo di Tungsteno',
+  steel: 'Acciaio',
+  ceramic: 'Ceramica',
+  polymer: 'Polimero',
+  sonic_tip: 'Sonico',
+  ultrasonic: 'Ultrasonico',
+}
+
+function sizeCode(variant: { productId: string; headSizeMm: number }): string {
+  const parts = variant.productId.split('.')
+  return parts[parts.length - 1] ?? String(Math.round(variant.headSizeMm * 10)).padStart(3, '0')
+}
+
+// ── Gallery ──────────────────────────────────────────────────────────────────
+
+function GalleryArea({
+  gallery,
+  fromScanner,
+  onBack,
+}: {
+  gallery: ProductGalleryImage[]
+  fromScanner: boolean
+  onBack: () => void
+}) {
+  const [activeIdx, setActiveIdx] = useState(0)
+  const visible = gallery.slice(0, 4)
+  const active = visible[activeIdx]
+
+  return (
+    <div style={{
+      width: '100%', height: 300, background: '#f8f8f8',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {active && (
+        <img
+          src={active.imageUrl}
+          alt="gallery principale"
+          style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }}
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+        />
+      )}
+
+      {/* Top overlay */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, padding: 12,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), transparent)',
+      }}>
+        <button
+          onClick={onBack}
+          style={{
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
+            color: '#fff', fontSize: 12, padding: '5px 12px',
+            borderRadius: 20, border: 'none', cursor: 'pointer',
+          }}
+        >
+          ← Catalogo
+        </button>
+        {fromScanner && (
+          <div style={{
+            background: 'rgba(34,197,94,0.15)', backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(34,197,94,0.6)', color: '#22c55e',
+            fontSize: 11, padding: '4px 10px', borderRadius: 20,
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            📷 Riconosciuto
+          </div>
+        )}
+      </div>
+
+      {/* Vertical thumb strip */}
+      {visible.length > 1 && (
+        <div style={{
+          position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          {visible.map((img, i) => (
+            <button
+              key={img.id}
+              onClick={() => setActiveIdx(i)}
+              style={{
+                width: 48, height: 48, borderRadius: 8, overflow: 'hidden',
+                border: `2px solid ${i === activeIdx ? '#f9a825' : 'transparent'}`,
+                background: '#fff', cursor: 'pointer', padding: 0,
+              }}
+            >
+              <img
+                src={img.imageUrl}
+                alt={img.imageType}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Dots */}
+      {visible.length > 1 && (
+        <div style={{
+          position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 5,
+        }}>
+          {visible.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: i === activeIdx ? '#f9a825' : 'rgba(0,0,0,0.25)',
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Image type label */}
+      {active && (
+        <div style={{
+          position: 'absolute', bottom: 10,
+          right: visible.length > 1 ? 68 : 10,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          color: '#9ca3af', fontSize: 10, padding: '3px 8px', borderRadius: 20,
+        }}>
+          {active.imageType.replace(/_/g, ' ')}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromScanner = (location.state as { fromScanner?: boolean } | null)?.fromScanner === true
 
   const [product, setProduct] = useState<Product | null>(null)
   const [enrichment, setEnrichment] = useState<ProductEnrichment | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('prodotto')
 
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
@@ -53,6 +217,7 @@ export function ProductDetailPage() {
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', minHeight: '60vh', gap: 16, color: '#fff',
+        background: '#111',
       }}>
         <div style={{
           width: 40, height: 40, borderRadius: '50%',
@@ -70,305 +235,274 @@ export function ProductDetailPage() {
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', minHeight: '60vh', gap: 16, padding: 24,
+        background: '#111',
       }}>
         <div style={{ fontSize: 48 }}>🔍</div>
         <h2 style={{ color: '#fff', margin: 0 }}>Prodotto non trovato</h2>
-        <Link to="/products" style={{ color: '#60a5fa', textDecoration: 'none' }}>
+        <button
+          onClick={() => navigate('/products')}
+          style={{ color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}
+        >
           ← Torna al catalogo
-        </Link>
+        </button>
       </div>
     )
   }
+
+  const features = enrichment?.features ?? null
+  const details = enrichment?.details ?? null
+  const gallery = enrichment?.gallery ?? []
+  const sizeVariants = enrichment?.sizeVariants ?? []
+  const pd = details?.performanceData ?? null
+
+  const familyLine = features?.material ? (FAMILY_LABELS[features.material] ?? null) : null
 
   const priceFormatted = new Intl.NumberFormat('it-IT', {
     style: 'currency', currency: 'EUR',
   }).format(product.price ?? 0)
 
-  return (
-    <div style={{ padding: '0 0 120px 0', maxWidth: 960, margin: '0 auto' }}>
-      <div style={{ padding: '16px 20px', color: '#9ca3af', fontSize: 13 }}>
-        <Link to="/products" style={{ color: '#60a5fa', textDecoration: 'none' }}>Articoli</Link>
-        {' / '}{product.id}
-      </div>
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'prodotto', label: 'Prodotto' },
+    { id: 'clinica', label: 'Clinica' },
+    { id: 'misure', label: 'Misure' },
+    { id: 'competitor', label: 'Competitor' },
+  ]
 
-      <div style={{ padding: '0 20px 24px', borderBottom: '1px solid #1f2937' }}>
-        <div style={{ color: '#9ca3af', fontSize: 13, marginBottom: 4 }}>{product.id}</div>
-        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: '0 0 12px' }}>
-          {product.name}
-        </h1>
-        <div style={{ color: '#4ade80', fontSize: 24, fontWeight: 700 }}>
-          {priceFormatted}
-        </div>
-        {product.vat && (
-          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
-            IVA {product.vat}% inclusa
+  return (
+    <div style={{ background: '#111', minHeight: '100vh', paddingBottom: 90 }}>
+      <GalleryArea
+        gallery={gallery}
+        fromScanner={fromScanner}
+        onBack={() => navigate(-1)}
+      />
+
+      <div style={{ padding: 16 }}>
+        {/* Family line */}
+        {familyLine && (
+          <div style={{
+            fontSize: 10, color: '#f9a825', letterSpacing: '1.5px',
+            textTransform: 'uppercase', marginBottom: 5,
+          }}>
+            {familyLine}
           </div>
         )}
-      </div>
 
-      <EnrichmentSection enrichment={enrichment} product={product} />
+        {/* Product name */}
+        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: '0 0 4px' }}>
+          {product.name}
+        </h1>
 
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: '#111', borderTop: '1px solid #1f2937',
-        padding: '16px 20px', display: 'flex', justifyContent: 'flex-end',
-        zIndex: 50,
-      }}>
-        <button
-          onClick={() => navigate(`/order?productId=${encodeURIComponent(product.id)}`)}
-          style={{
-            background: '#2563eb', color: '#fff', border: 'none',
-            borderRadius: 12, padding: '14px 24px',
-            fontSize: 15, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          Aggiungi all'ordine
-        </button>
-      </div>
-    </div>
-  )
-}
+        {/* Product code */}
+        <div style={{
+          fontSize: 11, color: '#6b7280', fontFamily: "'SF Mono', Consolas, monospace",
+          marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+          {product.id}
+        </div>
 
-const GRIT_LABELS: Record<string, string> = {
-  white: 'UF Bianco', yellow: 'EF Giallo', red: 'Fine Rosso',
-  blue: 'Std Blu', green: 'Grosso Verde', black: 'SC Nero', none: '—',
-}
-
-const SHAPE_LABELS: Record<string, string> = {
-  round: 'Round', pear: 'Pear', inverted_cone: 'Inverted Cone',
-  cylinder: 'Cylinder', tapered_round_end: 'Tapered Round', flame: 'Flame',
-  torpedo: 'Torpedo', diabolo: 'Diabolo', wheel: 'Wheel', egg: 'Egg',
-  bud: 'Bud', double_cone: 'Double Cone', other: 'Other',
-}
-
-const MATERIAL_LABELS: Record<string, string> = {
-  tungsten_carbide: 'TC', diamond: 'Diamond', diamond_diao: 'DIAO',
-  steel: 'Steel', ceramic: 'Ceramic', polymer: 'Polymer',
-  sonic_tip: 'Sonic', ultrasonic: 'Ultrasonic',
-}
-
-function Badge({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{
-      display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-      background: '#1f2937', borderRadius: 8, padding: '8px 12px', gap: 4,
-    }}>
-      <div style={{ color: '#6b7280', fontSize: 11 }}>{label}</div>
-      <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{value}</div>
-    </div>
-  )
-}
-
-function GallerySection({ gallery }: { gallery: ProductEnrichment['gallery'] }) {
-  const [activeIdx, setActiveIdx] = useState(0)
-  if (gallery.length === 0) return null
-  const active = gallery[activeIdx]
-
-  return (
-    <div style={{ padding: '20px 20px 0' }}>
-      <div style={{
-        background: '#111', borderRadius: 12, overflow: 'hidden',
-        aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 12,
-      }}>
-        <img
-          src={active.imageUrl}
-          alt={`Strumento Komet — ${active.imageType}`}
-          aria-label="gallery principale"
-          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
-      </div>
-
-      {gallery.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          {gallery.map((img, i) => (
+        {/* Tabs */}
+        <div style={{
+          display: 'flex', background: '#1a1a1a', borderRadius: 10,
+          padding: 4, gap: 3, marginBottom: 14,
+        }}>
+          {tabs.map(t => (
             <button
-              key={img.id}
-              onClick={() => setActiveIdx(i)}
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
               style={{
-                width: 56, height: 56, flexShrink: 0,
-                border: `2px solid ${i === activeIdx ? '#60a5fa' : 'transparent'}`,
-                borderRadius: 8, background: '#1f2937', cursor: 'pointer', padding: 0,
+                flex: 1, textAlign: 'center', padding: '7px 4px',
+                fontSize: 11, borderRadius: 8, border: 'none', cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                background: activeTab === t.id ? '#2a2a2a' : 'transparent',
+                color: activeTab === t.id ? '#fff' : '#6b7280',
+                fontWeight: activeTab === t.id ? 600 : 400,
               }}
             >
-              <img
-                src={img.imageUrl}
-                alt={img.imageType}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
-              />
+              {t.label}
             </button>
           ))}
         </div>
-      )}
 
-      <div style={{ color: '#6b7280', fontSize: 11, textAlign: 'right', marginTop: 4 }}>
-        {active.source} · {active.imageType.replace(/_/g, ' ')}
-      </div>
-    </div>
-  )
-}
-
-function EnrichmentSection({ enrichment, product }: { enrichment: ProductEnrichment | null; product: Product }) {
-  const navigate = useNavigate()
-
-  if (!enrichment) return null
-
-  const { features, gallery, sizeVariants, recognitionHistory } = enrichment
-
-  return (
-    <>
-      <GallerySection gallery={gallery} />
-
-      {features && (
-        <div style={{ padding: '20px 20px 0' }}>
-          <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
-            CARATTERISTICHE
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {features.shape_family && (
-              <Badge label="Forma" value={SHAPE_LABELS[features.shape_family] ?? features.shape_family} />
-            )}
-            {features.material && (
-              <Badge label="Materiale" value={MATERIAL_LABELS[features.material] ?? features.material} />
-            )}
-            {features.grit_ring_color && features.grit_ring_color !== 'none' && (
-              <Badge label="Grana" value={GRIT_LABELS[features.grit_ring_color] ?? features.grit_ring_color} />
-            )}
-            {features.shank_type && (
-              <Badge label="Gambo" value={features.shank_type.toUpperCase()} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {sizeVariants.length > 1 && (
-        <div style={{ padding: '20px 20px 0' }}>
-          <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
-            MISURE DISPONIBILI
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {sizeVariants.map(v => {
-              const isActive = v.productId === product.id
-              return (
-                <button
-                  key={v.productId}
-                  onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.productId)}`)}
-                  style={{
-                    padding: '8px 16px', borderRadius: 20, border: 'none',
-                    background: isActive ? '#2563eb' : '#1f2937',
-                    color: isActive ? '#fff' : '#9ca3af',
-                    fontWeight: isActive ? 700 : 400,
-                    fontSize: 14, cursor: isActive ? 'default' : 'pointer',
-                  }}
-                >
-                  Ø{v.headSizeMm}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {recognitionHistory && recognitionHistory.length > 0 && (
-        <div style={{ padding: '20px 20px 0' }}>
-          <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
-            STORICO SCANSIONI
-          </div>
-          {recognitionHistory.slice(0, 10).map((h, i) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 0', borderBottom: '1px solid #1f2937',
-            }}>
-              <div>
-                <div style={{ color: '#d1d5db', fontSize: 13 }}>
-                  {new Date(h.scannedAt).toLocaleDateString('it-IT')}
+        {/* ── Tab: Prodotto ── */}
+        <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
+          {features && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {features.shape_family && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
+                  <span style={{ fontSize: 15 }}>▬</span>
+                  <div>
+                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Forma</div>
+                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
+                      {SHAPE_LABELS[features.shape_family] ?? features.shape_family}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ color: '#6b7280', fontSize: 11 }}>
-                  Agente {h.agentId.slice(0, 8)}{h.cacheHit ? ' · cache' : ''}
+              )}
+              {features.material && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
+                  <span style={{ fontSize: 15, color: '#f9a825' }}>◆</span>
+                  <div>
+                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Materiale</div>
+                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
+                      {MATERIAL_LABELS[features.material] ?? features.material}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={{
-                background: '#14532d', color: '#4ade80',
-                borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600,
-              }}>
-                {Math.round(h.confidence * 100)}%
-              </div>
+              )}
+              {features.grit_ring_color && features.grit_ring_color !== 'none' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
+                  <div style={{ width: 12, height: 12, background: GRIT_COLORS[features.grit_ring_color] ?? '#888', borderRadius: 2, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Grana</div>
+                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
+                      {GRIT_LABELS[features.grit_ring_color] ?? features.grit_ring_color}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {features.shank_type && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
+                  <span style={{ fontSize: 15 }}>📏</span>
+                  <div>
+                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Gambo</div>
+                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
+                      {features.shank_type.toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {(() => {
-        const pd = enrichment.details?.performanceData
-        if (!pd) return null
-        return (
-          <div style={{ padding: '20px 20px 0' }}>
-            <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
-              PERFORMANCE
-            </div>
-            {[
-              { label: 'Durata', value: pd.durabilityPct },
-              { label: 'Affilatura', value: pd.sharpnessPct },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#d1d5db', fontSize: 13 }}>{label}</span>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{value}%</span>
+          {pd && (
+            <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+                Performance vs. standard di mercato
+              </div>
+              {[
+                { label: 'Durata', value: pd.durabilityPct },
+                { label: 'Affilatura', value: pd.sharpnessPct },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                  <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>{label}</div>
+                  <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${value}%`, height: 5, borderRadius: 3,
+                      background: 'linear-gradient(90deg, #b8860b, #ffd700)',
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
+                    {value}%
+                  </div>
                 </div>
-                <div style={{ background: '#1f2937', borderRadius: 4, height: 6 }}>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>Controllo</div>
+                <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{
-                    width: `${value}%`, height: '100%',
-                    background: value >= 80 ? '#4ade80' : value >= 60 ? '#facc15' : '#f87171',
-                    borderRadius: 4,
+                    width: `${(pd.controlStars / 5) * 100}%`, height: 5, borderRadius: 3,
+                    background: 'linear-gradient(90deg, #b8860b, #ffd700)',
                   }} />
                 </div>
+                <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
+                  {'★'.repeat(pd.controlStars)}{'☆'.repeat(5 - pd.controlStars)}
+                </div>
               </div>
-            ))}
-            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 8 }}>
-              Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
+              <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>
+                Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
+              </div>
             </div>
-          </div>
-        )
-      })()}
-
-      <div style={{ padding: '20px 20px 0' }}>
-        <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 12 }}>
-          COMPETITOR
+          )}
         </div>
-        <div style={{
-          background: '#111', border: '1px solid #1f2937', borderRadius: 12,
-          padding: 20, textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
-          <div style={{ color: '#4b5563', fontSize: 14 }}>
-            Equivalenti disponibili in Fase 2
+
+        {/* ── Tab: Clinica ── */}
+        <div style={{ display: activeTab === 'clinica' ? 'block' : 'none' }}>
+          {details?.clinicalDescription ? (
+            <div>
+              <div style={{ color: '#d1d5db', fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
+                {details.clinicalDescription}
+              </div>
+              {details.procedures && (
+                <div style={{ color: '#9ca3af', fontSize: 13, lineHeight: 1.6 }}>
+                  {details.procedures}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Nessuna indicazione clinica disponibile.
+            </div>
+          )}
+        </div>
+
+        {/* ── Tab: Misure ── */}
+        <div style={{ display: activeTab === 'misure' ? 'block' : 'none' }}>
+          {sizeVariants.length > 0 ? (
+            <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+                Misure disponibili
+              </div>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {sizeVariants.map(v => {
+                  const isActive = v.productId === product.id
+                  return (
+                    <button
+                      key={v.productId}
+                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.productId)}`)}
+                      style={{
+                        background: isActive ? '#0d2b0d' : '#252525',
+                        border: `1px solid ${isActive ? '#22c55e' : '#333'}`,
+                        borderRadius: 7, padding: '6px 10px',
+                        fontSize: 11, fontFamily: "'SF Mono', Consolas, monospace",
+                        color: isActive ? '#6ee7b7' : '#9ca3af',
+                        fontWeight: isActive ? 600 : 400,
+                        cursor: isActive ? 'default' : 'pointer',
+                      }}
+                    >
+                      {sizeCode(v)}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Nessuna variante di misura disponibile.
+            </div>
+          )}
+        </div>
+
+        {/* ── Tab: Competitor ── */}
+        <div style={{ display: activeTab === 'competitor' ? 'block' : 'none' }}>
+          <div style={{
+            background: '#1a1a1a', border: '1px solid #252525', borderRadius: 12,
+            padding: 20, textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+            <div style={{ color: '#4b5563', fontSize: 14 }}>
+              Equivalenti disponibili in Fase 2
+            </div>
           </div>
         </div>
       </div>
 
-      {enrichment.details?.clinicalDescription && (
-        <div style={{ padding: '20px 20px 0' }}>
-          <details>
-            <summary style={{
-              color: '#9ca3af', fontSize: 12, fontWeight: 600,
-              letterSpacing: 1, cursor: 'pointer', listStyle: 'none',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <span>INDICAZIONI CLINICHE</span>
-              <span>▼</span>
-            </summary>
-            <div style={{ marginTop: 12, color: '#d1d5db', fontSize: 14, lineHeight: 1.6 }}>
-              {enrichment.details.clinicalDescription}
-            </div>
-            {enrichment.details.procedures && (
-              <div style={{ marginTop: 8, color: '#9ca3af', fontSize: 13 }}>
-                {enrichment.details.procedures}
-              </div>
-            )}
-          </details>
+      {/* CTA sticky */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: '#0a0a0a', borderTop: '1px solid #1f2937',
+        padding: '12px 20px', zIndex: 50,
+      }}>
+        <div>
+          <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>Prezzo listino</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+            {priceFormatted}
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+            / pz{product.minQty ? ` · conf. ${product.minQty} pezzi` : ''}
+          </div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   )
 }
