@@ -39,14 +39,15 @@ type FamilyFeatures = {
 // All FG variants → 'fg', all CA variants → 'ca', all HP variants → 'hp'
 // --------------------------------------------------------------------------
 const SHANK_TYPE_MAP: Record<string, string> = {
-  '103': 'hp',  '104': 'hp',  '105': 'hp',   // straight handpiece (HP)
-  '123': 'hp',  '124': 'hp',                  // HP thick variants
-  '204': 'ca',  '205': 'ca',  '206': 'ca',   // contra-angle (CA)
-  '313': 'fg',  '314': 'fg',  '315': 'fg',  '316': 'fg',  // friction grip (FG)
-  '654': 'grip', '634': 'grip', '644': 'grip', // plastic finger-grip
-  '000': 'unmounted', '900': 'unmounted',       // unmounted
-  '310': 'hp',   // steel bur shank (HP)
-  '155': 'hp',   '279': 'hp',  '280': 'hp',  '320': 'hp',  // misc HP/disc
+  '103': 'hp',  '104': 'hp',  '105': 'hp',  '106': 'hp',  // straight handpiece (HP) short/std/long/xlong
+  '123': 'hp',  '124': 'hp',                               // HP thick variants (Ø 3.00mm)
+  '204': 'ca',  '205': 'ca',  '206': 'ca',                // contra-angle (CA) std/long/xlong
+  '313': 'fg',  '314': 'fg',  '315': 'fg',  '316': 'fg', // friction grip (FG) short/std/long/xlong
+  '471': 'fg',                                              // FO/PCR perio tip (Ø 1.60mm)
+  '654': 'grip', '634': 'grip', '644': 'grip',             // plastic finger-grip handle
+  '000': 'unmounted', '900': 'unmounted',                   // unmounted
+  '310': 'hp',                                              // steel bur disc shank (HP)
+  '155': 'hp',   '279': 'hp',  '280': 'hp',  '320': 'hp', // misc HP/disc
 }
 
 const SHANK_DIAMETERS_MM: Record<string, number> = {
