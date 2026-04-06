@@ -18,8 +18,8 @@ function makePool(overrides: { budgetAllowed?: boolean; cacheHit?: boolean } = {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: budgetAllowed
-          ? [{ id: 1, used_today: 0, daily_limit: 500, reset_at: new Date() }]
-          : [{ id: 1, used_today: 500, daily_limit: 500, reset_at: new Date() }],
+          ? [{ id: 1, used_today: 0, daily_limit: 500, throttle_level: 'normal' as const, reset_at: new Date() }]
+          : [{ id: 1, used_today: 500, daily_limit: 500, throttle_level: 'limited' as const, reset_at: new Date() }],
       })
       .mockResolvedValue({ rows: [{ id: 1 }] }),
   } as unknown as import('../db/pool').DbPool

@@ -69,7 +69,8 @@ export async function runRecognitionPipeline(
     }
   }
 
-  const result: RecognitionResult = (() => {
+  type LoggableResult = Extract<RecognitionResult, { state: 'match' | 'shortlist' | 'not_found' | 'error' }>
+  const result: LoggableResult = (() => {
     switch (identification.resultState) {
       case 'match':
         return {
@@ -117,7 +118,7 @@ export async function runRecognitionPipeline(
     cache_hit:    false,
     product_id:   result.state === 'match' ? result.product.productId : null,
     confidence:   result.state === 'match' ? result.confidence : null,
-    result_state: (result.state as string) === 'budget_exhausted' ? 'error' : result.state as 'match' | 'shortlist' | 'not_found' | 'error',
+    result_state: result.state,
     tokens_used:  identification.usage.inputTokens + identification.usage.outputTokens,
     api_cost_usd: null,
   }).catch(() => {})

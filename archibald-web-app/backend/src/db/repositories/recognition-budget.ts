@@ -48,4 +48,4 @@ async function incrementUsedToday(pool: DbPool): Promise<{ newCount: number; thr
 }
 
 export { getBudgetRow, resetBudgetIfExpired, incrementUsedToday };
-export type { BudgetRow, BudgetState };
+export type { BudgetRow };
