@@ -130,6 +130,10 @@ function summarizeOperations(ops: TrackedOperation[]) {
   };
 }
 
+const APP_MAIN_SPACER = `
+.app-main { padding-bottom: 60px !important; }
+`;
+
 function GlobalOperationBanner() {
   const { activeOperations, dismissOperation } = useOperationTracking();
   const navigate = useNavigate();
@@ -138,8 +142,8 @@ function GlobalOperationBanner() {
     return null;
   }
 
-  const handleClick = () => {
-    navigate("/pending-orders");
+  const handleClick = (navigateTo?: string) => {
+    navigate(navigateTo ?? "/pending-orders");
   };
 
   if (activeOperations.length === 1) {
@@ -149,9 +153,10 @@ function GlobalOperationBanner() {
       return (
         <>
           <style>{ANIMATION_STYLES}</style>
+          <style>{APP_MAIN_SPACER}</style>
           <div
             style={failedBannerStyle}
-            onClick={handleClick}
+            onClick={() => handleClick(op.navigateTo)}
             data-testid="global-operation-banner"
           >
             <span style={{ flexShrink: 0 }}>&#10005;</span>
@@ -178,9 +183,10 @@ function GlobalOperationBanner() {
       return (
         <>
           <style>{ANIMATION_STYLES}</style>
+          <style>{APP_MAIN_SPACER}</style>
           <div
             style={completedBannerStyle}
-            onClick={handleClick}
+            onClick={() => handleClick(op.navigateTo)}
             data-testid="global-operation-banner"
           >
             <span style={{ flexShrink: 0 }}>&#10003;</span>
@@ -196,9 +202,10 @@ function GlobalOperationBanner() {
     return (
       <>
         <style>{ANIMATION_STYLES}</style>
+        <style>{APP_MAIN_SPACER}</style>
         <div
           style={activeBannerStyle}
-          onClick={handleClick}
+          onClick={() => handleClick(op.navigateTo)}
           data-testid="global-operation-banner"
         >
           <span style={spinnerStyle} data-testid="banner-spinner" />
@@ -228,9 +235,10 @@ function GlobalOperationBanner() {
   return (
     <>
       <style>{ANIMATION_STYLES}</style>
+      <style>{APP_MAIN_SPACER}</style>
       <div
         style={style}
-        onClick={handleClick}
+        onClick={() => handleClick()}
         data-testid="global-operation-banner"
       >
         {summary.hasActive ? (

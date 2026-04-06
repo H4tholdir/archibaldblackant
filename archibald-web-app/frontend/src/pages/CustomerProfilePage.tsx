@@ -214,7 +214,7 @@ export function CustomerProfilePage() {
         } : {}),
       };
       const { jobId } = await enqueueOperation('update-customer', payload);
-      trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`);
+      trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`, 'Aggiornamento completato', `/customers/${erpId}`);
       setSaveProgress(15);
       setSaveLabel('Operazione in coda...');
       await pollJobUntilDone(jobId, {
@@ -276,7 +276,7 @@ export function CustomerProfilePage() {
         erpId,
         diff: { vatNumber },
       });
-      trackOperation(erpId, jobId, customer.name, `Validazione P.IVA ${customer.name}`);
+      trackOperation(erpId, jobId, customer.name, `Validazione P.IVA ${customer.name}`, 'P.IVA validata', `/customers/${erpId}`);
       await pollJobUntilDone(jobId, {
         onProgress: (p, label) => {
           setSaveProgress(p);

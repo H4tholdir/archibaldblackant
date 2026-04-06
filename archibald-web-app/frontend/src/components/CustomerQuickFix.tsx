@@ -114,7 +114,7 @@ export function CustomerQuickFix({
         data.postalCodeCity = values.city;
 
       const { jobId } = await enqueueOperation('update-customer', data);
-      trackOperation(erpId, jobId, customerName, 'Aggiornamento cliente...');
+      trackOperation(erpId, jobId, customerName, 'Aggiornamento cliente...', 'Aggiornamento completato', `/customers/${erpId}`);
       await pollJobUntilDone(jobId, {
         maxWaitMs: 120_000,
         onProgress: (p) => setProgress(p),
