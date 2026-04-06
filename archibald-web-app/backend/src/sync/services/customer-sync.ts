@@ -153,8 +153,7 @@ async function syncCustomers(
         await pool.query(
           `UPDATE agents.customers SET
             deleted_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
-            phone=COALESCE($9, phone), mobile=COALESCE($10, mobile),
-            email=COALESCE($11, email), url=COALESCE($12, url), attention_to=$13,
+            phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
             street=$14, logistics_address=$15, postal_code=$16, city=$17,
             customer_type=$18, type=$19, delivery_terms=$20, description=$21,
             last_order_date=$22, actual_order_count=$23,
@@ -171,8 +170,7 @@ async function syncCustomers(
         await pool.query(
           `UPDATE agents.customers SET
             account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
-            phone=COALESCE($9, phone), mobile=COALESCE($10, mobile),
-            email=COALESCE($11, email), url=COALESCE($12, url), attention_to=$13,
+            phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
             street=$14, logistics_address=$15, postal_code=$16, city=$17,
             customer_type=$18, type=$19, delivery_terms=$20, description=$21,
             last_order_date=$22, actual_order_count=$23,
