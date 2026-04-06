@@ -50,6 +50,7 @@ type CustomerRow = {
   state: string | null;
   country: string | null;
   agent_notes: string | null;
+  erp_detail_read_at: string | null;
 };
 
 type Customer = {
@@ -101,6 +102,7 @@ type Customer = {
   state: string | null;
   country: string | null;
   agentNotes: string | null;
+  erpDetailReadAt: string | null;
 };
 
 type CustomerInput = {
@@ -175,7 +177,8 @@ const COLUMNS_WITHOUT_PHOTO = `
   previous_order_count_2, previous_sales_2,
   external_account_number, our_account_number,
   hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at,
-  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes
+  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes,
+  erp_detail_read_at
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -228,6 +231,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     state: row.state,
     country: row.country,
     agentNotes: row.agent_notes,
+    erpDetailReadAt: row.erp_detail_read_at ?? null,
   };
 }
 
@@ -703,6 +707,18 @@ async function updateVatValidatedAt(
   );
 }
 
+async function setErpDetailReadAt(
+  pool: DbPool,
+  userId: string,
+  erpId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET erp_detail_read_at = NOW(), updated_at = NOW()
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
+  );
+}
+
 async function getCustomerPhoto(
   pool: DbPool,
   userId: string,
@@ -803,6 +819,7 @@ export {
   updateCustomerErpId,
   updateArchibaldName,
   updateVatValidatedAt,
+  setErpDetailReadAt,
   updateAgentNotes,
   getCustomerPhoto,
   setCustomerPhoto,

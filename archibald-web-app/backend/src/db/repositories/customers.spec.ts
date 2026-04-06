@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../pool';
 import type { Customer, CustomerRow } from './customers';
+import { setErpDetailReadAt } from './customers';
 
 function createMockPool(): DbPool & { queryCalls: Array<{ text: string; params?: unknown[] }> } {
   const queryCalls: Array<{ text: string; params?: unknown[] }> = [];
@@ -67,6 +68,7 @@ const sampleRow: CustomerRow = {
   state: null,
   country: null,
   agent_notes: null,
+  erp_detail_read_at: null,
 };
 
 describe('getCustomerByProfile', () => {
@@ -427,6 +429,7 @@ describe('mapRowToCustomer', () => {
       state: null,
       country: null,
       agentNotes: null,
+      erpDetailReadAt: null,
     });
   });
 
@@ -481,6 +484,7 @@ describe('mapRowToCustomer', () => {
       state: null,
       country: null,
       agent_notes: null,
+      erp_detail_read_at: null,
     };
 
     const result = mapRowToCustomer(minimalRow);
@@ -542,6 +546,7 @@ const completeCustomer: Customer = {
   state: null,
   country: null,
   agentNotes: null,
+  erpDetailReadAt: null,
 };
 
 describe('isCustomerComplete', () => {
@@ -617,5 +622,16 @@ describe('updateAgentNotes', () => {
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
     const updateCall = calls.find(([sql]) => sql.includes('agent_notes'));
     expect(updateCall![1][0]).toBeNull();
+  });
+});
+
+describe('setErpDetailReadAt', () => {
+  test('esegue UPDATE su erp_detail_read_at per il cliente corretto', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    await setErpDetailReadAt(pool as never, 'u1', '57348');
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const call = calls.find(([sql]) => sql.includes('erp_detail_read_at'));
+    expect(call).toBeDefined();
+    expect(call![1]).toEqual(['57348', 'u1']);
   });
 });
