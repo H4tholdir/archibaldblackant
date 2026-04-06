@@ -134,8 +134,8 @@ export function CustomerList() {
     if (toFetch.length === 0) return;
 
     let cancelled = false;
-    // Carica con concorrenza limitata (max 5 richieste simultanee) per non sovraccaricare il backend
     const CONCURRENCY = 5;
+    const BATCH_DELAY_MS = 150;
     const load = async () => {
       for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
         if (cancelled) break;
@@ -147,6 +147,9 @@ export function CustomerList() {
             if (!cancelled) setCustomerPhotos(prev => ({ ...prev, [c.erpId]: url }));
           })
         );
+        if (!cancelled && i + CONCURRENCY < toFetch.length) {
+          await new Promise(res => setTimeout(res, BATCH_DELAY_MS));
+        }
       }
     };
     void load();
