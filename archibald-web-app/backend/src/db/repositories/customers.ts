@@ -231,7 +231,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     state: row.state,
     country: row.country,
     agentNotes: row.agent_notes,
-    erpDetailReadAt: row.erp_detail_read_at ?? null,
+    erpDetailReadAt: row.erp_detail_read_at,
   };
 }
 
