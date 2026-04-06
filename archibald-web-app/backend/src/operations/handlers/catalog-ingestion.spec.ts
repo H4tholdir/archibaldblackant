@@ -30,13 +30,9 @@ const SAMPLE_FAMILY = {
   notes: '',
 };
 
-function createMockPool(queryMocks: ReturnType<typeof vi.fn>[] = []): DbPool {
-  const queryFn = vi.fn();
-  for (const mock of queryMocks) {
-    queryFn.mockImplementationOnce(mock);
-  }
+function createMockPool(): DbPool {
   return {
-    query: queryFn,
+    query: vi.fn(),
     withTransaction: vi.fn(),
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
@@ -128,10 +124,10 @@ describe('createCatalogIngestionHandler', () => {
     const productPageCalls = sonnetMock.mock.calls.slice(1);
 
     // Pages 16 and 17 should be processed (2 pages from 16 to 17 inclusive)
-    expect(productPageCalls).toHaveLength(2);
-
-    const firstProductPrompt = productPageCalls[0]![1];
-    expect(firstProductPrompt).toMatch(/Page 16 of the Komet 2025 catalog/);
+    expect(productPageCalls.map((call) => call[1])).toEqual([
+      expect.stringContaining('Page 16 of the Komet 2025 catalog'),
+      expect.stringContaining('Page 17 of the Komet 2025 catalog'),
+    ]);
   });
 
   test('handle() skips page on Sonnet error after 3 retries and continues to next page', async () => {
