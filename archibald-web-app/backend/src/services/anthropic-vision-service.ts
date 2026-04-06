@@ -91,7 +91,8 @@ function createVisionService(deps: VisionServiceDeps): VisionApiFn {
         { signal: controller.signal },
       );
 
-      const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
       const parsed = JSON.parse(text) as InstrumentFeatures;
       return parsed;
     } finally {
