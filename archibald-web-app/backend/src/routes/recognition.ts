@@ -2,17 +2,17 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
-import type { VisionApiFn } from '../services/anthropic-vision-service';
+import type { CatalogVisionService } from '../recognition/recognition-engine';
 import type { OperationType } from '../operations/operation-types';
 import { runRecognitionPipeline } from '../recognition/recognition-engine';
 import { getBudgetRow, resetBudgetIfExpired } from '../db/repositories/recognition-budget';
 import { logger } from '../logger';
 
 type RecognitionRouterDeps = {
-  pool:          DbPool;
-  callVisionApi: VisionApiFn;
-  dailyLimit:    number;
-  timeoutMs:     number;
+  pool:                 DbPool;
+  catalogVisionService: CatalogVisionService;
+  dailyLimit:           number;
+  timeoutMs:            number;
   queue?: {
     enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
   };
@@ -30,7 +30,7 @@ const feedbackSchema = z.object({
 
 function createRecognitionRouter(deps: RecognitionRouterDeps) {
   const router = Router();
-  const { pool, callVisionApi } = deps;
+  const { pool, catalogVisionService } = deps;
 
   // Rate limiter per-istanza (isolamento nei test)
   const rateLimitMap = new Map<string, number[]>();
@@ -68,16 +68,16 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
     });
 
     try {
-      const { result, budgetState, processingMs, imageHash, broadCandidates } =
+      const { result, budgetState, processingMs, imageHash } =
         await runRecognitionPipeline(
-          { pool, callVisionApi },
+          { pool, catalogVisionService },
           image,
           userId,
           role,
           abortController.signal,
         );
       if (res.headersSent) return;
-      res.json({ result, budgetState, processingMs, imageHash, broadCandidates });
+      res.json({ result, budgetState, processingMs, imageHash });
     } catch (error) {
       if (res.headersSent) return;
       logger.error('[recognition] identify failed', { error });

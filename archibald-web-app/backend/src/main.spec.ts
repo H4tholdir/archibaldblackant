@@ -237,13 +237,11 @@ vi.mock('./operations/handlers', () => ({
   createSyncOrderStatesHandler: vi.fn(() => vi.fn()),
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
   createSyncCustomerAddressesHandler: vi.fn(() => vi.fn()),
-  createKometCodeParserHandler: vi.fn(() => vi.fn()),
-  createKometWebScraperHandler: vi.fn(() => vi.fn()),
   createRecognitionFeedbackHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('./services/anthropic-vision-service', () => ({
-  createVisionService: vi.fn(() => vi.fn()),
+  createCatalogVisionService: vi.fn(() => ({ identifyFromImage: vi.fn() })),
 }));
 
 vi.mock('bullmq', () => {
@@ -351,7 +349,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 24 operation handlers', async () => {
+  test('registers all 22 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -382,11 +380,9 @@ describe('bootstrap', () => {
       'sync-order-states',
       'sync-tracking',
       'sync-customer-addresses',
-      'komet-code-parser',
-      'komet-web-scraper',
       'recognition-feedback',
     ]));
-    expect(handlerKeys).toHaveLength(24);
+    expect(handlerKeys).toHaveLength(22);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

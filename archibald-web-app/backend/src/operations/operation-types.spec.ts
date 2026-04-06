@@ -18,8 +18,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
-  test('all 24 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(24);
+  test('all 25 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(25);
   });
 });
 
@@ -99,32 +99,34 @@ describe('isScheduledSync', () => {
 
 describe('recognition operation types', () => {
   const recognitionOps = [
-    'komet-code-parser',
-    'komet-web-scraper',
+    'catalog-ingestion',
+    'catalog-product-enrichment',
+    'web-product-enrichment',
     'recognition-feedback',
   ] as const;
 
-  test('all 3 recognition ops are in OPERATION_TYPES', () => {
+  test('all 4 recognition ops are in OPERATION_TYPES', () => {
     for (const op of recognitionOps) {
       expect(OPERATION_TYPES).toContain(op);
     }
   });
 
-  test('all 3 recognition ops have priorities', () => {
+  test('all 4 recognition ops have priorities', () => {
     for (const op of recognitionOps) {
       expect(OPERATION_PRIORITIES[op as keyof typeof OPERATION_PRIORITIES]).toBeGreaterThan(0);
     }
   });
 
-  test('all 3 recognition ops route to enrichment queue', () => {
+  test('all 4 recognition ops route to enrichment queue', () => {
     for (const op of recognitionOps) {
       expect(QUEUE_ROUTING[op as keyof typeof QUEUE_ROUTING]).toBe('enrichment');
     }
   });
 
-  test('komet-code-parser and komet-web-scraper are scheduled syncs', () => {
-    expect(SCHEDULED_SYNCS.has('komet-code-parser' as any)).toBe(true);
-    expect(SCHEDULED_SYNCS.has('komet-web-scraper' as any)).toBe(true);
+  test('catalog ops are NOT scheduled syncs', () => {
+    expect(SCHEDULED_SYNCS.has('catalog-ingestion' as any)).toBe(false);
+    expect(SCHEDULED_SYNCS.has('catalog-product-enrichment' as any)).toBe(false);
+    expect(SCHEDULED_SYNCS.has('web-product-enrichment' as any)).toBe(false);
   });
 });
 

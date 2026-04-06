@@ -59,11 +59,10 @@ import { createCustomerFullHistoryRouter } from './routes/customer-full-history'
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { createCapLookupRouter } from './routes/cap-lookup';
 import { createRecognitionRouter } from './routes/recognition';
-import type { VisionApiFn } from './services/anthropic-vision-service';
+import type { CatalogVisionService } from './recognition/recognition-engine';
 import * as productGalleryRepo from './db/repositories/product-gallery';
 import * as recognitionLogRepo from './db/repositories/recognition-log';
 import { getProductDetails } from './db/repositories/product-details';
-import type { InstrumentFeatureRow } from './db/repositories/instrument-features';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
@@ -146,7 +145,7 @@ type AppDeps = {
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
-  callVisionApi?: VisionApiFn;
+  catalogVisionService?: CatalogVisionService;
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
 };
@@ -584,7 +583,6 @@ function createApp(deps: AppDeps): Express {
     getVariantPackages: (name) => productsRepo.getVariantPackages(pool, name),
     getVariantPriceRange: (name) => productsRepo.getVariantPriceRange(pool, name),
     getProductPricesByNames: (names) => productsRepo.getProductPricesByNames(pool, names),
-    getInstrumentFeatures: (productId) => pool.query<InstrumentFeatureRow>(`SELECT * FROM shared.instrument_features WHERE product_id = $1`, [productId]).then((r) => r.rows[0] ?? null),
     getProductGallery: (productId) => productGalleryRepo.getGalleryByProduct(pool, productId),
     getRecognitionHistory: (productId, limit) => recognitionLogRepo.getRecognitionHistory(pool, productId, limit),
     getProductVariantsForEnrichment: (name) => productsRepo.getProductVariants(pool, name),
@@ -1060,10 +1058,10 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/tracking', authenticate, createTrackingRouter({ pool }));
 
-  if (deps.callVisionApi) {
+  if (deps.catalogVisionService) {
     const recognitionRouter = createRecognitionRouter({
       pool,
-      callVisionApi: deps.callVisionApi,
+      catalogVisionService: deps.catalogVisionService,
       dailyLimit: deps.recognitionDailyLimit ?? 500,
       timeoutMs: deps.recognitionTimeoutMs ?? 15000,
       queue,

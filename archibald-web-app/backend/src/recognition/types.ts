@@ -20,16 +20,20 @@ type ProductMatch = {
   confidence:   number
 };
 
-type FilterQuestion = {
-  field:   'head_size_mm' | 'grit_ring_color' | 'shank_type'
-  prompt:  string
-  options: Array<{ label: string; value: string }>
+type IdentificationResult = {
+  productCode:  string | null
+  familyCode:   string | null
+  confidence:   number
+  resultState:  'match' | 'shortlist' | 'not_found' | 'error'
+  candidates:   string[]
+  catalogPage:  number | null
+  reasoning:    string
+  usage:        { inputTokens: number; outputTokens: number }
 };
 
 type RecognitionResult =
   | { state: 'match';           product: ProductMatch; confidence: number }
   | { state: 'shortlist';       candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures }
-  | { state: 'filter_needed';   extractedFeatures: InstrumentFeatures; question: FilterQuestion }
   | { state: 'not_found';       extractedFeatures: InstrumentFeatures | null }
   | { state: 'budget_exhausted' }
   | { state: 'error';           message: string };
@@ -45,7 +49,7 @@ export type {
   ThrottleLevel,
   InstrumentFeatures,
   ProductMatch,
-  FilterQuestion,
+  IdentificationResult,
   RecognitionResult,
   BudgetState,
 };
