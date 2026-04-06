@@ -13889,6 +13889,69 @@ export class ArchibaldBot {
     logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
   }
 
+  async readCustomerFields(): Promise<import('../db/repositories/customers').CustomerFormInput> {
+    if (!this.page) throw new Error('Browser page is null');
+
+    // Estrai erpId dall'URL corrente (siamo in ?mode=View dopo navigateToCustomerByErpId)
+    const currentUrl = this.page.url();
+    const erpIdMatch = currentUrl.match(/CUSTTABLE_DetailView\/([^/?]+)/);
+    if (!erpIdMatch) throw new Error(`readCustomerFields: erpId non trovato nell'URL: ${currentUrl}`);
+    const erpId = erpIdMatch[1];
+
+    logger.info('readCustomerFields: navigazione a Edit mode', { erpId });
+    await this.page.goto(
+      `${config.archibald.url}/CUSTTABLE_DetailView/${erpId}/?mode=Edit`,
+      { waitUntil: 'networkidle2', timeout: 60000 },
+    );
+    if (this.page.url().includes('Login.aspx')) {
+      throw new Error('readCustomerFields: sessione scaduta');
+    }
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    const readInput = async (idFragment: string): Promise<string | null> =>
+      this.page!.evaluate(
+        (frag: string) =>
+          (document.querySelector(`[id*="${frag}"]`) as HTMLInputElement | null)?.value?.trim() ?? null,
+        idFragment,
+      );
+
+    const name = await readInput('dviNAME_Edit_I');
+    if (!name) throw new Error('readCustomerFields: campo NAME vuoto nella DetailView ERP');
+
+    const notes = await this.page.evaluate(
+      () =>
+        (document.querySelector('textarea[id*="xaf_dviCUSTINFO"]') as HTMLTextAreaElement | null)
+          ?.value?.trim() ?? null,
+    );
+
+    const fields = {
+      name,
+      nameAlias:    (await readInput('dviNAMEALIAS_Edit_I'))                       ?? undefined,
+      vatNumber:    (await readInput('dviVATNUM_Edit_I'))                           ?? undefined,
+      fiscalCode:   (await readInput('dviFISCALCODE_Edit_I'))                       ?? undefined,
+      pec:          (await readInput('dviLEGALEMAIL_Edit_I'))                      ?? undefined,
+      sdi:          (await readInput('dviLEGALAUTHORITY_Edit_I'))                  ?? undefined,
+      street:       (await readInput('dviSTREET_Edit_I'))                          ?? undefined,
+      postalCode:   (await readInput('dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I')) ?? undefined,
+      phone:        (await readInput('dviPHONE_Edit_I'))                           ?? undefined,
+      mobile:       (await readInput('dviCELLULARPHONE_Edit_I'))                  ?? undefined,
+      email:        (await readInput('dviEMAIL_Edit_I'))                           ?? undefined,
+      url:          (await readInput('dviURL_Edit_I'))                             ?? undefined,
+      deliveryMode: (await readInput('dviDLVMODE_Edit_dropdown_DD_I'))             ?? undefined,
+      paymentTerms: (await readInput('dviPAYMTERMID_Edit_find_Edit_I'))            ?? undefined,
+      sector:       (await readInput('dviBUSINESSSECTORID_Edit_dropdown_DD_I'))    ?? undefined,
+      attentionTo:  (await readInput('dviBRASCRMATTENTIONTO_Edit_I'))              ?? undefined,
+      notes:        notes ?? undefined,
+      county:       (await readInput('dviCOUNTY_Edit_I'))                          ?? undefined,
+      state:        (await readInput('dviSTATE_Edit_I'))                           ?? undefined,
+      country:      (await readInput('dviCOUNTRYREGIONID_Edit_I'))                 ?? undefined,
+      lineDiscount: (await readInput('dviLINEDISC_Edit_dropdown_DD_I'))            ?? undefined,
+    };
+
+    logger.info('readCustomerFields: campi letti', { erpId, fieldCount: Object.keys(fields).length });
+    return fields;
+  }
+
   async navigateToEditCustomerById(erpId: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
     // Remove dots (ERP format) and commas for clean numeric ID
