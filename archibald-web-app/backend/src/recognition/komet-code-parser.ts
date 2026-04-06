@@ -3,11 +3,12 @@
 // where sizeCode = head diameter × 10 (e.g. 016 = 1.6 mm)
 //
 // Shank types normalised for visual recognition (Vision API returns these values):
-//   fg       = friction grip, Ø 1.6 mm  (codes 313/314/315/316)
-//   ca       = contra-angle, Ø 2.35 mm  (codes 204/205/206)
-//   hp       = straight handpiece, Ø 2.35 mm (codes 103/104/105/123/124)
-//   grip     = plastic finger-grip, Ø 4 mm   (code 654/634/644)
+//   fg        = friction grip, Ø 1.6 mm  (codes 313/314/315/316)
+//   ca        = contra-angle, Ø 2.35 mm  (codes 204/205/206)
+//   hp        = straight handpiece, Ø 2.35 mm (codes 103/104/105/123/124)
+//   grip      = plastic finger-grip, Ø 4 mm   (codes 654/634/644)
 //   unmounted = no shank (codes 000/900)
+//   unknown   = not determinable (ultrasonic connection EM1/SI1/KA1/ST1)
 //
 // Diamond grit colours (ISO 6360):
 //   white  = UF ultra-fine  ~8 µm
@@ -50,8 +51,12 @@ const SHANK_TYPE_MAP: Record<string, string> = {
   '155': 'hp',   '279': 'hp',  '280': 'hp',  '320': 'hp', // misc HP/disc
 }
 
+// Ultrasonic PiezoLine connection codes (EM1/SI1/KA1/ST1) — not in SHANK_TYPE_MAP;
+// handled separately in parseKometCode; result shank_type = 'unknown'
+const ULTRASONIC_CONNECTIONS = new Set(['EM1', 'SI1', 'KA1', 'ST1'])
+
 const SHANK_DIAMETERS_MM: Record<string, number> = {
-  fg: 1.6, ca: 2.35, hp: 2.35, grip: 4.0, unmounted: 0,
+  fg: 1.6, ca: 2.35, hp: 2.35, grip: 4.0, unmounted: 0, unknown: 0,
 }
 
 // --------------------------------------------------------------------------
@@ -60,9 +65,10 @@ const SHANK_DIAMETERS_MM: Record<string, number> = {
 // brand-prefixed (KP6xxx, ZRxxx, S5xxx, A8xxx…) after prefix stripping.
 // --------------------------------------------------------------------------
 const DIAMOND_SHAPE_MAP: Record<string, string> = {
+  '242': 'round',    // HP diamond round bone cutter (surgery)
   '368': 'bud',             '369': 'bud',             '370': 'other',
   '379': 'egg',             '390': 'flame',            '392': 'other',
-  '801': 'round',           '802': 'round',            '803': 'round',
+  '801': 'round',           '802': 'round',            '803': 'round',   '804': 'round',
   '805': 'inverted_cone',   '806': 'inverted_cone',    '807': 'inverted_cone',
   '809': 'inverted_cone',   '810': 'inverted_cone',    '811': 'bud',
   '812': 'diabolo',         '813': 'diabolo',           '814': 'inverted_cone',
@@ -81,7 +87,7 @@ const DIAMOND_SHAPE_MAP: Record<string, string> = {
   '855': 'tapered_round_end', '856': 'tapered_round_end', '857': 'tapered_round_end',
   '858': 'tapered_flat_end',  '859': 'tapered_flat_end',
   '860': 'flame',  '861': 'flame',  '862': 'flame',
-  '863': 'flame',  '864': 'flame',  '869': 'flame',
+  '863': 'flame',  '864': 'flame',  '867': 'flame',  '869': 'flame',
   '868': 'cylinder',
   '875': 'torpedo', '876': 'torpedo', '877': 'torpedo',
   '878': 'torpedo', '879': 'torpedo',
@@ -99,8 +105,11 @@ const DIAMOND_SHAPE_MAP: Record<string, string> = {
   '951': 'tapered_flat_end',  '952': 'tapered_round_end',
   '953': 'cylinder',
   '955': 'tapered_flat_end',  '956': 'tapered_flat_end',
+  '957': 'tapered_round_end',
   '959': 'tapered_round_end', '960': 'tapered_flat_end',
-  '972': 'flame',   '977': 'torpedo', '979': 'torpedo',
+  '964': 'tapered_flat_end',  '965': 'tapered_flat_end',
+  '972': 'flame',   '973': 'flame',
+  '977': 'torpedo', '979': 'torpedo',
   '981': 'torpedo', '982': 'torpedo', '983': 'torpedo',
   '984': 'torpedo', '985': 'torpedo', '986': 'cylinder',
 }
@@ -176,7 +185,8 @@ const H_SHAPE_MAP: Record<string, string> = {
 }
 
 // --------------------------------------------------------------------------
-// Steel lab bur shape map (simple 1–3 digit codes, HP shank, material=steel)
+// Steel lab bur shape map (simple 1–3 digit family codes, HP/CA shank)
+// Note: '242' removed — it is a diamond HP round (see DIAMOND_SHAPE_MAP)
 // --------------------------------------------------------------------------
 const STEEL_SHAPE_MAP: Record<string, string> = {
   '1': 'round',   '2': 'round',   '3': 'cylinder',
@@ -188,30 +198,37 @@ const STEEL_SHAPE_MAP: Record<string, string> = {
   '75': 'torpedo',  '79': 'tapered_flat_end',
   '108': 'cylinder',
   '182': 'other',   '183': 'other',
-  '203': 'round',   '242': 'wheel',
+  '203': 'round',
 }
 
 // --------------------------------------------------------------------------
-// Series prefixes / patterns for non-rotary or non-recognisable instruments
-// (sonic tips, NiTi files, bioceramic materials, accessories, endo motors…)
+// Ceramic instrument map: familyCode → shape_family
+// K1SM = CeraBur (round), KT = CeraTip (round),
+// K157 = ceramic cylindrical bone cutter, K160/K160A = ceramic round bone cutter
+// --------------------------------------------------------------------------
+const CERAMIC_SHAPE_MAP: Record<string, string> = {
+  'K1SM':  'round',
+  'K59':   'round',
+  'KT':    'round',
+  'K157':  'cylinder',
+  'K160':  'round',
+  'K160A': 'round',
+}
+
+// --------------------------------------------------------------------------
+// Skip lists — consumables, accessories, and non-instrument products
 // --------------------------------------------------------------------------
 const SKIP_PREFIXES = new Set([
   'SF', 'SFQ', 'OS', 'SFS', 'EP',
-  'BCR', 'BCS', 'GP', 'PP', 'PROC', 'PRQ',
-  'KT', 'RKP', 'RKT', 'ICT',
-  'PACK', 'FILL', 'DM', 'CERC', 'DPXCL', 'TPXCL',
+  'BCR', 'BCS', 'PRQ',
+  'RKP', 'RKT', 'ICT',
+  'PACK', 'FILL', 'DM', 'DPXCL', 'TPXCL',
 ])
 
-const SKIP_EXACT = new Set(['C', 'U', 'V', 'W', 'Z', 'H', 'P1', 'KT'])
+const SKIP_EXACT = new Set(['C', 'U', 'V', 'W', 'Z', 'H'])
 
 function shouldSkip(familyCode: string): boolean {
   if (SKIP_EXACT.has(familyCode)) return true
-  // Manual endo hand files (17xxx.654.xxx)
-  if (/^17\d{3}$/.test(familyCode)) return true
-  // DCB implant instruments
-  if (/^DCB\d/.test(familyCode)) return true
-  // NiTi / reciprocating endo files
-  if (/^(FQ|F0[0-9]L?|OP[0-9]|RE[0-9]{2}L|P\d{3}L)/.test(familyCode)) return true
   for (const prefix of SKIP_PREFIXES) {
     if (familyCode.startsWith(prefix)) return true
   }
@@ -219,10 +236,101 @@ function shouldSkip(familyCode: string): boolean {
 }
 
 // --------------------------------------------------------------------------
+// Family parsers
+// --------------------------------------------------------------------------
+
+// Ultrasonic PiezoLine scaler tips (EM1/SI1/KA1/ST1 connection)
+// Purely numeric family codes are accessory holders/adapters — skip them.
+function parseUltrasonicTip(familyCode: string): FamilyFeatures | null {
+  if (/^\d+$/.test(familyCode)) return null
+  return { shape_family: 'sonic_tip', material: 'sonic_tip', grit_ring_color: null }
+}
+
+// DCB implant surgical burs: DCB{n}MA/BA/CA.104.{size}
+// MA = cylindrical drill, BA = round/ball, CA = countersink (inverted cone)
+function parseDcbFamily(familyCode: string): FamilyFeatures | null {
+  if (!/^DCB\d/.test(familyCode)) return null
+  const shape = familyCode.endsWith('BA') ? 'round'
+              : familyCode.endsWith('CA') ? 'inverted_cone'
+              : 'cylinder'
+  return { shape_family: shape, material: 'tungsten_carbide', grit_ring_color: null }
+}
+
+// Manual endo hand files, contra-angle reamers, pulp bur
+// 17xxx.654.{size}: K-reamers (17121), K-files (17321), H-files (17421)
+// 183L/183LB.204.{size}: contra-angle latch reamers
+// 191.204.{size}: pulp bur
+function parseEndoManualFamily(familyCode: string): FamilyFeatures | null {
+  if (/^17\d{3}$/.test(familyCode))
+    return { shape_family: 'endo_file', material: 'steel', grit_ring_color: null }
+  if (familyCode === '183L' || familyCode === '183LB')
+    return { shape_family: 'other', material: 'steel', grit_ring_color: null }
+  if (familyCode === '191')
+    return { shape_family: 'round', material: 'steel', grit_ring_color: null }
+  return null
+}
+
+// Ceramic burs: CeraBur (K1SM), CeraTip (KT), bone cutters (K157, K160, K160A)
+function parseCeramicFamily(familyCode: string): FamilyFeatures | null {
+  const shape = CERAMIC_SHAPE_MAP[familyCode]
+  if (!shape) return null
+  return { shape_family: shape, material: 'ceramic', grit_ring_color: null }
+}
+
+// PolyBur polymer bur: P1.204.{size}
+function parsePolymerFamily(familyCode: string): FamilyFeatures | null {
+  if (familyCode !== 'P1') return null
+  return { shape_family: 'round', material: 'polymer', grit_ring_color: null }
+}
+
+// DF1 reciprocating diamond strips: DF1/DF1EF/DF1F/DF1C.000.{size}
+function parseDiamondStripFamily(familyCode: string): FamilyFeatures | null {
+  if (!familyCode.startsWith('DF1')) return null
+  return { shape_family: 'other', material: 'diamond', grit_ring_color: null }
+}
+
+// GP/PP/GPF/GPFQ/GPR: gutta percha cones and paper points (unmounted, 000 shank)
+function parseGpPpFamily(familyCode: string): FamilyFeatures | null {
+  if (familyCode.startsWith('GP'))
+    return { shape_family: 'cone', material: 'gutta_percha', grit_ring_color: null }
+  if (familyCode.startsWith('PP'))
+    return { shape_family: 'cone', material: 'paper_point', grit_ring_color: null }
+  return null
+}
+
+// NiTi rotary endo files: PROC, FQ, F0x, OP, RE##L, P###L
+function parseNitiRotaryFamily(familyCode: string): FamilyFeatures | null {
+  if (
+    familyCode.startsWith('PROC') ||
+    /^FQ/.test(familyCode) ||
+    /^F0[0-9]/.test(familyCode) ||
+    /^OP[0-9]/.test(familyCode) ||
+    /^RE[0-9]{2}L/.test(familyCode) ||
+    /^P\d{3}L/.test(familyCode)
+  ) {
+    return { shape_family: 'tapered_round_end', material: 'nickel_titanium', grit_ring_color: null }
+  }
+  return null
+}
+
+// CERC/CERCS: rotary diamond burs (FG shank)
+function parseCercFamily(familyCode: string): FamilyFeatures | null {
+  if (familyCode === 'CERC' || familyCode === 'CERCS')
+    return { shape_family: 'round', material: 'diamond', grit_ring_color: 'blue' }
+  return null
+}
+
+// 9xxx polymer polishing instruments: 9{3-digit base}{optional letter grit suffix}
+// e.g. 9030C, 9030M, 9030F, 9030EF, 9050EF, 9030AM
+function parsePolishingFamily(familyCode: string): FamilyFeatures | null {
+  if (!/^9\d{3}[A-Z]*$/.test(familyCode)) return null
+  return { shape_family: 'round', material: 'polymer', grit_ring_color: null }
+}
+
+// --------------------------------------------------------------------------
 // Diamond family parser
 // Handles: plain numeric, 8/6/5/2 grit prefix, KP6/KP8 DIAO,
 //          ZR8/ZR6/ZR zirconia, S5/S6/S8 Safer variants, A8/A6 anatomic.
-// Returns null for unrecognised codes.
 // --------------------------------------------------------------------------
 function parseDiamondFamily(
   familyCode: string,
@@ -261,7 +369,6 @@ function parseDiamondFamily(
 
   // 2. Numeric grit prefix (only when not already set by brand prefix above)
   // Only strip if after removing the first digit we still have ≥3 digits (valid shape code).
-  // e.g. '8801' → strip '8' → '801' ✓; '801' → strip '8' → '01' ✗ (3-digit code, no prefix)
   if (grit === null) {
     const ch = remaining[0]
     const afterStrip = remaining.slice(1)
@@ -348,39 +455,72 @@ const ISO_SIZES_MM = [
 ]
 
 // --------------------------------------------------------------------------
-// Public API
+// Internal helper: build ParsedFeatures from resolved components
 // --------------------------------------------------------------------------
-
-function parseKometCode(productName: string): ParsedFeatures | null {
-  // Komet format: {familyCode}.{shankCode3}.{sizeCode3}
-  const match = productName.match(/^(.+?)\.(\d{3})\.(\d{3})$/)
-  if (!match) return null
-
-  const [, familyRaw, shankCode, sizeCode] = match as [string, string, string, string]
-
-  const shankType = SHANK_TYPE_MAP[shankCode]
-  if (!shankType) return null  // unknown shank code → skip
-
-  if (shouldSkip(familyRaw)) return null
-
-  // Resolution order: TC bur → diamond → steel
-  const features =
-    parseHSeriesFamily(familyRaw) ??
-    parseDiamondFamily(familyRaw)  ??
-    parseSteelFamily(familyRaw)
-
-  if (!features) return null
-
+function makeResult(
+  familyCode: string,
+  shankType: string,
+  sizeRaw: string,
+  features: FamilyFeatures,
+): ParsedFeatures {
+  const digits = parseInt(sizeRaw, 10)
+  const head_size_mm = Number.isNaN(digits) ? 0 : digits / 10
   return {
     shape_family:      features.shape_family,
     material:          features.material,
     grit_ring_color:   features.grit_ring_color,
-    family_code:       familyRaw,
+    family_code:       familyCode,
     shank_type:        shankType,
-    shank_diameter_mm: SHANK_DIAMETERS_MM[shankType] ?? 2.35,
-    head_size_code:    sizeCode,
-    head_size_mm:      parseInt(sizeCode, 10) / 10,
+    shank_diameter_mm: SHANK_DIAMETERS_MM[shankType] ?? 0,
+    head_size_code:    sizeRaw.trim(),
+    head_size_mm,
   }
+}
+
+// --------------------------------------------------------------------------
+// Public API
+// --------------------------------------------------------------------------
+
+function parseKometCode(productName: string): ParsedFeatures | null {
+  // Pre-strip .R0[digit*] suffix from PROC NiTi 4-part codes (e.g. PROC4L21.204.045.R0)
+  const normalized = productName.replace(/\.R0\d*$/, '')
+
+  // Allow 3-char alphanumeric shank codes (EM1/SI1/KA1/ST1) and flexible size field
+  const match = normalized.match(/^(.+?)\.([A-Z0-9]{3})\.([A-Z0-9]+)$/)
+  if (!match) return null
+
+  const [, familyRaw, shankCode, sizeRaw] = match as [string, string, string, string]
+
+  if (shouldSkip(familyRaw)) return null
+
+  // Ultrasonic connection codes → route to tip parser; shank stored as 'unknown'
+  if (ULTRASONIC_CONNECTIONS.has(shankCode)) {
+    const features = parseUltrasonicTip(familyRaw)
+    if (!features) return null
+    return makeResult(familyRaw, 'unknown', sizeRaw, features)
+  }
+
+  const shankType = SHANK_TYPE_MAP[shankCode]
+  if (!shankType) return null
+
+  // Resolution order: specialised new families first, then legacy parsers
+  const features =
+    parseDcbFamily(familyRaw) ??
+    parseEndoManualFamily(familyRaw) ??
+    parseCeramicFamily(familyRaw) ??
+    parsePolymerFamily(familyRaw) ??
+    parseDiamondStripFamily(familyRaw) ??
+    parseGpPpFamily(familyRaw) ??
+    parseNitiRotaryFamily(familyRaw) ??
+    parseCercFamily(familyRaw) ??
+    parsePolishingFamily(familyRaw) ??
+    parseHSeriesFamily(familyRaw) ??
+    parseDiamondFamily(familyRaw) ??
+    parseSteelFamily(familyRaw)
+
+  if (!features) return null
+
+  return makeResult(familyRaw, shankType, sizeRaw, features)
 }
 
 function calculateHeadSizeMm(

@@ -149,6 +149,12 @@ describe('parseKometCode', () => {
     test('881.314.012 → cylinder_round_end diamond', () => {
       expect(parseKometCode('881.314.012')).toEqual(diamond('cylinder_round_end', 'blue'))
     })
+
+    test('242.104.023 → round diamond HP (bone cutter — fixed from steel wheel)', () => {
+      expect(parseKometCode('242.104.023')).toEqual(
+        diamond('round', 'blue', { shank_type: 'hp' }),
+      )
+    })
   })
 
   describe('diamond instruments — KR/KREF modified shoulder variants', () => {
@@ -223,6 +229,242 @@ describe('parseKometCode', () => {
     })
   })
 
+  // ── Ceramic instruments ────────────────────────────────────────────────────
+
+  describe('ceramic instruments', () => {
+    test('K1SM.204.016 → round ceramic, CA shank (CeraBur)', () => {
+      expect(parseKometCode('K1SM.204.016')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'round', shank_type: 'ca' }),
+      )
+    })
+
+    test('K1SM.205.016 → round ceramic, CA long shank', () => {
+      expect(parseKometCode('K1SM.205.016')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'round', shank_type: 'ca' }),
+      )
+    })
+
+    test('KT.314.016 → round ceramic, FG shank (CeraTip)', () => {
+      expect(parseKometCode('KT.314.016')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'round', shank_type: 'fg' }),
+      )
+    })
+
+    test('K59.314.016 → round ceramic, FG shank', () => {
+      expect(parseKometCode('K59.314.016')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'round', shank_type: 'fg' }),
+      )
+    })
+
+    test('K157.104.016 → cylinder ceramic, HP shank (bone cutter cylindrical)', () => {
+      expect(parseKometCode('K157.104.016')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'cylinder', shank_type: 'hp' }),
+      )
+    })
+
+    test('K160A.104.023 → round ceramic, HP shank (bone cutter round)', () => {
+      expect(parseKometCode('K160A.104.023')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'round', shank_type: 'hp' }),
+      )
+    })
+  })
+
+  // ── Polymer bur ────────────────────────────────────────────────────────────
+
+  describe('polymer bur', () => {
+    test('P1.204.014 → round polymer, CA shank (PolyBur)', () => {
+      expect(parseKometCode('P1.204.014')).toEqual(
+        expect.objectContaining({ material: 'polymer', shape_family: 'round', shank_type: 'ca' }),
+      )
+    })
+
+    test('P1.204.018 → round polymer, CA shank', () => {
+      expect(parseKometCode('P1.204.018')).toEqual(
+        expect.objectContaining({ material: 'polymer', shape_family: 'round', shank_type: 'ca' }),
+      )
+    })
+  })
+
+  // ── Diamond strips ─────────────────────────────────────────────────────────
+
+  describe('diamond reciprocating strips', () => {
+    test('DF1.000.025 → diamond other, unmounted (standard strip)', () => {
+      expect(parseKometCode('DF1.000.025')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'other', shank_type: 'unmounted' }),
+      )
+    })
+
+    test('DF1EF.000.025 → diamond other, unmounted (extra-fine strip)', () => {
+      expect(parseKometCode('DF1EF.000.025')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'other', shank_type: 'unmounted' }),
+      )
+    })
+  })
+
+  // ── Gutta percha / paper points ────────────────────────────────────────────
+
+  describe('gutta percha cones and paper points', () => {
+    test('GP04.000.020 → gutta_percha cone, unmounted', () => {
+      expect(parseKometCode('GP04.000.020')).toEqual(
+        expect.objectContaining({ material: 'gutta_percha', shape_family: 'cone', shank_type: 'unmounted' }),
+      )
+    })
+
+    test('GPF06.000.025 → gutta_percha cone (GPF variant)', () => {
+      expect(parseKometCode('GPF06.000.025')).toEqual(
+        expect.objectContaining({ material: 'gutta_percha', shape_family: 'cone' }),
+      )
+    })
+
+    test('PP04.000.020 → paper_point cone, unmounted', () => {
+      expect(parseKometCode('PP04.000.020')).toEqual(
+        expect.objectContaining({ material: 'paper_point', shape_family: 'cone', shank_type: 'unmounted' }),
+      )
+    })
+  })
+
+  // ── NiTi rotary endo files ─────────────────────────────────────────────────
+
+  describe('NiTi rotary endo files', () => {
+    test('FQ04L21.204.020 → nickel_titanium tapered_round_end, CA shank', () => {
+      expect(parseKometCode('FQ04L21.204.020')).toEqual(
+        expect.objectContaining({ material: 'nickel_titanium', shape_family: 'tapered_round_end', shank_type: 'ca' }),
+      )
+    })
+
+    test('PROC4L21.204.045.R0 → nickel_titanium (4-part code, .R0 stripped)', () => {
+      expect(parseKometCode('PROC4L21.204.045.R0')).toEqual(
+        expect.objectContaining({ material: 'nickel_titanium', shape_family: 'tapered_round_end', family_code: 'PROC4L21' }),
+      )
+    })
+
+    test('PROC6L21.204.040.R06 → nickel_titanium (.R06 suffix stripped)', () => {
+      expect(parseKometCode('PROC6L21.204.040.R06')).toEqual(
+        expect.objectContaining({ material: 'nickel_titanium', family_code: 'PROC6L21' }),
+      )
+    })
+  })
+
+  // ── CERC diamond burs ──────────────────────────────────────────────────────
+
+  describe('CERC rotary diamond burs', () => {
+    test('CERC.314.018 → round diamond, FG shank, blue grit', () => {
+      expect(parseKometCode('CERC.314.018')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'round', shank_type: 'fg', grit_ring_color: 'blue' }),
+      )
+    })
+
+    test('CERCS.314.016 → round diamond, FG shank (CERCS variant)', () => {
+      expect(parseKometCode('CERCS.314.016')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'round', shank_type: 'fg' }),
+      )
+    })
+  })
+
+  // ── DCB implant surgical burs ──────────────────────────────────────────────
+
+  describe('DCB implant surgical burs', () => {
+    test('DCB2BA.104.030 → round TC, HP shank (ball bur)', () => {
+      expect(parseKometCode('DCB2BA.104.030')).toEqual(
+        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'round', shank_type: 'hp' }),
+      )
+    })
+
+    test('DCB3CA.104.023 → inverted_cone TC, HP shank (countersink)', () => {
+      expect(parseKometCode('DCB3CA.104.023')).toEqual(
+        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'inverted_cone', shank_type: 'hp' }),
+      )
+    })
+
+    test('DCB1MA.104.023 → cylinder TC, HP shank (drill)', () => {
+      expect(parseKometCode('DCB1MA.104.023')).toEqual(
+        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'cylinder', shank_type: 'hp' }),
+      )
+    })
+  })
+
+  // ── Manual endo files ──────────────────────────────────────────────────────
+
+  describe('manual endo hand files', () => {
+    test('17321.654.025 → endo_file, steel, grip shank (K-file)', () => {
+      expect(parseKometCode('17321.654.025')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'endo_file', shank_type: 'grip' }),
+      )
+    })
+
+    test('17121.654.020 → endo_file, steel, grip shank (K-reamer)', () => {
+      expect(parseKometCode('17121.654.020')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'endo_file', shank_type: 'grip' }),
+      )
+    })
+
+    test('17421.654.025 → endo_file, steel, grip shank (H-file)', () => {
+      expect(parseKometCode('17421.654.025')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'endo_file', shank_type: 'grip' }),
+      )
+    })
+
+    test('183L.204.025 → other, steel, CA shank (contra-angle reamer)', () => {
+      expect(parseKometCode('183L.204.025')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'other', shank_type: 'ca' }),
+      )
+    })
+
+    test('191.204.018 → round, steel, CA shank (pulp bur)', () => {
+      expect(parseKometCode('191.204.018')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'round', shank_type: 'ca' }),
+      )
+    })
+  })
+
+  // ── Polishing instruments ──────────────────────────────────────────────────
+
+  describe('polymer polishing instruments', () => {
+    test('9030C.104.060 → round polymer, HP shank (coarse)', () => {
+      expect(parseKometCode('9030C.104.060')).toEqual(
+        expect.objectContaining({ material: 'polymer', shape_family: 'round', shank_type: 'hp' }),
+      )
+    })
+
+    test('9030EF.104.060 → round polymer, HP shank (extra-fine)', () => {
+      expect(parseKometCode('9030EF.104.060')).toEqual(
+        expect.objectContaining({ material: 'polymer', shape_family: 'round', shank_type: 'hp' }),
+      )
+    })
+
+    test('9050EF.314.060 → round polymer, FG shank', () => {
+      expect(parseKometCode('9050EF.314.060')).toEqual(
+        expect.objectContaining({ material: 'polymer', shape_family: 'round', shank_type: 'fg' }),
+      )
+    })
+  })
+
+  // ── Ultrasonic PiezoLine tips ──────────────────────────────────────────────
+
+  describe('ultrasonic PiezoLine scaler tips', () => {
+    test('PS.EM1.025 → sonic_tip, unknown shank (EM1 PiezoLine tip)', () => {
+      expect(parseKometCode('PS.EM1.025')).toEqual(
+        expect.objectContaining({ material: 'sonic_tip', shape_family: 'sonic_tip', shank_type: 'unknown' }),
+      )
+    })
+
+    test('PL9.EM1.025 → sonic_tip (PL9 tip)', () => {
+      expect(parseKometCode('PL9.EM1.025')).toEqual(
+        expect.objectContaining({ material: 'sonic_tip', shape_family: 'sonic_tip', shank_type: 'unknown' }),
+      )
+    })
+
+    test('PE1.SI1.025 → sonic_tip (SI1 connection)', () => {
+      expect(parseKometCode('PE1.SI1.025')).toEqual(
+        expect.objectContaining({ material: 'sonic_tip', shank_type: 'unknown' }),
+      )
+    })
+
+    test('1981.EM1.000 → null (numeric code = accessory holder, not a tip)', () => {
+      expect(parseKometCode('1981.EM1.000')).toBeNull()
+    })
+  })
+
   // ── Shank type normalisation ───────────────────────────────────────────────
 
   describe('shank type normalisation', () => {
@@ -257,7 +499,7 @@ describe('parseKometCode', () => {
     })
   })
 
-  // ── Skip list (non-recognisable series) ────────────────────────────────────
+  // ── Skip list (non-instrument consumables and accessories) ─────────────────
 
   describe('skip list', () => {
     test('SF847KR → null (SonicLine tip, not a rotary bur)', () => {
@@ -272,16 +514,8 @@ describe('parseKometCode', () => {
       expect(parseKometCode('OS1F.204.000')).toBeNull()
     })
 
-    test('SFS120 → null (sonic surgical tip)', () => {
+    test('SFS120 → null (sonic surgical tip accessory)', () => {
       expect(parseKometCode('SFS120.204.000')).toBeNull()
-    })
-
-    test('FQ04L21 → null (NiTi rotary endo file)', () => {
-      expect(parseKometCode('FQ04L21.204.020')).toBeNull()
-    })
-
-    test('17321 → null (manual endo K-reamer, plastic handle)', () => {
-      expect(parseKometCode('17321.654.025')).toBeNull()
     })
 
     test('EP0147 → null (EndoPilot accessory)', () => {
