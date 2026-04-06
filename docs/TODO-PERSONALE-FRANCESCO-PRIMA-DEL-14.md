@@ -52,16 +52,18 @@
 
 ### 4. Prepara le variabili d'ambiente del VPS
 
-Apri il file `.env` sul VPS (o crea il file `.env.production` da deployare) e aggiungi:
+Le seguenti variabili **sono già configurate in produzione** (2026-04-05):
+- ✅ `REDIS_PASSWORD` — configurata (Redis protetto da password)
+- ✅ `CORS_ORIGINS=https://formicanera.com` — configurata
+
+Da aggiungere ancora al `.env` VPS (dopo aver creato il bucket Hetzner al passo 3):
 
 ```
-REDIS_PASSWORD=<genera con: openssl rand -hex 32>
 SECURITY_ALERT_EMAIL=<tua email personale>
 HETZNER_BUCKET=archibald-backups
 HETZNER_S3_ENDPOINT=https://fsn1.your-objectstorage.com
 HETZNER_ACCESS_KEY=<dalla console Hetzner>
 HETZNER_SECRET_KEY=<dalla console Hetzner>
-CORS_ORIGINS=https://formicanera.com
 ```
 
 **Non serve più:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` — il sistema di alert non usa più email.
@@ -252,9 +254,9 @@ Il D.Lgs. 138/2024 (recepimento NIS 2 in Italia) classifica i soggetti in "essen
 |---|---|
 | **7 aprile** | P.IVA individuale (ATECO 62.01.09, regime forfettario) |
 | **7 aprile** | Verifica contratto Fresis per clausole di esclusiva |
-| **7 aprile** | Crea bucket Hetzner + prepara variabili d'ambiente VPS |
-| **7 aprile** | Deploy del branch su produzione (tecnico, ma lo fai tu) |
-| **8 aprile** | Test backup Hetzner + test MFA admin |
+| **7 aprile** | Crea bucket Hetzner → aggiungi `SECURITY_ALERT_EMAIL` e `HETZNER_*` al `.env` VPS (`REDIS_PASSWORD` e `CORS_ORIGINS` già configurate ✅) |
+| ~~**7 aprile**~~ | ~~Deploy del branch su produzione~~ — ✅ **completato 2026-04-05** (CI/CD automatico dopo push master) |
+| **8 aprile** | Test backup Hetzner (serve prima il bucket) + abilita MFA per account admin Francesco |
 | **9 aprile** | Email a Komet: P.IVA, DPO, Brasseler sì/no, foro, canone |
 | **10 aprile** | Compila tutti i 45 placeholder nei contratti |
 | **10 aprile** | Decidi il canone mensile con Komet |

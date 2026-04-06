@@ -1,6 +1,6 @@
 # Riepilogo Definitivo — Archibald PWA Compliance
 ## Meeting Komet Italia — 14 Aprile 2026
-**Aggiornato:** 2026-04-04
+**Aggiornato:** 2026-04-05
 
 ---
 
@@ -12,37 +12,43 @@ Questi elementi cambiano l'audit precedente (2 aprile) e riducono il numero di g
 |---|---|
 | **SMTP → mailto** | Rimuove il "blocco critico SMTP". La security-alert-service scrive nel DB. Nessun sub-processor email. Nessuna variabile SMTP nel VPS. |
 | **Komet = Titolare del trattamento** | Il data mapping, le basi giuridiche del trattamento, le nomine degli autorizzati e le richieste degli interessati (artt. 15-22) sono obblighi di **Komet**, non nostri. Francesco come Responsabile deve: DPA, Registro dei Trattamenti come Responsabile, misure di sicurezza. |
+| **MFA Device Trust (30 giorni)** | Aggiunto dopo PR #13. Risolve la friction OTP quotidiana: token crittografico (SHA-256) persistito in DB, il client lo presenta al login successivo e salta l'OTP per 30 giorni. Migration 049 in prod. Tutti i ruoli facoltativi. |
 
 ---
 
 ## Sezione 1 — Inventario Completo dello Stato
 
-### 1A — Già Implementato nel Branch (pronto, 47 commit sopra master)
+### 1A — Implementato e Deployato in Produzione (commit fd9f3421 + device trust, 2026-04-05)
 
 | Cosa | File / Migration |
 |---|---|
 | JWT revocation via Redis (`revokeToken` + `isTokenRevoked`, TTL dinamico dal claim `exp`) | `src/db/redis-client.ts`, `src/middleware/auth.ts` |
 | MFA TOTP completo (setup, confirm, verify, recovery codes 8× bcrypt) | `src/services/mfa-service.ts`, `src/routes/auth.ts` |
-| MFA enforcement: admin/ufficio obbligatorio; agente facoltativo | `src/routes/auth.ts` |
-| Audit log immutabile (`REVOKE UPDATE, DELETE` a livello DB) | Migration 045 |
-| GDPR erase: 10 campi anonimizzati, guard ordini attivi, auditato | `src/db/repositories/gdpr.ts`, `src/routes/admin.ts` |
-| RBAC: 4 ruoli (`admin/ufficio/agent/concessionario`), 7 moduli per-utente | Migration 046, `src/routes/admin.ts` |
+| MFA TOTP: **volontario per tutti i ruoli**; attivazione da Profilo → Sicurezza | `src/routes/auth.ts` |
+| MFA Device Trust: skip OTP per 30 giorni (`rememberDevice` checkbox, SHA-256 in DB) | Migration 049, `src/db/repositories/mfa-trusted-devices.ts`, `src/routes/auth.ts`, `frontend/src/components/MfaVerifyStep.tsx` |
+| Audit log immutabile (`REVOKE UPDATE, DELETE` a livello DB) | Migration 046 |
+| GDPR erase: 10 campi su `agents.customers` + 9 campi su `shared.sub_clients`, guard ordini attivi, auditato | `src/db/repositories/gdpr.ts`, `src/routes/admin.ts` |
+| GDPR portabilità: `GET /api/admin/customers/:id/export` → archivio JSON strutturato | `src/routes/admin.ts`, `src/db/repositories/gdpr.ts` |
+| RBAC: 4 ruoli (`admin/ufficio/agent/concessionario`), 7 moduli per-utente | Migration 047, `src/routes/admin.ts` |
 | Credenziali ERP cifrate AES-256-GCM in DB (PBKDF2, IV random, non estraibile) | `src/services/password-encryption-service.ts` |
 | Backup PostgreSQL: pg_dump + gzip + rclone → Hetzner fsn1, rotazione 30 | `backup/backup.sh`, `backup/Dockerfile` |
-| Rate limiting: login 5/15min, refresh 20/60min, mfa-verify 10/15min | `src/routes/auth.ts` |
+| Rate limiting: login 5/15min, refresh 20/60min, mfa-verify 10/15min, mfa-setup 5/15min, mfa-confirm 5/15min | `src/routes/auth.ts` |
+| Security alerts: audit log + link `mailto:` (nessun SMTP esterno) | `src/services/security-alert-service.ts` |
 | CORS restrictive (whitelist-based) + Helmet CSP | `src/server.ts` |
 | Input validation Zod su tutte le route critiche | `src/routes/admin.ts`, `src/routes/auth.ts` |
-| `last_activity_at` su `agents.customers` (aggiornato su submit-order) | Migration 047, `src/operations/handlers/submit-order.ts` |
+| `last_activity_at` su `agents.customers` (aggiornato su submit-order) | Migration 048, `src/operations/handlers/submit-order.ts` |
+| Retention scheduler: notifica settimanale per clienti inattivi > 24 mesi | `src/db/repositories/retention.ts`, `src/main.ts` |
 | `AccessManagementPage` (frontend): ruoli, moduli, MFA status, whitelist | `frontend/src/pages/AccessManagementPage.tsx` |
 | `MfaSetupPage` (frontend): setup TOTP con setupToken come Bearer | `frontend/src/pages/MfaSetupPage.tsx` |
 | Procedura incident response P1/P2/P3 (notifica Titolare 24h, Garante 72h) | `docs/compliance/incident-response-procedure.md` |
 | Pacchetto contrattuale completo (5 documenti) | `docs/contracts/` |
 | Redis con `--requirepass` nel docker-compose | `docker-compose.yml` |
-| CI: npm audit, TypeScript check, build Docker su ogni push | `.github/workflows/ci.yml` |
+| CI: npm audit, TypeScript check, **npm test backend**, build Docker su ogni push | `.github/workflows/ci.yml` |
+| Guard `actorId !== targetId` su PATCH /users/:id (no auto-blocco admin) | `src/routes/admin.ts` |
 
-### 1B — Da Implementare Prima del Deploy (Fase A del Piano)
+### 1B — Implementato in PR #13 (feat/compliance-nis2-gdpr, mergiato e deployato 2026-04-05)
 
-> Questi sono **modifiche al codice** da fare nel branch corrente prima di mergiare.
+> Tutti i fix A.1–A.12 sono stati implementati nel branch `feat/compliance-nis2-gdpr` e sono in produzione. La tabella è conservata per riferimento storico — ogni voce è ora ✅.
 
 | # | Cosa | Stato attuale | File da modificare |
 |---|---|---|---|
@@ -65,10 +71,10 @@ Questi elementi cambiano l'audit precedente (2 aprile) e riducono il numero di g
 | # | Cosa | Note |
 |---|---|---|
 | **B.1** | Creare bucket Hetzner Object Storage `archibald-backups` (fsn1) | console.hetzner.com → Object Storage |
-| **B.2** | Aggiungere variabili `.env` VPS: `REDIS_PASSWORD`, `SECURITY_ALERT_EMAIL`, `HETZNER_*` | Senza SMTP. Vedi lista aggiornata nel piano. |
-| **B.3** | Eseguire migration 045 + 046 + 047 in produzione | Comando nel piano |
-| **B.4** | Merge branch + deploy + verifica logs backend | CI/CD automatico dopo push a master |
-| **B.5** | Test post-deploy: MFA setup admin, backup manuale Hetzner, login agenti | Checklist nel piano |
+| **B.2** | Variabili `.env` VPS — **`REDIS_PASSWORD` ✅ configurata**, **`CORS_ORIGINS` ✅ configurata**. Da aggiungere ancora: `SECURITY_ALERT_EMAIL`, `HETZNER_BUCKET`, `HETZNER_S3_ENDPOINT`, `HETZNER_ACCESS_KEY`, `HETZNER_SECRET_KEY` | Nessuna variabile SMTP necessaria. |
+| **B.3** | ✅ Migration 046 + 047 + 048 + 049 applicate in produzione (2026-04-05) | Runner automatico al riavvio backend post-deploy |
+| **B.4** | ✅ Branch mergiato (PR #13 + device trust) + deploy automatico completato 2026-04-05 | 5 container healthy, nessun errore di startup |
+| **B.5** | Test post-deploy parziali: **MFA setup admin ❌**, **backup manuale Hetzner ❌** (bucket non ancora creato), login agenti ❌ | Da completare entro 8 aprile |
 
 ### 1D — Da Fare a Livello Documentale (Fase C del Piano)
 
@@ -213,17 +219,14 @@ Questi elementi cambiano l'audit precedente (2 aprile) e riducono il numero di g
 ```
 SICUREZZA TECNICA (Art. 32 GDPR / NIS2 Art. 21)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ JWT revocation           ✅ MFA TOTP
-✅ Audit log immutabile     ✅ GDPR erase (agents.customers)
+✅ JWT revocation           ✅ MFA TOTP (volontario)
+✅ Audit log immutabile     ✅ GDPR erase (customers + sub_clients)
 ✅ RBAC + moduli            ✅ Crittografia AES-256-GCM
-✅ Backup Hetzner           ✅ Rate limiting auth
+✅ Backup Hetzner           ✅ Rate limiting (login + mfa-setup/confirm)
 ✅ CORS + CSP               ✅ Incident response
-⏳ Rate limit mfa-setup     ⏳ Security alerts senza SMTP (ora silenziosamente scartati!)
-⏳ Secret TOTP in chiaro    ⏳ GDPR erase sub_clients (7+ campi)
-⏳ Disclaimer note          ⏳ Portabilità dati
-⏳ Retention scheduler      ⏳ Google Fonts (verifica)
-⏳ CI npm test backend      ⏳ gdpr.spec.ts test superficiale
-⏳ Admin self-role-change   ⏳ audit-log pagination count
+✅ Security alerts (mailto) ✅ Portabilità dati
+✅ Retention scheduler      ✅ MFA Device Trust (30 giorni)
+✅ Admin self-role guard    ✅ CI npm test backend
 
 GOVERNANCE GDPR
 ━━━━━━━━━━━━━━
@@ -241,9 +244,9 @@ CONTRATTI
 
 INFRASTRUTTURA
 ━━━━━━━━━━━━
-❌ Branch mergiato          ❌ Migrazioni 045/046/047 in prod
-❌ Variabili d'ambiente     ❌ Hetzner bucket creato
-❌ Deploy effettuato
+✅ Branch mergiato          ✅ Migrazioni 046/047/048/049 in prod
+✅ Deploy effettuato        ✅ Redis password configurata
+❌ Hetzner bucket           ❌ HETZNER_* + alert email nel .env
 
 LEGALE PERSONALE FRANCESCO
 ━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -257,27 +260,29 @@ LEGALE PERSONALE FRANCESCO
 ### Entro 7 aprile
 - [ ] Aprire Partita IVA individuale (fisconline.agenziaentrate.gov.it, ATECO 62.01.09)
 - [ ] Verificare contratto Fresis per compatibilità attività autonoma
-- [ ] Fix A.1: nodemailer → audit_log + mailto (backend) — **alert attualmente non funzionanti in prod**
-- [ ] Fix A.2: rate limit /mfa-setup e /mfa-confirm + rimuovere `secret` dalla response (solo `uri`)
-- [ ] Fix A.2b: username nel QR code (getUserById nel MFA middleware)
-- [ ] Fix A.3: disclaimer note (frontend)
-- [ ] Fix A.4: verificare se Google Fonts vengono caricati; se sì, self-host
-- [ ] Fix A.8: aggiungere `npm test` backend in CI workflow
-- [ ] Fix A.11: rimuovere `DATABASE_PATH` dal docker-compose.yml
-- [ ] Fix A.12: guard actorId !== targetId su PATCH /users/:id
+- [x] Fix A.1: nodemailer → audit_log + mailto — **deployato in prod 2026-04-05**
+- [x] Fix A.2: rate limit /mfa-setup e /mfa-confirm + rimosso `secret` dalla response (solo `uri`)
+- [x] Fix A.2b: username nel QR code (getUserById nel MFA middleware)
+- [x] Fix A.3: disclaimer note (frontend)
+- [x] Fix A.4: Google Fonts verificati — nessun caricamento esterno, self-hosted
+- [x] Fix A.8: `npm test` backend aggiunto in CI workflow
+- [x] Fix A.11: `DATABASE_PATH` rimosso dal docker-compose.yml
+- [x] Fix A.12: guard `actorId !== targetId` su PATCH /users/:id
 - [ ] Creare bucket Hetzner Object Storage `archibald-backups`
-- [ ] Preparare variabili d'ambiente VPS (.env) con nuovi valori (senza SMTP)
+- [x] **`REDIS_PASSWORD`** — configurata in produzione (2026-04-05)
+- [x] **`CORS_ORIGINS=https://formicanera.com`** — configurata in produzione
+- [ ] Aggiungere al `.env` VPS: `SECURITY_ALERT_EMAIL`, `HETZNER_BUCKET`, `HETZNER_S3_ENDPOINT`, `HETZNER_ACCESS_KEY`, `HETZNER_SECRET_KEY`
 
 ### Entro 8 aprile
-- [ ] Fix A.5: GDPR erase → sub_clients (tutti i campi: ragione_sociale, telefono, telefono2/3, email, email_amministraz, pers_da_contattare, cod_fiscale, partita_iva)
-- [ ] Fix A.6: endpoint portabilità dati
-- [ ] Fix A.7: retention scheduler (notifica, non delete automatico)
-- [ ] Fix A.9: riscrivere gdpr.spec.ts per assert sul SQL eseguito
-- [ ] Fix A.10: aggiungere `total` count alla response di /api/admin/audit-log
-- [ ] Eseguire migrazioni 045/046/047 in produzione
-- [ ] Deploy branch + verifica logs
-- [ ] Test MFA setup (primo login admin post-migration)
-- [ ] Backup manuale + verifica bucket Hetzner
+- [x] Fix A.5: GDPR erase → sub_clients (9 campi: ragione_sociale, pers_da_contattare, email, email_amministraz, telefono, telefono2, telefono3, cod_fiscale, partita_iva) — deployato
+- [x] Fix A.6: endpoint portabilità dati — deployato
+- [x] Fix A.7: retention scheduler (notifica settimanale, non delete automatico) — deployato
+- [x] Fix A.9: gdpr.spec.ts riscritto con assert sul SQL eseguito — deployato
+- [x] Fix A.10: `total` count aggiunto alla response di /api/admin/audit-log — deployato
+- [x] Migration 046 + 047 + 048 + 049 applicate in produzione (2026-04-05)
+- [x] Deploy branch + verifica logs — 5 container healthy
+- [ ] Test MFA setup (abilitare MFA per account admin Francesco)
+- [ ] Backup manuale + verifica bucket Hetzner (bucket non ancora creato)
 - [ ] Configurare cron backup notturno (ore 02:00)
 
 ### Entro 9 aprile

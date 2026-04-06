@@ -12,7 +12,7 @@
 
 **Nota tipo `IdentifyResponse`:** Lo spec omette due campi necessari al frontend. Il tipo definitivo usato in questo piano include:
 - `imageHash: string` — SHA-256 del frame (calcolato lato server), necessario per il feedback call
-- `broadCandidates: ProductMatch[]` — candidati con filtro `head_size_mm` rimosso (fino a 10), necessari per "Non è questo →" in Stato 3A. Il backend deve restituirli sempre (vedi Task 8 backend plan, route recognition.ts, da aggiungere a `buildRecognitionResult`).
+- `broadCandidates: ProductMatch[]` — candidati con filtro `head_size_mm` rimosso (fino a 10), necessari per "Non è questo →" in Stato 3A. Il backend deve restituirli sempre (implementato in Task 10 e Task 14 del backend plan).
 
 ---
 
@@ -94,18 +94,16 @@ describe('identifyInstrument', () => {
 describe('getRecognitionBudget', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('calls GET /api/recognition/budget with auth header', async () => {
+  it('calls GET /api/recognition/budget with auth header and returns budget state', async () => {
     const mockBudget: BudgetState = { usedToday: 42, dailyLimit: 500, throttleLevel: 'warning' }
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockBudget),
-    } as Response)
-
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true, json: () => Promise.resolve(mockBudget),
+    } as unknown as Response)
     const result = await getRecognitionBudget(TOKEN)
-
-    const [url, init] = (vi.spyOn(global, 'fetch') as ReturnType<typeof vi.spyOn>).mock.calls[0] ?? (vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit])
     expect(result).toEqual(mockBudget)
-    void url; void init // used implicitly via fetchWithRetry
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/api/recognition/budget')
+    expect((init.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${TOKEN}`)
   })
 })
 
@@ -410,7 +408,7 @@ describe('ToolRecognitionPage — Stato 0 (permission denied)', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
     await waitFor(() =>
-      expect(screen.getByText(/Consenti l'accesso alla fotocamera/i)).toBeInTheDocument()
+      expect(screen.getByText(/Fotocamera non autorizzata/i)).toBeInTheDocument()
     )
     expect(screen.getByRole('link', { name: /Cerca manualmente/i })).toHaveAttribute('href', '/products')
   })
@@ -423,7 +421,7 @@ describe('ToolRecognitionPage — Stato 0 (permission denied)', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
     await waitFor(() =>
-      expect(screen.getByText(/Consenti l'accesso alla fotocamera/i)).toBeInTheDocument()
+      expect(screen.getByText(/Fotocamera non autorizzata/i)).toBeInTheDocument()
     )
   })
 })
@@ -448,7 +446,7 @@ describe('ToolRecognitionPage — Stato 1 (idle viewfinder)', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
     await waitFor(() =>
-      expect(screen.getByText(/7 scan rimasti oggi/i)).toBeInTheDocument()
+      expect(screen.getByText(/7 scan/i)).toBeInTheDocument()
     )
   })
 
@@ -496,24 +494,42 @@ type PageState =
   | 'filter_needed'
   | 'budget_exhausted'
 
-// Icona corner overlay per mirino (SVG inline)
-function ViewfinderCorners() {
-  const cornerStyle = (rotate: string): React.CSSProperties => ({
+// Mirino quadrato centrato con 4 angoli verdi e griglia CSS overlay
+function Viewfinder() {
+  const cornerBase: React.CSSProperties = {
     position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: '#4ade80',
+    width: 20,
+    height: 20,
+    borderColor: '#22c55e',
     borderStyle: 'solid',
     borderWidth: 0,
-    transform: `rotate(${rotate})`,
-  })
+  }
   return (
-    <>
-      <div style={{ ...cornerStyle('0deg'),   top: '20%', left: '10%',  borderTopWidth: 3, borderLeftWidth: 3 }} />
-      <div style={{ ...cornerStyle('90deg'),  top: '20%', right: '10%', borderTopWidth: 3, borderLeftWidth: 3 }} />
-      <div style={{ ...cornerStyle('180deg'), bottom: '30%', right: '10%', borderTopWidth: 3, borderLeftWidth: 3 }} />
-      <div style={{ ...cornerStyle('270deg'), bottom: '30%', left: '10%',  borderTopWidth: 3, borderLeftWidth: 3 }} />
-    </>
+    <div style={{
+      position: 'absolute', inset: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      // CSS grid overlay on camera background
+      backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
+      backgroundSize: '33.33% 33.33%',
+    }}>
+      {/* Viewfinder box */}
+      <div style={{
+        position: 'relative',
+        width: '60%',
+        aspectRatio: '1',
+        border: '2px solid rgba(255,255,255,0.3)',
+        borderRadius: 8,
+      }}>
+        {/* Top-left corner */}
+        <div style={{ ...cornerBase, top: -1, left: -1, borderTopWidth: 3, borderLeftWidth: 3 }} />
+        {/* Top-right corner */}
+        <div style={{ ...cornerBase, top: -1, right: -1, borderTopWidth: 3, borderRightWidth: 3 }} />
+        {/* Bottom-left corner */}
+        <div style={{ ...cornerBase, bottom: -1, left: -1, borderBottomWidth: 3, borderLeftWidth: 3 }} />
+        {/* Bottom-right corner */}
+        <div style={{ ...cornerBase, bottom: -1, right: -1, borderBottomWidth: 3, borderRightWidth: 3 }} />
+      </div>
+    </div>
   )
 }
 
@@ -588,15 +604,15 @@ export function ToolRecognitionPage() {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 200,
-        background: '#111', display: 'flex', flexDirection: 'column',
+        background: '#0f0f0f', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', gap: 24, padding: 32,
       }}>
-        <div style={{ fontSize: 64 }}>📷</div>
+        <div style={{ fontSize: 64 }}>🚫</div>
         <h2 style={{ color: '#fff', textAlign: 'center', margin: 0, fontSize: 20 }}>
-          Consenti l'accesso alla fotocamera nelle impostazioni del dispositivo
+          Fotocamera non autorizzata
         </h2>
         <p style={{ color: '#aaa', textAlign: 'center', margin: 0, fontSize: 14, maxWidth: 320 }}>
-          Questa funzione richiede la fotocamera per identificare gli strumenti dentali.
+          Vai in Impostazioni e consenti l'accesso alla fotocamera per Archibald
         </p>
         <Link
           to="/products"
@@ -614,7 +630,7 @@ export function ToolRecognitionPage() {
   // ── Stato 1: Idle (Viewfinder) ─────────────────────────────────────────
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
-      {/* Video feed */}
+      {/* Video feed — occupa tutto lo schermo */}
       <video
         ref={videoRef}
         autoPlay
@@ -623,77 +639,117 @@ export function ToolRecognitionPage() {
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
 
-      {/* Overlay corners */}
-      {pageState === 'idle' && <ViewfinderCorners />}
+      {/* Close button — top-left */}
+      <button
+        onClick={() => navigate(-1)}
+        style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 10,
+          background: 'none', border: 'none', color: '#fff',
+          fontSize: 28, cursor: 'pointer', padding: 8,
+        }}
+        aria-label="Chiudi scanner"
+      >
+        ✕
+      </button>
 
-      {/* Top bar */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0,
-        padding: '16px 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)',
-      }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', padding: 0 }}
-          aria-label="Chiudi scanner"
-        >
-          ✕
-        </button>
+      {/* Mirino con overlay griglia */}
+      {pageState === 'idle' && <Viewfinder />}
 
-        {/* Budget indicator */}
-        <div style={{ color: '#fff', fontSize: 13, opacity: 0.9 }}>
-          {remainingScans !== null ? `${remainingScans} scan rimasti oggi` : ''}
+      {/* Hint TOP — sopra il mirino */}
+      {pageState === 'idle' && (
+        <div style={{
+          position: 'absolute',
+          top: '18%',
+          left: 0, right: 0,
+          textAlign: 'center',
+          color: 'rgba(255,255,255,0.9)',
+          fontSize: 14,
+          textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+          pointerEvents: 'none',
+        }}>
+          Inquadra la fresa intera{' '}
+          <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
+            incluso il gambo
+          </span>
         </div>
+      )}
 
-        {/* Flash toggle */}
-        <button
-          onClick={toggleFlash}
-          style={{ background: 'none', border: 'none', color: flashOn ? '#fbbf24' : '#fff', fontSize: 24, cursor: 'pointer', padding: 0 }}
-          aria-label={flashOn ? 'Disattiva flash' : 'Attiva flash'}
-        >
-          {flashOn ? '🔦' : '💡'}
-        </button>
-      </div>
+      {/* Hint BOTTOM — sotto il mirino, sopra la bottom bar */}
+      {pageState === 'idle' && (
+        <div style={{
+          position: 'absolute',
+          bottom: 96,
+          left: 0, right: 0,
+          textAlign: 'center',
+          color: 'rgba(255,255,255,0.7)',
+          fontSize: 13,
+          pointerEvents: 'none',
+        }}>
+          Tieni fermo e scatta
+        </div>
+      )}
 
-      {/* Warning budget banner */}
+      {/* Warning budget banner — tra camera e bottom bar */}
       {budget?.throttleLevel === 'warning' && (
         <div style={{
-          position: 'absolute', top: 70, left: 16, right: 16,
-          background: 'rgba(234, 179, 8, 0.9)', borderRadius: 8,
-          padding: '10px 16px', color: '#000', fontSize: 13, fontWeight: 600,
+          position: 'absolute', bottom: 68, left: 16, right: 16,
+          background: 'rgba(234, 179, 8, 0.15)', borderRadius: 8,
+          padding: '8px 16px', color: '#eab308', fontSize: 13, fontWeight: 600,
           textAlign: 'center',
         }}>
-          ⚠️ Budget giornaliero quasi esaurito — usa con parsimonia
+          ⚠ Budget quasi esaurito — usa con parsimonia
         </div>
       )}
 
-      {/* Hint text */}
+      {/* Bottom bar — flash | shutter | budget */}
       {pageState === 'idle' && (
         <div style={{
-          position: 'absolute', bottom: 160, left: 0, right: 0,
-          textAlign: 'center', color: '#fff', fontSize: 14,
-          textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: 80,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-around',
+          padding: '0 32px',
         }}>
-          Inquadra la fresa intera — includi il gambo
-        </div>
-      )}
+          {/* Flash toggle */}
+          <button
+            onClick={toggleFlash}
+            style={{
+              background: 'none', border: 'none',
+              color: flashOn ? '#fbbf24' : '#fff',
+              fontSize: 26, cursor: 'pointer', padding: 8,
+            }}
+            aria-label={flashOn ? 'Disattiva flash' : 'Attiva flash'}
+          >
+            ⚡
+          </button>
 
-      {/* Shutter button */}
-      {pageState === 'idle' && (
-        <div style={{
-          position: 'absolute', bottom: 60, left: 0, right: 0,
-          display: 'flex', justifyContent: 'center',
-        }}>
+          {/* Shutter */}
           <button
             onClick={() => { /* implementato in Task 3 */ }}
             aria-label="Scatta foto"
             style={{
-              width: 72, height: 72, borderRadius: '50%',
+              width: 64, height: 64, borderRadius: '50%',
               background: '#fff', border: '4px solid rgba(255,255,255,0.5)',
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
             }}
           />
+
+          {/* Budget residuo — due righe in verde */}
+          <div style={{ textAlign: 'center', minWidth: 52 }}>
+            {remainingScans !== null ? (
+              <>
+                <div style={{ color: '#22c55e', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
+                  {remainingScans}
+                </div>
+                <div style={{ color: '#22c55e', fontSize: 11, lineHeight: 1.2, marginTop: 2 }}>
+                  scan rimasti
+                </div>
+              </>
+            ) : (
+              <div style={{ color: '#6b7280', fontSize: 11 }}>—</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -849,16 +905,12 @@ Aggiungere il rendering Stato 2 (analisi) PRIMA del `return` dello Stato 1 (idle
 ```typescript
 // Stato 2: Analyzing
 if (pageState === 'analyzing') {
-  const steps = [
-    '✓ Foto acquisita',
-    '◌ Estrazione features AI',
-    '○ Ricerca catalogo',
-    '○ Calcolo misura',
-  ].map((label, i) => ({
-    label,
-    done: i < analyzeStep,
-    active: i === analyzeStep,
-  }))
+  const STEP_LABELS = [
+    'Foto acquisita',
+    'Estrazione features AI',
+    'Ricerca catalogo',
+    'Calcolo misura gambo',
+  ]
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
@@ -879,21 +931,29 @@ if (pageState === 'analyzing') {
         <div style={{
           width: 48, height: 48, borderRadius: '50%',
           border: '4px solid rgba(255,255,255,0.2)',
-          borderTopColor: '#4ade80',
+          borderTopColor: '#22c55e',
           animation: 'spin 0.8s linear infinite',
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 
         {/* Pipeline steps */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {steps.map(({ label, done, active }) => (
-            <div key={label} style={{
-              color: done ? '#4ade80' : active ? '#fff' : 'rgba(255,255,255,0.4)',
-              fontSize: 16, fontWeight: active ? 600 : 400,
-            }}>
-              {label}
-            </div>
-          ))}
+          {STEP_LABELS.map((label, i) => {
+            const done   = i < analyzeStep
+            const active = i === analyzeStep
+            const symbol = done ? '✓' : active ? '→' : '○'
+            const color  = done ? '#22c55e' : active ? '#f9a825' : '#374151'
+            return (
+              <div key={label} style={{
+                color,
+                fontSize: 16, fontWeight: active ? 600 : 400,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{ fontFamily: 'monospace', width: 16 }}>{symbol}</span>
+                <span>{label}</span>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -1098,15 +1158,31 @@ npm test --prefix archibald-web-app/frontend -- --run ToolRecognitionPage.spec
 Aggiungere i rendering PRIMA del `return` per Stato 1 (idle):
 
 ```typescript
-// Helper per icona bur proporzionale alla dimensione
+// Helper icona bur proporzionale — gradiente dorato
 function BurIcon({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
   const minH = 16, maxH = 40
   const h = minH + ((sizeMm / maxSizeMm) * (maxH - minH))
   return (
     <div style={{
-      width: 8, height: h, background: '#9ca3af', borderRadius: 4,
+      width: 8, height: h,
+      background: 'linear-gradient(180deg, #ffd700, #c8a000)',
+      borderRadius: 4,
       display: 'inline-block', verticalAlign: 'middle', marginRight: 8,
+      flexShrink: 0,
     }} />
+  )
+}
+
+// Helper badge features (grit ring color, shank type, material)
+function FeatureBadge({ label }: { label: string }) {
+  return (
+    <span style={{
+      background: '#1a3a1a', color: '#4ade80',
+      borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
+      border: '1px solid #2d5a2d',
+    }}>
+      {label}
+    </span>
   )
 }
 
@@ -1128,72 +1204,125 @@ if (pageState === 'match' && identifyResult?.result.state === 'match') {
 
   const handleNotThis = () => {
     if (broadCandidates.length > 0) {
-      // Mostra shortlist ampliata (nessuna chiamata API extra — dati già nel response)
       setIdentifyResult(prev => prev ? {
         ...prev,
         result: {
           state: 'shortlist',
           candidates: broadCandidates,
           extractedFeatures: {
-            shape_family: product.familyCode ? null : null,
-            material: null, grit_ring_color: null, shank_type: product.shankType as 'fg' | 'ca' | 'unknown',
-            head_px: null, shank_px: null, confidence: confidence,
+            shape_family: null, material: null, grit_ring_color: null,
+            shank_type: product.shankType as 'fg' | 'ca' | 'unknown',
+            head_px: null, shank_px: null, confidence,
           },
         },
       } : prev)
       setPageState('shortlist')
     } else {
-      setPageState('idle') // nessun altro candidato → torna all'idle
+      setPageState('idle')
     }
   }
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
-      {capturedBase64 && (
-        <img
-          src={`data:image/jpeg;base64,${capturedBase64}`}
-          alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3, position: 'absolute', inset: 0 }}
-        />
-      )}
+  // Genera badge dal product
+  const badges: string[] = []
+  if (product.shankType) badges.push(product.shankType.toUpperCase())
+  if (product.headSizeMm) badges.push(`Ø ${product.headSizeMm}mm`)
 
-      {/* Bottom sheet match card */}
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: '#0a1f0a',
+      display: 'flex', flexDirection: 'column', overflowY: 'auto',
+    }}>
+      {/* Header verde con ✓ */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        background: '#1a1a1a', borderRadius: '20px 20px 0 0',
-        padding: 24, borderTop: '3px solid #4ade80',
+        background: '#0d2b0d',
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0,
       }}>
-        <div style={{ color: '#4ade80', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-          ✓ Strumento identificato — {Math.round(confidence * 100)}% confidenza
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: '#22c55e', color: '#000',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, fontWeight: 900,
+          }}>✓</div>
+          <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15 }}>
+            Articolo identificato
+          </span>
         </div>
-        <div style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 2 }}>
+        <span style={{ color: '#4ade80', fontSize: 14, fontWeight: 600 }}>
+          {Math.round(confidence * 100)}%
+        </span>
+      </div>
+
+      {/* Product area */}
+      <div style={{ padding: '24px 20px', flex: 1 }}>
+        {/* Icona bur stilizzata */}
+        <div style={{
+          background: '#1a2e1a', borderRadius: 12,
+          padding: '20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: 80,
+        }}>
+          <BurIcon sizeMm={product.headSizeMm} maxSizeMm={product.headSizeMm * 1.5 || 3} />
+          <div style={{ color: '#4ade80', fontSize: 32, opacity: 0.6 }}>⟨╱⟩</div>
+        </div>
+
+        {/* Family label */}
+        <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 4 }}>
+          {product.familyCode ? `${product.familyCode} ·` : ''} {product.shankType?.toUpperCase()}
+        </div>
+
+        {/* Product name */}
+        <div style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 6 }}>
           {product.productName}
         </div>
-        <div style={{ color: '#9ca3af', fontSize: 14, marginBottom: 16 }}>
-          {product.productId} · Ø{product.headSizeMm}mm · {product.shankType.toUpperCase()}
+
+        {/* Product code in monospace */}
+        <div style={{
+          fontFamily: 'monospace', color: '#9ca3af', fontSize: 15,
+          letterSpacing: 2, marginBottom: 20,
+        }}>
+          {product.productId}
         </div>
 
+        {/* Feature badges */}
+        {badges.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+            {badges.map(b => <FeatureBadge key={b} label={b} />)}
+          </div>
+        )}
+
+        {/* CTA primaria */}
         <button
           onClick={() => { void handleOpenProduct() }}
           aria-label="Apri scheda prodotto"
           style={{
-            width: '100%', background: '#4ade80', color: '#000',
-            border: 'none', borderRadius: 12, padding: '14px 0',
-            fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
+            width: '100%', background: '#22c55e', color: '#000',
+            border: 'none', borderRadius: 12, padding: '16px 0',
+            fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
           }}
         >
           Apri scheda prodotto →
         </button>
 
+        {/* Nota sotto CTA */}
+        <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
+          Conferma riconoscimento · salva foto in gallery
+        </div>
+
+        {/* Bottone secondario con sub-text */}
         <button
           onClick={handleNotThis}
           style={{
-            width: '100%', background: 'transparent', color: '#9ca3af',
-            border: '1px solid #374151', borderRadius: 12, padding: '12px 0',
-            fontSize: 15, cursor: 'pointer',
+            width: '100%', background: 'transparent',
+            border: '1px solid #2d4a2d', borderRadius: 12, padding: '12px 0',
+            cursor: 'pointer',
           }}
         >
-          Non è questo — mostra altri
+          <div style={{ color: '#9ca3af', fontSize: 15 }}>Non è questo</div>
+          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>→ mostra altri Ø variabile</div>
         </button>
       </div>
     </div>
@@ -1202,48 +1331,75 @@ if (pageState === 'match' && identifyResult?.result.state === 'match') {
 
 // ── Stato 3B: Shortlist ──────────────────────────────────────────────────
 if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist') {
-  const { candidates } = identifyResult.result
+  const { candidates, extractedFeatures } = identifyResult.result
   const maxSize = Math.max(...candidates.map(c => c.headSizeMm))
 
+  // Sub-description dal tipo riconosciuto
+  const recognizedDesc = [
+    extractedFeatures.shape_family,
+    extractedFeatures.material,
+    extractedFeatures.shank_type,
+  ].filter(Boolean).join(' · ')
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#1a1a1a', overflowY: 'auto' }}>
-      <div style={{ padding: '24px 20px' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
+      {/* Header con tema amber */}
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #2a1f00' }}>
         <button
           onClick={() => setPageState('idle')}
-          style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 14, cursor: 'pointer', padding: 0, marginBottom: 16 }}
+          style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 14, cursor: 'pointer', padding: 0, marginBottom: 12 }}
         >
           ← Rifai foto
         </button>
 
-        <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-          {candidates.length} candidati trovati — scegli il corretto
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 20 }}>🎯</span>
+          <span style={{ color: '#f9a825', fontSize: 18, fontWeight: 700 }}>
+            {candidates.length} candidati trovati
+          </span>
         </div>
-        <div style={{ color: '#9ca3af', fontSize: 13, marginBottom: 20 }}>
-          Ordinati per confidenza
-        </div>
+        {recognizedDesc && (
+          <div style={{ color: '#6b7280', fontSize: 13 }}>
+            {recognizedDesc} · misura incerta
+          </div>
+        )}
+      </div>
 
-        {candidates.map(c => (
-          <button
-            key={c.productId}
-            onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-              background: '#242424', border: '1px solid #374151', borderRadius: 12,
-              padding: '14px 16px', marginBottom: 10, cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <BurIcon sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
-            <div style={{ flex: 1 }}>
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.productName}</div>
-              <div style={{ color: '#9ca3af', fontSize: 13 }}>
-                {c.productId} · Ø{c.headSizeMm}mm
+      {/* Lista candidati */}
+      <div style={{ padding: '16px 20px' }}>
+        {candidates.map((c, idx) => {
+          const isFirst = idx === 0
+          return (
+            <button
+              key={c.productId}
+              onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                background: isFirst ? '#1f1a00' : '#1a1a1a',
+                border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
+                borderRadius: 12,
+                padding: '14px 16px', marginBottom: 10,
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <BurIcon sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.productName}</div>
+                <div style={{ color: '#9ca3af', fontSize: 13 }}>
+                  {c.productId} · Ø{c.headSizeMm}mm
+                </div>
               </div>
-            </div>
-            <div style={{ color: '#6b7280', fontSize: 13 }}>
-              {Math.round(c.confidence * 100)}%
-            </div>
-          </button>
-        ))}
+              <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400 }}>
+                {Math.round(c.confidence * 100)}%
+              </div>
+            </button>
+          )
+        })}
+
+        {/* Footer hint */}
+        <div style={{ color: '#4b5563', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+          Le icone crescono proporzionalmente al Ø
+        </div>
       </div>
     </div>
   )
@@ -1253,8 +1409,11 @@ if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist') {
 if (pageState === 'filter_needed' && identifyResult?.result.state === 'filter_needed') {
   const { question, extractedFeatures } = identifyResult.result
 
+  const recognizedType = [extractedFeatures.shape_family, extractedFeatures.material]
+    .filter(Boolean).join(' ')
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#1a1a1a', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
       <div style={{ padding: '24px 20px' }}>
         <button
           onClick={() => setPageState('idle')}
@@ -1263,22 +1422,43 @@ if (pageState === 'filter_needed' && identifyResult?.result.state === 'filter_ne
           ← Rifai foto
         </button>
 
-        <div style={{ color: '#60a5fa', fontSize: 13, marginBottom: 8 }}>
-          Ho riconosciuto: {extractedFeatures.shape_family ?? '?'} — {extractedFeatures.material ?? '?'}
+        {/* Titolo */}
+        <div style={{ color: '#f59e0b', fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
+          🔍 Ho bisogno di aiuto
         </div>
-        <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 24 }}>
+
+        {/* Box descrizione riconoscimento */}
+        <div style={{
+          background: '#1a1a1a',
+          borderRadius: 12, padding: '14px 16px', marginBottom: 20,
+        }}>
+          <div style={{ color: '#d1d5db', fontSize: 14, lineHeight: 1.5 }}>
+            {recognizedType
+              ? `Ho riconosciuto: ${recognizedType}`
+              : 'Ho analizzato l\'immagine'}
+            <br />
+            Non riesco a distinguere la misura. Dimmi tu:
+          </div>
+        </div>
+
+        {/* Domanda */}
+        <div style={{ color: '#fff', fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
           {question.prompt}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Opzioni in griglia 2 colonne */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24,
+        }}>
           {question.options.map(opt => (
             <button
               key={opt.value}
               onClick={() => navigate(`/products?shape=${extractedFeatures.shape_family}&material=${extractedFeatures.material}&${question.field}=${opt.value}`)}
               style={{
-                background: '#1e3a5f', border: '1px solid #2563eb', borderRadius: 12,
-                padding: '16px 20px', color: '#fff', fontSize: 16, fontWeight: 600,
-                cursor: 'pointer', textAlign: 'left',
+                background: '#1a1000', border: '1px solid #f59e0b',
+                borderRadius: 12, padding: '16px 12px',
+                color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', textAlign: 'center', lineHeight: 1.3,
               }}
             >
               {opt.label}
@@ -1286,12 +1466,13 @@ if (pageState === 'filter_needed' && identifyResult?.result.state === 'filter_ne
           ))}
         </div>
 
+        {/* Rescan button */}
         <button
           onClick={() => setPageState('idle')}
           style={{
-            marginTop: 20, width: '100%', background: 'transparent',
-            border: '1px solid #374151', borderRadius: 12, padding: '14px 0',
-            color: '#9ca3af', fontSize: 15, cursor: 'pointer',
+            width: '100%', background: 'transparent',
+            border: '1px solid #f59e0b', borderRadius: 12, padding: '14px 0',
+            color: '#f59e0b', fontSize: 15, cursor: 'pointer',
           }}
         >
           📷 Rifai foto col gambo in vista
@@ -1439,7 +1620,7 @@ Output atteso: `FAIL: Cannot find module './ProductDetailPage'`
 ```typescript
 // archibald-web-app/frontend/src/pages/ProductDetailPage.tsx
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getProductEnrichment, type ProductEnrichment } from '../api/recognition'
 import { getProducts, type Product } from '../api/products'
@@ -2117,11 +2298,16 @@ vi.mock('./hooks/useAuth', () => ({
   }),
 }))
 
-// Route esistente non cambia
+import { AppRouter } from './AppRouter'
+
 it('/recognition renderizza ToolRecognitionPage', () => {
-  // Test che la route /recognition esiste e renderizza il componente corretto
-  // Da eseguire manualmente nell'app (test più adatto è E2E)
-  expect(true).toBe(true) // placeholder — verificare manualmente che /recognition renderizza ToolRecognitionPage
+  render(<MemoryRouter initialEntries={['/recognition']}><AppRouter /></MemoryRouter>)
+  expect(screen.getByText('TOOL-RECOGNITION-PAGE')).toBeInTheDocument()
+})
+
+it('/products/:id renderizza ProductDetailPage', () => {
+  render(<MemoryRouter initialEntries={['/products/H1.314.016']}><AppRouter /></MemoryRouter>)
+  expect(screen.getByText('PRODUCT-DETAIL-PAGE')).toBeInTheDocument()
 })
 ```
 
