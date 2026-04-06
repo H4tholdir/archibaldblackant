@@ -1,50 +1,88 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { InstrumentFeatures } from '../recognition/types';
 
-const VISION_PROMPT = `You are a dental instrument identification system.
-If multiple instruments are visible, analyze only the LARGEST or MOST CENTERED one.
-If no dental instrument is visible, return all fields as null with confidence: 0.
-Analyze the photo and extract the following features as JSON.
-Be precise. If you cannot determine a field with confidence, set it to null.
+const VISION_PROMPT = `You are a dental rotary instrument identification system specialized in Komet burs.
+Analyze only the LARGEST or MOST CENTERED instrument if multiple are visible.
+Return all fields as null with confidence 0 if no dental instrument is visible.
 
 SHAPE FAMILIES (choose one):
-round, pear, inverted_cone, cylinder, cylinder_round_end, tapered_round_end,
-tapered_flat_end, flame, torpedo, diabolo, wheel, egg, bud, double_cone, other
+round           — spherical head
+pear            — pear/egg shape, wider at top, tapers down
+inverted_cone   — wider at tip, narrows toward shank
+cylinder        — straight cylinder, flat ends
+cylinder_round_end — cylinder with ONE rounded end (tip), flat base
+tapered_round_end  — gently tapers toward a ROUNDED tip (like a bullet)
+tapered_flat_end   — tapers toward a FLAT tip (like a truncated cone)
+flame           — elongated, tapers to a sharp pointed tip
+torpedo         — cylindrical body with BOTH ends rounded/tapered symmetrically
+diabolo         — double-cone, narrow in the middle
+wheel           — disc/wheel shape
+egg             — oval/egg shape
+bud             — small rounded bud shape
+double_cone     — two cones joined at base
+other           — none of the above
 
 MATERIALS:
-tungsten_carbide (silver/grey metallic with visible flutes/cross-cut)
-diamond (rough grey texture, abrasive surface)
-diamond_diao (ROSE GOLD color - very distinctive)
-steel (bright silver, smooth)
-ceramic (white/ivory)
-polymer (rubber-like, various colors)
-sonic_tip (metal, specific wedge/triangle shapes)
-ultrasonic (very fine tips)
+tungsten_carbide — silver/grey, VISIBLE CUTTING FLUTES or cross-cut pattern on head
+diamond          — rough, matte grey/dark abrasive texture on head (no visible flutes)
+diamond_diao     — ROSE GOLD / pink-gold color — very distinctive
+steel            — bright silver, completely SMOOTH head (no texture, no flutes)
+ceramic          — white or ivory colored head
+polymer          — rubber-like, matte, various colors
+sonic_tip        — flat metal wedge or triangle shape
+ultrasonic       — extremely fine metal tip, no visible working surface texture
 
-GRIT RING COLORS (for diamond instruments only):
-white (ultra_fine), yellow (extra_fine), red (fine), blue (standard),
-green (coarse), black (super_coarse), none (no visible ring)
+GRIT RING COLORS — for diamond instruments ONLY:
+A thin colored band sits at the BASE of the head where it meets the shank neck.
+IMPORTANT: The ultrafine ring is nearly transparent/white and easy to miss.
+  white  (ultra_fine)  — VERY FAINT, almost invisible pale band. If you see a tiny pale ring, choose white NOT none.
+  yellow (extra_fine)  — pale yellow band
+  red    (fine)        — distinct red or orange-red band
+  blue   (standard)    — distinct blue band — the MOST COMMON
+  green  (coarse)      — distinct green band
+  black  (super_coarse)— dark or black band
+  none   — truly NO ring at all (rare; only for special instruments without any grit coding)
+Default to "blue" if you see a diamond instrument with no clearly visible ring color.
 
-SHANK TYPES:
-fg (thin smooth shank, ~1.6mm diameter, goes into turbine/high-speed handpiece)
-ca (thicker shank, ~2.35mm, with latch groove/slot at the end, contra-angle handpiece)
-hp (thicker smooth shank, ~2.35mm, NO latch groove, straight handpiece — visually similar to ca but no groove)
-grip (large colored plastic or rubber handle, ~4mm, finger-held — clearly much wider than metal shanks)
-unmounted (no shank, just the bur head/working part visible)
-unknown (shank not clearly visible or ambiguous)
+SHANK TYPES — LENGTH IS THE PRIMARY DISTINGUISHING FEATURE:
+The shank is the smooth cylindrical handle part that goes into the handpiece.
+
+  fg   — Friction Grip. Thin (~1.6mm). SHORT: total instrument ≈22-24mm.
+         The head takes up roughly 25-40% of the total visible length.
+         If held between fingers near the middle, roughly equal length on both sides.
+
+  ca   — Contra-angle. Slightly thicker (~2.35mm). SHORT to MEDIUM (≈22-26mm total).
+         KEY IDENTIFIER: a visible NOTCH or LATCH GROOVE at the very end of the shank.
+         Without the notch, it looks like a short HP.
+
+  hp   — Handpiece/straight. LONG shank (~2.35mm, same as CA but NO latch notch).
+         Total instrument ≈47-52mm standard, up to 70mm extra-long.
+         CRITICAL: if held near the head, most of the shank extends well below the fingers.
+         The head appears SMALL relative to the long shank. Shank is 5-10× longer than head.
+         FG vs HP: if fingers holding the instrument are near the TOP (head end), it is HP.
+
+  grip — Large plastic or rubber handle, clearly wider (≥3mm), finger-held.
+  unmounted — No shank, only the working head is visible.
+  unknown — Shank not clearly visible.
+
+SHANK LENGTH CATEGORY — estimate from the image:
+  short      — total instrument ≤24mm (typical FG, CA)
+  medium     — 25-35mm (FG long, FG extra-long, CA long, HPS short handpiece)
+  long       — 36-55mm (standard HP, 44.5mm)
+  extra_long — >55mm (HP long 65mm, HP extra-long 70mm)
 
 HEAD-TO-SHANK RATIO:
-head_shank_ratio: visual width of the HEAD divided by visual width of the SHANK.
-Compare the widest point of the head to the widest point of the shank.
-Examples: head twice as wide as shank = 2.0, same width = 1.0, 50% wider = 1.5.
-Set to null if the shank is not clearly visible or the ratio cannot be estimated.
+head_shank_ratio: widest point of HEAD divided by widest point of SHANK (as decimal).
+Examples: head twice as wide as shank = 2.0, same width = 1.0, narrower = 0.8.
+Set to null only if shank not visible at all.
 
-Respond with ONLY this JSON, no other text:
+Respond with ONLY valid JSON, no markdown, no extra text:
 {
   "shape_family": "...",
   "material": "...",
   "grit_ring_color": "...",
   "shank_type": "...",
+  "shank_length_category": "...",
   "head_shank_ratio": null,
   "confidence": 0.0
 }`;

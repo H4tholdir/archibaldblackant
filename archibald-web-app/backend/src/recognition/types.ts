@@ -1,12 +1,13 @@
 type ThrottleLevel = 'normal' | 'warning' | 'limited';
 
 type InstrumentFeatures = {
-  shape_family:    string | null
-  material:        string | null
-  grit_ring_color: string | null
-  shank_type:      'fg' | 'ca' | 'hp' | 'grip' | 'unmounted' | 'unknown'
-  head_shank_ratio: number | null
-  confidence:      number
+  shape_family:          string | null
+  material:              string | null
+  grit_ring_color:       string | null
+  shank_type:            'fg' | 'ca' | 'hp' | 'grip' | 'unmounted' | 'unknown'
+  shank_length_category: 'short' | 'medium' | 'long' | 'extra_long' | null
+  head_shank_ratio:      number | null
+  confidence:            number
 };
 
 type ProductMatch = {

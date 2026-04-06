@@ -20,6 +20,7 @@ type LookupParams = {
   grit_ring_color: string | null
   shank_type:      string
   calc_size_mm:    number | null
+  size_tolerance?: number   // default 0.15mm
 };
 
 type LookupRow = {
@@ -102,8 +103,9 @@ async function lookupByFeatures(
   }
 
   if (params.calc_size_mm !== null) {
+    const tol = params.size_tolerance ?? 0.15;
     conditions.push(`f.head_size_mm BETWEEN $${idx++} AND $${idx++}`);
-    values.push(params.calc_size_mm - 0.15, params.calc_size_mm + 0.15);
+    values.push(params.calc_size_mm - tol, params.calc_size_mm + tol);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

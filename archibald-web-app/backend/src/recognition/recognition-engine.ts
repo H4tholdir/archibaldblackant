@@ -4,6 +4,7 @@ import type { InstrumentFeatures, RecognitionResult, ProductMatch, FilterQuestio
 import { checkBudget, consumeBudget } from './budget-service';
 import { getCached, setCached } from '../db/repositories/recognition-cache';
 import { lookupByFeatures } from '../db/repositories/instrument-features';
+import type { LookupRow } from '../db/repositories/instrument-features';
 import { appendRecognitionLog } from '../db/repositories/recognition-log';
 import { calculateHeadSizeMm } from './komet-code-parser';
 import type { VisionApiFn } from '../services/anthropic-vision-service';
@@ -21,6 +22,82 @@ type EngineDeps = {
   pool:          DbPool
   callVisionApi: VisionApiFn
 };
+
+// Visually similar shapes that Haiku may confuse — used as fallback in progressive lookup
+const SHAPE_SYNONYMS: Record<string, string> = {
+  torpedo:            'tapered_round_end',
+  tapered_round_end:  'torpedo',
+  cylinder_round_end: 'cylinder',
+  cylinder:           'cylinder_round_end',
+  flame:              'tapered_round_end',
+  pear:               'torpedo',
+};
+
+// If vision says FG but the shank is visually long → it is HP (same smooth look, very different length)
+function resolveShankType(
+  shankType: InstrumentFeatures['shank_type'],
+  lengthCategory: InstrumentFeatures['shank_length_category'],
+): string {
+  if (shankType === 'fg' && (lengthCategory === 'long' || lengthCategory === 'extra_long')) {
+    return 'hp';
+  }
+  return shankType;
+}
+
+// Progressive lookup: 5 passes, each relaxing one constraint at a time.
+// Returns at the first pass that finds ≥1 result.
+async function progressiveLookup(
+  pool: DbPool,
+  shape: string | null,
+  material: string | null,
+  grit: string | null,
+  shank: string,
+  sizeMm: number | null,
+  limit: number,
+): Promise<LookupRow[]> {
+  // Pass 1 — strict: all filters active
+  let rows = await lookupByFeatures(pool, {
+    shape_family: shape, material, grit_ring_color: grit,
+    shank_type: shank, calc_size_mm: sizeMm,
+  }, limit);
+  if (rows.length) return rows;
+
+  // Pass 2 — relax grit (ring not visible or ultrafine)
+  if (grit !== null) {
+    rows = await lookupByFeatures(pool, {
+      shape_family: shape, material, grit_ring_color: null,
+      shank_type: shank, calc_size_mm: sizeMm,
+    }, limit);
+    if (rows.length) return rows;
+  }
+
+  // Pass 3 — relax grit + widen size tolerance to ±0.3mm
+  if (sizeMm !== null) {
+    rows = await lookupByFeatures(pool, {
+      shape_family: shape, material, grit_ring_color: null,
+      shank_type: shank, calc_size_mm: sizeMm, size_tolerance: 0.3,
+    }, limit);
+    if (rows.length) return rows;
+  }
+
+  // Pass 4 — shape synonym (torpedo ↔ tapered_round_end, cylinder ↔ cylinder_round_end, etc.)
+  const synShape = SHAPE_SYNONYMS[shape ?? ''];
+  if (synShape) {
+    rows = await lookupByFeatures(pool, {
+      shape_family: synShape, material, grit_ring_color: null,
+      shank_type: shank, calc_size_mm: sizeMm, size_tolerance: 0.3,
+    }, limit);
+    if (rows.length) return rows;
+  }
+
+  // Pass 5 — broad: shape (+ synonym) + material only, skip shank and size
+  const broadShape = synShape ?? shape;
+  rows = await lookupByFeatures(pool, {
+    shape_family: broadShape, material, grit_ring_color: null,
+    shank_type: 'unknown', calc_size_mm: null,
+  }, limit);
+  return rows;
+}
 
 function mapToProductMatch(
   row: { product_id: string; head_size_mm: number; shank_type: string; name: string; image_url: string | null },
@@ -126,30 +203,45 @@ async function runRecognitionPipeline(
     };
   }
 
+  // Layer B: correct shank type using length category (FG vs HP resolution)
+  const correctedShank = resolveShankType(features.shank_type, features.shank_length_category);
+  if (correctedShank !== features.shank_type) {
+    logger.info('[recognition-engine] Shank type corrected via length', {
+      from: features.shank_type, to: correctedShank,
+      shank_length_category: features.shank_length_category,
+    });
+  }
+
+  // Use corrected shank diameter for size calculation
   const calcSizeMm = features.head_shank_ratio
-    ? calculateHeadSizeMm(features.head_shank_ratio, features.shank_type)
+    ? calculateHeadSizeMm(features.head_shank_ratio, correctedShank)
     : null;
 
-  // 'none' from vision model means "ring not visible" — skip grit filter rather than matching the literal string
+  // 'none' or null grit from vision → skip grit filter (ring not visible or ultrafine)
   const gritFilter = (features.grit_ring_color === 'none' || features.grit_ring_color === null)
     ? null
     : features.grit_ring_color;
 
-  const candidates = await lookupByFeatures(deps.pool, {
-    shape_family:    features.shape_family,
-    material:        features.material,
-    grit_ring_color: gritFilter,
-    shank_type:      features.shank_type ?? 'fg',
-    calc_size_mm:    calcSizeMm,
-  });
+  // Layer C+D: progressive lookup with shape synonyms fallback
+  const candidates = await progressiveLookup(
+    deps.pool,
+    features.shape_family,
+    features.material,
+    gritFilter,
+    correctedShank,
+    calcSizeMm,
+    20,
+  );
 
-  const broadRows = await lookupByFeatures(deps.pool, {
-    shape_family:    features.shape_family,
-    material:        features.material,
-    grit_ring_color: gritFilter,
-    shank_type:      features.shank_type ?? 'fg',
-    calc_size_mm:    null,
-  }, 10);
+  const broadRows = await progressiveLookup(
+    deps.pool,
+    features.shape_family,
+    features.material,
+    null,
+    correctedShank,
+    null,
+    10,
+  );
   const broadCandidates: ProductMatch[] = broadRows.map((r, i) =>
     mapToProductMatch(r, Math.max(0.3, features.confidence - i * 0.06)),
   );
@@ -175,4 +267,4 @@ async function runRecognitionPipeline(
   return { result, budgetState, processingMs: Date.now() - startMs, imageHash, broadCandidates };
 }
 
-export { runRecognitionPipeline, buildRecognitionResult };
+export { runRecognitionPipeline, buildRecognitionResult, resolveShankType, SHAPE_SYNONYMS };
