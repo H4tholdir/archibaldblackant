@@ -130,10 +130,15 @@ async function runRecognitionPipeline(
     ? calculateHeadSizeMm(features.head_shank_ratio, features.shank_type)
     : null;
 
+  // 'none' from vision model means "ring not visible" — skip grit filter rather than matching the literal string
+  const gritFilter = (features.grit_ring_color === 'none' || features.grit_ring_color === null)
+    ? null
+    : features.grit_ring_color;
+
   const candidates = await lookupByFeatures(deps.pool, {
     shape_family:    features.shape_family,
     material:        features.material,
-    grit_ring_color: features.grit_ring_color,
+    grit_ring_color: gritFilter,
     shank_type:      features.shank_type ?? 'fg',
     calc_size_mm:    calcSizeMm,
   });
@@ -141,7 +146,7 @@ async function runRecognitionPipeline(
   const broadRows = await lookupByFeatures(deps.pool, {
     shape_family:    features.shape_family,
     material:        features.material,
-    grit_ring_color: features.grit_ring_color,
+    grit_ring_color: gritFilter,
     shank_type:      features.shank_type ?? 'fg',
     calc_size_mm:    null,
   }, 10);
