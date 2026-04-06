@@ -9,8 +9,6 @@ type CatalogProductEnrichmentDeps = {
 type CatalogEntryRow = {
   catalog_page: number;
   product_type: string;
-  shape_description: string | null;
-  material_description: string | null;
   clinical_indications: string | null;
   rpm_max: number | null;
   usage_notes: string | null;
@@ -29,7 +27,7 @@ async function enrichProduct(pool: DbPool, productId: string): Promise<'enriched
   const familyCode = extractFamilyCode(productId);
 
   const { rows } = await pool.query<CatalogEntryRow>(
-    `SELECT catalog_page, product_type, shape_description, material_description,
+    `SELECT catalog_page, product_type,
             clinical_indications, rpm_max, usage_notes, pictograms, packaging_info, notes
      FROM shared.catalog_entries
      WHERE family_codes @> ARRAY[$1]
