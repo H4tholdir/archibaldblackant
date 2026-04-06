@@ -13898,15 +13898,37 @@ export class ArchibaldBot {
     if (!erpIdMatch) throw new Error(`readCustomerFields: erpId non trovato nell'URL: ${currentUrl}`);
     const erpId = erpIdMatch[1];
 
-    logger.info('readCustomerFields: navigazione a Edit mode', { erpId });
-    await this.page.goto(
-      `${config.archibald.url}/CUSTTABLE_DetailView/${erpId}/?mode=Edit`,
-      { waitUntil: 'networkidle2', timeout: 60000 },
-    );
+    logger.info('readCustomerFields: entrata in Edit mode via click Modifica', { erpId });
+
+    // Use two-step approach: we are already on the DetailView (View mode) after
+    // navigateToCustomerByErpId. Clicking Modifica — instead of navigating directly
+    // to ?mode=Edit — ensures XAF properly initialises all ComboBox widgets.
+    const editClicked = await this.page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('a, button'))
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .find(
+          (el) =>
+            /modif|edit/i.test((el as HTMLElement).title ?? '') ||
+            /modif|edit/i.test(el.textContent?.trim() ?? ''),
+        );
+      if (btn) { (btn as HTMLElement).click(); return true; }
+      return false;
+    });
+
+    if (!editClicked) {
+      throw new Error(`readCustomerFields: pulsante Modifica non trovato per erpId=${erpId}`);
+    }
+
     if (this.page.url().includes('Login.aspx')) {
       throw new Error('readCustomerFields: sessione scaduta');
     }
-    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    await this.page.waitForFunction(
+      () => window.location.href.includes('mode=Edit'),
+      { timeout: 8000, polling: 300 },
+    ).catch(() => {});
+
+    await this.waitForDevExpressIdle({ timeout: 10000 });
 
     const readInput = async (idFragment: string): Promise<string | null> =>
       this.page!.evaluate(
@@ -13933,6 +13955,7 @@ export class ArchibaldBot {
       sdi:          (await readInput('dviLEGALAUTHORITY_Edit_I'))                  ?? undefined,
       street:       (await readInput('dviSTREET_Edit_I'))                          ?? undefined,
       postalCode:   (await readInput('dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_I')) ?? undefined,
+      city:         (await readInput('dviCITY_Edit_I'))                              ?? undefined,
       phone:        (await readInput('dviPHONE_Edit_I'))                           ?? undefined,
       mobile:       (await readInput('dviCELLULARPHONE_Edit_I'))                  ?? undefined,
       email:        (await readInput('dviEMAIL_Edit_I'))                           ?? undefined,
