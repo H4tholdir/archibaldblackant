@@ -15,7 +15,8 @@ type OperationType =
   | 'sync-products'
   | 'sync-prices'
   | 'sync-customer-addresses'
-  | 'read-vat-status';
+  | 'read-vat-status'
+  | 'refresh-customer';
 
 type EnqueueResponse = {
   success: boolean;
