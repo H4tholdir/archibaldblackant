@@ -184,9 +184,23 @@ describe('createCatalogIngestionHandler', () => {
     expect(insertCall[0]).toMatch(/ON CONFLICT DO NOTHING/);
 
     const params = insertCall[1]!;
-    expect(params[0]).toEqual(SAMPLE_FAMILY.family_codes);
-    expect(params[1]).toBe(10);
-    expect(params[2]).toBe(SAMPLE_FAMILY.product_type);
-    expect(params[15]).toEqual(SAMPLE_FAMILY);
+    expect(params).toEqual([
+      SAMPLE_FAMILY.family_codes,
+      10,
+      SAMPLE_FAMILY.product_type,
+      SAMPLE_FAMILY.shape_description,
+      SAMPLE_FAMILY.material_description,
+      SAMPLE_FAMILY.identification_clues,
+      SAMPLE_FAMILY.grit_options,
+      SAMPLE_FAMILY.shank_options,
+      SAMPLE_FAMILY.size_options,
+      SAMPLE_FAMILY.rpm_max,
+      SAMPLE_FAMILY.clinical_indications,
+      SAMPLE_FAMILY.usage_notes,
+      SAMPLE_FAMILY.pictograms,
+      SAMPLE_FAMILY.packaging_info,
+      SAMPLE_FAMILY.notes,
+      SAMPLE_FAMILY,
+    ]);
   });
 });
