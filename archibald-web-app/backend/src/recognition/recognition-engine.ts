@@ -116,7 +116,7 @@ async function runRecognitionPipeline(
   try {
     features = await deps.callVisionApi(imageBase64, signal);
   } catch (err) {
-    logger.warn('[recognition-engine] Vision API error', { error: err });
+    logger.warn('[recognition-engine] Vision API error', { error: err instanceof Error ? err.message : String(err) });
     return {
       result:          { state: 'error', message: 'Servizio di riconoscimento temporaneamente non disponibile' },
       budgetState,
