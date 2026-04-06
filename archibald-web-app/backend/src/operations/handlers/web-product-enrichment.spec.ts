@@ -131,7 +131,6 @@ describe('createWebProductEnrichmentHandler', () => {
       (sql as string).includes('product_web_resources'),
     );
 
-    expect(resourceInsertCall).toBeDefined();
     expect(resourceInsertCall![1]).toEqual([
       '879.314.014',
       'video',
@@ -164,6 +163,30 @@ describe('createWebProductEnrichmentHandler', () => {
     expect(webEnrichedAtUpdate).toBeDefined();
   });
 
+  test('uses productId first segment as family code when catalog_family_code is null', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: '<html></html>', finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    const productRowWithNullFamily = {
+      name: 'Komet 879.314.014',
+      catalog_family_code: null,
+      description_en: null,
+      web_enriched_at: null,
+    };
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productRowWithNullFamily], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, { productId: '879.314.014' }, 'user', vi.fn());
+
+    expect(searchWeb).toHaveBeenCalledWith(expect.stringContaining('"879 Komet"'));
+  });
+
   test('updates web_enriched_at in product_details via upsert', async () => {
     const pool = createMockPool();
     const fetchUrl = vi.fn().mockRejectedValue(new Error('network error'));
@@ -184,7 +207,6 @@ describe('createWebProductEnrichmentHandler', () => {
         (sql as string).includes('ON CONFLICT'),
     );
 
-    expect(upsertCall).toBeDefined();
     expect(upsertCall![1]).toEqual(['879.314.014']);
   });
 });
