@@ -4,7 +4,7 @@ type InstrumentFeatures = {
   shape_family:    string | null
   material:        string | null
   grit_ring_color: string | null
-  shank_type:      'fg' | 'ca' | 'unknown'
+  shank_type:      'fg' | 'ca' | 'hp' | 'grip' | 'unmounted' | 'unknown'
   head_px:         number | null
   shank_px:        number | null
   confidence:      number

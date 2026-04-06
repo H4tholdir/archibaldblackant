@@ -26,9 +26,12 @@ white (ultra_fine), yellow (extra_fine), red (fine), blue (standard),
 green (coarse), black (super_coarse), none (no visible ring)
 
 SHANK TYPES:
-fg (thin shank, ~1.6mm diameter, goes into turbine/high-speed handpiece)
-ca (thicker shank, ~2.35mm, goes into contra-angle handpiece)
-unknown (shank not clearly visible)
+fg (thin smooth shank, ~1.6mm diameter, goes into turbine/high-speed handpiece)
+ca (thicker shank, ~2.35mm, with latch groove/slot at the end, contra-angle handpiece)
+hp (thicker smooth shank, ~2.35mm, NO latch groove, straight handpiece — visually similar to ca but no groove)
+grip (large colored plastic or rubber handle, ~4mm, finger-held — clearly much wider than metal shanks)
+unmounted (no shank, just the bur head/working part visible)
+unknown (shank not clearly visible or ambiguous)
 
 PIXEL MEASUREMENTS:
 head_px: width of the instrument HEAD in pixels (the working/cutting part)

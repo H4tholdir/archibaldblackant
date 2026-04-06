@@ -93,8 +93,13 @@ async function lookupByFeatures(
     conditions.push(`f.grit_ring_color IS NULL`);
   }
 
-  conditions.push(`f.shank_type = $${idx++}`);
-  values.push(params.shank_type);
+  // 'unknown' → skip shank filter; 'ca'/'hp' → match either (both Ø 2.35 mm, visually similar)
+  if (params.shank_type === 'ca' || params.shank_type === 'hp') {
+    conditions.push(`f.shank_type IN ('ca', 'hp')`);
+  } else if (params.shank_type !== 'unknown') {
+    conditions.push(`f.shank_type = $${idx++}`);
+    values.push(params.shank_type);
+  }
 
   if (params.calc_size_mm !== null) {
     conditions.push(`f.head_size_mm BETWEEN $${idx++} AND $${idx++}`);
