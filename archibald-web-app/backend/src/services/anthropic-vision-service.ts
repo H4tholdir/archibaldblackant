@@ -33,10 +33,11 @@ grip (large colored plastic or rubber handle, ~4mm, finger-held — clearly much
 unmounted (no shank, just the bur head/working part visible)
 unknown (shank not clearly visible or ambiguous)
 
-PIXEL MEASUREMENTS:
-head_px: width of the instrument HEAD in pixels (the working/cutting part)
-shank_px: width of the SHANK (handle part) in pixels
-Measure at the widest point. Set to null if not clearly visible.
+HEAD-TO-SHANK RATIO:
+head_shank_ratio: visual width of the HEAD divided by visual width of the SHANK.
+Compare the widest point of the head to the widest point of the shank.
+Examples: head twice as wide as shank = 2.0, same width = 1.0, 50% wider = 1.5.
+Set to null if the shank is not clearly visible or the ratio cannot be estimated.
 
 Respond with ONLY this JSON, no other text:
 {
@@ -44,8 +45,7 @@ Respond with ONLY this JSON, no other text:
   "material": "...",
   "grit_ring_color": "...",
   "shank_type": "...",
-  "head_px": null,
-  "shank_px": null,
+  "head_shank_ratio": null,
   "confidence": 0.0
 }`;
 

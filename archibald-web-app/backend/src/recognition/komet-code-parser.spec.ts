@@ -623,27 +623,27 @@ describe('parseKometCode', () => {
 // ─── calculateHeadSizeMm ─────────────────────────────────────────────────────
 
 describe('calculateHeadSizeMm', () => {
-  test('FG shank: head 2× shank pixels → rawMm 3.2 → snaps to ISO 3.1', () => {
-    expect(calculateHeadSizeMm(200, 100, 'fg')).toBe(3.1)
+  test('FG shank: ratio 2.0 → rawMm 3.2 → snaps to ISO 3.1', () => {
+    expect(calculateHeadSizeMm(2.0, 'fg')).toBe(3.1)
   })
 
-  test('FG shank: head/shank ratio = 1.0 → rawMm 1.6 → exact ISO 1.6', () => {
-    expect(calculateHeadSizeMm(160, 160, 'fg')).toBe(1.6)
+  test('FG shank: ratio 1.0 → rawMm 1.6 → exact ISO 1.6', () => {
+    expect(calculateHeadSizeMm(1.0, 'fg')).toBe(1.6)
   })
 
-  test('CA shank: head = shank → rawMm 2.35 → snaps to ISO 2.3', () => {
-    expect(calculateHeadSizeMm(100, 100, 'ca')).toBe(2.3)
+  test('CA shank: ratio 1.0 → rawMm 2.35 → snaps to ISO 2.3', () => {
+    expect(calculateHeadSizeMm(1.0, 'ca')).toBe(2.3)
   })
 
   test('HP shank: same diameter as CA → same calculation', () => {
-    expect(calculateHeadSizeMm(100, 100, 'hp')).toBe(2.3)
+    expect(calculateHeadSizeMm(1.0, 'hp')).toBe(2.3)
   })
 
-  test('returns null when shankPx = 0', () => {
-    expect(calculateHeadSizeMm(100, 0, 'fg')).toBeNull()
+  test('returns null when ratio is 0', () => {
+    expect(calculateHeadSizeMm(0, 'fg')).toBeNull()
   })
 
   test('returns null for unknown shank type', () => {
-    expect(calculateHeadSizeMm(100, 100, 'unknown')).toBeNull()
+    expect(calculateHeadSizeMm(1.0, 'unknown')).toBeNull()
   })
 })

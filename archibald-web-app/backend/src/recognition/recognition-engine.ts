@@ -126,8 +126,8 @@ async function runRecognitionPipeline(
     };
   }
 
-  const calcSizeMm = (features.head_px && features.shank_px)
-    ? calculateHeadSizeMm(features.head_px, features.shank_px, features.shank_type)
+  const calcSizeMm = features.head_shank_ratio
+    ? calculateHeadSizeMm(features.head_shank_ratio, features.shank_type)
     : null;
 
   const candidates = await lookupByFeatures(deps.pool, {

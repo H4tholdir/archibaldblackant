@@ -5,7 +5,7 @@ import type { LookupRow } from '../db/repositories/instrument-features';
 const BASE_FEATURES = {
   shape_family: 'round', material: 'diamond_diao',
   grit_ring_color: 'green', shank_type: 'fg' as const,
-  head_px: 100, shank_px: 160, confidence: 0.95,
+  head_shank_ratio: 0.625, confidence: 0.95,
 };
 
 function row(id: string, size: number): LookupRow {

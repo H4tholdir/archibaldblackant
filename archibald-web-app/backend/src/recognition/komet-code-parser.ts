@@ -571,13 +571,12 @@ function parseKometCode(productName: string): ParsedFeatures | null {
 }
 
 function calculateHeadSizeMm(
-  headPx: number,
-  shankPx: number,
+  headShankRatio: number,
   shankType: string,
 ): number | null {
   const shankDiam = SHANK_DIAMETERS_MM[shankType]
-  if (!shankDiam || shankPx === 0) return null
-  const rawMm = (headPx / shankPx) * shankDiam
+  if (!shankDiam || headShankRatio <= 0) return null
+  const rawMm = headShankRatio * shankDiam
   return ISO_SIZES_MM.reduce((a, b) =>
     Math.abs(b - rawMm) < Math.abs(a - rawMm) ? b : a,
   )
