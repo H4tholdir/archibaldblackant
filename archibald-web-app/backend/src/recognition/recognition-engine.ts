@@ -28,7 +28,7 @@ type EngineDeps = {
 const SHAPE_SYNONYMS: Record<string, string> = {
   torpedo:            'tapered_round_end',
   tapered_round_end:  'torpedo',
-  cylinder_round_end: 'cylinder',
+  cylinder_round_end: 'torpedo',     // Haiku often confuses torpedo ↔ cylinder_round_end
   cylinder:           'cylinder_round_end',
   flame:              'tapered_round_end',
   pear:               'torpedo',

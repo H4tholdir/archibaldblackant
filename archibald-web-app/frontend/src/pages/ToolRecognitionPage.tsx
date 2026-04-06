@@ -8,7 +8,7 @@ import {
   getRecognitionBudget,
   submitRecognitionFeedback,
 } from '../api/recognition'
-import type { IdentifyResponse, BudgetState } from '../api/recognition'
+import type { IdentifyResponse, BudgetState, InstrumentFeatures } from '../api/recognition'
 
 type PageState =
   | 'loading'
@@ -38,8 +38,8 @@ function Viewfinder() {
     }}>
       <div style={{
         position: 'relative',
-        width: '60%',
-        aspectRatio: '1',
+        width: '72%',
+        aspectRatio: '2/3',
         border: '2px solid rgba(255,255,255,0.3)',
         borderRadius: 8,
       }}>
@@ -320,8 +320,8 @@ export function ToolRecognitionPage() {
             candidates: broadCandidates,
             extractedFeatures: {
               shape_family: null, material: null, grit_ring_color: null,
-              shank_type: product.shankType as 'fg' | 'ca' | 'unknown',
-              head_px: null, shank_px: null, confidence,
+              shank_type: product.shankType as InstrumentFeatures['shank_type'],
+              shank_length_category: null, head_shank_ratio: null, confidence,
             },
           },
         } : prev)
@@ -542,11 +542,31 @@ export function ToolRecognitionPage() {
               <button
                 key={opt.value}
                 onClick={() => {
-                  const params = new URLSearchParams()
-                  if (extractedFeatures.shape_family) params.set('shape', extractedFeatures.shape_family)
-                  if (extractedFeatures.material) params.set('material', extractedFeatures.material)
-                  params.set(question.field, opt.value)
-                  navigate(`/products?${params.toString()}`)
+                  const SIZE_RANGES: Record<string, [number, number]> = {
+                    small:   [0,    1.25],
+                    medium:  [1.25, 1.85],
+                    large:   [1.85, Infinity],
+                    unknown: [0,    Infinity],
+                  }
+                  const [min, max] = SIZE_RANGES[opt.value] ?? [0, Infinity]
+                  const broad = identifyResult?.broadCandidates ?? []
+                  const filtered = broad.filter(c => c.headSizeMm > min && c.headSizeMm <= max)
+                  const candidates = filtered.length > 0 ? filtered : broad
+
+                  if (candidates.length === 0) {
+                    setPageState('idle')
+                    setErrorMessage('Nessun articolo trovato con quella misura. Riprova.')
+                    return
+                  }
+                  setIdentifyResult(prev => prev ? {
+                    ...prev,
+                    result: {
+                      state: 'shortlist',
+                      candidates,
+                      extractedFeatures,
+                    },
+                  } : prev)
+                  setPageState('shortlist')
                 }}
                 style={{
                   background: '#1a1000', border: '1px solid #f59e0b',
@@ -632,18 +652,25 @@ export function ToolRecognitionPage() {
       )}
 
       {errorMessage && (
-        <div style={{
-          position: 'absolute',
-          bottom: 148,
-          left: 16, right: 16,
-          background: 'rgba(239, 68, 68, 0.15)',
-          borderRadius: 8,
-          padding: '8px 16px',
-          color: '#f87171',
-          fontSize: 13,
-          textAlign: 'center',
-        }}>
+        <div
+          onClick={() => setErrorMessage(null)}
+          style={{
+            position: 'absolute',
+            bottom: 148,
+            left: 16, right: 16,
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderRadius: 8,
+            padding: '10px 16px',
+            color: '#f87171',
+            fontSize: 13,
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
+        >
           {errorMessage}
+          <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
+            Tocca per chiudere · scatta di nuovo con il pulsante
+          </div>
         </div>
       )}
 

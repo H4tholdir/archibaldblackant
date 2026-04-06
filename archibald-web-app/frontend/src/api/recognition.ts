@@ -4,13 +4,13 @@ import { fetchWithRetry } from '../utils/fetch-with-retry'
 export type ThrottleLevel = 'normal' | 'warning' | 'limited'
 
 export type InstrumentFeatures = {
-  shape_family:    string | null
-  material:        string | null
-  grit_ring_color: string | null
-  shank_type:      'fg' | 'ca' | 'unknown'
-  head_px:         number | null
-  shank_px:        number | null
-  confidence:      number
+  shape_family:          string | null
+  material:              string | null
+  grit_ring_color:       string | null
+  shank_type:            'fg' | 'ca' | 'hp' | 'unknown'
+  shank_length_category: 'short' | 'medium' | 'long' | 'extra_long' | null
+  head_shank_ratio:      number | null
+  confidence:            number
 }
 
 export type ProductMatch = {

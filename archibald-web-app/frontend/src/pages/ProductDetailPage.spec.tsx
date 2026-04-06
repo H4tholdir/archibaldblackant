@@ -94,7 +94,7 @@ describe('ProductDetailPage — loading e dati base', () => {
 const FULL_ENRICHMENT: ProductEnrichment = {
   features: {
     shape_family: 'round', material: 'diamond', grit_ring_color: 'red',
-    shank_type: 'fg', head_px: null, shank_px: null, confidence: 0.99,
+    shank_type: 'fg', shank_length_category: null, head_shank_ratio: null, confidence: 0.99,
   },
   details: {
     clinicalDescription: 'Per rifinitura smalto e dentina',

@@ -85,8 +85,11 @@ describe('SHAPE_SYNONYMS', () => {
     expect(SHAPE_SYNONYMS['tapered_round_end']).toBe('torpedo');
   });
 
-  test('cylinder ↔ cylinder_round_end are mutual synonyms', () => {
-    expect(SHAPE_SYNONYMS['cylinder_round_end']).toBe('cylinder');
+  test('cylinder_round_end → torpedo (Haiku confuses the two)', () => {
+    expect(SHAPE_SYNONYMS['cylinder_round_end']).toBe('torpedo');
+  });
+
+  test('cylinder → cylinder_round_end', () => {
     expect(SHAPE_SYNONYMS['cylinder']).toBe('cylinder_round_end');
   });
 });

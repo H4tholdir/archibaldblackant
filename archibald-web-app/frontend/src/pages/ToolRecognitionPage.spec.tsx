@@ -211,7 +211,7 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
         extractedFeatures: {
           shape_family: 'round', material: 'tungsten_carbide',
           grit_ring_color: null, shank_type: 'fg',
-          head_px: null, shank_px: null, confidence: 0.78,
+          shank_length_category: null, head_shank_ratio: null, confidence: 0.78,
         },
       },
       budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
@@ -241,7 +241,7 @@ describe('ToolRecognitionPage — Stato 3C (filter needed)', () => {
         extractedFeatures: {
           shape_family: 'round', material: 'diamond',
           grit_ring_color: null, shank_type: 'fg',
-          head_px: null, shank_px: null, confidence: 0.45,
+          shank_length_category: null, head_shank_ratio: null, confidence: 0.45,
         },
         question: {
           field: 'grit_ring_color',
