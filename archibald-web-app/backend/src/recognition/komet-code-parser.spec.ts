@@ -345,40 +345,52 @@ describe('parseKometCode', () => {
     })
   })
 
-  // ── CERC diamond burs ──────────────────────────────────────────────────────
+  // ── CERC/CERCS Rocky crown-removal burs ───────────────────────────────────
 
-  describe('CERC rotary diamond burs', () => {
-    test('CERC.314.018 → round diamond, FG shank, blue grit', () => {
+  describe('CERC Rocky crown-removal diamond burs', () => {
+    test('CERC.314.018 → cylinder_round_end diamond FG (rounded shoulder for crown removal)', () => {
       expect(parseKometCode('CERC.314.018')).toEqual(
-        expect.objectContaining({ material: 'diamond', shape_family: 'round', shank_type: 'fg', grit_ring_color: 'blue' }),
+        expect.objectContaining({ material: 'diamond', shape_family: 'cylinder_round_end', shank_type: 'fg' }),
       )
     })
 
-    test('CERCS.314.016 → round diamond, FG shank (CERCS variant)', () => {
+    test('CERCS.314.016 → tapered_flat_end diamond FG (conical short for initial crown cut)', () => {
       expect(parseKometCode('CERCS.314.016')).toEqual(
-        expect.objectContaining({ material: 'diamond', shape_family: 'round', shank_type: 'fg' }),
+        expect.objectContaining({ material: 'diamond', shape_family: 'tapered_flat_end', shank_type: 'fg' }),
       )
     })
   })
 
-  // ── DCB implant surgical burs ──────────────────────────────────────────────
+  // ── DCB lab diamond abrasives (ETNA system) ────────────────────────────────
 
-  describe('DCB implant surgical burs', () => {
-    test('DCB2BA.104.030 → round TC, HP shank (ball bur)', () => {
+  describe('DCB ETNA lab diamond abrasives', () => {
+    test('DCB2BA.104.030 → cylinder diamond HP (shape 2 = cylinder, BA = ETNA bond)', () => {
       expect(parseKometCode('DCB2BA.104.030')).toEqual(
-        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'round', shank_type: 'hp' }),
+        expect.objectContaining({ material: 'diamond', shape_family: 'cylinder', shank_type: 'hp' }),
       )
     })
 
-    test('DCB3CA.104.023 → inverted_cone TC, HP shank (countersink)', () => {
-      expect(parseKometCode('DCB3CA.104.023')).toEqual(
-        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'inverted_cone', shank_type: 'hp' }),
-      )
-    })
-
-    test('DCB1MA.104.023 → cylinder TC, HP shank (drill)', () => {
+    test('DCB1MA.104.023 → flame diamond HP (shape 1 = flame, MA = medium grit)', () => {
       expect(parseKometCode('DCB1MA.104.023')).toEqual(
-        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'cylinder', shank_type: 'hp' }),
+        expect.objectContaining({ material: 'diamond', shape_family: 'flame', shank_type: 'hp' }),
+      )
+    })
+
+    test('DCB3CA.104.023 → tapered_flat_end diamond HP (shape 3 = tapered, CA = coarse)', () => {
+      expect(parseKometCode('DCB3CA.104.023')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'tapered_flat_end', shank_type: 'hp' }),
+      )
+    })
+
+    test('DCB4MA.104.060 → wheel diamond HP (shape 4 = wheel)', () => {
+      expect(parseKometCode('DCB4MA.104.060')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'wheel', shank_type: 'hp' }),
+      )
+    })
+
+    test('DCB9BA.104.023 → inverted_cone diamond HP (shape 9 = inverted cone)', () => {
+      expect(parseKometCode('DCB9BA.104.023')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'inverted_cone', shank_type: 'hp' }),
       )
     })
   })
@@ -467,6 +479,64 @@ describe('parseKometCode', () => {
     test('PS.EM1. → sonic_tip (empty size code — real product format)', () => {
       expect(parseKometCode('PS.EM1.')).toEqual(
         expect.objectContaining({ material: 'sonic_tip', shape_family: 'sonic_tip', shank_type: 'unknown', head_size_mm: 0 }),
+      )
+    })
+  })
+
+  // ── G180 Gates-Glidden ────────────────────────────────────────────────────
+
+  describe('G180 Gates-Glidden reamers', () => {
+    test('G180.204.090 → flame steel CA (Gates-Glidden #3)', () => {
+      expect(parseKometCode('G180.204.090')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'flame', shank_type: 'ca' }),
+      )
+    })
+
+    test('G180A.204.050 → flame steel CA (G180A short variant)', () => {
+      expect(parseKometCode('G180A.204.050')).toEqual(
+        expect.objectContaining({ material: 'steel', shape_family: 'flame', shank_type: 'ca' }),
+      )
+    })
+  })
+
+  // ── EX1/EX2 EndoExplorer ──────────────────────────────────────────────────
+
+  describe('EX1/EX2 EndoExplorer', () => {
+    test('EX1.204.007 → tapered_round_end TC CA (slim access cavity bur)', () => {
+      expect(parseKometCode('EX1.204.007')).toEqual(
+        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'tapered_round_end', shank_type: 'ca' }),
+      )
+    })
+
+    test('EX2.204.011 → tapered_round_end TC CA (larger access cavity bur)', () => {
+      expect(parseKometCode('EX2.204.011')).toEqual(
+        expect.objectContaining({ material: 'tungsten_carbide', shape_family: 'tapered_round_end', shank_type: 'ca' }),
+      )
+    })
+  })
+
+  // ── RS IPR discs ──────────────────────────────────────────────────────────
+
+  describe('RS rotating IPR diamond discs', () => {
+    test('RS15F.104.200 → wheel diamond HP (0.15mm fine disc)', () => {
+      expect(parseKometCode('RS15F.104.200')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'wheel', shank_type: 'hp' }),
+      )
+    })
+
+    test('RS30M.104.200 → wheel diamond HP (0.30mm medium disc)', () => {
+      expect(parseKometCode('RS30M.104.200')).toEqual(
+        expect.objectContaining({ material: 'diamond', shape_family: 'wheel', shank_type: 'hp' }),
+      )
+    })
+  })
+
+  // ── K79ACR ceramic lab cutter ──────────────────────────────────────────────
+
+  describe('K79ACR ceramic lab cutter', () => {
+    test('K79ACR.104.040 → pear ceramic HP (acorn-shape acrylic cutter)', () => {
+      expect(parseKometCode('K79ACR.104.040')).toEqual(
+        expect.objectContaining({ material: 'ceramic', shape_family: 'pear', shank_type: 'hp' }),
       )
     })
   })

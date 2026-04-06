@@ -68,7 +68,7 @@ const DIAMOND_SHAPE_MAP: Record<string, string> = {
   '242': 'round',    // HP diamond round bone cutter (surgery)
   '368': 'bud',             '369': 'bud',             '370': 'other',
   '379': 'egg',             '390': 'flame',            '392': 'other',
-  '801': 'round',           '802': 'round',            '803': 'round',   '804': 'round',
+  '801': 'round',           '802': 'round',            '803': 'round',   '804': 'pear',
   '805': 'inverted_cone',   '806': 'inverted_cone',    '807': 'inverted_cone',
   '809': 'inverted_cone',   '810': 'inverted_cone',    '811': 'bud',
   '812': 'diabolo',         '813': 'diabolo',           '814': 'inverted_cone',
@@ -105,7 +105,7 @@ const DIAMOND_SHAPE_MAP: Record<string, string> = {
   '951': 'tapered_flat_end',  '952': 'tapered_round_end',
   '953': 'cylinder',
   '955': 'tapered_flat_end',  '956': 'tapered_flat_end',
-  '957': 'tapered_round_end',
+  '957': 'flame',
   '959': 'tapered_round_end', '960': 'tapered_flat_end',
   '964': 'tapered_flat_end',  '965': 'tapered_flat_end',
   '972': 'flame',   '973': 'flame',
@@ -207,12 +207,13 @@ const STEEL_SHAPE_MAP: Record<string, string> = {
 // K157 = ceramic cylindrical bone cutter, K160/K160A = ceramic round bone cutter
 // --------------------------------------------------------------------------
 const CERAMIC_SHAPE_MAP: Record<string, string> = {
-  'K1SM':  'round',
-  'K59':   'round',
-  'KT':    'round',
-  'K157':  'cylinder',
-  'K160':  'round',
-  'K160A': 'round',
+  'K1SM':   'round',
+  'K59':    'round',
+  'KT':     'round',
+  'K79ACR': 'pear',         // ceramic lab cutter for acrylic, acorn/pear shape, HP
+  'K157':   'cylinder',
+  'K160':   'round',
+  'K160A':  'round',
 }
 
 // --------------------------------------------------------------------------
@@ -246,14 +247,32 @@ function parseUltrasonicTip(familyCode: string): FamilyFeatures | null {
   return { shape_family: 'sonic_tip', material: 'sonic_tip', grit_ring_color: null }
 }
 
-// DCB implant surgical burs: DCB{n}MA/BA/CA.104.{size}
-// MA = cylindrical drill, BA = round/ball, CA = countersink (inverted cone)
+// DCB lab diamond abrasives (ETNA system): DCB{n}{grit}.104.{size}
+// Shape is determined by the numeric index (1–13), NOT by the grit suffix.
+// Grit suffix: MA = medium, CA = coarse, BA = ETNA hard bond
+// Material: diamond (ceramic bond, not TC)
+const DCB_SHAPE_MAP: Record<string, string> = {
+  '1':  'flame',
+  '2':  'cylinder',
+  '3':  'tapered_flat_end',
+  '4':  'wheel',
+  '5':  'wheel',
+  '6':  'wheel',
+  '7':  'wheel',
+  '8':  'cylinder_round_end',
+  '9':  'inverted_cone',
+  '10': 'tapered_flat_end',
+  '11': 'wheel',
+  '12': 'cylinder',
+  '13': 'cylinder',
+}
+
 function parseDcbFamily(familyCode: string): FamilyFeatures | null {
-  if (!/^DCB\d/.test(familyCode)) return null
-  const shape = familyCode.endsWith('BA') ? 'round'
-              : familyCode.endsWith('CA') ? 'inverted_cone'
-              : 'cylinder'
-  return { shape_family: shape, material: 'tungsten_carbide', grit_ring_color: null }
+  const m = familyCode.match(/^DCB(\d{1,2})(MA|BA|CA)?$/)
+  if (!m) return null
+  const shape = DCB_SHAPE_MAP[m[1]!]
+  if (!shape) return null
+  return { shape_family: shape, material: 'diamond', grit_ring_color: null }
 }
 
 // Manual endo hand files, contra-angle reamers, pulp bur
@@ -313,10 +332,14 @@ function parseNitiRotaryFamily(familyCode: string): FamilyFeatures | null {
   return null
 }
 
-// CERC/CERCS: rotary diamond burs (FG shank)
+// CERC/CERCS: Rocky system crown-removal diamond burs (FG shank)
+// CERC  = cylinder with rounded shoulder (for removing crown fragments)
+// CERCS = conical short (for initial crown cutting)
 function parseCercFamily(familyCode: string): FamilyFeatures | null {
-  if (familyCode === 'CERC' || familyCode === 'CERCS')
-    return { shape_family: 'round', material: 'diamond', grit_ring_color: 'blue' }
+  if (familyCode === 'CERC')
+    return { shape_family: 'cylinder_round_end', material: 'diamond', grit_ring_color: null }
+  if (familyCode === 'CERCS')
+    return { shape_family: 'tapered_flat_end', material: 'diamond', grit_ring_color: null }
   return null
 }
 
@@ -325,6 +348,26 @@ function parseCercFamily(familyCode: string): FamilyFeatures | null {
 function parsePolishingFamily(familyCode: string): FamilyFeatures | null {
   if (!/^9\d{3}[A-Z]*$/.test(familyCode)) return null
   return { shape_family: 'round', material: 'polymer', grit_ring_color: null }
+}
+
+// RS IPR discs: RS{thickness}{grit}.104.{size} — rotating diamond discs for interproximal reduction
+// RS15F (0.15mm fine), RS20M (0.20mm medium), RS30M (0.30mm medium), RS15FV (single-sided)
+function parseRsFamily(familyCode: string): FamilyFeatures | null {
+  if (!/^RS\d{2}/.test(familyCode)) return null
+  return { shape_family: 'wheel', material: 'diamond', grit_ring_color: null }
+}
+
+// G180 / G180A Gates-Glidden reamers: flame-shaped endodontic CA handpiece instruments
+function parseGatesGliddenFamily(familyCode: string): FamilyFeatures | null {
+  if (!familyCode.startsWith('G180')) return null
+  return { shape_family: 'flame', material: 'steel', grit_ring_color: null }
+}
+
+// EX1 / EX2 EndoExplorer: TC conical burs for access cavity preparation (CA handpiece)
+function parseEndoExplorerFamily(familyCode: string): FamilyFeatures | null {
+  if (familyCode === 'EX1' || familyCode === 'EX2')
+    return { shape_family: 'tapered_round_end', material: 'tungsten_carbide', grit_ring_color: null }
+  return null
 }
 
 // --------------------------------------------------------------------------
@@ -515,6 +558,9 @@ function parseKometCode(productName: string): ParsedFeatures | null {
     parseNitiRotaryFamily(familyRaw) ??
     parseCercFamily(familyRaw) ??
     parsePolishingFamily(familyRaw) ??
+    parseRsFamily(familyRaw) ??
+    parseGatesGliddenFamily(familyRaw) ??
+    parseEndoExplorerFamily(familyRaw) ??
     parseHSeriesFamily(familyRaw) ??
     parseDiamondFamily(familyRaw) ??
     parseSteelFamily(familyRaw)
