@@ -13894,6 +13894,7 @@ export class ArchibaldBot {
     // Remove dots (ERP format) and commas for clean numeric ID
     const cleanId = erpId.replace(/[.,]/g, '');
     logger.info("navigateToEditCustomerById: navigating to view mode first", { erpId: cleanId });
+    await this.emitProgress("customer.navigation");
 
     // Navigate to VIEW mode first — XAF renders all ComboBoxes (including BUSINESSSECTORID)
     // only through the normal UI flow. Going directly to ?mode=Edit skips initialization.
@@ -13932,6 +13933,7 @@ export class ArchibaldBot {
 
     await this.waitForDevExpressReady({ timeout: 10000 });
     logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
+    await this.emitProgress("customer.edit_loaded");
   }
 
   async updateCustomerSurgical(
@@ -14093,8 +14095,11 @@ export class ArchibaldBot {
       await this.writeAltAddresses(addresses);
     }
 
+    await this.emitProgress("customer.field");
+
     // 6. Save and close ("Salva e chiudi") — navigates away from edit form, ensuring
     // the ERP server has confirmed the save before we read back values.
+    await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
     // Wait for the post-save page to be fully loaded before buildCustomerSnapshot
@@ -14106,6 +14111,7 @@ export class ArchibaldBot {
       { timeout: 30000 },
     ).catch(() => {});
     await this.waitForDevExpressIdle({ timeout: 5000, label: 'post-save-settle' }).catch(() => {});
+    await this.emitProgress("customer.complete");
 
     // 7. Navigate to customer detail view and read server-confirmed values.
     const cleanId = erpId.replace(/[.,]/g, '');
