@@ -21,3 +21,6 @@ export { createReadVatStatusHandler, type ReadVatStatusBot } from './read-vat-st
 export { createBatchDeleteOrdersHandler, type BatchDeleteOrdersBot } from './batch-delete-orders';
 export { createBatchSendToVeronaHandler, type BatchSendToVeronaBot } from './batch-send-to-verona';
 export { createRecognitionFeedbackHandler } from './recognition-feedback';
+export { createCatalogIngestionHandler } from './catalog-ingestion';
+export { createCatalogProductEnrichmentHandler } from './catalog-product-enrichment';
+export { createWebProductEnrichmentHandler } from './web-product-enrichment';

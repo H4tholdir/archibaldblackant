@@ -238,6 +238,9 @@ vi.mock('./operations/handlers', () => ({
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
   createSyncCustomerAddressesHandler: vi.fn(() => vi.fn()),
   createRecognitionFeedbackHandler: vi.fn(() => vi.fn()),
+  createCatalogIngestionHandler: vi.fn(() => vi.fn()),
+  createCatalogProductEnrichmentHandler: vi.fn(() => vi.fn()),
+  createWebProductEnrichmentHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('./services/anthropic-vision-service', () => ({
@@ -349,7 +352,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 22 operation handlers', async () => {
+  test('registers all 25 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -381,8 +384,11 @@ describe('bootstrap', () => {
       'sync-tracking',
       'sync-customer-addresses',
       'recognition-feedback',
+      'catalog-ingestion',
+      'catalog-product-enrichment',
+      'web-product-enrichment',
     ]));
-    expect(handlerKeys).toHaveLength(22);
+    expect(handlerKeys).toHaveLength(25);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

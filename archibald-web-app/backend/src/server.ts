@@ -950,6 +950,30 @@ function createApp(deps: AppDeps): Express {
       upsertDiscount: (id, articleCode, discountPercent, kpPriceUnit) =>
         fresisHistoryRepo.upsertDiscount(pool, userId, id, articleCode, discountPercent, kpPriceUnit),
     }),
+    getEnrichmentStats: async () => {
+      const [entriesResult, detailsResult, pendingCatalogResult, pendingWebResult, lastPageResult] = await Promise.all([
+        pool.query<{ count: string }>('SELECT COUNT(*) AS count FROM shared.catalog_entries'),
+        pool.query<{ count: string }>('SELECT COUNT(*) AS count FROM shared.product_details'),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM shared.products p
+           LEFT JOIN shared.product_details pd ON pd.product_id = p.id
+           WHERE pd.catalog_enriched_at IS NULL AND p.deleted_at IS NULL`
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM shared.products p
+           LEFT JOIN shared.product_details pd ON pd.product_id = p.id
+           WHERE pd.web_enriched_at IS NULL AND p.deleted_at IS NULL`
+        ),
+        pool.query<{ last_page: number | null }>('SELECT MAX(catalog_page) AS last_page FROM shared.catalog_entries'),
+      ]);
+      return {
+        totalCatalogEntries: parseInt(entriesResult.rows[0]?.count ?? '0', 10),
+        totalProductDetails: parseInt(detailsResult.rows[0]?.count ?? '0', 10),
+        pendingCatalogEnrichment: parseInt(pendingCatalogResult.rows[0]?.count ?? '0', 10),
+        pendingWebEnrichment: parseInt(pendingWebResult.rows[0]?.count ?? '0', 10),
+        lastIngestedPage: lastPageResult.rows[0]?.last_page ?? null,
+      };
+    },
   }));
 
   app.use('/api/widget', authenticate, createWidgetRouter({

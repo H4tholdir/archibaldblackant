@@ -46,7 +46,11 @@ import {
   createSyncTrackingHandler,
   createReadVatStatusHandler,
   createRecognitionFeedbackHandler,
+  createCatalogIngestionHandler,
+  createCatalogProductEnrichmentHandler,
+  createWebProductEnrichmentHandler,
 } from './operations/handlers';
+import Anthropic from '@anthropic-ai/sdk';
 import { createCatalogVisionService } from './services/anthropic-vision-service';
 import { createCatalogPdfService } from './services/catalog-pdf-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
@@ -1105,6 +1109,41 @@ async function bootstrap(): Promise<void> {
     ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
     'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
+    'catalog-ingestion': createCatalogIngestionHandler({
+      pool,
+      catalogPdf,
+      callSonnet: async (images, prompt) => {
+        const anthropicCatalogClient = new Anthropic({ apiKey: config.recognition.anthropicApiKey });
+        const response = await anthropicCatalogClient.messages.create({
+          model: 'claude-sonnet-4-5-20251001',
+          max_tokens: 4096,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                ...images.map(img => ({
+                  type: 'image' as const,
+                  source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                })),
+                { type: 'text' as const, text: prompt },
+              ],
+            },
+          ],
+        });
+        const content = response.content[0];
+        return content?.type === 'text' ? content.text : '[]';
+      },
+    }),
+    'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
+    'web-product-enrichment': createWebProductEnrichmentHandler({
+      pool,
+      fetchUrl: async (url) => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+        const html = await res.text();
+        return { html, finalUrl: res.url };
+      },
+      searchWeb: async (_query) => [],
+    }),
   };
 
   const processor = createOperationProcessor({
