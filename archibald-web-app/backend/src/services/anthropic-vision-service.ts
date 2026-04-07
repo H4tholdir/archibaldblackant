@@ -173,7 +173,14 @@ Always call submit_identification even if uncertain.`
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
        shape_description, material_description, identification_clues,
-       grit_options, shank_options, size_options, rpm_max, clinical_indications
+       grit_options, shank_options, size_options, rpm_max, clinical_indications,
+       ts_rank(
+         to_tsvector('simple',
+           COALESCE(shape_description,'') || ' ' ||
+           COALESCE(material_description,'') || ' ' ||
+           COALESCE(identification_clues,'')),
+         websearch_to_tsquery('simple', CASE WHEN $3 = '' THEN 'x' ELSE $3 END)
+       ) AS _rank
 FROM shared.catalog_entries
 WHERE
   (
@@ -192,7 +199,7 @@ WHERE
          COALESCE(identification_clues,''))
        @@ websearch_to_tsquery('simple', $3)
   )
-ORDER BY catalog_page
+ORDER BY _rank DESC, catalog_page
 LIMIT 10
 `
 
