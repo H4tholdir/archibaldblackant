@@ -63,6 +63,7 @@ import type { CatalogVisionService } from './recognition/recognition-engine';
 import * as productGalleryRepo from './db/repositories/product-gallery';
 import * as recognitionLogRepo from './db/repositories/recognition-log';
 import { getProductDetails } from './db/repositories/product-details';
+import { getProductWebResources } from './db/repositories/product-web-resources';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
@@ -588,6 +589,7 @@ function createApp(deps: AppDeps): Express {
     getRecognitionHistory: (productId, limit) => recognitionLogRepo.getRecognitionHistory(pool, productId, limit),
     getProductVariantsForEnrichment: (name) => productsRepo.getProductVariants(pool, name),
     getProductDetails: (productId) => getProductDetails(pool, productId),
+    getProductWebResources: (productId) => getProductWebResources(pool, productId),
   }));
 
   app.use('/api/prices', authenticate, createPricesRouter({

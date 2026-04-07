@@ -8,6 +8,7 @@ import { logger } from '../logger';
 import type { GalleryRow } from '../db/repositories/product-gallery';
 import { getProductDetails } from '../db/repositories/product-details';
 import type { ProductDetailsRow } from '../db/repositories/product-details';
+import type { WebResourceRow } from '../db/repositories/product-web-resources';
 
 function mapProductRow(row: ProductRow) {
   return {
@@ -112,6 +113,7 @@ type ProductsRouterDeps = {
   getRecognitionHistory?: (productId: string, limit: number) => Promise<Array<{ scanned_at: Date; agent_id: string; confidence: number | null; cache_hit: boolean }>>;
   getProductVariantsForEnrichment?: (articleName: string) => Promise<ProductRow[]>;
   getProductDetails?: (productId: string) => Promise<ProductDetailsRow | null>;
+  getProductWebResources?: (productId: string) => Promise<WebResourceRow[]>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -432,10 +434,11 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/:productId/enrichment', async (req: AuthRequest, res) => {
     const { productId } = req.params;
     try {
-      const [gallery, history, details] = await Promise.all([
-        deps.getProductGallery     ? deps.getProductGallery(productId)     : Promise.resolve([]),
-        deps.getRecognitionHistory ? deps.getRecognitionHistory(productId, 10) : Promise.resolve([]),
-        deps.getProductDetails     ? deps.getProductDetails(productId)     : Promise.resolve(null),
+      const [gallery, history, details, webResources] = await Promise.all([
+        deps.getProductGallery        ? deps.getProductGallery(productId)           : Promise.resolve([]),
+        deps.getRecognitionHistory    ? deps.getRecognitionHistory(productId, 10)   : Promise.resolve([]),
+        deps.getProductDetails        ? deps.getProductDetails(productId)           : Promise.resolve(null),
+        deps.getProductWebResources   ? deps.getProductWebResources(productId)      : Promise.resolve([]),
       ]);
 
       let sizeVariants: ReturnType<typeof mapProductRow>[] = [];
@@ -461,12 +464,19 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         sortOrder: g.sort_order,
       }));
 
+      const videoUrl = webResources.find(r => r.resource_type === 'video')?.url
+        ?? details?.video_url
+        ?? null;
+      const pdfUrl = webResources.find(r => r.resource_type === 'pdf')?.url
+        ?? details?.pdf_url
+        ?? null;
+
       const mappedDetails = details ? {
         clinicalDescription: details.clinical_indications,
         procedures:          details.usage_notes,
         performanceData:     details.performance_data as PerformanceData | null,
-        videoUrl:            details.video_url,
-        pdfUrl:              details.pdf_url,
+        videoUrl,
+        pdfUrl,
         sourceUrl:           details.source_url,
       } : null;
 
