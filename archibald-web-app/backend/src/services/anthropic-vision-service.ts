@@ -4,6 +4,7 @@ import type { DbPool } from '../db/pool'
 import type { CatalogVisionService } from '../recognition/recognition-engine'
 import type { IdentificationResult } from '../recognition/types'
 import type { CatalogPdfService } from './catalog-pdf-service'
+import { logger } from '../logger'
 
 export type VisionApiFn = (imageBase64: string, signal?: AbortSignal) => Promise<IdentificationResult>
 
@@ -390,7 +391,10 @@ async function runAgenticLoop(
 
         if (block.name === 'search_catalog') {
           const input = block.input as SearchCatalogInput
+          logger.info('[vision] search_catalog', { description: input.description, product_type: input.product_type, shank_length_mm: input.shank_length_mm })
           const result = await runSearchCatalog(deps.pool, input)
+          const parsed = JSON.parse(result) as unknown[]
+          logger.info('[vision] search_catalog results', { count: parsed.length })
           toolResults.push({
             type:        'tool_result',
             tool_use_id: block.id,
@@ -399,6 +403,7 @@ async function runAgenticLoop(
         } else if (block.name === 'get_catalog_page') {
           const input = block.input as GetCatalogPageInput
           lastCatalogPage = input.page_number
+          logger.info('[vision] get_catalog_page', { page: input.page_number })
           const base64 = await deps.catalogPdf.getPageAsBase64(input.page_number)
           toolResults.push({
             type:        'tool_result',
@@ -412,6 +417,7 @@ async function runAgenticLoop(
           })
         } else if (block.name === 'submit_identification') {
           const input = block.input as SubmitIdentificationInput
+          logger.info('[vision] submit_identification', { product_code: input.product_code, candidates: input.candidates, confidence: input.confidence, reasoning: input.reasoning })
           submitResult = parseFromSubmitTool(input, lastCatalogPage, usage)
           toolResults.push({
             type:        'tool_result',
