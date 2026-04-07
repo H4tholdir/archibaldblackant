@@ -366,7 +366,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 25 operation handlers', async () => {
+  test('registers all 26 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -403,7 +403,7 @@ describe('bootstrap', () => {
       'catalog-product-enrichment',
       'web-product-enrichment',
     ]));
-    expect(handlerKeys).toHaveLength(25);
+    expect(handlerKeys).toHaveLength(26);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
