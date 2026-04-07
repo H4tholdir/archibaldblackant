@@ -51,29 +51,16 @@ function Viewfinder() {
   )
 }
 
-function BurIcon({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
+function SizeBar({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
   const minH = 16, maxH = 40
   const h = minH + ((sizeMm / maxSizeMm) * (maxH - minH))
   return (
     <div style={{
-      width: 8, height: h,
+      width: 6, height: h,
       background: 'linear-gradient(180deg, #ffd700, #c8a000)',
-      borderRadius: 4,
-      display: 'inline-block', verticalAlign: 'middle', marginRight: 8,
+      borderRadius: 3,
       flexShrink: 0,
     }} />
-  )
-}
-
-function FeatureBadge({ label }: { label: string }) {
-  return (
-    <span style={{
-      background: '#1a3a1a', color: '#4ade80',
-      borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
-      border: '1px solid #2d5a2d',
-    }}>
-      {label}
-    </span>
   )
 }
 
@@ -308,9 +295,8 @@ export function ToolRecognitionPage() {
       navigate(`/products/${encodeURIComponent(product.productId)}`, { state: { fromScanner: true } })
     }
 
-    const badges: string[] = []
-    if (product.shankType) badges.push(product.shankType.toUpperCase())
-    if (product.headSizeMm) badges.push(`Ø ${product.headSizeMm}mm`)
+    const confidencePct = Math.round(confidence * 100)
+    const confidenceColor = confidence >= 0.9 ? '#22c55e' : confidence >= 0.75 ? '#4ade80' : '#f9a825'
 
     return (
       <div style={{
@@ -318,57 +304,85 @@ export function ToolRecognitionPage() {
         background: '#0a1f0a',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
       }}>
+        {/* Header */}
         <div style={{
           background: '#0d2b0d',
-          padding: '16px 20px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
+          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          flexShrink: 0, borderBottom: '1px solid #1a3a1a',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: '#22c55e', color: '#000',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 900,
-            }}>✓</div>
-            <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15 }}>
-              Articolo identificato
-            </span>
-          </div>
-          <span style={{ color: '#4ade80', fontSize: 14, fontWeight: 600 }}>
-            {Math.round(confidence * 100)}%
+          <div style={{
+            width: 26, height: 26, borderRadius: '50%',
+            background: '#22c55e', color: '#000',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 900, flexShrink: 0,
+          }}>✓</div>
+          <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15, flex: 1 }}>
+            Articolo identificato
+          </span>
+          <span style={{
+            color: confidenceColor, fontSize: 13, fontWeight: 700,
+            background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '3px 8px',
+          }}>
+            {confidencePct}% conf.
           </span>
         </div>
 
-        <div style={{ padding: '24px 20px', flex: 1 }}>
+        <div style={{ padding: '20px', flex: 1 }}>
+          {/* Foto + identità prodotto */}
           <div style={{
-            background: '#1a2e1a', borderRadius: 12,
-            padding: '20px', marginBottom: 20,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minHeight: 80,
+            display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 24,
           }}>
-            <BurIcon sizeMm={product.headSizeMm} maxSizeMm={product.headSizeMm * 1.5 || 3} />
-            <div style={{ color: '#4ade80', fontSize: 32, opacity: 0.6 }}>⟨╱⟩</div>
+            {capturedBase64 && (
+              <img
+                src={`data:image/jpeg;base64,${capturedBase64}`}
+                alt="Foto scansione"
+                style={{
+                  width: 80, height: 80, borderRadius: 10,
+                  objectFit: 'cover', flexShrink: 0,
+                  border: '2px solid #22c55e',
+                }}
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 4 }}>
+                {[product.familyCode, product.shankType?.toUpperCase()].filter(Boolean).join(' · ')}
+              </div>
+              <div style={{
+                color: '#fff', fontSize: 18, fontWeight: 700,
+                lineHeight: 1.3, marginBottom: 6, wordBreak: 'break-word',
+              }}>
+                {product.productName}
+              </div>
+              <div style={{
+                fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
+              }}>
+                {product.productId}
+              </div>
+            </div>
           </div>
 
-          <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 4 }}>
-            {product.familyCode ? `${product.familyCode} ·` : ''} {product.shankType?.toUpperCase()}
-          </div>
-
-          <div style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 6 }}>
-            {product.productName}
-          </div>
-
-          <div style={{
-            fontFamily: 'monospace', color: '#9ca3af', fontSize: 15,
-            letterSpacing: 2, marginBottom: 20,
-          }}>
-            {product.productId}
-          </div>
-
-          {badges.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
-              {badges.map(b => <FeatureBadge key={b} label={b} />)}
+          {/* Info misura */}
+          {product.headSizeMm > 0 && (
+            <div style={{
+              display: 'flex', gap: 8, marginBottom: 28,
+            }}>
+              {product.shankType && (
+                <span style={{
+                  background: '#1a3a1a', color: '#4ade80',
+                  borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  border: '1px solid #2d5a2d',
+                }}>
+                  {product.shankType.toUpperCase()}
+                </span>
+              )}
+              <span style={{
+                background: '#1a2a3a', color: '#60a5fa',
+                borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                border: '1px solid #1e3a5f',
+              }}>
+                Ø {product.headSizeMm} mm
+              </span>
             </div>
           )}
 
@@ -385,7 +399,7 @@ export function ToolRecognitionPage() {
           </button>
 
           <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
-            Conferma riconoscimento · salva foto in gallery
+            Il tap conferma il riconoscimento e salva la foto in gallery
           </div>
 
           <button
@@ -410,26 +424,34 @@ export function ToolRecognitionPage() {
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #2a1f00' }}>
-          <button
-            onClick={() => setPageState('idle')}
-            style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 14, cursor: 'pointer', padding: 0, marginBottom: 12 }}
-          >
-            ← Rifai foto
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 20 }}>🎯</span>
-            <span style={{ color: '#f9a825', fontSize: 18, fontWeight: 700 }}>
-              {candidates.length} candidati trovati
-            </span>
-          </div>
-          <div style={{ color: '#6b7280', fontSize: 13 }}>
-            Misura incerta · seleziona il prodotto corretto
+        {/* Header */}
+        <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #1f1f1f', background: '#141414' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {capturedBase64 && (
+              <img
+                src={`data:image/jpeg;base64,${capturedBase64}`}
+                alt="Foto scansione"
+                style={{
+                  width: 52, height: 52, borderRadius: 8,
+                  objectFit: 'cover', flexShrink: 0,
+                  border: '2px solid #f9a825',
+                }}
+              />
+            )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ color: '#f9a825', fontSize: 16, fontWeight: 700 }}>
+                  {candidates.length} candidati trovati
+                </span>
+              </div>
+              <div style={{ color: '#6b7280', fontSize: 13 }}>
+                Misura incerta · seleziona il prodotto corretto
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '14px 20px' }}>
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
             return (
@@ -445,23 +467,32 @@ export function ToolRecognitionPage() {
                   cursor: 'pointer', textAlign: 'left',
                 }}
               >
-                <BurIcon sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
+                <SizeBar sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
                 <div style={{ flex: 1 }}>
                   <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.productName}</div>
-                  <div style={{ color: '#9ca3af', fontSize: 13 }}>
-                    {c.productId} · Ø{c.headSizeMm}mm
+                  <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
+                    <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{c.productId}</span>
+                    {c.headSizeMm > 0 && <span> · Ø {c.headSizeMm} mm</span>}
                   </div>
                 </div>
-                <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400 }}>
+                <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400, flexShrink: 0 }}>
                   {Math.round(c.confidence * 100)}%
                 </div>
               </button>
             )
           })}
 
-          <div style={{ color: '#4b5563', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-            Le icone crescono proporzionalmente al Ø
-          </div>
+          <button
+            onClick={() => setPageState('idle')}
+            style={{
+              width: '100%', background: 'transparent',
+              border: '1px solid #374151', borderRadius: 12,
+              padding: '12px 0', marginTop: 4,
+              cursor: 'pointer', color: '#9ca3af', fontSize: 14,
+            }}
+          >
+            ← Rifai la foto
+          </button>
         </div>
       </div>
     )
