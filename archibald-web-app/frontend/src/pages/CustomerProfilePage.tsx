@@ -758,7 +758,7 @@ export function CustomerProfilePage() {
                 <FieldRow label="P.IVA" value={pendingEdits.vatNumber ?? customer.vatNumber} fieldKey="vatNumber" isEditing={editMode} onChange={handleFieldChange} highlight={editMode && !customer.vatValidatedAt && !(pendingEdits.vatNumber ?? customer.vatNumber)} />
               )}
               <FieldRow label="PEC" value={pendingEdits.pec ?? customer.pec} fieldKey="pec" isEditing={editMode} onChange={handleFieldChange} />
-              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} fieldKey="sdi" isEditing={editMode && !customer.vatValidatedAt} onChange={(key, val) => handleFieldChange(key, val.toUpperCase())} />
+              <FieldRow label="SDI" value={pendingEdits.sdi ?? customer.sdi} fieldKey="sdi" isEditing={editMode} onChange={(key, val) => handleFieldChange(key, val.toUpperCase())} />
               <FieldRow label="Validata" value={customer.vatValidatedAt ? '✓ Validata' : '✗ Non validata'} />
             </SectionCard>
 
