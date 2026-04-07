@@ -174,7 +174,13 @@ async function extractProductFamilies(
     }
 
     for (const family of families) {
-      const toJson = (v: unknown) => v != null ? JSON.stringify(v) : null;
+      const toJson  = (v: unknown) => v != null ? JSON.stringify(v) : null;
+      const toInt   = (v: unknown) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 ? n : null; };
+      const toIntArr = (v: unknown) => {
+        if (!Array.isArray(v)) return null;
+        const arr = v.map(x => Math.round(Number(x))).filter(x => Number.isFinite(x) && x > 0);
+        return arr.length > 0 ? arr : null;
+      };
       await deps.pool.query(
         `INSERT INTO shared.catalog_entries
            (family_codes, catalog_page, product_type, shape_description,
@@ -192,8 +198,8 @@ async function extractProductFamilies(
           family.identification_clues ?? null,
           toJson(family.grit_options),
           toJson(family.shank_options),
-          family.size_options ?? null,
-          family.rpm_max ?? null,
+          toIntArr(family.size_options),
+          toInt(family.rpm_max),
           family.clinical_indications ?? null,
           family.usage_notes ?? null,
           toJson(family.pictograms),
