@@ -1839,7 +1839,8 @@ export default function OrderFormSimple() {
   };
 
   const handleInlineSave = (itemId: string, field: string) => {
-    const value = parseFloat(editingCellValue.replace(",", "."));
+    const raw = editingCellValue.replace(",", ".");
+    const value = field === "discount" && raw === "" ? 0 : parseFloat(raw);
     if (isNaN(value) || value < 0) {
       setEditingCell(null);
       return;
@@ -4094,7 +4095,7 @@ export default function OrderFormSimple() {
                           startInlineEdit(
                             item.id,
                             "discount",
-                            item.discount.toString(),
+                            item.discount === 0 ? "" : item.discount.toString(),
                           );
                         }
                       }}
@@ -4150,6 +4151,19 @@ export default function OrderFormSimple() {
                         padding: "0.75rem",
                         textAlign: "right",
                         fontWeight: "600",
+                        ...(canEditItems ? {
+                          cursor: "pointer",
+                          border: "1px dashed #a78bfa",
+                          borderRadius: "4px",
+                        } : {}),
+                      }}
+                      title={canEditItems ? "Clicca per impostare totale riga" : undefined}
+                      onClick={() => {
+                        if (canEditItems) {
+                          setTotaleTarget(item.total.toFixed(2));
+                          setTotaleSelectedItems(new Set([item.id]));
+                          setShowTotaleDialog(true);
+                        }
                       }}
                     >
                       {formatCurrency(item.total)}
@@ -4171,29 +4185,30 @@ export default function OrderFormSimple() {
                           ✏️
                         </button>
                       )}
-                      <button
-                        onClick={() => { void toggleHistoryRow(item.id); }}
-                        disabled={isHistoryLoading || (customerHistoryCache !== null && !historyAvailable)}
-                        title={
-                          isHistoryLoading ? 'Caricamento storico...' :
-                          customerHistoryCache !== null && !historyAvailable ? 'Nessuno storico per questo articolo' :
-                          isHistoryOpen ? 'Nascondi storico' : 'Mostra ultimo acquisto'
-                        }
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          background: isHistoryOpen ? '#7c6ff7' : '#ede8ff',
-                          color: isHistoryOpen ? '#fff' : (customerHistoryCache !== null && !historyAvailable ? '#ccc' : '#7c6ff7'),
-                          border: '1px solid',
-                          borderColor: isHistoryOpen ? '#7c6ff7' : '#c8bbf8',
-                          borderRadius: '4px',
-                          cursor: (isHistoryLoading || (customerHistoryCache !== null && !historyAvailable)) ? 'default' : 'pointer',
-                          marginRight: '0.25rem',
-                          fontSize: '0.875rem',
-                          opacity: isHistoryLoading ? 0.6 : 1,
-                        }}
-                      >
-                        {isHistoryLoading ? '⏳' : '⏱'}
-                      </button>
+                      {historyAvailable && (
+                        <button
+                          onClick={() => { void toggleHistoryRow(item.id); }}
+                          disabled={isHistoryLoading}
+                          title={
+                            isHistoryLoading ? 'Caricamento storico...' :
+                            isHistoryOpen ? 'Nascondi storico' : 'Mostra ultimo acquisto'
+                          }
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            background: isHistoryOpen ? '#7c6ff7' : '#ede8ff',
+                            color: isHistoryOpen ? '#fff' : '#7c6ff7',
+                            border: '1px solid',
+                            borderColor: isHistoryOpen ? '#7c6ff7' : '#c8bbf8',
+                            borderRadius: '4px',
+                            cursor: isHistoryLoading ? 'default' : 'pointer',
+                            marginRight: '0.25rem',
+                            fontSize: '0.875rem',
+                            opacity: isHistoryLoading ? 0.6 : 1,
+                          }}
+                        >
+                          {isHistoryLoading ? '⏳' : '⏱'}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteItem(item.id)}
                         style={{
@@ -4395,7 +4410,7 @@ export default function OrderFormSimple() {
                           startInlineEdit(
                             item.id,
                             "discount",
-                            item.discount.toString(),
+                            item.discount === 0 ? "" : item.discount.toString(),
                           );
                         }
                       }}
@@ -4452,7 +4467,25 @@ export default function OrderFormSimple() {
                         {formatCurrency(item.vat)}
                       </strong>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        ...(canEditItems ? {
+                          cursor: "pointer",
+                          border: "1px dashed #a78bfa",
+                          borderRadius: "4px",
+                          padding: "0.25rem",
+                        } : {}),
+                      }}
+                      title={canEditItems ? "Clicca per impostare totale riga" : undefined}
+                      onClick={() => {
+                        if (canEditItems) {
+                          setTotaleTarget(item.total.toFixed(2));
+                          setTotaleSelectedItems(new Set([item.id]));
+                          setShowTotaleDialog(true);
+                        }
+                      }}
+                    >
                       <span style={{ color: "#6b7280", fontWeight: "600" }}>
                         Totale:
                       </span>

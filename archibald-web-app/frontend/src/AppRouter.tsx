@@ -369,13 +369,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <Dashboard />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -401,10 +401,10 @@ function AppRouter() {
                   <div className="app">
                     <main className="app-main" style={{ padding: "0" }}>
                       <AccessManagementPage />
+                      <footer className="app-footer">
+                        <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                      </footer>
                     </main>
-                    <footer className="app-footer">
-                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                    </footer>
                   </div>
                 }
               />
@@ -417,13 +417,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderHistory />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -435,13 +435,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <PendingOrdersPage />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -453,13 +453,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <CustomerProfilePage />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -471,13 +471,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <CustomerList />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -489,10 +489,10 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProductDetailPage />
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />
@@ -504,13 +504,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ArticoliList />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -522,13 +522,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProfilePage />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -540,13 +540,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <PriceVariationsPage />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -558,10 +558,10 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <ProductVariationsPage />
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />
@@ -573,13 +573,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <OrderFormNew />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -591,13 +591,13 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <WarehouseManagementView />
+                    <footer className="app-footer">
+                      <p>
+                        v1.0.0 • Formicanera by Francesco Formicola
+                        {/* TODO: Add live sync progress bar here */}
+                      </p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
                 </div>
               }
             />
@@ -609,10 +609,10 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <FresisHistoryPage />
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />
@@ -624,10 +624,10 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <RevenueReportPage />
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />
@@ -639,10 +639,10 @@ function AppRouter() {
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
                     <NotificationsPage />
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
                   </main>
-                  <footer className="app-footer">
-                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                  </footer>
                 </div>
               }
             />

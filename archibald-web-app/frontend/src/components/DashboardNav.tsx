@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { NotificationBell } from "./NotificationBell";
@@ -9,6 +9,8 @@ export function DashboardNav() {
   const auth = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isNavHidden, setIsNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
 
   const isAdmin = auth.user?.role === "admin";
 
@@ -28,6 +30,32 @@ export function DashboardNav() {
 
   // On mobile at customer profile, nav is non-sticky so it scrolls away naturally.
   const navIsScrollable = isMobile && /^\/customers\/[^/]+/.test(location.pathname);
+
+  // Reset hidden state on route change or viewport mode change
+  useEffect(() => {
+    setIsNavHidden(false);
+    lastScrollY.current = 0;
+  }, [location.pathname, isMobile]);
+
+  // Hide-on-scroll: listen to .app-main scroll events (not on scrollable-nav pages)
+  useEffect(() => {
+    if (navIsScrollable) return;
+    const appMain = document.querySelector('.app-main');
+    if (!appMain) return;
+
+    const handleScroll = () => {
+      const currentY = appMain.scrollTop;
+      if (currentY > lastScrollY.current + 8 && currentY > 50) {
+        setIsNavHidden(true);
+      } else if (currentY < lastScrollY.current - 8) {
+        setIsNavHidden(false);
+      }
+      lastScrollY.current = currentY;
+    };
+
+    appMain.addEventListener('scroll', handleScroll, { passive: true });
+    return () => appMain.removeEventListener('scroll', handleScroll);
+  }, [location.pathname, isMobile, navIsScrollable]);
 
   const handleLogout = async () => {
     await auth.logout();
@@ -86,10 +114,11 @@ export function DashboardNav() {
         background: "#2c3e50",
         padding: "15px",
         position: "sticky",
-        top: 0,
+        top: isNavHidden ? '-100px' : '0',
         zIndex: 100,
         overflowX: "auto",
         whiteSpace: "nowrap",
+        transition: 'top 0.3s ease',
       }}
     >
       <div
@@ -163,11 +192,12 @@ export function DashboardNav() {
           background: "#2c3e50",
           padding: "15px",
           position: navIsScrollable ? "relative" : "sticky",
-          top: 0,
+          top: navIsScrollable ? 0 : (isNavHidden ? '-100px' : '0'),
           zIndex: 100,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          transition: navIsScrollable ? undefined : 'top 0.3s ease',
         }}
       >
         {/* Logo — click → home */}

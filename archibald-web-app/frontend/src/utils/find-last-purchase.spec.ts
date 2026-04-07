@@ -93,4 +93,22 @@ describe('findLastPurchase', () => {
     ];
     expect(findLastPurchase(validOrders, 'ART-001')).toBeNull();
   });
+
+  test('matches article code despite trailing/internal separator differences (e.g. "essempio.000." vs "essempio.000")', () => {
+    const orders = [makeOrder('o1', '2026-01-01', 'essempio.000', { unitPrice: 50 })];
+    expect(findLastPurchase(orders, 'essempio.000.')).toMatchObject({
+      orderNumber: 'o1',
+      article: expect.objectContaining({ unitPrice: 50 }),
+    });
+  });
+
+  test('matches regardless of dots, dashes, and spaces in either direction', () => {
+    const erpCode = 'H129FSQ104023';
+    const catalogCode = 'H129FSQ.104.023';
+    const orders = [makeOrder('o1', '2026-01-01', erpCode, { unitPrice: 75 })];
+    expect(findLastPurchase(orders, catalogCode)).toMatchObject({
+      orderNumber: 'o1',
+      article: expect.objectContaining({ unitPrice: 75 }),
+    });
+  });
 });
