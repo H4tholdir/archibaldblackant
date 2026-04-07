@@ -191,16 +191,16 @@ describe('createCatalogIngestionHandler', () => {
       SAMPLE_FAMILY.shape_description,
       SAMPLE_FAMILY.material_description,
       SAMPLE_FAMILY.identification_clues,
-      SAMPLE_FAMILY.grit_options,
-      SAMPLE_FAMILY.shank_options,
+      JSON.stringify(SAMPLE_FAMILY.grit_options),
+      JSON.stringify(SAMPLE_FAMILY.shank_options),
       SAMPLE_FAMILY.size_options,
       SAMPLE_FAMILY.rpm_max,
       SAMPLE_FAMILY.clinical_indications,
       SAMPLE_FAMILY.usage_notes,
-      SAMPLE_FAMILY.pictograms,
-      SAMPLE_FAMILY.packaging_info,
+      JSON.stringify(SAMPLE_FAMILY.pictograms),
+      JSON.stringify(SAMPLE_FAMILY.packaging_info),
       SAMPLE_FAMILY.notes,
-      SAMPLE_FAMILY,
+      JSON.stringify(SAMPLE_FAMILY),
     ]);
   });
 });
