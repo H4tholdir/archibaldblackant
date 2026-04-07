@@ -48,6 +48,7 @@ import {
   createRecognitionFeedbackHandler,
 } from './operations/handlers';
 import { createCatalogVisionService } from './services/anthropic-vision-service';
+import { createCatalogPdfService } from './services/catalog-pdf-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { getRemindersOverdueOrToday } from './db/repositories/customer-reminders';
 import { createNotification, type CreateNotificationParams } from './services/notification-service';
@@ -416,11 +417,13 @@ async function bootstrap(): Promise<void> {
     return { path: result.result.path_display ?? dropboxPath };
   };
 
+  const catalogPdf = createCatalogPdfService(config.recognition.catalogPdfPath)
   const catalogVisionService = config.recognition.anthropicApiKey
     ? createCatalogVisionService({
         apiKey: config.recognition.anthropicApiKey,
         timeoutMs: config.recognition.timeoutMs,
         pool,
+        catalogPdf,
       })
     : undefined;
 
