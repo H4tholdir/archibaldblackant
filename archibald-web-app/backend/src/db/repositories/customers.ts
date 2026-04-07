@@ -145,6 +145,7 @@ type CustomerFormInput = {
   sdi?: string;
   street?: string;
   postalCode?: string;
+  city?: string;
   phone?: string;
   mobile?: string;
   email?: string;
@@ -159,6 +160,7 @@ type CustomerFormInput = {
   state?: string;
   country?: string;
   lineDiscount?: string;
+  priceGroup?: string;
 };
 
 type UpsertResult = {
@@ -596,11 +598,11 @@ async function upsertSingleCustomer(
   await pool.query(
     `INSERT INTO agents.customers (
       erp_id, user_id, name, vat_number, fiscal_code, pec, sdi,
-      street, postal_code, phone, mobile, email, url, attention_to,
+      street, postal_code, city, phone, mobile, email, url, attention_to,
       delivery_terms, payment_terms, sector, notes, county, state, country,
       price_group, line_discount,
       hash, last_sync, bot_status
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
     ON CONFLICT (erp_id, user_id) DO UPDATE SET
       name = EXCLUDED.name,
       vat_number = EXCLUDED.vat_number,
@@ -609,6 +611,7 @@ async function upsertSingleCustomer(
       sdi = EXCLUDED.sdi,
       street = EXCLUDED.street,
       postal_code = EXCLUDED.postal_code,
+      city = EXCLUDED.city,
       phone = EXCLUDED.phone,
       mobile = EXCLUDED.mobile,
       email = EXCLUDED.email,
@@ -632,13 +635,14 @@ async function upsertSingleCustomer(
       formData.vatNumber ?? null, formData.fiscalCode ?? null,
       formData.pec ?? null, formData.sdi ?? null,
       formData.street ?? null, formData.postalCode ?? null,
+      formData.city ?? null,
       formData.phone ?? null, formData.mobile ?? null,
       formData.email ?? null, formData.url ?? null,
       formData.attentionTo ?? null,
       formData.deliveryMode ?? null, formData.paymentTerms ?? null,
       formData.sector ?? null, formData.notes ?? null,
       formData.county ?? null, formData.state ?? null, formData.country ?? null,
-      'DETTAGLIO (consigliato)', 'N/A',
+      formData.priceGroup ?? null, formData.lineDiscount ?? null,
       hash, now, botStatus,
     ],
   );

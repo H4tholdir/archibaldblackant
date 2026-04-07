@@ -46,5 +46,5 @@ export interface Customer {
   state?: string | null;
   country?: string | null;
   agentNotes?: string | null;
-  erpDetailReadAt?: string | null;
+  erpDetailReadAt: string | null;
 }

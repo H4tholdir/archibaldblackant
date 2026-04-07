@@ -39,6 +39,7 @@ const base: Customer = {
   botStatus: null,
   photoUrl: null,
   vatValidatedAt: null,
+  erpDetailReadAt: null,
 };
 
 describe('determineVatEditStep', () => {

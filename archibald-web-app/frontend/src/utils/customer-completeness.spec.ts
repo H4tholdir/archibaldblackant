@@ -24,6 +24,7 @@ const base: Customer = {
   sector: null, priceGroup: null, lineDiscount: null,
   paymentTerms: null, notes: null, nameAlias: null,
   county: null, state: null, country: null,
+  erpDetailReadAt: null,
 };
 
 describe('checkCustomerCompleteness', () => {

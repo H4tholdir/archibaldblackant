@@ -1052,9 +1052,11 @@ export function CustomerProfilePage() {
             background: '#fff', borderRadius: '14px', padding: '24px 28px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)', minWidth: '240px', textAlign: 'center',
           }}>
+            <style>{`@keyframes erp-spin { to { transform: rotate(360deg) } }`}</style>
             <div style={{
               width: '40px', height: '40px', margin: '0 auto 12px',
               borderRadius: '50%', border: '3px solid #dbeafe', borderTop: '3px solid #2563eb',
+              animation: 'erp-spin 0.8s linear infinite',
             }} />
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
               Lettura dati ERP…

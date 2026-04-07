@@ -44,13 +44,16 @@ describe('handleRefreshCustomer', () => {
     expect(upsertCall).toBeDefined();
   });
 
-  test('chiama setErpDetailReadAt (UPDATE erp_detail_read_at)', async () => {
+  test('chiama setErpDetailReadAt con erpId e userId corretti', async () => {
     const pool = makePool();
     const bot = makeBot();
     await handleRefreshCustomer(pool as never, bot, data, 'u1', vi.fn());
-    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string]>;
-    const readAtCall = calls.find(([sql]) => sql.includes('erp_detail_read_at'));
-    expect(readAtCall).toBeDefined();
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const readAtCall = calls.find(([sql]) => sql.includes('erp_detail_read_at') && sql.includes('UPDATE'));
+    expect(readAtCall).toEqual([
+      expect.stringContaining('erp_detail_read_at'),
+      ['57348', 'u1'],
+    ]);
   });
 
   test('chiama bot.close() nel finally anche se readCustomerFields lancia', async () => {

@@ -178,8 +178,8 @@ describe('pollJobUntilDone', () => {
 
     await pollJobUntilDone(jobId, { intervalMs: 10, onProgress });
 
-    expect(onProgress).toHaveBeenCalledWith(25);
-    expect(onProgress).toHaveBeenCalledWith(75);
+    expect(onProgress).toHaveBeenCalledWith(25, undefined);
+    expect(onProgress).toHaveBeenCalledWith(75, undefined);
     expect(onProgress).toHaveBeenCalledWith(100, 'Completato');
   });
 

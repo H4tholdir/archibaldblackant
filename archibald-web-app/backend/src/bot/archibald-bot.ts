@@ -13969,6 +13969,7 @@ export class ArchibaldBot {
       state:        (await readInput('dviSTATE_Edit_I'))                           ?? undefined,
       country:      (await readInput('dviCOUNTRYREGIONID_Edit_I'))                 ?? undefined,
       lineDiscount: (await readInput('dviLINEDISC_Edit_dropdown_DD_I'))            ?? undefined,
+      priceGroup:   (await readInput('dviPRICEGROUP_Edit_dropdown_DD_I'))          ?? undefined,
     };
 
     logger.info('readCustomerFields: campi letti', { erpId, fieldCount: Object.keys(fields).length });
