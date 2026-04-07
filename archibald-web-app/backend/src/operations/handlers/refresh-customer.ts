@@ -10,7 +10,6 @@ type RefreshCustomerData = {
 
 type RefreshCustomerBot = {
   initialize: () => Promise<void>;
-  navigateToCustomerByErpId: (erpId: string) => Promise<void>;
   readCustomerFields: (erpId: string) => Promise<CustomerFormInput>;
   close: () => Promise<void>;
 };
@@ -26,10 +25,7 @@ async function handleRefreshCustomer(
 
   await bot.initialize();
   try {
-    onProgress(20, 'Navigazione al cliente');
-    await bot.navigateToCustomerByErpId(erpId);
-
-    onProgress(60, 'Lettura dati dal form');
+    onProgress(40, 'Lettura dati ERP');
     const fields = await bot.readCustomerFields(erpId);
 
     onProgress(90, 'Aggiornamento database');

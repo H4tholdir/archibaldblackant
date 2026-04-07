@@ -13892,35 +13892,10 @@ export class ArchibaldBot {
   async readCustomerFields(erpId: string): Promise<import('../db/repositories/customers').CustomerFormInput> {
     if (!this.page) throw new Error('Browser page is null');
 
-    logger.info('readCustomerFields: entrata in Edit mode via click Modifica', { erpId });
+    logger.info('readCustomerFields: entering edit mode via navigateToEditCustomerById', { erpId });
 
-    // Use two-step approach: we are already on the DetailView (View mode) after
-    // navigateToCustomerByErpId. Clicking Modifica — instead of navigating directly
-    // to ?mode=Edit — ensures XAF properly initialises all ComboBox widgets.
-    const editClicked = await this.page.evaluate(() => {
-      // Selettore certificato Bibbia ERP: ID Vertical_mainMenu_Menu_DXI1_T, title "Modificare"
-      const btn =
-        (document.querySelector('[id*="Vertical_mainMenu_Menu_DXI1_T"]') as HTMLElement | null) ??
-        (Array.from(document.querySelectorAll('[title]'))
-          .find((el) => /modif/i.test((el as HTMLElement).title)) as HTMLElement | null);
-      if (btn) { btn.click(); return true; }
-      return false;
-    });
-
-    if (!editClicked) {
-      throw new Error(`readCustomerFields: pulsante Modifica non trovato per erpId=${erpId}`);
-    }
-
-    if (this.page.url().includes('Login.aspx')) {
-      throw new Error('readCustomerFields: sessione scaduta');
-    }
-
-    await this.page.waitForFunction(
-      () => window.location.href.includes('mode=Edit'),
-      { timeout: 8000, polling: 300 },
-    ).catch(() => {});
-
-    await this.waitForDevExpressIdle({ timeout: 10000 });
+    // Reuse the production-proven navigation + Modifica click flow (same as update-customer).
+    await this.navigateToEditCustomerById(erpId);
 
     const readInput = async (idFragment: string): Promise<string | null> =>
       this.page!.evaluate(

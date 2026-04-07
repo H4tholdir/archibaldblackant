@@ -14,7 +14,6 @@ const mockFields: CustomerFormInput = {
 
 const makeBot = (fields: CustomerFormInput = mockFields): RefreshCustomerBot => ({
   initialize: vi.fn().mockResolvedValue(undefined),
-  navigateToCustomerByErpId: vi.fn().mockResolvedValue(undefined),
   readCustomerFields: vi.fn().mockResolvedValue(fields),
   close: vi.fn().mockResolvedValue(undefined),
 });
@@ -22,28 +21,21 @@ const makeBot = (fields: CustomerFormInput = mockFields): RefreshCustomerBot => 
 const data: RefreshCustomerData = { erpId: '57348' };
 
 describe('handleRefreshCustomer', () => {
-  test('chiama bot.initialize() prima di navigare', async () => {
+  test('chiama bot.initialize() prima di readCustomerFields', async () => {
     const pool = makePool();
     const bot = makeBot();
     await handleRefreshCustomer(pool as never, bot, data, 'u1', vi.fn());
     expect(bot.initialize).toHaveBeenCalled();
     const initOrder = (bot.initialize as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
-    const navOrder = (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
-    expect(initOrder).toBeLessThan(navOrder);
+    const readOrder = (bot.readCustomerFields as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(initOrder).toBeLessThan(readOrder);
   });
 
-  test('chiama navigateToCustomerByErpId con erpId corretto', async () => {
+  test('chiama readCustomerFields con erpId corretto', async () => {
     const pool = makePool();
     const bot = makeBot();
     await handleRefreshCustomer(pool as never, bot, data, 'u1', vi.fn());
-    expect(bot.navigateToCustomerByErpId).toHaveBeenCalledWith('57348');
-  });
-
-  test('chiama readCustomerFields dopo la navigazione', async () => {
-    const pool = makePool();
-    const bot = makeBot();
-    await handleRefreshCustomer(pool as never, bot, data, 'u1', vi.fn());
-    expect(bot.readCustomerFields).toHaveBeenCalled();
+    expect(bot.readCustomerFields).toHaveBeenCalledWith('57348');
   });
 
   test('esegue upsert su DB (pool.query con INSERT/ON CONFLICT)', async () => {
@@ -75,13 +67,12 @@ describe('handleRefreshCustomer', () => {
     expect(bot.close).toHaveBeenCalled();
   });
 
-  test('emette progress a 20, 60, 90 e 100', async () => {
+  test('emette progress a 40, 90 e 100', async () => {
     const pool = makePool();
     const bot = makeBot();
     const onProgress = vi.fn();
     await handleRefreshCustomer(pool as never, bot, data, 'u1', onProgress);
-    expect(onProgress).toHaveBeenCalledWith(20, 'Navigazione al cliente');
-    expect(onProgress).toHaveBeenCalledWith(60, 'Lettura dati dal form');
+    expect(onProgress).toHaveBeenCalledWith(40, 'Lettura dati ERP');
     expect(onProgress).toHaveBeenCalledWith(90, 'Aggiornamento database');
     expect(onProgress).toHaveBeenCalledWith(100, 'Completato');
   });
