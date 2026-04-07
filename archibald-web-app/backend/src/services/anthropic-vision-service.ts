@@ -108,10 +108,11 @@ STEP 1 — MEASURE from the ruler (rotary_diamond / rotary_carbide / diao / lab_
 - Total instrument length
 - Shank length (from base to head junction)
 - Head length (from junction to tip)
-→ Shank length identifies the shank code:
-  FG (turbine):         313=18mm, 314=19mm, 315=21mm, 316=25mm
-  CA (contra-angle):    204=22mm, 205=26mm, 206=34mm
-  HP (straight hand.):  103=34mm, 104=44.5mm, 105=65mm, 106=70mm
+→ Shank length identifies the shank code (ruler measurements may have ±15mm error; use this to determine shank FAMILY, not exact code):
+  FG (turbine, short):    313=18mm, 314=19mm, 315=21mm, 316=25mm  → total instrument ~25–35mm
+  CA (contra-angle):      204=22mm, 205=26mm, 206=34mm             → total instrument ~40–55mm
+  HP (straight, long):    103=34mm, 104=44.5mm, 105=65mm, 106=70mm → total instrument ~50–90mm
+→ Focus on distinguishing FG vs CA vs HP; do NOT rely on ruler to distinguish HP sub-codes (104 vs 105 vs 106).
 → Skip this step for: polisher, sonic, endodontic, root_post
 
 STEP 2 — OBSERVE (category-specific):
@@ -156,7 +157,9 @@ STEP 2 — OBSERVE (category-specific):
     - No ISO shank — identify by shape only
 
 STEP 3 — SEARCH the catalog:
-Call search_catalog with your category (product_type), description, and measured shank length (if applicable).
+Call search_catalog with your category (product_type) and description.
+Optionally include shank_length_mm (use your measured value, but expect ±15mm error in search matching).
+If the first search returns 0 results, retry WITHOUT shank_length_mm — the measurement may be inaccurate.
 
 STEP 4 — VISUAL CONFIRMATION:
 Call get_catalog_page with the catalog_page number from the best candidate.
@@ -187,7 +190,7 @@ WHERE
     $1::numeric IS NULL
     OR EXISTS (
       SELECT 1 FROM jsonb_array_elements(shank_options) s
-      WHERE ABS((s->>'length_mm')::numeric - $1::numeric) < 5
+      WHERE ABS((s->>'length_mm')::numeric - $1::numeric) < 25
     )
   )
   AND ($2::text IS NULL OR product_type = $2)
@@ -225,7 +228,7 @@ export function parseIdentificationResult(
   lastCatalogPage: number | null,
   usage:           { inputTokens: number; outputTokens: number },
 ): IdentificationResult {
-  const productCodePattern = /\b\d+\.\d+\.\d+\b/g
+  const productCodePattern = /\b[A-Za-z0-9]+\.\d{3}\.\d{3}\b/g
   const matches = [...text.matchAll(productCodePattern)].map(m => m[0]!)
   const unique   = [...new Set(matches)]
 
@@ -285,7 +288,10 @@ function parseFromSubmitTool(
 ): IdentificationResult {
   const base = { catalogPage: lastCatalogPage, reasoning: input.reasoning, usage }
 
-  if (input.product_code && /^\d+\.\d+\.\d+$/.test(input.product_code)) {
+  // Komet product codes: FAMILY.SHANK.SIZE — family may contain letters (e.g. H79NEX, ZR6801)
+  const PRODUCT_CODE_RE = /^[A-Za-z0-9]+\.\d{3}\.\d{3}$/
+
+  if (input.product_code && PRODUCT_CODE_RE.test(input.product_code)) {
     return {
       ...base,
       productCode: input.product_code,
@@ -296,7 +302,7 @@ function parseFromSubmitTool(
     }
   }
 
-  const candidates = (input.candidates ?? []).filter(c => /^\d+\.\d+\.\d+$/.test(c))
+  const candidates = (input.candidates ?? []).filter(c => PRODUCT_CODE_RE.test(c))
   if (candidates.length >= 2) {
     return {
       ...base,
