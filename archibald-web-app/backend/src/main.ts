@@ -1118,7 +1118,7 @@ async function bootstrap(): Promise<void> {
         catalogPdf,
         callSonnet: async (images, prompt) => {
           const response = await anthropicCatalogClient.messages.create({
-            model: 'claude-sonnet-4-5-20251001',
+            model: 'claude-sonnet-4-6',
             max_tokens: 4096,
             messages: [
               {
