@@ -422,6 +422,7 @@ async function bootstrap(): Promise<void> {
   };
 
   const catalogPdf = createCatalogPdfService(config.recognition.catalogPdfPath)
+  const anthropicCatalogClient = new Anthropic({ apiKey: config.recognition.anthropicApiKey });
   const catalogVisionService = config.recognition.anthropicApiKey
     ? createCatalogVisionService({
         apiKey: config.recognition.anthropicApiKey,
@@ -1113,7 +1114,6 @@ async function bootstrap(): Promise<void> {
       pool,
       catalogPdf,
       callSonnet: async (images, prompt) => {
-        const anthropicCatalogClient = new Anthropic({ apiKey: config.recognition.anthropicApiKey });
         const response = await anthropicCatalogClient.messages.create({
           model: 'claude-sonnet-4-5-20251001',
           max_tokens: 4096,
