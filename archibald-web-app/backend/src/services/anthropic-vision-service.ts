@@ -55,7 +55,7 @@ const GET_CATALOG_PAGE_TOOL: Anthropic.Tool = {
 }
 
 const IDENTIFICATION_PROMPT = `You are analyzing a photo of a Komet dental instrument.
-The Komet catalog page 7 ruler (0–160 mm scale) is visible in the photo.
+A vertical 0–160 mm ruler is visible on the right side of the photo. Use it to measure the instrument length and shank length.
 
 STEP 0 — IDENTIFY CATEGORY (this determines ALL subsequent steps):
 Look at the overall impression of the object before anything else.

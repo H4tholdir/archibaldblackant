@@ -6,7 +6,6 @@ import { useAuth } from '../hooks/useAuth'
 import {
   identifyInstrument,
   getRecognitionBudget,
-  getRulerImage,
   submitRecognitionFeedback,
 } from '../api/recognition'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
@@ -70,7 +69,8 @@ export function ToolRecognitionPage() {
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const rulerImgRef = useRef<HTMLImageElement | null>(null)
+  const rulerCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const rulerDivRef = useRef<HTMLDivElement>(null)
 
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
@@ -79,7 +79,6 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
-  const [rulerBase64, setRulerBase64] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
@@ -88,15 +87,51 @@ export function ToolRecognitionPage() {
   }, [auth.token])
 
   useEffect(() => {
-    const token = localStorage.getItem('archibald_jwt')
-    if (!token) return
-    getRulerImage(token).then(base64 => {
-      if (!base64) return
-      setRulerBase64(base64)
-      const img = new Image()
-      img.onload = () => { rulerImgRef.current = img }
-      img.src = `data:image/png;base64,${base64}`
-    }).catch(() => {})
+    const DPR = window.devicePixelRatio || 1
+    const MM_TO_PX = 96 / 25.4
+    const HEIGHT_MM = 160
+    const WIDTH_MM = 9
+    const w = Math.round(WIDTH_MM * MM_TO_PX * DPR)
+    const h = Math.round(HEIGHT_MM * MM_TO_PX * DPR)
+    const ppm = h / HEIGHT_MM
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.fillStyle = 'rgba(255, 252, 240, 0.9)'
+    ctx.fillRect(0, 0, w, h)
+
+    // Spine (left edge)
+    ctx.strokeStyle = '#555'
+    ctx.lineWidth = 1.5 * DPR
+    ctx.beginPath(); ctx.moveTo(1 * DPR, 0); ctx.lineTo(1 * DPR, h); ctx.stroke()
+
+    // Right border + caps
+    ctx.lineWidth = 0.5 * DPR
+    ctx.strokeRect(0.5 * DPR, 0.5 * DPR, w - DPR, h - DPR)
+
+    // Tick marks
+    for (let mm = 0; mm <= HEIGHT_MM; mm++) {
+      const y = Math.round(mm * ppm)
+      const isMajor = mm % 10 === 0
+      const isMid = mm % 5 === 0
+      const tickLen = isMajor ? 0.65 * w : isMid ? 0.45 * w : 0.25 * w
+      ctx.strokeStyle = '#444'
+      ctx.lineWidth = isMajor ? 1.2 * DPR : 0.7 * DPR
+      ctx.beginPath(); ctx.moveTo(1 * DPR, y); ctx.lineTo(tickLen, y); ctx.stroke()
+
+      if (isMajor) {
+        ctx.fillStyle = '#222'
+        ctx.font = `bold ${8 * DPR}px -apple-system, Helvetica, sans-serif`
+        ctx.textAlign = 'right'
+        ctx.fillText(String(mm), w - 1 * DPR, y + 3.5 * DPR)
+      }
+    }
+
+    rulerCanvasRef.current = canvas
   }, [])
 
   useEffect(() => {
@@ -146,9 +181,15 @@ export function ToolRecognitionPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
     ctx.drawImage(video, 0, 0)
-    if (rulerImgRef.current) {
-      const rulerH = Math.round(canvas.height * 0.28)
-      ctx.drawImage(rulerImgRef.current, 0, canvas.height - rulerH, canvas.width, rulerH)
+    if (rulerCanvasRef.current && rulerDivRef.current) {
+      const rect = rulerDivRef.current.getBoundingClientRect()
+      const scaleX = canvas.width / window.innerWidth
+      const scaleY = canvas.height / window.innerHeight
+      ctx.drawImage(
+        rulerCanvasRef.current,
+        Math.round(rect.left * scaleX), Math.round(rect.top * scaleY),
+        Math.round(rect.width * scaleX), Math.round(rect.height * scaleY),
+      )
     }
     return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/\w+;base64,/, '')
   }, [])
@@ -541,30 +582,57 @@ export function ToolRecognitionPage() {
 
       {pageState === 'idle' && <Viewfinder />}
 
-      {pageState === 'idle' && rulerBase64 && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0, left: 0, right: 0,
-          height: '28%',
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}>
-          <img
-            src={`data:image/png;base64,${rulerBase64}`}
-            style={{
-              width: '100%', height: '100%',
-              objectFit: 'cover', objectPosition: 'bottom center',
-              opacity: 0.75,
-            }}
-            alt=""
-          />
-          <div style={{
-            position: 'absolute', bottom: 4, right: 8,
-            color: 'rgba(255,255,200,0.85)', fontSize: 11,
-            textShadow: '0 1px 3px rgba(0,0,0,0.9)',
-          }}>
-            Komet catalog · pag. 7 · righello 0–160 mm
-          </div>
+      {pageState === 'idle' && (
+        <div
+          ref={rulerDivRef}
+          style={{
+            position: 'absolute',
+            right: 20,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: '9mm',
+            height: '160mm',
+            pointerEvents: 'none',
+          }}
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 36 640"
+            preserveAspectRatio="none"
+            style={{ display: 'block' }}
+          >
+            <rect width="36" height="640" fill="rgba(255,252,240,0.85)" rx="2" />
+            <line x1="3" y1="0" x2="3" y2="640" stroke="#555" strokeWidth="1.5" />
+            <rect x="0.5" y="0.5" width="35" height="639" fill="none" stroke="#aaa" strokeWidth="0.7" rx="2" />
+            {Array.from({ length: 161 }, (_, mm) => {
+              const y = mm * 4
+              const isMajor = mm % 10 === 0
+              const isMid   = mm % 5 === 0
+              const tickEnd = isMajor ? 26 : isMid ? 19 : 12
+              return (
+                <g key={mm}>
+                  <line
+                    x1="3" y1={y} x2={tickEnd} y2={y}
+                    stroke="#444"
+                    strokeWidth={isMajor ? 1.2 : 0.7}
+                  />
+                  {isMajor && (
+                    <text
+                      x="34" y={y + 3.5}
+                      fontSize="7"
+                      fontWeight="bold"
+                      fontFamily="-apple-system, Helvetica, sans-serif"
+                      fill="#222"
+                      textAnchor="end"
+                    >
+                      {mm}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
         </div>
       )}
 
@@ -579,18 +647,10 @@ export function ToolRecognitionPage() {
           textShadow: '0 1px 4px rgba(0,0,0,0.9)',
           pointerEvents: 'none',
         }}>
-          {rulerBase64
-            ? <>Appoggia lo strumento sopra il righello ·{' '}
-                <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-                  inquadra tutto
-                </span>
-              </>
-            : <>Apri il catalogo a pag. 7 · appoggia lo strumento sul righello ·{' '}
-                <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-                  inquadra tutto
-                </span>
-              </>
-          }
+          Allinea lo strumento al righello ·{' '}
+          <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
+            inquadra tutto
+          </span>
         </div>
       )}
 
