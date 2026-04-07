@@ -447,9 +447,32 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         }
       }
 
+      type PerformanceData = {
+        durabilityPct: number; sharpnessPct: number; controlStars: number;
+        maxRpm: number; minSprayMl: number;
+      };
+
+      const mappedGallery = gallery.map(g => ({
+        id:        g.id,
+        url:       g.url,
+        imageType: g.image_type,
+        source:    g.source,
+        altText:   g.alt_text,
+        sortOrder: g.sort_order,
+      }));
+
+      const mappedDetails = details ? {
+        clinicalDescription: details.clinical_description,
+        procedures:          details.procedures,
+        performanceData:     details.performance_data as PerformanceData | null,
+        videoUrl:            details.video_url,
+        pdfUrl:              details.pdf_url,
+        sourceUrl:           details.source_url,
+      } : null;
+
       res.json({
-        gallery,
-        details,
+        gallery: mappedGallery,
+        details: mappedDetails,
         competitors: [],
         sizeVariants,
         recognitionHistory: history.length > 0 ? history.map((h) => ({

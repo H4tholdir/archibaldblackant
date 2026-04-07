@@ -36,12 +36,10 @@ export type IdentifyResponse = {
 export type ProductGalleryImage = {
   id:        number
   url:       string
-  localPath: string | null
   imageType: 'catalog_render' | 'product_photo' | 'application_photo' | 'web'
   source:    string
+  altText:   string | null
   sortOrder: number
-  width:     number | null
-  height:    number | null
 }
 
 export type ProductDetails = {
@@ -60,10 +58,9 @@ export type ProductDetails = {
 }
 
 export type ProductEnrichment = {
-  features:           null
   details:            ProductDetails | null
   gallery:            ProductGalleryImage[]
-  competitors:        []   // Fase 2 — sempre vuoto
+  competitors:        []
   sizeVariants:       ProductMatch[]
   recognitionHistory: Array<{
     scannedAt:  string

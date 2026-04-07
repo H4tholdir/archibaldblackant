@@ -6,7 +6,7 @@ import { getProducts } from '../api/products'
 import type { ProductEnrichment, ProductGalleryImage } from '../api/recognition'
 import type { Product } from '../api/products'
 
-type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor'
+type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor' | 'risorse'
 
 function sizeCode(variant: { productId: string; headSizeMm: number }): string {
   const parts = variant.productId.split('.')
@@ -228,6 +228,7 @@ export function ProductDetailPage() {
     { id: 'prodotto', label: 'Prodotto' },
     { id: 'clinica', label: 'Clinica' },
     { id: 'misure', label: 'Misure' },
+    { id: 'risorse', label: 'Risorse' },
     { id: 'competitor', label: 'Competitor' },
   ]
 
@@ -279,7 +280,7 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Prodotto ── */}
         <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
-          {pd && (
+          {pd ? (
             <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
                 Performance vs. standard di mercato
@@ -316,6 +317,10 @@ export function ProductDetailPage() {
               <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>
                 Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
               </div>
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Dati performance non ancora disponibili per questo prodotto.
             </div>
           )}
         </div>
@@ -377,15 +382,88 @@ export function ProductDetailPage() {
           )}
         </div>
 
+        {/* ── Tab: Risorse ── */}
+        <div style={{ display: activeTab === 'risorse' ? 'block' : 'none' }}>
+          {(details?.videoUrl || details?.pdfUrl || details?.sourceUrl) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {details.videoUrl && (
+                <a
+                  href={details.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: '#1a1a1a', borderRadius: 10, padding: '14px 16px',
+                    color: '#fff', textDecoration: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8, background: '#7f1d1d',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, flexShrink: 0,
+                  }}>▶</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Video prodotto</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Guarda su YouTube</div>
+                  </div>
+                </a>
+              )}
+              {details.pdfUrl && (
+                <a
+                  href={details.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: '#1a1a1a', borderRadius: 10, padding: '14px 16px',
+                    color: '#fff', textDecoration: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8, background: '#1e3a5f',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, flexShrink: 0,
+                  }}>PDF</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Scheda tecnica PDF</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Scarica documento</div>
+                  </div>
+                </a>
+              )}
+              {details.sourceUrl && (
+                <div style={{ fontSize: 11, color: '#374151', textAlign: 'right', marginTop: 4 }}>
+                  Fonte:{' '}
+                  <a
+                    href={details.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4b5563' }}
+                  >
+                    {new URL(details.sourceUrl).hostname}
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Nessuna risorsa disponibile per questo prodotto.
+            </div>
+          )}
+        </div>
+
         {/* ── Tab: Competitor ── */}
         <div style={{ display: activeTab === 'competitor' ? 'block' : 'none' }}>
           <div style={{
-            background: '#1a1a1a', border: '1px solid #252525', borderRadius: 12,
-            padding: 20, textAlign: 'center',
+            background: '#1a1a1a', border: '1px dashed #2a2a2a', borderRadius: 12,
+            padding: 24, textAlign: 'center',
           }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
-            <div style={{ color: '#4b5563', fontSize: 14 }}>
-              Equivalenti disponibili in Fase 2
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🏷</div>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+              Equivalenti competitor
+            </div>
+            <div style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.6 }}>
+              Disponibile nella prossima versione.{'\n'}
+              Confronteremo questo prodotto con gli equivalenti Brasseler, Dentsply e 3M.
             </div>
           </div>
         </div>

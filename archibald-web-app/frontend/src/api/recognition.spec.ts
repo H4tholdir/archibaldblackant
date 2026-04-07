@@ -94,7 +94,7 @@ describe('getProductEnrichment', () => {
 
   it('calls GET /api/products/:id/enrichment', async () => {
     const mockEnrichment: ProductEnrichment = {
-      features: null, details: null, gallery: [], competitors: [], sizeVariants: [], recognitionHistory: null
+      details: null, gallery: [], competitors: [], sizeVariants: [], recognitionHistory: null
     }
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
