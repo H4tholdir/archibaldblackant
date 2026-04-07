@@ -279,7 +279,7 @@ async function runAgenticLoop(
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const response = await client.messages.create(
       {
-        model:      'claude-sonnet-4-5-20251001',
+        model:      'claude-sonnet-4-6',
         max_tokens: 4096,
         tools:      [SEARCH_CATALOG_TOOL, GET_CATALOG_PAGE_TOOL],
         messages,
