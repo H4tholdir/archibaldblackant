@@ -25,6 +25,8 @@ type SendToVeronaBot = {
   ) => void;
 };
 
+const HEADER_READ_MAX_RETRIES = 3;
+
 const SEND_TO_VERONA_PROGRESS: Record<string, { progress: number; label: string }> = {
   'sendToVerona.navigation': { progress: 10, label: 'Navigazione alla lista ordini' },
   'sendToVerona.filter': { progress: 20, label: 'Impostazione filtro ordini' },
@@ -42,6 +44,7 @@ async function handleSendToVerona(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   broadcast?: (userId: string, event: { type: string; payload: unknown }) => void,
+  retryDelayMs = 2000,
 ): Promise<{ success: boolean; message: string; sentToVeronaAt: string }> {
   if (data.orderId.startsWith('ghost-')) {
     return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToVeronaAt: '' };
@@ -80,17 +83,35 @@ async function handleSendToVerona(
 
   onProgress(83, 'Lettura stato ordine da ERP');
   try {
-    const header = await bot.readOrderHeader(data.orderId);
-    if (header) {
+    let lastHeader: OrderHeaderData | null = null;
+
+    for (let attempt = 1; attempt <= HEADER_READ_MAX_RETRIES; attempt++) {
+      if (attempt > 1) await new Promise<void>(r => setTimeout(r, retryDelayMs));
+
+      const header = await bot.readOrderHeader(data.orderId);
+      lastHeader = header;
+
+      if (header?.transferStatus && header.transferStatus.toLowerCase() !== 'modifica') {
+        break;
+      }
+
+      if (attempt < HEADER_READ_MAX_RETRIES) {
+        logger.info('[SendToVerona] transferStatus non confermato da ERP, riprovo', { orderId: data.orderId, attempt, transferStatus: header?.transferStatus });
+      }
+    }
+
+    if (lastHeader) {
       await pool.query(
         `UPDATE agents.order_records SET
            sales_status = COALESCE($1, sales_status),
            document_status = COALESCE($2, document_status),
-           transfer_status = COALESCE($3, transfer_status),
+           transfer_status = CASE WHEN $3 IS NOT NULL AND lower($3) != 'modifica' THEN $3 ELSE transfer_status END,
            last_sync = $4
          WHERE id = $5 AND user_id = $6`,
-        [header.salesStatus, header.documentStatus, header.transferStatus, Math.floor(Date.now() / 1000), data.orderId, userId],
+        [lastHeader.salesStatus, lastHeader.documentStatus, lastHeader.transferStatus, Math.floor(Date.now() / 1000), data.orderId, userId],
       );
+    } else {
+      logger.warn('[SendToVerona] readOrderHeader non ha restituito dati dopo tutti i tentativi, sync schedulata recupererà', { orderId: data.orderId });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
