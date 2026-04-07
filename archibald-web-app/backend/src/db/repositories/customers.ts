@@ -337,7 +337,7 @@ async function getMyCustomers(pool: DbPool, userId: string): Promise<Customer[]>
        c.hash, c.last_sync, c.created_at, c.updated_at, c.bot_status, c.archibald_name,
        NULL::bytea AS photo, c.vat_validated_at,
        c.sector, c.price_group, c.line_discount, c.payment_terms, c.notes,
-       c.name_alias, c.county, c.state, c.country, c.agent_notes,
+       c.name_alias, c.county, c.state, c.country, c.agent_notes, c.erp_detail_read_at,
        (SELECT MAX(o.creation_date) FROM agents.order_records o
         WHERE o.user_id = c.user_id AND o.customer_account_num = c.account_num
        ) AS effective_last_order_date

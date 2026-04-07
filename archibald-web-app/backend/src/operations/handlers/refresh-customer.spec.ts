@@ -13,6 +13,7 @@ const mockFields: CustomerFormInput = {
 };
 
 const makeBot = (fields: CustomerFormInput = mockFields): RefreshCustomerBot => ({
+  initialize: vi.fn().mockResolvedValue(undefined),
   navigateToCustomerByErpId: vi.fn().mockResolvedValue(undefined),
   readCustomerFields: vi.fn().mockResolvedValue(fields),
   close: vi.fn().mockResolvedValue(undefined),
@@ -21,6 +22,16 @@ const makeBot = (fields: CustomerFormInput = mockFields): RefreshCustomerBot => 
 const data: RefreshCustomerData = { erpId: '57348' };
 
 describe('handleRefreshCustomer', () => {
+  test('chiama bot.initialize() prima di navigare', async () => {
+    const pool = makePool();
+    const bot = makeBot();
+    await handleRefreshCustomer(pool as never, bot, data, 'u1', vi.fn());
+    expect(bot.initialize).toHaveBeenCalled();
+    const initOrder = (bot.initialize as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    const navOrder = (bot.navigateToCustomerByErpId as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(initOrder).toBeLessThan(navOrder);
+  });
+
   test('chiama navigateToCustomerByErpId con erpId corretto', async () => {
     const pool = makePool();
     const bot = makeBot();

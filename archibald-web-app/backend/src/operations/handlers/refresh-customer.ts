@@ -9,6 +9,7 @@ type RefreshCustomerData = {
 };
 
 type RefreshCustomerBot = {
+  initialize: () => Promise<void>;
   navigateToCustomerByErpId: (erpId: string) => Promise<void>;
   readCustomerFields: () => Promise<CustomerFormInput>;
   close: () => Promise<void>;
@@ -23,6 +24,7 @@ async function handleRefreshCustomer(
 ): Promise<{ erpId: string }> {
   const { erpId } = data;
 
+  await bot.initialize();
   try {
     onProgress(20, 'Navigazione al cliente');
     await bot.navigateToCustomerByErpId(erpId);

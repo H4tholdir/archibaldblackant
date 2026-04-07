@@ -651,9 +651,14 @@ async function bootstrap(): Promise<void> {
     }),
     'refresh-customer': createRefreshCustomerHandler(pool, (userId) => {
       const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
       return {
-        navigateToCustomerByErpId: (erpId) => bot.navigateToCustomerByErpId(erpId),
-        readCustomerFields: () => bot.readCustomerFields(),
+        initialize: async () => { await ensureInit(); },
+        navigateToCustomerByErpId: async (erpId) => { await ensureInit(); return bot.navigateToCustomerByErpId(erpId); },
+        readCustomerFields: async () => { await ensureInit(); return bot.readCustomerFields(); },
         close: () => bot.close(),
       };
     }),
