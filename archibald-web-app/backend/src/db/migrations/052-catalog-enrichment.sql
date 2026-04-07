@@ -29,15 +29,6 @@ CREATE TABLE shared.catalog_reading_guide (
 );
 
 -- Una riga per ogni famiglia di prodotti nel catalogo
--- product_type: 'rotary_diamond'|'rotary_carbide'|'diao'|'sonic'|
---   'polisher_composite'|'polisher_ceramic'|'polisher_amalgam'|
---   'endodontic'|'root_post'|'lab_carbide'|'accessory'|'other'
---
--- grit_options JSONB struttura per categoria:
---   rotary_diamond: [{grit_indicator_type:'ring_color', visual_cue:'blue', grit_level:'standard', micron:107, prefix_pattern:'8xxx'}]
---   rotary_carbide: [{grit_indicator_type:'blade_count', visual_cue:'12', grit_level:'standard'}]
---   polisher_*:     [{grit_indicator_type:'head_color', visual_cue:'blue', grit_level:'coarse'}]
---   diao/sonic/root_post: [{grit_indicator_type:'none'}]
 CREATE TABLE shared.catalog_entries (
   id                    SERIAL PRIMARY KEY,
   family_codes          TEXT[]   NOT NULL,
@@ -57,9 +48,12 @@ CREATE TABLE shared.catalog_entries (
   notes                 TEXT,
   raw_extraction        JSONB NOT NULL DEFAULT '{}',
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_catalog_entries_family_page UNIQUE (catalog_page, (family_codes[1]))
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Unique index su espressione (non supportato come constraint inline in PostgreSQL)
+CREATE UNIQUE INDEX uq_catalog_entries_family_page
+  ON shared.catalog_entries(catalog_page, (family_codes[1]));
 
 CREATE INDEX idx_catalog_entries_page   ON shared.catalog_entries(catalog_page);
 CREATE INDEX idx_catalog_entries_type   ON shared.catalog_entries(product_type);
@@ -70,16 +64,16 @@ CREATE INDEX idx_catalog_entries_fts    ON shared.catalog_entries
     COALESCE(material_description,'') || ' ' ||
     COALESCE(identification_clues,'')));
 
--- Dati arricchiti per singolo prodotto (da catalogo + web)
+-- Dati arricchiti per singolo prodotto
+-- Colonne catalogo: scritte da catalog-product-enrichment
+-- Colonne web: scritte da web-product-enrichment
 CREATE TABLE shared.product_details (
   product_id            TEXT PRIMARY KEY REFERENCES shared.products(id) ON DELETE CASCADE,
+  -- Da catalog-product-enrichment
   catalog_family_code   TEXT,
   catalog_page          INT,
-  description_it        TEXT,
-  description_en        TEXT,
   clinical_indications  TEXT,
   rpm_max               INT,
-  head_length_mm        NUMERIC,
   usage_notes           TEXT,
   pictograms            JSONB,
   packaging_units       INT,
@@ -87,12 +81,19 @@ CREATE TABLE shared.product_details (
   single_use            BOOLEAN,
   notes                 TEXT,
   catalog_enriched_at   TIMESTAMPTZ,
+  -- Da web-product-enrichment
+  performance_data      JSONB,
+  video_url             TEXT,
+  pdf_url               TEXT,
+  source_url            TEXT,
+  scraped_at            TIMESTAMPTZ,
   web_enriched_at       TIMESTAMPTZ,
+  -- Timestamps
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Gallery immagini per prodotto (url invece di image_url)
+-- Gallery immagini per prodotto
 CREATE TABLE shared.product_gallery (
   id           SERIAL PRIMARY KEY,
   product_id   TEXT NOT NULL REFERENCES shared.products(id) ON DELETE CASCADE,

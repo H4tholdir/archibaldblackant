@@ -462,8 +462,8 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       }));
 
       const mappedDetails = details ? {
-        clinicalDescription: details.clinical_description,
-        procedures:          details.procedures,
+        clinicalDescription: details.clinical_indications,
+        procedures:          details.usage_notes,
         performanceData:     details.performance_data as PerformanceData | null,
         videoUrl:            details.video_url,
         pdfUrl:              details.pdf_url,
