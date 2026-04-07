@@ -258,11 +258,14 @@ export function AdminPage(_props: AdminPageProps) {
     if (!token) return;
     setEnqueuingIngestion(true);
     try {
-      await fetch("/api/operations/enqueue", {
+      const res = await fetch("/api/operations/enqueue", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ type: "catalog-ingestion", data: {} }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio dell'ingestion. Riprova.");
     } finally {
       setEnqueuingIngestion(false);
     }
@@ -273,11 +276,14 @@ export function AdminPage(_props: AdminPageProps) {
     if (!token) return;
     setEnqueuingEnrich(true);
     try {
-      await fetch("/api/operations/enqueue", {
+      const res = await fetch("/api/operations/enqueue", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ type: "catalog-product-enrichment", data: {} }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio dell'enrichment. Riprova.");
     } finally {
       setEnqueuingEnrich(false);
     }

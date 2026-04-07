@@ -1,15 +1,5 @@
 type ThrottleLevel = 'normal' | 'warning' | 'limited';
 
-type InstrumentFeatures = {
-  shape_family:          string | null
-  material:              string | null
-  grit_ring_color:       string | null
-  shank_type:            'fg' | 'ca' | 'hp' | 'grip' | 'unmounted' | 'unknown'
-  shank_length_category: 'short' | 'medium' | 'long' | 'extra_long' | null
-  head_shank_ratio:      number | null
-  confidence:            number
-};
-
 type ProductMatch = {
   productId:    string
   productName:  string
@@ -33,8 +23,8 @@ type IdentificationResult = {
 
 type RecognitionResult =
   | { state: 'match';           product: ProductMatch; confidence: number }
-  | { state: 'shortlist';       candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures | null }
-  | { state: 'not_found';       extractedFeatures: InstrumentFeatures | null }
+  | { state: 'shortlist';       candidates: ProductMatch[] }
+  | { state: 'not_found' }
   | { state: 'budget_exhausted' }
   | { state: 'error';           message: string };
 
@@ -47,7 +37,6 @@ type BudgetState = {
 
 export type {
   ThrottleLevel,
-  InstrumentFeatures,
   ProductMatch,
   IdentificationResult,
   RecognitionResult,

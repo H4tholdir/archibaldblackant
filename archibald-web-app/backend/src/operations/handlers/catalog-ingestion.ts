@@ -87,6 +87,7 @@ async function callSonnetWithRetry(
       return await callSonnet(images, prompt);
     } catch (err) {
       lastErr = err;
+      if (attempt < MAX_SONNET_RETRIES) await delay(1000 * attempt);
     }
   }
   logger.error('[catalog-ingestion] Sonnet failed after retries, skipping page', { page, err: lastErr });

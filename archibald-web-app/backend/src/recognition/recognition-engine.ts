@@ -98,10 +98,9 @@ export async function runRecognitionPipeline(
             thumbnailUrl: null,
             confidence:   Math.max(0.3, identification.confidence - i * 0.08),
           })),
-          extractedFeatures: null,
         }
       case 'not_found':
-        return { state: 'not_found' as const, extractedFeatures: null }
+        return { state: 'not_found' as const }
       default:
         return { state: 'error' as const, message: identification.reasoning }
     }

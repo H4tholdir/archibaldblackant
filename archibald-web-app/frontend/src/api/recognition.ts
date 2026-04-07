@@ -16,7 +16,7 @@ export type ProductMatch = {
 export type RecognitionResult =
   | { state: 'match';           product: ProductMatch; confidence: number }
   | { state: 'shortlist';       candidates: ProductMatch[] }
-  | { state: 'not_found';       extractedFeatures: null }
+  | { state: 'not_found' }
   | { state: 'budget_exhausted' }
   | { state: 'error';           message: string }
 
