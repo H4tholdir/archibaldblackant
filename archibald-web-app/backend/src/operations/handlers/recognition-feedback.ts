@@ -52,10 +52,8 @@ function createRecognitionFeedbackHandler(deps: RecognitionFeedbackDeps): Operat
     await insertGalleryImage(pool, {
       product_id: productId,
       url:        imageUrl,
-      local_path: localPath,
       image_type: 'product_photo',
       source:     `agent:${userId}`,
-      file_size:  resized.length,
     });
 
     onProgress(100, 'Immagine salvata in gallery');

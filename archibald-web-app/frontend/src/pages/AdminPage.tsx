@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
-import { getEnrichmentStats } from "../api/recognition";
-import type { EnrichmentStats } from "../api/recognition";
+import { getEnrichmentStats, getRecognitionBudget } from "../api/recognition";
+import type { EnrichmentStats, BudgetState } from "../api/recognition";
 import { Link } from "react-router-dom";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
@@ -85,6 +85,7 @@ export function AdminPage(_props: AdminPageProps) {
   const jobsPerPage = 20;
 
   const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
+  const [recognitionBudget, setRecognitionBudget] = useState<BudgetState | null>(null);
   const [enqueuingIngestion, setEnqueuingIngestion] = useState(false);
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
 
@@ -99,6 +100,7 @@ export function AdminPage(_props: AdminPageProps) {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
     getEnrichmentStats(token).then(setEnrichmentStats).catch(console.error);
+    getRecognitionBudget(token).then(setRecognitionBudget).catch(console.error);
   }, []);
 
   const loadJobs = async () => {
@@ -621,13 +623,33 @@ export function AdminPage(_props: AdminPageProps) {
             <div style={{
               display: "grid", gridTemplateColumns: "1fr auto auto",
               alignItems: "center", gap: "12px",
-              padding: "12px 16px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
             }}>
               <div>
                 <strong>Pending web enrichment</strong>
               </div>
               <div style={{ color: "#555", fontSize: "13px" }}>
                 {enrichmentStats?.pendingWebEnrichment ?? "—"}
+              </div>
+              <div style={{ width: "80px" }} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px",
+            }}>
+              <div>
+                <strong>Vision API — budget oggi</strong>
+                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
+                  {recognitionBudget?.throttleLevel === "warning" && "⚠️ Avviso soglia"}
+                  {recognitionBudget?.throttleLevel === "limited" && "🔴 Limite raggiunto"}
+                </div>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {recognitionBudget != null
+                  ? `${recognitionBudget.usedToday} / ${recognitionBudget.dailyLimit}`
+                  : "—"}
               </div>
               <div style={{ width: "80px" }} />
             </div>

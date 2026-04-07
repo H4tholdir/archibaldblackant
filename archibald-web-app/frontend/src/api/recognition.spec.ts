@@ -16,7 +16,7 @@ describe('identifyInstrument', () => {
 
   it('posts image to /api/recognition/identify with Authorization header and correct body', async () => {
     const mockResponse: IdentifyResponse = {
-      result: { state: 'not_found', extractedFeatures: null },
+      result: { state: 'not_found' },
       budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
       processingMs: 123,
       imageHash: 'abc123hash',
