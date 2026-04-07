@@ -63,6 +63,9 @@ export function CustomerProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
   const [saveLabel, setSaveLabel] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
+  const [refreshLabel, setRefreshLabel] = useState('');
   const [vatValidating, setVatValidating] = useState(false);
   const [vatValidated, setVatValidated] = useState(false);
 
@@ -162,6 +165,40 @@ export function CustomerProfilePage() {
     }
     window.scrollTo(0, 0);
     setLocalAddresses([...addresses]);
+  }
+
+  async function handleEnterEditMode() {
+    if (!customer) return;
+    const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+    const isStale =
+      !customer.erpDetailReadAt ||
+      Date.now() - new Date(customer.erpDetailReadAt).getTime() > STALE_THRESHOLD_MS;
+
+    if (!isStale) {
+      enterEditMode();
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      const { jobId } = await enqueueOperation('refresh-customer', { erpId });
+      await pollJobUntilDone(jobId, {
+        onProgress: (p, label) => {
+          setRefreshProgress(p);
+          if (label) setRefreshLabel(label);
+        },
+      });
+      const fresh = await fetchCustomer(erpId);
+      setCustomer(fresh);
+      enterEditMode();
+    } catch {
+      toastService.error('Impossibile leggere dati ERP — procedo con dati locali');
+      enterEditMode();
+    } finally {
+      setRefreshing(false);
+      setRefreshProgress(0);
+      setRefreshLabel('');
+    }
   }
 
   function exitEditMode() {
@@ -423,8 +460,9 @@ export function CustomerProfilePage() {
           <div style={{ flex: 1, fontSize: 16, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer.name}</div>
           {!editMode ? (
             <button
-              onClick={enterEditMode}
-              style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+              onClick={() => { void handleEnterEditMode(); }}
+              disabled={refreshing}
+              style={{ background: refreshing ? '#94a3b8' : '#eff6ff', color: refreshing ? '#fff' : '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: 12 }}
             >
               ✎ Modifica
             </button>
@@ -1002,6 +1040,39 @@ export function CustomerProfilePage() {
           }}
           onCancel={() => setPhotoCropSrc(null)}
         />
+      )}
+
+      {refreshing && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15,23,42,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '14px', padding: '24px 28px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)', minWidth: '240px', textAlign: 'center',
+          }}>
+            <div style={{
+              width: '40px', height: '40px', margin: '0 auto 12px',
+              borderRadius: '50%', border: '3px solid #dbeafe', borderTop: '3px solid #2563eb',
+            }} />
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+              Lettura dati ERP…
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px', minHeight: '16px' }}>
+              {refreshLabel || 'Connessione al server ERP'}
+            </div>
+            <div style={{ height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${refreshProgress}%`,
+                background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
+                borderRadius: '3px',
+                transition: 'width 0.4s ease',
+              }} />
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
