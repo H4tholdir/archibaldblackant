@@ -3,16 +3,6 @@ import { fetchWithRetry } from '../utils/fetch-with-retry'
 
 export type ThrottleLevel = 'normal' | 'warning' | 'limited'
 
-export type InstrumentFeatures = {
-  shape_family:          string | null
-  material:              string | null
-  grit_ring_color:       string | null
-  shank_type:            'fg' | 'ca' | 'hp' | 'unknown'
-  shank_length_category: 'short' | 'medium' | 'long' | 'extra_long' | null
-  head_shank_ratio:      number | null
-  confidence:            number
-}
-
 export type ProductMatch = {
   productId:    string
   productName:  string
@@ -23,19 +13,12 @@ export type ProductMatch = {
   confidence:   number
 }
 
-export type FilterQuestion = {
-  field:   'head_size_mm' | 'grit_ring_color' | 'shank_type'
-  prompt:  string
-  options: Array<{ label: string; value: string }>
-}
-
 export type RecognitionResult =
-  | { state: 'match';          product: ProductMatch; confidence: number }
-  | { state: 'shortlist';      candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures }
-  | { state: 'filter_needed';  extractedFeatures: InstrumentFeatures; question: FilterQuestion }
-  | { state: 'not_found';      extractedFeatures: InstrumentFeatures | null }
+  | { state: 'match';           product: ProductMatch; confidence: number }
+  | { state: 'shortlist';       candidates: ProductMatch[] }
+  | { state: 'not_found';       extractedFeatures: null }
   | { state: 'budget_exhausted' }
-  | { state: 'error';          message: string }
+  | { state: 'error';           message: string }
 
 export type BudgetState = {
   usedToday:     number
@@ -44,18 +27,17 @@ export type BudgetState = {
 }
 
 export type IdentifyResponse = {
-  result:          RecognitionResult
-  budgetState:     BudgetState
-  processingMs:    number
-  imageHash:       string        // SHA-256 del frame, calcolato lato server
-  broadCandidates: ProductMatch[] // candidati senza filtro head_size_mm (max 10)
+  result:       RecognitionResult
+  budgetState:  BudgetState
+  processingMs: number
+  imageHash:    string        // SHA-256 del frame, calcolato lato server
 }
 
 export type ProductGalleryImage = {
   id:        number
-  imageUrl:  string
+  url:       string
   localPath: string | null
-  imageType: 'instrument_white_bg' | 'marketing' | 'microscope' | 'clinical' | 'field_scan'
+  imageType: 'catalog_render' | 'product_photo' | 'application_photo' | 'web'
   source:    string
   sortOrder: number
   width:     number | null
@@ -78,7 +60,7 @@ export type ProductDetails = {
 }
 
 export type ProductEnrichment = {
-  features:           InstrumentFeatures | null
+  features:           null
   details:            ProductDetails | null
   gallery:            ProductGalleryImage[]
   competitors:        []   // Fase 2 — sempre vuoto
@@ -152,4 +134,20 @@ export async function getProductEnrichment(
   )
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<ProductEnrichment>
+}
+
+export type EnrichmentStats = {
+  totalCatalogEntries:      number
+  totalProductDetails:      number
+  pendingCatalogEnrichment: number
+  pendingWebEnrichment:     number
+  lastIngestedPage:         number | null
+}
+
+export async function getEnrichmentStats(token: string): Promise<EnrichmentStats> {
+  const res = await fetchWithRetry('/api/admin/enrichment-stats', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<EnrichmentStats>
 }

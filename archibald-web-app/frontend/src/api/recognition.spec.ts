@@ -20,7 +20,6 @@ describe('identifyInstrument', () => {
       budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
       processingMs: 123,
       imageHash: 'abc123hash',
-      broadCandidates: [],
     }
     const mockFetch = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,

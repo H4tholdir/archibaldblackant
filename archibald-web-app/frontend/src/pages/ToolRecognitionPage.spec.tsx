@@ -122,7 +122,7 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
     await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
 
     await waitFor(() =>
-      expect(screen.getByText(/Estrazione features AI/i)).toBeInTheDocument()
+      expect(screen.getByText(/Analisi con AI/i)).toBeInTheDocument()
     )
   })
 
@@ -133,7 +133,6 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
       budgetState: { usedToday: 500, dailyLimit: 500, throttleLevel: 'limited' },
       processingMs: 50,
       imageHash: 'xyz',
-      broadCandidates: [],
     })
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
@@ -157,7 +156,7 @@ const MATCH_RESPONSE: IdentifyResponse = {
     confidence: 0.95,
   },
   budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
-  processingMs: 800, imageHash: 'abc123', broadCandidates: [],
+  processingMs: 800, imageHash: 'abc123',
 }
 
 describe('ToolRecognitionPage — Stato 3A (match)', () => {
@@ -208,14 +207,9 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
           { productId: 'H1.314.014', productName: 'TC Round Ø1.4', familyCode: 'H1', headSizeMm: 1.4, shankType: 'fg', thumbnailUrl: null, confidence: 0.82 },
           { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.75 },
         ],
-        extractedFeatures: {
-          shape_family: 'round', material: 'tungsten_carbide',
-          grit_ring_color: null, shank_type: 'fg',
-          shank_length_category: null, head_shank_ratio: null, confidence: 0.78,
-        },
       },
       budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
-      processingMs: 900, imageHash: 'def456', broadCandidates: [],
+      processingMs: 900, imageHash: 'def456',
     }
 
     mockGetUserMedia(() => Promise.resolve(mockStream()))
@@ -233,41 +227,3 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
   })
 })
 
-describe('ToolRecognitionPage — Stato 3C (filter needed)', () => {
-  it('mostra domanda con opzioni large-tap', async () => {
-    const filterResponse: IdentifyResponse = {
-      result: {
-        state: 'filter_needed',
-        extractedFeatures: {
-          shape_family: 'round', material: 'diamond',
-          grit_ring_color: null, shank_type: 'fg',
-          shank_length_category: null, head_shank_ratio: null, confidence: 0.45,
-        },
-        question: {
-          field: 'grit_ring_color',
-          prompt: 'Che colore ha il ring sulla fresa?',
-          options: [
-            { label: 'Rosso (fine)', value: 'red' },
-            { label: 'Blu (standard)', value: 'blue' },
-            { label: 'Verde (grossolano)', value: 'green' },
-          ],
-        },
-      },
-      budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
-      processingMs: 700, imageHash: 'ghi789', broadCandidates: [],
-    }
-
-    mockGetUserMedia(() => Promise.resolve(mockStream()))
-    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(filterResponse)
-
-    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
-
-    await waitFor(() =>
-      expect(screen.getByText('Che colore ha il ring sulla fresa?')).toBeInTheDocument()
-    )
-    expect(screen.getByRole('button', { name: 'Rosso (fine)' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Blu (standard)' })).toBeInTheDocument()
-  })
-})

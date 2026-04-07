@@ -8,7 +8,7 @@ import {
   getRecognitionBudget,
   submitRecognitionFeedback,
 } from '../api/recognition'
-import type { IdentifyResponse, BudgetState, InstrumentFeatures } from '../api/recognition'
+import type { IdentifyResponse, BudgetState } from '../api/recognition'
 
 type PageState =
   | 'loading'
@@ -17,7 +17,6 @@ type PageState =
   | 'analyzing'
   | 'match'
   | 'shortlist'
-  | 'filter_needed'
   | 'budget_exhausted'
 
 function Viewfinder() {
@@ -171,8 +170,6 @@ export function ToolRecognitionPage() {
         setPageState('match')
       } else if (state === 'shortlist') {
         setPageState('shortlist')
-      } else if (state === 'filter_needed') {
-        setPageState('filter_needed')
       } else {
         setPageState('idle')
         if (state === 'not_found') {
@@ -219,9 +216,9 @@ export function ToolRecognitionPage() {
   if (pageState === 'analyzing') {
     const STEP_LABELS = [
       'Foto acquisita',
-      'Estrazione features AI',
-      'Ricerca catalogo',
-      'Calcolo misura gambo',
+      'Analisi con AI',
+      'Confronto con catalogo',
+      'Identificazione',
     ]
 
     return (
@@ -299,7 +296,7 @@ export function ToolRecognitionPage() {
 
   if (pageState === 'match' && identifyResult?.result.state === 'match') {
     const { product, confidence } = identifyResult.result
-    const { imageHash, broadCandidates } = identifyResult
+    const { imageHash } = identifyResult
 
     const handleOpenProduct = async () => {
       const token = localStorage.getItem('archibald_jwt')
@@ -309,26 +306,6 @@ export function ToolRecognitionPage() {
       } catch {
       }
       navigate(`/products/${encodeURIComponent(product.productId)}`, { state: { fromScanner: true } })
-    }
-
-    const handleNotThis = () => {
-      if (broadCandidates.length > 0) {
-        setIdentifyResult(prev => prev ? {
-          ...prev,
-          result: {
-            state: 'shortlist',
-            candidates: broadCandidates,
-            extractedFeatures: {
-              shape_family: null, material: null, grit_ring_color: null,
-              shank_type: product.shankType as InstrumentFeatures['shank_type'],
-              shank_length_category: null, head_shank_ratio: null, confidence,
-            },
-          },
-        } : prev)
-        setPageState('shortlist')
-      } else {
-        setPageState('idle')
-      }
     }
 
     const badges: string[] = []
@@ -412,7 +389,7 @@ export function ToolRecognitionPage() {
           </div>
 
           <button
-            onClick={handleNotThis}
+            onClick={() => setPageState('idle')}
             style={{
               width: '100%', background: 'transparent',
               border: '1px solid #2d4a2d', borderRadius: 12, padding: '12px 0',
@@ -420,7 +397,7 @@ export function ToolRecognitionPage() {
             }}
           >
             <div style={{ color: '#9ca3af', fontSize: 15 }}>Non è questo</div>
-            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>→ mostra altri Ø variabile</div>
+            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>→ rifai la foto</div>
           </button>
         </div>
       </div>
@@ -428,14 +405,8 @@ export function ToolRecognitionPage() {
   }
 
   if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist') {
-    const { candidates, extractedFeatures } = identifyResult.result
+    const { candidates } = identifyResult.result
     const maxSize = Math.max(...candidates.map(c => c.headSizeMm))
-
-    const recognizedDesc = [
-      extractedFeatures.shape_family,
-      extractedFeatures.material,
-      extractedFeatures.shank_type,
-    ].filter(Boolean).join(' · ')
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
@@ -453,11 +424,9 @@ export function ToolRecognitionPage() {
               {candidates.length} candidati trovati
             </span>
           </div>
-          {recognizedDesc && (
-            <div style={{ color: '#6b7280', fontSize: 13 }}>
-              {recognizedDesc} · misura incerta
-            </div>
-          )}
+          <div style={{ color: '#6b7280', fontSize: 13 }}>
+            Misura incerta · seleziona il prodotto corretto
+          </div>
         </div>
 
         <div style={{ padding: '16px 20px' }}>
@@ -498,103 +467,6 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'filter_needed' && identifyResult?.result.state === 'filter_needed') {
-    const { question, extractedFeatures } = identifyResult.result
-
-    const recognizedType = [extractedFeatures.shape_family, extractedFeatures.material]
-      .filter(Boolean).join(' ')
-
-    return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
-        <div style={{ padding: '24px 20px' }}>
-          <button
-            onClick={() => setPageState('idle')}
-            style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 14, cursor: 'pointer', padding: 0, marginBottom: 20 }}
-          >
-            ← Rifai foto
-          </button>
-
-          <div style={{ color: '#f59e0b', fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
-            🔍 Ho bisogno di aiuto
-          </div>
-
-          <div style={{
-            background: '#1a1a1a',
-            borderRadius: 12, padding: '14px 16px', marginBottom: 20,
-          }}>
-            <div style={{ color: '#d1d5db', fontSize: 14, lineHeight: 1.5 }}>
-              {recognizedType
-                ? `Ho riconosciuto: ${recognizedType}`
-                : 'Ho analizzato l\'immagine'}
-              <br />
-              Non riesco a distinguere la misura. Dimmi tu:
-            </div>
-          </div>
-
-          <div style={{ color: '#fff', fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-            {question.prompt}
-          </div>
-
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24,
-          }}>
-            {question.options.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  const SIZE_RANGES: Record<string, [number, number]> = {
-                    small:   [0,    1.25],
-                    medium:  [1.25, 1.85],
-                    large:   [1.85, Infinity],
-                    unknown: [0,    Infinity],
-                  }
-                  const [min, max] = SIZE_RANGES[opt.value] ?? [0, Infinity]
-                  const broad = identifyResult?.broadCandidates ?? []
-                  const filtered = broad.filter(c => c.headSizeMm > min && c.headSizeMm <= max)
-                  const candidates = filtered.length > 0 ? filtered : broad
-
-                  if (candidates.length === 0) {
-                    setPageState('idle')
-                    setErrorMessage('Nessun articolo trovato con quella misura. Riprova.')
-                    return
-                  }
-                  setIdentifyResult(prev => prev ? {
-                    ...prev,
-                    result: {
-                      state: 'shortlist',
-                      candidates,
-                      extractedFeatures,
-                    },
-                  } : prev)
-                  setPageState('shortlist')
-                }}
-                style={{
-                  background: '#1a1000', border: '1px solid #f59e0b',
-                  borderRadius: 12, padding: '16px 12px',
-                  color: '#fff', fontSize: 14, fontWeight: 600,
-                  cursor: 'pointer', textAlign: 'center', lineHeight: 1.3,
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setPageState('idle')}
-            style={{
-              width: '100%', background: 'transparent',
-              border: '1px solid #f59e0b', borderRadius: 12, padding: '14px 0',
-              color: '#f59e0b', fontSize: 15, cursor: 'pointer',
-            }}
-          >
-            📷 Rifai foto col gambo in vista
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
       <video
@@ -630,9 +502,9 @@ export function ToolRecognitionPage() {
           textShadow: '0 1px 4px rgba(0,0,0,0.9)',
           pointerEvents: 'none',
         }}>
-          Inquadra la fresa intera{' '}
+          Apri il catalogo a pag. 7 · appoggia lo strumento sul righello ·{' '}
           <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-            incluso il gambo
+            inquadra tutto
           </span>
         </div>
       )}

@@ -8,40 +8,6 @@ import type { Product } from '../api/products'
 
 type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor'
 
-const SHAPE_LABELS: Record<string, string> = {
-  round: 'Round', pear: 'Pear', inverted_cone: 'Inverted Cone',
-  cylinder: 'Cylinder', tapered_round_end: 'Tapered Round', flame: 'Flame',
-  torpedo: 'Torpedo', diabolo: 'Diabolo', wheel: 'Wheel', egg: 'Egg',
-  bud: 'Bud', double_cone: 'Double Cone', other: 'Other',
-}
-
-const MATERIAL_LABELS: Record<string, string> = {
-  tungsten_carbide: 'TC', diamond: 'Diamond', diamond_diao: 'DIAO',
-  steel: 'Steel', ceramic: 'Ceramic', polymer: 'Polymer',
-  sonic_tip: 'Sonic', ultrasonic: 'Ultrasonic',
-}
-
-const GRIT_COLORS: Record<string, string> = {
-  white: '#f0f0f0', yellow: '#eab308', red: '#ef4444',
-  blue: '#3b82f6', green: '#22c55e', black: '#222',
-}
-
-const GRIT_LABELS: Record<string, string> = {
-  white: 'UF Bianco', yellow: 'EF Giallo', red: 'Fine Rosso',
-  blue: 'Std Blu', green: 'Grosso Verde', black: 'SC Nero',
-}
-
-const FAMILY_LABELS: Record<string, string> = {
-  diamond_diao: 'Diamantate · DIAO',
-  diamond: 'Diamantate',
-  tungsten_carbide: 'Carburo di Tungsteno',
-  steel: 'Acciaio',
-  ceramic: 'Ceramica',
-  polymer: 'Polimero',
-  sonic_tip: 'Sonico',
-  ultrasonic: 'Ultrasonico',
-}
-
 function sizeCode(variant: { productId: string; headSizeMm: number }): string {
   const parts = variant.productId.split('.')
   return parts[parts.length - 1] ?? String(Math.round(variant.headSizeMm * 10)).padStart(3, '0')
@@ -69,7 +35,7 @@ function GalleryArea({
     }}>
       {active && (
         <img
-          src={active.imageUrl}
+          src={active.url}
           alt="gallery principale"
           style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -121,7 +87,7 @@ function GalleryArea({
               }}
             >
               <img
-                src={img.imageUrl}
+                src={img.url}
                 alt={img.imageType}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }}
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -249,13 +215,10 @@ export function ProductDetailPage() {
     )
   }
 
-  const features = enrichment?.features ?? null
   const details = enrichment?.details ?? null
   const gallery = enrichment?.gallery ?? []
   const sizeVariants = enrichment?.sizeVariants ?? []
   const pd = details?.performanceData ?? null
-
-  const familyLine = features?.material ? (FAMILY_LABELS[features.material] ?? null) : null
 
   const priceFormatted = new Intl.NumberFormat('it-IT', {
     style: 'currency', currency: 'EUR',
@@ -277,16 +240,6 @@ export function ProductDetailPage() {
       />
 
       <div style={{ padding: 16 }}>
-        {/* Family line */}
-        {familyLine && (
-          <div style={{
-            fontSize: 10, color: '#f9a825', letterSpacing: '1.5px',
-            textTransform: 'uppercase', marginBottom: 5,
-          }}>
-            {familyLine}
-          </div>
-        )}
-
         {/* Product name */}
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: '0 0 4px' }}>
           {product.name}
@@ -326,55 +279,6 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Prodotto ── */}
         <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
-          {features && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              {features.shape_family && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15 }}>▬</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Forma</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {SHAPE_LABELS[features.shape_family] ?? features.shape_family}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.material && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15, color: '#f9a825' }}>◆</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Materiale</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {MATERIAL_LABELS[features.material] ?? features.material}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.grit_ring_color && features.grit_ring_color !== 'none' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <div style={{ width: 12, height: 12, background: GRIT_COLORS[features.grit_ring_color] ?? '#888', borderRadius: 2, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Grana</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {GRIT_LABELS[features.grit_ring_color] ?? features.grit_ring_color}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.shank_type && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15 }}>📏</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Gambo</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {features.shank_type.toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {pd && (
             <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
