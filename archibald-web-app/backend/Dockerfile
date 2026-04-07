@@ -23,7 +23,7 @@ RUN npm ci && \
 # Alpine 3.19 ships chromium 124.x which is stable and compatible.
 FROM node:20-alpine3.19
 
-# Install Chromium, Python3, and dependencies for Puppeteer + PDF parsing
+# Install Chromium, Python3, poppler-utils, and dependencies for Puppeteer + PDF parsing
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -33,7 +33,8 @@ RUN apk add --no-cache \
     ttf-freefont \
     font-noto-emoji \
     python3 \
-    py3-pip
+    py3-pip \
+    poppler-utils
 
 # Install Python PDF parsing library
 RUN pip3 install --no-cache-dir pdfplumber==0.11.4 --break-system-packages

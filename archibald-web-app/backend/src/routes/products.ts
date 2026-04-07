@@ -5,7 +5,6 @@ import type { ProductRow } from '../db/repositories/products';
 import type { SyncSession, SyncStats } from '../db/repositories/sync-sessions';
 import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
-import type { InstrumentFeatureRow } from '../db/repositories/instrument-features';
 import type { GalleryRow } from '../db/repositories/product-gallery';
 import { getProductDetails } from '../db/repositories/product-details';
 import type { ProductDetailsRow } from '../db/repositories/product-details';
@@ -109,7 +108,6 @@ type ProductsRouterDeps = {
   getVariantPackages: (articleName: string) => Promise<string[]>;
   getVariantPriceRange: (articleName: string) => Promise<{ min: number | null; max: number | null }>;
   getProductPricesByNames?: (names: string[]) => Promise<Map<string, { price: number; vat: number } | null>>;
-  getInstrumentFeatures?: (productId: string) => Promise<InstrumentFeatureRow | null>;
   getProductGallery?: (productId: string) => Promise<GalleryRow[]>;
   getRecognitionHistory?: (productId: string, limit: number) => Promise<Array<{ scanned_at: Date; agent_id: string; confidence: number | null; cache_hit: boolean }>>;
   getProductVariantsForEnrichment?: (articleName: string) => Promise<ProductRow[]>;
@@ -434,8 +432,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
   router.get('/:productId/enrichment', async (req: AuthRequest, res) => {
     const { productId } = req.params;
     try {
-      const [features, gallery, history, details] = await Promise.all([
-        deps.getInstrumentFeatures ? deps.getInstrumentFeatures(productId) : Promise.resolve(null),
+      const [gallery, history, details] = await Promise.all([
         deps.getProductGallery     ? deps.getProductGallery(productId)     : Promise.resolve([]),
         deps.getRecognitionHistory ? deps.getRecognitionHistory(productId, 10) : Promise.resolve([]),
         deps.getProductDetails     ? deps.getProductDetails(productId)     : Promise.resolve(null),
@@ -450,10 +447,32 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         }
       }
 
+      type PerformanceData = {
+        durabilityPct: number; sharpnessPct: number; controlStars: number;
+        maxRpm: number; minSprayMl: number;
+      };
+
+      const mappedGallery = gallery.map(g => ({
+        id:        g.id,
+        url:       g.url,
+        imageType: g.image_type,
+        source:    g.source,
+        altText:   g.alt_text,
+        sortOrder: g.sort_order,
+      }));
+
+      const mappedDetails = details ? {
+        clinicalDescription: details.clinical_description,
+        procedures:          details.procedures,
+        performanceData:     details.performance_data as PerformanceData | null,
+        videoUrl:            details.video_url,
+        pdfUrl:              details.pdf_url,
+        sourceUrl:           details.source_url,
+      } : null;
+
       res.json({
-        features,
-        gallery,
-        details,
+        gallery: mappedGallery,
+        details: mappedDetails,
         competitors: [],
         sizeVariants,
         recognitionHistory: history.length > 0 ? history.map((h) => ({

@@ -59,11 +59,10 @@ import { createCustomerFullHistoryRouter } from './routes/customer-full-history'
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { createCapLookupRouter } from './routes/cap-lookup';
 import { createRecognitionRouter } from './routes/recognition';
-import type { VisionApiFn } from './services/anthropic-vision-service';
+import type { CatalogVisionService } from './recognition/recognition-engine';
 import * as productGalleryRepo from './db/repositories/product-gallery';
 import * as recognitionLogRepo from './db/repositories/recognition-log';
 import { getProductDetails } from './db/repositories/product-details';
-import type { InstrumentFeatureRow } from './db/repositories/instrument-features';
 import { getOrderVerificationSnapshot } from './db/repositories/order-verification';
 import { getCustomerFullHistory } from './db/repositories/customer-full-history.repository';
 import * as subClientMatchesRepo from './db/repositories/sub-client-matches.repository';
@@ -91,6 +90,7 @@ import * as syncSessionsRepo from './db/repositories/sync-sessions';
 import * as syncCheckpointsRepo from './db/repositories/sync-checkpoints';
 import * as devicesRepo from './db/repositories/devices';
 import * as adminSessionsRepo from './db/repositories/admin-sessions';
+import { getEnrichmentStats } from './db/repositories/catalog-enrichment';
 import * as dashboardService from './dashboard-service';
 import { clearSyncData } from './db/clear-sync-data';
 import { register as metricsRegister } from './metrics';
@@ -146,7 +146,7 @@ type AppDeps = {
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
-  callVisionApi?: VisionApiFn;
+  catalogVisionService?: CatalogVisionService;
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
 };
@@ -584,7 +584,6 @@ function createApp(deps: AppDeps): Express {
     getVariantPackages: (name) => productsRepo.getVariantPackages(pool, name),
     getVariantPriceRange: (name) => productsRepo.getVariantPriceRange(pool, name),
     getProductPricesByNames: (names) => productsRepo.getProductPricesByNames(pool, names),
-    getInstrumentFeatures: (productId) => pool.query<InstrumentFeatureRow>(`SELECT * FROM shared.instrument_features WHERE product_id = $1`, [productId]).then((r) => r.rows[0] ?? null),
     getProductGallery: (productId) => productGalleryRepo.getGalleryByProduct(pool, productId),
     getRecognitionHistory: (productId, limit) => recognitionLogRepo.getRecognitionHistory(pool, productId, limit),
     getProductVariantsForEnrichment: (name) => productsRepo.getProductVariants(pool, name),
@@ -952,6 +951,7 @@ function createApp(deps: AppDeps): Express {
       upsertDiscount: (id, articleCode, discountPercent, kpPriceUnit) =>
         fresisHistoryRepo.upsertDiscount(pool, userId, id, articleCode, discountPercent, kpPriceUnit),
     }),
+    getEnrichmentStats: () => getEnrichmentStats(pool),
   }));
 
   app.use('/api/widget', authenticate, createWidgetRouter({
@@ -1060,10 +1060,10 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/tracking', authenticate, createTrackingRouter({ pool }));
 
-  if (deps.callVisionApi) {
+  if (deps.catalogVisionService) {
     const recognitionRouter = createRecognitionRouter({
       pool,
-      callVisionApi: deps.callVisionApi,
+      catalogVisionService: deps.catalogVisionService,
       dailyLimit: deps.recognitionDailyLimit ?? 500,
       timeoutMs: deps.recognitionTimeoutMs ?? 15000,
       queue,

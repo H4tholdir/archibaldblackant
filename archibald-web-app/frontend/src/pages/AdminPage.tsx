@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
+import { getEnrichmentStats, getRecognitionBudget } from "../api/recognition";
+import type { EnrichmentStats, BudgetState } from "../api/recognition";
 import { Link } from "react-router-dom";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
@@ -82,12 +84,24 @@ export function AdminPage(_props: AdminPageProps) {
     useState<RetentionConfig | null>(null);
   const jobsPerPage = 20;
 
+  const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
+  const [recognitionBudget, setRecognitionBudget] = useState<BudgetState | null>(null);
+  const [enqueuingIngestion, setEnqueuingIngestion] = useState(false);
+  const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
+
   useEffect(() => {
     loadJobs();
     loadRetentionConfig();
     const interval = setInterval(loadJobs, 10000);
     return () => clearInterval(interval);
   }, [statusFilter]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    getEnrichmentStats(token).then(setEnrichmentStats).catch(console.error);
+    getRecognitionBudget(token).then(setRecognitionBudget).catch(console.error);
+  }, []);
 
   const loadJobs = async () => {
     try {
@@ -240,6 +254,42 @@ export function AdminPage(_props: AdminPageProps) {
     }
   };
 
+
+  const handleStartIngestion = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingIngestion(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "catalog-ingestion", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio dell'ingestion. Riprova.");
+    } finally {
+      setEnqueuingIngestion(false);
+    }
+  };
+
+  const handleBulkEnrich = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingEnrich(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "catalog-product-enrichment", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio dell'enrichment. Riprova.");
+    } finally {
+      setEnqueuingEnrich(false);
+    }
+  };
 
   const handleSubClientImport = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -482,6 +532,136 @@ export function AdminPage(_props: AdminPageProps) {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        <section className="admin-section">
+          <h2 style={{ marginBottom: "16px", fontSize: "20px", fontWeight: 600 }}>
+            Catalogo & Enrichment
+          </h2>
+
+          <div style={{
+            border: "1px solid #ddd", borderRadius: "8px",
+            overflow: "hidden", fontSize: "14px",
+          }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+              backgroundColor: "#fafafa",
+            }}>
+              <div>
+                <strong>Catalog ingestion</strong>
+                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
+                  {enrichmentStats?.lastIngestedPage != null
+                    ? `Ultima pag. ${enrichmentStats.lastIngestedPage}`
+                    : "Non eseguita"}
+                </div>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {enrichmentStats != null
+                  ? `${enrichmentStats.totalCatalogEntries} / ~400 famiglie`
+                  : "—"}
+              </div>
+              <button
+                onClick={() => { void handleStartIngestion(); }}
+                disabled={enqueuingIngestion}
+                style={{
+                  background: "#1976d2", color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: enqueuingIngestion ? "not-allowed" : "pointer",
+                  opacity: enqueuingIngestion ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingIngestion ? "..." : "Avvia →"}
+              </button>
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Prodotti totali</strong>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {enrichmentStats?.totalProductDetails ?? "—"}
+              </div>
+              <div style={{ width: "80px" }} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Pending catalog enrichment</strong>
+              </div>
+              <div style={{ color: enrichmentStats && enrichmentStats.pendingCatalogEnrichment > 0 ? "#e65100" : "#555", fontSize: "13px" }}>
+                {enrichmentStats?.pendingCatalogEnrichment ?? "—"}
+              </div>
+              <button
+                onClick={() => { void handleBulkEnrich(); }}
+                disabled={enqueuingEnrich}
+                style={{
+                  background: "#388e3c", color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: enqueuingEnrich ? "not-allowed" : "pointer",
+                  opacity: enqueuingEnrich ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingEnrich ? "..." : "Bulk enrich →"}
+              </button>
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Pending web enrichment</strong>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {enrichmentStats?.pendingWebEnrichment ?? "—"}
+              </div>
+              <div style={{ width: "80px" }} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px",
+            }}>
+              <div>
+                <strong>Vision API — budget oggi</strong>
+                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
+                  {recognitionBudget?.throttleLevel === "warning" && "⚠️ Avviso soglia"}
+                  {recognitionBudget?.throttleLevel === "limited" && "🔴 Limite raggiunto"}
+                </div>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {recognitionBudget != null
+                  ? `${recognitionBudget.usedToday} / ${recognitionBudget.dailyLimit}`
+                  : "—"}
+              </div>
+              <div style={{ width: "80px" }} />
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: "12px", padding: "10px 14px",
+            backgroundColor: "#fff8e1", borderRadius: "6px",
+            fontSize: "12px", color: "#555", lineHeight: 1.5,
+          }}>
+            Costo stimato ingestion: ~$15–20 (Sonnet, una-tantum) &nbsp;·&nbsp;
+            Costo per scan: ~$0.03 (catalog lookup + 2 pag. PDF)
           </div>
         </section>
 

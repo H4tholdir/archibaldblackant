@@ -110,7 +110,8 @@ export const config = {
   recognition: {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
     dailyLimit: parseInt(process.env.RECOGNITION_DAILY_LIMIT || '500', 10),
-    timeoutMs: parseInt(process.env.RECOGNITION_TIMEOUT_MS || '15000', 10),
+    timeoutMs: parseInt(process.env.RECOGNITION_TIMEOUT_MS || '90000', 10),
+    catalogPdfPath: process.env.CATALOG_PDF_PATH || '/app/catalog/komet-catalog-2025.pdf',
   },
   database: {
     host: process.env.PG_HOST || "localhost",

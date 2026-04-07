@@ -1,17 +1,15 @@
 import type { DbPool } from '../pool';
 
-type GalleryImageType = 'instrument_white_bg' | 'marketing' | 'microscope' | 'clinical' | 'field_scan';
+type GalleryImageType = 'catalog_render' | 'product_photo' | 'application_photo' | 'web';
 
 type GalleryRow = {
   id:         number
   product_id: string
-  image_url:  string
-  local_path: string | null
+  url:        string
   image_type: GalleryImageType
   source:     string
+  alt_text:   string | null
   sort_order: number
-  width:      number | null
-  height:     number | null
   created_at: Date
 };
 
@@ -19,40 +17,34 @@ async function insertGalleryImage(
   pool: DbPool,
   img: {
     product_id: string
-    image_url:  string
-    local_path?: string | null
+    url:        string
     image_type: GalleryImageType
     source:     string
+    alt_text?:  string | null
     sort_order?: number
-    width?:      number | null
-    height?:     number | null
-    file_size?:  number | null
   },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO shared.product_gallery
-       (product_id, image_url, local_path, image_type, source, sort_order, width, height, file_size)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     ON CONFLICT (product_id, image_url) DO UPDATE SET
-       local_path = EXCLUDED.local_path,
+       (product_id, url, image_type, source, alt_text, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (product_id, url) DO UPDATE SET
+       alt_text   = EXCLUDED.alt_text,
        sort_order = EXCLUDED.sort_order`,
     [
       img.product_id,
-      img.image_url,
-      img.local_path ?? null,
+      img.url,
       img.image_type,
       img.source,
+      img.alt_text   ?? null,
       img.sort_order ?? 0,
-      img.width      ?? null,
-      img.height     ?? null,
-      img.file_size  ?? null,
     ],
   );
 }
 
 async function getGalleryByProduct(pool: DbPool, productId: string): Promise<GalleryRow[]> {
   const { rows } = await pool.query<GalleryRow>(
-    `SELECT id, product_id, image_url, local_path, image_type, source, sort_order, width, height, created_at
+    `SELECT id, product_id, url, image_type, source, alt_text, sort_order, created_at
      FROM shared.product_gallery
      WHERE product_id = $1
      ORDER BY sort_order, id`,

@@ -19,11 +19,12 @@ function createSyncProductsHandler(
   trackProductCreated: TrackProductCreatedFn,
   onProductsChanged?: (newProducts: number, ghostsDeleted: number) => Promise<void>,
   onProductsMissingVat?: () => Promise<void>,
+  onNewProduct?: (productId: string) => Promise<void>,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: ProductSyncResult = await syncProducts(
-      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat },
+      { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat, onNewProduct },
       onProgress,
       () => false,
     );

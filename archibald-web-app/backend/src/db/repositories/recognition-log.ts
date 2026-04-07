@@ -6,7 +6,7 @@ type LogEntry = {
   cache_hit:    boolean
   product_id:   string | null
   confidence:   number | null
-  result_state: 'match' | 'shortlist' | 'filter_needed' | 'not_found' | 'error'
+  result_state: 'match' | 'shortlist' | 'not_found' | 'error'
   tokens_used:  number | null
   api_cost_usd: number | null
 };

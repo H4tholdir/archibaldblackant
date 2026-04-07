@@ -20,6 +20,7 @@ export { createUpdateCustomerHandler, type UpdateCustomerBot } from './update-cu
 export { createReadVatStatusHandler, type ReadVatStatusBot } from './read-vat-status';
 export { createBatchDeleteOrdersHandler, type BatchDeleteOrdersBot } from './batch-delete-orders';
 export { createBatchSendToVeronaHandler, type BatchSendToVeronaBot } from './batch-send-to-verona';
-export { createKometCodeParserHandler } from './komet-code-parser';
-export { createKometWebScraperHandler } from './komet-web-scraper';
 export { createRecognitionFeedbackHandler } from './recognition-feedback';
+export { createCatalogIngestionHandler } from './catalog-ingestion';
+export { createCatalogProductEnrichmentHandler } from './catalog-product-enrichment';
+export { createWebProductEnrichmentHandler } from './web-product-enrichment';

@@ -6,41 +6,7 @@ import { getProducts } from '../api/products'
 import type { ProductEnrichment, ProductGalleryImage } from '../api/recognition'
 import type { Product } from '../api/products'
 
-type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor'
-
-const SHAPE_LABELS: Record<string, string> = {
-  round: 'Round', pear: 'Pear', inverted_cone: 'Inverted Cone',
-  cylinder: 'Cylinder', tapered_round_end: 'Tapered Round', flame: 'Flame',
-  torpedo: 'Torpedo', diabolo: 'Diabolo', wheel: 'Wheel', egg: 'Egg',
-  bud: 'Bud', double_cone: 'Double Cone', other: 'Other',
-}
-
-const MATERIAL_LABELS: Record<string, string> = {
-  tungsten_carbide: 'TC', diamond: 'Diamond', diamond_diao: 'DIAO',
-  steel: 'Steel', ceramic: 'Ceramic', polymer: 'Polymer',
-  sonic_tip: 'Sonic', ultrasonic: 'Ultrasonic',
-}
-
-const GRIT_COLORS: Record<string, string> = {
-  white: '#f0f0f0', yellow: '#eab308', red: '#ef4444',
-  blue: '#3b82f6', green: '#22c55e', black: '#222',
-}
-
-const GRIT_LABELS: Record<string, string> = {
-  white: 'UF Bianco', yellow: 'EF Giallo', red: 'Fine Rosso',
-  blue: 'Std Blu', green: 'Grosso Verde', black: 'SC Nero',
-}
-
-const FAMILY_LABELS: Record<string, string> = {
-  diamond_diao: 'Diamantate · DIAO',
-  diamond: 'Diamantate',
-  tungsten_carbide: 'Carburo di Tungsteno',
-  steel: 'Acciaio',
-  ceramic: 'Ceramica',
-  polymer: 'Polimero',
-  sonic_tip: 'Sonico',
-  ultrasonic: 'Ultrasonico',
-}
+type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor' | 'risorse'
 
 function sizeCode(variant: { productId: string; headSizeMm: number }): string {
   const parts = variant.productId.split('.')
@@ -69,7 +35,7 @@ function GalleryArea({
     }}>
       {active && (
         <img
-          src={active.imageUrl}
+          src={active.url}
           alt="gallery principale"
           style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -121,7 +87,7 @@ function GalleryArea({
               }}
             >
               <img
-                src={img.imageUrl}
+                src={img.url}
                 alt={img.imageType}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }}
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -249,13 +215,10 @@ export function ProductDetailPage() {
     )
   }
 
-  const features = enrichment?.features ?? null
   const details = enrichment?.details ?? null
   const gallery = enrichment?.gallery ?? []
   const sizeVariants = enrichment?.sizeVariants ?? []
   const pd = details?.performanceData ?? null
-
-  const familyLine = features?.material ? (FAMILY_LABELS[features.material] ?? null) : null
 
   const priceFormatted = new Intl.NumberFormat('it-IT', {
     style: 'currency', currency: 'EUR',
@@ -265,6 +228,7 @@ export function ProductDetailPage() {
     { id: 'prodotto', label: 'Prodotto' },
     { id: 'clinica', label: 'Clinica' },
     { id: 'misure', label: 'Misure' },
+    { id: 'risorse', label: 'Risorse' },
     { id: 'competitor', label: 'Competitor' },
   ]
 
@@ -277,16 +241,6 @@ export function ProductDetailPage() {
       />
 
       <div style={{ padding: 16 }}>
-        {/* Family line */}
-        {familyLine && (
-          <div style={{
-            fontSize: 10, color: '#f9a825', letterSpacing: '1.5px',
-            textTransform: 'uppercase', marginBottom: 5,
-          }}>
-            {familyLine}
-          </div>
-        )}
-
         {/* Product name */}
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: '0 0 4px' }}>
           {product.name}
@@ -326,56 +280,7 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Prodotto ── */}
         <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
-          {features && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              {features.shape_family && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15 }}>▬</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Forma</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {SHAPE_LABELS[features.shape_family] ?? features.shape_family}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.material && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15, color: '#f9a825' }}>◆</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Materiale</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {MATERIAL_LABELS[features.material] ?? features.material}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.grit_ring_color && features.grit_ring_color !== 'none' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <div style={{ width: 12, height: 12, background: GRIT_COLORS[features.grit_ring_color] ?? '#888', borderRadius: 2, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Grana</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {GRIT_LABELS[features.grit_ring_color] ?? features.grit_ring_color}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {features.shank_type && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1a1a', border: '1px solid #252525', borderRadius: 8, padding: '7px 10px' }}>
-                  <span style={{ fontSize: 15 }}>📏</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b7280', lineHeight: 1, marginBottom: 2 }}>Gambo</div>
-                    <div style={{ fontSize: 12, color: '#e0e0e0', fontWeight: 500, lineHeight: 1 }}>
-                      {features.shank_type.toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {pd && (
+          {pd ? (
             <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
                 Performance vs. standard di mercato
@@ -412,6 +317,10 @@ export function ProductDetailPage() {
               <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>
                 Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
               </div>
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Dati performance non ancora disponibili per questo prodotto.
             </div>
           )}
         </div>
@@ -473,15 +382,88 @@ export function ProductDetailPage() {
           )}
         </div>
 
+        {/* ── Tab: Risorse ── */}
+        <div style={{ display: activeTab === 'risorse' ? 'block' : 'none' }}>
+          {(details?.videoUrl || details?.pdfUrl || details?.sourceUrl) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {details.videoUrl && (
+                <a
+                  href={details.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: '#1a1a1a', borderRadius: 10, padding: '14px 16px',
+                    color: '#fff', textDecoration: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8, background: '#7f1d1d',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, flexShrink: 0,
+                  }}>▶</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Video prodotto</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Guarda su YouTube</div>
+                  </div>
+                </a>
+              )}
+              {details.pdfUrl && (
+                <a
+                  href={details.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: '#1a1a1a', borderRadius: 10, padding: '14px 16px',
+                    color: '#fff', textDecoration: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8, background: '#1e3a5f',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, flexShrink: 0,
+                  }}>PDF</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Scheda tecnica PDF</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Scarica documento</div>
+                  </div>
+                </a>
+              )}
+              {details.sourceUrl && (
+                <div style={{ fontSize: 11, color: '#374151', textAlign: 'right', marginTop: 4 }}>
+                  Fonte:{' '}
+                  <a
+                    href={details.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4b5563' }}
+                  >
+                    {new URL(details.sourceUrl).hostname}
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Nessuna risorsa disponibile per questo prodotto.
+            </div>
+          )}
+        </div>
+
         {/* ── Tab: Competitor ── */}
         <div style={{ display: activeTab === 'competitor' ? 'block' : 'none' }}>
           <div style={{
-            background: '#1a1a1a', border: '1px solid #252525', borderRadius: 12,
-            padding: 20, textAlign: 'center',
+            background: '#1a1a1a', border: '1px dashed #2a2a2a', borderRadius: 12,
+            padding: 24, textAlign: 'center',
           }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
-            <div style={{ color: '#4b5563', fontSize: 14 }}>
-              Equivalenti disponibili in Fase 2
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🏷</div>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+              Equivalenti competitor
+            </div>
+            <div style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.6 }}>
+              Disponibile nella prossima versione.{'\n'}
+              Confronteremo questo prodotto con gli equivalenti Brasseler, Dentsply e 3M.
             </div>
           </div>
         </div>

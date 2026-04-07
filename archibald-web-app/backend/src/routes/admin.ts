@@ -33,6 +33,14 @@ type AdminJob = {
   progress: number;
 };
 
+type EnrichmentStats = {
+  totalCatalogEntries: number
+  totalProductDetails: number
+  pendingCatalogEnrichment: number
+  pendingWebEnrichment: number
+  lastIngestedPage: number | null
+}
+
 type AdminRouterDeps = {
   pool: DbPool;
   getAllUsers: () => Promise<User[]>;
@@ -59,6 +67,7 @@ type AdminRouterDeps = {
     unmatchedProducts: Array<{ excelId: string; excelCodiceArticolo: string; reason: string }>;
     errors: string[];
   }>;
+  getEnrichmentStats: () => Promise<EnrichmentStats>;
 };
 
 const createUserSchema = z.object({
@@ -595,6 +604,16 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (error) {
       logger.error('Error fetching security alerts', { error });
       res.status(500).json({ success: false, error: 'Errore recupero security alerts' });
+    }
+  });
+
+  router.get('/enrichment-stats', async (_req, res) => {
+    try {
+      const stats = await deps.getEnrichmentStats();
+      res.json(stats);
+    } catch (err) {
+      logger.error('[admin] enrichment-stats error', { err });
+      res.status(500).json({ error: 'Failed to fetch enrichment stats' });
     }
   });
 

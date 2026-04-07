@@ -16,11 +16,10 @@ describe('identifyInstrument', () => {
 
   it('posts image to /api/recognition/identify with Authorization header and correct body', async () => {
     const mockResponse: IdentifyResponse = {
-      result: { state: 'not_found', extractedFeatures: null },
+      result: { state: 'not_found' },
       budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
       processingMs: 123,
       imageHash: 'abc123hash',
-      broadCandidates: [],
     }
     const mockFetch = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
@@ -95,7 +94,7 @@ describe('getProductEnrichment', () => {
 
   it('calls GET /api/products/:id/enrichment', async () => {
     const mockEnrichment: ProductEnrichment = {
-      features: null, details: null, gallery: [], competitors: [], sizeVariants: [], recognitionHistory: null
+      details: null, gallery: [], competitors: [], sizeVariants: [], recognitionHistory: null
     }
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,

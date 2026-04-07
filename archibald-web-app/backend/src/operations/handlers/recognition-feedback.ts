@@ -51,11 +51,9 @@ function createRecognitionFeedbackHandler(deps: RecognitionFeedbackDeps): Operat
     const imageUrl = `/assets/product-images/${productId.replace(/\./g, '/')}/field/${filename}`;
     await insertGalleryImage(pool, {
       product_id: productId,
-      image_url:  imageUrl,
-      local_path: localPath,
-      image_type: 'field_scan',
+      url:        imageUrl,
+      image_type: 'product_photo',
       source:     `agent:${userId}`,
-      file_size:  resized.length,
     });
 
     onProgress(100, 'Immagine salvata in gallery');

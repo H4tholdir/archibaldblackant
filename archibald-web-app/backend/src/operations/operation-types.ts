@@ -20,9 +20,9 @@ const OPERATION_TYPES = [
   'sync-prices',
   'sync-tracking',
   'sync-customer-addresses',
-  // komet-pdf-extractor deferred to P2 (pdfjs-dist integration)
-  'komet-code-parser',
-  'komet-web-scraper',
+  'catalog-ingestion',
+  'catalog-product-enrichment',
+  'web-product-enrichment',
   'recognition-feedback',
 ] as const;
 
@@ -50,9 +50,10 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'sync-prices': 17,
   'sync-tracking': 18,
   'sync-customer-addresses': 19,
-  'komet-code-parser':    20,
-  'komet-web-scraper':    21,
-  'recognition-feedback':  5,
+  'catalog-ingestion':          5,
+  'catalog-product-enrichment': 3,
+  'web-product-enrichment':     2,
+  'recognition-feedback':       5,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([
@@ -77,8 +78,6 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-tracking',
   'sync-customer-addresses',
   'sync-order-states',
-  'komet-code-parser',
-  'komet-web-scraper',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {

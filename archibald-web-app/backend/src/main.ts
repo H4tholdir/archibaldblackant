@@ -45,11 +45,14 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
   createReadVatStatusHandler,
-  createKometCodeParserHandler,
-  createKometWebScraperHandler,
   createRecognitionFeedbackHandler,
+  createCatalogIngestionHandler,
+  createCatalogProductEnrichmentHandler,
+  createWebProductEnrichmentHandler,
 } from './operations/handlers';
-import { createVisionService } from './services/anthropic-vision-service';
+import Anthropic from '@anthropic-ai/sdk';
+import { createCatalogVisionService } from './services/anthropic-vision-service';
+import { createCatalogPdfService } from './services/catalog-pdf-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { getRemindersOverdueOrToday } from './db/repositories/customer-reminders';
 import { createNotification, type CreateNotificationParams } from './services/notification-service';
@@ -418,10 +421,16 @@ async function bootstrap(): Promise<void> {
     return { path: result.result.path_display ?? dropboxPath };
   };
 
-  const callVisionApi = config.recognition.anthropicApiKey
-    ? createVisionService({
+  const catalogPdf = createCatalogPdfService(config.recognition.catalogPdfPath)
+  const anthropicCatalogClient = config.recognition.anthropicApiKey
+    ? new Anthropic({ apiKey: config.recognition.anthropicApiKey })
+    : undefined;
+  const catalogVisionService = config.recognition.anthropicApiKey
+    ? createCatalogVisionService({
         apiKey: config.recognition.anthropicApiKey,
         timeoutMs: config.recognition.timeoutMs,
+        pool,
+        catalogPdf,
       })
     : undefined;
 
@@ -449,7 +458,7 @@ async function bootstrap(): Promise<void> {
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
-    callVisionApi,
+    catalogVisionService,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
   });
@@ -1030,6 +1039,10 @@ async function bootstrap(): Promise<void> {
           data: { missingVatCount: missingCount },
         });
       },
+      async (productId: string) => {
+        await allQueues['enrichment'].enqueue('catalog-product-enrichment', 'service', { productId });
+        await allQueues['enrichment'].enqueue('web-product-enrichment', 'service', { productId }, undefined, 30_000);
+      },
     ), 'Prodotti', notifyAdmin),
     'sync-tracking': createSyncTrackingHandler(
       pool,
@@ -1098,9 +1111,43 @@ async function bootstrap(): Promise<void> {
       },
     ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
-    'komet-code-parser': createKometCodeParserHandler({ pool }),
-    'komet-web-scraper': createKometWebScraperHandler({ pool }),
     'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
+    ...(config.recognition.anthropicApiKey && anthropicCatalogClient ? {
+      'catalog-ingestion': createCatalogIngestionHandler({
+        pool,
+        catalogPdf,
+        callSonnet: async (images, prompt) => {
+          const response = await anthropicCatalogClient.messages.create({
+            model: 'claude-sonnet-4-5-20251001',
+            max_tokens: 4096,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  ...images.map(img => ({
+                    type: 'image' as const,
+                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                  })),
+                  { type: 'text' as const, text: prompt },
+                ],
+              },
+            ],
+          });
+          const content = response.content[0];
+          return content?.type === 'text' ? content.text : '[]';
+        },
+      }),
+      'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
+      'web-product-enrichment': createWebProductEnrichmentHandler({
+        pool,
+        fetchUrl: async (url) => {
+          const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+          const html = await res.text();
+          return { html, finalUrl: res.url };
+        },
+        searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
+      }),
+    } : {}),
   };
 
   const processor = createOperationProcessor({

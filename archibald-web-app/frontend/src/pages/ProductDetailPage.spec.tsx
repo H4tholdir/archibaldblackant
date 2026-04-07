@@ -12,7 +12,7 @@ beforeEach(() => { localStorage.setItem('archibald_jwt', TOKEN) })
 afterEach(() => { localStorage.clear(); vi.restoreAllMocks() })
 
 const EMPTY_ENRICHMENT: ProductEnrichment = {
-  features: null, details: null, gallery: [],
+  details: null, gallery: [],
   competitors: [], sizeVariants: [], recognitionHistory: null,
 }
 
@@ -92,10 +92,6 @@ describe('ProductDetailPage — loading e dati base', () => {
 })
 
 const FULL_ENRICHMENT: ProductEnrichment = {
-  features: {
-    shape_family: 'round', material: 'diamond', grit_ring_color: 'red',
-    shank_type: 'fg', shank_length_category: null, head_shank_ratio: null, confidence: 0.99,
-  },
   details: {
     clinicalDescription: 'Per rifinitura smalto e dentina',
     procedures: 'Usare a 150.000 RPM con irrigazione',
@@ -103,8 +99,8 @@ const FULL_ENRICHMENT: ProductEnrichment = {
     videoUrl: null, pdfUrl: null, sourceUrl: null,
   },
   gallery: [
-    { id: 1, imageUrl: 'https://example.com/img1.png', localPath: null, imageType: 'instrument_white_bg', source: 'kometdental.com', sortOrder: 0, width: 450, height: 450 },
-    { id: 2, imageUrl: 'https://example.com/img2.jpg', localPath: null, imageType: 'clinical', source: 'kometdental.com', sortOrder: 1, width: 800, height: 600 },
+    { id: 1, url: 'https://example.com/img1.png', altText: null, imageType: 'catalog_render', source: 'kometdental.com', sortOrder: 0 },
+    { id: 2, url: 'https://example.com/img2.jpg', altText: null, imageType: 'product_photo', source: 'kometdental.com', sortOrder: 1 },
   ],
   competitors: [],
   sizeVariants: [
@@ -128,21 +124,6 @@ describe('ProductDetailPage — gallery', () => {
     await waitFor(() =>
       expect(screen.getByRole('img', { name: /strumento|prodotto|gallery/i })).toBeInTheDocument()
     )
-  })
-})
-
-describe('ProductDetailPage — badge features', () => {
-  beforeEach(() => {
-    vi.spyOn(recognitionApi, 'getProductEnrichment').mockResolvedValue(FULL_ENRICHMENT)
-    vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
-  })
-
-  it('mostra badge forma, materiale, grana e gambo', async () => {
-    renderPage()
-    await waitFor(() => expect(screen.getByText('Round')).toBeInTheDocument())
-    expect(screen.getByText('Diamond')).toBeInTheDocument()
-    expect(screen.getByText('Fine Rosso')).toBeInTheDocument()
-    expect(screen.getByText('FG')).toBeInTheDocument()
   })
 })
 
@@ -175,12 +156,12 @@ describe('ProductDetailPage — performance e CTA', () => {
     expect(screen.getByText(/160[.,]?000\s*RPM/i)).toBeInTheDocument()
   })
 
-  it('mostra tab competitor con label "Fase 2"', async () => {
+  it('mostra tab competitor con placeholder prossima versione', async () => {
     renderPage()
     await waitFor(() =>
-      expect(screen.getByText(/Competitor/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/Competitor/i).length).toBeGreaterThanOrEqual(1)
     )
-    expect(screen.getByText(/Fase 2|prossimamente|coming soon/i)).toBeInTheDocument()
+    expect(screen.getByText('Equivalenti competitor')).toBeInTheDocument()
   })
 
   it('mostra blocco prezzo nella CTA sticky', async () => {

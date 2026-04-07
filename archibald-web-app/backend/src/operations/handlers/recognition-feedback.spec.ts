@@ -1,3 +1,4 @@
+import os from 'os';
 import { describe, expect, test, vi } from 'vitest';
 import { createRecognitionFeedbackHandler } from './recognition-feedback';
 import type { DbPool } from '../../db/pool';
@@ -26,7 +27,7 @@ describe('createRecognitionFeedbackHandler', () => {
     const mockResize = vi.fn().mockResolvedValue(Buffer.from('resized-data'));
 
     // Use a temp dir to avoid writing to /app/assets in test
-    const tmpDir = require('os').tmpdir();
+    const tmpDir = os.tmpdir();
     const handler = createRecognitionFeedbackHandler({
       pool: mockPool,
       assetsDir: tmpDir,
