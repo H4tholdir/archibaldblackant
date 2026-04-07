@@ -422,7 +422,9 @@ async function bootstrap(): Promise<void> {
   };
 
   const catalogPdf = createCatalogPdfService(config.recognition.catalogPdfPath)
-  const anthropicCatalogClient = new Anthropic({ apiKey: config.recognition.anthropicApiKey });
+  const anthropicCatalogClient = config.recognition.anthropicApiKey
+    ? new Anthropic({ apiKey: config.recognition.anthropicApiKey })
+    : undefined;
   const catalogVisionService = config.recognition.anthropicApiKey
     ? createCatalogVisionService({
         apiKey: config.recognition.anthropicApiKey,
@@ -1110,40 +1112,42 @@ async function bootstrap(): Promise<void> {
     ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
     'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
-    'catalog-ingestion': createCatalogIngestionHandler({
-      pool,
-      catalogPdf,
-      callSonnet: async (images, prompt) => {
-        const response = await anthropicCatalogClient.messages.create({
-          model: 'claude-sonnet-4-5-20251001',
-          max_tokens: 4096,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                ...images.map(img => ({
-                  type: 'image' as const,
-                  source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
-                })),
-                { type: 'text' as const, text: prompt },
-              ],
-            },
-          ],
-        });
-        const content = response.content[0];
-        return content?.type === 'text' ? content.text : '[]';
-      },
-    }),
-    'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
-    'web-product-enrichment': createWebProductEnrichmentHandler({
-      pool,
-      fetchUrl: async (url) => {
-        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        const html = await res.text();
-        return { html, finalUrl: res.url };
-      },
-      searchWeb: async (_query) => [],
-    }),
+    ...(config.recognition.anthropicApiKey && anthropicCatalogClient ? {
+      'catalog-ingestion': createCatalogIngestionHandler({
+        pool,
+        catalogPdf,
+        callSonnet: async (images, prompt) => {
+          const response = await anthropicCatalogClient.messages.create({
+            model: 'claude-sonnet-4-5-20251001',
+            max_tokens: 4096,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  ...images.map(img => ({
+                    type: 'image' as const,
+                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                  })),
+                  { type: 'text' as const, text: prompt },
+                ],
+              },
+            ],
+          });
+          const content = response.content[0];
+          return content?.type === 'text' ? content.text : '[]';
+        },
+      }),
+      'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
+      'web-product-enrichment': createWebProductEnrichmentHandler({
+        pool,
+        fetchUrl: async (url) => {
+          const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+          const html = await res.text();
+          return { html, finalUrl: res.url };
+        },
+        searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
+      }),
+    } : {}),
   };
 
   const processor = createOperationProcessor({

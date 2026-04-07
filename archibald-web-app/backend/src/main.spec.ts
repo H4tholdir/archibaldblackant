@@ -17,7 +17,7 @@ vi.mock('./config', () => ({
       'bot-queue': { concurrency: 1, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: { count: 100 } },
     },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
-    recognition: { anthropicApiKey: '', dailyLimit: 500, timeoutMs: 15000 },
+    recognition: { anthropicApiKey: 'test-api-key', dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
   },
 }));
 
@@ -245,6 +245,19 @@ vi.mock('./operations/handlers', () => ({
 
 vi.mock('./services/anthropic-vision-service', () => ({
   createCatalogVisionService: vi.fn(() => ({ identifyFromImage: vi.fn() })),
+}));
+
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: vi.fn(() => ({
+    messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '[]' }] }) },
+  })),
+}));
+
+vi.mock('./services/catalog-pdf-service', () => ({
+  createCatalogPdfService: vi.fn(() => ({
+    getPageAsBase64: vi.fn().mockResolvedValue(''),
+    getTotalPages: vi.fn().mockResolvedValue(10),
+  })),
 }));
 
 vi.mock('bullmq', () => {

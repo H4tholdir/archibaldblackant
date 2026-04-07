@@ -175,7 +175,7 @@ async function extractProductFamilies(
             shank_options, size_options, rpm_max, clinical_indications,
             usage_notes, pictograms, packaging_info, notes, raw_extraction)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-         ON CONFLICT DO NOTHING`,
+         ON CONFLICT (catalog_page, (family_codes[1])) DO NOTHING`,
         [
           family.family_codes,
           p,

@@ -57,7 +57,8 @@ CREATE TABLE shared.catalog_entries (
   notes                 TEXT,
   raw_extraction        JSONB NOT NULL DEFAULT '{}',
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_catalog_entries_family_page UNIQUE (catalog_page, (family_codes[1]))
 );
 
 CREATE INDEX idx_catalog_entries_page   ON shared.catalog_entries(catalog_page);

@@ -33,7 +33,7 @@ type IdentificationResult = {
 
 type RecognitionResult =
   | { state: 'match';           product: ProductMatch; confidence: number }
-  | { state: 'shortlist';       candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures }
+  | { state: 'shortlist';       candidates: ProductMatch[]; extractedFeatures: InstrumentFeatures | null }
   | { state: 'not_found';       extractedFeatures: InstrumentFeatures | null }
   | { state: 'budget_exhausted' }
   | { state: 'error';           message: string };

@@ -181,7 +181,7 @@ describe('createCatalogIngestionHandler', () => {
 
     const insertCall = vi.mocked(pool.query).mock.calls[2]!;
     expect(insertCall[0]).toMatch(/INSERT INTO shared\.catalog_entries/);
-    expect(insertCall[0]).toMatch(/ON CONFLICT DO NOTHING/);
+    expect(insertCall[0]).toMatch(/ON CONFLICT \(catalog_page, \(family_codes\[1\]\)\) DO NOTHING/);
 
     const params = insertCall[1]!;
     expect(params).toEqual([
