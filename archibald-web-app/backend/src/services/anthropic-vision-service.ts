@@ -155,7 +155,7 @@ WHERE
          COALESCE(shape_description,'') || ' ' ||
          COALESCE(material_description,'') || ' ' ||
          COALESCE(identification_clues,''))
-       @@ plainto_tsquery('simple', $3)
+       @@ websearch_to_tsquery('simple', $3)
   )
 ORDER BY catalog_page
 LIMIT 10
@@ -355,8 +355,13 @@ async function runAgenticLoop(
 async function runSearchCatalog(pool: DbPool, input: SearchCatalogInput): Promise<string> {
   const shankLengthMm = input.shank_length_mm ?? null
   const productType   = input.product_type ?? null
-  const description   = input.description
 
-  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankLengthMm, productType, description])
+  // Convert description to OR-based websearch query so single matching terms suffice
+  const orQuery = input.description
+    .split(/\s+/)
+    .filter(w => w.length >= 3)
+    .join(' OR ')
+
+  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankLengthMm, productType, orQuery])
   return JSON.stringify(rows)
 }
