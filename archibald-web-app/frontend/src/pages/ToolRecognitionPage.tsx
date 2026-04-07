@@ -1,5 +1,5 @@
 // archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type RefCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
@@ -67,10 +67,17 @@ function SizeBar({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
 export function ToolRecognitionPage() {
   const auth = useAuth()
   const navigate = useNavigate()
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const rulerCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const rulerDivRef = useRef<HTMLDivElement>(null)
+
+  const videoCallbackRef: RefCallback<HTMLVideoElement> = useCallback((node) => {
+    videoRef.current = node
+    if (node && streamRef.current) {
+      node.srcObject = streamRef.current
+    }
+  }, [])
 
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
@@ -561,7 +568,7 @@ export function ToolRecognitionPage() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
       <video
-        ref={videoRef}
+        ref={videoCallbackRef}
         autoPlay
         playsInline
         muted
