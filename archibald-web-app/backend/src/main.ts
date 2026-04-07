@@ -1220,6 +1220,7 @@ async function bootstrap(): Promise<void> {
         concurrency: queueConfig.concurrency,
         lockDuration: queueConfig.lockDuration,
         stalledInterval: queueConfig.stalledInterval,
+        maxStalledCount: 10,
       },
     );
     return { worker: w, connection: conn };
