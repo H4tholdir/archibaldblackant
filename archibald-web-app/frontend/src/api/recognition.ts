@@ -79,7 +79,7 @@ export async function identifyInstrument(
   imageBase64: string,
 ): Promise<IdentifyResponse> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 40_000)
+  const timeoutId = setTimeout(() => controller.abort(), 90_000)
   try {
     const res = await fetch('/api/recognition/identify', {
       method:  'POST',

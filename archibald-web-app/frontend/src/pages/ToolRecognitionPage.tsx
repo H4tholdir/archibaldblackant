@@ -270,7 +270,7 @@ export function ToolRecognitionPage() {
   if (pageState === 'analyzing') {
     const STEP_LABELS = [
       'Foto acquisita',
-      'Analisi con AI',
+      'Analisi con AI  (30–60 s)',
       'Confronto con catalogo',
       'Identificazione',
     ]
