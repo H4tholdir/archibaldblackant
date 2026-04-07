@@ -22,8 +22,8 @@ function extractFamilyCode(productId: string): string {
   return productId.slice(0, dotIndex);
 }
 
-async function enrichProduct(pool: DbPool, productId: string): Promise<'enriched' | 'not_found'> {
-  const familyCode = extractFamilyCode(productId);
+async function enrichProduct(pool: DbPool, productId: string, productName: string): Promise<'enriched' | 'not_found'> {
+  const familyCode = extractFamilyCode(productName);
 
   const { rows } = await pool.query<CatalogEntryRow>(
     `SELECT catalog_page,
@@ -88,16 +88,21 @@ function createCatalogProductEnrichmentHandler(deps: CatalogProductEnrichmentDep
     const productId = typeof data.productId === 'string' ? data.productId : null;
 
     if (productId !== null) {
+      const { rows: nameRows } = await pool.query<{ name: string }>(
+        'SELECT name FROM shared.products WHERE id = $1',
+        [productId],
+      );
+      const productName = nameRows[0]?.name ?? productId;
       onProgress(0, `Enriching product ${productId}`);
-      const outcome = await enrichProduct(pool, productId);
+      const outcome = await enrichProduct(pool, productId, productName);
       onProgress(100, 'Done');
       return outcome === 'enriched'
         ? { enriched: 1, notFound: 0 }
         : { enriched: 0, notFound: 1 };
     }
 
-    const { rows: products } = await pool.query<{ id: string }>(
-      `SELECT p.id FROM shared.products p
+    const { rows: products } = await pool.query<{ id: string; name: string }>(
+      `SELECT p.id, p.name FROM shared.products p
        LEFT JOIN shared.product_details pd ON pd.product_id = p.id
        WHERE pd.catalog_enriched_at IS NULL AND p.deleted_at IS NULL`,
     );
@@ -106,7 +111,7 @@ function createCatalogProductEnrichmentHandler(deps: CatalogProductEnrichmentDep
     let notFound = 0;
 
     for (let i = 0; i < products.length; i++) {
-      const outcome = await enrichProduct(pool, products[i].id);
+      const outcome = await enrichProduct(pool, products[i].id, products[i].name);
       if (outcome === 'enriched') {
         enriched++;
       } else {
