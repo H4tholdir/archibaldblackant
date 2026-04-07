@@ -13898,14 +13898,12 @@ export class ArchibaldBot {
     // navigateToCustomerByErpId. Clicking Modifica — instead of navigating directly
     // to ?mode=Edit — ensures XAF properly initialises all ComboBox widgets.
     const editClicked = await this.page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('a, button'))
-        .filter((el) => (el as HTMLElement).offsetParent !== null)
-        .find(
-          (el) =>
-            /modif|edit/i.test((el as HTMLElement).title ?? '') ||
-            /modif|edit/i.test(el.textContent?.trim() ?? ''),
-        );
-      if (btn) { (btn as HTMLElement).click(); return true; }
+      // Selettore certificato Bibbia ERP: ID Vertical_mainMenu_Menu_DXI1_T, title "Modificare"
+      const btn =
+        (document.querySelector('[id*="Vertical_mainMenu_Menu_DXI1_T"]') as HTMLElement | null) ??
+        (Array.from(document.querySelectorAll('[title]'))
+          .find((el) => /modif/i.test((el as HTMLElement).title)) as HTMLElement | null);
+      if (btn) { btn.click(); return true; }
       return false;
     });
 
