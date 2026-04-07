@@ -21,6 +21,10 @@ const PRODUCT_PAGES_START = 10;
 const MAX_SONNET_RETRIES = 3;
 const INTER_PAGE_DELAY_MS = 500;
 
+function stripMarkdownFences(raw: string): string {
+  return raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+}
+
 const READING_GUIDE_PROMPT = `You are a Komet dental instrument catalog expert. Analyze pages 5-9 of the Komet 2025 catalog.
 These pages contain reading instructions for the catalog.
 
@@ -103,9 +107,10 @@ async function extractReadingGuide(deps: CatalogIngestionDeps): Promise<Record<s
   );
 
   const raw = await deps.callSonnet(images, READING_GUIDE_PROMPT);
+  const cleaned = stripMarkdownFences(raw);
   let content: Record<string, unknown>;
   try {
-    content = JSON.parse(raw) as Record<string, unknown>;
+    content = JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
     throw new Error(`[catalog-ingestion] Reading guide response was not valid JSON: ${raw.slice(0, 200)}`);
   }
@@ -156,7 +161,7 @@ async function extractProductFamilies(
 
     let families: FamilyExtraction[];
     try {
-      families = JSON.parse(raw) as FamilyExtraction[];
+      families = JSON.parse(stripMarkdownFences(raw)) as FamilyExtraction[];
     } catch {
       logger.error('[catalog-ingestion] Page JSON parse failed, skipping', { page: p, raw: raw.slice(0, 200) });
       continue;
