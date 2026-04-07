@@ -9,6 +9,7 @@ const QUEUE_ROUTING: Record<OperationType, QueueName> = {
   'create-customer': 'writes',
   'update-customer': 'writes',
   'read-vat-status': 'writes',
+  'refresh-customer': 'writes',
   'send-to-verona': 'writes',
   'batch-send-to-verona': 'writes',
   'edit-order': 'writes',

@@ -97,6 +97,24 @@ describe('isScheduledSync', () => {
   });
 });
 
+describe('refresh-customer operation type', () => {
+  test('è incluso in OPERATION_TYPES', () => {
+    expect(OPERATION_TYPES).toContain('refresh-customer');
+  });
+
+  test('ha una priorità definita', () => {
+    expect(OPERATION_PRIORITIES['refresh-customer']).toBe(4);
+  });
+
+  test('non è una write operation', () => {
+    expect(isWriteOperation('refresh-customer')).toBe(false);
+  });
+
+  test('non è uno scheduled sync', () => {
+    expect(isScheduledSync('refresh-customer')).toBe(false);
+  });
+});
+
 describe('recognition operation types', () => {
   const recognitionOps = [
     'catalog-ingestion',

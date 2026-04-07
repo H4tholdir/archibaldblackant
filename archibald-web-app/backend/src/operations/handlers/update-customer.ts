@@ -1,7 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { CustomerSnapshot, CustomerDiff, AddressEntry } from '../../types';
-import { updateVatValidatedAt, updateAgentNotes } from '../../db/repositories/customers';
+import { updateVatValidatedAt, updateAgentNotes, setErpDetailReadAt } from '../../db/repositories/customers';
 import { logger } from '../../logger';
 
 type UpdateCustomerPayload = {
@@ -137,6 +137,8 @@ async function handleUpdateCustomer(
   if (diff.vatNumber !== undefined) {
     await updateVatValidatedAt(pool, userId, erpId);
   }
+
+  await setErpDetailReadAt(pool, userId, erpId);
 
   onProgress(88, 'Aggiornamento stato');
   onProgress(100, 'Aggiornamento completato');

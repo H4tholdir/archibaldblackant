@@ -45,6 +45,7 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
   createReadVatStatusHandler,
+  createRefreshCustomerHandler,
   createRecognitionFeedbackHandler,
   createCatalogIngestionHandler,
   createCatalogProductEnrichmentHandler,
@@ -655,6 +656,19 @@ async function bootstrap(): Promise<void> {
       return {
         readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
+      };
+    }),
+    'refresh-customer': createRefreshCustomerHandler(pool, (userId) => {
+      const bot = createBotForUser(userId);
+      let initialized = false;
+      const ensureInit = async () => {
+        if (!initialized) { await bot.initialize(); initialized = true; }
+      };
+      return {
+        initialize: async () => { await ensureInit(); },
+        navigateToCustomerByErpId: async (erpId) => { await ensureInit(); return bot.navigateToCustomerByErpId(erpId); },
+        readCustomerFields: async () => { await ensureInit(); return bot.readCustomerFields(); },
+        close: () => bot.close(),
       };
     }),
     'delete-order': createDeleteOrderHandler(pool, (userId) => {

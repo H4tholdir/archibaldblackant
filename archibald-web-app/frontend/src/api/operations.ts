@@ -15,7 +15,8 @@ type OperationType =
   | 'sync-products'
   | 'sync-prices'
   | 'sync-customer-addresses'
-  | 'read-vat-status';
+  | 'read-vat-status'
+  | 'refresh-customer';
 
 type EnqueueResponse = {
   success: boolean;
@@ -31,6 +32,7 @@ type JobStatusResponse = {
     userId: string;
     state: string;
     progress: number;
+    progressLabel?: string;
     result: Record<string, unknown> | null;
     failedReason: string | undefined;
   };
@@ -181,7 +183,7 @@ async function pollJobUntilDone(
       }
 
       if (typeof job.progress === 'number') {
-        onProgress?.(job.progress);
+        onProgress?.(job.progress, job.progressLabel);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';

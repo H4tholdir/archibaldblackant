@@ -53,6 +53,7 @@ const mockCustomer = {
   lineDiscount: 'N/A', paymentTerms: '30gg DFFM', notes: null,
   lastOrderDate: '2025-10-15', createdAt: Date.now(),
   vatValidatedAt: '2026-01-01T00:00:00Z',
+  erpDetailReadAt: new Date().toISOString() as string | null,
 };
 
 function renderProfile(erpId = 'A001') {
@@ -248,6 +249,70 @@ describe('CustomerProfilePage — Storico ordini', () => {
       expect(screen.getByText('N° 12345')).toBeInTheDocument();
       expect(screen.getByText('N° 12300')).toBeInTheDocument();
     });
+  });
+});
+
+const STALE_CUSTOMER = { ...mockCustomer, erpDetailReadAt: null };
+const FRESH_CUSTOMER = { ...mockCustomer, erpDetailReadAt: new Date().toISOString() };
+
+function renderWithCustomer(customer: typeof mockCustomer) {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ success: true, data: customer }),
+  }));
+  vi.stubGlobal('localStorage', { getItem: vi.fn().mockReturnValue('fake-jwt') });
+  return render(
+    <MemoryRouter initialEntries={[`/customers/${customer.erpId}`]}>
+      <Routes>
+        <Route path="/customers/:erpId" element={<CustomerProfilePage />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+describe('handleEnterEditMode — stale data', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.mocked(enqueueOperation).mockClear();
+  });
+
+  test('con erpDetailReadAt = null mostra overlay e chiama enqueueOperation', async () => {
+    const { pollJobUntilDone } = await import('../api/operations');
+    (pollJobUntilDone as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+
+    renderWithCustomer(STALE_CUSTOMER);
+    await waitFor(() => expect(screen.getAllByText('Rossi Mario')[0]).toBeInTheDocument());
+
+    const modifyBtn = getModifyButton();
+    fireEvent.click(modifyBtn);
+
+    await waitFor(() =>
+      expect(enqueueOperation).toHaveBeenCalledWith('refresh-customer', { erpId: 'A001' }),
+    );
+    expect(screen.getByText('Lettura dati ERP…')).toBeInTheDocument();
+  });
+
+  test('con erpDetailReadAt < 30 min non chiama enqueueOperation ed entra in editMode', async () => {
+    renderWithCustomer(FRESH_CUSTOMER);
+    await waitFor(() => expect(screen.getAllByText('Rossi Mario')[0]).toBeInTheDocument());
+
+    const modifyBtn = getModifyButton();
+    fireEvent.click(modifyBtn);
+
+    await waitFor(() => expect(screen.getByText('💾 Salva')).toBeInTheDocument());
+    expect(enqueueOperation).not.toHaveBeenCalledWith('refresh-customer', expect.anything());
+  });
+
+  test('se refresh fallisce entra in editMode comunque', async () => {
+    const { pollJobUntilDone } = await import('../api/operations');
+    (pollJobUntilDone as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('bot error'));
+
+    renderWithCustomer(STALE_CUSTOMER);
+    await waitFor(() => expect(screen.getAllByText('Rossi Mario')[0]).toBeInTheDocument());
+
+    fireEvent.click(getModifyButton());
+
+    await waitFor(() => expect(screen.getByText('💾 Salva')).toBeInTheDocument());
   });
 });
 

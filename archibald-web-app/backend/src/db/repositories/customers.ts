@@ -50,6 +50,7 @@ type CustomerRow = {
   state: string | null;
   country: string | null;
   agent_notes: string | null;
+  erp_detail_read_at: string | null;
 };
 
 type Customer = {
@@ -101,6 +102,7 @@ type Customer = {
   state: string | null;
   country: string | null;
   agentNotes: string | null;
+  erpDetailReadAt: string | null;
 };
 
 type CustomerInput = {
@@ -137,11 +139,13 @@ type CustomerInput = {
 
 type CustomerFormInput = {
   name: string;
+  nameAlias?: string;
   vatNumber?: string;
   pec?: string;
   sdi?: string;
   street?: string;
   postalCode?: string;
+  city?: string;
   phone?: string;
   mobile?: string;
   email?: string;
@@ -156,6 +160,7 @@ type CustomerFormInput = {
   state?: string;
   country?: string;
   lineDiscount?: string;
+  priceGroup?: string;
 };
 
 type UpsertResult = {
@@ -175,7 +180,8 @@ const COLUMNS_WITHOUT_PHOTO = `
   previous_order_count_2, previous_sales_2,
   external_account_number, our_account_number,
   hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at,
-  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes
+  sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes,
+  erp_detail_read_at
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -228,6 +234,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     state: row.state,
     country: row.country,
     agentNotes: row.agent_notes,
+    erpDetailReadAt: row.erp_detail_read_at,
   };
 }
 
@@ -330,7 +337,7 @@ async function getMyCustomers(pool: DbPool, userId: string): Promise<Customer[]>
        c.hash, c.last_sync, c.created_at, c.updated_at, c.bot_status, c.archibald_name,
        NULL::bytea AS photo, c.vat_validated_at,
        c.sector, c.price_group, c.line_discount, c.payment_terms, c.notes,
-       c.name_alias, c.county, c.state, c.country, c.agent_notes,
+       c.name_alias, c.county, c.state, c.country, c.agent_notes, c.erp_detail_read_at,
        (SELECT MAX(o.creation_date) FROM agents.order_records o
         WHERE o.user_id = c.user_id AND o.customer_account_num = c.account_num
        ) AS effective_last_order_date
@@ -591,11 +598,11 @@ async function upsertSingleCustomer(
   await pool.query(
     `INSERT INTO agents.customers (
       erp_id, user_id, name, vat_number, fiscal_code, pec, sdi,
-      street, postal_code, phone, mobile, email, url, attention_to,
+      street, postal_code, city, phone, mobile, email, url, attention_to,
       delivery_terms, payment_terms, sector, notes, county, state, country,
       price_group, line_discount,
       hash, last_sync, bot_status
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
     ON CONFLICT (erp_id, user_id) DO UPDATE SET
       name = EXCLUDED.name,
       vat_number = EXCLUDED.vat_number,
@@ -604,6 +611,7 @@ async function upsertSingleCustomer(
       sdi = EXCLUDED.sdi,
       street = EXCLUDED.street,
       postal_code = EXCLUDED.postal_code,
+      city = EXCLUDED.city,
       phone = EXCLUDED.phone,
       mobile = EXCLUDED.mobile,
       email = EXCLUDED.email,
@@ -627,13 +635,14 @@ async function upsertSingleCustomer(
       formData.vatNumber ?? null, formData.fiscalCode ?? null,
       formData.pec ?? null, formData.sdi ?? null,
       formData.street ?? null, formData.postalCode ?? null,
+      formData.city ?? null,
       formData.phone ?? null, formData.mobile ?? null,
       formData.email ?? null, formData.url ?? null,
       formData.attentionTo ?? null,
       formData.deliveryMode ?? null, formData.paymentTerms ?? null,
       formData.sector ?? null, formData.notes ?? null,
       formData.county ?? null, formData.state ?? null, formData.country ?? null,
-      'DETTAGLIO (consigliato)', 'N/A',
+      formData.priceGroup ?? null, formData.lineDiscount ?? null,
       hash, now, botStatus,
     ],
   );
@@ -698,6 +707,18 @@ async function updateVatValidatedAt(
   await pool.query(
     `UPDATE agents.customers
      SET vat_validated_at = NOW()
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
+  );
+}
+
+async function setErpDetailReadAt(
+  pool: DbPool,
+  userId: string,
+  erpId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET erp_detail_read_at = NOW(), updated_at = NOW()
      WHERE erp_id = $1 AND user_id = $2`,
     [erpId, userId],
   );
@@ -803,6 +824,7 @@ export {
   updateCustomerErpId,
   updateArchibaldName,
   updateVatValidatedAt,
+  setErpDetailReadAt,
   updateAgentNotes,
   getCustomerPhoto,
   setCustomerPhoto,
