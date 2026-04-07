@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import {
   identifyInstrument,
   getRecognitionBudget,
+  getRulerImage,
   submitRecognitionFeedback,
 } from '../api/recognition'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
@@ -69,6 +70,7 @@ export function ToolRecognitionPage() {
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const rulerImgRef = useRef<HTMLImageElement | null>(null)
 
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
@@ -77,12 +79,25 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
+  const [rulerBase64, setRulerBase64] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
     if (!token) return
     getRecognitionBudget(token).then(setBudget).catch(console.error)
   }, [auth.token])
+
+  useEffect(() => {
+    const token = localStorage.getItem('archibald_jwt')
+    if (!token) return
+    getRulerImage(token).then(base64 => {
+      if (!base64) return
+      setRulerBase64(base64)
+      const img = new Image()
+      img.onload = () => { rulerImgRef.current = img }
+      img.src = `data:image/png;base64,${base64}`
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -131,6 +146,10 @@ export function ToolRecognitionPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
     ctx.drawImage(video, 0, 0)
+    if (rulerImgRef.current) {
+      const rulerH = Math.round(canvas.height * 0.28)
+      ctx.drawImage(rulerImgRef.current, 0, canvas.height - rulerH, canvas.width, rulerH)
+    }
     return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/\w+;base64,/, '')
   }, [])
 
@@ -522,6 +541,33 @@ export function ToolRecognitionPage() {
 
       {pageState === 'idle' && <Viewfinder />}
 
+      {pageState === 'idle' && rulerBase64 && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0, left: 0, right: 0,
+          height: '28%',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}>
+          <img
+            src={`data:image/png;base64,${rulerBase64}`}
+            style={{
+              width: '100%', height: '100%',
+              objectFit: 'cover', objectPosition: 'bottom center',
+              opacity: 0.75,
+            }}
+            alt=""
+          />
+          <div style={{
+            position: 'absolute', bottom: 4, right: 8,
+            color: 'rgba(255,255,200,0.85)', fontSize: 11,
+            textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+          }}>
+            Komet catalog · pag. 7 · righello 0–160 mm
+          </div>
+        </div>
+      )}
+
       {pageState === 'idle' && (
         <div style={{
           position: 'absolute',
@@ -533,10 +579,18 @@ export function ToolRecognitionPage() {
           textShadow: '0 1px 4px rgba(0,0,0,0.9)',
           pointerEvents: 'none',
         }}>
-          Apri il catalogo a pag. 7 · appoggia lo strumento sul righello ·{' '}
-          <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-            inquadra tutto
-          </span>
+          {rulerBase64
+            ? <>Appoggia lo strumento sopra il righello ·{' '}
+                <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
+                  inquadra tutto
+                </span>
+              </>
+            : <>Apri il catalogo a pag. 7 · appoggia lo strumento sul righello ·{' '}
+                <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
+                  inquadra tutto
+                </span>
+              </>
+          }
         </div>
       )}
 

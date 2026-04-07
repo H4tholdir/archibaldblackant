@@ -460,6 +460,7 @@ async function bootstrap(): Promise<void> {
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
     catalogVisionService,
+    catalogPdf,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
   });

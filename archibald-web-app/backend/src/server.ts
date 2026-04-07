@@ -148,6 +148,7 @@ type AppDeps = {
   redis?: RedisClient;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
   catalogVisionService?: CatalogVisionService;
+  catalogPdf?: { getPageAsBase64: (page: number) => Promise<string> };
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
 };
@@ -1066,6 +1067,7 @@ function createApp(deps: AppDeps): Express {
     const recognitionRouter = createRecognitionRouter({
       pool,
       catalogVisionService: deps.catalogVisionService,
+      catalogPdf: deps.catalogPdf,
       dailyLimit: deps.recognitionDailyLimit ?? 500,
       timeoutMs: deps.recognitionTimeoutMs ?? 15000,
       queue,

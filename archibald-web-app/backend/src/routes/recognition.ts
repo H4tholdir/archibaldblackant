@@ -8,11 +8,16 @@ import { runRecognitionPipeline } from '../recognition/recognition-engine';
 import { getBudgetRow, resetBudgetIfExpired } from '../db/repositories/recognition-budget';
 import { logger } from '../logger';
 
+type CatalogPdfLike = {
+  getPageAsBase64: (page: number) => Promise<string>;
+};
+
 type RecognitionRouterDeps = {
   pool:                 DbPool;
   catalogVisionService: CatalogVisionService;
   dailyLimit:           number;
   timeoutMs:            number;
+  catalogPdf?:          CatalogPdfLike;
   queue?: {
     enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
   };
@@ -105,6 +110,20 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       res.json({ queued: true });
     } else {
       res.json({ queued: false });
+    }
+  });
+
+  router.get('/ruler', async (_req: AuthRequest, res) => {
+    if (!deps.catalogPdf) {
+      res.status(503).json({ error: 'Catalog PDF not available' });
+      return;
+    }
+    try {
+      const image = await deps.catalogPdf.getPageAsBase64(7);
+      res.json({ image });
+    } catch (error) {
+      logger.error('[recognition] ruler page load failed', { error });
+      res.status(500).json({ error: 'Failed to load ruler page' });
     }
   });
 

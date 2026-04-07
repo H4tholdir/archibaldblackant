@@ -97,6 +97,19 @@ export async function identifyInstrument(
   }
 }
 
+export async function getRulerImage(token: string): Promise<string | null> {
+  try {
+    const res = await fetchWithRetry('/api/recognition/ruler', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { image: string }
+    return data.image ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function getRecognitionBudget(token: string): Promise<BudgetState> {
   const res = await fetchWithRetry('/api/recognition/budget', {
     headers: { Authorization: `Bearer ${token}` },
