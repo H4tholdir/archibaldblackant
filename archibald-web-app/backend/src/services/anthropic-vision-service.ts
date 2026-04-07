@@ -344,7 +344,7 @@ async function runAgenticLoop(
     productCode:  null,
     familyCode:   null,
     confidence:   0,
-    resultState:  'error',
+    resultState:  'not_found',
     candidates:   [],
     catalogPage:  lastCatalogPage,
     reasoning:    'Max iterations reached without a final answer',

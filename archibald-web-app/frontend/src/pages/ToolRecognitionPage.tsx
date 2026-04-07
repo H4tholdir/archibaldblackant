@@ -227,9 +227,9 @@ export function ToolRecognitionPage() {
       } else {
         setPageState('idle')
         if (state === 'not_found') {
-          setErrorMessage('Strumento non riconosciuto. Riprova con migliore illuminazione.')
+          setErrorMessage('Strumento non riconosciuto. Assicurati che sia visibile e allineato al righello.')
         } else if (state === 'error') {
-          setErrorMessage(response.result.message)
+          setErrorMessage('Errore di analisi. Riprova.')
         }
       }
     } catch {
