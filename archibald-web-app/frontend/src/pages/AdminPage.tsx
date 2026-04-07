@@ -87,6 +87,7 @@ export function AdminPage(_props: AdminPageProps) {
   const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
   const [recognitionBudget, setRecognitionBudget] = useState<BudgetState | null>(null);
   const [enqueuingIngestion, setEnqueuingIngestion] = useState(false);
+  const [ingestionQueued, setIngestionQueued] = useState(false);
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
 
   useEffect(() => {
@@ -266,6 +267,7 @@ export function AdminPage(_props: AdminPageProps) {
         body: JSON.stringify({ type: "catalog-ingestion", data: {} }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setIngestionQueued(true);
     } catch {
       alert("Errore nell'avvio dell'ingestion. Riprova.");
     } finally {
@@ -552,10 +554,12 @@ export function AdminPage(_props: AdminPageProps) {
             }}>
               <div>
                 <strong>Catalog ingestion</strong>
-                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
-                  {enrichmentStats?.lastIngestedPage != null
-                    ? `Ultima pag. ${enrichmentStats.lastIngestedPage}`
-                    : "Non eseguita"}
+                <div style={{ color: ingestionQueued ? "#1976d2" : "#666", fontSize: "12px", marginTop: 2 }}>
+                  {ingestionQueued
+                    ? "In corso — gira in background (~15-20 min)"
+                    : enrichmentStats?.lastIngestedPage != null
+                      ? `Ultima pag. ${enrichmentStats.lastIngestedPage}`
+                      : "Non eseguita"}
                 </div>
               </div>
               <div style={{ color: "#555", fontSize: "13px" }}>
@@ -565,17 +569,18 @@ export function AdminPage(_props: AdminPageProps) {
               </div>
               <button
                 onClick={() => { void handleStartIngestion(); }}
-                disabled={enqueuingIngestion}
+                disabled={enqueuingIngestion || ingestionQueued}
                 style={{
-                  background: "#1976d2", color: "#fff", border: "none",
+                  background: ingestionQueued ? "#999" : "#1976d2",
+                  color: "#fff", border: "none",
                   borderRadius: "6px", padding: "6px 14px",
                   fontSize: "13px", fontWeight: 600,
-                  cursor: enqueuingIngestion ? "not-allowed" : "pointer",
-                  opacity: enqueuingIngestion ? 0.6 : 1,
+                  cursor: (enqueuingIngestion || ingestionQueued) ? "not-allowed" : "pointer",
+                  opacity: (enqueuingIngestion || ingestionQueued) ? 0.6 : 1,
                   whiteSpace: "nowrap",
                 }}
               >
-                {enqueuingIngestion ? "..." : "Avvia →"}
+                {enqueuingIngestion ? "..." : ingestionQueued ? "Avviata" : "Avvia →"}
               </button>
             </div>
 
@@ -662,6 +667,17 @@ export function AdminPage(_props: AdminPageProps) {
           }}>
             Costo stimato ingestion: ~$15–20 (Sonnet, una-tantum) &nbsp;·&nbsp;
             Costo per scan: ~$0.03 (catalog lookup + 2 pag. PDF)
+          </div>
+
+          <div style={{
+            marginTop: "8px", padding: "10px 14px",
+            backgroundColor: "#f3f4f6", borderRadius: "6px",
+            fontSize: "12px", color: "#444", lineHeight: 1.6,
+          }}>
+            <strong>Quando rieseguire l&apos;ingestion:</strong> solo dopo aver caricato un nuovo PDF del catalogo Komet sul VPS
+            (<code style={{ background: "#e5e7eb", padding: "1px 4px", borderRadius: 3 }}>/home/deploy/archibald-app/catalog/komet-catalog-2025.pdf</code>).
+            L&apos;operazione legge tutte le ~400 pagine e popola il database delle famiglie prodotti.
+            Dura circa 15–20 minuti e non va interrotta. Al termine il contatore passerà da 0 a ~400 famiglie.
           </div>
         </section>
 

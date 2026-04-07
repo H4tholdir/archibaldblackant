@@ -174,31 +174,32 @@ async function extractProductFamilies(
     }
 
     for (const family of families) {
+      const toJson = (v: unknown) => v != null ? JSON.stringify(v) : null;
       await deps.pool.query(
         `INSERT INTO shared.catalog_entries
            (family_codes, catalog_page, product_type, shape_description,
             material_description, identification_clues, grit_options,
             shank_options, size_options, rpm_max, clinical_indications,
             usage_notes, pictograms, packaging_info, notes, raw_extraction)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16::jsonb)
          ON CONFLICT (catalog_page, (family_codes[1])) DO NOTHING`,
         [
           family.family_codes,
           p,
           family.product_type,
-          family.shape_description,
-          family.material_description,
-          family.identification_clues,
-          family.grit_options,
-          family.shank_options,
-          family.size_options,
-          family.rpm_max,
-          family.clinical_indications,
-          family.usage_notes,
-          family.pictograms,
-          family.packaging_info,
-          family.notes,
-          family,
+          family.shape_description ?? null,
+          family.material_description ?? null,
+          family.identification_clues ?? null,
+          toJson(family.grit_options),
+          toJson(family.shank_options),
+          family.size_options ?? null,
+          family.rpm_max ?? null,
+          family.clinical_indications ?? null,
+          family.usage_notes ?? null,
+          toJson(family.pictograms),
+          toJson(family.packaging_info),
+          family.notes ?? null,
+          toJson(family) ?? '{}',
         ],
       );
       familiesFound += 1;
