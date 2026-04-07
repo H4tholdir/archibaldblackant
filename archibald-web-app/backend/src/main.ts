@@ -667,7 +667,7 @@ async function bootstrap(): Promise<void> {
       return {
         initialize: async () => { await ensureInit(); },
         navigateToCustomerByErpId: async (erpId) => { await ensureInit(); return bot.navigateToCustomerByErpId(erpId); },
-        readCustomerFields: async () => { await ensureInit(); return bot.readCustomerFields(); },
+        readCustomerFields: async (erpId) => { await ensureInit(); return bot.readCustomerFields(erpId); },
         close: () => bot.close(),
       };
     }),

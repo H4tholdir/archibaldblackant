@@ -13889,14 +13889,8 @@ export class ArchibaldBot {
     logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
   }
 
-  async readCustomerFields(): Promise<import('../db/repositories/customers').CustomerFormInput> {
+  async readCustomerFields(erpId: string): Promise<import('../db/repositories/customers').CustomerFormInput> {
     if (!this.page) throw new Error('Browser page is null');
-
-    // Estrai erpId dall'URL corrente (siamo in ?mode=View dopo navigateToCustomerByErpId)
-    const currentUrl = this.page.url();
-    const erpIdMatch = currentUrl.match(/CUSTTABLE_DetailView\/([^/?]+)/);
-    if (!erpIdMatch) throw new Error(`readCustomerFields: erpId non trovato nell'URL: ${currentUrl}`);
-    const erpId = erpIdMatch[1];
 
     logger.info('readCustomerFields: entrata in Edit mode via click Modifica', { erpId });
 

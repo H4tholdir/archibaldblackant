@@ -11,7 +11,7 @@ type RefreshCustomerData = {
 type RefreshCustomerBot = {
   initialize: () => Promise<void>;
   navigateToCustomerByErpId: (erpId: string) => Promise<void>;
-  readCustomerFields: () => Promise<CustomerFormInput>;
+  readCustomerFields: (erpId: string) => Promise<CustomerFormInput>;
   close: () => Promise<void>;
 };
 
@@ -30,7 +30,7 @@ async function handleRefreshCustomer(
     await bot.navigateToCustomerByErpId(erpId);
 
     onProgress(60, 'Lettura dati dal form');
-    const fields = await bot.readCustomerFields();
+    const fields = await bot.readCustomerFields(erpId);
 
     onProgress(90, 'Aggiornamento database');
     await upsertSingleCustomer(pool, userId, fields, erpId, 'synced');
