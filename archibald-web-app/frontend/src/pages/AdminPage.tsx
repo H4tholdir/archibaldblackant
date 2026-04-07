@@ -564,7 +564,7 @@ export function AdminPage(_props: AdminPageProps) {
               </div>
               <div style={{ color: "#555", fontSize: "13px" }}>
                 {enrichmentStats != null
-                  ? `${enrichmentStats.totalCatalogEntries} / ~400 famiglie`
+                  ? `${enrichmentStats.totalCatalogEntries} / ~800 famiglie`
                   : "—"}
               </div>
               <button
@@ -676,8 +676,8 @@ export function AdminPage(_props: AdminPageProps) {
           }}>
             <strong>Quando rieseguire l&apos;ingestion:</strong> solo dopo aver caricato un nuovo PDF del catalogo Komet sul VPS
             (<code style={{ background: "#e5e7eb", padding: "1px 4px", borderRadius: 3 }}>/home/deploy/archibald-app/catalog/komet-catalog-2025.pdf</code>).
-            L&apos;operazione legge tutte le ~400 pagine e popola il database delle famiglie prodotti.
-            Dura circa 15–20 minuti e non va interrotta. Al termine il contatore passerà da 0 a ~400 famiglie.
+            L&apos;operazione legge tutte le ~780 pagine e popola il database delle famiglie prodotti.
+            Dura circa ~90 minuti e non va interrotta. Al termine il contatore passerà da 0 a ~800 famiglie.
           </div>
         </section>
 
