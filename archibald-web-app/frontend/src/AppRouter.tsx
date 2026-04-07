@@ -368,13 +368,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <Dashboard />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -400,10 +404,14 @@ function AppRouter() {
                 element={
                   <div className="app">
                     <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                       <AccessManagementPage />
-                      <footer className="app-footer">
+                      </div>
+                    <footer className="app-footer">
                         <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                       </footer>
+                    </div>
                     </main>
                   </div>
                 }
@@ -416,13 +424,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <OrderHistory />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -434,13 +446,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <PendingOrdersPage />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -452,13 +468,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <CustomerProfilePage />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -470,13 +490,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <CustomerList />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -488,10 +512,14 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <ProductDetailPage />
+                    </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -503,13 +531,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <ArticoliList />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -521,13 +553,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <ProfilePage />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -539,13 +575,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <PriceVariationsPage />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -557,10 +597,14 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <ProductVariationsPage />
+                    </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -572,13 +616,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <OrderFormNew />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -590,13 +638,17 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <WarehouseManagementView />
+                    </div>
                     <footer className="app-footer">
                       <p>
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -608,10 +660,14 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <FresisHistoryPage />
+                    </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -623,10 +679,14 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <RevenueReportPage />
+                    </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
@@ -638,10 +698,14 @@ function AppRouter() {
               element={
                 <div className="app">
                   <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
                     <NotificationsPage />
+                    </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
+                    </div>
                   </main>
                 </div>
               }
