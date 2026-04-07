@@ -484,7 +484,7 @@ export function OrderHistory() {
     try {
       const params = new URLSearchParams();
       if (selectedCustomer?.code)
-        params.append("customerProfileId", selectedCustomer.code);
+        params.append("customerAccountNum", selectedCustomer.code);
       else if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
       if (!isSearchMode) {
