@@ -54,6 +54,38 @@ const GET_CATALOG_PAGE_TOOL: Anthropic.Tool = {
   },
 }
 
+const SUBMIT_IDENTIFICATION_TOOL: Anthropic.Tool = {
+  name: 'submit_identification',
+  description: `Submit your final identification after completing visual confirmation (Step 4).
+    MUST be called after get_catalog_page. Do NOT call search_catalog or get_catalog_page after this.
+    If identified: set product_code to "FAMILY.SHANK.SIZE".
+    If 2-3 candidates: leave product_code empty, list all in candidates.
+    If not found: leave product_code empty, empty candidates.`,
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      product_code: {
+        type: 'string',
+        description: 'Product code in FAMILY.SHANK.SIZE format (e.g. "879.104.014"), or empty string if uncertain/not found',
+      },
+      candidates: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of 2-3 candidate product codes when uncertain (e.g. ["858.316.014","859.316.014"])',
+      },
+      confidence: {
+        type: 'number',
+        description: 'Confidence level 0.0–1.0',
+      },
+      reasoning: {
+        type: 'string',
+        description: 'Brief explanation of identification steps and conclusion',
+      },
+    },
+    required: ['product_code', 'confidence', 'reasoning'],
+  },
+}
+
 const IDENTIFICATION_PROMPT = `You are analyzing a photo of a Komet dental instrument.
 A vertical 0–160 mm ruler is visible on the right side of the photo. Use it to measure the instrument length and shank length.
 
@@ -127,13 +159,15 @@ Call search_catalog with your category (product_type), description, and measured
 
 STEP 4 — VISUAL CONFIRMATION:
 Call get_catalog_page with the catalog_page number from the best candidate.
-Compare the photo with the catalog image. Confirm or reject.
-If rejected, try the next candidate or search again.
+Compare the photo with the instrument image in the catalog. Focus on head shape and shank length.
+Maximum 2 catalog page lookups per search round.
 
-STEP 5 — IDENTIFY:
-Return the product code as FAMILY.SHANK.SIZE (e.g. "879.104.014").
-Explain your reasoning briefly.
-If uncertain, return the 2-3 most likely candidates.`
+STEP 5 — SUBMIT (MANDATORY after Step 4):
+Call submit_identification immediately. Do NOT call any other tools after this.
+- Identified: product_code = "FAMILY.SHANK.SIZE", confidence > 0.7
+- Uncertain (2-3 options): product_code = "", fill candidates array, confidence 0.4-0.7
+- Not found: product_code = "", candidates = [], confidence = 0
+Always call submit_identification even if uncertain.`
 
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
@@ -169,6 +203,13 @@ type SearchCatalogInput = {
 
 type GetCatalogPageInput = {
   page_number: number
+}
+
+type SubmitIdentificationInput = {
+  product_code: string
+  candidates?:  string[]
+  confidence:   number
+  reasoning:    string
 }
 
 export function parseIdentificationResult(
@@ -229,6 +270,46 @@ export function parseIdentificationResult(
   }
 }
 
+function parseFromSubmitTool(
+  input:          SubmitIdentificationInput,
+  lastCatalogPage: number | null,
+  usage:           { inputTokens: number; outputTokens: number },
+): IdentificationResult {
+  const base = { catalogPage: lastCatalogPage, reasoning: input.reasoning, usage }
+
+  if (input.product_code && /^\d+\.\d+\.\d+$/.test(input.product_code)) {
+    return {
+      ...base,
+      productCode: input.product_code,
+      familyCode:  input.product_code.split('.')[0] ?? null,
+      confidence:  input.confidence,
+      resultState: 'match',
+      candidates:  [],
+    }
+  }
+
+  const candidates = (input.candidates ?? []).filter(c => /^\d+\.\d+\.\d+$/.test(c))
+  if (candidates.length >= 2) {
+    return {
+      ...base,
+      productCode: candidates[0]!,
+      familyCode:  candidates[0]!.split('.')[0] ?? null,
+      confidence:  input.confidence,
+      resultState: 'shortlist',
+      candidates,
+    }
+  }
+
+  return {
+    ...base,
+    productCode: null,
+    familyCode:  null,
+    confidence:  input.confidence,
+    resultState: 'not_found',
+    candidates:  [],
+  }
+}
+
 export function createCatalogVisionService(deps: CatalogVisionServiceDeps): CatalogVisionService {
   const client = new Anthropic({ apiKey: deps.apiKey, maxRetries: 0 })
 
@@ -281,7 +362,7 @@ async function runAgenticLoop(
       {
         model:      'claude-sonnet-4-6',
         max_tokens: 4096,
-        tools:      [SEARCH_CATALOG_TOOL, GET_CATALOG_PAGE_TOOL],
+        tools:      [SEARCH_CATALOG_TOOL, GET_CATALOG_PAGE_TOOL, SUBMIT_IDENTIFICATION_TOOL],
         messages,
       },
       { signal },
@@ -302,6 +383,7 @@ async function runAgenticLoop(
       messages.push({ role: 'assistant', content: response.content })
 
       const toolResults: ToolResultBlockParam[] = []
+      let submitResult: IdentificationResult | null = null
 
       for (const block of response.content) {
         if (block.type !== 'tool_use') continue
@@ -328,8 +410,19 @@ async function runAgenticLoop(
               },
             ],
           })
+        } else if (block.name === 'submit_identification') {
+          const input = block.input as SubmitIdentificationInput
+          submitResult = parseFromSubmitTool(input, lastCatalogPage, usage)
+          toolResults.push({
+            type:        'tool_result',
+            tool_use_id: block.id,
+            content:     'Identification submitted.',
+          })
         }
       }
+
+      // submit_identification called → exit immediately
+      if (submitResult !== null) return submitResult
 
       messages.push({ role: 'user', content: toolResults })
       continue
