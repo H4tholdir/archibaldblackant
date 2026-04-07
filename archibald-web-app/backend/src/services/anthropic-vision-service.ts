@@ -176,7 +176,7 @@ export function parseIdentificationResult(
   lastCatalogPage: number | null,
   usage:           { inputTokens: number; outputTokens: number },
 ): IdentificationResult {
-  const productCodePattern = /\b\d{3,4}\.\d{3}\.\d{3}\b/g
+  const productCodePattern = /\b\d+\.\d+\.\d+\b/g
   const matches = [...text.matchAll(productCodePattern)].map(m => m[0]!)
   const unique   = [...new Set(matches)]
 

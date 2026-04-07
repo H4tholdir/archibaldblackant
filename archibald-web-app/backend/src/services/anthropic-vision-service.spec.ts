@@ -38,16 +38,16 @@ describe('parseIdentificationResult', () => {
     })
   })
 
-  test('text with "confident" → confidence >= 0.85', () => {
+  test('text with "confident" → confidence 0.9', () => {
     const text   = `I am confident this is ${PRODUCT_CODE}.`
     const result = parseIdentificationResult(text, null, DUMMY_USAGE)
-    expect(result.confidence).toBeGreaterThanOrEqual(0.85)
+    expect(result.confidence).toEqual(0.9)
   })
 
-  test('text with "uncertain" → confidence <= 0.6', () => {
+  test('text with "uncertain" → confidence 0.5', () => {
     const text   = `I am uncertain, could be ${PRODUCT_CODE} or something else entirely.`
     const result = parseIdentificationResult(text, null, DUMMY_USAGE)
-    expect(result.confidence).toBeLessThanOrEqual(0.6)
+    expect(result.confidence).toEqual(0.5)
   })
 
   test('catalogPage from lastCatalogPage parameter', () => {
