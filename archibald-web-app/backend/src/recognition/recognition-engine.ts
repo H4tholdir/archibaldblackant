@@ -93,7 +93,10 @@ export async function runRecognitionPipeline(
       }
       break
     case 'shortlist': {
-      const catalogPages = await fetchCatalogPagesForCodes(deps.pool, identification.candidates)
+      const [catalogPages, campionarioUrls] = await Promise.all([
+        fetchCatalogPagesForCodes(deps.pool, identification.candidates),
+        fetchCampionarioUrlsForCodes(deps.pool, identification.candidates),
+      ])
       result = {
         state:      'shortlist' as const,
         candidates: identification.candidates.map((c, i) => ({
@@ -102,7 +105,7 @@ export async function runRecognitionPipeline(
           familyCode:   c.split('.')[0] ?? '',
           headSizeMm:   0,
           shankType:    '',
-          thumbnailUrl: null,
+          thumbnailUrl: campionarioUrls.get(c) ?? null,
           confidence:   Math.max(0.3, identification.confidence - i * 0.08),
           catalogPage:  catalogPages.get(c) ?? null,
         })),
@@ -136,6 +139,33 @@ export async function runRecognitionPipeline(
   }).catch(() => {})
 
   return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+}
+
+/** Look up campionario_strip_url for each product code's family from catalog_entries. */
+async function fetchCampionarioUrlsForCodes(
+  pool:  DbPool,
+  codes: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (codes.length === 0) return result
+
+  await Promise.all(codes.map(async (code) => {
+    const familyPrefix = code.split('.')[0] ?? code
+    try {
+      const { rows } = await pool.query<{ campionario_strip_url: string }>(
+        `SELECT campionario_strip_url FROM shared.catalog_entries
+         WHERE $1::text = ANY(family_codes)
+           AND campionario_strip_url IS NOT NULL
+         LIMIT 1`,
+        [familyPrefix],
+      )
+      if (rows[0]) result.set(code, rows[0].campionario_strip_url)
+    } catch {
+      // Graceful degradation
+    }
+  }))
+
+  return result
 }
 
 /** Look up catalog_page for each product code by matching its family prefix against family_codes[]. */

@@ -647,6 +647,28 @@ export function ToolRecognitionPage() {
         </div>
 
         <div style={{ padding: '14px 20px' }}>
+          {/* Campionario reference strip — shown if any candidate has a thumbnailUrl */}
+          {(() => {
+            const stripUrl = candidates.find(c => c.thumbnailUrl)?.thumbnailUrl
+            if (!stripUrl) return null
+            return (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Campionario di riferimento
+                </div>
+                <img
+                  src={stripUrl}
+                  alt="Strip campionario Komet"
+                  style={{
+                    width: '100%', height: 90, objectFit: 'cover',
+                    borderRadius: 8, display: 'block',
+                    border: '1px solid #374151',
+                  }}
+                />
+              </div>
+            )
+          })()}
+
           {/* Disambiguation CTA */}
           <button
             onClick={() => setPageState('disambiguation_camera')}
