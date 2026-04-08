@@ -92,6 +92,7 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
 
   // Header fields (visible in collapsed card)
   const headerFields: (string | undefined | null)[] = [
+    order.id,
     order.orderNumber,
     order.customerName,
     order.total,
