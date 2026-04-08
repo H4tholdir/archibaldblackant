@@ -78,17 +78,20 @@ export type ProductEnrichment = {
 export async function identifyInstrument(
   token: string,
   imageBase64: string,
+  candidates?: string[],
 ): Promise<IdentifyResponse> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 90_000)
   try {
+    const body: Record<string, unknown> = { image: imageBase64 }
+    if (candidates && candidates.length >= 2) body.candidates = candidates
     const res = await fetch('/api/recognition/identify', {
       method:  'POST',
       headers: {
         Authorization:  `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body:   JSON.stringify({ image: imageBase64 }),
+      body:   JSON.stringify(body),
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

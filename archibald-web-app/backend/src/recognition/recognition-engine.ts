@@ -7,7 +7,7 @@ import { appendRecognitionLog } from '../db/repositories/recognition-log'
 import { logger } from '../logger'
 
 export type CatalogVisionService = {
-  identifyFromImage(imageBase64: string, signal?: AbortSignal): Promise<import('./types').IdentificationResult>
+  identifyFromImage(imageBase64: string, signal?: AbortSignal, disambiguationCandidates?: string[]): Promise<import('./types').IdentificationResult>
 }
 
 type EngineResult = {
@@ -28,6 +28,7 @@ export async function runRecognitionPipeline(
   userId: string,
   role: string,
   signal?: AbortSignal,
+  disambiguationCandidates?: string[],
 ): Promise<EngineResult> {
   const startMs = Date.now()
 
@@ -35,14 +36,17 @@ export async function runRecognitionPipeline(
     .update(Buffer.from(imageBase64, 'base64'))
     .digest('hex')
 
-  const cached = await getCached(deps.pool, imageHash)
-  if (cached) {
-    const { budgetState } = await checkBudget(deps.pool, userId, role)
-    return {
-      result:       cached.result_json as RecognitionResult,
-      budgetState,
-      processingMs: Date.now() - startMs,
-      imageHash,
+  // Skip cache for disambiguation requests — result depends on candidates, not just image
+  if (!disambiguationCandidates) {
+    const cached = await getCached(deps.pool, imageHash)
+    if (cached) {
+      const { budgetState } = await checkBudget(deps.pool, userId, role)
+      return {
+        result:       cached.result_json as RecognitionResult,
+        budgetState,
+        processingMs: Date.now() - startMs,
+        imageHash,
+      }
     }
   }
 
@@ -58,7 +62,7 @@ export async function runRecognitionPipeline(
 
   let identification: import('./types').IdentificationResult
   try {
-    identification = await deps.catalogVisionService.identifyFromImage(imageBase64, signal)
+    identification = await deps.catalogVisionService.identifyFromImage(imageBase64, signal, disambiguationCandidates)
   } catch (err) {
     logger.warn('[recognition-engine] Vision API error', { error: err instanceof Error ? err.message : String(err) })
     return {
@@ -112,7 +116,10 @@ export async function runRecognitionPipeline(
       result = { state: 'error' as const, message: identification.reasoning }
   }
 
-  await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
+  // Don't cache disambiguation results — they depend on candidates, not just the image
+  if (!disambiguationCandidates) {
+    await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
+  }
   const budgetConsumed = await consumeBudget(deps.pool)
   if (!budgetConsumed) {
     logger.warn('[recognition-engine] Budget race condition', { userId })

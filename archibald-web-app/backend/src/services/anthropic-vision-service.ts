@@ -34,7 +34,7 @@ const SEARCH_CATALOG_TOOL: Anthropic.Tool = {
       },
       description: {
         type: 'string',
-        description: 'Full visual description of the instrument in English',
+        description: 'Full visual description in English. For rotary_diamond: always specify tip shape ("rounded/blunt tip" for torpedo vs "sharply pointed tip" for flame).',
       },
       grit_color: {
         type: 'string',
@@ -129,10 +129,21 @@ Compare the shank length to the working head length — this ratio is independen
 STEP 2 — OBSERVE (category-specific):
 
   For rotary_diamond:
-    - Head shape (torpedo/chamfer, flame, round, cylinder, pear, inverted cone, diabolo...)
+    - Head shape — examine the TIP first (this is the key discriminator):
+        • TORPEDO / CHAMFER: body is cylindrical or slightly tapered; tip ends BLUNT or ROUNDED
+          (like a bullet or missile nose). The apex is dome-shaped — NO sharp point.
+          Search with: "torpedo chamfer rounded tip"
+        • FLAME: body tapers continuously to a SHARPLY POINTED apex (like a candle flame).
+          The very tip comes to a fine acute point with no rounding whatsoever.
+          Search with: "flame pointed tip"
+        • Other shapes: round (sphere head), cylinder (flat end), pear (wider mid-body),
+          inverted cone (truncated cone widening toward tip), diabolo (hourglass/biconcave)
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
-    - If no ring: could be ultrafine (8μm), note very faint transparent band
+    - CRITICAL: if NO colored ring visible → the family does NOT have a ring (no-ring variants or 879)
+      → Do NOT conclude "standard grit" or "blue ring" without seeing the blue ring
+      → Standard grit (families 863, 862, 860 etc.) has a VISIBLE BLUE ring — if absent, do NOT pick standard
+      → Omit grit_color from search_catalog when ring is absent or unclear
 
   For rotary_carbide:
     - Head shape
@@ -173,10 +184,16 @@ and grit_color if it is a rotary_diamond with a clearly visible ring color.
 → search_catalog automatically returns a catalog page image of the TOP result for visual comparison.
 If the first search returns 0 results, retry without shank_type and/or grit_color.
 
-STEP 4 — VISUAL CONFIRMATION:
-Compare the catalog page image returned by search_catalog with the photographed instrument.
-Focus on head shape and proportions. If the top result does not match, check the other catalog_page
-numbers in the JSON results and call get_catalog_page for a different candidate.
+STEP 4 — VISUAL CONFIRMATION (compare PHOTO to CATALOG ILLUSTRATION directly):
+A catalog page may show multiple similar bur shapes side by side (e.g., torpedo next to flame).
+For EACH relevant bur illustrated on the catalog page:
+  a) Look at its depicted TIP: ROUNDED/BLUNT (torpedo) vs SHARP/POINTED (flame)?
+  b) Compare that illustration's tip directly with the TIP in the PHOTOGRAPH.
+  c) Pick the entry whose illustration best matches the ACTUAL photographed instrument.
+CRITICAL: your Step 2 text description may be wrong — visual illustration comparison OVERRIDES it.
+  → If the rounded-tip illustration matches the photo better than the pointed-tip one: pick torpedo.
+  → If the pointed-tip illustration matches the photo better: pick flame.
+If neither matches, call get_catalog_page for a different catalog_page from the JSON results.
 Maximum 1 additional get_catalog_page call per search round.
 
 STEP 5 — SUBMIT (MANDATORY after Step 4):
@@ -184,7 +201,16 @@ Call submit_identification immediately. Do NOT call any other tools after this.
 - Identified: product_code = "FAMILY.SHANK.SIZE", confidence > 0.7
 - Uncertain (2-3 options): product_code = "", fill candidates array, confidence 0.4-0.7
 - Not found: product_code = "", candidates = [], confidence = 0
-Always call submit_identification even if uncertain.`
+Always call submit_identification even if uncertain.
+
+MANDATORY SHORTLIST — HP rotary_diamond without visible grit ring:
+If shank=HP + rotary_diamond + no clearly visible grit ring color:
+  → Family 879 (torpedo/chamfer, size 014 ONLY, HP ONLY) is a strong candidate.
+  → ALWAYS return candidates array including "879.104.014" alongside your top flame match.
+  → Set confidence 0.45, product_code = "", candidates = ["863.104.016","879.104.014"]
+  → Exception: exclude 879 only if you see a CLEARLY DIFFERENT tip (e.g., very long head >12mm
+    or clearly spherical/round head — shapes that are NOT torpedo/chamfer/flame).
+  → Note: torpedo burs often appear as if pointed in side-view photos due to chamfer angle.`
 
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
@@ -350,13 +376,16 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
   const client = new Anthropic({ apiKey: deps.apiKey, maxRetries: 0 })
 
   return {
-    async identifyFromImage(imageBase64, signal) {
+    async identifyFromImage(imageBase64, signal, disambiguationCandidates) {
       const controller    = new AbortController()
       const timer         = setTimeout(() => controller.abort(), deps.timeoutMs)
       const onExternalAbort = () => controller.abort()
       signal?.addEventListener('abort', onExternalAbort)
 
       try {
+        if (disambiguationCandidates && disambiguationCandidates.length >= 2) {
+          return await runDisambiguationLoop(client, deps.pool, imageBase64, disambiguationCandidates, controller.signal)
+        }
         return await runAgenticLoop(client, deps, imageBase64, controller.signal)
       } finally {
         clearTimeout(timer)
@@ -503,6 +532,86 @@ async function runAgenticLoop(
   }
 }
 
+async function runDisambiguationLoop(
+  client:      Anthropic,
+  pool:        DbPool,
+  imageBase64: string,
+  candidates:  string[],
+  signal:      AbortSignal,
+): Promise<IdentificationResult> {
+  // Fetch shape descriptions for each candidate family from DB
+  const familyCodes = [...new Set(candidates.map(c => c.split('.')[0] ?? c))]
+  const { rows } = await pool.query<{ family_codes: string[]; shape_description: string }>(
+    `SELECT family_codes, shape_description FROM shared.catalog_entries
+     WHERE family_codes && $1 ORDER BY catalog_page LIMIT 20`,
+    [familyCodes],
+  )
+
+  const familyDescMap = new Map<string, string>()
+  for (const row of rows) {
+    for (const fc of row.family_codes) {
+      if (!familyDescMap.has(fc)) familyDescMap.set(fc, row.shape_description)
+    }
+  }
+
+  const candidateLines = candidates.map(code => {
+    const fc   = code.split('.')[0] ?? code
+    const desc = familyDescMap.get(fc) ?? fc
+    return `  - ${code}: ${desc}`
+  }).join('\n')
+
+  const prompt = `You are confirming the identification of a Komet dental instrument.
+A previous scan of the FULL instrument returned these candidates:
+${candidateLines}
+
+This photo shows the instrument head more closely.
+Your ONLY task: examine the TIP SHAPE of the head and pick the correct candidate.
+
+TIP SHAPE rules:
+  - ROUNDED / BLUNT end (dome-shaped, like a bullet nose) → torpedo/chamfer family (879)
+  - SHARPLY POINTED end (tapers continuously to fine apex) → flame family (863, 862, 860)
+
+Look very carefully at the very apex. Then call submit_identification immediately.
+- If clearly one candidate: product_code = that code, confidence > 0.75
+- If still uncertain: product_code = "", candidates = remaining 2, confidence 0.5`
+
+  const messages: MessageParam[] = [
+    {
+      role:    'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+        { type: 'text', text: prompt },
+      ],
+    },
+  ]
+
+  const response = await client.messages.create(
+    {
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1024,
+      tools:      [SUBMIT_IDENTIFICATION_TOOL],
+      messages,
+    },
+    { signal },
+  )
+
+  const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
+  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, content_types: response.content.map(b => b.type) })
+
+  for (const block of response.content) {
+    if (block.type === 'tool_use' && block.name === 'submit_identification') {
+      const input = block.input as SubmitIdentificationInput
+      logger.info('[vision] disambiguation submit_identification', { product_code: input.product_code, confidence: input.confidence, reasoning: input.reasoning })
+      return parseFromSubmitTool(input, null, usage)
+    }
+  }
+
+  // Fallback: parse text if no tool call
+  const textBlock = response.content.find(b => b.type === 'text')
+  const text      = textBlock?.type === 'text' ? textBlock.text : ''
+  return parseIdentificationResult(text, null, usage)
+}
+
 async function runSearchCatalog(
   pool:  DbPool,
   input: SearchCatalogInput,
@@ -512,10 +621,16 @@ async function runSearchCatalog(
   const gritColor   = input.grit_color   ?? null
 
   // Convert description to OR-based websearch query so single matching terms suffice
-  const orQuery = input.description
+  let orQuery = input.description
     .split(/\s+/)
     .filter(w => w.length >= 3)
     .join(' OR ')
+
+  // For rotary_diamond: always include torpedo/chamfer terms alongside any flame description
+  // so that both shape families appear in results (flame and torpedo look similar in photos)
+  if (productType === 'rotary_diamond') {
+    orQuery += ' OR torpedo OR chamfer OR rounded'
+  }
 
   const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankType, productType, orQuery, gritColor])
 

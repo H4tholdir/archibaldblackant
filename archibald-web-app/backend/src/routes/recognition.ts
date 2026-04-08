@@ -24,7 +24,8 @@ type RecognitionRouterDeps = {
 };
 
 const identifySchema = z.object({
-  image: z.string().min(10),
+  image:      z.string().min(10),
+  candidates: z.array(z.string().regex(/^[A-Za-z0-9]+\.\d{3}\.\d{3}$/)).min(2).max(5).optional(),
 });
 
 const feedbackSchema = z.object({
@@ -65,7 +66,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       return;
     }
 
-    const { image } = parsed.data;
+    const { image, candidates } = parsed.data;
 
     const abortController = new AbortController();
     req.on('close', () => {
@@ -80,6 +81,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
           userId,
           role,
           abortController.signal,
+          candidates,
         );
       if (res.headersSent) return;
       res.json({ result, budgetState, processingMs, imageHash });
