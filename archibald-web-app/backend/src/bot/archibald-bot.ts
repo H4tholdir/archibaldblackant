@@ -10720,14 +10720,19 @@ export class ArchibaldBot {
 
   private async typeOrClear(inputId: string, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
+    // Always Ctrl+A first: DevExpress may have restored the original value during
+    // waitForDevExpressIdle (after our native-setter clear), so we must select-all
+    // before typing to guarantee replacement rather than appending.
+    await this.page.keyboard.down("Control");
+    await this.page.keyboard.press("a");
+    await this.page.keyboard.up("Control");
     if (value === "") {
-      // Ctrl+A + Delete fires real keyboard events (including 'input') so DevExpress
-      // commits the empty value. page.type('') would fire no events at all.
-      await this.page.keyboard.down("Control");
-      await this.page.keyboard.press("a");
-      await this.page.keyboard.up("Control");
+      // Delete fires a real 'input' event so DevExpress commits the empty value.
       await this.page.keyboard.press("Delete");
     } else {
+      // page.type() replaces the selected content with the first keystroke,
+      // then continues appending. Authentic keydown/keypress/keyup/input events
+      // per character are sufficient for DevExpress to commit the value on Tab.
       await this.page.type(`#${inputId}`, value, { delay: 5 });
     }
   }
