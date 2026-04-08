@@ -12220,10 +12220,12 @@ export class ArchibaldBot {
       );
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
-      const alreadyClosed = await this.page.evaluate(() => {
+      const alreadyClosed = await this.page.evaluate((si: boolean) => {
         const u = window.location.href;
-        return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
-      });
+        return si
+          ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+          : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+      }, saveInPlace);
 
       if (!alreadyClosed) {
         const savedAgain = await saveAttempt();
@@ -12242,16 +12244,20 @@ export class ArchibaldBot {
       }
     }
 
-    // Verify the form actually closed (URL should navigate away from DetailView entirely,
-    // OR land on DetailView/{id}/ in view mode — i.e. no mode=Edit, no NewObject)
+    // Verify the form is done:
+    // - save-and-close: URL leaves DetailView entirely, or lands on DetailView/{id}/ without mode=Edit
+    // - saveInPlace: form stays in edit mode but gets a numeric ID (NewObject gone)
     let formClosed = false;
     try {
       await this.page.waitForFunction(
-        () => {
+        (si: boolean) => {
           const u = window.location.href;
-          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+          return si
+            ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+            : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
         },
         { timeout: 10000, polling: 500 },
+        saveInPlace,
       );
       formClosed = true;
     } catch {
@@ -12340,10 +12346,12 @@ export class ArchibaldBot {
           label: "late-warning-ack",
         });
 
-        const alreadyClosed = await this.page.evaluate(() => {
+        const alreadyClosed = await this.page.evaluate((si: boolean) => {
           const u = window.location.href;
-          return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
-        });
+          return si
+            ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+            : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+        }, saveInPlace);
 
         if (!alreadyClosed) {
           const savedAgain = await saveAttempt();
@@ -12361,11 +12369,14 @@ export class ArchibaldBot {
         // Final form-closed check
         try {
           await this.page.waitForFunction(
-            () => {
+            (si: boolean) => {
               const u = window.location.href;
-              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+              return si
+                ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+                : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
             { timeout: 10000, polling: 500 },
+            saveInPlace,
           );
           formClosed = true;
         } catch {
@@ -12387,11 +12398,14 @@ export class ArchibaldBot {
 
         try {
           await this.page.waitForFunction(
-            () => {
+            (si: boolean) => {
               const u = window.location.href;
-              return !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+              return si
+                ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+                : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
             { timeout: 10000, polling: 500 },
+            saveInPlace,
           );
           formClosed = true;
         } catch {
