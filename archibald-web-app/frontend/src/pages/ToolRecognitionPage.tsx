@@ -19,11 +19,11 @@ type PageState =
   | 'shortlist'
   | 'budget_exhausted'
 
-function Viewfinder() {
-  const cornerBase: CSSProperties = {
+function InstrumentGuide() {
+  const bracket: CSSProperties = {
     position: 'absolute',
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     borderColor: '#22c55e',
     borderStyle: 'solid',
     borderWidth: 0,
@@ -32,20 +32,41 @@ function Viewfinder() {
     <div style={{
       position: 'absolute', inset: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
+      backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
       backgroundSize: '33.33% 33.33%',
+      pointerEvents: 'none',
     }}>
-      <div style={{
-        position: 'relative',
-        width: '72%',
-        aspectRatio: '2/3',
-        border: '2px solid rgba(255,255,255,0.3)',
-        borderRadius: 8,
-      }}>
-        <div style={{ ...cornerBase, top: -1, left: -1, borderTopWidth: 3, borderLeftWidth: 3 }} />
-        <div style={{ ...cornerBase, top: -1, right: -1, borderTopWidth: 3, borderRightWidth: 3 }} />
-        <div style={{ ...cornerBase, bottom: -1, left: -1, borderBottomWidth: 3, borderLeftWidth: 3 }} />
-        <div style={{ ...cornerBase, bottom: -1, right: -1, borderBottomWidth: 3, borderRightWidth: 3 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{
+          color: 'rgba(34,197,94,0.8)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginBottom: 8,
+        }}>
+          PUNTA
+        </div>
+
+        <div style={{
+          position: 'relative',
+          width: '22vw',
+          height: '70vh',
+          border: '1px solid rgba(34,197,94,0.3)',
+          borderRadius: 4,
+        }}>
+          <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+          <div style={{
+            position: 'absolute', left: '20%', right: '20%', top: '50%',
+            height: 1, background: 'rgba(34,197,94,0.2)',
+          }} />
+        </div>
+
+        <div style={{
+          color: 'rgba(34,197,94,0.8)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginTop: 8,
+        }}>
+          BASE
+        </div>
       </div>
     </div>
   )
@@ -69,8 +90,6 @@ export function ToolRecognitionPage() {
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const rulerCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const rulerDivRef = useRef<HTMLDivElement>(null)
 
   const videoCallbackRef: RefCallback<HTMLVideoElement> = useCallback((node) => {
     videoRef.current = node
@@ -92,54 +111,6 @@ export function ToolRecognitionPage() {
     if (!token) return
     getRecognitionBudget(token).then(setBudget).catch(console.error)
   }, [auth.token])
-
-  useEffect(() => {
-    const DPR = window.devicePixelRatio || 1
-    const MM_TO_PX = 96 / 25.4
-    const HEIGHT_MM = 160
-    const WIDTH_MM = 9
-    const w = Math.round(WIDTH_MM * MM_TO_PX * DPR)
-    const h = Math.round(HEIGHT_MM * MM_TO_PX * DPR)
-    const ppm = h / HEIGHT_MM
-
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.fillStyle = 'rgba(255, 252, 240, 0.9)'
-    ctx.fillRect(0, 0, w, h)
-
-    // Spine (left edge)
-    ctx.strokeStyle = '#555'
-    ctx.lineWidth = 1.5 * DPR
-    ctx.beginPath(); ctx.moveTo(1 * DPR, 0); ctx.lineTo(1 * DPR, h); ctx.stroke()
-
-    // Right border + caps
-    ctx.lineWidth = 0.5 * DPR
-    ctx.strokeRect(0.5 * DPR, 0.5 * DPR, w - DPR, h - DPR)
-
-    // Tick marks
-    for (let mm = 0; mm <= HEIGHT_MM; mm++) {
-      const y = Math.round(mm * ppm)
-      const isMajor = mm % 10 === 0
-      const isMid = mm % 5 === 0
-      const tickLen = isMajor ? 0.65 * w : isMid ? 0.45 * w : 0.25 * w
-      ctx.strokeStyle = '#444'
-      ctx.lineWidth = isMajor ? 1.2 * DPR : 0.7 * DPR
-      ctx.beginPath(); ctx.moveTo(1 * DPR, y); ctx.lineTo(tickLen, y); ctx.stroke()
-
-      if (isMajor) {
-        ctx.fillStyle = '#222'
-        ctx.font = `bold ${8 * DPR}px -apple-system, Helvetica, sans-serif`
-        ctx.textAlign = 'right'
-        ctx.fillText(String(mm), w - 1 * DPR, y + 3.5 * DPR)
-      }
-    }
-
-    rulerCanvasRef.current = canvas
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -188,16 +159,6 @@ export function ToolRecognitionPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
     ctx.drawImage(video, 0, 0)
-    if (rulerCanvasRef.current && rulerDivRef.current) {
-      const rect = rulerDivRef.current.getBoundingClientRect()
-      const scaleX = canvas.width / window.innerWidth
-      const scaleY = canvas.height / window.innerHeight
-      ctx.drawImage(
-        rulerCanvasRef.current,
-        Math.round(rect.left * scaleX), Math.round(rect.top * scaleY),
-        Math.round(rect.width * scaleX), Math.round(rect.height * scaleY),
-      )
-    }
     return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/\w+;base64,/, '')
   }, [])
 
@@ -227,7 +188,7 @@ export function ToolRecognitionPage() {
       } else {
         setPageState('idle')
         if (state === 'not_found') {
-          setErrorMessage('Strumento non riconosciuto. Assicurati che sia visibile e allineato al righello.')
+          setErrorMessage('Strumento non riconosciuto. Centra bene la fresa nella guida e riprova.')
         } else if (state === 'error') {
           setErrorMessage('Errore di analisi. Riprova.')
         }
@@ -587,76 +548,22 @@ export function ToolRecognitionPage() {
         ✕
       </button>
 
-      {pageState === 'idle' && <Viewfinder />}
-
-      {pageState === 'idle' && (
-        <div
-          ref={rulerDivRef}
-          style={{
-            position: 'absolute',
-            right: 20,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '9mm',
-            height: '160mm',
-            pointerEvents: 'none',
-          }}
-        >
-          <svg
-            width="100%"
-            height="100%"
-            viewBox="0 0 36 640"
-            preserveAspectRatio="none"
-            style={{ display: 'block' }}
-          >
-            <rect width="36" height="640" fill="rgba(255,252,240,0.85)" rx="2" />
-            <line x1="3" y1="0" x2="3" y2="640" stroke="#555" strokeWidth="1.5" />
-            <rect x="0.5" y="0.5" width="35" height="639" fill="none" stroke="#aaa" strokeWidth="0.7" rx="2" />
-            {Array.from({ length: 161 }, (_, mm) => {
-              const y = mm * 4
-              const isMajor = mm % 10 === 0
-              const isMid   = mm % 5 === 0
-              const tickEnd = isMajor ? 26 : isMid ? 19 : 12
-              return (
-                <g key={mm}>
-                  <line
-                    x1="3" y1={y} x2={tickEnd} y2={y}
-                    stroke="#444"
-                    strokeWidth={isMajor ? 1.2 : 0.7}
-                  />
-                  {isMajor && (
-                    <text
-                      x="34" y={y + 3.5}
-                      fontSize="7"
-                      fontWeight="bold"
-                      fontFamily="-apple-system, Helvetica, sans-serif"
-                      fill="#222"
-                      textAnchor="end"
-                    >
-                      {mm}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
-          </svg>
-        </div>
-      )}
+      {pageState === 'idle' && <InstrumentGuide />}
 
       {pageState === 'idle' && (
         <div style={{
           position: 'absolute',
-          top: '18%',
+          top: '7%',
           left: 0, right: 0,
           textAlign: 'center',
           color: 'rgba(255,255,255,0.9)',
-          fontSize: 14,
+          fontSize: 13,
           textShadow: '0 1px 4px rgba(0,0,0,0.9)',
           pointerEvents: 'none',
         }}>
-          Allinea lo strumento al righello ·{' '}
+          Centra la fresa nella guida ·{' '}
           <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-            inquadra tutto
+            15–20 cm di distanza
           </span>
         </div>
       )}

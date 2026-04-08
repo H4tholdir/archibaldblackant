@@ -18,15 +18,15 @@ export type CatalogVisionServiceDeps = {
 const SEARCH_CATALOG_TOOL: Anthropic.Tool = {
   name: 'search_catalog',
   description: `Search the Komet catalog database for product families matching your visual description.
-    Call this after Step 2 (visual analysis).
-    Provide the most detailed description possible: instrument type, shape, material, shank length measured from ruler, colored ring or absence.
-    Returns up to 10 matching catalog entries ordered by catalog page.`,
+    Call this after Step 1 (shank type identification) and Step 2 (visual observation).
+    Provide the most detailed description possible: instrument type, head shape, material, colored ring or absence.
+    Returns up to 10 matching catalog entries ordered by relevance.`,
   input_schema: {
     type: 'object' as const,
     properties: {
-      shank_length_mm: {
-        type: 'number',
-        description: 'Shank length measured from ruler in mm (optional)',
+      shank_type: {
+        type: 'string',
+        description: 'Shank type identified visually: "fg" (turbine, short) | "ca" (contra-angle, medium) | "hp" (straight handpiece, long). Omit if unsure.',
       },
       product_type: {
         type: 'string',
@@ -88,40 +88,47 @@ const SUBMIT_IDENTIFICATION_TOOL: Anthropic.Tool = {
 }
 
 const IDENTIFICATION_PROMPT = `You are analyzing a photo of a Komet dental instrument.
-A vertical 0–160 mm ruler is visible on the right side of the photo. Use it to measure the instrument length and shank length.
+The instrument is centered in the frame. No ruler is present — identify using visual shape, proportions, and catalog comparison.
 
 STEP 0 — IDENTIFY CATEGORY (this determines ALL subsequent steps):
 Look at the overall impression of the object before anything else.
 
-  Rose-gold / pink-gold shank or body color?      → diao
-  Rubber/silicone: soft, matte, cup or disc?       → polisher_composite / polisher_ceramic / polisher_amalgam
-  Very long tapered metal tip + colored stop ring? → endodontic (NiTi file)
-  Small round/bullet head on long narrow shank?    → endodontic (Gates Glidden)
+  Rose-gold / pink-gold shank or body color?        → diao
+  Rubber/silicone: soft, matte, cup or disc?         → polisher_composite / polisher_ceramic / polisher_amalgam
+  Very long tapered metal tip + colored stop ring?   → endodontic (NiTi file)
+  Small round/bullet head on long narrow shank?      → endodontic (Gates Glidden)
   Flat wedge/triangle tip, threaded base, no ISO shank? → sonic
   Tapered smooth or threaded metal pin (no rotary shank)? → root_post
   Large head, no clinical shank or very long lab shank?   → lab_carbide
   Silver/grey metal, visible helical CUTTING FLUTES on head? → rotary_carbide
-  Grey/dark head, matte abrasive texture (no flutes) + ring? → rotary_diamond
+  Grey/dark head, ROUGH matte gritty texture (no sharp flutes)? → rotary_diamond
   Default if unclear: → rotary_diamond
 
-STEP 1 — MEASURE from the ruler (rotary_diamond / rotary_carbide / diao / lab_carbide only):
-- Total instrument length
-- Shank length (from base to head junction)
-- Head length (from junction to tip)
-→ Shank length identifies the shank code (ruler measurements may have ±15mm error; use this to determine shank FAMILY, not exact code):
-  FG (turbine, short):    313=18mm, 314=19mm, 315=21mm, 316=25mm  → total instrument ~25–35mm
-  CA (contra-angle):      204=22mm, 205=26mm, 206=34mm             → total instrument ~40–55mm
-  HP (straight, long):    103=34mm, 104=44.5mm, 105=65mm, 106=70mm → total instrument ~50–90mm
-→ Focus on distinguishing FG vs CA vs HP; do NOT rely on ruler to distinguish HP sub-codes (104 vs 105 vs 106).
+STEP 1 — IDENTIFY SHANK TYPE visually (rotary_diamond / rotary_carbide / diao / lab_carbide only):
+Compare the shank length to the working head length — this ratio is independent of camera distance:
+
+  FG (turbine):        Instrument looks VERY SHORT overall (≈ width of two fingers).
+                       Shank is only 2–3× longer than the head. Shank has a flat or ball tip.
+                       → shank_type = "fg"
+
+  CA (contra-angle):   Medium length. Shank has a visible latch notch or textured band.
+                       Shank is 2–4× longer than the head.
+                       → shank_type = "ca"
+
+  HP (straight hand.): Instrument looks CLEARLY LONG. Shank is smooth, straight, and
+                       4–7× longer than the working head.
+                       → shank_type = "hp"
+
+  Unsure?              Omit shank_type from search_catalog — do not guess.
 → Skip this step for: polisher, sonic, endodontic, root_post
 
 STEP 2 — OBSERVE (category-specific):
 
   For rotary_diamond:
-    - Head shape (torpedo, flame, round, cylinder, pear, inverted cone, diabolo...)
+    - Head shape (torpedo/chamfer, flame, round, cylinder, pear, inverted cone, diabolo...)
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
-    - Prefix hint if ring absent: could be ultrafine (8μm), note very faint transparent band
+    - If no ring: could be ultrafine (8μm), note very faint transparent band
 
   For rotary_carbide:
     - Head shape
@@ -131,8 +138,8 @@ STEP 2 — OBSERVE (category-specific):
     - Note: carbide color ring is on the SHANK NECK (= series marker, not grit)
 
   For diao:
-    - Head shape (already know: material = diao from rose-gold color)
-    - Head size from ruler
+    - Head shape (material already identified from rose-gold color)
+    - Overall head size relative to shank
 
   For polisher_*:
     - Head BODY COLOR = grit: blue=coarse | pink=medium | gray/white=fine | yellow=ultrafine
@@ -157,13 +164,12 @@ STEP 2 — OBSERVE (category-specific):
     - No ISO shank — identify by shape only
 
 STEP 3 — SEARCH the catalog:
-Call search_catalog with your category (product_type) and description.
-Optionally include shank_length_mm (use your measured value, but expect ±15mm error in search matching).
-If the first search returns 0 results, retry WITHOUT shank_length_mm — the measurement may be inaccurate.
+Call search_catalog with your category (product_type), shank_type (if identified in Step 1), and description.
+If the first search returns 0 results, retry without shank_type — the visual classification may be uncertain.
 
 STEP 4 — VISUAL CONFIRMATION:
 Call get_catalog_page with the catalog_page number from the best candidate.
-Compare the photo with the instrument image in the catalog. Focus on head shape and shank length.
+Compare the photo with the instrument image in the catalog. Focus on head shape and proportions.
 Maximum 2 catalog page lookups per search round.
 
 STEP 5 — SUBMIT (MANDATORY after Step 4):
@@ -187,10 +193,10 @@ SELECT id, family_codes, catalog_page, product_type,
 FROM shared.catalog_entries
 WHERE
   (
-    $1::numeric IS NULL
+    $1 IS NULL
     OR EXISTS (
       SELECT 1 FROM jsonb_array_elements(shank_options) s
-      WHERE ABS((s->>'length_mm')::numeric - $1::numeric) < 25
+      WHERE s->>'type' = $1
     )
   )
   AND ($2::text IS NULL OR product_type = $2)
@@ -207,9 +213,9 @@ LIMIT 10
 `
 
 type SearchCatalogInput = {
-  shank_length_mm?: number
-  product_type?:    string
-  description:      string
+  shank_type?:   string
+  product_type?: string
+  description:   string
 }
 
 type GetCatalogPageInput = {
@@ -404,7 +410,7 @@ async function runAgenticLoop(
 
         if (block.name === 'search_catalog') {
           const input = block.input as SearchCatalogInput
-          logger.info('[vision] search_catalog', { description: input.description, product_type: input.product_type, shank_length_mm: input.shank_length_mm })
+          logger.info('[vision] search_catalog', { description: input.description, product_type: input.product_type, shank_type: input.shank_type })
           const result = await runSearchCatalog(deps.pool, input)
           const parsed = JSON.parse(result) as unknown[]
           logger.info('[vision] search_catalog results', { count: parsed.length })
@@ -465,8 +471,8 @@ async function runAgenticLoop(
 }
 
 async function runSearchCatalog(pool: DbPool, input: SearchCatalogInput): Promise<string> {
-  const shankLengthMm = input.shank_length_mm ?? null
-  const productType   = input.product_type ?? null
+  const shankType   = input.shank_type   ?? null
+  const productType = input.product_type ?? null
 
   // Convert description to OR-based websearch query so single matching terms suffice
   const orQuery = input.description
@@ -474,6 +480,6 @@ async function runSearchCatalog(pool: DbPool, input: SearchCatalogInput): Promis
     .filter(w => w.length >= 3)
     .join(' OR ')
 
-  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankLengthMm, productType, orQuery])
+  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankType, productType, orQuery])
   return JSON.stringify(rows)
 }
