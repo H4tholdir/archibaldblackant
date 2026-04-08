@@ -4,6 +4,7 @@ import type { DbPool } from '../db/pool'
 import type { CatalogVisionService } from '../recognition/recognition-engine'
 import type { IdentificationResult } from '../recognition/types'
 import type { CatalogPdfService } from './catalog-pdf-service'
+import { findRelevantStrips, stripFullPath } from '../recognition/campionario-strip-map'
 import { logger } from '../logger'
 
 export type VisionApiFn = (imageBase64: string, signal?: AbortSignal) => Promise<IdentificationResult>
@@ -654,9 +655,32 @@ async function runDisambiguationLoop(
     }
   }
 
-  const catalogNote = catalogImages.length > 0
-    ? `\nCATALOG REFERENCE IMAGES INCLUDED BELOW:\n${catalogImages.map(img => `  • ${img.label}`).join('\n')}\nUse these illustrations to compare body profiles directly against the photographed instrument.`
-    : ''
+  // Load campionario strip reference photos from VPS filesystem (graceful degradation if unavailable)
+  const candidateFamilies = candidates.map(c => c.split('.')[0] ?? c)
+  const relevantStrips    = findRelevantStrips(candidateFamilies)
+  const campionarioImages: Array<{ label: string; base64: string }> = []
+  {
+    const { readFile } = await import('node:fs/promises')
+    for (const strip of relevantStrips) {
+      try {
+        const buf    = await readFile(stripFullPath(strip.path))
+        const base64 = await resizeCampionarioStrip(buf)
+        campionarioImages.push({ label: strip.label, base64 })
+        logger.info('[vision] campionario strip loaded', { path: strip.path })
+      } catch (err) {
+        logger.warn('[vision] campionario strip unavailable', { path: strip.path, err })
+      }
+    }
+  }
+
+  const catalogNote = [
+    catalogImages.length > 0
+      ? `\nCATALOG REFERENCE IMAGES INCLUDED BELOW:\n${catalogImages.map(img => `  • ${img.label}`).join('\n')}\nUse these illustrations to compare body profiles directly against the photographed instrument.`
+      : '',
+    campionarioImages.length > 0
+      ? `\nCAMPIONARIO STRIP PHOTOS INCLUDED:\n${campionarioImages.map(img => `  • ${img.label}`).join('\n')}\nThese are official Komet sample-board photographs. Each strip shows multiple instruments with their family-code labels. Use the labeled body profiles to confirm or correct your body-shape assessment.`
+      : '',
+  ].filter(Boolean).join('\n')
 
   const prompt = `You are disambiguating a Komet dental instrument from ${candidates.length} candidates.
 
@@ -699,6 +723,10 @@ submit_identification rules:
       { type: 'text' as const, text: `${label}:` },
       { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: base64 } },
     ]),
+    ...campionarioImages.flatMap(({ label, base64 }) => [
+      { type: 'text' as const, text: `CAMPIONARIO — ${label}:` },
+      { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: base64 } },
+    ]),
   ]
 
   const messages: MessageParam[] = [{ role: 'user', content: userContent }]
@@ -714,7 +742,11 @@ submit_identification rules:
   )
 
   const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
-  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, catalogImagesUsed: catalogImages.map(i => ({ page: i.page, label: i.label })) })
+  logger.info('[vision] disambiguation result', {
+    stop_reason:         response.stop_reason,
+    catalogImagesUsed:   catalogImages.map(i => ({ page: i.page, label: i.label })),
+    campionarioStrips:   campionarioImages.map(i => i.label),
+  })
 
   for (const block of response.content) {
     if (block.type === 'tool_use' && block.name === 'submit_identification') {
@@ -793,6 +825,19 @@ async function cropCatalogPageImage(base64Png: string): Promise<string> {
     .extract({ left: 0, top: 0, width: w, height: cropH })
     .resize({ width: Math.floor(w * 0.65) })
     .jpeg({ quality: 78 })
+    .toBuffer()
+    .then(b => b.toString('base64'))
+}
+
+/**
+ * Resize a campionario strip photo for API use.
+ * Strips are already focused on instrument content — just resize to max 1400px width.
+ */
+async function resizeCampionarioStrip(buf: Buffer): Promise<string> {
+  const sharp = (await import('sharp')).default
+  return sharp(buf)
+    .resize({ width: 1400, withoutEnlargement: true })
+    .jpeg({ quality: 82 })
     .toBuffer()
     .then(b => b.toString('base64'))
 }
