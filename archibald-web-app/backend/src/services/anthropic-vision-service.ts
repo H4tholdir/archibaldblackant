@@ -384,7 +384,7 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
 
       try {
         if (disambiguationCandidates && disambiguationCandidates.length >= 2) {
-          return await runDisambiguationLoop(client, deps.pool, imageBase64, disambiguationCandidates, controller.signal)
+          return await runDisambiguationLoop(client, deps.pool, deps.catalogPdf, imageBase64, disambiguationCandidates, controller.signal)
         }
         return await runAgenticLoop(client, deps, imageBase64, controller.signal)
       } finally {
@@ -535,22 +535,27 @@ async function runAgenticLoop(
 async function runDisambiguationLoop(
   client:      Anthropic,
   pool:        DbPool,
+  catalogPdf:  CatalogPdfService,
   imageBase64: string,
   candidates:  string[],
   signal:      AbortSignal,
 ): Promise<IdentificationResult> {
-  // Fetch shape descriptions for each candidate family from DB
+  // Fetch shape descriptions and catalog pages for each candidate family from DB
   const familyCodes = [...new Set(candidates.map(c => c.split('.')[0] ?? c))]
-  const { rows } = await pool.query<{ family_codes: string[]; shape_description: string }>(
-    `SELECT family_codes, shape_description FROM shared.catalog_entries
+  const { rows } = await pool.query<{ family_codes: string[]; shape_description: string; catalog_page: number | null }>(
+    `SELECT family_codes, shape_description, catalog_page FROM shared.catalog_entries
      WHERE family_codes && $1 ORDER BY catalog_page LIMIT 20`,
     [familyCodes],
   )
 
   const familyDescMap = new Map<string, string>()
+  const familyPageMap = new Map<string, number | null>()
   for (const row of rows) {
     for (const fc of row.family_codes) {
-      if (!familyDescMap.has(fc)) familyDescMap.set(fc, row.shape_description)
+      if (!familyDescMap.has(fc)) {
+        familyDescMap.set(fc, row.shape_description)
+        familyPageMap.set(fc, row.catalog_page ?? null)
+      }
     }
   }
 
@@ -560,30 +565,70 @@ async function runDisambiguationLoop(
     return `  - ${code}: ${desc}`
   }).join('\n')
 
-  const prompt = `You are confirming the identification of a Komet dental instrument.
-A previous scan of the FULL instrument returned these candidates:
+  // Fetch catalog page images for each unique page across all candidates
+  const seenPages = new Set<number>()
+  const catalogImages: Array<{ page: number; base64: string }> = []
+  for (const code of candidates) {
+    const fc   = code.split('.')[0] ?? code
+    const page = familyPageMap.get(fc)
+    if (page && !seenPages.has(page)) {
+      seenPages.add(page)
+      try {
+        const raw     = await catalogPdf.getPageAsBase64(page)
+        const cropped = await cropCatalogPageForDisambiguation(raw)
+        catalogImages.push({ page, base64: cropped })
+        logger.info('[vision] disambiguation catalog page loaded', { page, familyCode: fc })
+      } catch (err) {
+        logger.warn('[vision] disambiguation catalog page unavailable', { page, err })
+      }
+    }
+  }
+
+  const catalogNote = catalogImages.length > 0
+    ? `\nCATALOG REFERENCE IMAGES: ${catalogImages.map(img => `catalog page ${img.page}`).join(' and ')} are included below — use them to compare shapes against the photograph.`
+    : ''
+
+  const prompt = `You are disambiguating a Komet dental instrument from ${candidates.length} candidates.
+
+Candidates:
 ${candidateLines}
+${catalogNote}
 
-This photo shows the instrument head more closely.
-Your ONLY task: examine the TIP SHAPE of the head and pick the correct candidate.
+══════════════════════════════════════════════════════
+KEY BODY-SHAPE DISCRIMINATOR (the most reliable cue):
+══════════════════════════════════════════════════════
 
-TIP SHAPE rules:
-  - ROUNDED / BLUNT end (dome-shaped, like a bullet nose) → torpedo/chamfer family (879)
-  - SHARPLY POINTED end (tapers continuously to fine apex) → flame family (863, 862, 860)
+  TORPEDO / CHAMFER (family 879):
+    • BODY has a CYLINDRICAL or NEARLY-PARALLEL section for most of its length
+    • Only the final portion tapers — ending in a ROUNDED or BLUNT chamfered tip
+    • Side profile looks like: ▬▬▬◥  (parallel shaft → short taper → blunt end)
 
-Look very carefully at the very apex. Then call submit_identification immediately.
-- If clearly one candidate: product_code = that code, confidence > 0.75
-- If still uncertain: product_code = "", candidates = remaining 2, confidence 0.5`
+  FLAME (families 863, 862, 860):
+    • BODY tapers CONTINUOUSLY from the base all the way to the apex — NO parallel section
+    • The tip comes to a SHARPLY POINTED acute apex with no rounding
+    • Side profile looks like: △  (constant taper → fine point)
 
-  const messages: MessageParam[] = [
-    {
-      role:    'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-        { type: 'text', text: prompt },
-      ],
-    },
+DECISION PROCESS:
+  1. Look at the BODY of the photographed instrument — is there a clearly CYLINDRICAL/PARALLEL section?
+     YES → torpedo/chamfer (879)
+     NO, tapers from bottom to top → flame (863/862/860)
+  2. If catalog images are provided: find the illustrated shapes and compare side profiles directly.
+  3. The body profile is MORE RELIABLE than tip-only inspection.
+
+Call submit_identification with your answer:
+  - Clearly identified: product_code = that code, confidence > 0.75
+  - Still uncertain: product_code = "", candidates = [remaining 2], confidence 0.5`
+
+  const userContent = [
+    { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: imageBase64 } },
+    { type: 'text' as const, text: prompt },
+    ...catalogImages.flatMap(({ page, base64 }) => [
+      { type: 'text' as const, text: `Catalog page ${page}:` },
+      { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: base64 } },
+    ]),
   ]
+
+  const messages: MessageParam[] = [{ role: 'user', content: userContent }]
 
   const response = await client.messages.create(
     {
@@ -596,7 +641,7 @@ Look very carefully at the very apex. Then call submit_identification immediatel
   )
 
   const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
-  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, content_types: response.content.map(b => b.type) })
+  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, catalogPagesUsed: catalogImages.map(i => i.page) })
 
   for (const block of response.content) {
     if (block.type === 'tool_use' && block.name === 'submit_identification') {
@@ -655,6 +700,25 @@ async function cropCatalogPageImage(base64Png: string): Promise<string> {
     .extract({ left: 0, top: 0, width: w, height: cropH })
     .resize({ width: Math.floor(w * 0.65) })
     .jpeg({ quality: 78 })
+    .toBuffer()
+    .then(b => b.toString('base64'))
+}
+
+/**
+ * Crop catalog page for disambiguation at FULL width resolution.
+ * No width resize — shape details (cylindrical vs tapering body) must remain legible.
+ */
+async function cropCatalogPageForDisambiguation(base64Png: string): Promise<string> {
+  const sharp = (await import('sharp')).default
+  const buf   = Buffer.from(base64Png, 'base64')
+  const meta  = await sharp(buf).metadata()
+  const w     = meta.width  ?? 800
+  const h     = meta.height ?? 1100
+  const cropH = Math.floor(h * 0.72)
+
+  return sharp(buf)
+    .extract({ left: 0, top: 0, width: w, height: cropH })
+    .jpeg({ quality: 85 })
     .toBuffer()
     .then(b => b.toString('base64'))
 }

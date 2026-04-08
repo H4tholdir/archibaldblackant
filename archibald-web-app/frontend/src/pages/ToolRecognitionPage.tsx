@@ -18,6 +18,8 @@ type PageState =
   | 'analyzing'
   | 'match'
   | 'shortlist'
+  | 'disambiguation_camera'
+  | 'disambiguation_analyzing'
   | 'budget_exhausted'
 
 function InstrumentGuide() {
@@ -67,6 +69,51 @@ function InstrumentGuide() {
           fontWeight: 700, letterSpacing: 2, marginTop: 8,
         }}>
           BASE
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DisambiguationGuide() {
+  const bracket: CSSProperties = {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderColor: '#60a5fa',
+    borderStyle: 'solid',
+    borderWidth: 0,
+  }
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none',
+    }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{
+          color: 'rgba(96,165,250,0.9)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginBottom: 8,
+        }}>
+          TESTA
+        </div>
+        <div style={{
+          position: 'relative',
+          width: '60vw',
+          height: '38vh',
+          border: '1px solid rgba(96,165,250,0.35)',
+          borderRadius: 4,
+        }}>
+          <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+        </div>
+        <div style={{
+          color: 'rgba(96,165,250,0.8)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginTop: 8,
+        }}>
+          5–10 cm di distanza
         </div>
       </div>
     </div>
@@ -243,6 +290,51 @@ export function ToolRecognitionPage() {
     }
   }, [captureFrame, pageState, vibrate, playSuccessBeep])
 
+  const handleDisambiguationShutter = useCallback(async () => {
+    if (pageState !== 'disambiguation_camera') return
+    const token = localStorage.getItem('archibald_jwt')
+    if (!token || identifyResult?.result.state !== 'shortlist') return
+
+    vibrate(30)
+    const base64 = captureFrame() ?? 'mock-frame'
+    setCapturedBase64(base64)
+    setPageState('disambiguation_analyzing')
+
+    const candidateIds = identifyResult.result.candidates.map(c => c.productId)
+
+    try {
+      const response = await identifyInstrument(token, base64, candidateIds)
+      setIdentifyResult(response)
+
+      const { state } = response.result
+      if (state === 'match') {
+        vibrate([200, 50, 100])
+        playSuccessBeep()
+        setPageState('match')
+      } else if (state === 'shortlist') {
+        vibrate([80, 30, 80])
+        setPageState('shortlist')
+        const candidates = response.result.candidates
+        const images: Record<string, string> = {}
+        await Promise.all(
+          candidates
+            .filter(c => c.catalogPage != null)
+            .map(async c => {
+              const img = await getCatalogPageImage(token, c.catalogPage!)
+              if (img) images[c.productId] = img
+            })
+        )
+        setCandidateCatalogImages(images)
+      } else {
+        setPageState('shortlist')
+        setErrorMessage('Non riesco a distinguere i candidati. Seleziona manualmente.')
+      }
+    } catch {
+      setPageState('shortlist')
+      setErrorMessage('Errore di connessione. Riprova.')
+    }
+  }, [captureFrame, identifyResult, pageState, vibrate, playSuccessBeep])
+
   const remainingScans = budget ? budget.dailyLimit - budget.usedToday : null
 
   if (pageState === 'permission_denied') {
@@ -320,6 +412,37 @@ export function ToolRecognitionPage() {
               )
             })}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (pageState === 'disambiguation_analyzing') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
+        {capturedBase64 && (
+          <img
+            src={`data:image/jpeg;base64,${capturedBase64}`}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35, position: 'absolute', inset: 0 }}
+          />
+        )}
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 20,
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: '50%',
+            border: '4px solid rgba(255,255,255,0.15)',
+            borderTopColor: '#60a5fa',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+          <div style={{ color: '#60a5fa', fontSize: 17, fontWeight: 600 }}>
+            Analisi punta in corso...
+          </div>
+          <div style={{ color: '#6b7280', fontSize: 13 }}>~8 secondi</div>
         </div>
       </div>
     )
@@ -524,6 +647,28 @@ export function ToolRecognitionPage() {
         </div>
 
         <div style={{ padding: '14px 20px' }}>
+          {/* Disambiguation CTA */}
+          <button
+            onClick={() => setPageState('disambiguation_camera')}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              background: 'rgba(37,99,235,0.15)',
+              border: '1px solid rgba(96,165,250,0.5)',
+              borderRadius: 12, padding: '13px 16px', marginBottom: 16,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>📷</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ color: '#60a5fa', fontWeight: 700, fontSize: 15 }}>
+                Fotografa la punta da vicino
+              </div>
+              <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                5–10 cm · toglie ogni dubbio
+              </div>
+            </div>
+          </button>
+
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
             const catalogImg = candidateCatalogImages[c.productId]
@@ -584,6 +729,8 @@ export function ToolRecognitionPage() {
     )
   }
 
+  const isDisambiguationCamera = pageState === 'disambiguation_camera'
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
       <video
@@ -595,38 +742,46 @@ export function ToolRecognitionPage() {
       />
 
       <button
-        onClick={() => navigate(-1)}
+        onClick={isDisambiguationCamera ? () => setPageState('shortlist') : () => navigate(-1)}
         style={{
           position: 'absolute', top: 16, left: 16, zIndex: 10,
           background: 'none', border: 'none', color: '#fff',
           fontSize: 28, cursor: 'pointer', padding: 8,
         }}
-        aria-label="Chiudi scanner"
+        aria-label={isDisambiguationCamera ? 'Torna alla lista' : 'Chiudi scanner'}
       >
         ✕
       </button>
 
-      {pageState === 'idle' && <InstrumentGuide />}
+      {!isDisambiguationCamera && <InstrumentGuide />}
+      {isDisambiguationCamera && <DisambiguationGuide />}
 
-      {pageState === 'idle' && (
-        <div style={{
-          position: 'absolute',
-          top: '7%',
-          left: 0, right: 0,
-          textAlign: 'center',
-          color: 'rgba(255,255,255,0.9)',
-          fontSize: 13,
-          textShadow: '0 1px 4px rgba(0,0,0,0.9)',
-          pointerEvents: 'none',
-        }}>
-          Centra la fresa nella guida ·{' '}
-          <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-            15–20 cm di distanza
-          </span>
-        </div>
-      )}
+      <div style={{
+        position: 'absolute',
+        top: '7%',
+        left: 0, right: 0,
+        textAlign: 'center',
+        color: isDisambiguationCamera ? 'rgba(96,165,250,0.9)' : 'rgba(255,255,255,0.9)',
+        fontSize: 13,
+        textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+        pointerEvents: 'none',
+      }}>
+        {isDisambiguationCamera ? (
+          <>Inquadra la testa della fresa ·{' '}
+            <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
+              5–10 cm di distanza
+            </span>
+          </>
+        ) : (
+          <>Centra la fresa nella guida ·{' '}
+            <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
+              15–20 cm di distanza
+            </span>
+          </>
+        )}
+      </div>
 
-      {pageState === 'idle' && (
+      {!isDisambiguationCamera && (
         <div style={{
           position: 'absolute',
           bottom: 96,
@@ -663,7 +818,7 @@ export function ToolRecognitionPage() {
         </div>
       )}
 
-      {budget?.throttleLevel === 'warning' && (
+      {!isDisambiguationCamera && budget?.throttleLevel === 'warning' && (
         <div style={{
           position: 'absolute', bottom: 68, left: 16, right: 16,
           background: 'rgba(234, 179, 8, 0.15)', borderRadius: 8,
@@ -674,15 +829,17 @@ export function ToolRecognitionPage() {
         </div>
       )}
 
-      {pageState === 'idle' && (
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          height: 80,
-          background: 'rgba(0,0,0,0.75)',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-around',
-          padding: '0 32px',
-        }}>
+      {/* Barra inferiore: idle → flash+shutter+budget | disambiguation_camera → solo shutter */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        height: 80,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center',
+        justifyContent: isDisambiguationCamera ? 'center' : 'space-around',
+        padding: '0 32px',
+        gap: isDisambiguationCamera ? 0 : undefined,
+      }}>
+        {!isDisambiguationCamera && (
           <button
             onClick={toggleFlash}
             style={{
@@ -694,17 +851,22 @@ export function ToolRecognitionPage() {
           >
             ⚡
           </button>
+        )}
 
-          <button
-            onClick={() => { void handleShutter() }}
-            aria-label="Scatta foto"
-            style={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: '#fff', border: '4px solid rgba(255,255,255,0.5)',
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-            }}
-          />
+        <button
+          onClick={isDisambiguationCamera
+            ? () => { void handleDisambiguationShutter() }
+            : () => { void handleShutter() }}
+          aria-label={isDisambiguationCamera ? 'Scatta seconda foto' : 'Scatta foto'}
+          style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: isDisambiguationCamera ? '#60a5fa' : '#fff',
+            border: `4px solid ${isDisambiguationCamera ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.5)'}`,
+            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          }}
+        />
 
+        {!isDisambiguationCamera && (
           <div style={{ textAlign: 'center', minWidth: 52 }}>
             {remainingScans !== null ? (
               <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}>
@@ -714,8 +876,8 @@ export function ToolRecognitionPage() {
               <div style={{ color: '#6b7280', fontSize: 11 }}>—</div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
