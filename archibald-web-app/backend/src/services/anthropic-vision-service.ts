@@ -203,14 +203,23 @@ Call submit_identification immediately. Do NOT call any other tools after this.
 - Not found: product_code = "", candidates = [], confidence = 0
 Always call submit_identification even if uncertain.
 
-MANDATORY SHORTLIST — HP rotary_diamond without visible grit ring:
-If shank=HP + rotary_diamond + no clearly visible grit ring color:
-  → Family 879 (torpedo/chamfer, size 014 ONLY, HP ONLY) is a strong candidate.
-  → ALWAYS return candidates array including "879.104.014" alongside your top flame match.
-  → Set confidence 0.45, product_code = "", candidates = ["863.104.016","879.104.014"]
-  → Exception: exclude 879 only if you see a CLEARLY DIFFERENT tip (e.g., very long head >12mm
-    or clearly spherical/round head — shapes that are NOT torpedo/chamfer/flame).
-  → Note: torpedo burs often appear as if pointed in side-view photos due to chamfer angle.`
+MANDATORY SHORTLIST — torpedo/flame ambiguity, HP only:
+Apply ONLY IF ALL four conditions are true:
+  1. Shank = HP (long straight handpiece)
+  2. Product type = rotary_diamond
+  3. No clearly visible grit ring color
+  4. Your primary visual identification suggests a FLAME or TORPEDO/CHAMFER head shape
+     (your best catalog match is in family 863, 862, 860, or 879)
+→ If all four apply: return shortlist, product_code = "", confidence 0.45,
+  candidates = [your_flame_match, "879.104.014"]
+→ Note: torpedo burs often appear pointed in side-view photos due to chamfer angle.
+
+DO NOT apply this rule if your primary identification is a clearly DIFFERENT head shape:
+  • Inverted cone (wider at working end, e.g. family 807) → submit match directly
+  • Round/ball bur → submit match directly
+  • Pear shape → submit match directly
+  • Cylinder flat-end → submit match directly
+  • Any non-flame/non-torpedo family → submit match directly`
 
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
@@ -540,22 +549,54 @@ async function runDisambiguationLoop(
   candidates:  string[],
   signal:      AbortSignal,
 ): Promise<IdentificationResult> {
-  // Fetch shape descriptions and catalog pages for each candidate family from DB
-  const familyCodes = [...new Set(candidates.map(c => c.split('.')[0] ?? c))]
-  const { rows } = await pool.query<{ family_codes: string[]; shape_description: string; catalog_page: number | null }>(
-    `SELECT family_codes, shape_description, catalog_page FROM shared.catalog_entries
-     WHERE family_codes && $1 ORDER BY catalog_page LIMIT 20`,
-    [familyCodes],
-  )
-
+  // Per-candidate lookup: prefer the catalog entry matching the specific shank code
+  // (avoids picking FG pages when the candidate is HP, which are on different catalog pages)
   const familyDescMap = new Map<string, string>()
   const familyPageMap = new Map<string, number | null>()
-  for (const row of rows) {
-    for (const fc of row.family_codes) {
-      if (!familyDescMap.has(fc)) {
-        familyDescMap.set(fc, row.shape_description)
-        familyPageMap.set(fc, row.catalog_page ?? null)
+
+  for (const code of candidates) {
+    const parts      = code.split('.')
+    const familyCode = parts[0] ?? code
+    const shankCode  = parts[1] ?? null
+    if (familyDescMap.has(familyCode)) continue
+
+    try {
+      type EntryRow = { shape_description: string; identification_clues: string | null; catalog_page: number | null }
+
+      // Try shank-specific entry first (e.g. HP page for an HP candidate)
+      let row: EntryRow | undefined
+      if (shankCode) {
+        const { rows: exact } = await pool.query<EntryRow>(
+          `SELECT shape_description, identification_clues, catalog_page
+           FROM shared.catalog_entries
+           WHERE $1::text = ANY (family_codes)
+             AND EXISTS (SELECT 1 FROM jsonb_array_elements(shank_options) s WHERE s->>'code' = $2::text)
+           ORDER BY catalog_page ASC LIMIT 1`,
+          [familyCode, shankCode],
+        )
+        row = exact[0]
       }
+      // Fall back to any shank if no shank-specific entry found
+      if (!row) {
+        const { rows: fallback } = await pool.query<EntryRow>(
+          `SELECT shape_description, identification_clues, catalog_page
+           FROM shared.catalog_entries
+           WHERE $1::text = ANY (family_codes)
+           ORDER BY catalog_page ASC LIMIT 1`,
+          [familyCode],
+        )
+        row = fallback[0]
+      }
+      if (row) {
+        const desc = row.identification_clues
+          ? `${row.shape_description}. ${row.identification_clues}`
+          : row.shape_description
+        familyDescMap.set(familyCode, desc)
+        familyPageMap.set(familyCode, row.catalog_page ?? null)
+        logger.info('[vision] disambiguation candidate lookup', { code, shankCode, catalogPage: row.catalog_page })
+      }
+    } catch (err) {
+      logger.warn('[vision] disambiguation candidate lookup failed', { code, err })
     }
   }
 
@@ -565,27 +606,56 @@ async function runDisambiguationLoop(
     return `  - ${code}: ${desc}`
   }).join('\n')
 
-  // Fetch catalog page images for each unique page across all candidates
-  const seenPages = new Set<number>()
-  const catalogImages: Array<{ page: number; base64: string }> = []
+  // Fetch catalog page images: for each candidate, load:
+  //   (1) the shank-specific page (correct proportions for the instrument type)
+  //   (2) the lowest catalog page for the family (clearest shape illustration — usually FG/solo)
+  // Both are needed because the shank-specific page may show many items at small scale,
+  // while the lowest-numbered page typically shows the shape most clearly in full scale.
+  const pagesToFetch: Array<{ page: number; label: string }> = []
+  const seenPagesCollect = new Set<number>()
+
   for (const code of candidates) {
-    const fc   = code.split('.')[0] ?? code
-    const page = familyPageMap.get(fc)
-    if (page && !seenPages.has(page)) {
-      seenPages.add(page)
-      try {
-        const raw     = await catalogPdf.getPageAsBase64(page)
-        const cropped = await cropCatalogPageForDisambiguation(raw)
-        catalogImages.push({ page, base64: cropped })
-        logger.info('[vision] disambiguation catalog page loaded', { page, familyCode: fc })
-      } catch (err) {
-        logger.warn('[vision] disambiguation catalog page unavailable', { page, err })
+    const parts      = code.split('.')
+    const familyCode = parts[0] ?? code
+
+    // (1) Shank-specific page
+    const primaryPage = familyPageMap.get(familyCode)
+    if (primaryPage && !seenPagesCollect.has(primaryPage)) {
+      seenPagesCollect.add(primaryPage)
+      pagesToFetch.push({ page: primaryPage, label: `Catalog page ${primaryPage} (full instrument)` })
+    }
+
+    // (2) Lowest catalog page = clearest isolated shape illustration
+    try {
+      const { rows: minRows } = await pool.query<{ catalog_page: number }>(
+        `SELECT MIN(catalog_page) AS catalog_page FROM shared.catalog_entries
+         WHERE $1::text = ANY (family_codes)`,
+        [familyCode],
+      )
+      const lowestPage = minRows[0]?.catalog_page
+      if (lowestPage && !seenPagesCollect.has(lowestPage)) {
+        seenPagesCollect.add(lowestPage)
+        pagesToFetch.push({ page: lowestPage, label: `Shape reference page ${lowestPage} (${familyCode})` })
       }
+    } catch {
+      // skip secondary reference
+    }
+  }
+
+  const catalogImages: Array<{ page: number; label: string; base64: string }> = []
+  for (const { page, label } of pagesToFetch) {
+    try {
+      const raw     = await catalogPdf.getPageAsBase64(page)
+      const cropped = await cropCatalogPageForDisambiguation(raw)
+      catalogImages.push({ page, label, base64: cropped })
+      logger.info('[vision] disambiguation catalog page loaded', { page, label })
+    } catch (err) {
+      logger.warn('[vision] disambiguation catalog page unavailable', { page, err })
     }
   }
 
   const catalogNote = catalogImages.length > 0
-    ? `\nCATALOG REFERENCE IMAGES: ${catalogImages.map(img => `catalog page ${img.page}`).join(' and ')} are included below — use them to compare shapes against the photograph.`
+    ? `\nCATALOG REFERENCE IMAGES INCLUDED BELOW:\n${catalogImages.map(img => `  • ${img.label}`).join('\n')}\nUse these illustrations to compare body profiles directly against the photographed instrument.`
     : ''
 
   const prompt = `You are disambiguating a Komet dental instrument from ${candidates.length} candidates.
@@ -594,36 +664,39 @@ Candidates:
 ${candidateLines}
 ${catalogNote}
 
-══════════════════════════════════════════════════════
-KEY BODY-SHAPE DISCRIMINATOR (the most reliable cue):
-══════════════════════════════════════════════════════
+STEP 0 — VERIFY CANDIDATE MATCH:
+Before anything else: does the photographed instrument actually belong to one of these candidates?
+  • If the head shape is CLEARLY DIFFERENT from all candidates (e.g. it's an inverted cone,
+    ball/round bur, pear, or any shape not in the candidate list) → submit product_code = "",
+    candidates = [], confidence = 0 immediately. Do NOT force a wrong answer.
+
+STEP 1 — BODY-SHAPE COMPARISON (if the instrument could be one of the candidates):
 
   TORPEDO / CHAMFER (family 879):
     • BODY has a CYLINDRICAL or NEARLY-PARALLEL section for most of its length
     • Only the final portion tapers — ending in a ROUNDED or BLUNT chamfered tip
-    • Side profile looks like: ▬▬▬◥  (parallel shaft → short taper → blunt end)
+    • Side profile: ▬▬▬◥  (parallel shaft → short taper → blunt end)
 
   FLAME (families 863, 862, 860):
     • BODY tapers CONTINUOUSLY from the base all the way to the apex — NO parallel section
     • The tip comes to a SHARPLY POINTED acute apex with no rounding
-    • Side profile looks like: △  (constant taper → fine point)
+    • Side profile: △  (constant taper → fine point)
 
-DECISION PROCESS:
-  1. Look at the BODY of the photographed instrument — is there a clearly CYLINDRICAL/PARALLEL section?
-     YES → torpedo/chamfer (879)
-     NO, tapers from bottom to top → flame (863/862/860)
-  2. If catalog images are provided: find the illustrated shapes and compare side profiles directly.
-  3. The body profile is MORE RELIABLE than tip-only inspection.
+STEP 2 — DECIDE:
+  1. Is there a CYLINDRICAL/PARALLEL body section? YES → torpedo (879). NO → flame (863/862/860).
+  2. If catalog images provided: compare side profiles directly against the illustrations.
+  3. Body profile is MORE RELIABLE than tip-only inspection.
 
-Call submit_identification with your answer:
-  - Clearly identified: product_code = that code, confidence > 0.75
-  - Still uncertain: product_code = "", candidates = [remaining 2], confidence 0.5`
+submit_identification rules:
+  - Clearly identified: product_code = EXACTLY one of the listed candidate codes above, confidence > 0.75
+  - Still uncertain between candidates: product_code = "", candidates = [remaining options], confidence 0.5
+  - Instrument is not one of these candidates: product_code = "", candidates = [], confidence = 0`
 
   const userContent = [
     { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: imageBase64 } },
     { type: 'text' as const, text: prompt },
-    ...catalogImages.flatMap(({ page, base64 }) => [
-      { type: 'text' as const, text: `Catalog page ${page}:` },
+    ...catalogImages.flatMap(({ label, base64 }) => [
+      { type: 'text' as const, text: `${label}:` },
       { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: base64 } },
     ]),
   ]
@@ -641,12 +714,32 @@ Call submit_identification with your answer:
   )
 
   const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
-  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, catalogPagesUsed: catalogImages.map(i => i.page) })
+  logger.info('[vision] disambiguation result', { stop_reason: response.stop_reason, catalogImagesUsed: catalogImages.map(i => ({ page: i.page, label: i.label })) })
 
   for (const block of response.content) {
     if (block.type === 'tool_use' && block.name === 'submit_identification') {
       const input = block.input as SubmitIdentificationInput
       logger.info('[vision] disambiguation submit_identification', { product_code: input.product_code, confidence: input.confidence, reasoning: input.reasoning })
+
+      // Validate: if a product_code was returned, it must be one of the original candidates.
+      // This catches hallucinations like "8863.104.016" when the candidate is "863.104.016".
+      if (input.product_code && !candidates.includes(input.product_code)) {
+        logger.warn('[vision] disambiguation: product_code not in candidates, falling back to shortlist', {
+          returned: input.product_code,
+          candidates,
+        })
+        return {
+          productCode:  candidates[0]!,
+          familyCode:   candidates[0]!.split('.')[0] ?? null,
+          confidence:   0.4,
+          resultState:  'shortlist',
+          candidates,
+          catalogPage:  null,
+          reasoning:    `Disambiguation returned unknown code "${input.product_code}" (not in candidates). Keeping shortlist.`,
+          usage,
+        }
+      }
+
       return parseFromSubmitTool(input, null, usage)
     }
   }
