@@ -736,18 +736,12 @@ submit_identification rules:
   - Still uncertain between candidates: product_code = "", candidates = [remaining options], confidence 0.5
   - Instrument is not one of these candidates: product_code = "", candidates = [], confidence = 0
 
-OVERRIDE — 879 torpedo vs 863/862 flame on HP shank:
-  This is the hardest visual disambiguation in dental instrument photography. The 879 torpedo HP
-  frequently appears as a continuous taper in side-view photos due to perspective and head size.
-  Apply this rule when 879 AND (863 or 862) are both candidates with an HP (104) shank code:
-    • You MUST see ALL THREE of the following to confidently identify 863 (flame):
-        a) No cylindrical body section whatsoever — taper starts at the very base mm
-        b) Tip apex is a TRUE fine needle point (not a small dome or flat end)
-        c) Campionario strip clearly shows the 863 profile matching the photo BETTER THAN the 879 profile
-    • If ANY of the three is uncertain or you rely only on (a) → return shortlist, NOT a match
-    • Confidence >= 0.90 required to submit a definitive match for either family in this pairing
-    • When equally uncertain between the two → prefer 879 (torpedo misidentified as flame is the
-      more common error; torpedo HP burs outnumber flame HP burs in clinical use)`
+MANDATORY SHORTLIST — 879 torpedo vs 863/862 flame on HP shank:
+  When the candidates include 879 (torpedo) AND 863 or 862 (flame) with HP shank code (104):
+  → ALWAYS submit as shortlist (product_code = "", candidates = full list, confidence = 0.5).
+  → NEVER submit a definitive match for either family in this pairing.
+  Rationale: the 879 HP torpedo consistently appears as a continuous taper in side-view photos.
+  The visual difference is unresolvable from photographs alone. The user must confirm manually.`
 
   const userContent = [
     { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: imageBase64 } },
