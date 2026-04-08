@@ -8,7 +8,7 @@ const makePageMock = () => ({
   once: vi.fn(),
   url: vi.fn().mockReturnValue('http://test'),
   waitForSelector: vi.fn().mockResolvedValue(null),
-  keyboard: { press: vi.fn().mockResolvedValue(undefined), type: vi.fn().mockResolvedValue(undefined) },
+  keyboard: { press: vi.fn().mockResolvedValue(undefined), type: vi.fn().mockResolvedValue(undefined), down: vi.fn().mockResolvedValue(undefined), up: vi.fn().mockResolvedValue(undefined) },
   waitForFunction: vi.fn().mockResolvedValue(undefined),
 });
 
