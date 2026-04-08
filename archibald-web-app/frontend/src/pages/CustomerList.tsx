@@ -390,7 +390,7 @@ function CustomerRow({ customer: c, photo, onClick }: { customer: Customer; phot
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
         <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {[c.phone ?? c.mobile, c.city].filter(Boolean).join(' · ')}
+          {[c.phone ?? c.mobile, c.city, `ID: ${c.erpId}`].filter(Boolean).join(' · ')}
         </div>
       </div>
       {badge && <span style={BADGE_STYLE[badge]}>{badge}</span>}

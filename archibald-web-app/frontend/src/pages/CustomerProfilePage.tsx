@@ -545,6 +545,7 @@ export function CustomerProfilePage() {
 
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: '12px', textAlign: 'center' }}>
               {[customer.vatNumber && `P.IVA ${customer.vatNumber}`, customer.city].filter(Boolean).join(' · ')}
+              <span style={{ marginLeft: 6, fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>· ID ERP: {customer.erpId}</span>
             </div>
 
             {urgentRemindersText && (
@@ -714,6 +715,7 @@ export function CustomerProfilePage() {
 
             {/* 3. Anagrafica */}
             <SectionCard refProp={sectionRefs.anagrafica} title="Anagrafica" isEditMode={editMode}>
+              <FieldRow label="ID ERP" value={customer.erpId} />
               <FieldRow label="Ragione sociale" value={pendingEdits.name ?? customer.name} fieldKey="name" isEditing={editMode} onChange={(key, val) => {
                 setPendingEdits(prev => {
                   const next: PendingEdits = { ...prev, [key]: val };

@@ -4514,6 +4514,12 @@ export function OrderCardNew({
                   {" \u2022 "}
                 </>
               ) : null}
+              {order.archibaldOrderId ? (
+                <>
+                  <span style={{ fontWeight: 500, color: "#888" }}>ID: {order.archibaldOrderId}</span>
+                  {" \u2022 "}
+                </>
+              ) : null}
               {formatDate(order.orderDate || order.date)}
             </div>
 
