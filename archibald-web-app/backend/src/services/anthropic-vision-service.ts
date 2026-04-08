@@ -20,7 +20,7 @@ const SEARCH_CATALOG_TOOL: Anthropic.Tool = {
   description: `Search the Komet catalog database for product families matching your visual description.
     Call this after Step 1 (shank type identification) and Step 2 (visual observation).
     Provide the most detailed description possible: instrument type, head shape, material, colored ring or absence.
-    Returns up to 10 matching catalog entries ordered by relevance.`,
+    Returns up to 10 matching catalog entries ordered by relevance, PLUS a catalog page image of the top result for immediate visual comparison.`,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -35,6 +35,10 @@ const SEARCH_CATALOG_TOOL: Anthropic.Tool = {
       description: {
         type: 'string',
         description: 'Full visual description of the instrument in English',
+      },
+      grit_color: {
+        type: 'string',
+        description: 'Color of the ring band at the head-neck junction for rotary_diamond burs: "blue"|"red"|"yellow"|"green"|"black"|"white". Omit if not a diamond bur or ring not clearly visible.',
       },
     },
     required: ['description'],
@@ -164,13 +168,16 @@ STEP 2 — OBSERVE (category-specific):
     - No ISO shank — identify by shape only
 
 STEP 3 — SEARCH the catalog:
-Call search_catalog with your category (product_type), shank_type (if identified in Step 1), and description.
-If the first search returns 0 results, retry without shank_type — the visual classification may be uncertain.
+Call search_catalog with: product_type, shank_type (if identified), description,
+and grit_color if it is a rotary_diamond with a clearly visible ring color.
+→ search_catalog automatically returns a catalog page image of the TOP result for visual comparison.
+If the first search returns 0 results, retry without shank_type and/or grit_color.
 
 STEP 4 — VISUAL CONFIRMATION:
-Call get_catalog_page with the catalog_page number from the best candidate.
-Compare the photo with the instrument image in the catalog. Focus on head shape and proportions.
-Maximum 2 catalog page lookups per search round.
+Compare the catalog page image returned by search_catalog with the photographed instrument.
+Focus on head shape and proportions. If the top result does not match, check the other catalog_page
+numbers in the JSON results and call get_catalog_page for a different candidate.
+Maximum 1 additional get_catalog_page call per search round.
 
 STEP 5 — SUBMIT (MANDATORY after Step 4):
 Call submit_identification immediately. Do NOT call any other tools after this.
@@ -208,6 +215,14 @@ WHERE
          COALESCE(identification_clues,''))
        @@ websearch_to_tsquery('simple', $3)
   )
+  AND (
+    $4::text IS NULL
+    OR EXISTS (
+      SELECT 1 FROM jsonb_array_elements(grit_options) g
+      WHERE g->>'grit_indicator_type' = 'ring_color'
+        AND g->>'visual_cue' = $4
+    )
+  )
 ORDER BY _rank DESC, catalog_page
 LIMIT 10
 `
@@ -216,6 +231,7 @@ type SearchCatalogInput = {
   shank_type?:   string
   product_type?: string
   description:   string
+  grit_color?:   string
 }
 
 type GetCatalogPageInput = {
@@ -410,14 +426,31 @@ async function runAgenticLoop(
 
         if (block.name === 'search_catalog') {
           const input = block.input as SearchCatalogInput
-          logger.info('[vision] search_catalog', { description: input.description, product_type: input.product_type, shank_type: input.shank_type })
-          const result = await runSearchCatalog(deps.pool, input)
-          const parsed = JSON.parse(result) as unknown[]
-          logger.info('[vision] search_catalog results', { count: parsed.length })
+          logger.info('[vision] search_catalog', { description: input.description, product_type: input.product_type, shank_type: input.shank_type, grit_color: input.grit_color })
+          const { jsonResult, topCatalogPage } = await runSearchCatalog(deps.pool, input)
+          const parsed = JSON.parse(jsonResult) as unknown[]
+          logger.info('[vision] search_catalog results', { count: parsed.length, topCatalogPage })
+
+          const toolContent: ToolResultBlockParam['content'] = [{ type: 'text', text: jsonResult }]
+
+          if (topCatalogPage !== null) {
+            try {
+              lastCatalogPage = topCatalogPage
+              const rawBase64 = await deps.catalogPdf.getPageAsBase64(topCatalogPage)
+              const croppedBase64 = await cropCatalogPageImage(rawBase64)
+              toolContent.push({
+                type:   'image',
+                source: { type: 'base64', media_type: 'image/jpeg', data: croppedBase64 },
+              })
+            } catch (err) {
+              logger.warn('[vision] failed to fetch catalog page for search result', { page: topCatalogPage, err })
+            }
+          }
+
           toolResults.push({
             type:        'tool_result',
             tool_use_id: block.id,
-            content:     result,
+            content:     toolContent,
           })
         } else if (block.name === 'get_catalog_page') {
           const input = block.input as GetCatalogPageInput
@@ -470,9 +503,13 @@ async function runAgenticLoop(
   }
 }
 
-async function runSearchCatalog(pool: DbPool, input: SearchCatalogInput): Promise<string> {
+async function runSearchCatalog(
+  pool:  DbPool,
+  input: SearchCatalogInput,
+): Promise<{ jsonResult: string; topCatalogPage: number | null }> {
   const shankType   = input.shank_type   ?? null
   const productType = input.product_type ?? null
+  const gritColor   = input.grit_color   ?? null
 
   // Convert description to OR-based websearch query so single matching terms suffice
   const orQuery = input.description
@@ -480,6 +517,29 @@ async function runSearchCatalog(pool: DbPool, input: SearchCatalogInput): Promis
     .filter(w => w.length >= 3)
     .join(' OR ')
 
-  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankType, productType, orQuery])
-  return JSON.stringify(rows)
+  const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankType, productType, orQuery, gritColor])
+
+  const topRow = rows[0] as { catalog_page?: number } | undefined
+  const topCatalogPage = topRow?.catalog_page ?? null
+
+  return { jsonResult: JSON.stringify(rows), topCatalogPage }
+}
+
+/** Crop catalog page to relevant product portion and resize for efficient API use. */
+async function cropCatalogPageImage(base64Png: string): Promise<string> {
+  const sharp = (await import('sharp')).default
+  const buf   = Buffer.from(base64Png, 'base64')
+  const meta  = await sharp(buf).metadata()
+  const w     = meta.width  ?? 800
+  const h     = meta.height ?? 1100
+
+  // Keep top 72% of the page (product illustration + description, skip barcode/ordering section)
+  const cropH = Math.floor(h * 0.72)
+
+  return sharp(buf)
+    .extract({ left: 0, top: 0, width: w, height: cropH })
+    .resize({ width: Math.floor(w * 0.65) })
+    .jpeg({ quality: 78 })
+    .toBuffer()
+    .then(b => b.toString('base64'))
 }

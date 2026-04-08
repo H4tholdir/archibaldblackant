@@ -7,6 +7,7 @@ import {
   identifyInstrument,
   getRecognitionBudget,
   submitRecognitionFeedback,
+  getCatalogPageImage,
 } from '../api/recognition'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
 
@@ -105,6 +106,32 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
+  // catalogPage images for shortlist candidates: productId → base64
+  const [candidateCatalogImages, setCandidateCatalogImages] = useState<Record<string, string>>({})
+
+  // Haptic feedback helper
+  const vibrate = useCallback((pattern: number | number[]) => {
+    try { navigator.vibrate(pattern) } catch { /* not supported */ }
+  }, [])
+
+  // Short success beep via Web Audio API
+  const playSuccessBeep = useCallback(() => {
+    try {
+      const ctx = new AudioContext()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.08)
+      gain.gain.setValueAtTime(0.18, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.22)
+      osc.onended = () => ctx.close()
+    } catch { /* AudioContext not available */ }
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('archibald_jwt')
@@ -166,8 +193,10 @@ export function ToolRecognitionPage() {
     const token = localStorage.getItem('archibald_jwt')
     if (!token || pageState !== 'idle') return
 
+    vibrate(30)  // P4: short haptic on capture
     const base64 = captureFrame() ?? 'mock-frame'
     setCapturedBase64(base64)
+    setCandidateCatalogImages({})
     setPageState('analyzing')
     setAnalyzeStep(0)
 
@@ -182,9 +211,24 @@ export function ToolRecognitionPage() {
         setPageState('budget_exhausted')
       } else if (state === 'match') {
         setAnalyzeStep(3)
+        vibrate([200, 50, 100])  // P4: success haptic pattern
+        playSuccessBeep()         // P4: audio feedback
         setPageState('match')
       } else if (state === 'shortlist') {
+        vibrate([80, 30, 80])    // P4: shorter haptic for shortlist (uncertain)
         setPageState('shortlist')
+        // P3: fetch catalog page images for each candidate asynchronously
+        const candidates = response.result.candidates
+        const images: Record<string, string> = {}
+        await Promise.all(
+          candidates
+            .filter(c => c.catalogPage != null)
+            .map(async c => {
+              const img = await getCatalogPageImage(token, c.catalogPage!)
+              if (img) images[c.productId] = img
+            })
+        )
+        setCandidateCatalogImages(images)
       } else {
         setPageState('idle')
         if (state === 'not_found') {
@@ -197,7 +241,7 @@ export function ToolRecognitionPage() {
       setPageState('idle')
       setErrorMessage('Errore di connessione. Riprova.')
     }
-  }, [captureFrame, pageState])
+  }, [captureFrame, pageState, vibrate, playSuccessBeep])
 
   const remainingScans = budget ? budget.dailyLimit - budget.usedToday : null
 
@@ -473,7 +517,7 @@ export function ToolRecognitionPage() {
                 </span>
               </div>
               <div style={{ color: '#6b7280', fontSize: 13 }}>
-                Misura incerta · seleziona il prodotto corretto
+                Incerto · seleziona il prodotto corretto
               </div>
             </div>
           </div>
@@ -482,12 +526,13 @@ export function ToolRecognitionPage() {
         <div style={{ padding: '14px 20px' }}>
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
+            const catalogImg = candidateCatalogImages[c.productId]
             return (
               <button
                 key={c.productId}
                 onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`, { state: { fromScanner: true } })}
                 style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',
                   border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
                   borderRadius: 12,
@@ -495,15 +540,28 @@ export function ToolRecognitionPage() {
                   cursor: 'pointer', textAlign: 'left',
                 }}
               >
-                <SizeBar sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
-                <div style={{ flex: 1 }}>
+                {/* P3: catalog page thumbnail */}
+                {catalogImg ? (
+                  <img
+                    src={`data:image/jpeg;base64,${catalogImg}`}
+                    alt="Pagina catalogo"
+                    style={{
+                      width: 64, height: 80, objectFit: 'cover',
+                      borderRadius: 6, flexShrink: 0,
+                      border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
+                    }}
+                  />
+                ) : (
+                  <SizeBar sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.productName}</div>
                   <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
                     <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{c.productId}</span>
                     {c.headSizeMm > 0 && <span> · Ø {c.headSizeMm} mm</span>}
                   </div>
                 </div>
-                <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400, flexShrink: 0 }}>
+                <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400, flexShrink: 0, paddingTop: 2 }}>
                   {Math.round(c.confidence * 100)}%
                 </div>
               </button>

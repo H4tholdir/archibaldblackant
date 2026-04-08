@@ -39,14 +39,14 @@ describe('identifyInstrument', () => {
     expect(result).toEqual(mockResponse)
   })
 
-  it('aborts request after 40 seconds', async () => {
+  it('aborts request after 90 seconds', async () => {
     let capturedSignal: AbortSignal | null | undefined
     vi.spyOn(global, 'fetch').mockImplementation((_url, init) => {
       capturedSignal = (init as RequestInit).signal
       return new Promise(() => {})
     })
     identifyInstrument(TOKEN, BASE64)
-    vi.advanceTimersByTime(40_001)
+    vi.advanceTimersByTime(90_001)
     expect(capturedSignal?.aborted).toBe(true)
   })
 

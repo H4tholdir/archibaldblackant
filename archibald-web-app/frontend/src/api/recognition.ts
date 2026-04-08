@@ -11,6 +11,7 @@ export type ProductMatch = {
   shankType:    string
   thumbnailUrl: string | null
   confidence:   number
+  catalogPage?: number | null
 }
 
 export type RecognitionResult =
@@ -94,6 +95,19 @@ export async function identifyInstrument(
     return res.json() as Promise<IdentifyResponse>
   } finally {
     clearTimeout(timeoutId)
+  }
+}
+
+export async function getCatalogPageImage(token: string, pageNumber: number): Promise<string | null> {
+  try {
+    const res = await fetchWithRetry(`/api/recognition/catalog-page/${pageNumber}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { image: string }
+    return data.image ?? null
+  } catch {
+    return null
   }
 }
 

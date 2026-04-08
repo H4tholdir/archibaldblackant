@@ -113,6 +113,37 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
     }
   });
 
+  router.get('/catalog-page/:pageNumber', async (req: AuthRequest, res) => {
+    if (!deps.catalogPdf) {
+      res.status(503).json({ error: 'Catalog PDF not available' });
+      return;
+    }
+    const pageNumber = parseInt(req.params.pageNumber ?? '', 10);
+    if (isNaN(pageNumber) || pageNumber < 1 || pageNumber > 782) {
+      res.status(400).json({ error: 'Invalid page number (1–782)' });
+      return;
+    }
+    try {
+      const rawBase64 = await deps.catalogPdf.getPageAsBase64(pageNumber);
+      // Crop and resize for frontend display
+      const sharp = (await import('sharp')).default;
+      const buf   = Buffer.from(rawBase64, 'base64');
+      const meta  = await sharp(buf).metadata();
+      const w     = meta.width  ?? 800;
+      const h     = meta.height ?? 1100;
+      const cropH = Math.floor(h * 0.72);
+      const cropped = await sharp(buf)
+        .extract({ left: 0, top: 0, width: w, height: cropH })
+        .resize({ width: Math.floor(w * 0.65) })
+        .jpeg({ quality: 78 })
+        .toBuffer();
+      res.json({ image: cropped.toString('base64') });
+    } catch (error) {
+      logger.error('[recognition] catalog-page load failed', { pageNumber, error });
+      res.status(500).json({ error: 'Failed to load catalog page' });
+    }
+  });
+
   router.get('/ruler', async (_req: AuthRequest, res) => {
     if (!deps.catalogPdf) {
       res.status(503).json({ error: 'Catalog PDF not available' });

@@ -70,41 +70,47 @@ export async function runRecognitionPipeline(
   }
 
   type LoggableResult = Extract<RecognitionResult, { state: 'match' | 'shortlist' | 'not_found' | 'error' }>
-  const result: LoggableResult = (() => {
-    switch (identification.resultState) {
-      case 'match':
-        return {
-          state:      'match' as const,
-          product:    {
-            productId:    identification.productCode ?? '',
-            productName:  identification.productCode ?? '',
-            familyCode:   identification.familyCode ?? '',
-            headSizeMm:   0,
-            shankType:    '',
-            thumbnailUrl: null,
-            confidence:   identification.confidence,
-          },
-          confidence: identification.confidence,
-        }
-      case 'shortlist':
-        return {
-          state:             'shortlist' as const,
-          candidates:        identification.candidates.map((c, i) => ({
-            productId:    c,
-            productName:  c,
-            familyCode:   c.split('.')[0] ?? '',
-            headSizeMm:   0,
-            shankType:    '',
-            thumbnailUrl: null,
-            confidence:   Math.max(0.3, identification.confidence - i * 0.08),
-          })),
-        }
-      case 'not_found':
-        return { state: 'not_found' as const }
-      default:
-        return { state: 'error' as const, message: identification.reasoning }
+
+  let result: LoggableResult
+  switch (identification.resultState) {
+    case 'match':
+      result = {
+        state:      'match' as const,
+        product:    {
+          productId:    identification.productCode ?? '',
+          productName:  identification.productCode ?? '',
+          familyCode:   identification.familyCode ?? '',
+          headSizeMm:   0,
+          shankType:    '',
+          thumbnailUrl: null,
+          confidence:   identification.confidence,
+        },
+        confidence: identification.confidence,
+      }
+      break
+    case 'shortlist': {
+      const catalogPages = await fetchCatalogPagesForCodes(deps.pool, identification.candidates)
+      result = {
+        state:      'shortlist' as const,
+        candidates: identification.candidates.map((c, i) => ({
+          productId:    c,
+          productName:  c,
+          familyCode:   c.split('.')[0] ?? '',
+          headSizeMm:   0,
+          shankType:    '',
+          thumbnailUrl: null,
+          confidence:   Math.max(0.3, identification.confidence - i * 0.08),
+          catalogPage:  catalogPages.get(c) ?? null,
+        })),
+      }
+      break
     }
-  })()
+    case 'not_found':
+      result = { state: 'not_found' as const }
+      break
+    default:
+      result = { state: 'error' as const, message: identification.reasoning }
+  }
 
   await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
   const budgetConsumed = await consumeBudget(deps.pool)
@@ -123,4 +129,33 @@ export async function runRecognitionPipeline(
   }).catch(() => {})
 
   return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+}
+
+/** Look up catalog_page for each product code by matching its family prefix against family_codes[]. */
+async function fetchCatalogPagesForCodes(
+  pool:  DbPool,
+  codes: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+  if (codes.length === 0) return result
+
+  await Promise.all(codes.map(async (code) => {
+    const familyPrefix = code.split('.')[0] ?? code
+    try {
+      const { rows } = await pool.query<{ catalog_page: number }>(
+        `SELECT catalog_page FROM shared.catalog_entries
+         WHERE EXISTS (
+           SELECT 1 FROM unnest(family_codes) fc
+           WHERE fc = $1 OR fc LIKE ($1 || '.%')
+         )
+         LIMIT 1`,
+        [familyPrefix],
+      )
+      if (rows[0]) result.set(code, rows[0].catalog_page)
+    } catch {
+      // Graceful degradation — catalog page simply won't show for this candidate
+    }
+  }))
+
+  return result
 }
