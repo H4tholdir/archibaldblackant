@@ -130,12 +130,15 @@ Compare the shank length to the working head length — this ratio is independen
 STEP 2 — OBSERVE (category-specific):
 
   For rotary_diamond:
-    - Head shape — examine the TIP first (this is the key discriminator):
-        • TORPEDO / CHAMFER: body is cylindrical or slightly tapered; tip ends BLUNT or ROUNDED
-          (like a bullet or missile nose). The apex is dome-shaped — NO sharp point.
+    - Head shape — examine the BODY PROFILE first, tip second:
+        • TORPEDO / CHAMFER: body is WIDEST at the base and stays nearly CYLINDRICAL for 50–70%
+          of head length; only the final portion chamfers to a rounded dome. The apex is blunt.
+          ⚠ HP torpedo (879) CAN look pointed in side-view photos — do NOT rule it out from tip alone.
+          Reliable clue: nearly-constant body width from base up to 60% of head = torpedo.
           Search with: "torpedo chamfer rounded tip"
-        • FLAME: body tapers continuously to a SHARPLY POINTED apex (like a candle flame).
-          The very tip comes to a fine acute point with no rounding whatsoever.
+        • FLAME: body tapers CONTINUOUSLY from the base all the way to the tip — NO cylindrical
+          section. The silhouette narrows from the very first mm above the neck junction.
+          The very tip is a fine sharp point. Reliable clue: body narrowing begins immediately at base.
           Search with: "flame pointed tip"
         • Other shapes: round (sphere head), cylinder (flat end), pear (wider mid-body),
           inverted cone (truncated cone widening toward tip), diabolo (hourglass/biconcave)
@@ -697,19 +700,36 @@ Before anything else: does the photographed instrument actually belong to one of
 STEP 1 — BODY-SHAPE COMPARISON (if the instrument could be one of the candidates):
 
   TORPEDO / CHAMFER (family 879):
-    • BODY has a CYLINDRICAL or NEARLY-PARALLEL section for most of its length
-    • Only the final portion tapers — ending in a ROUNDED or BLUNT chamfered tip
-    • Side profile: ▬▬▬◥  (parallel shaft → short taper → blunt end)
+    • Head is WIDEST at the BASE (where it meets the neck/shank junction)
+    • From the base, the body stays NEARLY CONSTANT in diameter for the first 50–70% of the head length
+    • Only in the FINAL 30–50% does it taper — ending in a chamfered dome that is ROUNDED, not sharp
+    • Side profile: ▬▬▬◥  (wide base → nearly-parallel body → short chamfer taper → blunt dome)
+
+    ⚠ HP VISUAL TRAP: On HP burs (long straight shank, 44 mm+), the working head is proportionally
+      tiny. In side-view photos, the chamfer tip of an 879 torpedo CAN appear pointed or even sharply
+      tapered — especially if the photo is not perfectly perpendicular to the head axis.
+      DO NOT use tip sharpness alone to rule out torpedo. Use the body-width profile instead.
 
   FLAME (families 863, 862, 860):
-    • BODY tapers CONTINUOUSLY from the base all the way to the apex — NO parallel section
-    • The tip comes to a SHARPLY POINTED acute apex with no rounding
-    • Side profile: △  (constant taper → fine point)
+    • Head is also widest at the base, BUT the taper begins IMMEDIATELY and continues ALL the way up
+    • NO cylindrical or nearly-parallel body section — the silhouette narrows from the very first mm
+    • The tip is a sharp acute point, but this alone cannot distinguish it from 879 HP in photos
+    • Side profile: △  (continuous taper from base to fine point — no flat cylinder section anywhere)
 
-STEP 2 — DECIDE:
-  1. Is there a CYLINDRICAL/PARALLEL body section? YES → torpedo (879). NO → flame (863/862/860).
-  2. If catalog images provided: compare side profiles directly against the illustrations.
-  3. Body profile is MORE RELIABLE than tip-only inspection.
+STEP 2 — DECIDE (use body profile, NOT tip sharpness):
+  1. CAMPIONARIO STRIP COMPARISON (highest priority when strip images are included):
+       → Locate the labeled 879 entry in the strip photo. Compare its body-width profile against the photo.
+       → Locate the labeled 863 (or 862) entry. Which body silhouette matches the photographed specimen?
+       → Strip comparison OVERRIDES your verbal tip-sharpness assessment.
+  2. BODY BASE WIDTH test:
+       → Measure the head width at the base vs at the midpoint of the head.
+       → If midpoint is nearly as wide as the base → torpedo (879).
+       → If midpoint is noticeably narrower than the base → flame (863/862/860).
+  3. CLOSE-UP PHOTO bonus: if a close-up of the head tip is available, check whether the very apex is
+       a true fine point (flame) or a small flat/dome that would stop a sharp pencil (torpedo chamfer).
+  4. When in doubt on HP burs: prefer torpedo (879) — HP torpedoes are clinically more common than
+       HP flames, and the visual confusion is asymmetric (torpedoes look like flames; flames rarely
+       look like torpedoes in photos).
 
 submit_identification rules:
   - Clearly identified: product_code = EXACTLY one of the listed candidate codes above, confidence > 0.75
