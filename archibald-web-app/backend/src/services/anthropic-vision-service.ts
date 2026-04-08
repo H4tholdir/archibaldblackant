@@ -200,7 +200,7 @@ SELECT id, family_codes, catalog_page, product_type,
 FROM shared.catalog_entries
 WHERE
   (
-    $1 IS NULL
+    $1::text IS NULL
     OR EXISTS (
       SELECT 1 FROM jsonb_array_elements(shank_options) s
       WHERE s->>'type' = $1
