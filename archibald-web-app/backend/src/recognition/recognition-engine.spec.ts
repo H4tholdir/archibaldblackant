@@ -10,8 +10,8 @@ vi.mock('../db/repositories/recognition-log', () => ({
 const BASE64  = 'AAAA'
 const USER_ID = 'user-test'
 
-function makePool(overrides: { budgetAllowed?: boolean; cacheHit?: boolean } = {}) {
-  const { budgetAllowed = true, cacheHit = false } = overrides
+function makePool(overrides: { budgetAllowed?: boolean; cacheHit?: boolean; familyExists?: boolean } = {}) {
+  const { budgetAllowed = true, cacheHit = false, familyExists = true } = overrides
   return {
     query: vi.fn()
       .mockResolvedValueOnce({ rows: cacheHit ? [{ result_json: { state: 'not_found' } }] : [] })
@@ -21,6 +21,7 @@ function makePool(overrides: { budgetAllowed?: boolean; cacheHit?: boolean } = {
           ? [{ id: 1, used_today: 0, daily_limit: 500, throttle_level: 'normal' as const, reset_at: new Date() }]
           : [{ id: 1, used_today: 500, daily_limit: 500, throttle_level: 'limited' as const, reset_at: new Date() }],
       })
+      .mockResolvedValueOnce({ rows: familyExists ? [{ exists: 1 }] : [] })
       .mockResolvedValue({ rows: [{ id: 1 }] }),
   } as unknown as import('../db/pool').DbPool
 }
@@ -68,5 +69,18 @@ describe('runRecognitionPipeline', () => {
     if (result.state === 'match') {
       expect(result.product.productId).toBe('KP6801.314.016')
     }
+  })
+
+  test('downgrade a not_found quando il family code non esiste nel catalogo', async () => {
+    const pool = makePool({ familyExists: false })
+    const catalogVisionService = makeVision({
+      productCode:  '8863.104.016',
+      familyCode:   '8863',
+      confidence:   0.85,
+      resultState:  'match',
+    })
+    const { result } = await runRecognitionPipeline({ pool, catalogVisionService }, [BASE64], USER_ID, 'agent')
+    expect(result.state).toBe('not_found')
+    expect(catalogVisionService.identifyFromImage).toHaveBeenCalled()
   })
 })

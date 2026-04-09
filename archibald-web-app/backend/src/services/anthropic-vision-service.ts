@@ -545,7 +545,8 @@ async function runAgenticLoop(
   images:  string[],
   signal:  AbortSignal,
 ): Promise<IdentificationResult> {
-  const MAX_ITERATIONS  = 10
+  const MAX_ITERATIONS  = 6
+  const TOKEN_BUDGET    = 60_000
   let totalInputTokens  = 0
   let totalOutputTokens = 0
   let lastCatalogPage: number | null = null
@@ -580,6 +581,16 @@ If the two photos appear contradictory, trust geometric measurements over subjec
   ]
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    if (totalInputTokens > TOKEN_BUDGET) {
+      logger.warn('[vision] token budget exceeded — stopping loop', { totalInputTokens, iteration })
+      return {
+        productCode: null, familyCode: null, confidence: 0,
+        resultState: 'not_found' as const, candidates: [], catalogPage: lastCatalogPage,
+        reasoning:   `Token budget (${TOKEN_BUDGET}) exceeded after ${iteration} iterations`,
+        usage:       { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+      }
+    }
+
     const response = await client.messages.create(
       {
         model:      'claude-sonnet-4-6',

@@ -77,13 +77,20 @@ export async function runRecognitionPipeline(
 
   let result: LoggableResult
   switch (identification.resultState) {
-    case 'match':
+    case 'match': {
+      const familyCode = identification.familyCode ?? ''
+      const valid = familyCode.length > 0 && await validateFamilyExists(deps.pool, familyCode)
+      if (!valid) {
+        logger.warn('[recognition-engine] Family code not in catalog — downgrading to not_found', { productCode: identification.productCode, familyCode })
+        result = { state: 'not_found' as const }
+        break
+      }
       result = {
         state:      'match' as const,
         product:    {
           productId:    identification.productCode ?? '',
           productName:  identification.productCode ?? '',
-          familyCode:   identification.familyCode ?? '',
+          familyCode,
           headSizeMm:   0,
           shankType:    '',
           thumbnailUrl: null,
@@ -92,6 +99,7 @@ export async function runRecognitionPipeline(
         confidence: identification.confidence,
       }
       break
+    }
     case 'shortlist': {
       const [catalogPages, campionarioUrls] = await Promise.all([
         fetchCatalogPagesForCodes(deps.pool, identification.candidates),
@@ -139,6 +147,19 @@ export async function runRecognitionPipeline(
   }).catch(() => {})
 
   return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+}
+
+/** Returns true if the given familyCode exists in shared.catalog_entries.family_codes[]. */
+async function validateFamilyExists(pool: DbPool, familyCode: string): Promise<boolean> {
+  try {
+    const { rows } = await pool.query<{ exists: number }>(
+      `SELECT 1 AS exists FROM shared.catalog_entries WHERE $1::text = ANY(family_codes) LIMIT 1`,
+      [familyCode],
+    )
+    return rows.length > 0
+  } catch {
+    return true // fail open: don't discard a match due to a DB error
+  }
 }
 
 /** Look up campionario_strip_url for each product code's family from catalog_entries. */
