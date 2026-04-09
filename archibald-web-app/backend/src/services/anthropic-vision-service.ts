@@ -520,7 +520,7 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
   const client = new Anthropic({ apiKey: deps.apiKey, maxRetries: 0 })
 
   return {
-    async identifyFromImage(imageBase64, signal, disambiguationCandidates) {
+    async identifyFromImage(images, signal, disambiguationCandidates) {
       const controller    = new AbortController()
       const timer         = setTimeout(() => controller.abort(), deps.timeoutMs)
       const onExternalAbort = () => controller.abort()
@@ -528,9 +528,9 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
 
       try {
         if (disambiguationCandidates && disambiguationCandidates.length >= 2) {
-          return await runDisambiguationLoop(client, deps.pool, deps.catalogPdf, imageBase64, disambiguationCandidates, controller.signal)
+          return await runDisambiguationLoop(client, deps.pool, deps.catalogPdf, images[0]!, disambiguationCandidates, controller.signal)
         }
-        return await runAgenticLoop(client, deps, imageBase64, controller.signal)
+        return await runAgenticLoop(client, deps, images, controller.signal)
       } finally {
         clearTimeout(timer)
         signal?.removeEventListener('abort', onExternalAbort)
@@ -540,27 +540,40 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
 }
 
 async function runAgenticLoop(
-  client:      Anthropic,
-  deps:        CatalogVisionServiceDeps,
-  imageBase64: string,
-  signal:      AbortSignal,
+  client:  Anthropic,
+  deps:    CatalogVisionServiceDeps,
+  images:  string[],
+  signal:  AbortSignal,
 ): Promise<IdentificationResult> {
   const MAX_ITERATIONS  = 10
   let totalInputTokens  = 0
   let totalOutputTokens = 0
   let lastCatalogPage: number | null = null
 
+  const multiPhotoPreamble = images.length > 1
+    ? `You have been provided with ${images.length} photos of the same dental instrument taken from different angles:
+- Photo 1 (first image): LATERAL VIEW — instrument held horizontally, shows the full side profile, shape, and proportions.
+- Photo 2 (second image): TOP-DOWN VIEW — camera looking straight down at the working tip from above.
+
+Use BOTH photos together for identification:
+• Lateral photo reveals: overall shape (torpedo vs disc vs ball), height-vs-width ratio, shank length and type.
+• Top-down photo reveals: whether the tip is flat (disc face → wheel/disc 909) vs uniformly domed (ball 801), and the true working end diameter.
+If the two photos appear contradictory, trust geometric measurements over subjective descriptions.\n\n`
+    : ''
+
+  const imageBlocks = images.map((img) => ({
+    type:   'image' as const,
+    source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: img },
+  }))
+
   const messages: MessageParam[] = [
     {
       role:    'user',
       content: [
-        {
-          type:   'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 },
-        },
+        ...imageBlocks,
         {
           type: 'text',
-          text: IDENTIFICATION_PROMPT,
+          text: multiPhotoPreamble + IDENTIFICATION_PROMPT,
         },
       ],
     },

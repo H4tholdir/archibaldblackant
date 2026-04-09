@@ -77,13 +77,13 @@ export type ProductEnrichment = {
  */
 export async function identifyInstrument(
   token: string,
-  imageBase64: string,
+  images: string[],
   candidates?: string[],
 ): Promise<IdentifyResponse> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 90_000)
   try {
-    const body: Record<string, unknown> = { image: imageBase64 }
+    const body: Record<string, unknown> = { images }
     if (candidates && candidates.length >= 2) body.candidates = candidates
     const res = await fetch('/api/recognition/identify', {
       method:  'POST',

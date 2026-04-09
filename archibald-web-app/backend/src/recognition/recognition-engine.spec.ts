@@ -49,21 +49,21 @@ describe('runRecognitionPipeline', () => {
     const catalogVisionService: CatalogVisionService = {
       identifyFromImage: vi.fn().mockRejectedValue(error),
     }
-    await runRecognitionPipeline({ pool, catalogVisionService }, BASE64, USER_ID, 'agent')
+    await runRecognitionPipeline({ pool, catalogVisionService }, [BASE64], USER_ID, 'agent')
     expect(appendRecognitionLog).not.toHaveBeenCalled()
   })
 
   test('ritorna budget_exhausted quando budget esaurito', async () => {
     const pool = makePool({ budgetAllowed: false })
     const catalogVisionService = makeVision()
-    const { result } = await runRecognitionPipeline({ pool, catalogVisionService }, BASE64, USER_ID, 'agent')
+    const { result } = await runRecognitionPipeline({ pool, catalogVisionService }, [BASE64], USER_ID, 'agent')
     expect(result.state).toBe('budget_exhausted')
     expect(catalogVisionService.identifyFromImage).not.toHaveBeenCalled()
   })
 
   test('ritorna match quando vision identifica con confidence ≥ 0.9', async () => {
     const pool = makePool()
-    const { result } = await runRecognitionPipeline({ pool, catalogVisionService: makeVision() }, BASE64, USER_ID, 'agent')
+    const { result } = await runRecognitionPipeline({ pool, catalogVisionService: makeVision() }, [BASE64], USER_ID, 'agent')
     expect(result.state).toBe('match')
     if (result.state === 'match') {
       expect(result.product.productId).toBe('KP6801.314.016')

@@ -24,9 +24,13 @@ type RecognitionRouterDeps = {
 };
 
 const identifySchema = z.object({
-  image:      z.string().min(10),
+  image:      z.string().min(10).optional(),
+  images:     z.array(z.string().min(10)).min(1).max(2).optional(),
   candidates: z.array(z.string().regex(/^[A-Za-z0-9]+\.\d{3}\.\d{3}$/)).min(2).max(5).optional(),
-});
+}).refine(
+  data => data.image != null || (data.images != null && data.images.length > 0),
+  { message: 'image or images required' },
+);
 
 const feedbackSchema = z.object({
   imageHash:       z.string().regex(/^[0-9a-f]{64}$/, 'imageHash must be a 64-character hex string'),
@@ -66,7 +70,8 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       return;
     }
 
-    const { image, candidates } = parsed.data;
+    const { image, images: imagesArr, candidates } = parsed.data;
+    const images = imagesArr ?? [image!];
 
     const abortController = new AbortController();
     req.on('close', () => {
@@ -77,7 +82,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       const { result, budgetState, processingMs, imageHash } =
         await runRecognitionPipeline(
           { pool, catalogVisionService },
-          image,
+          images,
           userId,
           role,
           abortController.signal,

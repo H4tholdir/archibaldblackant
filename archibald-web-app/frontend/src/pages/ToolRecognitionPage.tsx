@@ -14,7 +14,9 @@ import type { IdentifyResponse, BudgetState } from '../api/recognition'
 type PageState =
   | 'loading'
   | 'permission_denied'
-  | 'idle'
+  | 'idle_photo1'
+  | 'idle_photo2'
+  | 'preview'
   | 'analyzing'
   | 'match'
   | 'shortlist'
@@ -120,6 +122,57 @@ function DisambiguationGuide() {
   )
 }
 
+function TopDownGuide() {
+  const bracket: CSSProperties = {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderColor: '#60a5fa',
+    borderStyle: 'solid',
+    borderWidth: 0,
+  }
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none',
+    }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{
+          color: 'rgba(96,165,250,0.9)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginBottom: 12,
+        }}>
+          PUNTA — DALL'ALTO
+        </div>
+        <div style={{
+          position: 'relative',
+          width: '60vw',
+          height: '60vw',
+          borderRadius: '50%',
+          border: '1.5px solid rgba(96,165,250,0.35)',
+        }}>
+          <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+          <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 8, height: 8, borderRadius: '50%',
+            background: 'rgba(96,165,250,0.5)',
+          }} />
+        </div>
+        <div style={{
+          color: 'rgba(96,165,250,0.8)', fontSize: 10,
+          fontWeight: 700, letterSpacing: 2, marginTop: 12,
+        }}>
+          10–15 cm di distanza
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SizeBar({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
   const minH = 16, maxH = 40
   const h = minH + ((sizeMm / maxSizeMm) * (maxH - minH))
@@ -149,7 +202,8 @@ export function ToolRecognitionPage() {
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
   const [flashOn, setFlashOn] = useState(false)
-  const [capturedBase64, setCapturedBase64] = useState<string | null>(null)
+  const [capturedImages, setCapturedImages] = useState<string[]>([])
+  const [usedPhotoCount, setUsedPhotoCount] = useState(1)
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
@@ -201,7 +255,7 @@ export function ToolRecognitionPage() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream
         }
-        setPageState('idle')
+        setPageState('idle_photo1')
       } catch (err) {
         setPageState('permission_denied')
       }
@@ -236,20 +290,17 @@ export function ToolRecognitionPage() {
     return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/\w+;base64,/, '')
   }, [])
 
-  const handleShutter = useCallback(async () => {
+  const runIdentification = useCallback(async (images: string[]) => {
     const token = localStorage.getItem('archibald_jwt')
-    if (!token || pageState !== 'idle') return
-
-    vibrate(30)  // P4: short haptic on capture
-    const base64 = captureFrame() ?? 'mock-frame'
-    setCapturedBase64(base64)
+    if (!token) return
     setCandidateCatalogImages({})
     setPageState('analyzing')
     setAnalyzeStep(0)
+    setUsedPhotoCount(images.length)
 
     try {
       setAnalyzeStep(1)
-      const response = await identifyInstrument(token, base64)
+      const response = await identifyInstrument(token, images)
       setAnalyzeStep(2)
       setIdentifyResult(response)
 
@@ -258,26 +309,25 @@ export function ToolRecognitionPage() {
         setPageState('budget_exhausted')
       } else if (state === 'match') {
         setAnalyzeStep(3)
-        vibrate([200, 50, 100])  // P4: success haptic pattern
-        playSuccessBeep()         // P4: audio feedback
+        vibrate([200, 50, 100])
+        playSuccessBeep()
         setPageState('match')
       } else if (state === 'shortlist') {
-        vibrate([80, 30, 80])    // P4: shorter haptic for shortlist (uncertain)
+        vibrate([80, 30, 80])
         setPageState('shortlist')
-        // P3: fetch catalog page images for each candidate asynchronously
         const candidates = response.result.candidates
-        const images: Record<string, string> = {}
+        const catalogImages: Record<string, string> = {}
         await Promise.all(
           candidates
             .filter(c => c.catalogPage != null)
             .map(async c => {
               const img = await getCatalogPageImage(token, c.catalogPage!)
-              if (img) images[c.productId] = img
+              if (img) catalogImages[c.productId] = img
             })
         )
-        setCandidateCatalogImages(images)
+        setCandidateCatalogImages(catalogImages)
       } else {
-        setPageState('idle')
+        setPageState('idle_photo1')
         if (state === 'not_found') {
           setErrorMessage('Strumento non riconosciuto. Centra bene la fresa nella guida e riprova.')
         } else if (state === 'error') {
@@ -285,10 +335,32 @@ export function ToolRecognitionPage() {
         }
       }
     } catch {
-      setPageState('idle')
+      setPageState('idle_photo1')
       setErrorMessage('Errore di connessione. Riprova.')
     }
-  }, [captureFrame, pageState, vibrate, playSuccessBeep])
+  }, [vibrate, playSuccessBeep])
+
+  const handleShutterPhoto1 = useCallback(() => {
+    if (pageState !== 'idle_photo1') return
+    vibrate(30)
+    const base64 = captureFrame()
+    if (!base64) return
+    setCapturedImages([base64])
+    setPageState('idle_photo2')
+  }, [captureFrame, pageState, vibrate])
+
+  const handleShutterPhoto2 = useCallback(() => {
+    if (pageState !== 'idle_photo2') return
+    vibrate(30)
+    const base64 = captureFrame()
+    if (!base64) return
+    setCapturedImages(prev => [prev[0]!, base64])
+    setPageState('preview')
+  }, [captureFrame, pageState, vibrate])
+
+  const handleIdentifyFromPreview = useCallback(async () => {
+    await runIdentification(capturedImages)
+  }, [capturedImages, runIdentification])
 
   const handleDisambiguationShutter = useCallback(async () => {
     if (pageState !== 'disambiguation_camera') return
@@ -296,14 +368,15 @@ export function ToolRecognitionPage() {
     if (!token || identifyResult?.result.state !== 'shortlist') return
 
     vibrate(30)
-    const base64 = captureFrame() ?? 'mock-frame'
-    setCapturedBase64(base64)
+    const base64 = captureFrame()
+    if (!base64) return
+    setCapturedImages(prev => [prev[0] ?? base64, base64])
     setPageState('disambiguation_analyzing')
 
     const candidateIds = identifyResult.result.candidates.map(c => c.productId)
 
     try {
-      const response = await identifyInstrument(token, base64, candidateIds)
+      const response = await identifyInstrument(token, [base64], candidateIds)
       setIdentifyResult(response)
 
       const { state } = response.result
@@ -315,16 +388,16 @@ export function ToolRecognitionPage() {
         vibrate([80, 30, 80])
         setPageState('shortlist')
         const candidates = response.result.candidates
-        const images: Record<string, string> = {}
+        const catalogImages: Record<string, string> = {}
         await Promise.all(
           candidates
             .filter(c => c.catalogPage != null)
             .map(async c => {
               const img = await getCatalogPageImage(token, c.catalogPage!)
-              if (img) images[c.productId] = img
+              if (img) catalogImages[c.productId] = img
             })
         )
-        setCandidateCatalogImages(images)
+        setCandidateCatalogImages(catalogImages)
       } else {
         setPageState('shortlist')
         setErrorMessage('Non riesco a distinguere i candidati. Seleziona manualmente.')
@@ -366,7 +439,7 @@ export function ToolRecognitionPage() {
 
   if (pageState === 'analyzing') {
     const STEP_LABELS = [
-      'Foto acquisita',
+      usedPhotoCount > 1 ? `${usedPhotoCount} foto acquisite` : 'Foto acquisita',
       'Analisi con AI  (30–60 s)',
       'Confronto con catalogo',
       'Identificazione',
@@ -374,9 +447,9 @@ export function ToolRecognitionPage() {
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
-        {capturedBase64 && (
+        {capturedImages[0] && (
           <img
-            src={`data:image/jpeg;base64,${capturedBase64}`}
+            src={`data:image/jpeg;base64,${capturedImages[0]}`}
             alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4, position: 'absolute', inset: 0 }}
           />
@@ -420,9 +493,9 @@ export function ToolRecognitionPage() {
   if (pageState === 'disambiguation_analyzing') {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
-        {capturedBase64 && (
+        {capturedImages[capturedImages.length - 1] && (
           <img
-            src={`data:image/jpeg;base64,${capturedBase64}`}
+            src={`data:image/jpeg;base64,${capturedImages[capturedImages.length - 1]}`}
             alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35, position: 'absolute', inset: 0 }}
           />
@@ -515,6 +588,15 @@ export function ToolRecognitionPage() {
           <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15, flex: 1 }}>
             Articolo identificato
           </span>
+          {usedPhotoCount > 1 && (
+            <span style={{
+              color: '#22c55e', fontSize: 11, fontWeight: 600,
+              background: 'rgba(34,197,94,0.12)', borderRadius: 6, padding: '3px 8px',
+              border: '1px solid rgba(34,197,94,0.3)', marginRight: 4,
+            }}>
+              {usedPhotoCount} foto
+            </span>
+          )}
           <span style={{
             color: confidenceColor, fontSize: 13, fontWeight: 700,
             background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '3px 8px',
@@ -528,9 +610,9 @@ export function ToolRecognitionPage() {
           <div style={{
             display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 24,
           }}>
-            {capturedBase64 && (
+            {capturedImages[0] && (
               <img
-                src={`data:image/jpeg;base64,${capturedBase64}`}
+                src={`data:image/jpeg;base64,${capturedImages[0]}`}
                 alt="Foto scansione"
                 style={{
                   width: 80, height: 80, borderRadius: 10,
@@ -598,7 +680,7 @@ export function ToolRecognitionPage() {
           </div>
 
           <button
-            onClick={() => setPageState('idle')}
+            onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
             style={{
               width: '100%', background: 'transparent',
               border: '1px solid #2d4a2d', borderRadius: 12, padding: '12px 0',
@@ -622,9 +704,9 @@ export function ToolRecognitionPage() {
         {/* Header */}
         <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #1f1f1f', background: '#141414' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {capturedBase64 && (
+            {capturedImages[0] && (
               <img
-                src={`data:image/jpeg;base64,${capturedBase64}`}
+                src={`data:image/jpeg;base64,${capturedImages[0]}`}
                 alt="Foto scansione"
                 style={{
                   width: 52, height: 52, borderRadius: 8,
@@ -736,7 +818,7 @@ export function ToolRecognitionPage() {
           })}
 
           <button
-            onClick={() => setPageState('idle')}
+            onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
             style={{
               width: '100%', background: 'transparent',
               border: '1px solid #374151', borderRadius: 12,
@@ -751,7 +833,96 @@ export function ToolRecognitionPage() {
     )
   }
 
+  if (pageState === 'preview') {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: '#0a0d15',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #1e2235' }}>
+          <div style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>
+            {capturedImages.length === 2 ? '2 FOTO ACQUISITE — ANALISI COMBINATA' : '1 FOTO ACQUISITA'}
+          </div>
+          <div style={{ color: '#fff', fontSize: 22, fontWeight: 700 }}>
+            Pronto per Identificare
+          </div>
+        </div>
+
+        <div style={{ padding: '20px', display: 'flex', gap: 12 }}>
+          {capturedImages.map((img, i) => (
+            <div key={i} style={{ flex: 1, position: 'relative' }}>
+              <img
+                src={`data:image/jpeg;base64,${img}`}
+                alt={i === 0 ? 'Vista laterale' : 'Vista alto'}
+                style={{
+                  width: '100%', height: 160, objectFit: 'cover',
+                  borderRadius: 12, border: '2px solid #22c55e', display: 'block',
+                }}
+              />
+              <div style={{
+                position: 'absolute', bottom: 8, left: 0, right: 0,
+                textAlign: 'center', color: '#22c55e', fontSize: 10,
+                fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+              }}>
+                {i === 0 ? 'LATERALE ✓' : 'ALTO ✓'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {capturedImages.length === 2 && (
+          <div style={{ padding: '0 20px', marginBottom: 16 }}>
+            <div style={{
+              background: '#1a1d26', borderRadius: 12, padding: 16,
+              display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ color: '#3b82f6', flexShrink: 0 }}>↔</span>
+                <span style={{ color: '#c5c8d5', fontSize: 13 }}>
+                  Foto 1 rivela: forma, proporzioni, profilo laterale
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ color: '#3b82f6', flexShrink: 0 }}>⊙</span>
+                <span style={{ color: '#c5c8d5', fontSize: 13 }}>
+                  Foto 2 rivela: geometria punta, flat vs dome, diametro
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        <div style={{ padding: '0 20px 48px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button
+            onClick={() => { void handleIdentifyFromPreview() }}
+            style={{
+              width: '100%', background: '#22c55e', color: '#000',
+              border: 'none', borderRadius: 14, padding: '16px 0',
+              fontSize: 17, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Identifica →
+          </button>
+          <button
+            onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
+            style={{
+              width: '100%', background: 'transparent', color: '#6b7280',
+              border: '1px solid #2e3248', borderRadius: 14, padding: '13px 0',
+              fontSize: 14, cursor: 'pointer',
+            }}
+          >
+            ← Riprendi dall'inizio
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const isDisambiguationCamera = pageState === 'disambiguation_camera'
+  const isPhoto2Camera = pageState === 'idle_photo2'
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
@@ -764,26 +935,59 @@ export function ToolRecognitionPage() {
       />
 
       <button
-        onClick={isDisambiguationCamera ? () => setPageState('shortlist') : () => navigate(-1)}
+        onClick={isDisambiguationCamera
+          ? () => setPageState('shortlist')
+          : isPhoto2Camera
+            ? () => { setCapturedImages([]); setPageState('idle_photo1') }
+            : () => navigate(-1)}
         style={{
           position: 'absolute', top: 16, left: 16, zIndex: 10,
           background: 'none', border: 'none', color: '#fff',
           fontSize: 28, cursor: 'pointer', padding: 8,
         }}
-        aria-label={isDisambiguationCamera ? 'Torna alla lista' : 'Chiudi scanner'}
+        aria-label={isDisambiguationCamera ? 'Torna alla lista' : isPhoto2Camera ? 'Torna a foto 1' : 'Chiudi scanner'}
       >
         ✕
       </button>
 
-      {!isDisambiguationCamera && <InstrumentGuide />}
+      {pageState === 'idle_photo1' && <InstrumentGuide />}
+      {isPhoto2Camera && <TopDownGuide />}
       {isDisambiguationCamera && <DisambiguationGuide />}
 
+      {/* Step indicator — solo per idle_photo1 e idle_photo2 */}
+      {(pageState === 'idle_photo1' || isPhoto2Camera) && (
+        <div style={{
+          position: 'absolute', top: 60, left: 0, right: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: isPhoto2Camera ? '#22c55e' : '#3b82f6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: '#fff',
+          }}>
+            {isPhoto2Camera ? '✓' : '1'}
+          </div>
+          <div style={{ width: 20, height: 2, background: isPhoto2Camera ? '#22c55e' : '#374151', borderRadius: 1 }} />
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: isPhoto2Camera ? '#3b82f6' : '#374151',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: isPhoto2Camera ? '#fff' : '#6b7280',
+          }}>
+            2
+          </div>
+        </div>
+      )}
+
+      {/* Istruzione testo */}
       <div style={{
         position: 'absolute',
         top: '7%',
         left: 0, right: 0,
         textAlign: 'center',
-        color: isDisambiguationCamera ? 'rgba(96,165,250,0.9)' : 'rgba(255,255,255,0.9)',
+        color: isDisambiguationCamera ? 'rgba(96,165,250,0.9)' : isPhoto2Camera ? 'rgba(96,165,250,0.9)' : 'rgba(255,255,255,0.9)',
         fontSize: 13,
         textShadow: '0 1px 4px rgba(0,0,0,0.9)',
         pointerEvents: 'none',
@@ -792,6 +996,12 @@ export function ToolRecognitionPage() {
           <>Inquadra la testa della fresa ·{' '}
             <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
               5–10 cm di distanza
+            </span>
+          </>
+        ) : isPhoto2Camera ? (
+          <>Fotografa la punta dall'alto ·{' '}
+            <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
+              10–15 cm di distanza
             </span>
           </>
         ) : (
@@ -803,7 +1013,26 @@ export function ToolRecognitionPage() {
         )}
       </div>
 
-      {!isDisambiguationCamera && (
+      {/* "Procedi con 1 foto" link — solo per idle_photo2 */}
+      {isPhoto2Camera && (
+        <div style={{
+          position: 'absolute', bottom: 100,
+          left: 0, right: 0, textAlign: 'center',
+        }}>
+          <button
+            onClick={() => setPageState('preview')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.55)', fontSize: 13,
+              textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.25)',
+            }}
+          >
+            Procedi con 1 foto →
+          </button>
+        </div>
+      )}
+
+      {!isPhoto2Camera && !isDisambiguationCamera && (
         <div style={{
           position: 'absolute',
           bottom: 96,
@@ -851,17 +1080,16 @@ export function ToolRecognitionPage() {
         </div>
       )}
 
-      {/* Barra inferiore: idle → flash+shutter+budget | disambiguation_camera → solo shutter */}
+      {/* Barra inferiore */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         height: 80,
         background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'center',
-        justifyContent: isDisambiguationCamera ? 'center' : 'space-around',
+        justifyContent: isDisambiguationCamera || isPhoto2Camera ? 'center' : 'space-around',
         padding: '0 32px',
-        gap: isDisambiguationCamera ? 0 : undefined,
       }}>
-        {!isDisambiguationCamera && (
+        {!isDisambiguationCamera && !isPhoto2Camera && (
           <button
             onClick={toggleFlash}
             style={{
@@ -878,17 +1106,19 @@ export function ToolRecognitionPage() {
         <button
           onClick={isDisambiguationCamera
             ? () => { void handleDisambiguationShutter() }
-            : () => { void handleShutter() }}
-          aria-label={isDisambiguationCamera ? 'Scatta seconda foto' : 'Scatta foto'}
+            : isPhoto2Camera
+              ? handleShutterPhoto2
+              : handleShutterPhoto1}
+          aria-label={isDisambiguationCamera ? 'Scatta foto disambiguazione' : isPhoto2Camera ? 'Scatta foto 2' : 'Scatta foto 1'}
           style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: isDisambiguationCamera ? '#60a5fa' : '#fff',
-            border: `4px solid ${isDisambiguationCamera ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.5)'}`,
+            background: isDisambiguationCamera || isPhoto2Camera ? '#60a5fa' : '#fff',
+            border: `4px solid ${isDisambiguationCamera || isPhoto2Camera ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.5)'}`,
             cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
           }}
         />
 
-        {!isDisambiguationCamera && (
+        {!isDisambiguationCamera && !isPhoto2Camera && (
           <div style={{ textAlign: 'center', minWidth: 52 }}>
             {remainingScans !== null ? (
               <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}>

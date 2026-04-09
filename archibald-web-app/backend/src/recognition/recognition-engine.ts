@@ -7,7 +7,7 @@ import { appendRecognitionLog } from '../db/repositories/recognition-log'
 import { logger } from '../logger'
 
 export type CatalogVisionService = {
-  identifyFromImage(imageBase64: string, signal?: AbortSignal, disambiguationCandidates?: string[]): Promise<import('./types').IdentificationResult>
+  identifyFromImage(images: string[], signal?: AbortSignal, disambiguationCandidates?: string[]): Promise<import('./types').IdentificationResult>
 }
 
 type EngineResult = {
@@ -24,7 +24,7 @@ type EngineDeps = {
 
 export async function runRecognitionPipeline(
   deps: EngineDeps,
-  imageBase64: string,
+  images: string[],
   userId: string,
   role: string,
   signal?: AbortSignal,
@@ -33,7 +33,7 @@ export async function runRecognitionPipeline(
   const startMs = Date.now()
 
   const imageHash = createHash('sha256')
-    .update(Buffer.from(imageBase64, 'base64'))
+    .update(Buffer.concat(images.map(img => Buffer.from(img, 'base64'))))
     .digest('hex')
 
   // Skip cache for disambiguation requests — result depends on candidates, not just image
@@ -62,7 +62,7 @@ export async function runRecognitionPipeline(
 
   let identification: import('./types').IdentificationResult
   try {
-    identification = await deps.catalogVisionService.identifyFromImage(imageBase64, signal, disambiguationCandidates)
+    identification = await deps.catalogVisionService.identifyFromImage(images, signal, disambiguationCandidates)
   } catch (err) {
     logger.warn('[recognition-engine] Vision API error', { error: err instanceof Error ? err.message : String(err) })
     return {
@@ -121,7 +121,7 @@ export async function runRecognitionPipeline(
 
   // Don't cache disambiguation results — they depend on candidates, not just the image
   if (!disambiguationCandidates) {
-    await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
+    await setCached(deps.pool, imageHash, result, Buffer.from(images[0]!, 'base64'))
   }
   const budgetConsumed = await consumeBudget(deps.pool)
   if (!budgetConsumed) {

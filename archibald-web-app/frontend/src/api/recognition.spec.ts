@@ -26,7 +26,7 @@ describe('identifyInstrument', () => {
       json: () => Promise.resolve(mockResponse),
     } as Response)
 
-    const result = await identifyInstrument(TOKEN, BASE64)
+    const result = await identifyInstrument(TOKEN, [BASE64])
 
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/recognition/identify')
@@ -34,7 +34,7 @@ describe('identifyInstrument', () => {
     const headers = init.headers as Record<string, string>
     expect(headers['Authorization']).toBe(`Bearer ${TOKEN}`)
     expect(headers['Content-Type']).toBe('application/json')
-    expect(init.body).toBe(JSON.stringify({ image: BASE64 }))
+    expect(init.body).toBe(JSON.stringify({ images: [BASE64] }))
     expect(init.signal).toBeInstanceOf(AbortSignal)
     expect(result).toEqual(mockResponse)
   })
@@ -45,14 +45,14 @@ describe('identifyInstrument', () => {
       capturedSignal = (init as RequestInit).signal
       return new Promise(() => {})
     })
-    identifyInstrument(TOKEN, BASE64)
+    identifyInstrument(TOKEN, [BASE64])
     vi.advanceTimersByTime(90_001)
     expect(capturedSignal?.aborted).toBe(true)
   })
 
   it('throws when response is not ok', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: false, status: 500 } as Response)
-    await expect(identifyInstrument(TOKEN, BASE64)).rejects.toThrow('HTTP 500')
+    await expect(identifyInstrument(TOKEN, [BASE64])).rejects.toThrow('HTTP 500')
   })
 })
 
