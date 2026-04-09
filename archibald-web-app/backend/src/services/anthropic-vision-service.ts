@@ -139,8 +139,16 @@ STEP 2 — OBSERVE (category-specific):
           • Torpedo (879): head is TALLER than it is wide (height > width; bullet nose).
           • Wheel/disc (909): head is MUCH WIDER than it is tall (width >> height; flat disc).
           • Inverted cone (806/807): head is taller than wide; widens from base to tip.
-          • Ball (801): head is equally tall and wide (perfect sphere).
+          • Ball (801): head is equally tall and wide (perfect sphere — ALL surfaces curved).
           If the head is clearly WIDER than it is TALL → wheel/disc (909), NOT torpedo.
+
+        ⚠ BALL vs DISC — if head appears roughly spherical:
+          Look at the TOP of the head:
+            • TOP is FLAT (like the face of a coin, a flat area at the apex) → wheel/disc (909).
+              Even from a face-on or angled photo, the disc face appears as a FLAT CIRCLE, not a dome.
+            • TOP is uniformly CURVED in all directions (no flat area anywhere) → ball bur (801/6801).
+          Also look at where the shank meets the head: disc 909 has a distinct "neck" narrower than the disc,
+          while ball 801's shank connects at the bottom with a smooth taper.
 
         → FLAT like the end of a nail or eraser (diameter ≈ same as body): inverted cone (806/807)
         → ROUNDED DOME (convex curve, like a bullet nose — head TALLER than wide): torpedo (879)
