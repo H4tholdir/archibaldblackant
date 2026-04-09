@@ -201,7 +201,7 @@ export function ToolRecognitionPage() {
 
   const [pageState, setPageState] = useState<PageState>('loading')
   const [budget, setBudget] = useState<BudgetState | null>(null)
-  const [flashOn, setFlashOn] = useState(false)
+
   const [capturedImages, setCapturedImages] = useState<string[]>([])
   const [usedPhotoCount, setUsedPhotoCount] = useState(1)
   const [analyzeStep, setAnalyzeStep] = useState(0)
@@ -267,16 +267,6 @@ export function ToolRecognitionPage() {
     }
   }, [])
 
-  const toggleFlash = useCallback(async () => {
-    const track = streamRef.current?.getVideoTracks()[0]
-    if (!track) return
-    const next = !flashOn
-    try {
-      await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] })
-      setFlashOn(next)
-    } catch {
-    }
-  }, [flashOn])
 
   const captureFrame = useCallback((): string | null => {
     const video = videoRef.current
@@ -407,8 +397,6 @@ export function ToolRecognitionPage() {
       setErrorMessage('Errore di connessione. Riprova.')
     }
   }, [captureFrame, identifyResult, pageState, vibrate, playSuccessBeep])
-
-  const remainingScans = budget ? budget.dailyLimit - budget.usedToday : null
 
   if (pageState === 'permission_denied') {
     return (
@@ -921,8 +909,167 @@ export function ToolRecognitionPage() {
     )
   }
 
-  const isDisambiguationCamera = pageState === 'disambiguation_camera'
-  const isPhoto2Camera = pageState === 'idle_photo2'
+  if (pageState === 'idle_photo1' || pageState === 'idle_photo2') {
+    const isPhoto2 = pageState === 'idle_photo2'
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#0F1117', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ padding: '56px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Step dots */}
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+            background: isPhoto2 ? '#22c55e' : '#3b82f6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: '#fff',
+          }}>
+            {isPhoto2 ? '✓' : '1'}
+          </div>
+          <div style={{ width: 16, height: 2, background: isPhoto2 ? '#22c55e' : '#3b82f6', borderRadius: 1 }} />
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+            background: isPhoto2 ? '#3b82f6' : '#2e3248',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: isPhoto2 ? '#fff' : '#6b7280',
+          }}>
+            2
+          </div>
+          <span style={{ color: '#6b7280', fontSize: 11, fontWeight: 600, letterSpacing: 1.5, marginLeft: 8 }}>
+            STEP {isPhoto2 ? '2' : '1'} DI 2
+          </span>
+
+          {/* Photo 1 thumbnail (solo su S2) */}
+          {isPhoto2 && capturedImages[0] && (
+            <div style={{ position: 'relative', marginLeft: 'auto' }}>
+              <img
+                src={`data:image/jpeg;base64,${capturedImages[0]}`}
+                alt="Foto 1"
+                style={{ width: 44, height: 36, borderRadius: 6, objectFit: 'cover', border: '1.5px solid #22c55e', display: 'block' }}
+              />
+              <div style={{
+                position: 'absolute', bottom: -6, right: -6,
+                width: 16, height: 16, borderRadius: '50%', background: '#22c55e',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 900, color: '#000',
+              }}>✓</div>
+            </div>
+          )}
+
+          {/* Close button */}
+          <button
+            onClick={() => navigate(-1)}
+            style={{ marginLeft: isPhoto2 ? 8 : 'auto', background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 22, cursor: 'pointer', padding: 4, lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Title + subtitle */}
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{ color: '#fff', fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
+            {isPhoto2 ? 'Vista dall\'Alto' : 'Vista Laterale'}
+          </div>
+          <div style={{ color: '#8B90A0', fontSize: 14 }}>
+            {isPhoto2
+              ? 'Fotografa la punta dello strumento dall\'alto verso il basso'
+              : 'Orienta lo strumento orizzontalmente nel mirino'}
+          </div>
+        </div>
+
+        {/* Viewfinder */}
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', height: 310, background: '#0A0D15' }}>
+            <video
+              ref={videoCallbackRef}
+              autoPlay playsInline muted
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            {/* Guide overlay */}
+            {isPhoto2 ? <TopDownGuide /> : <InstrumentGuide />}
+            {/* Corner brackets */}
+            {[
+              { top: 10, left: 10, borderTopWidth: 2, borderLeftWidth: 2 },
+              { top: 10, right: 10, borderTopWidth: 2, borderRightWidth: 2 },
+              { bottom: 10, left: 10, borderBottomWidth: 2, borderLeftWidth: 2 },
+              { bottom: 10, right: 10, borderBottomWidth: 2, borderRightWidth: 2 },
+            ].map((pos, i) => (
+              <div key={i} style={{
+                position: 'absolute', width: 20, height: 20,
+                borderColor: isPhoto2 ? '#60a5fa' : '#3b82f6',
+                borderStyle: 'solid', borderWidth: 0,
+                ...pos,
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Tip card (S1) / spazio (S2) */}
+        {!isPhoto2 && (
+          <div style={{ padding: '12px 20px 0' }}>
+            <div style={{
+              background: '#1A1D26', borderRadius: 12,
+              padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center',
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8, background: '#22263A', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+              }}>💡</div>
+              <div>
+                <div style={{ color: '#3b82f6', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>CONSIGLIO</div>
+                <div style={{ color: '#C5C8D5', fontSize: 13 }}>Includi tutta la lunghezza dello strumento</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {errorMessage && (
+          <div onClick={() => setErrorMessage(null)} style={{ padding: '8px 20px 0' }}>
+            <div style={{ background: 'rgba(239,68,68,0.12)', borderRadius: 10, padding: '10px 14px', color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
+              {errorMessage}
+            </div>
+          </div>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Budget warning */}
+        {budget?.throttleLevel === 'warning' && (
+          <div style={{ padding: '0 20px 8px', color: '#eab308', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+            ⚠ Budget quasi esaurito
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 40 }}>
+          <button
+            onClick={isPhoto2 ? handleShutterPhoto2 : handleShutterPhoto1}
+            style={{
+              width: '100%', background: isPhoto2 ? '#60a5fa' : '#3b82f6', color: '#fff',
+              border: 'none', borderRadius: 14, padding: '15px 0',
+              fontSize: 16, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            }}
+          >
+            <span>📷</span>
+            <span>{isPhoto2 ? 'SCATTA FOTO 2' : 'SCATTA FOTO 1'}</span>
+          </button>
+
+          {isPhoto2 && (
+            <button
+              onClick={() => setPageState('preview')}
+              style={{
+                width: '100%', background: 'transparent', color: 'rgba(255,255,255,0.45)',
+                border: 'none', cursor: 'pointer', fontSize: 14, padding: '8px 0',
+              }}
+            >
+              Procedi con 1 foto →
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
@@ -934,201 +1081,57 @@ export function ToolRecognitionPage() {
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
 
+      {/* Disambiguation camera — fullscreen con guida punta */}
       <button
-        onClick={isDisambiguationCamera
-          ? () => setPageState('shortlist')
-          : isPhoto2Camera
-            ? () => { setCapturedImages([]); setPageState('idle_photo1') }
-            : () => navigate(-1)}
+        onClick={() => setPageState('shortlist')}
         style={{
           position: 'absolute', top: 16, left: 16, zIndex: 10,
           background: 'none', border: 'none', color: '#fff',
           fontSize: 28, cursor: 'pointer', padding: 8,
         }}
-        aria-label={isDisambiguationCamera ? 'Torna alla lista' : isPhoto2Camera ? 'Torna a foto 1' : 'Chiudi scanner'}
+        aria-label="Torna alla lista"
       >
         ✕
       </button>
 
-      {pageState === 'idle_photo1' && <InstrumentGuide />}
-      {isPhoto2Camera && <TopDownGuide />}
-      {isDisambiguationCamera && <DisambiguationGuide />}
+      <DisambiguationGuide />
 
-      {/* Step indicator — solo per idle_photo1 e idle_photo2 */}
-      {(pageState === 'idle_photo1' || isPhoto2Camera) && (
-        <div style={{
-          position: 'absolute', top: 60, left: 0, right: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          pointerEvents: 'none',
-        }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: isPhoto2Camera ? '#22c55e' : '#3b82f6',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff',
-          }}>
-            {isPhoto2Camera ? '✓' : '1'}
-          </div>
-          <div style={{ width: 20, height: 2, background: isPhoto2Camera ? '#22c55e' : '#374151', borderRadius: 1 }} />
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: isPhoto2Camera ? '#3b82f6' : '#374151',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: isPhoto2Camera ? '#fff' : '#6b7280',
-          }}>
-            2
-          </div>
-        </div>
-      )}
-
-      {/* Istruzione testo */}
       <div style={{
-        position: 'absolute',
-        top: '7%',
-        left: 0, right: 0,
-        textAlign: 'center',
-        color: isDisambiguationCamera ? 'rgba(96,165,250,0.9)' : isPhoto2Camera ? 'rgba(96,165,250,0.9)' : 'rgba(255,255,255,0.9)',
-        fontSize: 13,
-        textShadow: '0 1px 4px rgba(0,0,0,0.9)',
-        pointerEvents: 'none',
+        position: 'absolute', top: '7%', left: 0, right: 0,
+        textAlign: 'center', color: 'rgba(96,165,250,0.9)',
+        fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.9)', pointerEvents: 'none',
       }}>
-        {isDisambiguationCamera ? (
-          <>Inquadra la testa della fresa ·{' '}
-            <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
-              5–10 cm di distanza
-            </span>
-          </>
-        ) : isPhoto2Camera ? (
-          <>Fotografa la punta dall'alto ·{' '}
-            <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
-              10–15 cm di distanza
-            </span>
-          </>
-        ) : (
-          <>Centra la fresa nella guida ·{' '}
-            <span style={{ background: 'rgba(255,200,0,0.35)', borderRadius: 3, padding: '1px 4px' }}>
-              15–20 cm di distanza
-            </span>
-          </>
-        )}
+        Inquadra la testa della fresa ·{' '}
+        <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
+          5–10 cm di distanza
+        </span>
       </div>
 
-      {/* "Procedi con 1 foto" link — solo per idle_photo2 */}
-      {isPhoto2Camera && (
-        <div style={{
-          position: 'absolute', bottom: 100,
-          left: 0, right: 0, textAlign: 'center',
-        }}>
-          <button
-            onClick={() => setPageState('preview')}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.55)', fontSize: 13,
-              textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.25)',
-            }}
-          >
-            Procedi con 1 foto →
-          </button>
-        </div>
-      )}
-
-      {!isPhoto2Camera && !isDisambiguationCamera && (
-        <div style={{
-          position: 'absolute',
-          bottom: 96,
-          left: 0, right: 0,
-          textAlign: 'center',
-          color: 'rgba(255,255,255,0.7)',
-          fontSize: 13,
-          pointerEvents: 'none',
-        }}>
-          Tieni fermo e scatta
-        </div>
-      )}
-
       {errorMessage && (
-        <div
-          onClick={() => setErrorMessage(null)}
-          style={{
-            position: 'absolute',
-            bottom: 148,
-            left: 16, right: 16,
-            background: 'rgba(239, 68, 68, 0.15)',
-            borderRadius: 8,
-            padding: '10px 16px',
-            color: '#f87171',
-            fontSize: 13,
-            textAlign: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          {errorMessage}
-          <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
-            Tocca per chiudere · scatta di nuovo con il pulsante
-          </div>
-        </div>
-      )}
-
-      {!isDisambiguationCamera && budget?.throttleLevel === 'warning' && (
-        <div style={{
-          position: 'absolute', bottom: 68, left: 16, right: 16,
-          background: 'rgba(234, 179, 8, 0.15)', borderRadius: 8,
-          padding: '8px 16px', color: '#eab308', fontSize: 13, fontWeight: 600,
-          textAlign: 'center',
+        <div onClick={() => setErrorMessage(null)} style={{
+          position: 'absolute', bottom: 148, left: 16, right: 16,
+          background: 'rgba(239,68,68,0.15)', borderRadius: 8,
+          padding: '10px 16px', color: '#f87171', fontSize: 13,
+          textAlign: 'center', cursor: 'pointer',
         }}>
-          ⚠ Budget quasi esaurito — usa con parsimonia
+          {errorMessage}
         </div>
       )}
 
-      {/* Barra inferiore */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 80,
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
         background: 'rgba(0,0,0,0.75)',
-        display: 'flex', alignItems: 'center',
-        justifyContent: isDisambiguationCamera || isPhoto2Camera ? 'center' : 'space-around',
-        padding: '0 32px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {!isDisambiguationCamera && !isPhoto2Camera && (
-          <button
-            onClick={toggleFlash}
-            style={{
-              background: 'none', border: 'none',
-              color: flashOn ? '#fbbf24' : '#fff',
-              fontSize: 26, cursor: 'pointer', padding: 8,
-            }}
-            aria-label={flashOn ? 'Disattiva flash' : 'Attiva flash'}
-          >
-            ⚡
-          </button>
-        )}
-
         <button
-          onClick={isDisambiguationCamera
-            ? () => { void handleDisambiguationShutter() }
-            : isPhoto2Camera
-              ? handleShutterPhoto2
-              : handleShutterPhoto1}
-          aria-label={isDisambiguationCamera ? 'Scatta foto disambiguazione' : isPhoto2Camera ? 'Scatta foto 2' : 'Scatta foto 1'}
+          onClick={() => { void handleDisambiguationShutter() }}
+          aria-label="Scatta foto disambiguazione"
           style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: isDisambiguationCamera || isPhoto2Camera ? '#60a5fa' : '#fff',
-            border: `4px solid ${isDisambiguationCamera || isPhoto2Camera ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.5)'}`,
+            background: '#60a5fa', border: '4px solid rgba(96,165,250,0.5)',
             cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
           }}
         />
-
-        {!isDisambiguationCamera && !isPhoto2Camera && (
-          <div style={{ textAlign: 'center', minWidth: 52 }}>
-            {remainingScans !== null ? (
-              <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}>
-                {remainingScans} scan rimasti
-              </div>
-            ) : (
-              <div style={{ color: '#6b7280', fontSize: 11 }}>—</div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )

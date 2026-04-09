@@ -27,6 +27,32 @@ function mockStream() {
   } as unknown as MediaStream
 }
 
+/**
+ * Abilita captureFrame() in jsdom: il video element ha dimensioni 0×0 di default,
+ * quindi occorre mock videoWidth/videoHeight + canvas toDataURL.
+ */
+function mockCapture() {
+  Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth',  { get: () => 1, configurable: true })
+  Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', { get: () => 1, configurable: true })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn(),
+  } as unknown as CanvasRenderingContext2D)
+  vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,FAKEFRAME')
+}
+
+/**
+ * Flusso completo: foto1 → skip foto2 → identifica.
+ * Richiede che mockCapture() sia già stato chiamato.
+ */
+async function captureAndIdentify() {
+  await waitFor(() => screen.getByRole('button', { name: /SCATTA FOTO 1/i }))
+  await userEvent.click(screen.getByRole('button', { name: /SCATTA FOTO 1/i }))
+  await waitFor(() => screen.getByRole('button', { name: /Procedi con 1 foto/i }))
+  await userEvent.click(screen.getByRole('button', { name: /Procedi con 1 foto/i }))
+  await waitFor(() => screen.getByRole('button', { name: /Identifica/i }))
+  await userEvent.click(screen.getByRole('button', { name: /Identifica/i }))
+}
+
 const TOKEN = 'test-jwt'
 
 beforeEach(() => {
@@ -75,23 +101,17 @@ describe('ToolRecognitionPage — Stato 1 (idle viewfinder)', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /scatta|shutter/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /SCATTA FOTO 1/i })).toBeInTheDocument()
     )
   })
 
-  it('mostra budget residuo (dailyLimit - usedToday)', async () => {
-    const usedToday = 493
-    const dailyLimit = 500
-    vi.spyOn(recognitionApi, 'getRecognitionBudget').mockResolvedValue({
-      usedToday, dailyLimit, throttleLevel: 'normal',
-    })
+  it('mostra step indicator "STEP 1 DI 2" nello stato idle_photo1', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
-    const remainingScans = dailyLimit - usedToday
     await waitFor(() =>
-      expect(screen.getByText(new RegExp(`${remainingScans} scan`, 'i'))).toBeInTheDocument()
+      expect(screen.getByText(/STEP 1 DI 2/i)).toBeInTheDocument()
     )
   })
 
@@ -112,14 +132,14 @@ describe('ToolRecognitionPage — Stato 1 (idle viewfinder)', () => {
 describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
   it('mostra spinner di analisi dopo lo scatto', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockImplementation(
       () => new Promise(() => {}) // non risolve — rimane in analisi
     )
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await captureAndIdentify()
 
     await waitFor(() =>
       expect(screen.getByText(/Analisi con AI/i)).toBeInTheDocument()
@@ -128,6 +148,7 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
 
   it('mostra schermata budget esaurito quando result.state è budget_exhausted', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue({
       result: { state: 'budget_exhausted' },
       budgetState: { usedToday: 500, dailyLimit: 500, throttleLevel: 'limited' },
@@ -137,8 +158,7 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await captureAndIdentify()
 
     await waitFor(() =>
       expect(screen.getByText(/Budget giornaliero esaurito/i)).toBeInTheDocument()
@@ -162,12 +182,12 @@ const MATCH_RESPONSE: IdentifyResponse = {
 describe('ToolRecognitionPage — Stato 3A (match)', () => {
   it('mostra card match con pulsante "Apri scheda prodotto"', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
     vi.spyOn(recognitionApi, 'submitRecognitionFeedback').mockResolvedValue({ queued: true })
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await captureAndIdentify()
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Apri scheda prodotto/i })).toBeInTheDocument()
@@ -178,12 +198,12 @@ describe('ToolRecognitionPage — Stato 3A (match)', () => {
 
   it('chiama submitRecognitionFeedback prima di navigare quando si clicca "Apri scheda"', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
     const feedbackSpy = vi.spyOn(recognitionApi, 'submitRecognitionFeedback').mockResolvedValue({ queued: true })
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await captureAndIdentify()
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Apri scheda prodotto/i })).toBeInTheDocument()
     )
@@ -213,11 +233,11 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
     }
 
     mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(shortlistResponse)
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-    await waitFor(() => screen.getByRole('button', { name: /scatta|shutter/i }))
-    await userEvent.click(screen.getByRole('button', { name: /scatta|shutter/i }))
+    await captureAndIdentify()
 
     await waitFor(() =>
       expect(screen.getByText(/2 candidati trovati/i)).toBeInTheDocument()
@@ -226,4 +246,3 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
     expect(screen.getByText('TC Round Ø1.6')).toBeInTheDocument()
   })
 })
-
