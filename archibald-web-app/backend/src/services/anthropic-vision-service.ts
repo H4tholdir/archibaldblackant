@@ -225,24 +225,23 @@ Call submit_identification immediately. Do NOT call any other tools after this.
 - Not found: product_code = "", candidates = [], confidence = 0
 Always call submit_identification even if uncertain.
 
-MANDATORY SHORTLIST RULES (apply BEFORE submitting any match):
+MANDATORY SHORTLIST RULES — apply BEFORE submit_identification:
 
-RULE A — torpedo/flame ambiguity, HP only:
-  When ALL of: shank=HP, rotary_diamond, no colored ring, head shape = flame OR torpedo/chamfer
-  → ALWAYS shortlist: product_code="", candidates=[your_flame_match, "879.104.014"], confidence=0.45
+RULE A — flame vs torpedo, HP + no ring:
+  Conditions: shank=HP, rotary_diamond, no visible ring color, head = flame OR torpedo/chamfer
+  → shortlist: product_code="", candidates=[your_flame_match, "879.104.014"], confidence=0.45
 
-RULE B — torpedo/inverted-cone ambiguity, HP only:
-  When ALL of: shank=HP, rotary_diamond, no colored ring, head shape = torpedo/chamfer OR blunt/flat tip
-  AND head width appears SIMILAR TO or WIDER THAN shank width (i.e. Q4 is ambiguous or head ≥ shank)
-  → ALWAYS shortlist: product_code="", candidates=["879.104.014", "807.104.023"], confidence=0.45
-  Rationale: torpedo (879, head 1.4mm) and long inverted cone (807, head up to 2.3mm) look nearly
-  identical in HP photos. The subtle width difference is unresolvable from photographs alone.
+RULE B — blunt-top HP + no ring (torpedo/inverted-cone/cylinder confusion):
+  Conditions: shank=HP, rotary_diamond, no visible ring color, head tip = blunt/flat/rounded (NOT sharp)
+  → shortlist: product_code="", candidates=["879.104.014", "807.104.023"], confidence=0.45
+  Rationale: torpedo (879, 1.4mm), inverted cone long (807, up to 2.3mm), and cylinder (836) are
+  visually indistinguishable in HP photos. Head width proportions cannot be reliably assessed.
 
-DO NOT apply these rules if your primary identification is a clearly DIFFERENT head shape:
-  • Round/ball bur → submit match directly
-  • Pear shape → submit match directly
-  • Cylinder flat-end (head clearly wider than shank) → submit match directly
-  • Any clearly non-blunt/non-rounded family → submit match directly`
+SKIP these rules only for clearly distinct shapes:
+  • Ball/sphere head → match directly
+  • Pear shape → match directly
+  • Head is dramatically wider than shank (> 3mm estimated diameter) → match directly (large cylinder)
+  • FG or CA shank → rules do not apply`
 
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
