@@ -131,23 +131,20 @@ STEP 2 — OBSERVE (category-specific):
 
   For rotary_diamond:
     - Head shape — examine the BODY PROFILE first, tip second:
-        • TORPEDO / CHAMFER: body is WIDEST at the base and stays nearly CYLINDRICAL for 50–70%
-          of head length; only the final portion chamfers to a rounded dome. The apex is blunt.
-          ⚠ HP torpedo (879) CAN look pointed in side-view photos — do NOT rule it out from tip alone.
-          Reliable clue: nearly-constant body width from base up to 60% of head = torpedo.
-          Search with: "torpedo chamfer rounded tip"
-        • FLAME: body tapers CONTINUOUSLY from the base all the way to the tip — NO cylindrical
-          section. The silhouette narrows from the very first mm above the neck junction.
-          The very tip is a fine sharp point. Reliable clue: body narrowing begins immediately at base.
-          Search with: "flame pointed tip"
-        • INVERTED CONE (families 806/807): body is NARROWEST at the BASE (neck junction) and
-          WIDENS continuously toward the working end — maximum diameter is AT THE TIP.
-          The working end is FLAT or very slightly rounded — NOT pointed, NOT domed.
-          Side profile: ◤ (narrow base → progressively wider → flat working end)
-          ⚠ NOT torpedo: torpedo has a nearly-CONSTANT width from base to 60% then chamfer;
-            inverted cone gets WIDER with every mm from base to tip. Check: is the head wider
-            at the tip than at the base? YES → inverted cone (806/807). NO → torpedo (879).
+        • INVERTED CONE (families 806/807): body WIDENS from base to tip — tip is FLAT (truncated).
+          The working end is a FLAT disc — like the eraser end of a pencil, NOT a dome, NOT a point.
+          Side profile: ◤ (narrow base → wider body → FLAT top)
+          Reliable clue: flat working end + body wider at tip than at base = inverted cone (807).
           Search with: "inverted cone long"
+        • TORPEDO / CHAMFER (family 879): body is nearly CYLINDRICAL (same width from base to 60%),
+          then chamfers to a ROUNDED DOME. The dome is smooth and curved — NOT flat, NOT a sharp point.
+          ⚠ Distinguish from inverted cone: torpedo has FLAT-WIDTH body; inverted cone WIDENS upward.
+          ⚠ HP torpedo CAN look pointed in side-view photos. Check: is the working end FLAT? → 807.
+          Reliable clue: rounded dome apex (not flat) + nearly-constant body width = torpedo (879).
+          Search with: "torpedo chamfer rounded tip"
+        • FLAME (families 863, 862, 860): body tapers CONTINUOUSLY to a SHARP FINE POINT — no
+          flat end, no dome. Silhouette narrows immediately from the neck junction upward.
+          Search with: "flame pointed tip"
         • Other shapes: round (sphere head), cylinder flat-end, pear (wider mid-body),
           diabolo (hourglass/biconcave)
     - Colored ring at the BASE of the head where it meets the neck:
