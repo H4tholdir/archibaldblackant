@@ -86,6 +86,7 @@ export function FresisHistoryPage() {
   const shouldBypassDates = isBackendSearch || selectedSubClient !== null;
   const shouldReplaceRef = useRef(false);
   shouldReplaceRef.current = shouldBypassDates;
+  const autoSelectDoneRef = useRef(false);
 
   const { historyOrders: wsOrders, refetch: wsRefetch } =
     useFresisHistorySync(
@@ -289,12 +290,15 @@ export function FresisHistoryPage() {
     }
   }, [filteredOrders, selectedOrder?.id]);
 
-  // Auto-select record when navigating via ?openRecord=<id>
+  // Auto-select record when navigating via ?openRecord=<id> — only once
   useEffect(() => {
-    if (!openRecordId || allOrders.length === 0 || selectedOrder) return;
+    if (!openRecordId || allOrders.length === 0 || autoSelectDoneRef.current) return;
     const record = allOrders.find((o) => o.id === openRecordId);
-    if (record) setSelectedOrder(record);
-  }, [openRecordId, allOrders, selectedOrder]);
+    if (record) {
+      setSelectedOrder(record);
+      autoSelectDoneRef.current = true;
+    }
+  }, [openRecordId, allOrders]);
 
   // Time preset handler
   const handleTimePreset = (preset: FresisTimePreset) => {
