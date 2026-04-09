@@ -139,6 +139,15 @@ STEP 2 — OBSERVE (category-specific):
         → SHARP POINT (tapers to a fine needle): flame (863/862/860)
         → SPHERE (entire head is a ball): round bur (801/802/811/6801/8801/5801)
         → FLAT but head is WIDER than shank, short: cylinder flat-end (837/835)
+        → VERY WIDE LOW-PROFILE DISC with rounded peripheral edge: wheel bur (909/6909/5909/2909)
+            ⚠ FACE-ON PHOTO TRAP: photographed face-on, the disc looks like a wide dome or
+              half-sphere — but the TOP surface is visibly FLAT (not uniformly convex like a ball).
+              Distinguish from inverted cone (806/807): 909 has UNIFORM height (not widening upward).
+              Distinguish from ball (801): top of 909 is flat, not curved.
+            ⚠ RATIO clue: head is MUCH wider than shank.
+              909.104.040 on HP: ratio = 1.70 | 909.104.055: ratio = 2.34 | 909.104.065: ratio = 2.77
+              If ratio < 1.5 → NOT a 909 wheel bur (too narrow for any wheel size on HP/CA).
+            Search with: "wheel disc rounded edge occlusal reduction"
 
       Q2 (if Q1 = flat or dome) — Compare BASE width vs TIP width of the head:
         → Tip is WIDER than base (body expands upward): inverted cone (806/807)
@@ -158,6 +167,7 @@ STEP 2 — OBSERVE (category-specific):
         inverted cone   → Search with: "inverted cone long"
         torpedo/chamfer → Search with: "torpedo chamfer rounded tip"
         flame           → Search with: "flame pointed tip"
+        wheel/disc      → Search with: "wheel disc rounded edge occlusal reduction"
 
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
@@ -255,6 +265,12 @@ ABSOLUTE SCALE REFERENCE — Punto di Repere (applies to ALL instrument categori
       cross-section of the sphere). In side-view photos, perspective may make the sphere appear
       narrower than it is — estimate diameter as the widest visible circle of the ball, not
       the silhouette edge where the sphere meets the air.
+    • Wheel/disc (909/6909/5909/2909): the disc Ø is the FULL edge-to-edge diameter of the disc,
+      NOT the disc thickness. In face-on photos (disc face toward camera), the visible circle IS
+      the disc Ø — use the full visible width of the circular head.
+      Expected ratios on HP: 040→1.70, 055→2.34, 065→2.77. These are always >> 1.5.
+      If your measured ratio is < 1.0 for a suspected wheel bur → re-examine: you may be
+      measuring the disc THICKNESS rather than its DIAMETER.
 
   For each candidate: compute expected ratio (head Ø ÷ shank Ø). Observe in photo.
     Match → supports that candidate. Mismatch → contradicts it.
