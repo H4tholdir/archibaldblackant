@@ -51,10 +51,14 @@ export function FresisHistoryPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const motherOrderFilter = searchParams.get("motherOrderId");
+  const openRecordId = searchParams.get("openRecord");
   const auth = useAuth();
   const { trackOperation } = useOperationTracking();
 
-  const initialRange = getDateRangeForPreset("thisMonth")!;
+  const today = new Date().toISOString().slice(0, 10);
+  const initialRange = openRecordId
+    ? { from: "2020-01-01", to: today }
+    : getDateRangeForPreset("thisMonth")!;
 
   // Filter state
   const [activeTimePreset, setActiveTimePreset] =
@@ -284,6 +288,13 @@ export function FresisHistoryPage() {
       setSelectedOrder(null);
     }
   }, [filteredOrders, selectedOrder?.id]);
+
+  // Auto-select record when navigating via ?openRecord=<id>
+  useEffect(() => {
+    if (!openRecordId || allOrders.length === 0 || selectedOrder) return;
+    const record = allOrders.find((o) => o.id === openRecordId);
+    if (record) setSelectedOrder(record);
+  }, [openRecordId, allOrders, selectedOrder]);
 
   // Time preset handler
   const handleTimePreset = (preset: FresisTimePreset) => {

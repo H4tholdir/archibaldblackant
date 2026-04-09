@@ -3780,10 +3780,10 @@ type FresisChildFT = {
   id: string;
   subClientName?: string;
   subClientCodice?: string;
-  archibaldOrderNumber?: string;
+  invoiceNumber?: string | null;
   createdAt?: string;
-  targetTotalWithVAT?: number;
-  revenue?: number;
+  targetTotalWithVat?: number | null;
+  revenue?: number | null;
   currentState?: string;
 };
 
@@ -3867,13 +3867,17 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
             </thead>
             <tbody>
               {childFTs.map((ft) => (
-                <tr key={ft.id} style={{ borderBottom: "1px solid #eee" }}>
+                <tr
+                  key={ft.id}
+                  style={{ borderBottom: "1px solid #eee", cursor: "pointer" }}
+                  onClick={() => { window.location.href = `/fresis-history?openRecord=${ft.id}`; }}
+                >
                   <td style={ftTdStyle}>{ft.subClientName || ft.subClientCodice}</td>
-                  <td style={ftTdStyle}>{ft.archibaldOrderNumber || "-"}</td>
+                  <td style={ftTdStyle}>{ft.invoiceNumber || "-"}</td>
                   <td style={ftTdStyle}>{ft.createdAt ? new Date(ft.createdAt).toLocaleDateString("it-IT") : "-"}</td>
                   <td style={{ ...ftTdStyle, textAlign: "right" }}>
-                    {ft.targetTotalWithVAT != null
-                      ? Number(ft.targetTotalWithVAT).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    {ft.targetTotalWithVat != null
+                      ? Number(ft.targetTotalWithVat).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "-"}
                   </td>
                   <td style={{ ...ftTdStyle, textAlign: "right", color: (ft.revenue ?? 0) >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
