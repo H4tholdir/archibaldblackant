@@ -77,7 +77,7 @@ describe('handleSendToVerona', () => {
     expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
     expect(calls[5][0]).toContain('CASE WHEN');
     expect(calls[6][0]).toContain('SELECT id, items');
-    expect(calls[7][0]).toContain('merged_into_order_id');
+    expect(calls[7][0]).toContain('archibald_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
@@ -177,7 +177,7 @@ describe('handleSendToVerona', () => {
     expect(updateParams[3]).toBe('user-1');
   });
 
-  test('propagates inviato_verona state to merged sibling fresis_history records', async () => {
+  test('propagates inviato_verona state to fresis_history records by archibald_order_id', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -186,7 +186,7 @@ describe('handleSendToVerona', () => {
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
     const siblingUpdate = calls[7];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
-    expect(siblingUpdate[0]).toContain('merged_into_order_id');
+    expect(siblingUpdate[0]).toContain('archibald_order_id');
     expect(siblingUpdate[0]).toContain("current_state = 'inviato_verona'");
     expect(siblingUpdate[1]).toEqual(['user-1', 'ORD-001']);
   });
