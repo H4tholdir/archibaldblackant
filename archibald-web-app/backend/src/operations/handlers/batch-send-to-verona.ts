@@ -181,7 +181,7 @@ async function handleBatchSendToVerona(
       `UPDATE agents.fresis_history
        SET current_state = 'inviato_verona', state_updated_at = NOW(), updated_at = NOW()
        WHERE user_id = $1
-         AND merged_into_order_id = $2
+         AND archibald_order_id = $2
          AND source = 'app'`,
       [userId, orderId],
     );

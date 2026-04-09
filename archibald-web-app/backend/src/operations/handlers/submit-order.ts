@@ -448,7 +448,9 @@ async function handleSubmitOrder(
     await tx.query(
       `UPDATE agents.fresis_history
        SET archibald_order_id = $1, current_state = 'piazzato', state_updated_at = $2, updated_at = $2
-       WHERE user_id = $3 AND merged_into_order_id = $4 AND archibald_order_id IS NULL`,
+       WHERE user_id = $3
+         AND (merged_into_order_id = $4 OR original_pending_order_id = $4)
+         AND archibald_order_id IS NULL`,
       [orderId, now, userId, data.pendingOrderId],
     );
 

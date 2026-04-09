@@ -463,7 +463,11 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(archiveOrders).toHaveBeenCalledWith([fresisOrder]);
+      expect(archiveOrders).toHaveBeenCalledWith(
+        [{ ...fresisOrder, revenue: 13 }],
+        undefined,
+        true,
+      );
     });
 
     await waitFor(() => {

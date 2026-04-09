@@ -219,6 +219,29 @@ describe('generateArcaDataFromOrder', () => {
     expect(result.testata.LISTINO).toBe('1');
   });
 
+  test('pads single-digit vatPercent to 2 chars in ALIIVA', () => {
+    const articleWith4pctVat: OrderArticleForKt = {
+      articleCode: 'ART004',
+      articleDescription: 'Articolo IVA 4%',
+      quantity: 1,
+      unitPrice: 100.00,
+      discountPercent: 0,
+      vatPercent: 4,
+      lineAmount: 100.00,
+      unit: 'PZ',
+    };
+
+    const result = generateArcaDataFromOrder(
+      sampleOrder,
+      [articleWith4pctVat],
+      makeSubclient(),
+      201,
+      '2026',
+    );
+
+    expect(result.righe[0].ALIIVA).toBe('04');
+  });
+
   test('handles discount percent on order level', () => {
     const orderWithDiscount = { ...sampleOrder, discountPercent: 10 };
 

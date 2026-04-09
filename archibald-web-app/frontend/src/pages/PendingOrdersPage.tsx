@@ -279,7 +279,20 @@ export function PendingOrdersPage() {
 
           // Archive Fresis sub-client orders to history before transforming
           if (isFresisSubclient) {
-            await archiveOrders([order]);
+            let orderRevenue = 0;
+            if (fresisDiscountMap) {
+              for (const item of order.items) {
+                const fresisDisc =
+                  fresisDiscountMap.get(item.articleId ?? '') ??
+                  fresisDiscountMap.get(item.articleCode) ??
+                  FRESIS_DEFAULT_DISCOUNT;
+                const originalPrice = item.originalListPrice ?? item.price;
+                const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+                const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
+                orderRevenue += prezzoCliente - costoFresis;
+              }
+            }
+            await archiveOrders([{ ...order, revenue: round2(orderRevenue) }], undefined, true);
           }
 
           // Transform items for Fresis sub-client: list price + dealer discounts

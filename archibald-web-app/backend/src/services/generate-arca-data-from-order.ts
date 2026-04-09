@@ -59,7 +59,7 @@ function generateArcaDataFromOrder(
     SCONTI: art.discountPercent > 0 ? String(art.discountPercent) : '',
     PREZZOUN: art.unitPrice,
     PREZZOTOT: art.lineAmount,
-    ALIIVA: String(art.vatPercent),
+    ALIIVA: String(art.vatPercent).padStart(2, '0'),
     CONTOSCARI: '01',
     OMIVA: false,
     OMMERCE: false,
