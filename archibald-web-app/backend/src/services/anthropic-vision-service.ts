@@ -130,23 +130,30 @@ Compare the shank length to the working head length — this ratio is independen
 STEP 2 — OBSERVE (category-specific):
 
   For rotary_diamond:
-    - Head shape — examine the BODY PROFILE first, tip second:
-        • INVERTED CONE (families 806/807): body WIDENS from base to tip — tip is FLAT (truncated).
-          The working end is a FLAT disc — like the eraser end of a pencil, NOT a dome, NOT a point.
-          Side profile: ◤ (narrow base → wider body → FLAT top)
-          Reliable clue: flat working end + body wider at tip than at base = inverted cone (807).
-          Search with: "inverted cone long"
-        • TORPEDO / CHAMFER (family 879): body is nearly CYLINDRICAL (same width from base to 60%),
-          then chamfers to a ROUNDED DOME. The dome is smooth and curved — NOT flat, NOT a sharp point.
-          ⚠ Distinguish from inverted cone: torpedo has FLAT-WIDTH body; inverted cone WIDENS upward.
-          ⚠ HP torpedo CAN look pointed in side-view photos. Check: is the working end FLAT? → 807.
-          Reliable clue: rounded dome apex (not flat) + nearly-constant body width = torpedo (879).
-          Search with: "torpedo chamfer rounded tip"
-        • FLAME (families 863, 862, 860): body tapers CONTINUOUSLY to a SHARP FINE POINT — no
-          flat end, no dome. Silhouette narrows immediately from the neck junction upward.
-          Search with: "flame pointed tip"
-        • Other shapes: round (sphere head), cylinder flat-end, pear (wider mid-body),
-          diabolo (hourglass/biconcave)
+    - MANDATORY 3-QUESTION HEAD-SHAPE DECISION (answer all three before searching):
+
+      Q1 — What is the working end (apex/tip)?
+        → FLAT like the end of a nail or eraser (diameter ≈ same as body): inverted cone (806/807)
+        → ROUNDED DOME (convex curve, like a bullet nose): torpedo (879)
+        → SHARP POINT (tapers to a fine needle): flame (863/862/860)
+        → SPHERE (entire head is a ball): round bur (801/802/811)
+        → FLAT but head is WIDER than shank, short: cylinder flat-end (837/835)
+
+      Q2 (if Q1 = flat or dome) — Compare BASE width vs TIP width of the head:
+        → Tip is WIDER than base (body expands upward): inverted cone (806/807)
+        → Tip same width as base (body is parallel/cylindrical): torpedo (879)
+        ⚠ Even if the tip looks slightly rounded, check the width: if it's WIDER at tip → 807, not 879.
+
+      Q3 (if still unsure between 807 and 879) — How does body width change from base upward?
+        → Body progressively WIDENS from base to tip with no parallel section: inverted cone
+        → Body stays nearly SAME WIDTH for 60%+ then chamfers: torpedo
+
+    - After answering Q1-Q3, search the catalog with the determined shape:
+        inverted cone   → Search with: "inverted cone long"
+        torpedo/chamfer → Search with: "torpedo chamfer rounded tip"
+        flame           → Search with: "flame pointed tip"
+
+    - Colored ring at the BASE of the head where it meets the neck:
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
     - CRITICAL: if NO colored ring visible → the family does NOT have a ring (no-ring variants or 879)
