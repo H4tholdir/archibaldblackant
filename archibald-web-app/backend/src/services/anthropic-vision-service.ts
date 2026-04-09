@@ -134,19 +134,25 @@ STEP 2 — OBSERVE (category-specific):
     - MANDATORY 3-QUESTION HEAD-SHAPE DECISION (answer all three before searching):
 
       Q1 — What is the working end (apex/tip)?
+
+        ⚠ GEOMETRY CHECK FIRST — measure HEAD HEIGHT vs HEAD WIDTH before picking a branch:
+          • Torpedo (879): head is TALLER than it is wide (height > width; bullet nose).
+          • Wheel/disc (909): head is MUCH WIDER than it is tall (width >> height; flat disc).
+          • Inverted cone (806/807): head is taller than wide; widens from base to tip.
+          • Ball (801): head is equally tall and wide (perfect sphere).
+          If the head is clearly WIDER than it is TALL → wheel/disc (909), NOT torpedo.
+
         → FLAT like the end of a nail or eraser (diameter ≈ same as body): inverted cone (806/807)
-        → ROUNDED DOME (convex curve, like a bullet nose): torpedo (879)
+        → ROUNDED DOME (convex curve, like a bullet nose — head TALLER than wide): torpedo (879)
         → SHARP POINT (tapers to a fine needle): flame (863/862/860)
-        → SPHERE (entire head is a ball): round bur (801/802/811/6801/8801/5801)
+        → SPHERE (entire head is a ball — equally tall and wide): round bur (801/802/811/6801/8801/5801)
         → FLAT but head is WIDER than shank, short: cylinder flat-end (837/835)
-        → VERY WIDE LOW-PROFILE DISC with rounded peripheral edge: wheel bur (909/6909/5909/2909)
-            ⚠ FACE-ON PHOTO TRAP: photographed face-on, the disc looks like a wide dome or
-              half-sphere — but the TOP surface is visibly FLAT (not uniformly convex like a ball).
-              Distinguish from inverted cone (806/807): 909 has UNIFORM height (not widening upward).
-              Distinguish from ball (801): top of 909 is flat, not curved.
-            ⚠ RATIO clue: head is MUCH wider than shank.
+        → WIDE LOW-PROFILE DISC (head clearly WIDER than tall, flat top, rounded rim):
+            wheel bur (909/6909/5909/2909)
+            ⚠ FACE-ON PHOTO: disc photographed face-on looks like a wide dome — but compare
+              head HEIGHT vs HEAD WIDTH. If width >> height → wheel disc, not torpedo.
+            ⚠ RATIO clue: 909 head is MUCH wider than shank.
               909.104.040 on HP: ratio = 1.70 | 909.104.055: ratio = 2.34 | 909.104.065: ratio = 2.77
-              If ratio < 1.5 → NOT a 909 wheel bur (too narrow for any wheel size on HP/CA).
             Search with: "wheel disc rounded edge occlusal reduction"
 
       Q2 (if Q1 = flat or dome) — Compare BASE width vs TIP width of the head:
