@@ -244,12 +244,20 @@ ABSOLUTE SCALE REFERENCE — Punto di Repere (applies to ALL instrument categori
   > 1.00   head WIDER than shank — working end widens beyond shank
   ≥ 1.40   head clearly extends well beyond shank on both sides
 
+  ⚠ CRITICAL — always measure the MAXIMUM width of the head, not the base junction:
+    • Inverted cone (806/807): head WIDENS from base to tip — maximum width is at the TIP (top).
+      Do NOT measure where the head meets the shank neck — that point is the narrowest part.
+      Measure the flat top disc: THAT is the Ø encoded in the product code.
+    • Torpedo (879): widest at the base, tapers toward tip — measure at the base.
+    • Flame (863/862): widest at the base — measure there.
+    • Cylinder (836/837): uniform width — any point.
+
   For each candidate: compute expected ratio (head Ø ÷ shank Ø). Observe in photo.
     Match → supports that candidate. Mismatch → contradicts it.
 
   ── Worked examples ───────────────────────────────────────────────────────────────────
-  879.104.014 on HP104:  1.4 ÷ 2.35 = 0.60  → head clearly narrower than shank
-  807.104.023 on HP104:  2.3 ÷ 2.35 = 0.98  → head ≈ same width as shank
+  879.104.014 on HP104:  1.4 ÷ 2.35 = 0.60  → head clearly narrower than shank (measure at base)
+  807.104.023 on HP104:  2.3 ÷ 2.35 = 0.98  → TIP disc ≈ same width as shank (NOT the base junction)
   806.314.023 on FG314:  2.3 ÷ 1.60 = 1.44  → head visibly WIDER than shank
   863.314.012 on FG314:  1.2 ÷ 1.60 = 0.75  → head moderately narrower
   879.314.014 on FG314:  1.4 ÷ 1.60 = 0.88  → head slightly narrower than shank
@@ -796,10 +804,14 @@ SCALE REFERENCE — Punto di Repere:
 
   Worked examples:
     879.104.014 on HP: 1.4 ÷ 2.35 = 0.60  → head clearly narrower than shank
-    807.104.023 on HP: 2.3 ÷ 2.35 = 0.98  → head ≈ same width as shank
+    807.104.023 on HP: 2.3 ÷ 2.35 = 0.98  → TIP disc ≈ same width as shank
     806.314.023 on FG: 2.3 ÷ 1.60 = 1.44  → head visibly WIDER than shank
     863.314.012 on FG: 1.2 ÷ 1.60 = 0.75  → head moderately narrower
     879.314.014 on FG: 1.4 ÷ 1.60 = 0.88  → head slightly narrower than shank
+
+  ⚠ Measure the MAXIMUM head width, not the base junction:
+    Inverted cone (806/807): maximum width is at the TIP (flat top disc) — NOT where head meets neck.
+    Torpedo/flame/cylinder: maximum width is at the base or uniform section.
 
   A clear mismatch → contradicts that candidate. A match → supports it (use alongside body profile).
 
