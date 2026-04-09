@@ -149,76 +149,16 @@ STEP 2 — OBSERVE (category-specific):
         → Body progressively WIDENS from base to tip with no parallel section: inverted cone
         → Body stays nearly SAME WIDTH for 60%+ then chamfers: torpedo
 
-      Q4 — ABSOLUTE SCALE REFERENCE (Punto di Repere):
-        The shank is your physical ruler. Its Ø is ISO 6360 certified — fixed for every instrument of the same shank code.
-        The last 3 digits of any Komet product code = max head Ø in 1/10 mm (014 → 1.4 mm, 023 → 2.3 mm).
-
-        ── Complete shank reference (ISO 6360) ───────────────────────────────────────
-        CODE  NAME (abbr.)              LENGTH    Ø        VISUAL PROFILE
-        ─ FG group ──────────────────────────────────────────────────────────────────
-        313   FG short (FGS)            18 mm    1.60 mm  shortest; small ring/knob at coupling
-        314   FG (FG)                   19 mm    1.60 mm  friction-grip collar near coupling
-        315   FG long (FGL)             21 mm    1.60 mm
-        316   FG extra-long (FGXL)      25 mm    1.60 mm
-        ─ HP group ──────────────────────────────────────────────────────────────────
-        103   HP short (HPS)            34 mm    2.35 mm  short straight cylinder
-        104   HP (HP)                   44.5 mm  2.35 mm  most common HP; mid-length
-        105   HP long (HPL)             65 mm    2.35 mm  clearly long shank
-        106   HP extra-long (HPXL)      70 mm    2.35 mm  longest straight cylinder
-        ─ CA group ──────────────────────────────────────────────────────────────────
-        204   Right-angle CA (RA)       22 mm    2.35 mm  L-shaped 90° coupling — unmistakable
-        205   Right-angle long (RAL)    26 mm    2.35 mm
-        206   Right-angle XL (RAXL)     34 mm    2.35 mm
-        ─ HP thick ──────────────────────────────────────────────────────────────────
-        123   HP thick short (HPST)     34 mm    3.00 mm  visibly thicker than 103/104
-        124   HP thick (HPT)            44.5 mm  3.00 mm  same length as HP but wider
-        ─ Handles (hand-held) ───────────────────────────────────────────────────────
-        634   Handle short, plastic     —        3.00 mm  serrated plastic grip, short
-        654   Handle, plastic           —        4.00 mm  larger serrated plastic grip
-        644   Handle                    —        6.00 mm  largest ergonomic handle
-        ─ Special ───────────────────────────────────────────────────────────────────
-        471   FO/PCR                    —        1.60 mm  fiber-optic coupling at end
-        900   Unmounted                 —        —        no shank; working part only
-
-        ── Common ISO head sizes (code → mm) ───────────────────────────────────────
-        005(0.5) 006(0.6) 007(0.7) 008(0.8) 009(0.9) 010(1.0) 012(1.2) 014(1.4)
-        016(1.6) 018(1.8) 021(2.1) 023(2.3) 025(2.5) 027(2.7) 031(3.1) 035(3.5)
-        040(4.0) 045(4.5) 047(4.7) 050(5.0) 055(5.5) 060(6.0) 070(7.0) 080(8.0)
-
-        ── Head:shank ratio table ───────────────────────────────────────────────────
-        ≤ 0.50   head is half shank width or less — very slender tip
-        ~ 0.60   head clearly NARROWER than shank — visible gap on both sides
-        ~ 0.75   head moderately narrower — noticeably but not dramatically thinner
-        ~ 0.90   head slightly narrower — close to the same width as shank
-        ~ 1.00   head and shank appear the SAME WIDTH — near-continuous profile
-        > 1.00   head WIDER than shank — working end widens beyond shank
-        ≥ 1.40   head clearly extends well beyond shank on both sides
-
-        ── Worked examples ──────────────────────────────────────────────────────────
-        879.104.014 on HP104:  1.4 ÷ 2.35 = 0.60  → head clearly narrower than shank
-        807.104.023 on HP104:  2.3 ÷ 2.35 = 0.98  → head ≈ same width as shank
-        806.314.023 on FG314:  2.3 ÷ 1.60 = 1.44  → head visibly WIDER than shank
-        863.314.012 on FG314:  1.2 ÷ 1.60 = 0.75  → head moderately narrower
-        879.314.014 on FG314:  1.4 ÷ 1.60 = 0.88  → head slightly narrower than shank
-        879 vs 807 on HP: ratio gap = 0.60 vs 0.98 → 38 pp — visually unambiguous
-                           in any photo where both head and shank are visible
-
-        ── Notes ────────────────────────────────────────────────────────────────────
-        FG (Ø 1.60 mm): inverted-cone families (806/807 size 018+) produce a head WIDER
-          than the shank. This is a definitive signal — no other family on FG has this effect.
-        CA (Ø 2.35 mm): same Ø as HP → same ratios apply; distinguish by L-shaped coupling.
-        HP thick (123/124, Ø 3.00 mm): ratios smaller than standard HP for same head size;
-          distinguish by visibly wider shank cylinder.
-
-        Verify: if visual estimate contradicts Q1-Q3 → revise shape assessment before searching.
-                if visual estimate confirms Q1-Q3 → proceed with confidence.
+      Q4 — Scale cross-check: use ABSOLUTE SCALE REFERENCE section below (after STEP 2).
+        Estimate the head:shank width ratio in the photo using the certified shank Ø from STEP 1.
+        If the observed ratio contradicts Q1-Q3 → revise shape assessment before searching.
+        If it confirms Q1-Q3 → proceed with confidence.
 
     - After answering Q1-Q4, search the catalog with the determined shape:
         inverted cone   → Search with: "inverted cone long"
         torpedo/chamfer → Search with: "torpedo chamfer rounded tip"
         flame           → Search with: "flame pointed tip"
 
-    - Colored ring at the BASE of the head where it meets the neck:
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
     - CRITICAL: if NO colored ring visible → the family does NOT have a ring (no-ring variants or 879)
@@ -258,6 +198,70 @@ STEP 2 — OBSERVE (category-specific):
     - Tip geometry (flat blade, lance, triangle, beak)
     - Angulation
     - No ISO shank — identify by shape only
+
+ABSOLUTE SCALE REFERENCE — Punto di Repere (applies to ALL instrument categories):
+  The shank is your physical ruler. Its Ø is ISO 6360 certified — fixed for every instrument of the same shank code.
+  The last 3 digits of any Komet product code = max head Ø in 1/10 mm (014 → 1.4 mm, 023 → 2.3 mm).
+
+  ── Complete shank reference (ISO 6360) ─────────────────────────────────────────────
+  CODE  NAME (abbr.)              LENGTH    Ø        VISUAL PROFILE
+  ─ FG group ──────────────────────────────────────────────────────────────────────────
+  313   FG short (FGS)            18 mm    1.60 mm  shortest; small ring/knob at coupling
+  314   FG (FG)                   19 mm    1.60 mm  friction-grip collar near coupling
+  315   FG long (FGL)             21 mm    1.60 mm
+  316   FG extra-long (FGXL)      25 mm    1.60 mm
+  ─ HP group ──────────────────────────────────────────────────────────────────────────
+  103   HP short (HPS)            34 mm    2.35 mm  short straight cylinder
+  104   HP (HP)                   44.5 mm  2.35 mm  most common HP; mid-length
+  105   HP long (HPL)             65 mm    2.35 mm  clearly long shank
+  106   HP extra-long (HPXL)      70 mm    2.35 mm  longest straight cylinder
+  ─ CA group ──────────────────────────────────────────────────────────────────────────
+  204   Right-angle CA (RA)       22 mm    2.35 mm  L-shaped 90° coupling — unmistakable
+  205   Right-angle long (RAL)    26 mm    2.35 mm
+  206   Right-angle XL (RAXL)     34 mm    2.35 mm
+  ─ HP thick ──────────────────────────────────────────────────────────────────────────
+  123   HP thick short (HPST)     34 mm    3.00 mm  visibly thicker than 103/104
+  124   HP thick (HPT)            44.5 mm  3.00 mm  same length as HP but wider
+  ─ Handles (hand-held) ────────────────────────────────────────────────────────────────
+  634   Handle short, plastic     —        3.00 mm  serrated plastic grip, short
+  654   Handle, plastic           —        4.00 mm  larger serrated plastic grip
+  644   Handle                    —        6.00 mm  largest ergonomic handle
+  ─ Special ────────────────────────────────────────────────────────────────────────────
+  471   FO/PCR                    —        1.60 mm  fiber-optic coupling at end
+  900   Unmounted                 —        —        no shank; working part only
+
+  ── Common ISO head sizes (code → mm) ────────────────────────────────────────────────
+  005(0.5) 006(0.6) 007(0.7) 008(0.8) 009(0.9) 010(1.0) 012(1.2) 014(1.4)
+  016(1.6) 018(1.8) 021(2.1) 023(2.3) 025(2.5) 027(2.7) 031(3.1) 035(3.5)
+  040(4.0) 045(4.5) 047(4.7) 050(5.0) 055(5.5) 060(6.0) 070(7.0) 080(8.0)
+
+  ── Head:shank ratio = head Ø / shank Ø ──────────────────────────────────────────────
+  ≤ 0.50   head is half shank width or less — very slender tip
+  ~ 0.60   head clearly NARROWER than shank — visible gap on both sides
+  ~ 0.75   head moderately narrower — noticeably but not dramatically thinner
+  ~ 0.90   head slightly narrower — close to the same width as shank
+  ~ 1.00   head and shank appear the SAME WIDTH — near-continuous profile
+  > 1.00   head WIDER than shank — working end widens beyond shank
+  ≥ 1.40   head clearly extends well beyond shank on both sides
+
+  For each candidate: compute expected ratio (head Ø ÷ shank Ø). Observe in photo.
+    Match → supports that candidate. Mismatch → contradicts it.
+
+  ── Worked examples ───────────────────────────────────────────────────────────────────
+  879.104.014 on HP104:  1.4 ÷ 2.35 = 0.60  → head clearly narrower than shank
+  807.104.023 on HP104:  2.3 ÷ 2.35 = 0.98  → head ≈ same width as shank
+  806.314.023 on FG314:  2.3 ÷ 1.60 = 1.44  → head visibly WIDER than shank
+  863.314.012 on FG314:  1.2 ÷ 1.60 = 0.75  → head moderately narrower
+  879.314.014 on FG314:  1.4 ÷ 1.60 = 0.88  → head slightly narrower than shank
+  879 vs 807 on HP: ratio gap = 0.60 vs 0.98 → 38 pp — visually unambiguous
+                     in any photo where both head and shank are visible
+
+  ── Notes ─────────────────────────────────────────────────────────────────────────────
+  FG (Ø 1.60 mm): inverted-cone families (806/807 size 018+) produce a head WIDER
+    than the shank. This is a definitive signal — no other family on FG has this effect.
+  CA (Ø 2.35 mm): same Ø as HP → same ratios apply; distinguish by L-shaped coupling.
+  HP thick (123/124, Ø 3.00 mm): ratios smaller than standard HP for same head size;
+    distinguish by visibly wider shank cylinder.
 
 STEP 3 — SEARCH the catalog:
 Call search_catalog with: product_type, shank_type (if identified), description,
