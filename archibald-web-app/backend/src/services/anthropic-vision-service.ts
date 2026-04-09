@@ -148,7 +148,13 @@ STEP 2 — OBSERVE (category-specific):
         → Body progressively WIDENS from base to tip with no parallel section: inverted cone
         → Body stays nearly SAME WIDTH for 60%+ then chamfers: torpedo
 
-    - After answering Q1-Q3, search the catalog with the determined shape:
+      Q4 (MANDATORY if Q1-Q3 → torpedo AND shank = HP with no colored ring):
+        HP shank standard diameter is 2.35 mm. Compare HEAD width to SHANK width in the photo.
+        → Head is clearly NARROWER than shank (≈ half the shank width): consistent with 879 size 014 (1.4 mm).
+        → Head appears SIMILAR or WIDER than shank: NOT 879 (1.4 mm head). Reconsider — likely
+          inverted cone (807, sizes 016/018/023 = 1.6–2.3 mm) or other family. Change search to "inverted cone long".
+
+    - After answering Q1-Q4, search the catalog with the determined shape:
         inverted cone   → Search with: "inverted cone long"
         torpedo/chamfer → Search with: "torpedo chamfer rounded tip"
         flame           → Search with: "flame pointed tip"
