@@ -844,7 +844,7 @@ async function runSearchCatalog(
   // For rotary_diamond: always include torpedo/chamfer terms alongside any flame description
   // so that both shape families appear in results (flame and torpedo look similar in photos)
   if (productType === 'rotary_diamond') {
-    orQuery += ' OR torpedo OR chamfer OR rounded'
+    orQuery += ' OR torpedo OR chamfer OR rounded OR inverted OR cone'
   }
 
   const { rows } = await pool.query(SEARCH_CATALOG_SQL, [shankType, productType, orQuery, gritColor])
