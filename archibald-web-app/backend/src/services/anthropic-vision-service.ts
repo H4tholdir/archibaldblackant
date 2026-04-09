@@ -225,23 +225,24 @@ Call submit_identification immediately. Do NOT call any other tools after this.
 - Not found: product_code = "", candidates = [], confidence = 0
 Always call submit_identification even if uncertain.
 
-MANDATORY SHORTLIST — torpedo/flame ambiguity, HP only:
-Apply ONLY IF ALL four conditions are true:
-  1. Shank = HP (long straight handpiece)
-  2. Product type = rotary_diamond
-  3. No clearly visible grit ring color
-  4. Your primary visual identification suggests a FLAME or TORPEDO/CHAMFER head shape
-     (your best catalog match is in family 863, 862, 860, or 879)
-→ If all four apply: return shortlist, product_code = "", confidence 0.45,
-  candidates = [your_flame_match, "879.104.014"]
-→ Note: torpedo burs often appear pointed in side-view photos due to chamfer angle.
+MANDATORY SHORTLIST RULES (apply BEFORE submitting any match):
 
-DO NOT apply this rule if your primary identification is a clearly DIFFERENT head shape:
-  • Inverted cone (wider at working end, e.g. family 807) → submit match directly
+RULE A — torpedo/flame ambiguity, HP only:
+  When ALL of: shank=HP, rotary_diamond, no colored ring, head shape = flame OR torpedo/chamfer
+  → ALWAYS shortlist: product_code="", candidates=[your_flame_match, "879.104.014"], confidence=0.45
+
+RULE B — torpedo/inverted-cone ambiguity, HP only:
+  When ALL of: shank=HP, rotary_diamond, no colored ring, head shape = torpedo/chamfer OR blunt/flat tip
+  AND head width appears SIMILAR TO or WIDER THAN shank width (i.e. Q4 is ambiguous or head ≥ shank)
+  → ALWAYS shortlist: product_code="", candidates=["879.104.014", "807.104.023"], confidence=0.45
+  Rationale: torpedo (879, head 1.4mm) and long inverted cone (807, head up to 2.3mm) look nearly
+  identical in HP photos. The subtle width difference is unresolvable from photographs alone.
+
+DO NOT apply these rules if your primary identification is a clearly DIFFERENT head shape:
   • Round/ball bur → submit match directly
   • Pear shape → submit match directly
-  • Cylinder flat-end → submit match directly
-  • Any non-flame/non-torpedo family → submit match directly`
+  • Cylinder flat-end (head clearly wider than shank) → submit match directly
+  • Any clearly non-blunt/non-rounded family → submit match directly`
 
 const SEARCH_CATALOG_SQL = `
 SELECT id, family_codes, catalog_page, product_type,
