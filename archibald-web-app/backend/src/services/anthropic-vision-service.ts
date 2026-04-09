@@ -147,8 +147,14 @@ STEP 2 — OBSERVE (category-specific):
             • TOP is FLAT (like the face of a coin, a flat area at the apex) → wheel/disc (909).
               Even from a face-on or angled photo, the disc face appears as a FLAT CIRCLE, not a dome.
             • TOP is uniformly CURVED in all directions (no flat area anywhere) → ball bur (801/6801).
-          Also look at where the shank meets the head: disc 909 has a distinct "neck" narrower than the disc,
-          while ball 801's shank connects at the bottom with a smooth taper.
+          Look at the NECK (transition head → shank):
+            • MUSHROOM PROFILE: head is dramatically WIDER than the neck below it, creating a
+              sudden step or flare → wheel/disc (909). The shank visually "disappears" under
+              the disc overhang when viewed from the side.
+            • SMOOTH TAPER: shank merges gradually into the bottom of the sphere → ball bur (801).
+          Look at the SIDE PROFILE shape:
+            • LENTICULAR / OVAL FLAT: clearly wider than tall, like a lens or UFO → wheel/disc (909).
+            • CIRCULAR / ROUND: equally tall and wide, like a ball → ball bur (801).
 
         → FLAT like the end of a nail or eraser (diameter ≈ same as body): inverted cone (806/807)
         → ROUNDED DOME (convex curve, like a bullet nose — head TALLER than wide): torpedo (879)
