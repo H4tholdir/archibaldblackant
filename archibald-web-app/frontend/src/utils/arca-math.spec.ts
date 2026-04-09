@@ -146,8 +146,8 @@ describe("arcaDocumentTotals", () => {
           const nettoOk = t.totNetto <= t.totMerce + 0.01; // +0.01 tollera drift IEEE 754
           // IVA non può essere negativa (aliquote >= 0)
           const ivaOk = t.totIva >= -0.01;
-          // Il totale documento deve essere >= imponibile
-          const docOk = t.totDoc >= t.totNetto - 0.01;
+          // Il totale documento deve essere >= imponibile (tolleranza 1 cent in interi per evitare drift IEEE 754)
+          const docOk = Math.round(t.totDoc * 100) >= Math.round(t.totNetto * 100) - 1;
           return nettoOk && ivaOk && docOk;
         },
       ),
