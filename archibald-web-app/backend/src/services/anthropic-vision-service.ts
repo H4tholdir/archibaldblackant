@@ -233,9 +233,11 @@ RULE A — flame vs torpedo, HP + no ring:
 
 RULE B — blunt-top HP + no ring (torpedo/inverted-cone/cylinder confusion):
   Conditions: shank=HP, rotary_diamond, no visible ring color, head tip = blunt/flat/rounded (NOT sharp)
-  → shortlist: product_code="", candidates=["879.104.014", "807.104.023"], confidence=0.45
-  Rationale: torpedo (879, 1.4mm), inverted cone long (807, up to 2.3mm), and cylinder (836) are
-  visually indistinguishable in HP photos. Head width proportions cannot be reliably assessed.
+  → MANDATORY shortlist: product_code="", candidates=["879.104.014", "807.104.023"], confidence=0.45
+  THIS RULE IS ABSOLUTE. You MUST submit shortlist even if you are visually certain it is 879.
+  DO NOT override this rule with "visual evidence" or catalog confirmation.
+  Rationale: the 807 inverted cone long (HP, sizes up to 2.3mm) is systematically misidentified as
+  the 879 torpedo (HP, 1.4mm) in photographs. Visual analysis cannot reliably distinguish them.
 
 SKIP these rules only for clearly distinct shapes:
   • Ball/sphere head → match directly
