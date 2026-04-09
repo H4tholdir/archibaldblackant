@@ -19,7 +19,7 @@ type PasswordCacheLike = {
 };
 
 type BrowserPoolLike = {
-  acquireContext: (userId: string) => Promise<unknown>;
+  acquireContext: (userId: string, options?: { forceLogin?: boolean }) => Promise<unknown>;
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
@@ -157,7 +157,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
       if (needsValidation) {
         try {
           passwordCache.set(user.id, password);
-          const context = await browserPool.acquireContext(user.id);
+          const context = await browserPool.acquireContext(user.id, { forceLogin: true });
           await browserPool.releaseContext(user.id, context, true);
         } catch {
           passwordCache.clear(user.id);

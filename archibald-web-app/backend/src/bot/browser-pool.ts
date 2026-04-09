@@ -166,12 +166,16 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
   async function acquireContext(
     userId: string,
-    options?: { fromQueue?: boolean },
+    options?: { fromQueue?: boolean; forceLogin?: boolean },
   ): Promise<BrowserContextLike> {
     if (!options?.fromQueue) {
       console.warn(
         `[BrowserPool] acquireContext called without fromQueue for user ${userId}. This operation may not be using the unified queue.`,
       );
+    }
+
+    if (options?.forceLogin) {
+      await removeContextFromPool(userId);
     }
 
     const existingLock = userLocks.get(userId);

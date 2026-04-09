@@ -159,6 +159,23 @@ describe('createBrowserPool', () => {
     expect(stats.activeContexts).toBe(2);
   });
 
+  test('forceLogin: true discards cached context and creates a new one', async () => {
+    const mockCtx = createMockContext();
+    const browser = createMockBrowser(() => mockCtx);
+    launchFn.mockResolvedValue(browser);
+
+    const pool = createBrowserPool(defaultConfig, launchFn);
+    await pool.initialize();
+
+    const ctx1 = await pool.acquireContext('user-a', { fromQueue: true });
+    expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+
+    // Same password reuse would return cached ctx; forceLogin must bypass it
+    const ctx2 = await pool.acquireContext('user-a', { fromQueue: true, forceLogin: true });
+    expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+    expect(ctx1.close).toHaveBeenCalled();
+  });
+
   test('logs WARNING when fromQueue is false', async () => {
     const pool = createBrowserPool(defaultConfig, launchFn);
     await pool.initialize();

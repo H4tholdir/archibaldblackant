@@ -107,6 +107,18 @@ describe('createAuthRouter', () => {
       expect(deps.passwordCache.clear).toHaveBeenCalledWith('user-1');
     });
 
+    test('calls acquireContext with forceLogin:true when password differs from cache', async () => {
+      // Simulates the bug: a cached browser session would bypass ERP login without forceLogin
+      (deps.passwordCache.get as ReturnType<typeof vi.fn>).mockReturnValue('old-password');
+      const app = createApp(deps);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'agent1', password: 'new-password' });
+
+      expect(res.status).toBe(200);
+      expect(deps.browserPool.acquireContext).toHaveBeenCalledWith('user-1', { forceLogin: true });
+    });
+
     test('skips puppeteer when password already cached', async () => {
       (deps.passwordCache.get as ReturnType<typeof vi.fn>).mockReturnValue('pass123');
       const app = createApp(deps);
