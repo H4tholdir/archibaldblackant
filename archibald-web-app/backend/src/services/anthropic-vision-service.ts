@@ -140,8 +140,16 @@ STEP 2 — OBSERVE (category-specific):
           section. The silhouette narrows from the very first mm above the neck junction.
           The very tip is a fine sharp point. Reliable clue: body narrowing begins immediately at base.
           Search with: "flame pointed tip"
-        • Other shapes: round (sphere head), cylinder (flat end), pear (wider mid-body),
-          inverted cone (truncated cone widening toward tip), diabolo (hourglass/biconcave)
+        • INVERTED CONE (families 806/807): body is NARROWEST at the BASE (neck junction) and
+          WIDENS continuously toward the working end — maximum diameter is AT THE TIP.
+          The working end is FLAT or very slightly rounded — NOT pointed, NOT domed.
+          Side profile: ◤ (narrow base → progressively wider → flat working end)
+          ⚠ NOT torpedo: torpedo has a nearly-CONSTANT width from base to 60% then chamfer;
+            inverted cone gets WIDER with every mm from base to tip. Check: is the head wider
+            at the tip than at the base? YES → inverted cone (806/807). NO → torpedo (879).
+          Search with: "inverted cone long"
+        • Other shapes: round (sphere head), cylinder flat-end, pear (wider mid-body),
+          diabolo (hourglass/biconcave)
     - Colored ring at the BASE of the head where it meets the neck:
         transparent/none=ultrafine | yellow=extrafine | red=fine | blue=standard | green=coarse | black=super-coarse
     - CRITICAL: if NO colored ring visible → the family does NOT have a ring (no-ring variants or 879)
