@@ -137,7 +137,7 @@ STEP 2 — OBSERVE (category-specific):
         → FLAT like the end of a nail or eraser (diameter ≈ same as body): inverted cone (806/807)
         → ROUNDED DOME (convex curve, like a bullet nose): torpedo (879)
         → SHARP POINT (tapers to a fine needle): flame (863/862/860)
-        → SPHERE (entire head is a ball): round bur (801/802/811)
+        → SPHERE (entire head is a ball): round bur (801/802/811/6801/8801/5801)
         → FLAT but head is WIDER than shank, short: cylinder flat-end (837/835)
 
       Q2 (if Q1 = flat or dome) — Compare BASE width vs TIP width of the head:
@@ -251,6 +251,10 @@ ABSOLUTE SCALE REFERENCE — Punto di Repere (applies to ALL instrument categori
     • Torpedo (879): widest at the base, tapers toward tip — measure at the base.
     • Flame (863/862): widest at the base — measure there.
     • Cylinder (836/837): uniform width — any point.
+    • Ball/sphere (801/802/6801/8801/5801): maximum is at the EQUATOR (widest horizontal
+      cross-section of the sphere). In side-view photos, perspective may make the sphere appear
+      narrower than it is — estimate diameter as the widest visible circle of the ball, not
+      the silhouette edge where the sphere meets the air.
 
   For each candidate: compute expected ratio (head Ø ÷ shank Ø). Observe in photo.
     Match → supports that candidate. Mismatch → contradicts it.
@@ -812,6 +816,8 @@ SCALE REFERENCE — Punto di Repere:
   ⚠ Measure the MAXIMUM head width, not the base junction:
     Inverted cone (806/807): maximum width is at the TIP (flat top disc) — NOT where head meets neck.
     Torpedo/flame/cylinder: maximum width is at the base or uniform section.
+    Ball/sphere (801/802/6801/8801/5801): maximum is at the EQUATOR. Perspective in side-view
+      photos may make the sphere appear narrower — use the widest visible circle of the ball.
 
   A clear mismatch → contradicts that candidate. A match → supports it (use alongside body profile).
 
