@@ -230,7 +230,7 @@ async function bootstrap(): Promise<void> {
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            const isTimeout = message.toLowerCase().includes('timeout');
+            const isTimeout = message.toLowerCase().includes('timeout') || message.includes('Waiting failed');
 
             if (!isTimeout || attempt === maxLoginAttempts) {
               throw error;
