@@ -473,6 +473,22 @@ describe('createOperationProcessor', () => {
       );
     });
 
+    test('records failure when sync handler returns {success:false, error:...}', async () => {
+      const circuitBreaker = createMockCircuitBreaker();
+      const errorMessage = 'Waiting failed: 30000ms exceeded';
+      const syncHandler = vi.fn().mockResolvedValue({ success: false, error: errorMessage });
+      const { processor } = createProcessor({
+        handlers: { 'sync-orders': syncHandler } as any,
+        circuitBreaker,
+      });
+      const job = createMockJob({ type: 'sync-orders' });
+
+      await processor.processJob(job as any);
+
+      expect(circuitBreaker.recordFailure).toHaveBeenCalledWith('user-a', 'sync-orders', errorMessage);
+      expect(circuitBreaker.recordSuccess).not.toHaveBeenCalled();
+    });
+
     test('does not invoke circuit breaker for write operations', async () => {
       const circuitBreaker = createMockCircuitBreaker();
       const writeHandler = vi.fn().mockResolvedValue({ orderId: 'ORD-1' });

@@ -10185,6 +10185,12 @@ export class ArchibaldBot {
 
       logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', applying via DevExpress API...");
 
+      // SetValue can trigger a full page navigation in the ERP. Register the listener BEFORE
+      // calling SetValue so we don't miss the navigation event.
+      const navPromise = page
+        .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 8000 })
+        .catch(() => null);
+
       // Use the DevExpress ASPxClientComboBox JS API to set the filter value directly.
       // This bypasses all UI visibility / dropdown rendering issues (the filter is hidden
       // in the toolbar overflow menu and its dropdown does not populate correctly via clicks).
@@ -10242,7 +10248,8 @@ export class ArchibaldBot {
       }
 
       logger.info("[ArchibaldBot] DevExpress API SetValue called, waiting for page update...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await Promise.race([navPromise, new Promise<void>((resolve) => setTimeout(resolve, 2000))]);
+      await this.waitForDevExpressReadyOnPage(page);
 
       const newFilterValue = await page.evaluate((sel: string, exactSel: string) => {
         const input = (

@@ -202,7 +202,12 @@ function createOperationProcessor(deps: ProcessorDeps) {
       );
 
       if (isScheduledSync(type) && circuitBreaker) {
-        await circuitBreaker.recordSuccess(userId, type).catch(() => {});
+        const maybeFailed = result as { success?: boolean; error?: string };
+        if (maybeFailed.success === false && maybeFailed.error) {
+          await circuitBreaker.recordFailure(userId, type, maybeFailed.error).catch(() => {});
+        } else {
+          await circuitBreaker.recordSuccess(userId, type).catch(() => {});
+        }
       }
 
       broadcast(userId, {
