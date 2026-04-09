@@ -114,18 +114,19 @@ Compare the shank length to the working head length — this ratio is independen
 
   FG (turbine):        Instrument looks VERY SHORT overall (≈ width of two fingers).
                        Shank is only 2–3× longer than the head. Shank has a flat or ball tip.
-                       → shank_type = "fg"
+                       → shank_type = "fg" | ISO certified Ø 1.60 mm
 
-  CA (contra-angle):   Medium length. Shank has a visible latch notch or textured band.
+  CA (contra-angle):   Medium length. Shank has a visible L-shaped right-angle coupling.
                        Shank is 2–4× longer than the head.
-                       → shank_type = "ca"
+                       → shank_type = "ca" | ISO certified Ø 2.35 mm
 
   HP (straight hand.): Instrument looks CLEARLY LONG. Shank is smooth, straight, and
                        4–7× longer than the working head.
-                       → shank_type = "hp"
+                       → shank_type = "hp" | ISO certified Ø 2.35 mm (standard) or 3.00 mm (thick HP)
 
   Unsure?              Omit shank_type from search_catalog — do not guess.
 → Skip this step for: polisher, sonic, endodontic, root_post
+Note: the shank Ø identified here is your absolute scale ruler — use it in Q4 below.
 
 STEP 2 — OBSERVE (category-specific):
 
@@ -148,11 +149,25 @@ STEP 2 — OBSERVE (category-specific):
         → Body progressively WIDENS from base to tip with no parallel section: inverted cone
         → Body stays nearly SAME WIDTH for 60%+ then chamfers: torpedo
 
-      Q4 (MANDATORY if Q1-Q3 → torpedo AND shank = HP with no colored ring):
-        HP shank standard diameter is 2.35 mm. Compare HEAD width to SHANK width in the photo.
-        → Head is clearly NARROWER than shank (≈ half the shank width): consistent with 879 size 014 (1.4 mm).
-        → Head appears SIMILAR or WIDER than shank: NOT 879 (1.4 mm head). Reconsider — likely
-          inverted cone (807, sizes 016/018/023 = 1.6–2.3 mm) or other family. Change search to "inverted cone long".
+      Q4 — SCALE CROSS-CHECK using shank as absolute ruler:
+        The last 3 digits of any Komet product code = max head Ø in 1/10 mm (014 → 1.4 mm, 023 → 2.3 mm).
+        Using the certified shank Ø from STEP 1, estimate the head:shank ratio in the photo:
+
+          Ratio ~0.50  →  head roughly HALF shank width — very slender tip
+          Ratio ~0.60  →  head clearly NARROWER than shank — visible gap on both sides
+          Ratio ~0.75  →  head moderately narrower than shank
+          Ratio ~0.90  →  head slightly narrower — close to same width as shank
+          Ratio ~1.00  →  head and shank appear the SAME WIDTH
+          Ratio > 1.00 →  head WIDER than shank — large working head (common on FG/CA)
+
+        Key reference pairs (HP = 2.35 mm, FG = 1.60 mm):
+          879.104.014 on HP: 1.4 ÷ 2.35 = 0.60 → head clearly narrower than shank
+          807.104.023 on HP: 2.3 ÷ 2.35 = 0.98 → head ≈ same width as shank
+          806.314.023 on FG: 2.3 ÷ 1.60 = 1.44 → head visibly WIDER than shank
+          863.314.012 on FG: 1.2 ÷ 1.60 = 0.75 → head moderately narrower than shank
+
+        If visual estimate contradicts Q1-Q3 → revise shape assessment before searching.
+        If visual estimate confirms Q1-Q3 → proceed with confidence.
 
     - After answering Q1-Q4, search the catalog with the determined shape:
         inverted cone   → Search with: "inverted cone long"
@@ -735,6 +750,19 @@ STEP 1 — BODY-SHAPE COMPARISON (if the instrument could be one of the candidat
     • NO cylindrical or nearly-parallel body section — the silhouette narrows from the very first mm
     • The tip is a sharp acute point, but this alone cannot distinguish it from 879 HP in photos
     • Side profile: △  (continuous taper from base to fine point — no flat cylinder section anywhere)
+
+STEP 1b — SCALE CROSS-CHECK using shank as absolute ruler:
+  The last 3 digits of any Komet product code = max head Ø in 1/10 mm (014 → 1.4 mm, 023 → 2.3 mm).
+  Certified shank Ø: HP (103/104/105/106) = 2.35 mm | FG (313/314/315/316) = 1.60 mm | CA (204/205/206) = 2.35 mm
+
+  For each candidate compute: expected ratio = (last 3 digits ÷ 10) / shank Ø
+  Then observe the photo — does the head width relative to the shank match the expected ratio?
+
+    Ratio ~0.60: head clearly narrower than shank   |   Ratio ~1.00: head ≈ same width as shank
+    Ratio ~0.75: head moderately narrower           |   Ratio > 1.00: head wider than shank
+
+  A clear mismatch between observed and expected ratio contradicts that candidate.
+  A match supports that candidate (does not override body-profile analysis — use both together).
 
 STEP 2 — DECIDE (use body profile, NOT tip sharpness):
   1. CAMPIONARIO STRIP COMPARISON (highest priority when strip images are included):
