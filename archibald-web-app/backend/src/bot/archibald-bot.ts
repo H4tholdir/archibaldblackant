@@ -10727,6 +10727,14 @@ export class ArchibaldBot {
 
   private async typeOrClear(inputId: string, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
+    // Re-focus the field before keyboard events. After waitForDevExpressIdle,
+    // XHR callbacks may have moved focus to another element. Ctrl+A without
+    // the right element focused is a no-op on the target field, causing
+    // page.type() to append to the restored value instead of replacing it.
+    await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id);
+      if (el) (el as HTMLElement).focus();
+    }, inputId);
     // Always Ctrl+A first: DevExpress may have restored the original value during
     // waitForDevExpressIdle (after our native-setter clear), so we must select-all
     // before typing to guarantee replacement rather than appending.
