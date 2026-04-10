@@ -10964,9 +10964,7 @@ export class ArchibaldBot {
     fields: { regex: RegExp; value: string }[],
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    const serialized = fields
-      .filter((f) => f.value !== "")
-      .map((f) => ({ regex: f.regex.source, value: f.value }));
+    const serialized = fields.map((f) => ({ regex: f.regex.source, value: f.value }));
     if (serialized.length === 0) return;
 
     await this.page.evaluate((entries) => {
