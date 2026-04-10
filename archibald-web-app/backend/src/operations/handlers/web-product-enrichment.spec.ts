@@ -393,9 +393,12 @@ const SHOPIFY_IMAGES = [
 
 describe('filterKometUkImages', () => {
   test('restituisce solo le immagini che matchano shankCode e sizeCode', () => {
-    const result = filterKometUkImages(SHOPIFY_IMAGES, '314', '016');
-    expect(result).toHaveLength(1);
-    expect(result[0].url).toContain('_314_016_');
+    expect(filterKometUkImages(SHOPIFY_IMAGES, '314', '016')).toEqual([{
+      url:       'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_def.png',
+      altText:   'H1 FG 016',
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
   });
 
   test('restituisce array vuoto se nessun match', () => {
