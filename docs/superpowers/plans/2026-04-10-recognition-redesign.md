@@ -25,13 +25,19 @@
 - `backend/src/operations/handlers/build-visual-index-handler.spec.ts`
 
 **Modified files:**
+- `backend/src/db/migrations/056-visual-embedding-index.sql`
 - `backend/src/config.ts` — add `jinaApiKey`, `minSimilarity`
-- `backend/src/recognition/types.ts` — add `photo2_request` state, rename `shortlist`→`shortlist_visual`, add `CandidateWithImages`, add `photo_request?` to `IdentificationResult`
+- `backend/src/main.spec.ts` — update recognition config mock
+- `backend/src/recognition/types.ts` — add `photo2_request`, `CandidateMatch`, rename `shortlist`→`shortlist_visual`, add `photo_request?` to `IdentificationResult`
 - `backend/src/recognition/recognition-engine.ts` — ANN query + confidence routing, remove disambiguation loop
 - `backend/src/recognition/recognition-engine.spec.ts` — update tests for new flow
 - `backend/src/services/anthropic-vision-service.ts` — new prompt, simplified tools, `photo_request` parsing
+- `backend/src/routes/recognition.ts` — remove `candidates` from Zod, add `embeddingSvc` to deps
+- `backend/src/routes/recognition.spec.ts` — update for new deps signature
+- `backend/src/operations/operation-types.ts` — add `'build-visual-index'`
 - `backend/src/operations/handlers/index.ts` — export build-visual-index-handler
-- `frontend/src/api/recognition.ts` — update `RecognitionResult` type
+- `backend/src/main.ts` — wire `embeddingSvc`, register handler, update vision service deps
+- `frontend/src/api/recognition.ts` — update `RecognitionResult` type, remove `candidates?` param
 - `frontend/src/pages/ToolRecognitionPage.tsx` — new states: `photo2_request`, `analyzing2`, `shortlist_visual`
 - `frontend/src/pages/ToolRecognitionPage.spec.tsx` — update tests
 
@@ -48,7 +54,7 @@
   ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
     "python3 -c \"
   from PIL import Image
-  import glob, os
+  import glob
   paths = glob.glob('/app/komet-campionari/**/*.jpg', recursive=True)[:5]
   for p in paths:
     im = Image.open(p)
@@ -56,18 +62,11 @@
   \""
   ```
 
-  For each section check if komet.it has higher-res versions. Compare width: strips should be ≥ 2000px wide. Re-download max-res where local < 2000px wide.
+  Strips should be ≥ 2000px wide. Re-download max-res from komet.it where local width is smaller.
 
 - [ ] **Step 2: Phase 0b — Website discovery**
 
-  For each of komet.it, kometdental.com, kometusa.com, komet.fr:
-  - Check product page URL pattern (e.g. `komet.it/en/product/879`)
-  - Check if product image is behind JS rendering or static
-  - Note image dimensions and whether CDN URL is predictable from product code
-
-  Document findings in `docs/KOMET-WEBSITE-DISCOVERY-2026-04-10.md` before writing the scraper.
-
-  **Decision needed**: which 1–2 sites to scrape in Task 7.
+  For each of komet.it, kometdental.com, kometusa.com, komet.fr: check product page URL pattern, whether images are static or behind JS, and image resolution. Document findings in `docs/KOMET-WEBSITE-DISCOVERY-2026-04-10.md`. Decision needed: which 1–2 sites to scrape in Task 7.
 
 ---
 
@@ -80,7 +79,6 @@
 
   ```sql
   -- 056-visual-embedding-index.sql
-  -- Enables pgvector and creates the visual embedding index table.
 
   CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -98,17 +96,14 @@
     UNIQUE (family_code, source_type, local_path)
   );
 
-  -- HNSW index on indexed rows only
   CREATE INDEX catalog_family_images_hnsw_idx
     ON shared.catalog_family_images
     USING hnsw (visual_embedding vector_cosine_ops)
     WHERE visual_embedding IS NOT NULL;
 
-  -- Lookup index for per-family queries
   CREATE INDEX catalog_family_images_family_idx
     ON shared.catalog_family_images (family_code, priority DESC);
 
-  -- Track when each catalog family was last indexed
   ALTER TABLE shared.catalog_entries
     ADD COLUMN IF NOT EXISTS last_indexed_at timestamptz;
   ```
@@ -121,9 +116,9 @@
     -f /dev/stdin < archibald-web-app/backend/src/db/migrations/056-visual-embedding-index.sql
   ```
 
-  Expected: `CREATE EXTENSION`, `CREATE TABLE`, `CREATE INDEX`, `CREATE INDEX`, `ALTER TABLE`
+  Expected: `CREATE EXTENSION`, `CREATE TABLE`, `CREATE INDEX` ×2, `ALTER TABLE`
 
-- [ ] **Step 3: Verify table exists**
+- [ ] **Step 3: Verify table**
 
   ```bash
   docker compose -f archibald-web-app/docker-compose.yml \
@@ -131,7 +126,7 @@
     -c "\d shared.catalog_family_images"
   ```
 
-  Expected: table with columns including `visual_embedding vector(2048)`.
+  Expected: table with `visual_embedding vector(2048)` column and UNIQUE constraint.
 
 - [ ] **Step 4: Commit**
 
@@ -146,10 +141,11 @@
 
 **Files:**
 - Modify: `backend/src/config.ts`
+- Modify: `backend/src/main.spec.ts`
 
-- [ ] **Step 1: Add config fields**
+- [ ] **Step 1: Update config.ts recognition block**
 
-  In `backend/src/config.ts`, update the `recognition` block:
+  In `backend/src/config.ts`, replace the `recognition` block:
 
   ```typescript
   recognition: {
@@ -162,7 +158,22 @@
   },
   ```
 
-- [ ] **Step 2: Run type check**
+- [ ] **Step 2: Update main.spec.ts recognition config mock**
+
+  In `backend/src/main.spec.ts` line 20, update the mock config to include the new fields:
+
+  ```typescript
+  recognition: {
+    anthropicApiKey: 'test-api-key',
+    jinaApiKey:      'test-jina-key',
+    minSimilarity:   0.20,
+    dailyLimit:      500,
+    timeoutMs:       15000,
+    catalogPdfPath:  '/tmp/test.pdf',
+  },
+  ```
+
+- [ ] **Step 3: Run type check + build**
 
   ```bash
   npm run build --prefix archibald-web-app/backend
@@ -170,10 +181,11 @@
 
   Expected: 0 errors.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
   ```bash
-  git add archibald-web-app/backend/src/config.ts
+  git add archibald-web-app/backend/src/config.ts \
+          archibald-web-app/backend/src/main.spec.ts
   git commit -m "feat(recognition): add jinaApiKey and minSimilarity to config"
   ```
 
@@ -185,9 +197,7 @@
 - Modify: `backend/src/recognition/types.ts`
 - Modify: `frontend/src/api/recognition.ts`
 
-- [ ] **Step 1: Update `backend/src/recognition/types.ts`**
-
-  Replace entire file:
+- [ ] **Step 1: Replace `backend/src/recognition/types.ts`**
 
   ```typescript
   type ThrottleLevel = 'normal' | 'warning' | 'limited';
@@ -203,11 +213,18 @@
     catalogPage?: number | null
   };
 
-  /** A candidate with reference images passed to the vision service. */
+  /** Candidate shown in shortlist_visual — includes reference images for display. */
+  type CandidateMatch = {
+    familyCode:      string
+    thumbnailUrl:    string | null
+    referenceImages: string[]   // base64 JPEGs
+  };
+
+  /** A candidate with reference images passed to the vision service upfront. */
   type CandidateWithImages = {
     familyCode:      string
     description:     string
-    referenceImages: string[]  // base64 JPEG buffers
+    referenceImages: string[]
   };
 
   type IdentificationResult = {
@@ -224,7 +241,7 @@
 
   type RecognitionResult =
     | { state: 'match';           product: ProductMatch; confidence: number }
-    | { state: 'shortlist_visual'; candidates: ProductMatch[] }
+    | { state: 'shortlist_visual'; candidates: CandidateMatch[] }
     | { state: 'photo2_request';  candidates: string[]; instruction: string }
     | { state: 'not_found' }
     | { state: 'budget_exhausted' }
@@ -240,6 +257,7 @@
   export type {
     ThrottleLevel,
     ProductMatch,
+    CandidateMatch,
     CandidateWithImages,
     IdentificationResult,
     RecognitionResult,
@@ -249,16 +267,13 @@
 
 - [ ] **Step 2: Update `frontend/src/api/recognition.ts`**
 
-  Replace the `RecognitionResult` type (lines 17–22) and add `CandidateMatch`:
+  Replace the `RecognitionResult` type and add `CandidateMatch`:
 
   ```typescript
   export type CandidateMatch = {
-    productId:       string
-    productName:     string
     familyCode:      string
     thumbnailUrl:    string | null
-    referenceImages: string[]       // base64 JPEGs from catalog_family_images
-    confidence:      number
+    referenceImages: string[]
   }
 
   export type RecognitionResult =
@@ -270,7 +285,7 @@
     | { state: 'error';           message: string }
   ```
 
-  Also remove the `candidates?` parameter from `identifyInstrument` (no longer used — second photo is detected by `images.length`):
+  Remove the `candidates?` parameter from `identifyInstrument` — second photo detection is now `images.length === 2` server-side:
 
   ```typescript
   export async function identifyInstrument(
@@ -304,14 +319,14 @@
   npm run type-check --prefix archibald-web-app/frontend
   ```
 
-  Expected: 0 errors. Fix any cascade errors (e.g. callers of the old `shortlist` state).
+  Expected: 0 errors. Fix cascade errors from old `shortlist` state references.
 
 - [ ] **Step 4: Commit**
 
   ```bash
   git add archibald-web-app/backend/src/recognition/types.ts \
           archibald-web-app/frontend/src/api/recognition.ts
-  git commit -m "feat(recognition): update RecognitionResult — photo2_request + shortlist_visual"
+  git commit -m "feat(recognition): types — CandidateMatch, photo2_request, shortlist_visual"
   ```
 
 ---
@@ -329,16 +344,12 @@
   ```typescript
   import { describe, test, expect, vi, beforeEach } from 'vitest'
 
-  // Must be declared before vi.mock so hoisting captures it
   const mockChain = vi.hoisted(() => {
-    const chain: Record<string, unknown> = {
-      extract:  undefined,
-      jpeg:     undefined,
-      toBuffer: vi.fn().mockResolvedValue(Buffer.from('FAKE_JPEG')),
-      metadata: vi.fn().mockResolvedValue({ width: 900, height: 200 }),
-    }
-    chain.extract = vi.fn().mockReturnValue(chain)
-    chain.jpeg    = vi.fn().mockReturnValue(chain)
+    const chain: Record<string, unknown> = {}
+    chain.metadata  = vi.fn().mockResolvedValue({ width: 900, height: 200 })
+    chain.extract   = vi.fn().mockReturnValue(chain)
+    chain.jpeg      = vi.fn().mockReturnValue(chain)
+    chain.toBuffer  = vi.fn().mockResolvedValue(Buffer.from('FAKE_JPEG'))
     return chain
   })
 
@@ -348,63 +359,70 @@
   import { cropStripForFamilies, cropSingleFamily } from './campionario-strip-cropper'
   import type { StripEntry } from './campionario-strip-map'
 
-  const STRIP_3_FAMILIES: StripEntry = {
+  const STRIP_3: StripEntry = {
     path:     'test-section/test-strip-01.jpg',
     kometUrl: '',
     families: ['860', '863', '879'],
     label:    'test strip',
   }
 
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(mockChain.metadata as ReturnType<typeof vi.fn>).mockResolvedValue({ width: 900, height: 200 })
+    ;(mockChain.extract as ReturnType<typeof vi.fn>).mockReturnValue(mockChain)
+    ;(mockChain.jpeg as ReturnType<typeof vi.fn>).mockReturnValue(mockChain)
+    ;(mockChain.toBuffer as ReturnType<typeof vi.fn>).mockResolvedValue(Buffer.from('FAKE_JPEG'))
+  })
+
   describe('cropStripForFamilies', () => {
     test('returns one crop per family', async () => {
-      const crops = await cropStripForFamilies(STRIP_3_FAMILIES)
+      const crops = await cropStripForFamilies(STRIP_3)
       expect(crops).toHaveLength(3)
     })
 
     test('family codes match strip families in order', async () => {
-      const crops = await cropStripForFamilies(STRIP_3_FAMILIES)
+      const crops = await cropStripForFamilies(STRIP_3)
       expect(crops.map(c => c.familyCode)).toEqual(['860', '863', '879'])
     })
 
     test('crops have correct family index and count metadata', async () => {
-      const crops = await cropStripForFamilies(STRIP_3_FAMILIES)
+      const crops = await cropStripForFamilies(STRIP_3)
       expect(crops.map(c => [c.familyIndex, c.familyCount])).toEqual([
-        [0, 3],
-        [1, 3],
-        [2, 3],
+        [0, 3], [1, 3], [2, 3],
       ])
     })
 
     test('extract called with correct left offsets for equal-width slicing', async () => {
-      const sharp = await import('sharp')
-      vi.clearAllMocks()
-      ;(mockChain.metadata as ReturnType<typeof vi.fn>).mockResolvedValue({ width: 900, height: 200 })
-
-      await cropStripForFamilies(STRIP_3_FAMILIES)
-
-      const extractCalls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
-      // 3 families, width 900 → cropWidth 300
-      expect(extractCalls[0]![0]).toEqual({ left: 0,   top: 0, width: 300, height: 200 })
-      expect(extractCalls[1]![0]).toEqual({ left: 300, top: 0, width: 300, height: 200 })
-      // Last crop takes remaining pixels: 900 - 600 = 300
-      expect(extractCalls[2]![0]).toEqual({ left: 600, top: 0, width: 300, height: 200 })
+      await cropStripForFamilies(STRIP_3)
+      const calls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
+      // width=900, 3 families → cropWidth=300
+      expect(calls[0]![0]).toEqual({ left: 0,   top: 0, width: 300, height: 200 })
+      expect(calls[1]![0]).toEqual({ left: 300, top: 0, width: 300, height: 200 })
+      expect(calls[2]![0]).toEqual({ left: 600, top: 0, width: 300, height: 200 })
     })
 
     test('last crop absorbs rounding remainder', async () => {
       ;(mockChain.metadata as ReturnType<typeof vi.fn>).mockResolvedValue({ width: 901, height: 200 })
-      await cropStripForFamilies(STRIP_3_FAMILIES)
-      const extractCalls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
-      // Math.floor(901/3) = 300; last crop = 901 - 600 = 301
-      expect(extractCalls[2]![0]).toMatchObject({ left: 600, width: 301 })
+      await cropStripForFamilies(STRIP_3)
+      const calls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
+      // floor(901/3)=300; last crop = 901-600=301
+      expect(calls[2]![0]).toMatchObject({ left: 600, width: 301 })
+    })
+
+    test('single-family strip returns full-width crop', async () => {
+      const STRIP_1: StripEntry = { path: 'x/y.jpg', kometUrl: '', families: ['801'], label: 'x' }
+      ;(mockChain.metadata as ReturnType<typeof vi.fn>).mockResolvedValue({ width: 600, height: 150 })
+      await cropStripForFamilies(STRIP_1)
+      const calls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
+      expect(calls[0]![0]).toEqual({ left: 0, top: 0, width: 600, height: 150 })
     })
   })
 
   describe('cropSingleFamily', () => {
-    test('re-crops a specific family from a strip by index', async () => {
-      ;(mockChain.metadata as ReturnType<typeof vi.fn>).mockResolvedValue({ width: 900, height: 200 })
+    test('re-crops a specific family from strip by index', async () => {
       await cropSingleFamily('test-section/test-strip-01.jpg', 1, 3)
-      const extractCalls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
-      expect(extractCalls[0]![0]).toEqual({ left: 300, top: 0, width: 300, height: 200 })
+      const calls = (mockChain.extract as ReturnType<typeof vi.fn>).mock.calls
+      expect(calls[0]![0]).toEqual({ left: 300, top: 0, width: 300, height: 200 })
     })
   })
   ```
@@ -415,7 +433,7 @@
   npm test --prefix archibald-web-app/backend -- campionario-strip-cropper
   ```
 
-  Expected: FAIL — `campionario-strip-cropper` module not found.
+  Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the cropper**
 
@@ -437,11 +455,10 @@
 
   /**
    * Slices a campionario strip into per-family JPEG buffers using equal-width vertical crops.
-   * Strip has N families → N crops of width floor(W/N), last crop absorbs rounding remainder.
+   * Strip has N families → N crops of width floor(W/N); last crop absorbs rounding remainder.
    */
   export async function cropStripForFamilies(entry: StripEntry): Promise<StripCrop[]> {
-    const absolutePath = `${CAMPIONARIO_BASE_DIR}/${entry.path}`
-    const fileBuffer   = await readFile(absolutePath)
+    const fileBuffer = await readFile(`${CAMPIONARIO_BASE_DIR}/${entry.path}`)
     const { width: imgWidth, height: imgHeight } = await sharp(fileBuffer).metadata()
 
     if (!imgWidth || !imgHeight) {
@@ -465,16 +482,15 @@
   }
 
   /**
-   * Re-crops a single family from a strip by index. Used at query time to get reference images
-   * for Claude without re-embedding.
+   * Re-crops a single family from a strip by index. Used at query time to supply
+   * reference images to Claude without re-embedding.
    */
   export async function cropSingleFamily(
     stripPath:   string,
     familyIndex: number,
     familyCount: number,
   ): Promise<Buffer> {
-    const absolutePath = `${CAMPIONARIO_BASE_DIR}/${stripPath}`
-    const fileBuffer   = await readFile(absolutePath)
+    const fileBuffer = await readFile(`${CAMPIONARIO_BASE_DIR}/${stripPath}`)
     const { width: imgWidth, height: imgHeight } = await sharp(fileBuffer).metadata()
 
     if (!imgWidth || !imgHeight) {
@@ -492,13 +508,13 @@
   }
   ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- campionario-strip-cropper
   ```
 
-  Expected: PASS (all 5 tests).
+  Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -536,47 +552,47 @@
     })
   }
 
-  describe('createVisualEmbeddingService', () => {
-    describe('embedImage', () => {
-      test('returns 2048-dimension embedding on success', async () => {
-        vi.stubGlobal('fetch', mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] }))
-        const svc = createVisualEmbeddingService(FAKE_API_KEY)
-        const result = await svc.embedImage(FAKE_B64, 'retrieval.query')
-        expect(result).toHaveLength(2048)
-        expect(result[0]).toBe(FAKE_EMBEDDING[0])
-      })
+  beforeEach(() => { vi.unstubAllGlobals() })
 
-      test('sends correct Authorization header', async () => {
-        const fetchMock = mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] })
-        vi.stubGlobal('fetch', fetchMock)
-        const svc = createVisualEmbeddingService(FAKE_API_KEY)
-        await svc.embedImage(FAKE_B64, 'retrieval.passage')
-        const [, init] = fetchMock.mock.calls[0]!
-        expect((init as RequestInit).headers).toMatchObject({ Authorization: `Bearer ${FAKE_API_KEY}` })
-      })
+  describe('createVisualEmbeddingService / embedImage', () => {
+    test('returns 2048-dimension embedding on success', async () => {
+      vi.stubGlobal('fetch', mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] }))
+      const svc    = createVisualEmbeddingService(FAKE_API_KEY)
+      const result = await svc.embedImage(FAKE_B64, 'retrieval.query')
+      expect(result).toHaveLength(2048)
+      expect(result[0]).toBe(FAKE_EMBEDDING[0])
+    })
 
-      test('sends data URI in request body', async () => {
-        const fetchMock = mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] })
-        vi.stubGlobal('fetch', fetchMock)
-        const svc = createVisualEmbeddingService(FAKE_API_KEY)
-        await svc.embedImage(FAKE_B64, 'retrieval.query')
-        const [, init] = fetchMock.mock.calls[0]!
-        const body = JSON.parse((init as RequestInit).body as string)
-        expect(body.input[0].image).toBe(`data:image/jpeg;base64,${FAKE_B64}`)
-        expect(body.task).toBe('retrieval.query')
-      })
+    test('sends correct Authorization header', async () => {
+      const fetchMock = mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] })
+      vi.stubGlobal('fetch', fetchMock)
+      await createVisualEmbeddingService(FAKE_API_KEY).embedImage(FAKE_B64, 'retrieval.passage')
+      const [, init] = fetchMock.mock.calls[0]!
+      expect((init as RequestInit).headers).toMatchObject({ Authorization: `Bearer ${FAKE_API_KEY}` })
+    })
 
-      test('throws on non-2xx response', async () => {
-        vi.stubGlobal('fetch', mockFetch(503, {}))
-        const svc = createVisualEmbeddingService(FAKE_API_KEY)
-        await expect(svc.embedImage(FAKE_B64, 'retrieval.query')).rejects.toThrow('503')
-      })
+    test('sends data URI and task in request body', async () => {
+      const fetchMock = mockFetch(200, { data: [{ embedding: FAKE_EMBEDDING }] })
+      vi.stubGlobal('fetch', fetchMock)
+      await createVisualEmbeddingService(FAKE_API_KEY).embedImage(FAKE_B64, 'retrieval.query')
+      const [, init] = fetchMock.mock.calls[0]!
+      const body     = JSON.parse((init as RequestInit).body as string)
+      expect(body.input[0].image).toBe(`data:image/jpeg;base64,${FAKE_B64}`)
+      expect(body.task).toBe('retrieval.query')
+    })
 
-      test('throws when embedding array is absent', async () => {
-        vi.stubGlobal('fetch', mockFetch(200, { data: [] }))
-        const svc = createVisualEmbeddingService(FAKE_API_KEY)
-        await expect(svc.embedImage(FAKE_B64, 'retrieval.query')).rejects.toThrow()
-      })
+    test('throws on non-2xx response', async () => {
+      vi.stubGlobal('fetch', mockFetch(503, {}))
+      await expect(
+        createVisualEmbeddingService(FAKE_API_KEY).embedImage(FAKE_B64, 'retrieval.query'),
+      ).rejects.toThrow('503')
+    })
+
+    test('throws when embedding array is absent', async () => {
+      vi.stubGlobal('fetch', mockFetch(200, { data: [] }))
+      await expect(
+        createVisualEmbeddingService(FAKE_API_KEY).embedImage(FAKE_B64, 'retrieval.query'),
+      ).rejects.toThrow()
     })
   })
   ```
@@ -589,7 +605,7 @@
 
   Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement the service**
+- [ ] **Step 3: Implement**
 
   Create `backend/src/recognition/visual-embedding-service.ts`:
 
@@ -638,7 +654,7 @@
   }
   ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- visual-embedding-service
@@ -673,6 +689,7 @@
     updateEmbedding,
     queryTopK,
     countIndexed,
+    getFallbackFamilies,
   } from './catalog-family-images'
 
   const FAKE_EMBEDDING = Array.from({ length: 2048 }, () => 0.5)
@@ -688,22 +705,19 @@
         family_code: '879',
         source_type: 'campionario',
         source_url:  null,
-        local_path:  '/app/komet-campionari/mtb457-particular-06.jpg',
+        local_path:  '/app/komet-campionari/strip.jpg',
         priority:    3,
         metadata:    { strip_family_index: 2, strip_family_count: 11 },
       })
       expect(id).toBe(42)
     })
 
-    test('inserts metadata as JSON string when provided', async () => {
+    test('serialises metadata as JSON string', async () => {
       const pool = makePool([{ id: 1 }])
       await upsertFamilyImage(pool, {
-        family_code: '879',
-        source_type: 'campionario',
-        source_url:  null,
-        local_path:  '/app/komet-campionari/strip.jpg',
-        priority:    3,
-        metadata:    { strip_family_index: 0, strip_family_count: 5 },
+        family_code: '879', source_type: 'campionario', source_url: null,
+        local_path: '/app/strip.jpg', priority: 3,
+        metadata: { strip_family_index: 0, strip_family_count: 5 },
       })
       const [, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
       expect(typeof params[5]).toBe('string')
@@ -717,19 +731,18 @@
       await updateEmbedding(pool, 7, FAKE_EMBEDDING)
       const [sql, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
       expect(sql).toContain('UPDATE shared.catalog_family_images')
-      expect(params[0]).toMatch(/^\[[\d.,]+\]$/) // vector literal
+      expect(params[0]).toMatch(/^\[[\d.,]+\]$/)
       expect(params[1]).toBe(7)
     })
   })
 
   describe('queryTopK', () => {
-    test('returns AnnCandidate rows ordered by similarity', async () => {
+    test('returns AnnCandidate rows', async () => {
       const fakeRows = [
         { id: 1, family_code: '879', similarity: 0.92, local_path: '/p1.jpg', source_type: 'campionario', metadata: null },
         { id: 2, family_code: '863', similarity: 0.88, local_path: '/p2.jpg', source_type: 'campionario', metadata: null },
       ]
-      const pool   = makePool(fakeRows)
-      const result = await queryTopK(pool, FAKE_EMBEDDING, 50)
+      const result = await queryTopK(makePool(fakeRows), FAKE_EMBEDDING, 50)
       expect(result).toHaveLength(2)
       expect(result[0]!.family_code).toBe('879')
       expect(result[0]!.similarity).toBe(0.92)
@@ -744,9 +757,16 @@
   })
 
   describe('countIndexed', () => {
-    test('returns integer count of indexed rows', async () => {
-      const pool = makePool([{ count: '137' }])
-      expect(await countIndexed(pool)).toBe(137)
+    test('returns integer count', async () => {
+      expect(await countIndexed(makePool([{ count: '137' }]))).toBe(137)
+    })
+  })
+
+  describe('getFallbackFamilies', () => {
+    test('returns array of family_code strings', async () => {
+      const pool = makePool([{ family_code: '879' }, { family_code: '863' }])
+      const result = await getFallbackFamilies(pool, 10)
+      expect(result).toEqual(['879', '863'])
     })
   })
   ```
@@ -798,10 +818,7 @@
              metadata   = EXCLUDED.metadata
        RETURNING id`,
       [
-        row.family_code,
-        row.source_type,
-        row.source_url,
-        row.local_path,
+        row.family_code, row.source_type, row.source_url, row.local_path,
         row.priority,
         row.metadata ? JSON.stringify(row.metadata) : null,
       ],
@@ -814,12 +831,11 @@
     id:        number,
     embedding: number[],
   ): Promise<void> {
-    const vectorLiteral = `[${embedding.join(',')}]`
     await pool.query(
       `UPDATE shared.catalog_family_images
        SET visual_embedding = $1::vector, indexed_at = now()
        WHERE id = $2`,
-      [vectorLiteral, id],
+      [`[${embedding.join(',')}]`, id],
     )
   }
 
@@ -844,18 +860,13 @@
 
   export async function countIndexed(pool: DbPool): Promise<number> {
     const { rows } = await pool.query<{ count: string }>(
-      `SELECT COUNT(*) AS count
-       FROM shared.catalog_family_images
-       WHERE visual_embedding IS NOT NULL`,
+      `SELECT COUNT(*) AS count FROM shared.catalog_family_images WHERE visual_embedding IS NOT NULL`,
     )
     return parseInt(rows[0]!.count, 10)
   }
 
-  /** Fallback for Jina-down scenario: returns distinct family codes that have indexed images. */
-  export async function getFallbackFamilies(
-    pool:  DbPool,
-    limit: number,
-  ): Promise<string[]> {
+  /** Fallback when Jina is down: returns distinct indexed family codes. */
+  export async function getFallbackFamilies(pool: DbPool, limit: number): Promise<string[]> {
     const { rows } = await pool.query<{ family_code: string }>(
       `SELECT DISTINCT family_code
        FROM shared.catalog_family_images
@@ -868,13 +879,13 @@
   }
   ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- catalog-family-images
   ```
 
-  Expected: PASS (5 tests).
+  Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -891,8 +902,6 @@
 **Files:**
 - Create: `backend/src/scripts/build-visual-index.ts`
 
-This script iterates `CAMPIONARIO_STRIPS`, crops each family, embeds with Jina v4, and upserts into `catalog_family_images`. Run manually on the VPS after the migration is applied.
-
 - [ ] **Step 1: Write the script**
 
   Create `backend/src/scripts/build-visual-index.ts`:
@@ -900,101 +909,66 @@ This script iterates `CAMPIONARIO_STRIPS`, crops each family, embeds with Jina v
   ```typescript
   /**
    * build-visual-index.ts
-   *
-   * Builds the visual embedding index from campionario strips.
    * Run: npx tsx src/scripts/build-visual-index.ts
-   *
-   * Env required: JINA_API_KEY, PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD
+   * Env: JINA_API_KEY, PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD
    */
   import { Pool } from 'pg'
   import { config } from '../config'
   import { CAMPIONARIO_STRIPS } from '../recognition/campionario-strip-map'
   import { cropStripForFamilies } from '../recognition/campionario-strip-cropper'
   import { createVisualEmbeddingService } from '../recognition/visual-embedding-service'
-  import { upsertFamilyImage, updateEmbedding } from '../db/repositories/catalog-family-images'
+  import { upsertFamilyImage, updateEmbedding, countIndexed } from '../db/repositories/catalog-family-images'
   import { logger } from '../logger'
 
-  const DELAY_MS         = 200   // pause between Jina calls to avoid rate limiting
-  const FAMILIES_INDEXED = new Set<string>()
+  const DELAY_MS = 200
 
-  async function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
+  async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
 
   async function main() {
     const pool = new Pool({
-      host:     config.database.host,
-      port:     config.database.port,
-      database: config.database.database,
-      user:     config.database.user,
+      host: config.database.host, port: config.database.port,
+      database: config.database.database, user: config.database.user,
       password: config.database.password,
     })
-    const embeddingSvc = createVisualEmbeddingService(config.recognition.jinaApiKey)
-
-    let totalCrops   = 0
-    let totalIndexed = 0
-    let totalSkipped = 0
-    let totalErrors  = 0
+    const embeddingSvc  = createVisualEmbeddingService(config.recognition.jinaApiKey)
+    const seenFamilies  = new Set<string>()
+    let indexed = 0, errors = 0
 
     for (const strip of CAMPIONARIO_STRIPS) {
-      logger.info(`[build-visual-index] Processing strip: ${strip.path}`)
       let crops: Awaited<ReturnType<typeof cropStripForFamilies>>
-      try {
-        crops = await cropStripForFamilies(strip)
-      } catch (err) {
-        logger.error(`[build-visual-index] Failed to crop strip: ${strip.path}`, { err })
-        totalErrors++
-        continue
-      }
+      try { crops = await cropStripForFamilies(strip) }
+      catch (err) { logger.error('[index] strip crop failed', { path: strip.path, err }); errors++; continue }
 
       for (const crop of crops) {
-        totalCrops++
-        if (FAMILIES_INDEXED.has(crop.familyCode)) {
-          // Already indexed from a different strip — skip (first strip = highest priority)
-          totalSkipped++
-          continue
-        }
-
+        if (seenFamilies.has(crop.familyCode)) continue
         try {
           const id = await upsertFamilyImage(pool, {
-            family_code: crop.familyCode,
-            source_type: 'campionario',
-            source_url:  null,
-            local_path:  crop.stripPath,
-            priority:    3,
-            metadata: {
-              strip_family_index: crop.familyIndex,
-              strip_family_count: crop.familyCount,
-            },
+            family_code: crop.familyCode, source_type: 'campionario',
+            source_url: null, local_path: crop.stripPath, priority: 3,
+            metadata: { strip_family_index: crop.familyIndex, strip_family_count: crop.familyCount },
           })
-
           await sleep(DELAY_MS)
-
-          const base64    = crop.imageBuffer.toString('base64')
-          const embedding = await embeddingSvc.embedImage(base64, 'retrieval.passage')
+          const embedding = await embeddingSvc.embedImage(crop.imageBuffer.toString('base64'), 'retrieval.passage')
           await updateEmbedding(pool, id, embedding)
-
-          FAMILIES_INDEXED.add(crop.familyCode)
-          totalIndexed++
-          logger.info(`[build-visual-index] Indexed family ${crop.familyCode} (id=${id})`)
+          seenFamilies.add(crop.familyCode)
+          indexed++
+          logger.info(`[index] Indexed ${crop.familyCode} (id=${id})`)
         } catch (err) {
-          logger.error(`[build-visual-index] Failed to index family ${crop.familyCode}`, { err })
-          totalErrors++
+          logger.error('[index] failed to index family', { familyCode: crop.familyCode, err })
+          errors++
         }
       }
     }
 
-    logger.info('[build-visual-index] Done', { totalCrops, totalIndexed, totalSkipped, totalErrors })
+    const total = await countIndexed(pool)
+    logger.info('[index] Done', { indexed, errors, total })
     await pool.end()
   }
 
-  main().catch(err => {
-    logger.error('[build-visual-index] Fatal error', { err })
-    process.exit(1)
-  })
+  main().catch(err => { logger.error('[index] Fatal', { err }); process.exit(1) })
   ```
 
-- [ ] **Step 2: Verify TypeScript compiles**
+- [ ] **Step 2: Type check**
 
   ```bash
   npm run build --prefix archibald-web-app/backend
@@ -1011,14 +985,14 @@ This script iterates `CAMPIONARIO_STRIPS`, crops each family, embeds with Jina v
 
 ---
 
-## Task 8: Build visual index operation handler
-
-This wraps the index-building logic in a BullMQ-compatible operation handler so it can be triggered from the admin UI.
+## Task 8: Build visual index operation handler + registration
 
 **Files:**
 - Create: `backend/src/operations/handlers/build-visual-index-handler.ts`
 - Create: `backend/src/operations/handlers/build-visual-index-handler.spec.ts`
 - Modify: `backend/src/operations/handlers/index.ts`
+- Modify: `backend/src/operations/operation-types.ts`
+- Modify: `backend/src/main.ts`
 
 - [ ] **Step 1: Write failing test**
 
@@ -1050,23 +1024,21 @@ This wraps the index-building logic in a BullMQ-compatible operation handler so 
   describe('createBuildVisualIndexHandler', () => {
     test('calls upsertFamilyImage and updateEmbedding for each crop', async () => {
       const { upsertFamilyImage, updateEmbedding } = await import('../../db/repositories/catalog-family-images')
-      const mockPool = {} as import('../../db/pool').DbPool
-      const mockEmbeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
+      const pool        = {} as import('../../db/pool').DbPool
+      const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
 
-      const handler = createBuildVisualIndexHandler({ pool: mockPool, embeddingSvc: mockEmbeddingSvc })
-      await handler({} as import('bullmq').Job)
+      await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
 
       expect(upsertFamilyImage).toHaveBeenCalledTimes(2)
       expect(updateEmbedding).toHaveBeenCalledTimes(2)
-      expect(mockEmbeddingSvc.embedImage).toHaveBeenCalledTimes(2)
+      expect(embeddingSvc.embedImage).toHaveBeenCalledTimes(2)
     })
 
-    test('returns indexed count on completion', async () => {
-      const mockPool = {} as import('../../db/pool').DbPool
-      const mockEmbeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
-      const handler = createBuildVisualIndexHandler({ pool: mockPool, embeddingSvc: mockEmbeddingSvc })
-      const result  = await handler({} as import('bullmq').Job)
-      expect(result).toMatchObject({ indexed: expect.any(Number) })
+    test('returns total indexed count on completion', async () => {
+      const pool        = {} as import('../../db/pool').DbPool
+      const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
+      const result = await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
+      expect(result).toMatchObject({ indexed: 2 })
     })
   })
   ```
@@ -1092,58 +1064,40 @@ This wraps the index-building logic in a BullMQ-compatible operation handler so 
   import { upsertFamilyImage, updateEmbedding, countIndexed } from '../../db/repositories/catalog-family-images'
   import { logger } from '../../logger'
 
-  type Deps = {
-    pool:         DbPool
-    embeddingSvc: VisualEmbeddingService
-  }
+  type Deps = { pool: DbPool; embeddingSvc: VisualEmbeddingService }
 
   const DELAY_MS = 200
-
-  async function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
+  const sleep    = (ms: number) => new Promise(r => setTimeout(r, ms))
 
   export function createBuildVisualIndexHandler(deps: Deps) {
-    return async function buildVisualIndexHandler(_job: Job): Promise<{ indexed: number }> {
+    return async function (_job: Job): Promise<{ indexed: number }> {
       const { pool, embeddingSvc } = deps
-      const seenFamilies = new Set<string>()
-      let indexed = 0
+      const seen    = new Set<string>()
+      let   indexed = 0
 
       for (const strip of CAMPIONARIO_STRIPS) {
         let crops: Awaited<ReturnType<typeof cropStripForFamilies>>
-        try {
-          crops = await cropStripForFamilies(strip)
-        } catch (err) {
-          logger.warn('[build-visual-index] Skipping strip — crop failed', { path: strip.path, err })
+        try { crops = await cropStripForFamilies(strip) }
+        catch (err) {
+          logger.warn('[build-visual-index] strip failed', { path: strip.path, err })
           continue
         }
 
         for (const crop of crops) {
-          if (seenFamilies.has(crop.familyCode)) continue
-
+          if (seen.has(crop.familyCode)) continue
           try {
             const id = await upsertFamilyImage(pool, {
-              family_code: crop.familyCode,
-              source_type: 'campionario',
-              source_url:  null,
-              local_path:  crop.stripPath,
-              priority:    3,
-              metadata: {
-                strip_family_index: crop.familyIndex,
-                strip_family_count: crop.familyCount,
-              },
+              family_code: crop.familyCode, source_type: 'campionario',
+              source_url: null, local_path: crop.stripPath, priority: 3,
+              metadata: { strip_family_index: crop.familyIndex, strip_family_count: crop.familyCount },
             })
-
             await sleep(DELAY_MS)
-
-            const base64    = crop.imageBuffer.toString('base64')
-            const embedding = await embeddingSvc.embedImage(base64, 'retrieval.passage')
+            const embedding = await embeddingSvc.embedImage(crop.imageBuffer.toString('base64'), 'retrieval.passage')
             await updateEmbedding(pool, id, embedding)
-
-            seenFamilies.add(crop.familyCode)
+            seen.add(crop.familyCode)
             indexed++
           } catch (err) {
-            logger.warn('[build-visual-index] Failed to index family', { familyCode: crop.familyCode, err })
+            logger.warn('[build-visual-index] family failed', { familyCode: crop.familyCode, err })
           }
         }
       }
@@ -1155,7 +1109,7 @@ This wraps the index-building logic in a BullMQ-compatible operation handler so 
   }
   ```
 
-- [ ] **Step 4: Export from index**
+- [ ] **Step 4: Export from handlers index**
 
   Add to `backend/src/operations/handlers/index.ts`:
 
@@ -1163,39 +1117,85 @@ This wraps the index-building logic in a BullMQ-compatible operation handler so 
   export { createBuildVisualIndexHandler } from './build-visual-index-handler';
   ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 5: Register in operation-types.ts**
+
+  In `backend/src/operations/operation-types.ts`, add `'build-visual-index'` to the array and record:
+
+  ```typescript
+  const OPERATION_TYPES = [
+    // ... existing entries ...
+    'recognition-feedback',
+    'build-visual-index',   // ← add
+  ] as const;
+
+  const OPERATION_PRIORITIES: Record<OperationType, number> = {
+    // ... existing entries ...
+    'recognition-feedback': 5,
+    'build-visual-index':   1,   // ← add (low priority — background)
+  };
+  ```
+
+- [ ] **Step 6: Wire handler in main.ts**
+
+  In `backend/src/main.ts`, inside the conditional block that guards enrichment handlers (`if (config.recognition.anthropicApiKey && anthropicCatalogClient)`), add the `build-visual-index` handler alongside the others. Also construct `embeddingSvc` before `createCatalogVisionService`:
+
+  ```typescript
+  // After catalogPdf construction (~line 425), add:
+  const embeddingSvc = config.recognition.jinaApiKey
+    ? createVisualEmbeddingService(config.recognition.jinaApiKey)
+    : undefined
+
+  // Inside the anthropicApiKey conditional block (handlers object), add:
+  ...(config.recognition.jinaApiKey && embeddingSvc ? {
+    'build-visual-index': createBuildVisualIndexHandler({ pool, embeddingSvc }),
+  } : {}),
+  ```
+
+  Add the import at the top of main.ts:
+
+  ```typescript
+  import { createVisualEmbeddingService } from './recognition/visual-embedding-service'
+  import { createBuildVisualIndexHandler } from './operations/handlers/build-visual-index-handler'
+  ```
+
+- [ ] **Step 7: Run tests**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- build-visual-index-handler
+  npm run build --prefix archibald-web-app/backend
   ```
 
-  Expected: PASS (2 tests).
+  Expected: PASS, 0 build errors.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
   ```bash
   git add archibald-web-app/backend/src/operations/handlers/build-visual-index-handler.ts \
           archibald-web-app/backend/src/operations/handlers/build-visual-index-handler.spec.ts \
-          archibald-web-app/backend/src/operations/handlers/index.ts
-  git commit -m "feat(recognition): build-visual-index operation handler"
+          archibald-web-app/backend/src/operations/handlers/index.ts \
+          archibald-web-app/backend/src/operations/operation-types.ts \
+          archibald-web-app/backend/src/main.ts
+  git commit -m "feat(recognition): build-visual-index handler — registered in operation-types + main.ts"
   ```
 
 ---
 
 ## Task 9: Recognition engine refactor
 
-The engine gains ANN retrieval and confidence-based routing. The `disambiguationCandidates` param is removed — second-photo detection is now `images.length === 2`.
+The engine gains ANN retrieval, confidence-based routing, `minSimilarity` early exit, and fixes the route wiring.
 
 **Files:**
 - Modify: `backend/src/recognition/recognition-engine.ts`
 - Modify: `backend/src/recognition/recognition-engine.spec.ts`
+- Modify: `backend/src/routes/recognition.ts`
+- Modify: `backend/src/routes/recognition.spec.ts`
 
-- [ ] **Step 1: Write new failing tests**
+- [ ] **Step 1: Write new failing engine tests**
 
   Replace `backend/src/recognition/recognition-engine.spec.ts`:
 
   ```typescript
-  import { describe, expect, test, vi, beforeEach } from 'vitest'
+  import { describe, expect, test, vi } from 'vitest'
   import { runRecognitionPipeline } from './recognition-engine'
   import type { CatalogVisionService } from './recognition-engine'
   import type { IdentificationResult } from './types'
@@ -1205,8 +1205,15 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
   }))
 
   vi.mock('../db/repositories/catalog-family-images', () => ({
-    queryTopK:           vi.fn().mockResolvedValue([]),
+    queryTopK:           vi.fn().mockResolvedValue([
+      { id: 1, family_code: '879', similarity: 0.90, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 0, strip_family_count: 3 } },
+      { id: 2, family_code: '863', similarity: 0.82, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 1, strip_family_count: 3 } },
+    ]),
     getFallbackFamilies: vi.fn().mockResolvedValue([]),
+  }))
+
+  vi.mock('./campionario-strip-cropper', () => ({
+    cropSingleFamily: vi.fn().mockResolvedValue(Buffer.from('FAKE_CROP')),
   }))
 
   const BASE64   = 'AAAA'
@@ -1254,115 +1261,110 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
     }
   }
 
+  const MIN_SIMILARITY = 0.30
+
   describe('runRecognitionPipeline', () => {
     test('ritorna budget_exhausted quando budget esaurito', async () => {
       const pool = makePool({ budgetAllowed: false })
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: makeVision(), embeddingSvc: makeEmbeddingSvc() },
+        { pool, catalogVisionService: makeVision(), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('budget_exhausted')
     })
 
     test('ritorna match quando confidence ≥ 0.85', async () => {
-      const pool = makePool()
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: makeVision({ confidence: 0.92 }), embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool(), catalogVisionService: makeVision({ confidence: 0.92 }), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('match')
       if (result.state === 'match') expect(result.product.familyCode).toBe('879')
     })
 
-    test('ritorna photo2_request quando confidence < 0.85 e prima foto', async () => {
-      const pool   = makePool()
+    test('ritorna not_found quando top similarity < minSimilarity (early exit)', async () => {
+      const { queryTopK } = await import('../db/repositories/catalog-family-images')
+      vi.mocked(queryTopK).mockResolvedValueOnce([
+        { id: 1, family_code: '999', similarity: 0.10, local_path: '/x.jpg', source_type: 'campionario', metadata: null },
+      ])
+      const vision = makeVision()
+      const { result } = await runRecognitionPipeline(
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: 0.30 },
+        [BASE64], USER_ID, 'agent',
+      )
+      expect(result.state).toBe('not_found')
+      expect(vision.identifyFromImage).not.toHaveBeenCalled()
+    })
+
+    test('ritorna photo2_request con instruction Claude quando confidence < 0.85 e prima foto', async () => {
       const vision = makeVision({
-        confidence:    0.70,
-        resultState:   'shortlist',
-        candidates:    ['879.104.014', '863.104.014'],
-        photo_request: 'Fotografa la punta dall'alto',
+        confidence: 0.70, resultState: 'shortlist',
+        candidates: ['879.104.014', '863.104.014'],
+        photo_request: 'Fotografa la punta dall\'alto',
       })
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('photo2_request')
       if (result.state === 'photo2_request') {
-        expect(result.instruction).toBe('Fotografa la punta dall'alto')
+        expect(result.instruction).toBe('Fotografa la punta dall\'alto')
         expect(result.candidates).toContain('879.104.014')
       }
     })
 
-    test('usa fallback generico per instruction quando photo_request è null', async () => {
-      const pool   = makePool()
-      const vision = makeVision({
-        confidence:    0.60,
-        resultState:   'shortlist',
-        candidates:    ['879.104.014', '863.104.014'],
-        photo_request: null,
-      })
+    test('usa fallback generico quando photo_request è null', async () => {
+      const vision = makeVision({ confidence: 0.60, resultState: 'shortlist', candidates: ['879.104.014', '863.104.014'], photo_request: null })
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('photo2_request')
-      if (result.state === 'photo2_request') {
-        expect(result.instruction).toBeTruthy()
-        expect(typeof result.instruction).toBe('string')
-      }
+      if (result.state === 'photo2_request') expect(typeof result.instruction).toBe('string')
     })
 
-    test('ritorna shortlist_visual quando confidence < 0.85 e seconda foto (images.length===2)', async () => {
-      const pool   = makePool()
-      const vision = makeVision({
-        confidence:  0.65,
-        resultState: 'shortlist',
-        candidates:  ['879.104.014', '863.104.014'],
-      })
+    test('ritorna not_found quando confidence < 0.85 e candidates vuoti (prima foto)', async () => {
+      const vision = makeVision({ confidence: 0.40, resultState: 'not_found', candidates: [], photo_request: null })
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
-        [BASE64, BASE64], USER_ID, 'agent',
-      )
-      expect(result.state).toBe('shortlist_visual')
-    })
-
-    test('downgrade a not_found quando il family code non esiste nel catalogo', async () => {
-      const pool   = makePool({ familyExists: false })
-      const vision = makeVision({ confidence: 0.90, familyCode: '8863', productCode: '8863.104.016' })
-      const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('not_found')
     })
 
-    test('non chiama vision API quando cache hit', async () => {
-      const pool   = makePool({ cacheHit: true })
-      const vision = makeVision()
-      await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
-        [BASE64], USER_ID, 'agent',
+    test('ritorna shortlist_visual quando confidence < 0.85 e seconda foto (images.length===2)', async () => {
+      const vision = makeVision({ confidence: 0.65, resultState: 'shortlist', candidates: ['879.104.014', '863.104.014'] })
+      const { result } = await runRecognitionPipeline(
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
+        [BASE64, BASE64], USER_ID, 'agent',
       )
-      expect(vision.identifyFromImage).not.toHaveBeenCalled()
+      expect(result.state).toBe('shortlist_visual')
     })
 
-    test('non chiama vision API quando budget esaurito', async () => {
-      const pool   = makePool({ budgetAllowed: false })
+    test('downgrade a not_found quando family code non esiste nel catalogo', async () => {
+      const vision = makeVision({ confidence: 0.90, familyCode: '8863', productCode: '8863.104.016' })
+      const { result } = await runRecognitionPipeline(
+        { pool: makePool({ familyExists: false }), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
+        [BASE64], USER_ID, 'agent',
+      )
+      expect(result.state).toBe('not_found')
+    })
+
+    test('non chiama vision quando cache hit', async () => {
       const vision = makeVision()
       await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool({ cacheHit: true }), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(vision.identifyFromImage).not.toHaveBeenCalled()
     })
 
     test('ritorna error quando vision API lancia eccezione', async () => {
-      const pool   = makePool()
       const vision: CatalogVisionService = {
         identifyFromImage: vi.fn().mockRejectedValue(new Error('Anthropic timeout')),
       }
       const { result } = await runRecognitionPipeline(
-        { pool, catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc() },
+        { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
         [BASE64], USER_ID, 'agent',
       )
       expect(result.state).toBe('error')
@@ -1376,7 +1378,7 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
   npm test --prefix archibald-web-app/backend -- recognition-engine
   ```
 
-  Expected: FAIL — old signatures, missing photo2_request routing.
+  Expected: FAIL — old engine signatures.
 
 - [ ] **Step 3: Rewrite `recognition-engine.ts`**
 
@@ -1384,15 +1386,15 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
 
   ```typescript
   import { createHash } from 'crypto'
+  import { readFile } from 'node:fs/promises'
   import type { DbPool } from '../db/pool'
-  import type { RecognitionResult, BudgetState, CandidateWithImages } from './types'
+  import type { RecognitionResult, BudgetState, CandidateWithImages, CandidateMatch } from './types'
   import type { VisualEmbeddingService } from './visual-embedding-service'
   import { checkBudget, consumeBudget } from './budget-service'
   import { getCached, setCached } from '../db/repositories/recognition-cache'
   import { appendRecognitionLog } from '../db/repositories/recognition-log'
   import { queryTopK, getFallbackFamilies } from '../db/repositories/catalog-family-images'
   import { cropSingleFamily } from './campionario-strip-cropper'
-  import { readFile } from 'node:fs/promises'
   import { logger } from '../logger'
 
   export type CatalogVisionService = {
@@ -1414,6 +1416,7 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
     pool:                 DbPool
     catalogVisionService: CatalogVisionService
     embeddingSvc:         VisualEmbeddingService
+    minSimilarity:        number
   }
 
   const FALLBACK_INSTRUCTION = "Scatta un'altra angolazione dello strumento, preferibilmente dall'alto o di profilo"
@@ -1425,7 +1428,7 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
     role:   string,
     signal?: AbortSignal,
   ): Promise<EngineResult> {
-    const startMs     = Date.now()
+    const startMs       = Date.now()
     const isSecondPhoto = images.length === 2
 
     const imageHash = createHash('sha256')
@@ -1443,12 +1446,22 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
       return { result: { state: 'budget_exhausted' }, budgetState, processingMs: Date.now() - startMs, imageHash }
     }
 
-    // Stage 1: ANN retrieval
-    const top10 = await retrieveTop10Candidates(deps, images[0]!)
+    // Stage 1: ANN retrieval — returns null on early exit (similarity below threshold)
+    const retrieval = await retrieveTop10Candidates(deps, images[0]!)
+    if (!retrieval) {
+      const result: RecognitionResult = { state: 'not_found' }
+      await setCached(deps.pool, imageHash, result, Buffer.from(images[0]!, 'base64'))
+      await appendRecognitionLog(deps.pool, {
+        user_id: userId, image_hash: imageHash, cache_hit: false,
+        product_id: null, confidence: null, result_state: 'not_found',
+        tokens_used: 0, api_cost_usd: null,
+      }).catch(() => {})
+      return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+    }
 
     let identification: import('./types').IdentificationResult
     try {
-      identification = await deps.catalogVisionService.identifyFromImage(images, top10, signal)
+      identification = await deps.catalogVisionService.identifyFromImage(images, retrieval.candidates, signal)
     } catch (err) {
       logger.warn('[recognition-engine] Vision API error', { error: err instanceof Error ? err.message : String(err) })
       return { result: { state: 'error', message: 'Servizio di riconoscimento temporaneamente non disponibile' }, budgetState, processingMs: Date.now() - startMs, imageHash }
@@ -1465,19 +1478,18 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
         result = { state: 'not_found' }
       } else {
         result = {
-          state:      'match',
+          state: 'match',
           product: {
-            productId:    identification.productCode ?? '',
-            productName:  identification.productCode ?? '',
-            familyCode,
-            headSizeMm:   0,
-            shankType:    '',
-            thumbnailUrl: null,
-            confidence:   identification.confidence,
+            productId: identification.productCode ?? '', productName: identification.productCode ?? '',
+            familyCode, headSizeMm: 0, shankType: '', thumbnailUrl: null,
+            confidence: identification.confidence,
           },
           confidence: identification.confidence,
         }
       }
+    } else if (identification.candidates.length === 0) {
+      // Claude returned no candidates — instrument not in catalog
+      result = { state: 'not_found' }
     } else if (!isSecondPhoto) {
       result = {
         state:       'photo2_request',
@@ -1485,41 +1497,39 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
         instruction: identification.photo_request ?? FALLBACK_INSTRUCTION,
       }
     } else {
-      result = {
-        state:      'shortlist_visual',
-        candidates: identification.candidates.map(c => ({
-          productId:    c,
-          productName:  c,
-          familyCode:   c.split('.')[0] ?? '',
-          headSizeMm:   0,
-          shankType:    '',
-          thumbnailUrl: null,
-          confidence:   0,
-        })),
-      }
+      // Second photo, still uncertain — show visual shortlist using top10 reference images
+      const candidateFamilyCodes = new Set(identification.candidates.map(c => c.split('.')[0] ?? c))
+      const shortlistCandidates: CandidateMatch[] = retrieval.candidates
+        .filter(c => candidateFamilyCodes.has(c.familyCode))
+        .map(c => ({
+          familyCode:      c.familyCode,
+          thumbnailUrl:    c.referenceImages[0] ?? null,
+          referenceImages: c.referenceImages,
+        }))
+      result = { state: 'shortlist_visual', candidates: shortlistCandidates }
     }
 
     await setCached(deps.pool, imageHash, result, Buffer.from(images[0]!, 'base64'))
     await consumeBudget(deps.pool)
     await appendRecognitionLog(deps.pool, {
-      user_id:      userId,
-      image_hash:   imageHash,
-      cache_hit:    false,
-      product_id:   result.state === 'match' ? result.product.productId : null,
-      confidence:   result.state === 'match' ? result.confidence : null,
+      user_id: userId, image_hash: imageHash, cache_hit: false,
+      product_id: result.state === 'match' ? result.product.productId : null,
+      confidence: result.state === 'match' ? result.confidence : null,
       result_state: result.state,
-      tokens_used:  identification.usage.inputTokens + identification.usage.outputTokens,
+      tokens_used: identification.usage.inputTokens + identification.usage.outputTokens,
       api_cost_usd: null,
     }).catch(() => {})
 
     return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
   }
 
-  /** ANN retrieval: embed query photo → top-50 rows → dedup to top-10 families. */
+  type RetrievalResult = { candidates: CandidateWithImages[] } | null
+
+  /** Returns null when top ANN similarity is below minSimilarity (early exit — not in catalog). */
   async function retrieveTop10Candidates(
     deps:       EngineDeps,
     firstPhoto: string,
-  ): Promise<CandidateWithImages[]> {
+  ): Promise<RetrievalResult> {
     let top50rows: Awaited<ReturnType<typeof queryTopK>>
 
     try {
@@ -1528,10 +1538,18 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
     } catch (err) {
       logger.warn('[recognition-engine] ANN query failed — using fallback families', { err })
       const familyCodes = await getFallbackFamilies(deps.pool, 10)
-      return familyCodes.map(fc => ({ familyCode: fc, description: fc, referenceImages: [] }))
+      const candidates  = familyCodes.map(fc => ({ familyCode: fc, description: fc, referenceImages: [] }))
+      return { candidates }
     }
 
-    // Dedup: best similarity per family → top-10 families
+    // Early exit: nothing visually similar in index
+    const topSimilarity = top50rows[0]?.similarity ?? 0
+    if (topSimilarity < deps.minSimilarity) {
+      logger.info('[recognition-engine] Early exit — below similarity threshold', { topSimilarity, threshold: deps.minSimilarity })
+      return null
+    }
+
+    // Dedup: best similarity per family → top-10
     const bestByFamily = new Map<string, (typeof top50rows)[0]>()
     for (const row of top50rows) {
       const existing = bestByFamily.get(row.family_code)
@@ -1540,12 +1558,12 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
       }
     }
 
-    const top10 = [...bestByFamily.entries()]
+    const top10rows = [...bestByFamily.entries()]
       .sort((a, b) => b[1].similarity - a[1].similarity)
       .slice(0, 10)
 
-    return Promise.all(
-      top10.map(async ([familyCode, row]) => {
+    const candidates = await Promise.all(
+      top10rows.map(async ([familyCode, row]) => {
         const referenceImages: string[] = []
         try {
           let imgBuffer: Buffer
@@ -1557,11 +1575,13 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
           }
           referenceImages.push(imgBuffer.toString('base64'))
         } catch {
-          // Missing file — pass candidate without image
+          // File missing — pass candidate without image
         }
         return { familyCode, description: familyCode, referenceImages }
       }),
     )
+
+    return { candidates }
   }
 
   async function validateFamilyExists(pool: DbPool, familyCode: string): Promise<boolean> {
@@ -1577,38 +1597,159 @@ The engine gains ANN retrieval and confidence-based routing. The `disambiguation
   }
   ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run engine tests**
 
   ```bash
   npm test --prefix archibald-web-app/backend -- recognition-engine
   ```
 
-  Expected: PASS (8 tests).
+  Expected: PASS (9 tests).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Update `recognition.ts` route**
+
+  In `backend/src/routes/recognition.ts`, make these changes:
+
+  **a) Add `VisualEmbeddingService` to deps and remove `candidates` from Zod:**
+
+  ```typescript
+  import type { VisualEmbeddingService } from '../recognition/visual-embedding-service'
+
+  type RecognitionRouterDeps = {
+    pool:                 DbPool
+    catalogVisionService: CatalogVisionService
+    embeddingSvc:         VisualEmbeddingService
+    minSimilarity:        number
+    dailyLimit:           number
+    timeoutMs:            number
+    // catalogPdf removed — no longer needed in route
+    queue?: {
+      enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>
+    }
+  }
+
+  const identifySchema = z.object({
+    image:  z.string().min(10).optional(),
+    images: z.array(z.string().min(10)).min(1).max(2).optional(),
+    // candidates removed — second photo detected by images.length === 2
+  }).refine(
+    data => data.image != null || (data.images != null && data.images.length > 0),
+    { message: 'image or images required' },
+  )
+  ```
+
+  **b) Update `runRecognitionPipeline` call in the `/identify` handler:**
+
+  ```typescript
+  const { image, images: imagesArr } = parsed.data
+  const images = imagesArr ?? [image!]
+
+  const { result, budgetState, processingMs, imageHash } =
+    await runRecognitionPipeline(
+      { pool, catalogVisionService, embeddingSvc: deps.embeddingSvc, minSimilarity: deps.minSimilarity },
+      images, userId, role, abortController.signal,
+    )
+  ```
+
+  **c) Remove the `/catalog-page/:pageNumber` and `/ruler` route handlers** (they depend on `catalogPdf` which is no longer in deps). These endpoints become dead code. Remove them now to keep the router clean.
+
+- [ ] **Step 6: Update `recognition.spec.ts`**
+
+  In `backend/src/routes/recognition.spec.ts`:
+
+  **a) Add `embeddingSvc` and `minSimilarity` to `makeApp`:**
+
+  ```typescript
+  vi.mock('../recognition/recognition-engine', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../recognition/recognition-engine')>()
+    return {
+      ...actual,
+      runRecognitionPipeline: vi.fn(),
+    }
+  })
+
+  vi.mock('../db/repositories/catalog-family-images', () => ({
+    queryTopK:           vi.fn().mockResolvedValue([]),
+    getFallbackFamilies: vi.fn().mockResolvedValue([]),
+  }))
+
+  function makeApp(catalogVisionService: CatalogVisionService, pool: DbPool) {
+    const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
+    const app = express()
+    app.use(express.json({ limit: '10mb' }))
+    app.use((req: any, _res, next) => {
+      req.user = { userId: 'test-user', role: 'agent', username: 'test' }
+      next()
+    })
+    app.use('/api/recognition', createRecognitionRouter({
+      pool, catalogVisionService, embeddingSvc, minSimilarity: 0.20,
+      dailyLimit: 500, timeoutMs: 15000,
+    }))
+    return app
+  }
+  ```
+
+  **b) Update `makeVisionStub` signature** to match new `identifyFromImage(photos, candidates, signal?)`:
+
+  ```typescript
+  function makeVisionStub(): CatalogVisionService {
+    return { identifyFromImage: vi.fn() }
+  }
+  ```
+
+  (Signature unchanged in the stub, but the type will now require the new shape — TypeScript will enforce at compile time.)
+
+- [ ] **Step 7: Update main.ts — pass embeddingSvc to router**
+
+  In `backend/src/main.ts`, update the `createRecognitionRouter` call (find the line with `catalogVisionService`) to include `embeddingSvc` and `minSimilarity`, and remove `catalogPdf`:
+
+  ```typescript
+  createRecognitionRouter({
+    pool,
+    catalogVisionService,
+    embeddingSvc,
+    minSimilarity: config.recognition.minSimilarity,
+    dailyLimit:    config.recognition.dailyLimit,
+    timeoutMs:     config.recognition.timeoutMs,
+    queue:         { enqueue: (type, userId, data) => allQueues['writes'].enqueue(type, userId, data) },
+  })
+  ```
+
+  (Remove the `catalogPdf` dep from the router.)
+
+- [ ] **Step 8: Run full backend build + tests**
+
+  ```bash
+  npm run build --prefix archibald-web-app/backend
+  npm test --prefix archibald-web-app/backend
+  ```
+
+  Expected: 0 build errors, all tests pass.
+
+- [ ] **Step 9: Commit**
 
   ```bash
   git add archibald-web-app/backend/src/recognition/recognition-engine.ts \
-          archibald-web-app/backend/src/recognition/recognition-engine.spec.ts
-  git commit -m "feat(recognition): engine refactor — ANN retrieval + confidence routing"
+          archibald-web-app/backend/src/recognition/recognition-engine.spec.ts \
+          archibald-web-app/backend/src/routes/recognition.ts \
+          archibald-web-app/backend/src/routes/recognition.spec.ts \
+          archibald-web-app/backend/src/main.ts
+  git commit -m "feat(recognition): engine refactor — ANN retrieval, confidence routing, minSimilarity early exit"
   ```
 
 ---
 
 ## Task 10: Vision service redesign
 
-Replace the 250-line agentic loop with a single-turn Claude call: pre-filtered candidates + reference images arrive in the initial message, Claude calls `submit_identification` once with optional `photo_request`.
-
 **Files:**
 - Modify: `backend/src/services/anthropic-vision-service.ts`
 
-- [ ] **Step 1: Read the current file to understand all helpers**
+- [ ] **Step 1: Read the current file**
 
-  Read `backend/src/services/anthropic-vision-service.ts` fully (lines 1–end) to inventory what to keep (Anthropic client setup, submit parsing) and what to discard (search_catalog, get_catalog_page, RULE A, RULE B, loop logic).
+  Read `backend/src/services/anthropic-vision-service.ts` fully. Inventory what to keep (Anthropic client setup, submit parsing) and what to remove (search_catalog, get_catalog_page, RULE A, RULE B, loop logic, `catalogPdf` dep).
 
 - [ ] **Step 2: Write the new vision service**
 
-  Replace `backend/src/services/anthropic-vision-service.ts` entirely:
+  Replace `backend/src/services/anthropic-vision-service.ts`:
 
   ```typescript
   import Anthropic from '@anthropic-ai/sdk'
@@ -1620,6 +1761,7 @@ Replace the 250-line agentic loop with a single-turn Claude call: pre-filtered c
   export type CatalogVisionServiceDeps = {
     apiKey:    string
     timeoutMs: number
+    // pool and catalogPdf removed — no longer needed
   }
 
   const SYSTEM_PROMPT = `You are identifying a Komet dental instrument from a photo taken by a dental sales agent.
@@ -1641,10 +1783,10 @@ Confidence guide:
   < 0.65 : genuinely uncertain → product_code = "", list 2–3 in candidates[]
 
 Rules:
-  • You must NOT force a definitive match when uncertain.
-  • You must NOT add candidates not present in the provided list.
-  • When uncertain after one photo, include photo_request with a specific Italian instruction
-    for the best additional photo that would resolve your uncertainty.`
+  • Do NOT force a definitive match when uncertain.
+  • Do NOT add candidates not in the provided list.
+  • When uncertain after one photo, add photo_request with a specific Italian instruction
+    for the photo that would best resolve your uncertainty.`
 
   const SUBMIT_IDENTIFICATION_TOOL: Anthropic.Tool = {
     name:        'submit_identification',
@@ -1655,24 +1797,18 @@ Rules:
       properties: {
         product_code: {
           type:        'string',
-          description: 'Product code in FAMILY.SHANK.SIZE format (e.g. "879.104.014"), or empty string if uncertain',
+          description: 'Product code "FAMILY.SHANK.SIZE" (e.g. "879.104.014"), or "" if uncertain',
         },
         candidates: {
           type:        'array',
           items:       { type: 'string' },
-          description: '2–3 candidate product codes when uncertain (family code prefix + best guess shank/size)',
+          description: '2–3 candidate codes when uncertain (e.g. ["879.104.014","863.104.014"])',
         },
-        confidence: {
-          type:        'number',
-          description: 'Confidence score 0.0–1.0',
-        },
-        reasoning: {
-          type:        'string',
-          description: 'Brief reasoning in English',
-        },
+        confidence: { type: 'number', description: 'Confidence score 0.0–1.0' },
+        reasoning:  { type: 'string', description: 'Brief reasoning in English' },
         photo_request: {
           type:        'string',
-          description: 'Optional: write in Italian the specific photo that would resolve uncertainty (e.g. "Fotografa la testa dall\'alto"). Omit if confident.',
+          description: 'Optional Italian instruction for the specific additional photo that would resolve uncertainty. Omit if confident.',
         },
       },
     },
@@ -1682,33 +1818,25 @@ Rules:
     const client = new Anthropic({ apiKey: deps.apiKey })
     return {
       identifyFromImage: (photos, candidates, signal) =>
-        identifyFromImage(client, deps.timeoutMs, photos, candidates, signal),
+        identifyFromImage(client, photos, candidates, signal),
     }
   }
 
   async function identifyFromImage(
     client:     Anthropic,
-    timeoutMs:  number,
     photos:     string[],
     candidates: CandidateWithImages[],
     signal?:    AbortSignal,
   ): Promise<IdentificationResult> {
-    const userContent: Anthropic.MessageParam['content'] = buildUserMessage(photos, candidates)
+    const messages: MessageParam[] = [
+      { role: 'user', content: buildUserMessage(photos, candidates) },
+    ]
 
-    const messages: MessageParam[] = [{ role: 'user', content: userContent }]
-
-    let inputTokensTotal  = 0
-    let outputTokensTotal = 0
+    let inputTokensTotal = 0, outputTokensTotal = 0
 
     for (let iter = 0; iter < 2; iter++) {
       const response = await client.messages.create(
-        {
-          model:      'claude-sonnet-4-5',
-          max_tokens: 1024,
-          system:     SYSTEM_PROMPT,
-          tools:      [SUBMIT_IDENTIFICATION_TOOL],
-          messages,
-        },
+        { model: 'claude-sonnet-4-6', max_tokens: 1024, system: SYSTEM_PROMPT, tools: [SUBMIT_IDENTIFICATION_TOOL], messages },
         { signal },
       )
 
@@ -1716,31 +1844,22 @@ Rules:
       outputTokensTotal += response.usage.output_tokens
 
       const toolUse = response.content.find(b => b.type === 'tool_use')
-      if (toolUse && toolUse.type === 'tool_use') {
+      if (toolUse?.type === 'tool_use') {
         return parseSubmitResult(toolUse.input, { inputTokens: inputTokensTotal, outputTokens: outputTokensTotal })
       }
 
       if (response.stop_reason === 'end_turn') break
 
-      // Tool call expected but not found — push assistant message and continue
       messages.push({ role: 'assistant', content: response.content })
-      messages.push({
-        role:    'user',
-        content: 'Please call submit_identification now with your best assessment.',
-      })
+      messages.push({ role: 'user', content: 'Please call submit_identification now with your best assessment.' })
     }
 
     logger.warn('[vision-service] No submit_identification tool call received')
     return {
-      productCode:   null,
-      familyCode:    null,
-      confidence:    0,
-      resultState:   'not_found',
-      candidates:    [],
-      catalogPage:   null,
-      reasoning:     'No tool call received',
+      productCode: null, familyCode: null, confidence: 0, resultState: 'not_found',
+      candidates: [], catalogPage: null, reasoning: 'No tool call received',
       photo_request: null,
-      usage:         { inputTokens: inputTokensTotal, outputTokens: outputTokensTotal },
+      usage: { inputTokens: inputTokensTotal, outputTokens: outputTokensTotal },
     }
   }
 
@@ -1750,14 +1869,12 @@ Rules:
   ): Anthropic.MessageParam['content'] {
     const content: Anthropic.MessageParam['content'] = []
 
-    // Agent photos
     for (const [i, photo] of photos.entries()) {
       content.push({ type: 'text', text: i === 0 ? 'Query photo (primary):' : 'Query photo (secondary angulation):' })
       content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo } })
     }
 
-    // Candidate reference images
-    content.push({ type: 'text', text: `\nTop-${candidates.length} candidate families from visual similarity search:\n` })
+    content.push({ type: 'text', text: `\nTop-${candidates.length} candidate families:\n` })
 
     for (const candidate of candidates) {
       content.push({ type: 'text', text: `\nCandidate: ${candidate.familyCode} — ${candidate.description}` })
@@ -1775,21 +1892,20 @@ Rules:
     usage: { inputTokens: number; outputTokens: number },
   ): IdentificationResult {
     const raw = input as {
-      product_code:  string
-      candidates?:   string[]
-      confidence:    number
-      reasoning:     string
+      product_code:   string
+      candidates?:    string[]
+      confidence:     number
+      reasoning:      string
       photo_request?: string
     }
 
     const productCode = raw.product_code?.trim() || null
-    const familyCode  = productCode ? productCode.split('.')[0] ?? null : null
+    const familyCode  = productCode ? (productCode.split('.')[0] ?? null) : null
     const candidates  = raw.candidates ?? []
     const hasMatch    = !!productCode && raw.confidence >= 0.85
 
     return {
-      productCode,
-      familyCode,
+      productCode, familyCode,
       confidence:    raw.confidence,
       resultState:   hasMatch ? 'match' : (candidates.length > 0 ? 'shortlist' : 'not_found'),
       candidates,
@@ -1801,30 +1917,47 @@ Rules:
   }
   ```
 
-- [ ] **Step 3: Fix any import errors in callers**
+- [ ] **Step 3: Update main.ts — remove old deps from createCatalogVisionService**
 
-  The `createCatalogVisionService` might be called from `main.ts` or a route. Find callers:
+  In `backend/src/main.ts` around line 429, update the vision service construction:
 
-  ```bash
-  grep -r "createCatalogVisionService\|CatalogVisionServiceDeps\|anthropic-vision-service" \
-    archibald-web-app/backend/src --include="*.ts" -l
+  ```typescript
+  // Remove: anthropicCatalogClient construction (lines ~426-428) if it's only used for vision
+  // Keep: anthropicCatalogClient if it's also used for catalog-ingestion handler
+  
+  const catalogVisionService = config.recognition.anthropicApiKey
+    ? createCatalogVisionService({
+        apiKey:    config.recognition.anthropicApiKey,
+        timeoutMs: config.recognition.timeoutMs,
+        // pool and catalogPdf removed
+      })
+    : undefined
   ```
 
-  Update each caller to pass the new `deps` shape: remove `pool` and `catalogPdf` deps (no longer needed). The new `deps` only needs `apiKey` and `timeoutMs`.
+  Check that `anthropicCatalogClient` is still needed for `catalog-ingestion` (it is — keep it). Only remove `pool` and `catalogPdf` from `createCatalogVisionService` call.
 
-- [ ] **Step 4: Run type check + tests**
+  Remove the `catalogPdf` argument from `createApp`:
+  ```typescript
+  // Remove from createApp call:
+  // catalogPdf,   ← delete this line
+  ```
+
+  And remove `catalogPdf` from the `createApp` parameter type / `AppDeps` interface if present.
+
+- [ ] **Step 4: Run full build and tests**
 
   ```bash
   npm run build --prefix archibald-web-app/backend
-  npm test --prefix archibald-web-app/backend -- recognition
+  npm test --prefix archibald-web-app/backend
   ```
 
-  Expected: 0 build errors, all recognition tests pass.
+  Expected: 0 errors, all tests pass.
 
 - [ ] **Step 5: Commit**
 
   ```bash
-  git add archibald-web-app/backend/src/services/anthropic-vision-service.ts
+  git add archibald-web-app/backend/src/services/anthropic-vision-service.ts \
+          archibald-web-app/backend/src/main.ts
   git commit -m "feat(recognition): vision service redesign — single-turn, photo_request, no RULE A/B"
   ```
 
@@ -1832,26 +1965,23 @@ Rules:
 
 ## Task 11: Frontend UX — new recognition states
 
-Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `photo2_request`/`analyzing2`/`shortlist_visual`.
-
 **Files:**
 - Modify: `frontend/src/pages/ToolRecognitionPage.tsx`
 - Modify: `frontend/src/pages/ToolRecognitionPage.spec.tsx`
 
-- [ ] **Step 1: Write failing tests for new states**
+- [ ] **Step 1: Write failing tests**
 
-  Read `frontend/src/pages/ToolRecognitionPage.spec.tsx` fully, then add/update tests for:
+  Read `frontend/src/pages/ToolRecognitionPage.spec.tsx`. Update/add tests for new states:
 
   ```typescript
-  // New tests to add after reading existing spec file:
+  // Add these tests to the spec file (alongside existing ones):
 
   describe('photo2_request state', () => {
-    test('shows Claude instruction text when result is photo2_request', async () => {
-      // Mock identifyInstrument to return photo2_request
+    test('mostra istruzione Claude quando result è photo2_request', async () => {
       vi.mocked(identifyInstrument).mockResolvedValueOnce({
         result: {
-          state: 'photo2_request',
-          candidates: ['879.104.014', '863.104.014'],
+          state:       'photo2_request',
+          candidates:  ['879.104.014', '863.104.014'],
           instruction: 'Fotografa la punta dall\'alto per vedere se è piatta o arrotondata',
         },
         budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
@@ -1859,7 +1989,6 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
         imageHash:    'abc',
       })
 
-      // Capture photo 1, proceed to identification
       await mockCapture()
       await userEvent.click(screen.getByText(/procedi con 1 foto/i))
       await userEvent.click(screen.getByText(/identifica/i))
@@ -1867,19 +1996,19 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
       await waitFor(() => {
         expect(screen.getByText(/ho bisogno di un'altra foto/i)).toBeInTheDocument()
         expect(screen.getByText(/fotografa la punta dall'alto/i)).toBeInTheDocument()
-        expect(screen.getByText(/scatta ora/i)).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /scatta ora/i })).toBeInTheDocument()
       })
     })
   })
 
   describe('shortlist_visual state', () => {
-    test('shows candidates list when result is shortlist_visual', async () => {
+    test('mostra lista candidati quando result è shortlist_visual', async () => {
       vi.mocked(identifyInstrument).mockResolvedValueOnce({
         result: {
           state: 'shortlist_visual',
           candidates: [
-            { productId: '879.104.014', productName: '879', familyCode: '879', thumbnailUrl: null, referenceImages: [], confidence: 0.7 },
-            { productId: '863.104.014', productName: '863', familyCode: '863', thumbnailUrl: null, referenceImages: [], confidence: 0.6 },
+            { familyCode: '879', thumbnailUrl: null, referenceImages: [] },
+            { familyCode: '863', thumbnailUrl: null, referenceImages: [] },
           ],
         },
         budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
@@ -1905,11 +2034,11 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
   npm test --prefix archibald-web-app/frontend -- ToolRecognitionPage
   ```
 
-  Expected: FAIL — states not implemented.
+  Expected: FAIL — new states not implemented.
 
-- [ ] **Step 3: Update `PageState` type in ToolRecognitionPage.tsx**
+- [ ] **Step 3: Update `PageState` type**
 
-  Replace the `PageState` type:
+  In `ToolRecognitionPage.tsx`, replace the `PageState` type:
 
   ```typescript
   type PageState =
@@ -1927,8 +2056,6 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
   ```
 
 - [ ] **Step 4: Update `runIdentification` callback**
-
-  Replace the existing `runIdentification` with:
 
   ```typescript
   const runIdentification = useCallback(async (images: string[]) => {
@@ -1973,9 +2100,9 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
   }, [vibrate, playSuccessBeep])
   ```
 
-- [ ] **Step 5: Add `handlePhoto2Shutter` callback**
+- [ ] **Step 5: Replace `handleDisambiguationShutter` with `handlePhoto2Shutter`**
 
-  Replace the old `handleDisambiguationShutter` with:
+  Delete `handleDisambiguationShutter`. Add:
 
   ```typescript
   const handlePhoto2Shutter = useCallback(async () => {
@@ -1991,7 +2118,7 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
 
 - [ ] **Step 6: Add `photo2_request` render block**
 
-  In the render section, add (before the `return` of the main camera view):
+  Add before the main camera return:
 
   ```typescript
   if (pageState === 'photo2_request') {
@@ -2007,13 +2134,12 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
       }}>
         <div style={{ fontSize: 52 }}>📷</div>
         <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: 18 }}>
-          Ho bisogno di un'altra foto
+          Ho bisogno di un&apos;altra foto
         </div>
         {instruction && (
           <div style={{
             color: '#e5e7eb', fontSize: 15, textAlign: 'center',
-            maxWidth: 320, lineHeight: 1.6,
-            fontStyle: 'italic',
+            maxWidth: 320, lineHeight: 1.6, fontStyle: 'italic',
           }}>
             «{instruction}»
           </div>
@@ -2021,11 +2147,9 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
         <button
           onClick={handlePhoto2Shutter}
           style={{
-            marginTop: 8,
-            background: 'rgba(245,158,11,0.25)',
-            border: '1px solid rgba(245,158,11,0.5)',
-            color: '#fbbf24', borderRadius: 10,
-            padding: '14px 32px', fontSize: 16,
+            marginTop: 8, background: 'rgba(245,158,11,0.25)',
+            border: '1px solid rgba(245,158,11,0.5)', color: '#fbbf24',
+            borderRadius: 10, padding: '14px 32px', fontSize: 16,
             fontWeight: 700, cursor: 'pointer',
           }}
         >
@@ -2044,24 +2168,13 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
 
 - [ ] **Step 7: Update `shortlist` → `shortlist_visual` in render**
 
-  Find all `pageState === 'shortlist'` and `result.state === 'shortlist'` in the render and replace with `shortlist_visual`. Update the candidates access: `result.candidates` is now `CandidateMatch[]` instead of `ProductMatch[]`.
+  Find `pageState === 'shortlist'` and `result.state === 'shortlist'` in the render section. Replace with `shortlist_visual`. Update the candidates type: `candidates` is now `CandidateMatch[]` (with `familyCode`, `thumbnailUrl`, `referenceImages`) instead of `ProductMatch[]`. Remove the `candidateCatalogImages` catalog-page fetching (no longer needed — reference images come from `referenceImages` directly).
 
-  The shortlist_visual render should show candidates with their reference images if available. Minimal implementation (keeps existing structure, adapts types):
+- [ ] **Step 8: Remove old disambiguation states**
 
-  ```typescript
-  if (pageState === 'shortlist_visual' && identifyResult?.result.state === 'shortlist_visual') {
-    const candidates = identifyResult.result.candidates
-    return (
-      // ... existing shortlist render adapted to shortlist_visual state name + CandidateMatch type
-    )
-  }
-  ```
+  Delete any render blocks for `disambiguation_camera` and `disambiguation_analyzing`. Remove `getCatalogPageImage` import if unused (it is — `catalog-page` endpoint was removed).
 
-- [ ] **Step 8: Remove old disambiguation states from render**
-
-  Delete any `pageState === 'disambiguation_camera'` and `pageState === 'disambiguation_analyzing'` render blocks. Delete `handleDisambiguationShutter`.
-
-- [ ] **Step 9: Run tests**
+- [ ] **Step 9: Run tests and type check**
 
   ```bash
   npm test --prefix archibald-web-app/frontend -- ToolRecognitionPage
@@ -2080,9 +2193,9 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
 
 ---
 
-## Task 12: Final integration check + gate
+## Task 12: Integration check + pre-deploy checklist
 
-- [ ] **Step 1: Run full test suite**
+- [ ] **Step 1: Run full test suites**
 
   ```bash
   npm test --prefix archibald-web-app/backend
@@ -2102,71 +2215,50 @@ Replace `disambiguation_camera`/`disambiguation_analyzing`/`shortlist` with `pho
 
 - [ ] **Step 3: VPS pre-deploy checklist**
 
-  Before deploying:
-  - [ ] `JINA_API_KEY` added to VPS `.env`
-  - [ ] Migration 056 staged for apply (CI/CD applies automatically or apply manually first)
-  - [ ] `build-visual-index` operation registered in the operations processor (check `main.ts`)
-  - [ ] `RECOGNITION_MIN_SIMILARITY=0.20` set in `.env` (conservative first run — calibrate after 100–200 real scans)
+  - [ ] `JINA_API_KEY` set in VPS `.env`
+  - [ ] `RECOGNITION_MIN_SIMILARITY=0.20` set in VPS `.env` (calibrate after 100–200 real scans)
+  - [ ] Migration 056 applied (automatically by CI/CD or manually before deploy)
+  - [ ] Run `build-visual-index` operation from admin panel after deploy to populate index
+  - [ ] Verify coverage: `SELECT source_type, COUNT(*) FROM shared.catalog_family_images WHERE visual_embedding IS NOT NULL GROUP BY source_type`
 
 - [ ] **Step 4: Post-deploy validation**
 
-  After deploy + index build:
-  ```bash
-  # Check index coverage
-  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-    "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
-     exec -T postgres psql -U archibald -d archibald \
-     -c 'SELECT source_type, COUNT(*) FROM shared.catalog_family_images WHERE visual_embedding IS NOT NULL GROUP BY source_type;'"
-  ```
+  - [ ] Run 5 test scans; confirm `recognition_log.result_state` (expect more `match`, fewer `shortlist`)
+  - [ ] Check `tokens_used` in logs (< 10k per scan vs 60–160k before)
+  - [ ] After ≥ 100 scans: calibrate `RECOGNITION_MIN_SIMILARITY` from P10 of real match similarity distribution
 
-  Expected: campionario rows present.
+- [ ] **Step 5: Known dead code cleanup (follow-up PR)**
 
-  - [ ] Test 5 real scans; confirm `recognition_log.result_state` distribution (should show more `match`, fewer `not_found`)
-  - [ ] Check token usage in logs (`tokens_used` < 10k per scan vs 60–160k before)
-
-- [ ] **Step 5: Calibrate `RECOGNITION_MIN_SIMILARITY`**
-
-  After ≥ 100 real scans:
-  ```sql
-  SELECT MIN(similarity), AVG(similarity), MAX(similarity)
-  FROM recognition_log rl
-  JOIN lateral (
-    SELECT 1 - (visual_embedding <=> ...) AS similarity ...
-  ) ...
-  ```
-  Set `RECOGNITION_MIN_SIMILARITY` to ~P10 of the similarity distribution for genuine matches.
+  The following are now unused but intentionally deferred to a follow-up:
+  - `frontend/src/api/recognition.ts` — `getCatalogPageImage`, `getRulerImage` functions
+  - `frontend/src/api/recognition.spec.ts` — tests for those functions
+  - `backend/src/routes/recognition.ts` — `/catalog-page/:pageNumber` and `/ruler` endpoints were removed in Task 9 Step 5; verify removal was complete
 
 ---
 
-## Self-Review
-
-**Spec coverage:**
+## Self-Review — Spec Coverage
 
 | Spec requirement | Task |
 |---|---|
 | Migration 056 (catalog_family_images + HNSW + last_indexed_at) | Task 1 |
+| Config: jinaApiKey, minSimilarity + main.spec.ts mock | Task 2 |
+| Types: RecognitionResult new union + CandidateMatch + photo_request in IdentificationResult | Task 3 |
+| Campionario strip crop per family (equal-width, re-crop at query time via metadata) | Task 4 |
 | Jina v4 REST embedding service | Task 5 |
-| Campionario strip crop per family (equal-width) | Task 4 |
-| ANN query top-50 → dedup top-10 | Task 9 |
-| Re-crop at query time via metadata | Task 9 (retrieveTop10Candidates) |
-| Confidence routing ≥0.85→match, <0.85 first→photo2_request, <0.85 second→shortlist_visual | Task 9 |
-| RECOGNITION_MIN_SIMILARITY early exit fallback | Task 2 (config), Task 9 (engine) |
-| Jina-down fallback (getFallbackFamilies) | Task 6 + Task 9 |
-| photo_request field from Claude | Task 10 (vision service) + Task 9 (engine uses it) |
-| Remove search_catalog, get_catalog_page, RULE A, RULE B | Task 10 |
-| New prompt (free-form visual comparison, no enumerative lists) | Task 10 |
+| catalog_family_images repository (upsert, updateEmbedding, queryTopK, getFallbackFamilies) | Task 6 |
+| Index builder script | Task 7 |
+| build-visual-index handler + operation-types.ts + main.ts registration | Task 8 |
+| ANN query + dedup top-10 + confidence routing | Task 9 |
+| RECOGNITION_MIN_SIMILARITY early exit (top similarity < threshold → not_found) | Task 9 (engine) |
+| not_found when candidates.length === 0 (no false photo2_request) | Task 9 (engine + test) |
+| shortlist_visual candidates include referenceImages from top10 | Task 9 (engine) |
+| Jina-down fallback (getFallbackFamilies) | Task 9 (engine) |
+| Route: remove candidates Zod schema, add embeddingSvc to deps | Task 9 (route) |
+| recognition.spec.ts updated for new deps | Task 9 (route spec) |
+| Remove search_catalog, get_catalog_page, RULE A, RULE B, 6-iter loop | Task 10 |
+| photo_request field from Claude (new prompt, simplified tools) | Task 10 |
+| main.ts: remove pool/catalogPdf from vision service deps | Task 10 |
 | Frontend: photo2_request state with Claude instruction | Task 11 |
 | Frontend: shortlist_visual state | Task 11 |
 | Remove disambiguation_camera + disambiguation_analyzing | Task 11 |
-| Index builder script + operation handler | Tasks 7 + 8 |
-| Config: jinaApiKey, minSimilarity | Task 2 |
-| Types: RecognitionResult new discriminated union (backend + frontend) | Task 3 |
-
-**No gaps found.**
-
-**Type consistency check:**
-- `CandidateWithImages` defined in Task 3 (types.ts), used in Task 9 (engine), Task 10 (vision service) ✓
-- `photo_request: string | null` in `IdentificationResult` — added in Task 3, read in Task 9 ✓
-- `shortlist_visual` in `RecognitionResult` (backend Task 3) → matched in `recognition-engine.ts` Task 9 ✓
-- `CandidateMatch` in frontend Task 3 → used in `shortlist_visual` rendering Task 11 ✓
-- `identifyInstrument` signature (no `candidates?` param) in Task 3 — `handlePhoto2Shutter` in Task 11 calls `identifyInstrument(token, allImages)` ✓
+| Hard cap: max 2 photos automatic | Task 9 (isSecondPhoto) |
