@@ -3,7 +3,8 @@ import { createVisualEmbeddingService } from './visual-embedding-service'
 
 const FAKE_EMBEDDING = Array.from({ length: 2048 }, (_, i) => i * 0.001)
 const FAKE_API_KEY   = 'jina-test-key'
-const FAKE_B64       = Buffer.from('FAKE_IMAGE').toString('base64')
+// Minimal 1×1 grey JPEG — needed so sharp can resize without throwing
+const FAKE_B64       = '/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q=='
 
 function mockFetch(status: number, body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -38,7 +39,7 @@ describe('createVisualEmbeddingService / embedImage', () => {
     await createVisualEmbeddingService(FAKE_API_KEY).embedImage(FAKE_B64, 'retrieval.query')
     const [, init] = fetchMock.mock.calls[0]!
     const body     = JSON.parse((init as RequestInit).body as string)
-    expect(body.input[0].image).toBe(`data:image/jpeg;base64,${FAKE_B64}`)
+    expect(body.input[0].image).toMatch(/^data:image\/jpeg;base64,/)
     expect(body.task).toBe('retrieval.query')
   })
 

@@ -1,5 +1,8 @@
-const JINA_API_URL = 'https://api.jina.ai/v1/embeddings'
-const JINA_MODEL   = 'jina-embeddings-v4'
+import sharp from 'sharp'
+
+const JINA_API_URL  = 'https://api.jina.ai/v1/embeddings'
+const JINA_MODEL    = 'jina-embeddings-v4'
+const EMBED_MAX_PX  = 512
 
 export type EmbeddingTask = 'retrieval.passage' | 'retrieval.query'
 
@@ -13,11 +16,21 @@ export function createVisualEmbeddingService(apiKey: string): VisualEmbeddingSer
   }
 }
 
+async function resizeToMaxSide(base64: string): Promise<string> {
+  const buf     = Buffer.from(base64, 'base64')
+  const resized = await sharp(buf)
+    .resize(EMBED_MAX_PX, EMBED_MAX_PX, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer()
+  return resized.toString('base64')
+}
+
 async function embedImage(
   apiKey:      string,
   imageBase64: string,
   task:        EmbeddingTask,
 ): Promise<number[]> {
+  const resizedBase64 = await resizeToMaxSide(imageBase64)
   const response = await fetch(JINA_API_URL, {
     method:  'POST',
     headers: {
@@ -27,7 +40,7 @@ async function embedImage(
     body: JSON.stringify({
       model: JINA_MODEL,
       task,
-      input: [{ image: `data:image/jpeg;base64,${imageBase64}` }],
+      input: [{ image: `data:image/jpeg;base64,${resizedBase64}` }],
     }),
   })
 

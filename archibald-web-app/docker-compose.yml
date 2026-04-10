@@ -53,6 +53,7 @@ services:
       - backend-cache:/app/.cache
       - backend-logs:/app/logs
       - product-images:/app/assets/product-images
+      - /home/deploy/komet-campionari:/app/komet-campionari:ro
 
 volumes:
   pgdata:
