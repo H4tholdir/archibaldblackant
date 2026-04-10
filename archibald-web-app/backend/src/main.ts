@@ -430,10 +430,8 @@ async function bootstrap(): Promise<void> {
     : undefined;
   const catalogVisionService = config.recognition.anthropicApiKey
     ? createCatalogVisionService({
-        apiKey: config.recognition.anthropicApiKey,
+        apiKey:    config.recognition.anthropicApiKey,
         timeoutMs: config.recognition.timeoutMs,
-        pool,
-        catalogPdf,
       })
     : undefined;
   const embeddingSvc = config.recognition.jinaApiKey
