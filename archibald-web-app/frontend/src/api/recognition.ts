@@ -41,6 +41,15 @@ export type IdentifyResponse = {
   imageHash:    string        // SHA-256 del frame, calcolato lato server
 }
 
+export type KometFeatures = {
+  material:        string
+  shape:           string
+  shankType:       string
+  shankDiameterMm: number
+  headDiameterMm:  number
+  gritLabel?:      string
+}
+
 export type ProductGalleryImage = {
   id:        number
   url:       string
@@ -74,6 +83,7 @@ export type ProductEnrichment = {
   gallery:            ProductGalleryImage[]
   competitors:        []
   sizeVariants:       SizeVariant[]
+  features?:          KometFeatures | null  // null per famiglie non riconosciute
   recognitionHistory: Array<{
     scannedAt:  string
     agentId:    string
