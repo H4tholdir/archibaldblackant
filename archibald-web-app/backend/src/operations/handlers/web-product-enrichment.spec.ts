@@ -3,6 +3,8 @@ import type { DbPool } from '../../db/pool';
 import {
   createWebProductEnrichmentHandler,
   parseKometFrPage,
+  filterKometUkImages,
+  parseKometUkJson,
 } from './web-product-enrichment';
 
 function createMockPool(): DbPool {
@@ -156,9 +158,11 @@ describe('createWebProductEnrichmentHandler', () => {
     const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
     await handler(null, {}, 'service-account', onProgress);
 
-    expect(fetchUrl).toHaveBeenCalledTimes(2);
+    expect(fetchUrl).toHaveBeenCalledTimes(4);
     expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/879');
     expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/863');
+    expect(fetchUrl).toHaveBeenCalledWith('https://kometuk.com/products/879.json');
+    expect(fetchUrl).toHaveBeenCalledWith('https://kometuk.com/products/863.json');
     expect(onProgress).toHaveBeenCalledWith(100, 'Done');
   });
 
@@ -375,5 +379,110 @@ describe('createWebProductEnrichmentHandler', () => {
     );
 
     expect(upsertCall![1]).toEqual(['879.314.014']);
+  });
+});
+
+// ── filterKometUkImages tests ────────────────────────────────────────────────
+
+const SHOPIFY_IMAGES = [
+  { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_012_450_abc.png', alt: 'H1 FG 012' },
+  { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_def.png', alt: 'H1 FG 016' },
+  { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_018_450_ghi.png', alt: 'H1 FG 018' },
+  { src: 'https://cdn.shopify.com/s/files/01tc_h1_family_pack_jkl.png', alt: 'H1 family' },
+];
+
+describe('filterKometUkImages', () => {
+  test('restituisce solo le immagini che matchano shankCode e sizeCode', () => {
+    expect(filterKometUkImages(SHOPIFY_IMAGES, '314', '016')).toEqual([{
+      url:       'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_def.png',
+      altText:   'H1 FG 016',
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
+  });
+
+  test('restituisce array vuoto se nessun match', () => {
+    const result = filterKometUkImages(SHOPIFY_IMAGES, '314', '021');
+    expect(result).toEqual([]);
+  });
+
+  test('scarta immagini di famiglia senza codice misura specifico', () => {
+    const result = filterKometUkImages(SHOPIFY_IMAGES, '314', '016');
+    expect(result.every(img => img.url.includes('_314_016_'))).toBe(true);
+  });
+
+  test('normalizza URL e altText in GalleryImage', () => {
+    const result = filterKometUkImages(SHOPIFY_IMAGES, '314', '016');
+    expect(result[0]).toMatchObject({
+      url:       expect.stringContaining('cdn.shopify.com'),
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    });
+  });
+
+  test('controlla solo il basename del URL, non segmenti intermedi del path', () => {
+    const imageWithCodeInPath = [
+      { src: 'https://cdn.shopify.com/path_314_016_/different_filename.png', alt: 'image' },
+    ];
+    const result = filterKometUkImages(imageWithCodeInPath, '314', '016');
+    expect(result).toEqual([]);
+  });
+
+  test('mappa alt null a altText null nella GalleryImage', () => {
+    const imageWithNullAlt = [
+      { src: 'https://cdn.shopify.com/tc_314_016_image.png', alt: null },
+    ];
+    const result = filterKometUkImages(imageWithNullAlt, '314', '016');
+    expect(result).toEqual([{
+      url:       'https://cdn.shopify.com/tc_314_016_image.png',
+      altText:   null,
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
+  });
+
+  test('ignora query string CDN (es. ?v=123) nel basename', () => {
+    const imageWithQueryString = [
+      { src: 'https://cdn.shopify.com/s/files/tc_314_016_450.png?v=1712345678', alt: 'H1' },
+    ];
+    expect(filterKometUkImages(imageWithQueryString, '314', '016')).toEqual([{
+      url:       'https://cdn.shopify.com/s/files/tc_314_016_450.png?v=1712345678',
+      altText:   'H1',
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
+  });
+});
+
+// ── parseKometUkJson tests ───────────────────────────────────────────────────
+
+const shopifyJson = JSON.stringify({
+  product: {
+    images: [
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_abc.png', alt: 'H1 FG 016' },
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_204_016_450_def.png', alt: 'H1 CA 016' },
+    ],
+  },
+});
+
+describe('parseKometUkJson', () => {
+  test('estrae immagini dal JSON Shopify', () => {
+    const images = parseKometUkJson(shopifyJson);
+    expect(images).toEqual([
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_abc.png', alt: 'H1 FG 016' },
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_204_016_450_def.png', alt: 'H1 CA 016' },
+    ]);
+  });
+
+  test('restituisce array vuoto su JSON malformato', () => {
+    expect(parseKometUkJson('not json')).toEqual([]);
+  });
+
+  test('restituisce array vuoto se product.images assente', () => {
+    expect(parseKometUkJson(JSON.stringify({ product: {} }))).toEqual([]);
+  });
+
+  test('restituisce array vuoto se product.images non è un array', () => {
+    expect(parseKometUkJson(JSON.stringify({ product: { images: 'not-an-array' } }))).toEqual([]);
   });
 });
