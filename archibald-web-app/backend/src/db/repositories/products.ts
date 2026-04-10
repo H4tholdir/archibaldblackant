@@ -1,4 +1,5 @@
 import type { DbPool } from '../pool';
+import { normalizePictograms, type PictogramLabel } from '../../utils/pictogram-labels';
 
 type ProductRow = {
   id: string;
@@ -830,6 +831,22 @@ async function getShankLengthMm(
   return rows[0]?.shank_length_mm ?? null;
 }
 
+async function getPictograms(pool: DbPool, productId: string): Promise<PictogramLabel[]> {
+  const { rows } = await pool.query<{ symbol: string }>(
+    `SELECT DISTINCT elem->>'symbol' AS symbol
+     FROM shared.product_details pd,
+          shared.catalog_entries ce,
+          jsonb_array_elements(ce.pictograms) elem
+     WHERE pd.product_id = $1
+       AND EXISTS (SELECT 1 FROM unnest(ce.family_codes) fc WHERE split_part(fc, '.', 1) = pd.catalog_family_code)
+       AND ce.pictograms IS NOT NULL
+       AND ce.pictograms != '[]'::jsonb
+     ORDER BY symbol`,
+    [productId],
+  );
+  return normalizePictograms(rows.map(r => r.symbol));
+}
+
 export {
   getProducts,
   getProductById,
@@ -862,7 +879,9 @@ export {
   getVariantPriceRange,
   getProductPricesByNames,
   getShankLengthMm,
+  getPictograms,
   type ProductRow,
+  type PictogramLabel,
   type ProductWithoutVatRow,
   type ProductUpsertInput,
   type UpsertResult,
