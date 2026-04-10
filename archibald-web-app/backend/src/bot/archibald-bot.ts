@@ -10727,28 +10727,22 @@ export class ArchibaldBot {
 
   private async typeOrClear(inputId: string, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    // Re-focus the field before keyboard events. After waitForDevExpressIdle,
-    // XHR callbacks may have moved focus to another element. Ctrl+A without
-    // the right element focused is a no-op on the target field, causing
-    // page.type() to append to the restored value instead of replacing it.
-    await this.page.evaluate((id: string) => {
-      const el = document.getElementById(id);
-      if (el) (el as HTMLElement).focus();
-    }, inputId);
-    // Always Ctrl+A first: DevExpress may have restored the original value during
-    // waitForDevExpressIdle (after our native-setter clear), so we must select-all
-    // before typing to guarantee replacement rather than appending.
-    await this.page.keyboard.down("Control");
-    await this.page.keyboard.press("a");
-    await this.page.keyboard.up("Control");
+    // Triple-click via CDP element handle: focuses the field and selects all text
+    // atomically at the protocol level. More reliable than evaluate.focus() + Ctrl+A
+    // because JS-level focus() can trigger DevExpress event handlers that move focus
+    // before the subsequent keyboard events arrive. CDP click bypasses that race.
+    // Attribute selector avoids CSS-escaping issues with DevExpress IDs.
+    const el = await this.page.$(`[id="${inputId}"]`);
+    if (el) await (el as any).click({ clickCount: 3 });
     if (value === "") {
-      // Delete fires a real 'input' event so DevExpress commits the empty value.
+      // Delete replaces the selection with nothing, firing a real input event
+      // so DevExpress commits the empty value.
       await this.page.keyboard.press("Delete");
     } else {
-      // page.type() replaces the selected content with the first keystroke,
-      // then continues appending. Authentic keydown/keypress/keyup/input events
-      // per character are sufficient for DevExpress to commit the value on Tab.
-      await this.page.type(`#${inputId}`, value, { delay: 5 });
+      // keyboard.type sends events to the currently focused element without
+      // calling focus() again (unlike page.type which would deselect). The first
+      // character replaces the entire selection; subsequent characters append.
+      await this.page.keyboard.type(value, { delay: 5 });
     }
   }
 
