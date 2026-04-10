@@ -174,6 +174,7 @@ export type EnrichmentStats = {
   pendingCatalogEnrichment: number
   pendingWebEnrichment:     number
   lastIngestedPage:         number | null
+  visualIndexCount:         number
 }
 
 export async function getEnrichmentStats(token: string): Promise<EnrichmentStats> {

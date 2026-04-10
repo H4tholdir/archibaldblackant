@@ -89,6 +89,8 @@ export function AdminPage(_props: AdminPageProps) {
   const [enqueuingIngestion, setEnqueuingIngestion] = useState(false);
   const [ingestionQueued, setIngestionQueued] = useState(false);
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
+  const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
+  const [visualIndexQueued, setVisualIndexQueued] = useState(false);
 
   useEffect(() => {
     loadJobs();
@@ -290,6 +292,25 @@ export function AdminPage(_props: AdminPageProps) {
       alert("Errore nell'avvio dell'enrichment. Riprova.");
     } finally {
       setEnqueuingEnrich(false);
+    }
+  };
+
+  const handleBuildVisualIndex = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingVisualIndex(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "build-visual-index", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setVisualIndexQueued(true);
+    } catch {
+      alert("Errore nell'avvio del visual index. Riprova.");
+    } finally {
+      setEnqueuingVisualIndex(false);
     }
   };
 
@@ -637,6 +658,39 @@ export function AdminPage(_props: AdminPageProps) {
                 {enrichmentStats?.pendingWebEnrichment ?? "—"}
               </div>
               <div style={{ width: "80px" }} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Visual index (campionario)</strong>
+                <div style={{ color: visualIndexQueued ? "#1976d2" : "#666", fontSize: "12px", marginTop: 2 }}>
+                  {visualIndexQueued
+                    ? "In corso — gira in background (~5 min)"
+                    : "Strip indicizzate con embedding Jina v4"}
+                </div>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>
+                {enrichmentStats != null ? `${enrichmentStats.visualIndexCount} / 150` : "—"}
+              </div>
+              <button
+                onClick={() => { void handleBuildVisualIndex(); }}
+                disabled={enqueuingVisualIndex || visualIndexQueued}
+                style={{
+                  background: visualIndexQueued ? "#999" : "#7b1fa2",
+                  color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: (enqueuingVisualIndex || visualIndexQueued) ? "not-allowed" : "pointer",
+                  opacity: (enqueuingVisualIndex || visualIndexQueued) ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingVisualIndex ? "..." : visualIndexQueued ? "Avviato" : "Indicizza →"}
+              </button>
             </div>
 
             <div style={{
