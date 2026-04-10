@@ -13,6 +13,10 @@ function sizeCode(variant: SizeVariant): string {
   return parts[parts.length - 1] ?? variant.id
 }
 
+function safeHostname(url: string): string {
+  try { return new URL(url).hostname } catch { return url }
+}
+
 function headDiameterMmFromId(productId: string): number | null {
   const parts = productId.split('.')
   const code = parts[parts.length - 1] ?? ''
@@ -439,9 +443,9 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Misure ── */}
         <div style={{ display: activeTab === 'misure' ? 'block' : 'none' }}>
-          {sizeVariants.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Chip varianti con diametro in mm */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Chip varianti con diametro in mm */}
+            {sizeVariants.length > 0 && (
               <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
                 <div style={{
                   fontSize: 10, color: '#6b7280', letterSpacing: '1px',
@@ -479,41 +483,43 @@ export function ProductDetailPage() {
                   })}
                 </div>
               </div>
+            )}
 
-              {/* Tabella dimensioni per la variante selezionata */}
-              {enrichment?.features && (
-                <div style={{ background: '#1a1a1a', borderRadius: 10, overflow: 'hidden' }}>
-                  {[
-                    { label: 'Diametro della testa',  value: `${enrichment.features.headDiameterMm.toLocaleString('it-IT')} mm` },
-                    { label: 'Tipo di gambo',          value: enrichment.features.shankType },
-                    { label: 'Diametro del gambo',     value: `${enrichment.features.shankDiameterMm.toLocaleString('it-IT')} mm` },
-                  ].map(({ label, value }, i, arr) => (
-                    <div
-                      key={label}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '9px 14px',
-                        borderBottom: i < arr.length - 1 ? '1px solid #222' : 'none',
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: '#6b7280' }}>{label}</div>
-                      <div style={{
-                        fontSize: 12, fontWeight: 600,
-                        color: product.isRetired ? '#6b7280' : '#fff',
-                        fontFamily: "'SF Mono', Consolas, monospace",
-                      }}>
-                        {value}
-                      </div>
+            {/* Tabella dimensioni per la variante selezionata */}
+            {enrichment?.features && (
+              <div style={{ background: '#1a1a1a', borderRadius: 10, overflow: 'hidden' }}>
+                {[
+                  { label: 'Diametro della testa',  value: `${enrichment.features.headDiameterMm.toLocaleString('it-IT')} mm` },
+                  { label: 'Tipo di gambo',          value: enrichment.features.shankType },
+                  { label: 'Diametro del gambo',     value: `${enrichment.features.shankDiameterMm.toLocaleString('it-IT')} mm` },
+                ].map(({ label, value }, i, arr) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '9px 14px',
+                      borderBottom: i < arr.length - 1 ? '1px solid #222' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{label}</div>
+                    <div style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: product.isRetired ? '#6b7280' : '#fff',
+                      fontFamily: "'SF Mono', Consolas, monospace",
+                    }}>
+                      {value}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
-              Nessuna variante di misura disponibile.
-            </div>
-          )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sizeVariants.length === 0 && !enrichment?.features && (
+              <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+                Nessuna variante di misura disponibile.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Tab: Risorse ── */}
@@ -573,7 +579,7 @@ export function ProductDetailPage() {
                     rel="noopener noreferrer"
                     style={{ color: '#4b5563' }}
                   >
-                    {new URL(details.sourceUrl).hostname}
+                    {safeHostname(details.sourceUrl)}
                   </a>
                 </div>
               )}
