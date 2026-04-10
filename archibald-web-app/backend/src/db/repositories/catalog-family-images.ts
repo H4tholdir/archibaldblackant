@@ -99,3 +99,27 @@ export async function getIndexedFamilyCodes(pool: DbPool): Promise<Set<string>> 
   )
   return new Set(rows.map(r => r.family_code))
 }
+
+export type FamilyImageRow = {
+  family_code: string
+  local_path:  string
+  source_type: string
+  metadata:    Record<string, unknown> | null
+}
+
+/** Returns the highest-priority image row per family code — used to re-crop shortlist_visual on cache hit. */
+export async function getBestRowsByFamilyCodes(
+  pool:        DbPool,
+  familyCodes: string[],
+): Promise<FamilyImageRow[]> {
+  if (familyCodes.length === 0) return []
+  const { rows } = await pool.query<FamilyImageRow>(
+    `SELECT DISTINCT ON (family_code) family_code, local_path, source_type, metadata
+     FROM shared.catalog_family_images
+     WHERE family_code = ANY($1)
+       AND visual_embedding IS NOT NULL
+     ORDER BY family_code, priority DESC`,
+    [familyCodes],
+  )
+  return rows
+}

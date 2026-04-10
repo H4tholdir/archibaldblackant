@@ -46,10 +46,17 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
 
   function isRateLimited(userId: string): boolean {
     const now = Date.now();
-    const timestamps = (rateLimitMap.get(userId) ?? []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-    timestamps.push(now);
-    rateLimitMap.set(userId, timestamps);
-    return timestamps.length > RATE_LIMIT_MAX;
+    const recent = (rateLimitMap.get(userId) ?? []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    recent.push(now);
+    rateLimitMap.set(userId, recent);
+    if (recent.length === 1) {
+      // First request after an idle period — clean up after the window expires
+      setTimeout(() => {
+        const ts = rateLimitMap.get(userId);
+        if (ts && !ts.some(t => t > now)) rateLimitMap.delete(userId);
+      }, RATE_LIMIT_WINDOW_MS);
+    }
+    return recent.length > RATE_LIMIT_MAX;
   }
 
   router.post('/identify', async (req: AuthRequest, res) => {

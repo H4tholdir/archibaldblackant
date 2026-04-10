@@ -8,11 +8,12 @@ vi.mock('../db/repositories/recognition-log', () => ({
 }))
 
 vi.mock('../db/repositories/catalog-family-images', () => ({
-  queryTopK:           vi.fn().mockResolvedValue([
+  queryTopK:               vi.fn().mockResolvedValue([
     { id: 1, family_code: '879', similarity: 0.90, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 0, strip_family_count: 3 } },
     { id: 2, family_code: '863', similarity: 0.82, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 1, strip_family_count: 3 } },
   ]),
-  getFallbackFamilies: vi.fn().mockResolvedValue([]),
+  getFallbackFamilies:     vi.fn().mockResolvedValue([]),
+  getBestRowsByFamilyCodes: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('./campionario-strip-cropper', () => ({
@@ -171,5 +172,50 @@ describe('runRecognitionPipeline', () => {
       [BASE64], USER_ID, 'agent',
     )
     expect(result.state).toBe('error')
+  })
+
+  test('fail-closed: errore DB in validateFamilyExists → not_found (mai cache match allucinato)', async () => {
+    const BUDGET_ROW = { id: 1, used_today: 0, daily_limit: 500, throttle_level: 'normal', reset_at: new Date() }
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [] })             // getCached
+        .mockResolvedValueOnce({ rows: [] })             // resetBudgetIfExpired
+        .mockResolvedValueOnce({ rows: [BUDGET_ROW] })  // checkBudget
+        .mockRejectedValueOnce(new Error('DB gone'))    // validateFamilyExists throws
+        .mockResolvedValue({ rows: [{ id: 1 }] }),      // setCached, consumeBudget, log
+    } as unknown as import('../db/pool').DbPool
+    const { result } = await runRecognitionPipeline(
+      { pool, catalogVisionService: makeVision({ confidence: 0.92 }), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
+      [BASE64], USER_ID, 'agent',
+    )
+    expect(result.state).toBe('not_found')
+  })
+
+  test('cache hit shortlist_visual: re-popola referenceImages dai file di origine', async () => {
+    const { getBestRowsByFamilyCodes } = await import('../db/repositories/catalog-family-images')
+    vi.mocked(getBestRowsByFamilyCodes).mockResolvedValueOnce([
+      { family_code: '879', local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 0, strip_family_count: 3 } },
+    ])
+    const BUDGET_ROW = { id: 1, used_today: 0, daily_limit: 500, throttle_level: 'normal', reset_at: new Date() }
+    const cachedShortlist: import('./types').RecognitionResult = {
+      state: 'shortlist_visual',
+      candidates: [{ familyCode: '879', thumbnailUrl: null, referenceImages: [] }],
+    }
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [{ result_json: cachedShortlist }] })  // getCached
+        .mockResolvedValueOnce({ rows: [] })                                   // resetBudgetIfExpired
+        .mockResolvedValueOnce({ rows: [BUDGET_ROW] }),                        // checkBudget
+    } as unknown as import('../db/pool').DbPool
+    const { result } = await runRecognitionPipeline(
+      { pool, catalogVisionService: makeVision(), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
+      [BASE64], USER_ID, 'agent',
+    )
+    expect(result.state).toBe('shortlist_visual')
+    if (result.state === 'shortlist_visual') {
+      const expectedB64 = Buffer.from('FAKE_CROP').toString('base64')
+      expect(result.candidates[0]!.referenceImages).toEqual([expectedB64])
+      expect(result.candidates[0]!.thumbnailUrl).toBe(expectedB64)
+    }
   })
 })

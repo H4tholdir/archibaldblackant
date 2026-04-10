@@ -6,7 +6,7 @@ import type { VisualEmbeddingService } from './visual-embedding-service'
 import { checkBudget, consumeBudget } from './budget-service'
 import { getCached, setCached } from '../db/repositories/recognition-cache'
 import { appendRecognitionLog } from '../db/repositories/recognition-log'
-import { queryTopK, getFallbackFamilies } from '../db/repositories/catalog-family-images'
+import { queryTopK, getFallbackFamilies, getBestRowsByFamilyCodes } from '../db/repositories/catalog-family-images'
 import { cropSingleFamily } from './campionario-strip-cropper'
 import { logger } from '../logger'
 
@@ -51,7 +51,11 @@ export async function runRecognitionPipeline(
   const cached = await getCached(deps.pool, imageHash)
   if (cached) {
     const { budgetState } = await checkBudget(deps.pool, userId, role)
-    return { result: cached.result_json as RecognitionResult, budgetState, processingMs: Date.now() - startMs, imageHash }
+    const cachedResult = cached.result_json as RecognitionResult
+    if (cachedResult.state === 'shortlist_visual') {
+      await fillReferenceImages(cachedResult.candidates, deps.pool)
+    }
+    return { result: cachedResult, budgetState, processingMs: Date.now() - startMs, imageHash }
   }
 
   const { allowed, budgetState } = await checkBudget(deps.pool, userId, role)
@@ -122,7 +126,12 @@ export async function runRecognitionPipeline(
     result = { state: 'shortlist_visual', candidates: shortlistCandidates }
   }
 
-  await setCached(deps.pool, imageHash, result, Buffer.from(images[0]!, 'base64'))
+  // Strip base64 blobs before caching — shortlist_visual candidates carry ~30-80 KB each
+  const cacheableResult: RecognitionResult =
+    result.state === 'shortlist_visual'
+      ? { state: 'shortlist_visual', candidates: result.candidates.map(c => ({ ...c, referenceImages: [], thumbnailUrl: null })) }
+      : result
+  await setCached(deps.pool, imageHash, cacheableResult, Buffer.from(images[0]!, 'base64'))
   await consumeBudget(deps.pool)
 
   const resultState: string = result.state
@@ -212,6 +221,31 @@ async function validateFamilyExists(pool: DbPool, familyCode: string): Promise<b
     )
     return rows.length > 0
   } catch {
-    return true
+    // Fail-closed: DB unavailable → treat as not found to avoid caching hallucinated codes
+    return false
   }
+}
+
+/** Re-populates referenceImages for shortlist_visual candidates retrieved from cache. */
+async function fillReferenceImages(candidates: CandidateMatch[], pool: DbPool): Promise<void> {
+  const rows = await getBestRowsByFamilyCodes(pool, candidates.map(c => c.familyCode))
+  const byFamily = new Map(rows.map(r => [r.family_code, r]))
+  await Promise.all(candidates.map(async candidate => {
+    const row = byFamily.get(candidate.familyCode)
+    if (!row) return
+    try {
+      let buf: Buffer
+      if (row.source_type === 'campionario' && row.metadata) {
+        const meta = row.metadata as { strip_family_index: number; strip_family_count: number }
+        buf = await cropSingleFamily(row.local_path, meta.strip_family_index, meta.strip_family_count)
+      } else {
+        buf = await readFile(row.local_path)
+      }
+      const b64 = buf.toString('base64')
+      candidate.referenceImages = [b64]
+      candidate.thumbnailUrl    = b64
+    } catch {
+      // image unavailable — leave referenceImages empty
+    }
+  }))
 }

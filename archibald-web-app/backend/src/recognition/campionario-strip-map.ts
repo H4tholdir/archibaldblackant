@@ -1,5 +1,3 @@
-import type { PathLike } from 'node:fs'
-
 export const CAMPIONARIO_BASE_DIR = '/app/komet-campionari'
 
 export type StripEntry = {
@@ -1038,7 +1036,3 @@ export function findRelevantStrips(candidateFamilyCodes: string[]): StripEntry[]
   return result
 }
 
-// Re-export the path type so callers can construct full paths without string concatenation
-export function stripFullPath(relativePath: string): PathLike {
-  return `${CAMPIONARIO_BASE_DIR}/${relativePath}` as PathLike
-}
