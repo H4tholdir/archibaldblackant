@@ -95,7 +95,11 @@ const FULL_ENRICHMENT: ProductEnrichment = {
   details: {
     clinicalDescription: 'Per rifinitura smalto e dentina',
     procedures: 'Usare a 150.000 RPM con irrigazione',
-    performanceData: { durabilityPct: 85, sharpnessPct: 90, controlStars: 4, maxRpm: 160000, minSprayMl: 30 },
+    rpmMax: 160000,
+    packagingUnits: 5,
+    sterile: false,
+    singleUse: false,
+    notes: null,
     videoUrl: null, pdfUrl: null, sourceUrl: null,
   },
   gallery: [
@@ -104,9 +108,9 @@ const FULL_ENRICHMENT: ProductEnrichment = {
   ],
   competitors: [],
   sizeVariants: [
-    { productId: 'H1.314.012', productName: 'TC Round Ø1.2', familyCode: 'H1', headSizeMm: 1.2, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
-    { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
-    { productId: 'H1.314.018', productName: 'TC Round Ø1.8', familyCode: 'H1', headSizeMm: 1.8, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
+    { id: 'ERP-012', name: 'H1.314.012', price: null },
+    { id: 'ERP-016', name: 'H1.314.016', price: null },
+    { id: 'ERP-018', name: 'H1.314.018', price: null },
   ],
   recognitionHistory: [
     { scannedAt: '2026-04-04T14:30:00Z', agentId: 'agent-1', confidence: 0.95, cacheHit: false },
@@ -147,13 +151,14 @@ describe('ProductDetailPage — performance e CTA', () => {
     vi.spyOn(productsApi, 'getProducts').mockResolvedValue(MOCK_PRODUCTS_RESPONSE)
   })
 
-  it('mostra barre performance quando performance_data è disponibile', async () => {
+  it('mostra velocità massima RPM e confezione dal catalogo', async () => {
     renderPage()
     await waitFor(() =>
-      expect(screen.getByText('Durata')).toBeInTheDocument()
+      expect(screen.getByText('Velocità massima')).toBeInTheDocument()
     )
-    expect(screen.getByText('Affilatura')).toBeInTheDocument()
     expect(screen.getByText(/160[.,]?000\s*RPM/i)).toBeInTheDocument()
+    expect(screen.getByText('Confezione')).toBeInTheDocument()
+    expect(screen.getByText(/5\s*pz/)).toBeInTheDocument()
   })
 
   it('mostra tab competitor con placeholder prossima versione', async () => {

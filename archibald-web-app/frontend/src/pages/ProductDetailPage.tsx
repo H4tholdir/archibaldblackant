@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getProductEnrichment } from '../api/recognition'
 import { getProducts } from '../api/products'
-import type { ProductEnrichment, ProductGalleryImage } from '../api/recognition'
+import type { ProductEnrichment, ProductGalleryImage, SizeVariant } from '../api/recognition'
 import type { Product } from '../api/products'
 
 type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor' | 'risorse'
 
-function sizeCode(variant: { productId: string; headSizeMm: number }): string {
-  const parts = variant.productId.split('.')
-  return parts[parts.length - 1] ?? String(Math.round(variant.headSizeMm * 10)).padStart(3, '0')
+function sizeCode(variant: SizeVariant): string {
+  const parts = variant.name.split('.')
+  return parts[parts.length - 1] ?? variant.id
 }
 
 // ── Gallery ──────────────────────────────────────────────────────────────────
@@ -218,7 +218,6 @@ export function ProductDetailPage() {
   const details = enrichment?.details ?? null
   const gallery = enrichment?.gallery ?? []
   const sizeVariants = enrichment?.sizeVariants ?? []
-  const pd = details?.performanceData ?? null
 
   const priceFormatted = new Intl.NumberFormat('it-IT', {
     style: 'currency', currency: 'EUR',
@@ -280,47 +279,42 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Prodotto ── */}
         <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
-          {pd ? (
-            <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
-                Performance vs. standard di mercato
-              </div>
-              {[
-                { label: 'Durata', value: pd.durabilityPct },
-                { label: 'Affilatura', value: pd.sharpnessPct },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
-                  <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>{label}</div>
-                  <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${value}%`, height: 5, borderRadius: 3,
-                      background: 'linear-gradient(90deg, #b8860b, #ffd700)',
-                    }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
-                    {value}%
+          {details && (details.rpmMax || details.packagingUnits != null || details.notes) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {details.rpmMax && (
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a2a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>⚡</div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Velocità massima</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                      {details.rpmMax.toLocaleString('it-IT')} RPM
+                    </div>
                   </div>
                 </div>
-              ))}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>Controllo</div>
-                <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${(pd.controlStars / 5) * 100}%`, height: 5, borderRadius: 3,
-                    background: 'linear-gradient(90deg, #b8860b, #ffd700)',
-                  }} />
+              )}
+              {details.packagingUnits != null && (
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a1a2a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Confezione</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                      {details.packagingUnits} pz
+                      {details.sterile && <span style={{ fontSize: 12, color: '#22c55e', marginLeft: 8 }}>Sterile</span>}
+                      {details.singleUse && <span style={{ fontSize: 12, color: '#f59e0b', marginLeft: 8 }}>Monouso</span>}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
-                  {'★'.repeat(pd.controlStars)}{'☆'.repeat(5 - pd.controlStars)}
+              )}
+              {details.notes && (
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Note</div>
+                  <div style={{ fontSize: 13, color: '#d1d5db', lineHeight: 1.6 }}>{details.notes}</div>
                 </div>
-              </div>
-              <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>
-                Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
-              </div>
+              )}
             </div>
           ) : (
             <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
-              Dati performance non ancora disponibili per questo prodotto.
+              Dati tecnici non ancora disponibili per questo prodotto.
             </div>
           )}
         </div>
@@ -354,11 +348,11 @@ export function ProductDetailPage() {
               </div>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {sizeVariants.map(v => {
-                  const isActive = v.productId === product.id
+                  const isActive = v.id === product.id
                   return (
                     <button
-                      key={v.productId}
-                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.productId)}`)}
+                      key={v.id}
+                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.id)}`)}
                       style={{
                         background: isActive ? '#0d2b0d' : '#252525',
                         border: `1px solid ${isActive ? '#22c55e' : '#333'}`,

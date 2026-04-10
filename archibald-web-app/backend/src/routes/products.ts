@@ -441,19 +441,16 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         deps.getProductWebResources   ? deps.getProductWebResources(productId)      : Promise.resolve([]),
       ]);
 
-      let sizeVariants: ReturnType<typeof mapProductRow>[] = [];
+      const sizeVariants: Array<{ id: string; name: string; price: number | null }> = [];
       if (deps.getProductVariantsForEnrichment && deps.getProductById) {
         const product = await deps.getProductById(productId);
         if (product?.name) {
           const variants = await deps.getProductVariantsForEnrichment(product.name);
-          sizeVariants = variants.map(mapProductRow);
+          for (const v of variants) {
+            sizeVariants.push({ id: v.id, name: v.name, price: v.price });
+          }
         }
       }
-
-      type PerformanceData = {
-        durabilityPct: number; sharpnessPct: number; controlStars: number;
-        maxRpm: number; minSprayMl: number;
-      };
 
       const mappedGallery = gallery.map(g => ({
         id:        g.id,
@@ -474,7 +471,11 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       const mappedDetails = details ? {
         clinicalDescription: details.clinical_indications,
         procedures:          details.usage_notes,
-        performanceData:     details.performance_data as PerformanceData | null,
+        rpmMax:              details.rpm_max,
+        packagingUnits:      details.packaging_units,
+        sterile:             details.sterile,
+        singleUse:           details.single_use,
+        notes:               details.notes,
         videoUrl,
         pdfUrl,
         sourceUrl:           details.source_url,

@@ -4,7 +4,11 @@ type ProductDetailsRow = {
   product_id:           string
   clinical_indications: string | null
   usage_notes:          string | null
-  performance_data:     unknown | null
+  rpm_max:              number | null
+  packaging_units:      number | null
+  sterile:              boolean | null
+  single_use:           boolean | null
+  notes:                string | null
   video_url:            string | null
   pdf_url:              string | null
   source_url:           string | null
@@ -16,7 +20,8 @@ type ProductDetailsRow = {
 
 async function getProductDetails(pool: DbPool, productId: string): Promise<ProductDetailsRow | null> {
   const { rows } = await pool.query<ProductDetailsRow>(
-    `SELECT product_id, clinical_indications, usage_notes, performance_data,
+    `SELECT product_id, clinical_indications, usage_notes,
+            rpm_max, packaging_units, sterile, single_use, notes,
             video_url, pdf_url, source_url, scraped_at,
             catalog_enriched_at, web_enriched_at, updated_at
        FROM shared.product_details

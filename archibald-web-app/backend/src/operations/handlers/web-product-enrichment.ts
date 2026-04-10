@@ -14,7 +14,6 @@ type WebProductEnrichmentDeps = {
 type ProductInfoRow = {
   name: string;
   catalog_family_code: string | null;
-  description_en: string | null;
   web_enriched_at: Date | null;
 };
 
@@ -103,87 +102,117 @@ async function runWebSearches(
   return resources;
 }
 
+async function enrichSingleProduct(
+  pool: DbPool,
+  fetchUrl: FetchUrlFn,
+  searchWeb: SearchWebFn,
+  productId: string,
+  familyCode: string,
+): Promise<{ scraped: number; resourcesFound: number }> {
+  const [{ imageUrls }, webResources] = await Promise.all([
+    scrapeKometFr(fetchUrl, familyCode),
+    runWebSearches(searchWeb, familyCode),
+  ]);
+
+  let resourcesFound = 0;
+  for (const resource of webResources) {
+    const result = await pool.query(
+      `INSERT INTO shared.product_web_resources
+         (product_id, resource_type, url, title, description, source, language)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (product_id, url) DO NOTHING`,
+      [
+        productId,
+        resource.resource_type,
+        resource.url,
+        resource.title,
+        resource.snippet,
+        extractDomain(resource.url),
+        'en',
+      ],
+    );
+    resourcesFound += result.rowCount ?? 0;
+  }
+
+  let scraped = 0;
+  for (let i = 0; i < imageUrls.length; i++) {
+    const absoluteUrl = `https://www.komet.fr${imageUrls[i]}`;
+    const result = await pool.query(
+      `INSERT INTO shared.product_gallery
+         (product_id, url, image_type, source, sort_order)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (product_id, url) DO NOTHING`,
+      [productId, absoluteUrl, 'web', 'komet.fr', i],
+    );
+    scraped += result.rowCount ?? 0;
+  }
+
+  await pool.query(
+    `INSERT INTO shared.product_details (product_id, web_enriched_at)
+     VALUES ($1, NOW())
+     ON CONFLICT (product_id) DO UPDATE SET web_enriched_at=NOW(), updated_at=NOW()`,
+    [productId],
+  );
+
+  return { scraped, resourcesFound };
+}
+
 function createWebProductEnrichmentHandler(deps: WebProductEnrichmentDeps): OperationHandler {
-  return async (_context, data, _userId, _onProgress) => {
+  return async (_context, data, _userId, onProgress) => {
     const { pool, fetchUrl, searchWeb } = deps;
-
     const productId = typeof data.productId === 'string' ? data.productId : null;
-    if (!productId) {
-      logger.warn('[web-product-enrichment] No productId in job data');
-      return { scraped: 0, resourcesFound: 0 };
+
+    if (productId !== null) {
+      const { rows } = await pool.query<ProductInfoRow>(
+        `SELECT p.name, pd.catalog_family_code, pd.web_enriched_at
+         FROM shared.products p
+         LEFT JOIN shared.product_details pd ON pd.product_id = p.id
+         WHERE p.id = $1`,
+        [productId],
+      );
+
+      const row = rows[0];
+      if (!row) {
+        logger.warn('[web-product-enrichment] Product not found', { productId });
+        return { scraped: 0, resourcesFound: 0 };
+      }
+
+      const familyCode = row.catalog_family_code ?? productId.split('.')[0];
+      onProgress(0, `Arricchimento ${productId}`);
+      const result = await enrichSingleProduct(pool, fetchUrl, searchWeb, productId, familyCode);
+      onProgress(100, 'Done');
+      return result;
     }
 
-    const { rows } = await pool.query<ProductInfoRow>(
-      `SELECT p.name, pd.catalog_family_code, pd.description_en, pd.web_enriched_at
+    const { rows: products } = await pool.query<{ id: string; name: string; catalog_family_code: string | null }>(
+      `SELECT p.id, p.name, pd.catalog_family_code
        FROM shared.products p
-       LEFT JOIN shared.product_details pd ON pd.product_id = p.id
-       WHERE p.id = $1`,
-      [productId],
+       JOIN shared.product_details pd ON pd.product_id = p.id
+       WHERE pd.catalog_enriched_at IS NOT NULL
+         AND pd.web_enriched_at IS NULL
+         AND p.deleted_at IS NULL`,
     );
 
-    const row = rows[0];
-    if (!row) {
-      logger.warn('[web-product-enrichment] Product not found', { productId });
-      return { scraped: 0, resourcesFound: 0 };
+    let totalScraped = 0;
+    let totalResources = 0;
+
+    for (let i = 0; i < products.length; i++) {
+      const { id, name, catalog_family_code } = products[i];
+      const familyCode = catalog_family_code ?? name.split('.')[0];
+      try {
+        const { scraped, resourcesFound } = await enrichSingleProduct(pool, fetchUrl, searchWeb, id, familyCode);
+        totalScraped += scraped;
+        totalResources += resourcesFound;
+      } catch (err) {
+        logger.warn('[web-product-enrichment] Failed to enrich product in bulk', { productId: id, err });
+      }
+      if (i % 10 === 0 && i > 0) {
+        onProgress(Math.round((i / products.length) * 100), `${i}/${products.length}`);
+      }
     }
 
-    const familyCode = row.catalog_family_code ?? productId.split('.')[0];
-
-    const [{ imageUrls, description }, webResources] = await Promise.all([
-      scrapeKometFr(fetchUrl, familyCode),
-      runWebSearches(searchWeb, familyCode),
-    ]);
-
-    let resourcesFound = 0;
-    for (const resource of webResources) {
-      const result = await pool.query(
-        `INSERT INTO shared.product_web_resources
-           (product_id, resource_type, url, title, description, source, language)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
-         ON CONFLICT (product_id, url) DO NOTHING`,
-        [
-          productId,
-          resource.resource_type,
-          resource.url,
-          resource.title,
-          resource.snippet,
-          extractDomain(resource.url),
-          'en',
-        ],
-      );
-      resourcesFound += result.rowCount ?? 0;
-    }
-
-    let scraped = 0;
-    for (let i = 0; i < imageUrls.length; i++) {
-      const absoluteUrl = `https://www.komet.fr${imageUrls[i]}`;
-      const result = await pool.query(
-        `INSERT INTO shared.product_gallery
-           (product_id, url, image_type, source, sort_order)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (product_id, url) DO NOTHING`,
-        [productId, absoluteUrl, 'web', 'komet.fr', i],
-      );
-      scraped += result.rowCount ?? 0;
-    }
-
-    if (description && !row.description_en) {
-      await pool.query(
-        `INSERT INTO shared.product_details (product_id, description_en)
-         VALUES ($1, $2)
-         ON CONFLICT (product_id) DO UPDATE SET description_en=$2, updated_at=NOW()`,
-        [productId, description],
-      );
-    }
-
-    await pool.query(
-      `INSERT INTO shared.product_details (product_id, web_enriched_at)
-       VALUES ($1, NOW())
-       ON CONFLICT (product_id) DO UPDATE SET web_enriched_at=NOW(), updated_at=NOW()`,
-      [productId],
-    );
-
-    return { scraped, resourcesFound };
+    onProgress(100, 'Done');
+    return { scraped: totalScraped, resourcesFound: totalResources };
   };
 }
 

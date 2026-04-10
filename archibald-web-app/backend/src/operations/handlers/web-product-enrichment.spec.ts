@@ -17,7 +17,6 @@ function createMockPool(): DbPool {
 const productInfoRow = {
   name: 'Komet 879.314.014',
   catalog_family_code: '879',
-  description_en: 'Diamond bur for enamel',
   web_enriched_at: null,
 };
 
@@ -124,7 +123,7 @@ describe('parseKometFrPage', () => {
 });
 
 describe('createWebProductEnrichmentHandler', () => {
-  test('returns early with zeros when no productId in job data', async () => {
+  test('bulk mode: queries products pending web enrichment when no productId given', async () => {
     const pool = createMockPool();
     const fetchUrl = vi.fn();
     const searchWeb = vi.fn();
@@ -133,7 +132,34 @@ describe('createWebProductEnrichmentHandler', () => {
     const result = await handler(null, {}, 'service-account', vi.fn());
 
     expect(result).toEqual({ scraped: 0, resourcesFound: 0 });
-    expect(vi.mocked(pool.query)).not.toHaveBeenCalled();
+    const [bulkSql] = vi.mocked(pool.query).mock.calls[0] as [string];
+    expect(bulkSql).toContain('web_enriched_at IS NULL');
+    expect(bulkSql).toContain('catalog_enriched_at IS NOT NULL');
+  });
+
+  test('bulk mode: enriches each pending product and reports final progress', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({
+        rows: [
+          { id: 'ERP-879', name: '879.314.014', catalog_family_code: '879' },
+          { id: 'ERP-863', name: '863.314.016', catalog_family_code: '863' },
+        ],
+        rowCount: 2,
+      })
+      .mockResolvedValue({ rows: [], rowCount: 1 });
+
+    const onProgress = vi.fn();
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, {}, 'service-account', onProgress);
+
+    expect(fetchUrl).toHaveBeenCalledTimes(2);
+    expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/879');
+    expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/863');
+    expect(onProgress).toHaveBeenCalledWith(100, 'Done');
   });
 
   test('returns early with zeros when product not found in DB', async () => {
@@ -283,55 +309,6 @@ describe('createWebProductEnrichmentHandler', () => {
     ]);
   });
 
-  test('updates description_en when komet.fr provides one and product has no existing description', async () => {
-    const pool = createMockPool();
-    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
-    const searchWeb = vi.fn().mockResolvedValue([]);
-
-    const productRowNullDescription = { ...productInfoRow, description_en: null };
-
-    vi.mocked(pool.query)
-      .mockResolvedValueOnce({ rows: [productRowNullDescription], rowCount: 1 })
-      .mockResolvedValue({ rows: [], rowCount: 0 });
-
-    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
-    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
-
-    const queryCalls = vi.mocked(pool.query).mock.calls;
-    const descriptionUpdateCall = queryCalls.find(
-      ([sql]) =>
-        (sql as string).includes('INSERT') &&
-        (sql as string).includes('product_details') &&
-        (sql as string).includes('description_en'),
-    );
-
-    expect(descriptionUpdateCall).toBeDefined();
-    expect(descriptionUpdateCall![1]).toContain('Flamme, longue');
-  });
-
-  test('does not update description_en when product already has one', async () => {
-    const pool = createMockPool();
-    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
-    const searchWeb = vi.fn().mockResolvedValue([]);
-
-    vi.mocked(pool.query)
-      .mockResolvedValueOnce({ rows: [productInfoRow], rowCount: 1 })
-      .mockResolvedValue({ rows: [], rowCount: 0 });
-
-    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
-    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
-
-    const queryCalls = vi.mocked(pool.query).mock.calls;
-    const descriptionUpdateCalls = queryCalls.filter(
-      ([sql]) =>
-        (sql as string).includes('INSERT') &&
-        (sql as string).includes('product_details') &&
-        (sql as string).includes('description_en'),
-    );
-
-    expect(descriptionUpdateCalls).toHaveLength(0);
-  });
-
   test('continues and updates web_enriched_at even when fetchUrl throws', async () => {
     const pool = createMockPool();
     const fetchUrl = vi.fn().mockRejectedValue(new Error('connection refused'));
@@ -361,7 +338,6 @@ describe('createWebProductEnrichmentHandler', () => {
     const productRowWithNullFamily = {
       name: 'Komet 879.314.014',
       catalog_family_code: null,
-      description_en: null,
       web_enriched_at: null,
     };
 

@@ -94,11 +94,13 @@ export function AdminPage(_props: AdminPageProps) {
   const [enqueuingIngestion, setEnqueuingIngestion] = useState(false);
   const [ingestionQueued, setIngestionQueued] = useState(false);
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
+  const [enqueuingWebEnrich, setEnqueuingWebEnrich] = useState(false);
   const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
+  const [webEnrichProgress, setWebEnrichProgress] = useState<OpProgress | null>(null);
   const [visualProgress, setVisualProgress] = useState<OpProgress | null>(null);
 
   useEffect(() => {
@@ -119,6 +121,7 @@ export function AdminPage(_props: AdminPageProps) {
     const setterFor: Record<string, (v: OpProgress | null) => void> = {
       'catalog-ingestion':          setIngestionProgress,
       'catalog-product-enrichment': setEnrichProgress,
+      'web-product-enrichment':     setWebEnrichProgress,
       'build-visual-index':         setVisualProgress,
     }
 
@@ -334,6 +337,24 @@ export function AdminPage(_props: AdminPageProps) {
       alert("Errore nell'avvio dell'enrichment. Riprova.");
     } finally {
       setEnqueuingEnrich(false);
+    }
+  };
+
+  const handleBulkWebEnrich = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingWebEnrich(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "web-product-enrichment", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio del web enrichment. Riprova.");
+    } finally {
+      setEnqueuingWebEnrich(false);
     }
   };
 
@@ -714,11 +735,29 @@ export function AdminPage(_props: AdminPageProps) {
             }}>
               <div>
                 <strong>Pending web enrichment</strong>
+                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
+                  Immagini e risorse da komet.fr
+                </div>
               </div>
               <div style={{ color: "#555", fontSize: "13px" }}>
                 {enrichmentStats?.pendingWebEnrichment ?? "—"}
               </div>
-              <div style={{ width: "80px" }} />
+              <button
+                onClick={() => { void handleBulkWebEnrich(); }}
+                disabled={enqueuingWebEnrich}
+                style={{
+                  background: "#0288d1",
+                  color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: enqueuingWebEnrich ? "not-allowed" : "pointer",
+                  opacity: enqueuingWebEnrich ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingWebEnrich ? "..." : "Web enrich →"}
+              </button>
+              <OpProgressBar progress={webEnrichProgress} />
             </div>
 
             <div style={{

@@ -53,23 +53,27 @@ export type ProductGalleryImage = {
 export type ProductDetails = {
   clinicalDescription: string | null
   procedures:          string | null
-  performanceData: {
-    durabilityPct: number
-    sharpnessPct:  number
-    controlStars:  number
-    maxRpm:        number
-    minSprayMl:    number
-  } | null
+  rpmMax:              number | null
+  packagingUnits:      number | null
+  sterile:             boolean | null
+  singleUse:           boolean | null
+  notes:               string | null
   videoUrl:  string | null
   pdfUrl:    string | null
   sourceUrl: string | null
+}
+
+export type SizeVariant = {
+  id:    string
+  name:  string
+  price: number | null
 }
 
 export type ProductEnrichment = {
   details:            ProductDetails | null
   gallery:            ProductGalleryImage[]
   competitors:        []
-  sizeVariants:       ProductMatch[]
+  sizeVariants:       SizeVariant[]
   recognitionHistory: Array<{
     scannedAt:  string
     agentId:    string
