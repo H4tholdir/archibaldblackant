@@ -549,6 +549,18 @@ export function ToolRecognitionPage() {
 
   if (pageState === 'shortlist_visual' && identifyResult?.result.state === 'shortlist_visual') {
     const { candidates } = identifyResult.result
+    const { imageHash } = identifyResult
+
+    const handleOpenCandidate = async (familyCode: string) => {
+      const token = localStorage.getItem('archibald_jwt')
+      if (token) {
+        try {
+          await submitRecognitionFeedback(token, { imageHash, productId: familyCode, confirmedByUser: true })
+        } catch {
+        }
+      }
+      navigate(`/products/${encodeURIComponent(familyCode)}`, { state: { fromScanner: true } })
+    }
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
@@ -607,7 +619,7 @@ export function ToolRecognitionPage() {
             return (
               <button
                 key={c.familyCode}
-                onClick={() => navigate(`/products/${encodeURIComponent(c.familyCode)}`, { state: { fromScanner: true } })}
+                onClick={() => { void handleOpenCandidate(c.familyCode) }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',
