@@ -33,13 +33,21 @@ Sorgenti immagini → Jina Embeddings v4 → vector(2048) → pgvector HNSW
 
 **Sorgenti per l'embedding index (ordine di priorità)**:
 
-1. **Pagine catalogo PDF** (priority=3 per embedding): ogni famiglia ha un campo `catalog_page` in `catalog_entries`. La pagina PDF mostra l'illustrazione del prodotto — una famiglia per pagina. Già renderizzabili come PNG da `/home/deploy/archibald-app/catalog/komet-2025.pdf`. Fonte principale per l'embedding: immagine singola, chiarezza geometrica, nessun preprocessing.
-2. **Siti Komet** (priority=2 per embedding): immagini singole per prodotto, fondo bianco, massima qualità. **Prerequisito**: sessione di discovery su komet.it, kometdental.com, kometusa.com, komet.fr (Fase 0b) per scegliere 1–2 fonti e documentare struttura URL prima di costruire lo scraper.
-3. **Campionario strips — solo per Claude reasoning** (priority=1, NON per embedding HNSW): le strip mostrano 4–9 strumenti affiancati in una sola immagine. Embeddare la strip intera produce un vettore che rappresenta un collage semanticamente inutile per ANN search. Le strip restano disponibili per il secondo stadio (Claude reasoning) come già avviene oggi — vengono passate come immagini aggiuntive nel prompt di disambiguazione, non indicizzate in pgvector.
+1. **Campionario strips — crop per famiglia** (priority=3): fotografie reali degli strumenti, le più simili alle foto scattate dagli agenti in campo. Già sul VPS `/app/komet-campionari/`. **Non si embeddano le strip intere** — ogni strip mostra 4–9 strumenti affiancati e il vettore del collage sarebbe semanticamente degradato. Si usa **slicing verticale a larghezza uguale** basato su `families.length` già presente in `StripEntry`:
+   ```
+   Strip con N famiglie → N crop verticali di larghezza (100/N)%
+   families[0] → crop(0, 1/N)
+   families[1] → crop(1/N, 2/N)
+   …
+   families[N-1] → crop((N-1)/N, 1)
+   ```
+   Il crop non è perfetto al pixel (gli strumenti non sono esattamente equidistanti) ma produce embedding nettamente più puliti rispetto alla strip intera. Ogni crop viene salvato come JPEG temporaneo, embeddato, poi scartato — solo il vettore viene persistito in `catalog_family_images`.
 
-> **Nota Fase 0a** — Campionario max-res: verificare se le strip sul VPS sono alla massima risoluzione disponibile su komet.it (gerarchia: sezione → strip thumbnail → JPG → JPG max-res). Ri-scaricare se necessario. Le strip aggiornate migliorano la qualità del reasoning di Claude ma non l'ANN search.
->
-> **Crop per-famiglia (futuro)**: se in futuro si vuole usare i campionario per l'embedding, occorre annotare le bounding box per famiglia in `StripEntry` (lavoro manuale su ~150 strip) o sviluppare un metodo di crop automatico. Questo è fuori scope per questa iterazione.
+   > **Fase 0a — Campionario max-res**: prima del crop, verificare che le strip sul VPS siano alla massima risoluzione disponibile su komet.it (gerarchia: sezione → strip thumbnail → JPG → **JPG max-res**). Ri-scaricare le versioni max-res dove necessario — risoluzione più alta = embedding più ricco.
+
+2. **Pagine catalogo PDF** (priority=2): ogni famiglia ha `catalog_page` in `catalog_entries`. La pagina PDF mostra l'illustrazione singola del prodotto — già renderizzabile come PNG. Nessun crop necessario: una famiglia per pagina.
+
+3. **Siti Komet** (priority=1): immagini singole per prodotto, fondo bianco, alta definizione. **Prerequisito**: sessione di discovery su komet.it, kometdental.com, kometusa.com, komet.fr (Fase 0b) per scegliere 1–2 fonti ottimali e documentare struttura URL prima di costruire lo scraper.
 
 ### Online — Query Pipeline (per ogni scan, ~5–12s totali)
 
@@ -87,6 +95,16 @@ CREATE INDEX ON shared.catalog_family_images (family_code, priority DESC);
 ```
 
 **Stima**: ~5.000 righe (1.600 famiglie × media 3 immagini). Storage vettori: ~40MB.
+
+**Esempio righe per famiglia 879**:
+
+| family_code | source_type | priority | local_path |
+|---|---|---|---|
+| 879 | campionario | 3 | `/app/komet-campionari/mtb457-particolare-06.jpg` (crop slice 3/4) |
+| 879 | catalog_pdf | 2 | `/app/catalog-pages/page-120.png` |
+| 879 | website | 1 | `/app/komet-product-images/879/879-fg-studio.jpg` |
+
+Il campo `local_path` per `campionario` punta alla strip originale; il crop viene eseguito al momento dell'embedding e non persistito su disco.
 
 ### Modifica: `shared.catalog_entries`
 
