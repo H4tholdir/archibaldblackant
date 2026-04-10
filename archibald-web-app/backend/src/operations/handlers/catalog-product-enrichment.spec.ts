@@ -98,7 +98,7 @@ describe('createCatalogProductEnrichmentHandler', () => {
   });
 
   describe('family code extraction', () => {
-    test('"879.314.014" name → "879" used in the @> query', async () => {
+    test('"879.314.014" name → "879" passed as $1 to split_part lookup', async () => {
       const pool = createMockPool();
       const queryMock = vi.mocked(pool.query);
 
@@ -111,7 +111,7 @@ describe('createCatalogProductEnrichmentHandler', () => {
       await handler(null, { productId: 'ERP-879' }, 'service-account', vi.fn());
 
       const [catalogSql, catalogParams] = queryMock.mock.calls[1] as [string, string[]];
-      expect(catalogSql).toContain('@>');
+      expect(catalogSql).toContain('split_part');
       expect(catalogParams).toEqual(['879']);
     });
 

@@ -29,7 +29,10 @@ async function enrichProduct(pool: DbPool, productId: string, productName: strin
     `SELECT catalog_page,
             clinical_indications, rpm_max, usage_notes, pictograms, packaging_info, notes
      FROM shared.catalog_entries
-     WHERE family_codes @> ARRAY[$1]
+     WHERE EXISTS (
+       SELECT 1 FROM unnest(family_codes) fc
+       WHERE split_part(fc, '.', 1) = $1
+     )
      LIMIT 1`,
     [familyCode],
   );
