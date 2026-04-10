@@ -97,7 +97,6 @@ function createAuthRouter(deps: AuthRouterDeps) {
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' },
-    keyGenerator: (req) => req.ip ?? 'unknown',
   });
 
   const refreshRateLimiter = rateLimit({
@@ -114,13 +113,11 @@ function createAuthRouter(deps: AuthRouterDeps) {
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, error: 'Troppi tentativi MFA. Riprova tra 15 minuti.' },
-    keyGenerator: (req) => req.ip ?? 'unknown',
   });
 
   const mfaSetupRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
-    keyGenerator: (req) => req.ip ?? 'unknown',
     message: { success: false, error: 'Troppi tentativi di setup MFA. Riprova tra 15 minuti.' },
     legacyHeaders: false,
     standardHeaders: true,

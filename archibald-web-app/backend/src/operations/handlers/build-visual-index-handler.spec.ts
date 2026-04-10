@@ -15,9 +15,10 @@ vi.mock('../../recognition/campionario-strip-cropper', () => ({
 }))
 
 vi.mock('../../db/repositories/catalog-family-images', () => ({
-  upsertFamilyImage: vi.fn().mockResolvedValue(1),
-  updateEmbedding:   vi.fn().mockResolvedValue(undefined),
-  countIndexed:      vi.fn().mockResolvedValue(2),
+  upsertFamilyImage:      vi.fn().mockResolvedValue(1),
+  updateEmbedding:        vi.fn().mockResolvedValue(undefined),
+  countIndexed:           vi.fn().mockResolvedValue(2),
+  getIndexedFamilyCodes:  vi.fn().mockResolvedValue(new Set<string>()),
 }))
 
 describe('createBuildVisualIndexHandler', () => {
