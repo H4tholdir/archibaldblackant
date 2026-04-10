@@ -5,7 +5,10 @@ import type { DbPool } from '../../db/pool';
 function createMockPool(): DbPool {
   return {
     query: vi.fn()
-      .mockResolvedValueOnce({ rows: [{ hash: '', order_number: '' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ hash: '', order_number: '' }], rowCount: 1 }) // SELECT ORD-001 → trovato
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })                               // UPDATE ORD-001 (hash cambiato)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })                               // SELECT ORD-002 → non trovato
+      .mockResolvedValueOnce({ rows: [{ id: 'ORD-002', was_inserted: true }], rowCount: 1 }) // INSERT ORD-002 RETURNING
       .mockResolvedValue({ rows: [], rowCount: 0 }),
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
