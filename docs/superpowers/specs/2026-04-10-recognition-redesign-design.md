@@ -31,10 +31,15 @@ Per ogni famiglia del catalogo, si raccolgono 2–4 immagini di riferimento da f
 Sorgenti immagini → Jina Embeddings v4 → vector(2048) → pgvector HNSW
 ```
 
-**Sorgenti (ordine di priorità)**:
-1. **Campionario strips** (priority=3): immagini reali degli strumenti, le più simili alle foto degli agenti. Già sul VPS `/app/komet-campionari/`. **Prerequisito**: verificare che siano alla massima risoluzione disponibile su komet.it (gerarchia: sezione → strip thumbnail → JPG → JPG max-res).
-2. **Pagine catalogo PDF** (priority=2): illustrazioni chiare, già renderizzabili come PNG. Già sul VPS `/home/deploy/archibald-app/catalog/komet-2025.pdf`.
-3. **Siti Komet** (priority=1): immagini singole per prodotto, fondo bianco. **Prerequisito**: sessione di discovery su komet.it, kometdental.com, kometusa.com, komet.fr per identificare il sito con il catalogo più completo e le immagini di qualità migliore prima di costruire lo scraper.
+**Sorgenti per l'embedding index (ordine di priorità)**:
+
+1. **Pagine catalogo PDF** (priority=3 per embedding): ogni famiglia ha un campo `catalog_page` in `catalog_entries`. La pagina PDF mostra l'illustrazione del prodotto — una famiglia per pagina. Già renderizzabili come PNG da `/home/deploy/archibald-app/catalog/komet-2025.pdf`. Fonte principale per l'embedding: immagine singola, chiarezza geometrica, nessun preprocessing.
+2. **Siti Komet** (priority=2 per embedding): immagini singole per prodotto, fondo bianco, massima qualità. **Prerequisito**: sessione di discovery su komet.it, kometdental.com, kometusa.com, komet.fr (Fase 0b) per scegliere 1–2 fonti e documentare struttura URL prima di costruire lo scraper.
+3. **Campionario strips — solo per Claude reasoning** (priority=1, NON per embedding HNSW): le strip mostrano 4–9 strumenti affiancati in una sola immagine. Embeddare la strip intera produce un vettore che rappresenta un collage semanticamente inutile per ANN search. Le strip restano disponibili per il secondo stadio (Claude reasoning) come già avviene oggi — vengono passate come immagini aggiuntive nel prompt di disambiguazione, non indicizzate in pgvector.
+
+> **Nota Fase 0a** — Campionario max-res: verificare se le strip sul VPS sono alla massima risoluzione disponibile su komet.it (gerarchia: sezione → strip thumbnail → JPG → JPG max-res). Ri-scaricare se necessario. Le strip aggiornate migliorano la qualità del reasoning di Claude ma non l'ANN search.
+>
+> **Crop per-famiglia (futuro)**: se in futuro si vuole usare i campionario per l'embedding, occorre annotare le bounding box per famiglia in `StripEntry` (lavoro manuale su ~150 strip) o sviluppare un metodo di crop automatico. Questo è fuori scope per questa iterazione.
 
 ### Online — Query Pipeline (per ogni scan, ~5–12s totali)
 
@@ -200,6 +205,33 @@ return { state: 'shortlist_visual', candidates: result.candidates };
 
 ---
 
+## Tipo `RecognitionResult` — aggiornamento
+
+Il discriminated union `RecognitionResult` in `backend/src/recognition/types.ts` (e il tipo speculare in `frontend/src/api/recognition.ts`) deve aggiungere il nuovo membro `photo2_request` e rinominare `shortlist` in `shortlist_visual` (oppure aggiungere `shortlist_visual` come alias distinto):
+
+```typescript
+type RecognitionResult =
+  | { state: 'match';           product: ProductMatch; confidence: number }
+  | { state: 'shortlist_visual'; candidates: CandidateMatch[] }   // era 'shortlist'
+  | { state: 'photo2_request';  candidates: string[]; instruction: string }  // NUOVO
+  | { state: 'not_found' }
+  | { state: 'budget_exhausted' }
+  | { state: 'error'; message: string }
+```
+
+**Flusso della seconda foto** — stesso endpoint `POST /api/recognition/identify`:
+- Prima foto: body `{ images: [base64_photo1] }` → può tornare `photo2_request`
+- Seconda foto: body `{ images: [base64_photo1, base64_photo2] }` — l'engine rileva `images.length === 2` come flag "è la seconda foto" → routing va sempre a `match` o `shortlist_visual`, mai di nuovo a `photo2_request`
+- La cache usa SHA256 del combined buffer di entrambe le immagini (comportamento già esistente per multi-foto)
+- I risultati della seconda foto **sono cacheable** (stessa coppia di foto → stesso risultato): cache scritta normalmente
+
+**Migrazione stati frontend**:
+- `disambiguation_camera` → rimosso, sostituito da `photo2_request`
+- `disambiguation_analyzing` → rimosso, sostituito da `analyzing2`
+- `shortlist` → diventa `shortlist_visual` (o viene esteso con dati immagini di riferimento)
+
+---
+
 ## Nuovi stati UX
 
 | Stato | Trigger | Descrizione |
@@ -227,7 +259,7 @@ Ho bisogno di un'altra foto
 | Scenario | Comportamento |
 |---|---|
 | **Jina v4 API down** | Degradazione graceful: SQL fulltext per top-10 → Claude ugualmente. Match rate più basso ma sistema operativo. |
-| **Top similarity < 0.45** | Early exit: `not_found` senza chiamare Claude. Risparmio costo e latenza. |
+| **Top similarity < soglia** | Early exit: `not_found` senza chiamare Claude. La soglia è configurabile via variabile d'ambiente `RECOGNITION_MIN_SIMILARITY` (default conservativo: `0.20` per il primo run in produzione). **Non hardcodare** — deve essere calibrata empiricamente osservando la distribuzione dei similarity score nei primi 100–200 scan reali loggati in `recognition_log`. |
 | **Claude timeout / errore** | Invariato: `state: 'error'`, agente può riprovare. |
 | **Budget giornaliero esaurito** | Invariato: `state: 'budget_exhausted'`. |
 | **Loop photo_request** | Hard cap: dopo la seconda foto → sempre `shortlist_visual`, mai terza richiesta automatica. |
