@@ -17,10 +17,10 @@ type PageState =
   | 'idle_photo2'
   | 'preview'
   | 'analyzing'
+  | 'analyzing2'
   | 'match'
-  | 'shortlist'
-  | 'disambiguation_camera'
-  | 'disambiguation_analyzing'
+  | 'shortlist_visual'
+  | 'photo2_request'
   | 'budget_exhausted'
 
 function InstrumentGuide() {
@@ -70,51 +70,6 @@ function InstrumentGuide() {
           fontWeight: 700, letterSpacing: 2, marginTop: 8,
         }}>
           BASE
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DisambiguationGuide() {
-  const bracket: CSSProperties = {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderColor: '#60a5fa',
-    borderStyle: 'solid',
-    borderWidth: 0,
-  }
-  return (
-    <div style={{
-      position: 'absolute', inset: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      pointerEvents: 'none',
-    }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          color: 'rgba(96,165,250,0.9)', fontSize: 10,
-          fontWeight: 700, letterSpacing: 2, marginBottom: 8,
-        }}>
-          TESTA
-        </div>
-        <div style={{
-          position: 'relative',
-          width: '60vw',
-          height: '38vh',
-          border: '1px solid rgba(96,165,250,0.35)',
-          borderRadius: 4,
-        }}>
-          <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
-          <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
-          <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
-          <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
-        </div>
-        <div style={{
-          color: 'rgba(96,165,250,0.8)', fontSize: 10,
-          fontWeight: 700, letterSpacing: 2, marginTop: 8,
-        }}>
-          5–10 cm di distanza
         </div>
       </div>
     </div>
@@ -268,7 +223,7 @@ export function ToolRecognitionPage() {
   const runIdentification = useCallback(async (images: string[]) => {
     const token = localStorage.getItem('archibald_jwt')
     if (!token) return
-    setPageState('analyzing')
+    setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
     setAnalyzeStep(0)
     setUsedPhotoCount(images.length)
 
@@ -286,9 +241,12 @@ export function ToolRecognitionPage() {
         vibrate([200, 50, 100])
         playSuccessBeep()
         setPageState('match')
+      } else if (state === 'photo2_request') {
+        vibrate([80, 30, 80])
+        setPageState('photo2_request')
       } else if (state === 'shortlist_visual') {
         vibrate([80, 30, 80])
-        setPageState('shortlist')
+        setPageState('shortlist_visual')
       } else {
         setPageState('idle_photo1')
         if (state === 'not_found') {
@@ -325,38 +283,15 @@ export function ToolRecognitionPage() {
     await runIdentification(capturedImages)
   }, [capturedImages, runIdentification])
 
-  const handleDisambiguationShutter = useCallback(async () => {
-    if (pageState !== 'disambiguation_camera') return
-    const token = localStorage.getItem('archibald_jwt')
-    if (!token || identifyResult?.result.state !== 'shortlist_visual') return
-
+  const handlePhoto2Shutter = useCallback(async () => {
+    if (pageState !== 'photo2_request') return
     vibrate(30)
     const base64 = captureFrame()
     if (!base64) return
-    setCapturedImages(prev => [prev[0] ?? base64, base64])
-    setPageState('disambiguation_analyzing')
-
-    try {
-      const response = await identifyInstrument(token, [base64])
-      setIdentifyResult(response)
-
-      const { state } = response.result
-      if (state === 'match') {
-        vibrate([200, 50, 100])
-        playSuccessBeep()
-        setPageState('match')
-      } else if (state === 'shortlist_visual') {
-        vibrate([80, 30, 80])
-        setPageState('shortlist')
-      } else {
-        setPageState('shortlist')
-        setErrorMessage('Non riesco a distinguere i candidati. Seleziona manualmente.')
-      }
-    } catch {
-      setPageState('shortlist')
-      setErrorMessage('Errore di connessione. Riprova.')
-    }
-  }, [captureFrame, identifyResult, pageState, vibrate, playSuccessBeep])
+    const allImages = [capturedImages[0] ?? base64, base64]
+    setCapturedImages(allImages)
+    await runIdentification(allImages)
+  }, [captureFrame, capturedImages, pageState, runIdentification, vibrate])
 
   if (pageState === 'permission_denied') {
     return (
@@ -385,7 +320,7 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'analyzing') {
+  if (pageState === 'analyzing' || pageState === 'analyzing2') {
     const STEP_LABELS = [
       usedPhotoCount > 1 ? `${usedPhotoCount} foto acquisite` : 'Foto acquisita',
       'Analisi con AI  (30–60 s)',
@@ -433,37 +368,6 @@ export function ToolRecognitionPage() {
               )
             })}
           </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (pageState === 'disambiguation_analyzing') {
-    return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000' }}>
-        {capturedImages[capturedImages.length - 1] && (
-          <img
-            src={`data:image/jpeg;base64,${capturedImages[capturedImages.length - 1]}`}
-            alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35, position: 'absolute', inset: 0 }}
-          />
-        )}
-        <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 20,
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%',
-            border: '4px solid rgba(255,255,255,0.15)',
-            borderTopColor: '#60a5fa',
-            animation: 'spin 0.8s linear infinite',
-          }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-          <div style={{ color: '#60a5fa', fontSize: 17, fontWeight: 600 }}>
-            Analisi punta in corso...
-          </div>
-          <div style={{ color: '#6b7280', fontSize: 13 }}>~8 secondi</div>
         </div>
       </div>
     )
@@ -643,7 +547,7 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist_visual') {
+  if (pageState === 'shortlist_visual' && identifyResult?.result.state === 'shortlist_visual') {
     const { candidates } = identifyResult.result
 
     return (
@@ -698,28 +602,6 @@ export function ToolRecognitionPage() {
             )
           })()}
 
-          {/* Disambiguation CTA */}
-          <button
-            onClick={() => setPageState('disambiguation_camera')}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              background: 'rgba(37,99,235,0.15)',
-              border: '1px solid rgba(96,165,250,0.5)',
-              borderRadius: 12, padding: '13px 16px', marginBottom: 16,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 20 }}>📷</span>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ color: '#60a5fa', fontWeight: 700, fontSize: 15 }}>
-                Fotografa la punta da vicino
-              </div>
-              <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
-                5–10 cm · toglie ogni dubbio
-              </div>
-            </div>
-          </button>
-
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
             return (
@@ -756,9 +638,6 @@ export function ToolRecognitionPage() {
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.familyCode}</div>
-                  <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
-                    <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{c.familyCode}</span>
-                  </div>
                 </div>
               </button>
             )
@@ -776,6 +655,50 @@ export function ToolRecognitionPage() {
             ← Rifai la foto
           </button>
         </div>
+      </div>
+    )
+  }
+
+  if (pageState === 'photo2_request') {
+    const instruction = identifyResult?.result.state === 'photo2_request'
+      ? identifyResult.result.instruction
+      : null
+
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: '#0f0f0f', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32,
+      }}>
+        <div style={{ fontSize: 52 }}>📷</div>
+        <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: 18 }}>
+          Ho bisogno di un&apos;altra foto
+        </div>
+        {instruction && (
+          <div style={{
+            color: '#e5e7eb', fontSize: 15, textAlign: 'center',
+            maxWidth: 320, lineHeight: 1.6, fontStyle: 'italic',
+          }}>
+            «{instruction}»
+          </div>
+        )}
+        <button
+          onClick={() => { void handlePhoto2Shutter() }}
+          style={{
+            marginTop: 8, background: 'rgba(245,158,11,0.25)',
+            border: '1px solid rgba(245,158,11,0.5)', color: '#fbbf24',
+            borderRadius: 10, padding: '14px 32px', fontSize: 16,
+            fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Scatta ora
+        </button>
+        <button
+          onClick={() => setPageState('idle_photo1')}
+          style={{ color: '#6b7280', background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', marginTop: 4 }}
+        >
+          Annulla
+        </button>
       </div>
     )
   }
@@ -1039,59 +962,6 @@ export function ToolRecognitionPage() {
         muted
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
-
-      {/* Disambiguation camera — fullscreen con guida punta */}
-      <button
-        onClick={() => setPageState('shortlist')}
-        style={{
-          position: 'absolute', top: 16, left: 16, zIndex: 10,
-          background: 'none', border: 'none', color: '#fff',
-          fontSize: 28, cursor: 'pointer', padding: 8,
-        }}
-        aria-label="Torna alla lista"
-      >
-        ✕
-      </button>
-
-      <DisambiguationGuide />
-
-      <div style={{
-        position: 'absolute', top: '7%', left: 0, right: 0,
-        textAlign: 'center', color: 'rgba(96,165,250,0.9)',
-        fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.9)', pointerEvents: 'none',
-      }}>
-        Inquadra la testa della fresa ·{' '}
-        <span style={{ background: 'rgba(96,165,250,0.25)', borderRadius: 3, padding: '1px 4px' }}>
-          5–10 cm di distanza
-        </span>
-      </div>
-
-      {errorMessage && (
-        <div onClick={() => setErrorMessage(null)} style={{
-          position: 'absolute', bottom: 148, left: 16, right: 16,
-          background: 'rgba(239,68,68,0.15)', borderRadius: 8,
-          padding: '10px 16px', color: '#f87171', fontSize: 13,
-          textAlign: 'center', cursor: 'pointer',
-        }}>
-          {errorMessage}
-        </div>
-      )}
-
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
-        background: 'rgba(0,0,0,0.75)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <button
-          onClick={() => { void handleDisambiguationShutter() }}
-          aria-label="Scatta foto disambiguazione"
-          style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: '#60a5fa', border: '4px solid rgba(96,165,250,0.5)',
-            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          }}
-        />
-      </div>
     </div>
   )
 }
