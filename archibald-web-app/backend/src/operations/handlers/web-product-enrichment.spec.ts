@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
-import { createWebProductEnrichmentHandler } from './web-product-enrichment';
+import {
+  createWebProductEnrichmentHandler,
+  parseKometFrPage,
+} from './web-product-enrichment';
 
 function createMockPool(): DbPool {
   return {
@@ -36,8 +39,88 @@ const articleResult = {
   snippet: 'Clinical indications for use',
 };
 
+const kometFrHtmlWithImages = `
+<html>
+<head><title>Produits Komet France - 879</title></head>
+<body>
+  <h1 class="product-title">Flamme, longue</h1>
+  <div class="product-gallery">
+    <img src="/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_879_000_000_204.aspx" alt="879 image 1" />
+    <img src="/getmetafile/bf3b88f8-e18c-550f-cb8c-85f3bfed4b36/03di_879_010_000_204.aspx" alt="879 image 2" />
+  </div>
+  <ul>
+    <li>879.314.014 VPE 5</li>
+    <li>879.314.018 VPE 5</li>
+  </ul>
+</body>
+</html>
+`;
+
+const kometFrHtmlDuplicateImages = `
+<html>
+<body>
+  <h2>Congé ogival cilindrico, lungo</h2>
+  <img src="/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_863_000_000_204.aspx" alt="863" />
+  <img src="/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_863_000_000_204.aspx" alt="863 dup" />
+  <img src="/getmetafile/cc4d99a9-f20d-661g-dc9d-96g4cgfe5c47/03di_863_010_000_204.aspx" alt="863 v2" />
+</body>
+</html>
+`;
+
+const kometFrHtmlNoImages = `
+<html>
+<body>
+  <p>No product photos available.</p>
+</body>
+</html>
+`;
+
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('parseKometFrPage', () => {
+  test('extracts getmetafile image URLs from HTML', () => {
+    const result = parseKometFrPage(kometFrHtmlWithImages);
+
+    expect(result.imageUrls).toEqual([
+      '/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_879_000_000_204.aspx',
+      '/getmetafile/bf3b88f8-e18c-550f-cb8c-85f3bfed4b36/03di_879_010_000_204.aspx',
+    ]);
+  });
+
+  test('deduplicates image URLs when the same getmetafile path appears multiple times', () => {
+    const result = parseKometFrPage(kometFrHtmlDuplicateImages);
+
+    expect(result.imageUrls).toEqual([
+      '/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_863_000_000_204.aspx',
+      '/getmetafile/cc4d99a9-f20d-661g-dc9d-96g4cgfe5c47/03di_863_010_000_204.aspx',
+    ]);
+  });
+
+  test('returns empty imageUrls array when no getmetafile URL is found', () => {
+    const result = parseKometFrPage(kometFrHtmlNoImages);
+
+    expect(result.imageUrls).toEqual([]);
+  });
+
+  test('extracts product description from h1 heading', () => {
+    const result = parseKometFrPage(kometFrHtmlWithImages);
+
+    expect(result.description).toBe('Flamme, longue');
+  });
+
+  test('extracts product description from h2 heading when no h1 is present', () => {
+    const result = parseKometFrPage(kometFrHtmlDuplicateImages);
+
+    expect(result.description).toBe('Congé ogival cilindrico, lungo');
+  });
+
+  test('returns empty description when no heading is found', () => {
+    const result = parseKometFrPage(kometFrHtmlNoImages);
+
+    expect(result.description).toBe('');
+  });
 });
 
 describe('createWebProductEnrichmentHandler', () => {
@@ -66,6 +149,38 @@ describe('createWebProductEnrichmentHandler', () => {
     expect(result).toEqual({ scraped: 0, resourcesFound: 0 });
     expect(fetchUrl).not.toHaveBeenCalled();
     expect(searchWeb).not.toHaveBeenCalled();
+  });
+
+  test('calls fetchUrl with komet.fr URL for the family code', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productInfoRow], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
+
+    expect(fetchUrl).toHaveBeenCalledWith(
+      'https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/879',
+    );
+  });
+
+  test('returns empty images and empty description when fetchUrl throws', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockRejectedValue(new Error('network error'));
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productInfoRow], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    const result = await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
+
+    expect(result).toEqual({ scraped: 0, resourcesFound: 0 });
   });
 
   test('calls searchWeb 3 times with correct query strings for the family code', async () => {
@@ -142,6 +257,81 @@ describe('createWebProductEnrichmentHandler', () => {
     ]);
   });
 
+  test('inserts komet.fr images into product_gallery with source komet.fr', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productInfoRow], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 1 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
+
+    const queryCalls = vi.mocked(pool.query).mock.calls;
+    const galleryInsertCalls = queryCalls.filter(([sql]) =>
+      (sql as string).includes('product_gallery'),
+    );
+
+    expect(galleryInsertCalls[0]![1]).toEqual([
+      '879.314.014',
+      'https://www.komet.fr/getmetafile/af2a77f7-d07b-439e-ba7b-74e2adec3a25/03di_879_000_000_204.aspx',
+      'web',
+      'komet.fr',
+      0,
+    ]);
+  });
+
+  test('updates description_en when komet.fr provides one and product has no existing description', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    const productRowNullDescription = { ...productInfoRow, description_en: null };
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productRowNullDescription], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
+
+    const queryCalls = vi.mocked(pool.query).mock.calls;
+    const descriptionUpdateCall = queryCalls.find(
+      ([sql]) =>
+        (sql as string).includes('INSERT') &&
+        (sql as string).includes('product_details') &&
+        (sql as string).includes('description_en'),
+    );
+
+    expect(descriptionUpdateCall).toBeDefined();
+    expect(descriptionUpdateCall![1]).toContain('Flamme, longue');
+  });
+
+  test('does not update description_en when product already has one', async () => {
+    const pool = createMockPool();
+    const fetchUrl = vi.fn().mockResolvedValue({ html: kometFrHtmlWithImages, finalUrl: '' });
+    const searchWeb = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [productInfoRow], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
+    await handler(null, { productId: '879.314.014' }, 'service-account', vi.fn());
+
+    const queryCalls = vi.mocked(pool.query).mock.calls;
+    const descriptionUpdateCalls = queryCalls.filter(
+      ([sql]) =>
+        (sql as string).includes('INSERT') &&
+        (sql as string).includes('product_details') &&
+        (sql as string).includes('description_en'),
+    );
+
+    expect(descriptionUpdateCalls).toHaveLength(0);
+  });
+
   test('continues and updates web_enriched_at even when fetchUrl throws', async () => {
     const pool = createMockPool();
     const fetchUrl = vi.fn().mockRejectedValue(new Error('connection refused'));
@@ -177,13 +367,14 @@ describe('createWebProductEnrichmentHandler', () => {
 
     vi.mocked(pool.query)
       .mockResolvedValueOnce({ rows: [productRowWithNullFamily], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValue({ rows: [], rowCount: 0 });
 
     const handler = createWebProductEnrichmentHandler({ pool, fetchUrl, searchWeb });
     await handler(null, { productId: '879.314.014' }, 'user', vi.fn());
 
+    expect(fetchUrl).toHaveBeenCalledWith(
+      'https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/879',
+    );
     expect(searchWeb).toHaveBeenCalledWith(expect.stringContaining('"879 Komet"'));
   });
 
