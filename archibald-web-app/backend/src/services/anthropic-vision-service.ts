@@ -523,17 +523,14 @@ export function createCatalogVisionService(deps: CatalogVisionServiceDeps): Cata
   const client = new Anthropic({ apiKey: deps.apiKey, maxRetries: 0 })
 
   return {
-    async identifyFromImage(images, signal, disambiguationCandidates) {
+    async identifyFromImage(photos, candidates, signal) {
       const controller    = new AbortController()
       const timer         = setTimeout(() => controller.abort(), deps.timeoutMs)
       const onExternalAbort = () => controller.abort()
       signal?.addEventListener('abort', onExternalAbort)
 
       try {
-        if (disambiguationCandidates && disambiguationCandidates.length >= 2) {
-          return await runDisambiguationLoop(client, deps.pool, deps.catalogPdf, images[0]!, disambiguationCandidates, controller.signal)
-        }
-        return await runAgenticLoop(client, deps, images, controller.signal)
+        return await runAgenticLoop(client, deps, photos, controller.signal)
       } finally {
         clearTimeout(timer)
         signal?.removeEventListener('abort', onExternalAbort)

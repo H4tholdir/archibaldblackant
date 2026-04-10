@@ -465,9 +465,11 @@ async function bootstrap(): Promise<void> {
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
     catalogVisionService,
+    embeddingSvc,
     catalogPdf,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
+    recognitionMinSimilarity: config.recognition.minSimilarity,
   });
 
   const server = http.createServer(app);

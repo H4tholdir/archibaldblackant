@@ -3,30 +3,27 @@ import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
 import type { CatalogVisionService } from '../recognition/recognition-engine';
+import type { VisualEmbeddingService } from '../recognition/visual-embedding-service';
 import type { OperationType } from '../operations/operation-types';
 import { runRecognitionPipeline } from '../recognition/recognition-engine';
 import { getBudgetRow, resetBudgetIfExpired } from '../db/repositories/recognition-budget';
 import { logger } from '../logger';
 
-type CatalogPdfLike = {
-  getPageAsBase64: (page: number) => Promise<string>;
-};
-
 type RecognitionRouterDeps = {
   pool:                 DbPool;
   catalogVisionService: CatalogVisionService;
+  embeddingSvc:         VisualEmbeddingService;
+  minSimilarity:        number;
   dailyLimit:           number;
   timeoutMs:            number;
-  catalogPdf?:          CatalogPdfLike;
   queue?: {
     enqueue: (type: OperationType, userId: string, data: Record<string, unknown>) => Promise<string>;
   };
 };
 
 const identifySchema = z.object({
-  image:      z.string().min(10).optional(),
-  images:     z.array(z.string().min(10)).min(1).max(2).optional(),
-  candidates: z.array(z.string().regex(/^[A-Za-z0-9]+\.\d{3}\.\d{3}$/)).min(2).max(5).optional(),
+  image:  z.string().min(10).optional(),
+  images: z.array(z.string().min(10)).min(1).max(2).optional(),
 }).refine(
   data => data.image != null || (data.images != null && data.images.length > 0),
   { message: 'image or images required' },
@@ -70,7 +67,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       return;
     }
 
-    const { image, images: imagesArr, candidates } = parsed.data;
+    const { image, images: imagesArr } = parsed.data;
     const images = imagesArr ?? [image!];
 
     const abortController = new AbortController();
@@ -81,12 +78,11 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
     try {
       const { result, budgetState, processingMs, imageHash } =
         await runRecognitionPipeline(
-          { pool, catalogVisionService },
+          { pool, catalogVisionService, embeddingSvc: deps.embeddingSvc, minSimilarity: deps.minSimilarity },
           images,
           userId,
           role,
           abortController.signal,
-          candidates,
         );
       if (res.headersSent) return;
       res.json({ result, budgetState, processingMs, imageHash });
@@ -117,51 +113,6 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       res.json({ queued: true });
     } else {
       res.json({ queued: false });
-    }
-  });
-
-  router.get('/catalog-page/:pageNumber', async (req: AuthRequest, res) => {
-    if (!deps.catalogPdf) {
-      res.status(503).json({ error: 'Catalog PDF not available' });
-      return;
-    }
-    const pageNumber = parseInt(req.params.pageNumber ?? '', 10);
-    if (isNaN(pageNumber) || pageNumber < 1 || pageNumber > 782) {
-      res.status(400).json({ error: 'Invalid page number (1–782)' });
-      return;
-    }
-    try {
-      const rawBase64 = await deps.catalogPdf.getPageAsBase64(pageNumber);
-      // Crop and resize for frontend display
-      const sharp = (await import('sharp')).default;
-      const buf   = Buffer.from(rawBase64, 'base64');
-      const meta  = await sharp(buf).metadata();
-      const w     = meta.width  ?? 800;
-      const h     = meta.height ?? 1100;
-      const cropH = Math.floor(h * 0.72);
-      const cropped = await sharp(buf)
-        .extract({ left: 0, top: 0, width: w, height: cropH })
-        .resize({ width: Math.floor(w * 0.65) })
-        .jpeg({ quality: 78 })
-        .toBuffer();
-      res.json({ image: cropped.toString('base64') });
-    } catch (error) {
-      logger.error('[recognition] catalog-page load failed', { pageNumber, error });
-      res.status(500).json({ error: 'Failed to load catalog page' });
-    }
-  });
-
-  router.get('/ruler', async (_req: AuthRequest, res) => {
-    if (!deps.catalogPdf) {
-      res.status(503).json({ error: 'Catalog PDF not available' });
-      return;
-    }
-    try {
-      const image = await deps.catalogPdf.getPageAsBase64(7);
-      res.json({ image });
-    } catch (error) {
-      logger.error('[recognition] ruler page load failed', { error });
-      res.status(500).json({ error: 'Failed to load ruler page' });
     }
   });
 
