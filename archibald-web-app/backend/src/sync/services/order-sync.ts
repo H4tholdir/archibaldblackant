@@ -78,6 +78,7 @@ async function syncOrders(
     let ordersUpdated = 0;
     let ordersSkipped = 0;
     const now = Math.floor(Date.now() / 1000);
+    const preservedIds = new Set<string>();
 
     const computeHash = (o: ParsedOrder) =>
       [
@@ -98,7 +99,7 @@ async function syncOrders(
       );
 
       if (!existing) {
-        await pool.query(
+        const { rows: [upserted] } = await pool.query<{ id: string; was_inserted: boolean }>(
           `INSERT INTO agents.order_records (
             id, user_id, order_number, customer_account_num, customer_name,
             delivery_name, delivery_address, creation_date, delivery_date,
@@ -106,7 +107,31 @@ async function syncOrders(
             order_type, document_status, sales_origin, transfer_status,
             transfer_date, completion_date, is_quote, discount_percent, gross_amount,
             total_amount, is_gift_order, hash, last_sync, created_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+          ON CONFLICT (order_number, user_id) DO UPDATE SET
+            customer_account_num = EXCLUDED.customer_account_num,
+            customer_name = EXCLUDED.customer_name,
+            delivery_name = EXCLUDED.delivery_name,
+            delivery_address = EXCLUDED.delivery_address,
+            creation_date = EXCLUDED.creation_date,
+            delivery_date = EXCLUDED.delivery_date,
+            order_description = EXCLUDED.order_description,
+            customer_reference = EXCLUDED.customer_reference,
+            sales_status = EXCLUDED.sales_status,
+            order_type = EXCLUDED.order_type,
+            document_status = EXCLUDED.document_status,
+            sales_origin = EXCLUDED.sales_origin,
+            transfer_status = EXCLUDED.transfer_status,
+            transfer_date = EXCLUDED.transfer_date,
+            completion_date = EXCLUDED.completion_date,
+            discount_percent = EXCLUDED.discount_percent,
+            gross_amount = EXCLUDED.gross_amount,
+            total_amount = EXCLUDED.total_amount,
+            is_quote = EXCLUDED.is_quote,
+            is_gift_order = EXCLUDED.is_gift_order,
+            hash = EXCLUDED.hash,
+            last_sync = EXCLUDED.last_sync
+          RETURNING id, (xmax = 0) AS was_inserted`,
           [
             order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
             order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
@@ -116,7 +141,15 @@ async function syncOrders(
             order.total ?? null, order.isGiftOrder ?? null, hash, now, new Date().toISOString(),
           ],
         );
-        ordersInserted++;
+        if (upserted.was_inserted) {
+          ordersInserted++;
+        } else {
+          logger.warn('[OrderSync] ERP internal ID changed for existing order', {
+            order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
+          });
+          preservedIds.add(upserted.id);
+          ordersUpdated++;
+        }
       } else if (existing.hash !== hash) {
         const oldTransferStatus = existing.transfer_status;
         const newTransferStatus = order.transferStatus ?? null;
@@ -205,7 +238,7 @@ async function syncOrders(
     onProgress(80, 'Rimozione ordini obsoleti');
 
     let ordersDeleted = 0;
-    const validIds = parsedOrders.map((o) => o.id);
+    const validIds = [...parsedOrders.map((o) => o.id), ...preservedIds];
     if (validIds.length > 0) {
       const placeholders = validIds.map((_, i) => `$${i + 2}`).join(', ');
       const { rows: stale } = await pool.query<{ id: string }>(
