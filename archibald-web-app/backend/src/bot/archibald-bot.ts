@@ -10614,6 +10614,12 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
+    // Wait for DevExpress to settle any in-flight XHRs (e.g. from the previous
+    // field's Tab commit) BEFORE locating the field. This ensures the element ID
+    // we capture is fresh — a pending XHR callback can re-render DevExpress nodes
+    // with new dynamic ID prefixes, making any previously captured ID stale.
+    await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-find-${fieldRegex.source}` });
+
     // Step 1: Find the field, scroll into view, focus it, and clear it.
     // We do NOT dispatch "input" here — doing so triggers a DevExpress XHR that
     // restores the original value before page.type() runs, causing doubling.
@@ -10656,16 +10662,12 @@ export class ArchibaldBot {
     // Pattern mirrors ensureNameFieldBeforeSave which is already proven in production.
     const effectiveValue = maxLength > 0 ? value.substring(0, maxLength) : value;
 
-    // Wait for DevExpress to settle any in-flight XHRs (e.g. from the previous
-    // field's Tab commit) before typing.
-    await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-${inputId}` });
-
-    // Step 2: Write the value via real CDP keyboard events.
-    // For non-empty values: page.type() generates authentic keydown/keypress/keyup/input
-    // events that DevExpress XAF tracks to trigger server-side model updates on Tab/blur.
-    // For empty string: Ctrl+A + Delete fires a real 'input' event so DevExpress
-    // recognises the field was cleared — page.type('') would fire no events at all.
-    await this.typeOrClear(inputId, effectiveValue);
+    // Step 2: Write the value via real CDP keyboard events immediately after Step 1,
+    // with no waitForDevExpressIdle in between. The inputId is fresh from Step 1 (DOM
+    // was stable during the pre-find idle wait). Inserting another idle wait here would
+    // allow DevExpress XHR callbacks to re-render the field with a new dynamic ID prefix,
+    // making inputId stale before typeOrClear can use it.
+    await this.typeOrClear(inputId, fieldRegex, effectiveValue);
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
@@ -10673,10 +10675,16 @@ export class ArchibaldBot {
       label: `typed-${inputId}`,
     });
 
-    const actual = await this.page.evaluate((id: string) => {
-      const input = document.getElementById(id) as HTMLInputElement | null;
+    // Verify: after the Tab+idle wait, DevExpress may have re-rendered the element with
+    // a new dynamic ID prefix. Fall back to regex query when getElementById returns null.
+    const actual = await this.page.evaluate((id: string, regexSrc: string) => {
+      let input = document.getElementById(id) as HTMLInputElement | null;
+      if (!input) {
+        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input, textarea"));
+        input = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+      }
       return input?.value ?? "";
-    }, inputId);
+    }, inputId, fieldRegex.source);
 
     if (actual !== effectiveValue) {
       logger.warn("typeDevExpressField value mismatch, retrying", {
@@ -10685,8 +10693,13 @@ export class ArchibaldBot {
         actual,
       });
 
-      await this.page.evaluate((id: string) => {
-        const input = document.getElementById(id) as HTMLInputElement | null;
+      // Retry clear: re-locate by regex in case DevExpress re-rendered with a new ID.
+      await this.page.evaluate((id: string, regexSrc: string) => {
+        let input = document.getElementById(id) as HTMLInputElement | null;
+        if (!input) {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input, textarea"));
+          input = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+        }
         if (!input) return;
         input.scrollIntoView({ block: "center" });
         input.focus();
@@ -10698,11 +10711,10 @@ export class ArchibaldBot {
         const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
         if (setter) setter.call(input, "");
         else input.value = "";
-        // No dispatchEvent — same reasoning as main path
-      }, inputId);
+      }, inputId, fieldRegex.source);
 
       await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-retry-${inputId}` });
-      await this.typeOrClear(inputId, effectiveValue);
+      await this.typeOrClear(inputId, fieldRegex, effectiveValue);
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
@@ -10710,10 +10722,14 @@ export class ArchibaldBot {
         label: `typed-retry-${inputId}`,
       });
 
-      const retryActual = await this.page.evaluate((id: string) => {
-        const input = document.getElementById(id) as HTMLInputElement | null;
+      const retryActual = await this.page.evaluate((id: string, regexSrc: string) => {
+        let input = document.getElementById(id) as HTMLInputElement | null;
+        if (!input) {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input, textarea"));
+          input = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+        }
         return input?.value ?? "";
-      }, inputId);
+      }, inputId, fieldRegex.source);
 
       if (retryActual !== effectiveValue) {
         throw new Error(
@@ -10725,19 +10741,25 @@ export class ArchibaldBot {
     logger.debug("typeDevExpressField done", { id: inputId, value: effectiveValue });
   }
 
-  private async typeOrClear(inputId: string, value: string): Promise<void> {
+  private async typeOrClear(inputId: string, fieldRegex: RegExp, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
     // Focus + select-all in a single evaluate call: avoids page.click() which
     // triggers DevExpress to detach and re-render the node ("Node is detached from
     // document"), and avoids Ctrl+A which depends on keyboard focus state that can
     // drift during waitForDevExpressIdle. setSelectionRange selects all text
     // atomically within the same evaluate, before any DevExpress event handler runs.
-    await this.page.evaluate((id: string) => {
-      const el = document.getElementById(id) as HTMLInputElement | null;
+    // If getElementById returns null (DevExpress re-rendered with a new dynamic ID
+    // prefix), fall back to regex query to locate the current element.
+    await this.page.evaluate((id: string, regexSrc: string) => {
+      let el = document.getElementById(id) as HTMLInputElement | null;
+      if (!el) {
+        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input, textarea"));
+        el = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+      }
       if (!el) return;
       el.focus();
       el.setSelectionRange(0, el.value.length);
-    }, inputId);
+    }, inputId, fieldRegex.source);
     if (value === "") {
       // Delete replaces the selection with nothing, firing a real input event
       // so DevExpress commits the empty value.
