@@ -116,8 +116,9 @@ type GalleryImage = {
 
 export function parseKometUkJson(json: string): ShopifyImage[] {
   try {
-    const parsed = JSON.parse(json) as { product?: { images?: ShopifyImage[] } };
-    return parsed?.product?.images ?? [];
+    const parsed = JSON.parse(json) as { product?: { images?: unknown } };
+    const images = parsed?.product?.images;
+    return Array.isArray(images) ? (images as ShopifyImage[]) : [];
   } catch {
     return [];
   }
@@ -131,7 +132,7 @@ export function filterKometUkImages(
   const substring = `_${shankCode}_${sizeCode}_`;
   return images
     .filter(img => {
-      const basename = img.src.split('/').pop() ?? '';
+      const basename = (img.src.split('/').pop() ?? '').split('?')[0];
       return basename.includes(substring);
     })
     .map(img => ({

@@ -440,6 +440,18 @@ describe('filterKometUkImages', () => {
       imageType: 'catalog_render',
     }]);
   });
+
+  test('ignora query string CDN (es. ?v=123) nel basename', () => {
+    const imageWithQueryString = [
+      { src: 'https://cdn.shopify.com/s/files/tc_314_016_450.png?v=1712345678', alt: 'H1' },
+    ];
+    expect(filterKometUkImages(imageWithQueryString, '314', '016')).toEqual([{
+      url:       'https://cdn.shopify.com/s/files/tc_314_016_450.png?v=1712345678',
+      altText:   'H1',
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
+  });
 });
 
 // ── parseKometUkJson tests ───────────────────────────────────────────────────
@@ -468,5 +480,9 @@ describe('parseKometUkJson', () => {
 
   test('restituisce array vuoto se product.images assente', () => {
     expect(parseKometUkJson(JSON.stringify({ product: {} }))).toEqual([]);
+  });
+
+  test('restituisce array vuoto se product.images non è un array', () => {
+    expect(parseKometUkJson(JSON.stringify({ product: { images: 'not-an-array' } }))).toEqual([]);
   });
 });
