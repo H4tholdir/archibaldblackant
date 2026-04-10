@@ -60,7 +60,7 @@ const SHANK_MAP: Record<string, ShankInfo> = {
 
 function getFamilyInfo(familyCode: string): FamilyInfo | null {
   for (const [prefix, info] of FAMILY_MAP) {
-    if (familyCode === prefix || familyCode.startsWith(prefix)) {
+    if (familyCode === prefix) {
       return info
     }
   }

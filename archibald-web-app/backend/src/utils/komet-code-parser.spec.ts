@@ -44,14 +44,22 @@ describe('parseKometFeatures', () => {
   })
 
   it('parsifica H2.314.016 come cono rovesciato', () => {
-    expect(parseKometFeatures('H2.314.016')).toMatchObject({
-      shape: 'Cono rovesciato',
+    expect(parseKometFeatures('H2.314.016')).toEqual<KometFeatures>({
+      material:        'Carburo di tungsteno',
+      shape:           'Cono rovesciato',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
     })
   })
 
   it('parsifica H21R.314.016 come cilindro', () => {
-    expect(parseKometFeatures('H21R.314.016')).toMatchObject({
-      shape: 'Cilindro',
+    expect(parseKometFeatures('H21R.314.016')).toEqual<KometFeatures>({
+      material:        'Carburo di tungsteno',
+      shape:           'Cilindro',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
     })
   })
 
@@ -66,9 +74,12 @@ describe('parseKometFeatures', () => {
   })
 
   it('parsifica H1.313.016 con turbina corta FGS', () => {
-    expect(parseKometFeatures('H1.313.016')).toMatchObject({
-      shankType: 'Turbina corta (FGS)',
+    expect(parseKometFeatures('H1.313.016')).toEqual<KometFeatures>({
+      material:        'Carburo di tungsteno',
+      shape:           'Testa tonda',
+      shankType:       'Turbina corta (FGS)',
       shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
     })
   })
 
@@ -103,20 +114,35 @@ describe('parseKometFeatures', () => {
   })
 
   it('parsifica 801EF.314.016 con grana extra fine (anello giallo)', () => {
-    expect(parseKometFeatures('801EF.314.016')).toMatchObject({
-      gritLabel: 'Grana extra fine (anello giallo)',
+    expect(parseKometFeatures('801EF.314.016')).toEqual<KometFeatures>({
+      material:        'Diamantata',
+      shape:           'Testa tonda',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+      gritLabel:       'Grana extra fine (anello giallo)',
     })
   })
 
   it('parsifica 801.314.016 con grana standard (anello blu)', () => {
-    expect(parseKometFeatures('801.314.016')).toMatchObject({
-      gritLabel: 'Grana standard (anello blu)',
+    expect(parseKometFeatures('801.314.016')).toEqual<KometFeatures>({
+      material:        'Diamantata',
+      shape:           'Testa tonda',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+      gritLabel:       'Grana standard (anello blu)',
     })
   })
 
   it('parsifica 6801.314.016 con grana grossolana (anello verde)', () => {
-    expect(parseKometFeatures('6801.314.016')).toMatchObject({
-      gritLabel: 'Grana grossolana (anello verde)',
+    expect(parseKometFeatures('6801.314.016')).toEqual<KometFeatures>({
+      material:        'Diamantata',
+      shape:           'Testa tonda',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+      gritLabel:       'Grana grossolana (anello verde)',
     })
   })
 
@@ -132,18 +158,34 @@ describe('parseKometFeatures', () => {
   })
 
   it('parsifica 879.314.016 come torpedine', () => {
-    expect(parseKometFeatures('879.314.016')).toMatchObject({
-      shape: 'Torpedine',
-      material: 'Diamantata',
+    expect(parseKometFeatures('879.314.016')).toEqual<KometFeatures>({
+      material:        'Diamantata',
+      shape:           'Torpedine',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+      gritLabel:       'Grana standard (anello blu)',
     })
   })
 
   it('parsifica H1S come testa tonda (variante H1)', () => {
-    expect(parseKometFeatures('H1S.314.016')).toMatchObject({ shape: 'Testa tonda' })
+    expect(parseKometFeatures('H1S.314.016')).toEqual<KometFeatures>({
+      material:        'Carburo di tungsteno',
+      shape:           'Testa tonda',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+    })
   })
 
   it('parsifica H7S come testa a pera (variante H7)', () => {
-    expect(parseKometFeatures('H7S.314.016')).toMatchObject({ shape: 'Testa a pera' })
+    expect(parseKometFeatures('H7S.314.016')).toEqual<KometFeatures>({
+      material:        'Carburo di tungsteno',
+      shape:           'Testa a pera',
+      shankType:       'Turbina (FG)',
+      shankDiameterMm: 1.6,
+      headDiameterMm:  1.6,
+    })
   })
 
   it('NON include gritLabel per prodotti carburo di tungsteno', () => {
