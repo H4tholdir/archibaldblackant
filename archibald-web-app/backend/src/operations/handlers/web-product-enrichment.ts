@@ -102,6 +102,63 @@ async function runWebSearches(
   return resources;
 }
 
+type ShopifyImage = {
+  src: string;
+  alt: string | null;
+};
+
+type GalleryImage = {
+  url:       string;
+  altText:   string | null;
+  source:    string;
+  imageType: 'catalog_render';
+};
+
+export function parseKometUkJson(json: string): ShopifyImage[] {
+  try {
+    const parsed = JSON.parse(json) as { product?: { images?: ShopifyImage[] } };
+    return parsed?.product?.images ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export function filterKometUkImages(
+  images: ShopifyImage[],
+  shankCode: string,
+  sizeCode: string,
+): GalleryImage[] {
+  const substring = `_${shankCode}_${sizeCode}_`;
+  return images
+    .filter(img => {
+      const basename = img.src.split('/').pop() ?? '';
+      return basename.includes(substring);
+    })
+    .map(img => ({
+      url:       img.src,
+      altText:   img.alt ?? null,
+      source:    'kometuk.com',
+      imageType: 'catalog_render' as const,
+    }));
+}
+
+async function scrapeKometUk(
+  fetchUrl: FetchUrlFn,
+  familyCode: string,
+  shankCode: string,
+  sizeCode: string,
+): Promise<GalleryImage[]> {
+  const url = `https://kometuk.com/products/${familyCode.toLowerCase()}.json`;
+  try {
+    const { html } = await fetchUrl(url);
+    const images = parseKometUkJson(html);
+    return filterKometUkImages(images, shankCode, sizeCode);
+  } catch {
+    logger.warn('[web-product-enrichment] kometuk.com scrape failed', { familyCode, url });
+    return [];
+  }
+}
+
 async function enrichSingleProduct(
   pool: DbPool,
   fetchUrl: FetchUrlFn,
@@ -109,9 +166,14 @@ async function enrichSingleProduct(
   productId: string,
   familyCode: string,
 ): Promise<{ scraped: number; resourcesFound: number }> {
-  const [{ imageUrls }, webResources] = await Promise.all([
+  const productParts = productId.split('.');
+  const shankCode = productParts[1] ?? '';
+  const sizeCode  = productParts[2] ?? '';
+
+  const [{ imageUrls }, webResources, ukImages] = await Promise.all([
     scrapeKometFr(fetchUrl, familyCode),
     runWebSearches(searchWeb, familyCode),
+    scrapeKometUk(fetchUrl, familyCode, shankCode, sizeCode),
   ]);
 
   let resourcesFound = 0;
@@ -146,6 +208,20 @@ async function enrichSingleProduct(
     );
     scraped += result.rowCount ?? 0;
   }
+
+  let ukScraped = 0;
+  for (let i = 0; i < ukImages.length; i++) {
+    const img = ukImages[i];
+    const result = await pool.query(
+      `INSERT INTO shared.product_gallery
+         (product_id, url, image_type, source, alt_text, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (product_id, url) DO NOTHING`,
+      [productId, img.url, img.imageType, img.source, img.altText, 100 + i],
+    );
+    ukScraped += result.rowCount ?? 0;
+  }
+  scraped += ukScraped;
 
   await pool.query(
     `INSERT INTO shared.product_details (product_id, web_enriched_at)
