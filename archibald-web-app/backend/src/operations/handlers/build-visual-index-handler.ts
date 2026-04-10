@@ -12,12 +12,16 @@ const DELAY_MS = 200
 const sleep    = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
-  return async function (_context, _data, _userId) {
+  return async function (_context, _data, _userId, onProgress) {
     const { pool, embeddingSvc } = deps
-    const seen    = await getIndexedFamilyCodes(pool)
-    let   indexed = 0
+    const seen        = await getIndexedFamilyCodes(pool)
+    let   indexed     = 0
+    const totalStrips = CAMPIONARIO_STRIPS.length
 
-    for (const strip of CAMPIONARIO_STRIPS) {
+    for (let stripIdx = 0; stripIdx < CAMPIONARIO_STRIPS.length; stripIdx++) {
+      const strip = CAMPIONARIO_STRIPS[stripIdx]!
+      onProgress(Math.round((stripIdx / totalStrips) * 95), `Strip ${stripIdx + 1}/${totalStrips}`)
+
       let crops: Awaited<ReturnType<typeof cropStripForFamilies>>
       try { crops = await cropStripForFamilies(strip) }
       catch (err) {
@@ -45,6 +49,7 @@ export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
     }
 
     const total = await countIndexed(pool)
+    onProgress(100, `${total} famiglie indicizzate`)
     logger.info('[build-visual-index] Complete', { newlyIndexed: indexed, totalIndexed: total })
     return { indexed: total }
   }

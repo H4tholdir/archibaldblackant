@@ -27,7 +27,7 @@ describe('createBuildVisualIndexHandler', () => {
     const pool        = {} as import('../../db/pool').DbPool
     const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
 
-    await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
+    await createBuildVisualIndexHandler({ pool, embeddingSvc })(null, {}, 'admin', vi.fn())
 
     expect(upsertFamilyImage).toHaveBeenCalledTimes(2)
     expect(updateEmbedding).toHaveBeenCalledTimes(2)
@@ -37,7 +37,7 @@ describe('createBuildVisualIndexHandler', () => {
   test('returns total indexed count on completion', async () => {
     const pool        = {} as import('../../db/pool').DbPool
     const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
-    const result = await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
+    const result = await createBuildVisualIndexHandler({ pool, embeddingSvc })(null, {}, 'admin', vi.fn())
     expect(result).toMatchObject({ indexed: 2 })
   })
 })

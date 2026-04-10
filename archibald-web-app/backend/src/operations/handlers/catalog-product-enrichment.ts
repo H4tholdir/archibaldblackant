@@ -71,7 +71,7 @@ async function enrichProduct(pool: DbPool, productId: string, productName: strin
       entry.clinical_indications ?? null,
       entry.rpm_max ?? null,
       entry.usage_notes ?? null,
-      entry.pictograms ?? null,
+      entry.pictograms != null ? JSON.stringify(entry.pictograms) : null,
       packagingUnits,
       sterile,
       singleUse,

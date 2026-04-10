@@ -9,6 +9,7 @@ import WebSocketMonitor from "../components/WebSocketMonitor";
 import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
 import { KometListinoImporter } from "../components/KometListinoImporter";
 import { FedExReportSection } from "../components/admin/FedExReportSection";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -66,7 +67,11 @@ interface RetentionConfig {
   keepFailed: number;
 }
 
+type OpProgress = { pct: number; label: string; done?: boolean; failed?: boolean }
+
 export function AdminPage(_props: AdminPageProps) {
+  const { subscribe } = useWebSocketContext();
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -92,6 +97,10 @@ export function AdminPage(_props: AdminPageProps) {
   const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
 
+  const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
+  const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
+  const [visualProgress, setVisualProgress] = useState<OpProgress | null>(null);
+
   useEffect(() => {
     loadJobs();
     loadRetentionConfig();
@@ -105,6 +114,39 @@ export function AdminPage(_props: AdminPageProps) {
     getEnrichmentStats(token).then(setEnrichmentStats).catch(console.error);
     getRecognitionBudget(token).then(setRecognitionBudget).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const setterFor: Record<string, (v: OpProgress | null) => void> = {
+      'catalog-ingestion':          setIngestionProgress,
+      'catalog-product-enrichment': setEnrichProgress,
+      'build-visual-index':         setVisualProgress,
+    }
+
+    const unsubs = [
+      subscribe('JOB_PROGRESS', (payload: unknown) => {
+        const p = payload as Record<string, unknown>
+        const setter = setterFor[p.type as string]
+        if (!setter) return
+        setter({ pct: (p.progress as number) ?? 0, label: (p.label as string) ?? '' })
+      }),
+      subscribe('JOB_COMPLETED', (payload: unknown) => {
+        const p = payload as Record<string, unknown>
+        const setter = setterFor[p.type as string]
+        if (!setter) return
+        setter({ pct: 100, label: 'Completato', done: true })
+        setTimeout(() => setter(null), 4000)
+      }),
+      subscribe('JOB_FAILED', (payload: unknown) => {
+        const p = payload as Record<string, unknown>
+        const setter = setterFor[p.type as string]
+        if (!setter) return
+        setter({ pct: 0, label: 'Errore — operazione fallita', failed: true })
+        setTimeout(() => setter(null), 6000)
+      }),
+    ]
+
+    return () => unsubs.forEach(fn => fn())
+  }, [subscribe])
 
   const loadJobs = async () => {
     try {
@@ -410,6 +452,23 @@ export function AdminPage(_props: AdminPageProps) {
     });
   };
 
+  function OpProgressBar({ progress }: { progress: OpProgress | null }) {
+    if (!progress) return null
+    const color = progress.failed ? '#d32f2f' : progress.done ? '#388e3c' : '#1976d2'
+    return (
+      <div style={{ gridColumn: '1 / -1', paddingTop: 4 }}>
+        <div style={{ background: '#e0e0e0', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+          <div style={{
+            width: `${progress.pct}%`, background: color,
+            height: 6, borderRadius: 4,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+        <div style={{ fontSize: 11, color, marginTop: 4 }}>{progress.label}</div>
+      </div>
+    )
+  }
+
   // Pagination uses filteredJobs
   const indexOfLastJob = currentPage * jobsPerPage;
   const indexOfFirstJob = indexOfLastJob - jobsPerPage;
@@ -603,6 +662,7 @@ export function AdminPage(_props: AdminPageProps) {
               >
                 {enqueuingIngestion ? "..." : ingestionQueued ? "Avviata" : "Avvia →"}
               </button>
+              <OpProgressBar progress={ingestionProgress} />
             </div>
 
             <div style={{
@@ -644,6 +704,7 @@ export function AdminPage(_props: AdminPageProps) {
               >
                 {enqueuingEnrich ? "..." : "Bulk enrich →"}
               </button>
+              <OpProgressBar progress={enrichProgress} />
             </div>
 
             <div style={{
@@ -691,6 +752,7 @@ export function AdminPage(_props: AdminPageProps) {
               >
                 {enqueuingVisualIndex ? "..." : visualIndexQueued ? "Avviato" : "Indicizza →"}
               </button>
+              <OpProgressBar progress={visualProgress} />
             </div>
 
             <div style={{
