@@ -10,7 +10,7 @@ CREATE TABLE shared.catalog_family_images (
   local_path      text NOT NULL,
   priority        int  NOT NULL DEFAULT 0,
   metadata        jsonb,
-  visual_embedding vector(2048),
+  visual_embedding halfvec(2048),
   indexed_at      timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (family_code, source_type, local_path)
@@ -18,7 +18,7 @@ CREATE TABLE shared.catalog_family_images (
 
 CREATE INDEX catalog_family_images_hnsw_idx
   ON shared.catalog_family_images
-  USING hnsw (visual_embedding vector_cosine_ops)
+  USING hnsw (visual_embedding halfvec_cosine_ops)
   WHERE visual_embedding IS NOT NULL;
 
 CREATE INDEX catalog_family_images_family_idx

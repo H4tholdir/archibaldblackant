@@ -47,7 +47,7 @@ export async function updateEmbedding(
 ): Promise<void> {
   await pool.query(
     `UPDATE shared.catalog_family_images
-     SET visual_embedding = $1::vector, indexed_at = now()
+     SET visual_embedding = $1::halfvec, indexed_at = now()
      WHERE id = $2`,
     [`[${embedding.join(',')}]`, id],
   )
@@ -61,11 +61,11 @@ export async function queryTopK(
   const vectorLiteral = `[${queryEmbedding.join(',')}]`
   const { rows } = await pool.query<AnnCandidate>(
     `SELECT id, family_code,
-       1 - (visual_embedding <=> $1::vector) AS similarity,
+       1 - (visual_embedding <=> $1::halfvec) AS similarity,
        local_path, source_type, metadata
      FROM shared.catalog_family_images
      WHERE visual_embedding IS NOT NULL
-     ORDER BY visual_embedding <=> $1::vector
+     ORDER BY visual_embedding <=> $1::halfvec
      LIMIT $2`,
     [vectorLiteral, limit],
   )
