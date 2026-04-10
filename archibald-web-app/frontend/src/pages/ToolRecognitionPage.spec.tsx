@@ -222,10 +222,10 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
   it('mostra lista candidati con link a scheda prodotto', async () => {
     const shortlistResponse: IdentifyResponse = {
       result: {
-        state: 'shortlist',
+        state: 'shortlist_visual',
         candidates: [
-          { productId: 'H1.314.014', productName: 'TC Round Ø1.4', familyCode: 'H1', headSizeMm: 1.4, shankType: 'fg', thumbnailUrl: null, confidence: 0.82 },
-          { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.75 },
+          { familyCode: 'H1', thumbnailUrl: null, referenceImages: [] },
+          { familyCode: 'H79NEX', thumbnailUrl: null, referenceImages: [] },
         ],
       },
       budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
@@ -242,7 +242,60 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
     await waitFor(() =>
       expect(screen.getByText(/2 candidati trovati/i)).toBeInTheDocument()
     )
-    expect(screen.getByText('TC Round Ø1.4')).toBeInTheDocument()
-    expect(screen.getByText('TC Round Ø1.6')).toBeInTheDocument()
+    expect(screen.getByText('H1')).toBeInTheDocument()
+    expect(screen.getByText('H79NEX')).toBeInTheDocument()
+  })
+})
+
+describe('photo2_request state', () => {
+  it('mostra istruzione Claude quando result è photo2_request', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValueOnce({
+      result: {
+        state:       'photo2_request',
+        candidates:  ['879.104.014', '863.104.014'],
+        instruction: 'Fotografa la punta dall\'alto per vedere se è piatta o arrotondata',
+      },
+      budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 3000,
+      imageHash:    'abc',
+    })
+    mockCapture()
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() => {
+      expect(screen.getByText(/ho bisogno di un'altra foto/i)).toBeInTheDocument()
+      expect(screen.getByText(/fotografa la punta dall'alto/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /scatta ora/i })).toBeInTheDocument()
+    })
+  })
+})
+
+describe('shortlist_visual state', () => {
+  it('mostra lista candidati quando result è shortlist_visual', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValueOnce({
+      result: {
+        state: 'shortlist_visual',
+        candidates: [
+          { familyCode: '879', thumbnailUrl: null, referenceImages: [] },
+          { familyCode: '863', thumbnailUrl: null, referenceImages: [] },
+        ],
+      },
+      budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 5000,
+      imageHash:    'xyz',
+    })
+    mockCapture()
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() => {
+      expect(screen.getByText('879')).toBeInTheDocument()
+      expect(screen.getByText('863')).toBeInTheDocument()
+    })
   })
 })

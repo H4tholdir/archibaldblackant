@@ -25,10 +25,6 @@ type WebResource = {
   snippet: string;
 };
 
-type GalleryImage = {
-  url: string;
-};
-
 function extractDomain(url: string): string {
   try {
     return new URL(url).hostname;
@@ -43,40 +39,38 @@ function classifyResource(url: string, title: string): 'video' | 'pdf' | 'articl
   return 'article';
 }
 
-function parseKometUkImages(html: string): GalleryImage[] {
-  const images: GalleryImage[] = [];
-  const imgRegex = /<img[^>]+>/gi;
-  const srcRegex = /src=["']([^"']+)["']/i;
-  const classRegex = /class=["']([^"']*)["']/i;
-  const dataRegex = /data-product-photo/i;
+function parseKometFrPage(html: string): { imageUrls: string[]; description: string } {
+  const getmetafileRegex = /\/getmetafile\/[^"'\s<>]+\.aspx/gi;
+  const seen = new Set<string>();
+  const imageUrls: string[] = [];
 
   let match: RegExpExecArray | null;
-  while ((match = imgRegex.exec(html)) !== null) {
-    const tag = match[0];
-    const classMatch = classRegex.exec(tag);
-    const hasProductPhotoClass = classMatch ? classMatch[1].includes('product-single__photo') : false;
-    const hasDataAttr = dataRegex.test(tag);
-
-    if (hasProductPhotoClass || hasDataAttr) {
-      const srcMatch = srcRegex.exec(tag);
-      if (srcMatch) {
-        images.push({ url: srcMatch[1] });
-      }
+  while ((match = getmetafileRegex.exec(html)) !== null) {
+    const url = match[0];
+    if (!seen.has(url)) {
+      seen.add(url);
+      imageUrls.push(url);
     }
   }
 
-  return images;
+  const headingRegex = /<h[12][^>]*>([^<]+)<\/h[12]>/i;
+  const headingMatch = headingRegex.exec(html);
+  const description = headingMatch ? headingMatch[1].trim() : '';
+
+  return { imageUrls, description };
 }
 
-async function scrapeKometUk(fetchUrl: FetchUrlFn, familyCode: string): Promise<GalleryImage[]> {
-  const handle = familyCode.toLowerCase();
-  const url = `https://kometuk.com/products/${handle}`;
+async function scrapeKometFr(
+  fetchUrl: FetchUrlFn,
+  familyCode: string,
+): Promise<{ imageUrls: string[]; description: string }> {
+  const url = `https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/${familyCode}`;
   try {
     const { html } = await fetchUrl(url);
-    return parseKometUkImages(html);
-  } catch (err) {
-    logger.warn('[web-product-enrichment] Komet UK scrape failed', { familyCode, url, err });
-    return [];
+    return parseKometFrPage(html);
+  } catch {
+    logger.warn('[web-product-enrichment] komet.fr scrape failed', { familyCode, url });
+    return { imageUrls: [], description: '' };
   }
 }
 
@@ -135,8 +129,8 @@ function createWebProductEnrichmentHandler(deps: WebProductEnrichmentDeps): Oper
 
     const familyCode = row.catalog_family_code ?? productId.split('.')[0];
 
-    const [images, webResources] = await Promise.all([
-      scrapeKometUk(fetchUrl, familyCode),
+    const [{ imageUrls, description }, webResources] = await Promise.all([
+      scrapeKometFr(fetchUrl, familyCode),
       runWebSearches(searchWeb, familyCode),
     ]);
 
@@ -161,15 +155,25 @@ function createWebProductEnrichmentHandler(deps: WebProductEnrichmentDeps): Oper
     }
 
     let scraped = 0;
-    for (let i = 0; i < images.length; i++) {
+    for (let i = 0; i < imageUrls.length; i++) {
+      const absoluteUrl = `https://www.komet.fr${imageUrls[i]}`;
       const result = await pool.query(
         `INSERT INTO shared.product_gallery
            (product_id, url, image_type, source, sort_order)
          VALUES ($1,$2,$3,$4,$5)
          ON CONFLICT (product_id, url) DO NOTHING`,
-        [productId, images[i].url, 'web', 'kometuk', i],
+        [productId, absoluteUrl, 'web', 'komet.fr', i],
       );
       scraped += result.rowCount ?? 0;
+    }
+
+    if (description && !row.description_en) {
+      await pool.query(
+        `INSERT INTO shared.product_details (product_id, description_en)
+         VALUES ($1, $2)
+         ON CONFLICT (product_id) DO UPDATE SET description_en=$2, updated_at=NOW()`,
+        [productId, description],
+      );
     }
 
     await pool.query(
@@ -185,6 +189,7 @@ function createWebProductEnrichmentHandler(deps: WebProductEnrichmentDeps): Oper
 
 export {
   createWebProductEnrichmentHandler,
+  parseKometFrPage,
   type WebProductEnrichmentDeps,
   type FetchUrlFn,
   type SearchWebFn,

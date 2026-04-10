@@ -50,7 +50,9 @@ import {
   createCatalogIngestionHandler,
   createCatalogProductEnrichmentHandler,
   createWebProductEnrichmentHandler,
+  createBuildVisualIndexHandler,
 } from './operations/handlers';
+import { createVisualEmbeddingService } from './recognition/visual-embedding-service';
 import Anthropic from '@anthropic-ai/sdk';
 import { createCatalogVisionService } from './services/anthropic-vision-service';
 import { createCatalogPdfService } from './services/catalog-pdf-service';
@@ -428,11 +430,12 @@ async function bootstrap(): Promise<void> {
     : undefined;
   const catalogVisionService = config.recognition.anthropicApiKey
     ? createCatalogVisionService({
-        apiKey: config.recognition.anthropicApiKey,
+        apiKey:    config.recognition.anthropicApiKey,
         timeoutMs: config.recognition.timeoutMs,
-        pool,
-        catalogPdf,
       })
+    : undefined;
+  const embeddingSvc = config.recognition.jinaApiKey
+    ? createVisualEmbeddingService(config.recognition.jinaApiKey)
     : undefined;
 
   const app = createApp({
@@ -460,9 +463,11 @@ async function bootstrap(): Promise<void> {
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
     catalogVisionService,
+    embeddingSvc,
     catalogPdf,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
+    recognitionMinSimilarity: config.recognition.minSimilarity,
   });
 
   const server = http.createServer(app);
@@ -1161,6 +1166,9 @@ async function bootstrap(): Promise<void> {
         },
         searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
       }),
+    } : {}),
+    ...(config.recognition.jinaApiKey && embeddingSvc ? {
+      'build-visual-index': createBuildVisualIndexHandler({ pool, embeddingSvc }),
     } : {}),
   };
 

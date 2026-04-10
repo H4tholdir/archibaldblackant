@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -53,6 +53,7 @@ services:
       - backend-cache:/app/.cache
       - backend-logs:/app/logs
       - product-images:/app/assets/product-images
+      - /home/deploy/komet-campionari:/app/komet-campionari:ro
 
 volumes:
   pgdata:

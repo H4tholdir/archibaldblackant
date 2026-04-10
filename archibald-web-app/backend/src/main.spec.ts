@@ -17,7 +17,7 @@ vi.mock('./config', () => ({
       'bot-queue': { concurrency: 1, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: { count: 100 } },
     },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
-    recognition: { anthropicApiKey: 'test-api-key', dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
+    recognition: { anthropicApiKey: 'test-api-key', jinaApiKey: 'test-jina-key', minSimilarity: 0.20, dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
   },
 }));
 
@@ -242,6 +242,7 @@ vi.mock('./operations/handlers', () => ({
   createCatalogIngestionHandler: vi.fn(() => vi.fn()),
   createCatalogProductEnrichmentHandler: vi.fn(() => vi.fn()),
   createWebProductEnrichmentHandler: vi.fn(() => vi.fn()),
+  createBuildVisualIndexHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('./services/anthropic-vision-service', () => ({
@@ -366,7 +367,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 26 operation handlers', async () => {
+  test('registers all 27 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -402,8 +403,9 @@ describe('bootstrap', () => {
       'catalog-ingestion',
       'catalog-product-enrichment',
       'web-product-enrichment',
+      'build-visual-index',
     ]));
-    expect(handlerKeys).toHaveLength(26);
+    expect(handlerKeys).toHaveLength(27);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

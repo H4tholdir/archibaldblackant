@@ -5,14 +5,36 @@ import { createRecognitionRouter } from './recognition';
 import type { CatalogVisionService } from '../recognition/recognition-engine';
 import type { DbPool } from '../db/pool';
 
+vi.mock('../db/repositories/catalog-family-images', () => ({
+  queryTopK:           vi.fn().mockResolvedValue([]),
+  getFallbackFamilies: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('../recognition/recognition-engine', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../recognition/recognition-engine')>()
+  return {
+    ...actual,
+    runRecognitionPipeline: vi.fn().mockResolvedValue({
+      result: { state: 'budget_exhausted' },
+      budgetState: { dailyLimit: 500, usedToday: 0, throttleLevel: 'normal', resetAt: new Date() },
+      processingMs: 10,
+      imageHash: 'a'.repeat(64),
+    }),
+  }
+})
+
 function makeApp(catalogVisionService: CatalogVisionService, pool: DbPool) {
+  const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
   const app = express();
   app.use(express.json({ limit: '10mb' }));
   app.use((req: any, _res, next) => {
     req.user = { userId: 'test-user', role: 'agent', username: 'test' };
     next();
   });
-  app.use('/api/recognition', createRecognitionRouter({ pool, catalogVisionService, dailyLimit: 500, timeoutMs: 15000 }));
+  app.use('/api/recognition', createRecognitionRouter({
+    pool, catalogVisionService, embeddingSvc, minSimilarity: 0.20,
+    dailyLimit: 500, timeoutMs: 15000,
+  }));
   return app;
 }
 
