@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getProductEnrichment } from '../api/recognition'
 import { getProductById } from '../api/products'
-import type { KometFeatures } from '../api/recognition'
 import type { ProductEnrichment, ProductGalleryImage, SizeVariant } from '../api/recognition'
 import type { Product } from '../api/products'
 
@@ -21,7 +20,7 @@ function headDiameterMmFromId(productId: string): number | null {
   return isNaN(n) ? null : n / 10
 }
 
-function gritBadgeStyle(gritLabel: KometFeatures['gritLabel'] & string): { background: string; color: string } {
+function gritBadgeStyle(gritLabel: string): { background: string; color: string } {
   if (gritLabel.includes('bianco')) return { background: '#374151', color: '#f9fafb' }
   if (gritLabel.includes('giallo')) return { background: '#713f12', color: '#fde68a' }
   if (gritLabel.includes('rosso'))  return { background: '#7f1d1d', color: '#fca5a5' }
@@ -200,9 +199,14 @@ export function ProductDetailPage() {
           getProductEnrichment(token!, decodedId),
         ])
 
-        if (productRes.status === 'fulfilled' && productRes.value.success) {
-          setProduct(productRes.value.data)
+        if (productRes.status === 'fulfilled') {
+          if (productRes.value.success) {
+            setProduct(productRes.value.data)
+          } else {
+            setNotFound(true)
+          }
         } else {
+          console.error('getProductById failed:', productRes.reason)
           setNotFound(true)
         }
 
