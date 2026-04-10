@@ -7,7 +7,6 @@ import {
   identifyInstrument,
   getRecognitionBudget,
   submitRecognitionFeedback,
-  getCatalogPageImage,
 } from '../api/recognition'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
 
@@ -173,18 +172,6 @@ function TopDownGuide() {
   )
 }
 
-function SizeBar({ sizeMm, maxSizeMm }: { sizeMm: number; maxSizeMm: number }) {
-  const minH = 16, maxH = 40
-  const h = minH + ((sizeMm / maxSizeMm) * (maxH - minH))
-  return (
-    <div style={{
-      width: 6, height: h,
-      background: 'linear-gradient(180deg, #ffd700, #c8a000)',
-      borderRadius: 3,
-      flexShrink: 0,
-    }} />
-  )
-}
 
 export function ToolRecognitionPage() {
   const auth = useAuth()
@@ -207,8 +194,6 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
-  // catalogPage images for shortlist candidates: productId → base64
-  const [candidateCatalogImages, setCandidateCatalogImages] = useState<Record<string, string>>({})
 
   // Haptic feedback helper
   const vibrate = useCallback((pattern: number | number[]) => {
@@ -283,7 +268,6 @@ export function ToolRecognitionPage() {
   const runIdentification = useCallback(async (images: string[]) => {
     const token = localStorage.getItem('archibald_jwt')
     if (!token) return
-    setCandidateCatalogImages({})
     setPageState('analyzing')
     setAnalyzeStep(0)
     setUsedPhotoCount(images.length)
@@ -302,20 +286,9 @@ export function ToolRecognitionPage() {
         vibrate([200, 50, 100])
         playSuccessBeep()
         setPageState('match')
-      } else if (state === 'shortlist') {
+      } else if (state === 'shortlist_visual') {
         vibrate([80, 30, 80])
         setPageState('shortlist')
-        const candidates = response.result.candidates
-        const catalogImages: Record<string, string> = {}
-        await Promise.all(
-          candidates
-            .filter(c => c.catalogPage != null)
-            .map(async c => {
-              const img = await getCatalogPageImage(token, c.catalogPage!)
-              if (img) catalogImages[c.productId] = img
-            })
-        )
-        setCandidateCatalogImages(catalogImages)
       } else {
         setPageState('idle_photo1')
         if (state === 'not_found') {
@@ -355,7 +328,7 @@ export function ToolRecognitionPage() {
   const handleDisambiguationShutter = useCallback(async () => {
     if (pageState !== 'disambiguation_camera') return
     const token = localStorage.getItem('archibald_jwt')
-    if (!token || identifyResult?.result.state !== 'shortlist') return
+    if (!token || identifyResult?.result.state !== 'shortlist_visual') return
 
     vibrate(30)
     const base64 = captureFrame()
@@ -363,10 +336,8 @@ export function ToolRecognitionPage() {
     setCapturedImages(prev => [prev[0] ?? base64, base64])
     setPageState('disambiguation_analyzing')
 
-    const candidateIds = identifyResult.result.candidates.map(c => c.productId)
-
     try {
-      const response = await identifyInstrument(token, [base64], candidateIds)
+      const response = await identifyInstrument(token, [base64])
       setIdentifyResult(response)
 
       const { state } = response.result
@@ -374,20 +345,9 @@ export function ToolRecognitionPage() {
         vibrate([200, 50, 100])
         playSuccessBeep()
         setPageState('match')
-      } else if (state === 'shortlist') {
+      } else if (state === 'shortlist_visual') {
         vibrate([80, 30, 80])
         setPageState('shortlist')
-        const candidates = response.result.candidates
-        const catalogImages: Record<string, string> = {}
-        await Promise.all(
-          candidates
-            .filter(c => c.catalogPage != null)
-            .map(async c => {
-              const img = await getCatalogPageImage(token, c.catalogPage!)
-              if (img) catalogImages[c.productId] = img
-            })
-        )
-        setCandidateCatalogImages(catalogImages)
       } else {
         setPageState('shortlist')
         setErrorMessage('Non riesco a distinguere i candidati. Seleziona manualmente.')
@@ -683,9 +643,8 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist') {
+  if (pageState === 'shortlist' && identifyResult?.result.state === 'shortlist_visual') {
     const { candidates } = identifyResult.result
-    const maxSize = Math.max(...candidates.map(c => c.headSizeMm))
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
@@ -763,11 +722,10 @@ export function ToolRecognitionPage() {
 
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
-            const catalogImg = candidateCatalogImages[c.productId]
             return (
               <button
-                key={c.productId}
-                onClick={() => navigate(`/products/${encodeURIComponent(c.productId)}`, { state: { fromScanner: true } })}
+                key={c.familyCode}
+                onClick={() => navigate(`/products/${encodeURIComponent(c.familyCode)}`, { state: { fromScanner: true } })}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',
@@ -777,29 +735,30 @@ export function ToolRecognitionPage() {
                   cursor: 'pointer', textAlign: 'left',
                 }}
               >
-                {/* P3: catalog page thumbnail */}
-                {catalogImg ? (
+                {c.thumbnailUrl ? (
                   <img
-                    src={`data:image/jpeg;base64,${catalogImg}`}
-                    alt="Pagina catalogo"
+                    src={c.thumbnailUrl}
+                    alt="Strip campionario"
                     style={{
-                      width: 64, height: 80, objectFit: 'cover',
+                      width: 64, height: 64, objectFit: 'cover',
                       borderRadius: 6, flexShrink: 0,
                       border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
                     }}
                   />
                 ) : (
-                  <SizeBar sizeMm={c.headSizeMm} maxSizeMm={maxSize} />
+                  <div style={{
+                    width: 64, height: 64, borderRadius: 6, flexShrink: 0,
+                    background: '#2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
+                  }}>
+                    <span style={{ color: '#6b7280', fontSize: 22 }}>🔩</span>
+                  </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.productName}</div>
+                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.familyCode}</div>
                   <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
-                    <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{c.productId}</span>
-                    {c.headSizeMm > 0 && <span> · Ø {c.headSizeMm} mm</span>}
+                    <span style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{c.familyCode}</span>
                   </div>
-                </div>
-                <div style={{ color: isFirst ? '#f9a825' : '#6b7280', fontSize: 13, fontWeight: isFirst ? 700 : 400, flexShrink: 0, paddingTop: 2 }}>
-                  {Math.round(c.confidence * 100)}%
                 </div>
               </button>
             )

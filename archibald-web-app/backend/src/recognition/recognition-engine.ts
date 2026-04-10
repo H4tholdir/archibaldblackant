@@ -73,9 +73,7 @@ export async function runRecognitionPipeline(
     }
   }
 
-  type LoggableResult = Extract<RecognitionResult, { state: 'match' | 'shortlist' | 'not_found' | 'error' }>
-
-  let result: LoggableResult
+  let result: RecognitionResult
   switch (identification.resultState) {
     case 'match': {
       const familyCode = identification.familyCode ?? ''
@@ -101,21 +99,13 @@ export async function runRecognitionPipeline(
       break
     }
     case 'shortlist': {
-      const [catalogPages, campionarioUrls] = await Promise.all([
-        fetchCatalogPagesForCodes(deps.pool, identification.candidates),
-        fetchCampionarioUrlsForCodes(deps.pool, identification.candidates),
-      ])
+      const campionarioUrls = await fetchCampionarioUrlsForCodes(deps.pool, identification.candidates)
       result = {
-        state:      'shortlist' as const,
-        candidates: identification.candidates.map((c, i) => ({
-          productId:    c,
-          productName:  c,
-          familyCode:   c.split('.')[0] ?? '',
-          headSizeMm:   0,
-          shankType:    '',
-          thumbnailUrl: campionarioUrls.get(c) ?? null,
-          confidence:   Math.max(0.3, identification.confidence - i * 0.08),
-          catalogPage:  catalogPages.get(c) ?? null,
+        state:      'shortlist_visual' as const,
+        candidates: identification.candidates.map(c => ({
+          familyCode:      c.split('.')[0] ?? c,
+          thumbnailUrl:    campionarioUrls.get(c) ?? null,
+          referenceImages: [],
         })),
       }
       break
@@ -141,7 +131,7 @@ export async function runRecognitionPipeline(
     cache_hit:    false,
     product_id:   result.state === 'match' ? result.product.productId : null,
     confidence:   result.state === 'match' ? result.confidence : null,
-    result_state: result.state,
+    result_state: result.state === 'shortlist_visual' ? 'shortlist' : result.state as 'match' | 'not_found' | 'error',
     tokens_used:  identification.usage.inputTokens + identification.usage.outputTokens,
     api_cost_usd: null,
   }).catch(() => {})

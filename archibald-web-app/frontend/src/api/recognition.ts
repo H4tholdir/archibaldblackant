@@ -14,12 +14,19 @@ export type ProductMatch = {
   catalogPage?: number | null
 }
 
+export type CandidateMatch = {
+  familyCode:      string
+  thumbnailUrl:    string | null
+  referenceImages: string[]
+}
+
 export type RecognitionResult =
-  | { state: 'match';           product: ProductMatch; confidence: number }
-  | { state: 'shortlist';       candidates: ProductMatch[] }
+  | { state: 'match';            product: ProductMatch; confidence: number }
+  | { state: 'shortlist_visual'; candidates: CandidateMatch[] }
+  | { state: 'photo2_request';   candidates: string[]; instruction: string }
   | { state: 'not_found' }
   | { state: 'budget_exhausted' }
-  | { state: 'error';           message: string }
+  | { state: 'error';            message: string }
 
 export type BudgetState = {
   usedToday:     number
@@ -72,26 +79,24 @@ export type ProductEnrichment = {
 }
 
 /**
- * identifyInstrument: usa raw fetch con AbortController 40s.
+ * identifyInstrument: usa raw fetch con AbortController 90s.
  * NON usa fetchWithRetry — ogni tentativo consuma budget Vision API.
+ * Second photo detection is server-side via images.length === 2.
  */
 export async function identifyInstrument(
-  token: string,
+  token:  string,
   images: string[],
-  candidates?: string[],
 ): Promise<IdentifyResponse> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 90_000)
+  const timeoutId  = setTimeout(() => controller.abort(), 90_000)
   try {
-    const body: Record<string, unknown> = { images }
-    if (candidates && candidates.length >= 2) body.candidates = candidates
     const res = await fetch('/api/recognition/identify', {
       method:  'POST',
       headers: {
         Authorization:  `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body:   JSON.stringify(body),
+      body:   JSON.stringify({ images }),
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

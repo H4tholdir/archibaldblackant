@@ -222,10 +222,10 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
   it('mostra lista candidati con link a scheda prodotto', async () => {
     const shortlistResponse: IdentifyResponse = {
       result: {
-        state: 'shortlist',
+        state: 'shortlist_visual',
         candidates: [
-          { productId: 'H1.314.014', productName: 'TC Round Ø1.4', familyCode: 'H1', headSizeMm: 1.4, shankType: 'fg', thumbnailUrl: null, confidence: 0.82 },
-          { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.75 },
+          { familyCode: 'H1', thumbnailUrl: null, referenceImages: [] },
+          { familyCode: 'H79NEX', thumbnailUrl: null, referenceImages: [] },
         ],
       },
       budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
@@ -242,7 +242,7 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
     await waitFor(() =>
       expect(screen.getByText(/2 candidati trovati/i)).toBeInTheDocument()
     )
-    expect(screen.getByText('TC Round Ø1.4')).toBeInTheDocument()
-    expect(screen.getByText('TC Round Ø1.6')).toBeInTheDocument()
+    expect(screen.getByText('H1')).toBeInTheDocument()
+    expect(screen.getByText('H79NEX')).toBeInTheDocument()
   })
 })

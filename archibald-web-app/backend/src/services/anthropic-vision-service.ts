@@ -436,13 +436,14 @@ export function parseIdentificationResult(
 
   if (unique.length === 0) {
     return {
-      productCode:  null,
-      familyCode:   null,
+      productCode:   null,
+      familyCode:    null,
       confidence,
-      resultState:  'not_found',
-      candidates:   [],
-      catalogPage:  lastCatalogPage,
-      reasoning:    text,
+      resultState:   'not_found',
+      candidates:    [],
+      catalogPage:   lastCatalogPage,
+      reasoning:     text,
+      photo_request: null,
       usage,
     }
   }
@@ -450,25 +451,27 @@ export function parseIdentificationResult(
   if (unique.length === 1) {
     const code = unique[0]!
     return {
-      productCode:  code,
-      familyCode:   code.split('.')[0] ?? null,
+      productCode:   code,
+      familyCode:    code.split('.')[0] ?? null,
       confidence,
-      resultState:  'match',
-      candidates:   [],
-      catalogPage:  lastCatalogPage,
-      reasoning:    text,
+      resultState:   'match',
+      candidates:    [],
+      catalogPage:   lastCatalogPage,
+      reasoning:     text,
+      photo_request: null,
       usage,
     }
   }
 
   return {
-    productCode:  unique[0]!,
-    familyCode:   unique[0]!.split('.')[0] ?? null,
+    productCode:   unique[0]!,
+    familyCode:    unique[0]!.split('.')[0] ?? null,
     confidence,
-    resultState:  'shortlist',
-    candidates:   unique,
-    catalogPage:  lastCatalogPage,
-    reasoning:    text,
+    resultState:   'shortlist',
+    candidates:    unique,
+    catalogPage:   lastCatalogPage,
+    reasoning:     text,
+    photo_request: null,
     usage,
   }
 }
@@ -478,7 +481,7 @@ function parseFromSubmitTool(
   lastCatalogPage: number | null,
   usage:           { inputTokens: number; outputTokens: number },
 ): IdentificationResult {
-  const base = { catalogPage: lastCatalogPage, reasoning: input.reasoning, usage }
+  const base = { catalogPage: lastCatalogPage, reasoning: input.reasoning, photo_request: null, usage }
 
   // Komet product codes: FAMILY.SHANK.SIZE — family may contain letters (e.g. H79NEX, ZR6801)
   const PRODUCT_CODE_RE = /^[A-Za-z0-9]+\.\d{3}\.\d{3}$/
@@ -586,8 +589,9 @@ If the two photos appear contradictory, trust geometric measurements over subjec
       return {
         productCode: null, familyCode: null, confidence: 0,
         resultState: 'not_found' as const, candidates: [], catalogPage: lastCatalogPage,
-        reasoning:   `Token budget (${TOKEN_BUDGET}) exceeded after ${iteration} iterations`,
-        usage:       { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+        reasoning:     `Token budget (${TOKEN_BUDGET}) exceeded after ${iteration} iterations`,
+        photo_request: null,
+        usage:         { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
       }
     }
 
@@ -689,14 +693,15 @@ If the two photos appear contradictory, trust geometric measurements over subjec
   }
 
   return {
-    productCode:  null,
-    familyCode:   null,
-    confidence:   0,
-    resultState:  'not_found',
-    candidates:   [],
-    catalogPage:  lastCatalogPage,
-    reasoning:    'Max iterations reached without a final answer',
-    usage:        { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+    productCode:   null,
+    familyCode:    null,
+    confidence:    0,
+    resultState:   'not_found',
+    candidates:    [],
+    catalogPage:   lastCatalogPage,
+    reasoning:     'Max iterations reached without a final answer',
+    photo_request: null,
+    usage:         { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
   }
 }
 
@@ -978,13 +983,14 @@ MANDATORY SHORTLIST — 879 torpedo vs 863/862 flame on HP shank:
           candidates,
         })
         return {
-          productCode:  candidates[0]!,
-          familyCode:   candidates[0]!.split('.')[0] ?? null,
-          confidence:   0.4,
-          resultState:  'shortlist',
+          productCode:   candidates[0]!,
+          familyCode:    candidates[0]!.split('.')[0] ?? null,
+          confidence:    0.4,
+          resultState:   'shortlist',
           candidates,
-          catalogPage:  null,
-          reasoning:    `Disambiguation returned unknown code "${input.product_code}" (not in candidates). Keeping shortlist.`,
+          catalogPage:   null,
+          reasoning:     `Disambiguation returned unknown code "${input.product_code}" (not in candidates). Keeping shortlist.`,
+          photo_request: null,
           usage,
         }
       }
