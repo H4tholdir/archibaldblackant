@@ -18,8 +18,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
-  test('all 27 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(27);
+  test('all 28 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(28);
   });
 });
 

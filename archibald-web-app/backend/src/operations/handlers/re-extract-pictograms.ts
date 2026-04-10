@@ -28,11 +28,20 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function isPictogram(v: unknown): v is Pictogram {
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof (v as Record<string, unknown>).symbol === 'string' &&
+    typeof (v as Record<string, unknown>).meaning === 'string'
+  );
+}
+
 function parsePictograms(raw: string): Pictogram[] | null {
   try {
     const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
     const parsed = JSON.parse(trimmed);
-    return Array.isArray(parsed) ? (parsed as Pictogram[]) : null;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.every(isPictogram) ? parsed : null;
   } catch {
     return null;
   }

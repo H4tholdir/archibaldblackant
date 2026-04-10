@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
 import { createReExtractPictogramsHandler } from './re-extract-pictograms';
 
@@ -16,6 +16,11 @@ const mockCatalogPdf = {
 };
 
 describe('createReExtractPictogramsHandler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCatalogPdf.getPageAsBase64.mockResolvedValue('base64imagepng');
+  });
+
   test('aggiorna i pittogrammi quando Claude restituisce un array valido', async () => {
     const callSonnet = vi.fn().mockResolvedValue(
       '[{"symbol":"cavity_tooth","meaning":"Cavity preparation"},{"symbol":"consult_instructions","meaning":"Consult IFU"}]',
