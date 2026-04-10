@@ -273,9 +273,11 @@ describe('typeDevExpressField', () => {
   it('tronca il valore al maxLength del campo prima di digitare', async () => {
     const page = makePageWithType();
     // Prima evaluate: find+clear → { id, maxLength: 5 }
-    // Seconda evaluate: verifica valore → valore troncato corretto (nessun retry)
+    // Seconda evaluate: focus in typeOrClear → undefined
+    // Terza evaluate: verifica valore → valore troncato corretto (nessun retry)
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 5 })
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce('hello');
 
     const bot = makeBot(page as any);
@@ -289,6 +291,7 @@ describe('typeDevExpressField', () => {
     const page = makePageWithType();
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 0 })
+      .mockResolvedValueOnce(undefined)                           // focus in typeOrClear
       .mockResolvedValueOnce('hello world');
 
     const bot = makeBot(page as any);
@@ -302,8 +305,10 @@ describe('typeDevExpressField', () => {
     const page = makePageWithType();
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 5 })  // find+clear
+      .mockResolvedValueOnce(undefined)                          // focus in typeOrClear (primo tentativo)
       .mockResolvedValueOnce('wrong')                             // prima verifica → mismatch
       .mockResolvedValueOnce(undefined)                          // retry clear
+      .mockResolvedValueOnce(undefined)                          // focus in typeOrClear (retry)
       .mockResolvedValueOnce('hello');                           // retry verifica → ok
 
     const bot = makeBot(page as any);
@@ -326,6 +331,7 @@ describe('typeDevExpressField', () => {
     };
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 0 })
+      .mockResolvedValueOnce(undefined)                          // focus in typeOrClear
       .mockResolvedValueOnce(''); // campo risulta vuoto dopo il clear → nessun retry
 
     const bot = makeBot(page as any);
