@@ -91,3 +91,11 @@ export async function getFallbackFamilies(pool: DbPool, limit: number): Promise<
   )
   return rows.map(r => r.family_code)
 }
+
+/** Returns the set of family codes that already have a visual embedding — used to skip re-indexing. */
+export async function getIndexedFamilyCodes(pool: DbPool): Promise<Set<string>> {
+  const { rows } = await pool.query<{ family_code: string }>(
+    `SELECT DISTINCT family_code FROM shared.catalog_family_images WHERE visual_embedding IS NOT NULL`,
+  )
+  return new Set(rows.map(r => r.family_code))
+}

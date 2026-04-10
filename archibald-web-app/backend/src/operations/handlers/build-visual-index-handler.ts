@@ -3,7 +3,7 @@ import type { VisualEmbeddingService } from '../../recognition/visual-embedding-
 import type { OperationHandler } from '../operation-processor'
 import { CAMPIONARIO_STRIPS } from '../../recognition/campionario-strip-map'
 import { cropStripForFamilies } from '../../recognition/campionario-strip-cropper'
-import { upsertFamilyImage, updateEmbedding, countIndexed } from '../../db/repositories/catalog-family-images'
+import { upsertFamilyImage, updateEmbedding, countIndexed, getIndexedFamilyCodes } from '../../db/repositories/catalog-family-images'
 import { logger } from '../../logger'
 
 type Deps = { pool: DbPool; embeddingSvc: VisualEmbeddingService }
@@ -14,7 +14,7 @@ const sleep    = (ms: number) => new Promise(r => setTimeout(r, ms))
 export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
   return async function (_context, _data, _userId) {
     const { pool, embeddingSvc } = deps
-    const seen    = new Set<string>()
+    const seen    = await getIndexedFamilyCodes(pool)
     let   indexed = 0
 
     for (const strip of CAMPIONARIO_STRIPS) {
