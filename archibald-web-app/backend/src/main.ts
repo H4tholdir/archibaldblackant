@@ -51,6 +51,7 @@ import {
   createCatalogProductEnrichmentHandler,
   createWebProductEnrichmentHandler,
   createBuildVisualIndexHandler,
+  createReExtractPictogramsHandler,
 } from './operations/handlers';
 import { createVisualEmbeddingService } from './recognition/visual-embedding-service';
 import Anthropic from '@anthropic-ai/sdk';
@@ -1165,6 +1166,30 @@ async function bootstrap(): Promise<void> {
           return { html, finalUrl: res.url };
         },
         searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
+      }),
+      're-extract-pictograms': createReExtractPictogramsHandler({
+        pool,
+        catalogPdf,
+        callSonnet: async (images, prompt) => {
+          const response = await anthropicCatalogClient.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  ...images.map(img => ({
+                    type: 'image' as const,
+                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                  })),
+                  { type: 'text' as const, text: prompt },
+                ],
+              },
+            ],
+          });
+          const content = response.content[0];
+          return content?.type === 'text' ? content.text : '[]';
+        },
       }),
     } : {}),
     ...(config.recognition.jinaApiKey && embeddingSvc ? {
