@@ -103,8 +103,16 @@ async function runWebSearches(
 }
 
 type ShopifyImage = {
+  id:  number;
   src: string;
   alt: string | null;
+};
+
+type ShopifyVariant = {
+  id:       number;
+  option1:  string;
+  option2:  string;
+  image_id: number | null;
 };
 
 type GalleryImage = {
@@ -114,33 +122,36 @@ type GalleryImage = {
   imageType: 'catalog_render';
 };
 
-export function parseKometUkJson(json: string): ShopifyImage[] {
+export function parseKometUkProduct(json: string): { images: ShopifyImage[]; variants: ShopifyVariant[] } {
   try {
-    const parsed = JSON.parse(json) as { product?: { images?: unknown } };
-    const images = parsed?.product?.images;
-    return Array.isArray(images) ? (images as ShopifyImage[]) : [];
+    const parsed = JSON.parse(json) as { product?: unknown };
+    const p = parsed?.product;
+    if (!p || typeof p !== 'object') return { images: [], variants: [] };
+    const product = p as { images?: unknown; variants?: unknown };
+    const images   = Array.isArray(product.images)   ? (product.images   as ShopifyImage[])   : [];
+    const variants = Array.isArray(product.variants) ? (product.variants as ShopifyVariant[]) : [];
+    return { images, variants };
   } catch {
-    return [];
+    return { images: [], variants: [] };
   }
 }
 
-export function filterKometUkImages(
+export function selectKometUkImages(
   images: ShopifyImage[],
+  variants: ShopifyVariant[],
   shankCode: string,
   sizeCode: string,
 ): GalleryImage[] {
-  const substring = `_${shankCode}_${sizeCode}_`;
-  return images
-    .filter(img => {
-      const basename = (img.src.split('/').pop() ?? '').split('?')[0];
-      return basename.includes(substring);
-    })
-    .map(img => ({
-      url:       img.src,
-      altText:   img.alt ?? null,
-      source:    'kometuk.com',
-      imageType: 'catalog_render' as const,
-    }));
+  const variant = variants.find(v => v.option1 === shankCode && v.option2 === sizeCode);
+  if (!variant || variant.image_id == null) return [];
+  const image = images.find(img => img.id === variant.image_id);
+  if (!image) return [];
+  return [{
+    url:       image.src,
+    altText:   image.alt ?? null,
+    source:    'kometuk.com',
+    imageType: 'catalog_render' as const,
+  }];
 }
 
 async function scrapeKometUk(
@@ -152,8 +163,8 @@ async function scrapeKometUk(
   const url = `https://kometuk.com/products/${familyCode.toLowerCase()}.json`;
   try {
     const { html } = await fetchUrl(url);
-    const images = parseKometUkJson(html);
-    return filterKometUkImages(images, shankCode, sizeCode);
+    const { images, variants } = parseKometUkProduct(html);
+    return selectKometUkImages(images, variants, shankCode, sizeCode);
   } catch {
     logger.warn('[web-product-enrichment] kometuk.com scrape failed', { familyCode, url });
     return [];
@@ -299,4 +310,6 @@ export {
   type WebProductEnrichmentDeps,
   type FetchUrlFn,
   type SearchWebFn,
+  type ShopifyImage,
+  type ShopifyVariant,
 };
