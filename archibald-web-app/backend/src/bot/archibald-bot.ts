@@ -10727,13 +10727,12 @@ export class ArchibaldBot {
 
   private async typeOrClear(inputId: string, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    // Triple-click via CDP element handle: focuses the field and selects all text
-    // atomically at the protocol level. More reliable than evaluate.focus() + Ctrl+A
-    // because JS-level focus() can trigger DevExpress event handlers that move focus
-    // before the subsequent keyboard events arrive. CDP click bypasses that race.
-    // Attribute selector avoids CSS-escaping issues with DevExpress IDs.
-    const el = await this.page.$(`[id="${inputId}"]`);
-    if (el) await (el as any).click({ clickCount: 3 });
+    // page.click re-queries the element at call time — immune to DevExpress re-renders
+    // that would make a pre-fetched element handle stale ("Node is detached from document").
+    // Triple-click focuses the field and selects all text atomically at the CDP level,
+    // replacing the unreliable evaluate.focus() + Ctrl+A approach.
+    // Attribute selector avoids CSS-escaping issues with DevExpress dynamic IDs.
+    await this.page.click(`[id="${inputId}"]`, { clickCount: 3 });
     if (value === "") {
       // Delete replaces the selection with nothing, firing a real input event
       // so DevExpress commits the empty value.
