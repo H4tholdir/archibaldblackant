@@ -823,6 +823,7 @@ async function getShankLengthMm(
      WHERE pd.product_id = $1
        AND EXISTS (SELECT 1 FROM unnest(ce.family_codes) fc WHERE split_part(fc, '.', 1) = pd.catalog_family_code)
        AND elem->>'code' = $2
+     ORDER BY ce.id
      LIMIT 1`,
     [productId, shankCode],
   );
