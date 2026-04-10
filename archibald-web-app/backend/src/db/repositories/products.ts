@@ -810,6 +810,25 @@ async function getVariantPriceRange(
   return { min: rows[0]?.min ?? null, max: rows[0]?.max ?? null };
 }
 
+async function getShankLengthMm(
+  pool: DbPool,
+  productId: string,
+  shankCode: string,
+): Promise<number | null> {
+  const { rows } = await pool.query<{ shank_length_mm: number | null }>(
+    `SELECT (elem->>'length_mm')::float AS shank_length_mm
+     FROM shared.product_details pd,
+          shared.catalog_entries ce,
+          jsonb_array_elements(ce.shank_options) elem
+     WHERE pd.product_id = $1
+       AND EXISTS (SELECT 1 FROM unnest(ce.family_codes) fc WHERE split_part(fc, '.', 1) = pd.catalog_family_code)
+       AND elem->>'code' = $2
+     LIMIT 1`,
+    [productId, shankCode],
+  );
+  return rows[0]?.shank_length_mm ?? null;
+}
+
 export {
   getProducts,
   getProductById,
@@ -841,6 +860,7 @@ export {
   getVariantPackages,
   getVariantPriceRange,
   getProductPricesByNames,
+  getShankLengthMm,
   type ProductRow,
   type ProductWithoutVatRow,
   type ProductUpsertInput,

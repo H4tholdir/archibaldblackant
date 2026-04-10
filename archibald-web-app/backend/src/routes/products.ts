@@ -116,6 +116,7 @@ type ProductsRouterDeps = {
   getProductVariantsForEnrichment?: (articleName: string) => Promise<ProductRow[]>;
   getProductDetails?: (productId: string) => Promise<ProductDetailsRow | null>;
   getProductWebResources?: (productId: string) => Promise<WebResourceRow[]>;
+  getShankLengthMm?: (productId: string, shankCode: string) => Promise<number | null>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -454,6 +455,11 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         }
       }
 
+      const shankCode = productId.split('.')[1] ?? '';
+      const shankLengthMm = deps.getShankLengthMm
+        ? await deps.getShankLengthMm(productId, shankCode)
+        : null;
+
       const mappedGallery = gallery.map(g => ({
         id:        g.id,
         url:       g.url,
@@ -488,6 +494,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         details: mappedDetails,
         competitors: [],
         sizeVariants,
+        shankLengthMm,
         features: parseKometFeatures(productId),
         recognitionHistory: history.length > 0 ? history.map((h) => ({
           scannedAt:  h.scanned_at,

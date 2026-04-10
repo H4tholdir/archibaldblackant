@@ -531,4 +531,49 @@ describe('createProductsRouter', () => {
       expect(res.body.data).toEqual({});
     });
   });
+
+  describe('GET /api/products/:productId/enrichment', () => {
+    const productId = 'H1.314.009';
+
+    beforeEach(() => {
+      deps.getProductGallery            = vi.fn().mockResolvedValue([]);
+      deps.getRecognitionHistory        = vi.fn().mockResolvedValue([]);
+      deps.getProductDetails            = vi.fn().mockResolvedValue(null);
+      deps.getProductWebResources       = vi.fn().mockResolvedValue([]);
+      deps.getProductVariantsForEnrichment = vi.fn().mockResolvedValue([]);
+      deps.getShankLengthMm             = vi.fn().mockResolvedValue(null);
+      app = createApp(deps);
+    });
+
+    test('returns enrichment data with shankLengthMm when dep is configured', async () => {
+      deps.getShankLengthMm = vi.fn().mockResolvedValue(19);
+      app = createApp(deps);
+
+      const res = await request(app).get(`/api/products/${productId}/enrichment`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.shankLengthMm).toBe(19);
+      expect(deps.getShankLengthMm).toHaveBeenCalledWith(productId, '314');
+    });
+
+    test('returns shankLengthMm as null when dep returns null', async () => {
+      deps.getShankLengthMm = vi.fn().mockResolvedValue(null);
+      app = createApp(deps);
+
+      const res = await request(app).get(`/api/products/${productId}/enrichment`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.shankLengthMm).toBeNull();
+    });
+
+    test('returns shankLengthMm as null when dep is not configured', async () => {
+      deps.getShankLengthMm = undefined;
+      app = createApp(deps);
+
+      const res = await request(app).get(`/api/products/${productId}/enrichment`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.shankLengthMm).toBeNull();
+    });
+  });
 });

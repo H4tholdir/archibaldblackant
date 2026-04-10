@@ -594,6 +594,7 @@ function createApp(deps: AppDeps): Express {
     getProductVariantsForEnrichment: (name) => productsRepo.getProductVariants(pool, name),
     getProductDetails: (productId) => getProductDetails(pool, productId),
     getProductWebResources: (productId) => getProductWebResources(pool, productId),
+    getShankLengthMm: (productId, shankCode) => productsRepo.getShankLengthMm(pool, productId, shankCode),
   }));
 
   app.use('/api/prices', authenticate, createPricesRouter({

@@ -22,6 +22,7 @@ import {
   getRecentProductChanges,
   getProductChangeStats,
   getProductPricesByNames,
+  getShankLengthMm,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -843,6 +844,47 @@ describe('getProductPricesByNames', () => {
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringContaining('ANY($1::text[])'),
       [[artA, artB]],
+    );
+  });
+});
+
+describe('getShankLengthMm', () => {
+  const productId = 'H1.314.009';
+  const shankCode = '314';
+
+  test('returns shank length when catalog entry exists for the given shank code', async () => {
+    const pool = createMockPool(vi.fn(async () => ({
+      rows: [{ shank_length_mm: 19 }],
+      rowCount: 1, command: 'SELECT', oid: 0, fields: [],
+    })));
+
+    const result = await getShankLengthMm(pool, productId, shankCode);
+
+    expect(result).toBe(19);
+  });
+
+  test('returns null when no catalog entry matches', async () => {
+    const pool = createMockPool(vi.fn(async () => ({
+      rows: [],
+      rowCount: 0, command: 'SELECT', oid: 0, fields: [],
+    })));
+
+    const result = await getShankLengthMm(pool, productId, shankCode);
+
+    expect(result).toBeNull();
+  });
+
+  test('passes productId and shankCode as query parameters', async () => {
+    const mockQuery = vi.fn(async () => ({
+      rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [],
+    }));
+    const pool = createMockPool(mockQuery as DbPool['query']);
+
+    await getShankLengthMm(pool, productId, shankCode);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('shank_options'),
+      [productId, shankCode],
     );
   });
 });

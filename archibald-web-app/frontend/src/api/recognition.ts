@@ -83,6 +83,7 @@ export type ProductEnrichment = {
   gallery:            ProductGalleryImage[]
   competitors:        []
   sizeVariants:       SizeVariant[]
+  shankLengthMm?:     number | null
   features?:          KometFeatures | null  // null per famiglie non riconosciute
   recognitionHistory: Array<{
     scannedAt:  string

@@ -492,6 +492,9 @@ export function ProductDetailPage() {
                   { label: 'Diametro della testa',  value: `${enrichment.features.headDiameterMm.toLocaleString('it-IT')} mm` },
                   { label: 'Tipo di gambo',          value: enrichment.features.shankType },
                   { label: 'Diametro del gambo',     value: `${enrichment.features.shankDiameterMm.toLocaleString('it-IT')} mm` },
+                  ...(enrichment.shankLengthMm != null
+                    ? [{ label: 'Lunghezza gambo', value: `${enrichment.shankLengthMm.toLocaleString('it-IT')} mm` }]
+                    : []),
                 ].map(({ label, value }, i, arr) => (
                   <div
                     key={label}
