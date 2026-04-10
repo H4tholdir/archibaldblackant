@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { parseKometFeatures } from '../utils/komet-code-parser';
 import type { AuthRequest } from '../middleware/auth';
 import type { ProductRow } from '../db/repositories/products';
 import type { SyncSession, SyncStats } from '../db/repositories/sync-sessions';
@@ -53,6 +54,7 @@ function mapProductRow(row: ProductRow) {
     pcsStandardConfigurationId: row.pcs_standard_configuration_id,
     standardQty: row.standard_qty,
     unitId: row.unit_id,
+    isRetired: row.deleted_at !== null,
   };
 }
 
@@ -486,6 +488,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         details: mappedDetails,
         competitors: [],
         sizeVariants,
+        features: parseKometFeatures(productId),
         recognitionHistory: history.length > 0 ? history.map((h) => ({
           scannedAt:  h.scanned_at,
           agentId:    h.agent_id,
