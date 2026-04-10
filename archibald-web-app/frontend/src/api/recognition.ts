@@ -78,12 +78,18 @@ export type SizeVariant = {
   price: number | null
 }
 
+export type Pictogram = {
+  symbol:  string
+  labelIt: string
+}
+
 export type ProductEnrichment = {
   details:            ProductDetails | null
   gallery:            ProductGalleryImage[]
   competitors:        []
   sizeVariants:       SizeVariant[]
   shankLengthMm?:     number | null
+  pictograms?:        Pictogram[]
   features?:          KometFeatures | null  // null per famiglie non riconosciute
   recognitionHistory: Array<{
     scannedAt:  string
