@@ -10727,20 +10727,25 @@ export class ArchibaldBot {
 
   private async typeOrClear(inputId: string, value: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    // page.click re-queries the element at call time — immune to DevExpress re-renders
-    // that would make a pre-fetched element handle stale ("Node is detached from document").
-    // Triple-click focuses the field and selects all text atomically at the CDP level,
-    // replacing the unreliable evaluate.focus() + Ctrl+A approach.
-    // Attribute selector avoids CSS-escaping issues with DevExpress dynamic IDs.
-    await this.page.click(`[id="${inputId}"]`, { clickCount: 3 });
+    // Focus + select-all in a single evaluate call: avoids page.click() which
+    // triggers DevExpress to detach and re-render the node ("Node is detached from
+    // document"), and avoids Ctrl+A which depends on keyboard focus state that can
+    // drift during waitForDevExpressIdle. setSelectionRange selects all text
+    // atomically within the same evaluate, before any DevExpress event handler runs.
+    await this.page.evaluate((id: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(0, el.value.length);
+    }, inputId);
     if (value === "") {
       // Delete replaces the selection with nothing, firing a real input event
       // so DevExpress commits the empty value.
       await this.page.keyboard.press("Delete");
     } else {
-      // keyboard.type sends events to the currently focused element without
-      // calling focus() again (unlike page.type which would deselect). The first
-      // character replaces the entire selection; subsequent characters append.
+      // keyboard.type sends events to the focused element without calling focus()
+      // again (unlike page.type which re-focuses and deselects). The first character
+      // replaces the entire selection; subsequent characters append.
       await this.page.keyboard.type(value, { delay: 5 });
     }
   }

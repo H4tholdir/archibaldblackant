@@ -273,15 +273,16 @@ describe('typeDevExpressField', () => {
   it('tronca il valore al maxLength del campo prima di digitare', async () => {
     const page = makePageWithType();
     // Prima evaluate: find+clear → { id, maxLength: 5 }
-    // Seconda evaluate: verifica valore → valore troncato corretto (nessun retry)
+    // Seconda evaluate: focus+setSelectionRange in typeOrClear → undefined
+    // Terza evaluate: verifica valore → valore troncato corretto (nessun retry)
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 5 })
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce('hello');
 
     const bot = makeBot(page as any);
     await (bot as any).typeDevExpressField(/field/, 'hello world');
 
-    expect(page.click).toHaveBeenCalledWith('[id="field-id"]', { clickCount: 3 });
     expect(page.keyboard.type).toHaveBeenCalledWith('hello', { delay: 5 });
   });
 
@@ -289,12 +290,12 @@ describe('typeDevExpressField', () => {
     const page = makePageWithType();
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 0 })
+      .mockResolvedValueOnce(undefined)                           // focus+setSelectionRange
       .mockResolvedValueOnce('hello world');
 
     const bot = makeBot(page as any);
     await (bot as any).typeDevExpressField(/field/, 'hello world');
 
-    expect(page.click).toHaveBeenCalledWith('[id="field-id"]', { clickCount: 3 });
     expect(page.keyboard.type).toHaveBeenCalledWith('hello world', { delay: 5 });
   });
 
@@ -302,29 +303,30 @@ describe('typeDevExpressField', () => {
     const page = makePageWithType();
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 5 })  // find+clear
+      .mockResolvedValueOnce(undefined)                          // focus+setSelectionRange (primo tentativo)
       .mockResolvedValueOnce('wrong')                             // prima verifica → mismatch
       .mockResolvedValueOnce(undefined)                          // retry clear
+      .mockResolvedValueOnce(undefined)                          // focus+setSelectionRange (retry)
       .mockResolvedValueOnce('hello');                           // retry verifica → ok
 
     const bot = makeBot(page as any);
     await (bot as any).typeDevExpressField(/field/, 'hello world');
 
-    expect(page.click).toHaveBeenCalledTimes(2); // tentativo principale + retry
     expect(page.keyboard.type).toHaveBeenCalledTimes(2);
     expect(page.keyboard.type).toHaveBeenNthCalledWith(1, 'hello', { delay: 5 });
     expect(page.keyboard.type).toHaveBeenNthCalledWith(2, 'hello', { delay: 5 });
   });
 
-  it('usa triple-click + Delete invece di keyboard.type quando il valore è stringa vuota', async () => {
+  it('usa focus+setSelectionRange + Delete invece di keyboard.type quando il valore è stringa vuota', async () => {
     const page = makePageWithType();
     page.evaluate
       .mockResolvedValueOnce({ id: 'field-id', maxLength: 0 })
-      .mockResolvedValueOnce(''); // campo risulta vuoto dopo il clear → nessun retry
+      .mockResolvedValueOnce(undefined)                           // focus+setSelectionRange
+      .mockResolvedValueOnce('');                                 // campo vuoto dopo clear → nessun retry
 
     const bot = makeBot(page as any);
     await (bot as any).typeDevExpressField(/field/, '');
 
-    expect(page.click).toHaveBeenCalledWith('[id="field-id"]', { clickCount: 3 });
     expect(page.keyboard.type).not.toHaveBeenCalled();
     expect(page.keyboard.press).toHaveBeenCalledWith('Delete');
   });
