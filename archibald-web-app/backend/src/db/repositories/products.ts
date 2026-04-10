@@ -42,6 +42,7 @@ type ProductRow = {
   pcs_standard_configuration_id: string | null;
   standard_qty: string | null;
   unit_id: string | null;
+  deleted_at: string | null;
 };
 
 type ProductUpsertInput = {
@@ -87,7 +88,8 @@ const PRODUCT_COLUMNS = `
   configuration_id, created_by, created_date_field, data_area_id,
   default_qty, display_product_number, total_absolute_discount, product_id_ext,
   line_discount, modified_by, modified_datetime, orderable_article,
-  stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id
+  stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id,
+  deleted_at
 `;
 
 type ProductFilters = {

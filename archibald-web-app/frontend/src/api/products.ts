@@ -67,6 +67,7 @@ export interface Product {
   variantPriceMax?: number | null;
 
   // ========== SYSTEM ==========
+  isRetired?: boolean;  // true se deleted_at IS NOT NULL in shared.products
   hash?: string;
   lastSync?: number;
 
@@ -374,4 +375,22 @@ export async function syncProducts(): Promise<SyncProductsResult> {
 
     throw error;
   }
+}
+
+/**
+ * Recupera un singolo prodotto per ID, inclusi i prodotti ritirati.
+ * Diversamente da getProducts, non filtra deleted_at IS NULL.
+ */
+export async function getProductById(
+  token: string,
+  productId: string,
+): Promise<{ success: boolean; data: Product }> {
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/products/${encodeURIComponent(productId)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  return response.json()
 }
