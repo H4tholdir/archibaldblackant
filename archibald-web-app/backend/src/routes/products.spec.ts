@@ -575,5 +575,42 @@ describe('createProductsRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.shankLengthMm).toBeNull();
     });
+
+    test('returns pictograms from dep', async () => {
+      deps.getProductPictograms = vi.fn().mockResolvedValue([
+        { symbol: 'cavity_tooth', labelIt: 'Preparazione cavità' },
+      ]);
+      deps.getProductGallery            = vi.fn().mockResolvedValue([]);
+      deps.getRecognitionHistory        = vi.fn().mockResolvedValue([]);
+      deps.getProductDetails            = vi.fn().mockResolvedValue(null);
+      deps.getProductWebResources       = vi.fn().mockResolvedValue([]);
+      deps.getProductVariantsForEnrichment = vi.fn().mockResolvedValue([]);
+      deps.getShankLengthMm             = vi.fn().mockResolvedValue(null);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/H1.314.009/enrichment');
+
+      expect(res.status).toBe(200);
+      expect(res.body.pictograms).toEqual([
+        { symbol: 'cavity_tooth', labelIt: 'Preparazione cavità' },
+      ]);
+      expect(deps.getProductPictograms).toHaveBeenCalledWith('H1.314.009');
+    });
+
+    test('returns empty pictograms when dep is not configured', async () => {
+      deps.getProductPictograms = undefined;
+      deps.getProductGallery            = vi.fn().mockResolvedValue([]);
+      deps.getRecognitionHistory        = vi.fn().mockResolvedValue([]);
+      deps.getProductDetails            = vi.fn().mockResolvedValue(null);
+      deps.getProductWebResources       = vi.fn().mockResolvedValue([]);
+      deps.getProductVariantsForEnrichment = vi.fn().mockResolvedValue([]);
+      deps.getShankLengthMm             = vi.fn().mockResolvedValue(null);
+      app = createApp(deps);
+
+      const res = await request(app).get('/api/products/H1.314.009/enrichment');
+
+      expect(res.status).toBe(200);
+      expect(res.body.pictograms).toEqual([]);
+    });
   });
 });

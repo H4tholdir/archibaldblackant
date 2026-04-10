@@ -117,6 +117,7 @@ type ProductsRouterDeps = {
   getProductDetails?: (productId: string) => Promise<ProductDetailsRow | null>;
   getProductWebResources?: (productId: string) => Promise<WebResourceRow[]>;
   getShankLengthMm?: (productId: string, shankCode: string) => Promise<number | null>;
+  getProductPictograms?: (productId: string) => Promise<Array<{ symbol: string; labelIt: string }>>;
 };
 
 const vatSchema = z.object({ vat: z.number().min(0).max(100) });
@@ -456,9 +457,10 @@ function createProductsRouter(deps: ProductsRouterDeps) {
       }
 
       const shankCode = productId.split('.')[1] ?? '';
-      const shankLengthMm = deps.getShankLengthMm
-        ? await deps.getShankLengthMm(productId, shankCode)
-        : null;
+      const [shankLengthMm, pictograms] = await Promise.all([
+        deps.getShankLengthMm ? deps.getShankLengthMm(productId, shankCode) : Promise.resolve(null),
+        deps.getProductPictograms ? deps.getProductPictograms(productId) : Promise.resolve([]),
+      ]);
 
       const mappedGallery = gallery.map(g => ({
         id:        g.id,
@@ -495,6 +497,7 @@ function createProductsRouter(deps: ProductsRouterDeps) {
         competitors: [],
         sizeVariants,
         shankLengthMm,
+        pictograms,
         features: parseKometFeatures(productId),
         recognitionHistory: history.length > 0 ? history.map((h) => ({
           scannedAt:  h.scanned_at,

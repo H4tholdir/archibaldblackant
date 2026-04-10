@@ -595,6 +595,7 @@ function createApp(deps: AppDeps): Express {
     getProductDetails: (productId) => getProductDetails(pool, productId),
     getProductWebResources: (productId) => getProductWebResources(pool, productId),
     getShankLengthMm: (productId, shankCode) => productsRepo.getShankLengthMm(pool, productId, shankCode),
+    getProductPictograms: (productId) => productsRepo.getPictograms(pool, productId),
   }));
 
   app.use('/api/prices', authenticate, createPricesRouter({
