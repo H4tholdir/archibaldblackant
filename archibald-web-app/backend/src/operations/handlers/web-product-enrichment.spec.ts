@@ -161,6 +161,8 @@ describe('createWebProductEnrichmentHandler', () => {
     expect(fetchUrl).toHaveBeenCalledTimes(4);
     expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/879');
     expect(fetchUrl).toHaveBeenCalledWith('https://www.komet.fr/fr-FR/Produits/Produits-Komet-France/863');
+    expect(fetchUrl).toHaveBeenCalledWith('https://kometuk.com/products/879.json');
+    expect(fetchUrl).toHaveBeenCalledWith('https://kometuk.com/products/863.json');
     expect(onProgress).toHaveBeenCalledWith(100, 'Done');
   });
 
@@ -414,6 +416,27 @@ describe('filterKometUkImages', () => {
       imageType: 'catalog_render',
     });
   });
+
+  test('controlla solo il basename del URL, non segmenti intermedi del path', () => {
+    const imageWithCodeInPath = [
+      { src: 'https://cdn.shopify.com/path_314_016_/different_filename.png', alt: 'image' },
+    ];
+    const result = filterKometUkImages(imageWithCodeInPath, '314', '016');
+    expect(result).toEqual([]);
+  });
+
+  test('mappa alt null a altText null nella GalleryImage', () => {
+    const imageWithNullAlt = [
+      { src: 'https://cdn.shopify.com/tc_314_016_image.png', alt: null },
+    ];
+    const result = filterKometUkImages(imageWithNullAlt, '314', '016');
+    expect(result).toEqual([{
+      url:       'https://cdn.shopify.com/tc_314_016_image.png',
+      altText:   null,
+      source:    'kometuk.com',
+      imageType: 'catalog_render',
+    }]);
+  });
 });
 
 // ── parseKometUkJson tests ───────────────────────────────────────────────────
@@ -430,7 +453,10 @@ const shopifyJson = JSON.stringify({
 describe('parseKometUkJson', () => {
   test('estrae immagini dal JSON Shopify', () => {
     const images = parseKometUkJson(shopifyJson);
-    expect(images).toHaveLength(2);
+    expect(images).toEqual([
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_314_016_450_abc.png', alt: 'H1 FG 016' },
+      { src: 'https://cdn.shopify.com/s/files/01tc_h1_204_016_450_def.png', alt: 'H1 CA 016' },
+    ]);
   });
 
   test('restituisce array vuoto su JSON malformato', () => {
