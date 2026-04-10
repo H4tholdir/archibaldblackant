@@ -312,7 +312,7 @@ export const CAMPIONARIO_STRIPS: StripEntry[] = [
   {
     path:     `${MTB541}-35.jpg`,
     kometUrl: `${MTB541_CDN}-35.jpg`,
-    families: ['5862', 'S6862', '6862', '862', '8862', '862EF', '862UF', 'H48LQ'],
+    families: ['5862', 'S6862', '6862', '862', '8862', '862EF', '862UF'],
     label:    'MTB541 strip 35 (studio): 862 flame (L 8mm) — all variants',
   },
   {
@@ -362,8 +362,8 @@ export const CAMPIONARIO_STRIPS: StripEntry[] = [
   {
     path:     `${MTB541}-43.jpg`,
     kometUrl: `${MTB541_CDN}-43.jpg`,
-    families: ['H11', 'H21', 'H21R', 'H71'],
-    label:    'MTB541 strip 43 (studio CT): H11/H21/H71 CT burs for general prep',
+    families: ['H11', 'H21', 'H21R'],
+    label:    'MTB541 strip 43 (studio CT): H11/H21/H21R CT burs for general prep',
   },
   {
     path:     `${MTB541}-44.jpg`,
