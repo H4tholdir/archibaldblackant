@@ -3,7 +3,7 @@ import type { VisualEmbeddingService } from '../../recognition/visual-embedding-
 import type { OperationHandler } from '../operation-processor'
 import { CAMPIONARIO_STRIPS } from '../../recognition/campionario-strip-map'
 import { cropStripForFamilies } from '../../recognition/campionario-strip-cropper'
-import { upsertFamilyImage, updateEmbedding, countIndexed, getIndexedFamilyCodes } from '../../db/repositories/catalog-family-images'
+import { upsertFamilyImage, updateEmbedding, countIndexed, getIndexedFamilyStripKeys } from '../../db/repositories/catalog-family-images'
 import { logger } from '../../logger'
 
 type Deps = { pool: DbPool; embeddingSvc: VisualEmbeddingService }
@@ -14,7 +14,7 @@ const sleep    = (ms: number) => new Promise(r => setTimeout(r, ms))
 export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
   return async function (_context, _data, _userId, onProgress) {
     const { pool, embeddingSvc } = deps
-    const seen        = await getIndexedFamilyCodes(pool)
+    const seen        = await getIndexedFamilyStripKeys(pool)
     let   indexed     = 0
     const totalStrips = CAMPIONARIO_STRIPS.length
 
@@ -30,7 +30,8 @@ export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
       }
 
       for (const crop of crops) {
-        if (seen.has(crop.familyCode)) continue
+        const stripKey = `${crop.familyCode}|${crop.stripPath}`
+        if (seen.has(stripKey)) continue
         try {
           const id = await upsertFamilyImage(pool, {
             family_code: crop.familyCode, source_type: 'campionario',
@@ -40,7 +41,7 @@ export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
           await sleep(DELAY_MS)
           const embedding = await embeddingSvc.embedImage(crop.imageBuffer.toString('base64'), 'retrieval.passage')
           await updateEmbedding(pool, id, embedding)
-          seen.add(crop.familyCode)
+          seen.add(stripKey)
           indexed++
         } catch (err) {
           logger.warn('[build-visual-index] family failed', { familyCode: crop.familyCode, err })

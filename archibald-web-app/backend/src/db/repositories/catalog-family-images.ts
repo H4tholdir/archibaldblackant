@@ -100,6 +100,19 @@ export async function getIndexedFamilyCodes(pool: DbPool): Promise<Set<string>> 
   return new Set(rows.map(r => r.family_code))
 }
 
+/**
+ * Returns a set of 'familyCode|localPath' keys for already-indexed campionario rows.
+ * Used by build-visual-index to allow multiple embeddings per family (one per strip).
+ */
+export async function getIndexedFamilyStripKeys(pool: DbPool): Promise<Set<string>> {
+  const { rows } = await pool.query<{ family_code: string; local_path: string }>(
+    `SELECT family_code, local_path
+     FROM shared.catalog_family_images
+     WHERE visual_embedding IS NOT NULL AND source_type = 'campionario'`,
+  )
+  return new Set(rows.map(r => `${r.family_code}|${r.local_path}`))
+}
+
 export type FamilyImageRow = {
   family_code: string
   local_path:  string

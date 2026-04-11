@@ -5,6 +5,7 @@ import {
   queryTopK,
   countIndexed,
   getFallbackFamilies,
+  getIndexedFamilyStripKeys,
 } from './catalog-family-images'
 
 const FAKE_EMBEDDING = Array.from({ length: 2048 }, () => 0.5)
@@ -82,5 +83,22 @@ describe('getFallbackFamilies', () => {
     const pool = makePool([{ family_code: '879' }, { family_code: '863' }])
     const result = await getFallbackFamilies(pool, 10)
     expect(result).toEqual(['879', '863'])
+  })
+})
+
+describe('getIndexedFamilyStripKeys', () => {
+  test('returns set of familyCode|localPath keys', async () => {
+    const rows = [
+      { family_code: '807', local_path: 'section/strip-01.jpg' },
+      { family_code: '807', local_path: 'section/strip-02.jpg' },
+      { family_code: '879', local_path: 'section/strip-01.jpg' },
+    ]
+    const result = await getIndexedFamilyStripKeys(makePool(rows))
+    expect(result).toEqual(new Set(['807|section/strip-01.jpg', '807|section/strip-02.jpg', '879|section/strip-01.jpg']))
+  })
+
+  test('returns empty set when no campionario rows are indexed', async () => {
+    const result = await getIndexedFamilyStripKeys(makePool([]))
+    expect(result.size).toBe(0)
   })
 })
