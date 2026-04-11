@@ -35,7 +35,7 @@ export function createBuildVisualIndexHandler(deps: Deps): OperationHandler {
         try {
           const id = await upsertFamilyImage(pool, {
             family_code: crop.familyCode, source_type: 'campionario',
-            source_url: null, local_path: crop.stripPath, priority: 3,
+            source_url: null, local_path: crop.stripPath, priority: 2,
             metadata: { strip_family_index: crop.familyIndex, strip_family_count: crop.familyCount },
           })
           await sleep(DELAY_MS)

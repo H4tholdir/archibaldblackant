@@ -115,7 +115,7 @@ export function createIndexCatalogPagesHandler(deps: Deps): OperationHandler {
             source_type: 'catalog_pdf',
             source_url:  null,
             local_path:  pageFilePath,
-            priority:    2,
+            priority:    3,
             metadata:    { catalog_page: page },
           })
           await updateEmbedding(pool, id, embedding)
