@@ -20,7 +20,6 @@ describe('handleDownloadDdtPdf', () => {
       bot,
       documentStore,
       { orderId: 'ORD/123', searchTerm: 'DDT/456' },
-      'user1',
       onProgress,
     );
 

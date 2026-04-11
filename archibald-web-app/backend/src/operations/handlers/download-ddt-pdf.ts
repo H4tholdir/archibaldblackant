@@ -18,7 +18,6 @@ async function handleDownloadDdtPdf(
   bot: DownloadDdtPdfBot,
   documentStore: DocumentStoreLike,
   data: DownloadDdtPdfData,
-  userId: string,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ downloadKey: string }> {
   bot.setProgressCallback(async (category) => {
@@ -42,8 +41,7 @@ function createDownloadDdtPdfHandler(
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as DownloadDdtPdfData;
-    const result = await handleDownloadDdtPdf(bot, documentStore, typedData, userId, onProgress);
-    return { downloadKey: result.downloadKey };
+    return handleDownloadDdtPdf(bot, documentStore, typedData, onProgress);
   };
 }
 
