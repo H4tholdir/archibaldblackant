@@ -12,7 +12,7 @@ import {
 } from '../../db/repositories/catalog-family-images'
 import { logger } from '../../logger'
 
-export const CATALOG_PAGES_DIR = process.env.CATALOG_PAGES_DIR ?? '/app/catalog-pages'
+export const CATALOG_PAGES_DIR = process.env.CATALOG_PAGES_DIR ?? '/tmp/catalog-pages'
 
 type Deps = {
   pool:        DbPool
