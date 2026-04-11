@@ -11,8 +11,14 @@ function createDocumentsRouter(deps: DocumentsRouterDeps) {
   const { documentStore } = deps;
   const router = Router();
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
   router.get('/download/:key', async (req: AuthRequest, res) => {
     const { key } = req.params;
+
+    if (!UUID_RE.test(key)) {
+      return res.status(400).json({ success: false, error: 'Chiave non valida' });
+    }
 
     try {
       const buffer = await documentStore.get(key);
