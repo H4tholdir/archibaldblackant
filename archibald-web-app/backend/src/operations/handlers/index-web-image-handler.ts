@@ -1,5 +1,7 @@
 import sharp from 'sharp'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DbPool } from '../../db/pool'
 import type { VisualEmbeddingService } from '../../recognition/visual-embedding-service'
@@ -19,13 +21,43 @@ type IndexWebImageData = {
   imageUrl:   string
 }
 
+function runCommand(cmd: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, err => { if (err) reject(err); else resolve() })
+  })
+}
+
+async function fetchRaw(url: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
+  const contentType = res.headers.get('content-type') ?? ''
+  const buffer = Buffer.from(await res.arrayBuffer())
+  return { buffer, contentType }
+}
+
+async function pdfFirstPageToJpeg(pdfBuffer: Buffer): Promise<Buffer> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'komet-web-img-'))
+  const pdfPath = join(tmpDir, 'source.pdf')
+  const outPrefix = join(tmpDir, 'page')
+  try {
+    await writeFile(pdfPath, pdfBuffer)
+    await runCommand('pdftoppm', ['-png', '-r', '150', '-f', '1', '-l', '1', pdfPath, outPrefix])
+    const files = await readdir(tmpDir)
+    const pngFile = files.find(f => f.endsWith('.png'))
+    if (!pngFile) throw new Error('pdftoppm produced no output')
+    const pngBuffer = await readFile(join(tmpDir, pngFile))
+    return sharp(pngBuffer).jpeg({ quality: 90 }).toBuffer()
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 async function fetchAsJpeg(imageUrl: string): Promise<Buffer> {
-  const res = await fetch(imageUrl)
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${imageUrl}`)
-  const arrayBuffer = await res.arrayBuffer()
-  return sharp(Buffer.from(arrayBuffer))
-    .jpeg({ quality: 90 })
-    .toBuffer()
+  const { buffer, contentType } = await fetchRaw(imageUrl)
+  if (contentType.includes('pdf') || imageUrl.toLowerCase().includes('.pdf')) {
+    return pdfFirstPageToJpeg(buffer)
+  }
+  return sharp(buffer).jpeg({ quality: 90 }).toBuffer()
 }
 
 export function createIndexWebImageHandler(deps: Deps): OperationHandler {
