@@ -96,6 +96,7 @@ export function AdminPage(_props: AdminPageProps) {
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
   const [enqueuingWebEnrich, setEnqueuingWebEnrich] = useState(false);
   const [enqueuingReExtract, setEnqueuingReExtract] = useState(false);
+  const [reExtractQueued, setReExtractQueued] = useState(false);
   const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
 
@@ -372,6 +373,7 @@ export function AdminPage(_props: AdminPageProps) {
         body: JSON.stringify({ type: "re-extract-pictograms", data: {} }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setReExtractQueued(true);
     } catch {
       alert("Errore nell'avvio della ri-estrazione pittogrammi. Riprova.");
     } finally {
@@ -806,7 +808,7 @@ export function AdminPage(_props: AdminPageProps) {
                   whiteSpace: "nowrap",
                 }}
               >
-                {enqueuingReExtract ? "..." : "Ri-estrai →"}
+                {enqueuingReExtract ? "..." : reExtractQueued ? "In coda..." : "Ri-estrai →"}
               </button>
               <OpProgressBar progress={reExtractProgress} />
             </div>
