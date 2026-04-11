@@ -145,6 +145,14 @@ export function AdminPage(_props: AdminPageProps) {
       'index-web-image':            setWebImageProgress,
     }
 
+    const queuedSetterFor: Record<string, (v: boolean) => void> = {
+      'catalog-ingestion':    setIngestionQueued,
+      're-extract-pictograms': setReExtractQueued,
+      'build-visual-index':   setVisualIndexQueued,
+      'index-catalog-pages':  setCatalogPagesQueued,
+      'index-web-image':      setWebImageQueued,
+    }
+
     const unsubs = [
       subscribe('JOB_PROGRESS', (payload: unknown) => {
         const p = payload as Record<string, unknown>
@@ -157,6 +165,7 @@ export function AdminPage(_props: AdminPageProps) {
         const setter = setterFor[p.type as string]
         if (!setter) return
         setter({ pct: 100, label: 'Completato', done: true })
+        queuedSetterFor[p.type as string]?.(false)
         setTimeout(() => setter(null), 4000)
       }),
       subscribe('JOB_FAILED', (payload: unknown) => {
@@ -164,6 +173,7 @@ export function AdminPage(_props: AdminPageProps) {
         const setter = setterFor[p.type as string]
         if (!setter) return
         setter({ pct: 0, label: 'Errore — operazione fallita', failed: true })
+        queuedSetterFor[p.type as string]?.(false)
         setTimeout(() => setter(null), 6000)
       }),
     ]
