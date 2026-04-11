@@ -81,7 +81,15 @@ export async function fetchWithRetry(
         if (contentType && contentType.includes('application/json')) {
           const data = await clonedResponse.json();
 
-          // 3a. CREDENTIALS_EXPIRED (very rare with lazy-load backend)
+          // 3a. session_invalidated per cambio moduli admin
+          if (data.reason === 'modules_changed') {
+            console.log('🔄 [FetchWithRetry] Moduli aggiornati — logout forzato');
+            localStorage.removeItem('archibald_jwt');
+            window.location.href = '/login?reason=modules_changed';
+            return response;
+          }
+
+          // 3b. CREDENTIALS_EXPIRED (very rare with lazy-load backend)
           if (data.error === 'CREDENTIALS_EXPIRED') {
             console.log('⚠️  [FetchWithRetry] Credentials expired - redirecting to login');
             console.log('(This is rare - backend should auto-recover via lazy-load)');
@@ -90,7 +98,7 @@ export async function fetchWithRetry(
             throw new Error('Credentials expired');
           }
 
-          // 3b. Other 401 errors (invalid token, etc.)
+          // 3c. Other 401 errors (invalid token, etc.)
           console.log('❌ [FetchWithRetry] Unauthorized - clearing token and redirecting');
           localStorage.removeItem('archibald_jwt');
           window.location.href = '/login?reason=unauthorized';

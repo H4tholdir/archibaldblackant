@@ -18,6 +18,7 @@ export interface JWTPayload {
   realAdminId?: string;
   adminSessionId?: number;
   modules: string[];
+  modules_version: number;
   jti: string;
   exp?: number;
 }
@@ -44,6 +45,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
       realAdminId: payload.realAdminId as string | undefined,
       adminSessionId: payload.adminSessionId as number | undefined,
       modules: (payload.modules as string[]) || [],
+      modules_version: (payload.modules_version as number) ?? 0,
       jti: payload.jti as string,
       exp: payload.exp as number | undefined,
     };

@@ -11,7 +11,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypt
 import * as jose from 'jose';
 import type { JWTPayload } from './auth-utils';
 import { verifyJWT } from './auth-utils';
-import { requireAdmin, createAuthMiddleware } from './middleware/auth';
+import { requireAdmin, createAuthMiddleware, invalidateModulesVersionCache } from './middleware/auth';
 import type { AuthRequest } from './middleware/auth';
 import type { RedisClient } from './db/redis-client';
 import type { SecurityAlertEvent } from './services/security-alert-service';
@@ -439,6 +439,7 @@ function createApp(deps: AppDeps): Express {
     verifyTrustToken: (userId, deviceId, rawToken) => verifyTrustToken(pool, userId, deviceId, rawToken),
     revokeAllTrustDevices: (userId) => revokeAllTrustTokens(pool, userId),
     sendSecurityAlert: deps.sendSecurityAlert,
+    getEffectiveModules: (userId, role) => usersRepo.getEffectiveModules(pool, userId, role),
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));
@@ -884,6 +885,7 @@ function createApp(deps: AppDeps): Express {
       usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
     getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
     generateJWT,
+    getEffectiveModules: (userId, role) => usersRepo.getEffectiveModules(pool, userId, role),
     createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
     closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
     getAllJobs: async (limit, status) => {
@@ -963,6 +965,20 @@ function createApp(deps: AppDeps): Express {
         fresisHistoryRepo.upsertDiscount(pool, userId, id, articleCode, discountPercent, kpPriceUnit),
     }),
     getEnrichmentStats: () => getEnrichmentStats(pool),
+    getModuleDefaults: () =>
+      pool.query<{ module_name: string; role: string; enabled: boolean }>(
+        'SELECT module_name, role, enabled FROM system.module_defaults ORDER BY module_name, role',
+      ).then(r => r.rows),
+    updateModuleDefault: async (module_name: string, role: string, enabled: boolean) => {
+      await pool.query(
+        `INSERT INTO system.module_defaults (module_name, role, enabled) VALUES ($1, $2, $3)
+         ON CONFLICT (module_name, role) DO UPDATE SET enabled = $3`,
+        [module_name, role, enabled],
+      );
+    },
+    updateUserModules: (userId, modulesGranted, modulesRevoked) =>
+      usersRepo.updateUserModules(pool, userId, modulesGranted, modulesRevoked),
+    invalidateModulesVersionCache: (userId) => invalidateModulesVersionCache(userId),
   }));
 
   app.use('/api/widget', authenticate, createWidgetRouter({
