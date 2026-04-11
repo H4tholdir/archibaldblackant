@@ -252,6 +252,9 @@ export default function OrderFormSimple() {
   const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<string>>(
     new Set(),
   );
+  // true = aperta da singola riga (target = totale della riga selezionata)
+  // false = aperta dal totale documento (target = totale documento)
+  const [totaleIsRowMode, setTotaleIsRowMode] = useState(false);
 
   const canEditItems = !!selectedCustomer;
   const canEditPrice = isFresis(selectedCustomer) && !!selectedSubClient;
@@ -2277,14 +2280,41 @@ export default function OrderFormSimple() {
     const target = parseFloat(totaleTarget.replace(",", "."));
     if (isNaN(target) || target <= 0 || totaleSelectedItems.size === 0) return;
 
-    // target è il totale desiderato per le sole righe selezionate (con IVA).
-    // applyExactTotalToOrderLineItems opera sul totale dell'intero documento,
-    // quindi traduciamo: documentTarget = target + contributo righe non selezionate.
-    // Quando tutte le righe sono selezionate unselectedContribution = 0 → nessuna differenza.
-    const unselectedContribution = items
-      .filter((i) => !totaleSelectedItems.has(i.id))
-      .reduce((s, i) => s + i.subtotal + i.vat, 0);
-    const documentTarget = Math.round((target + unselectedContribution) * 100) / 100;
+    let documentTarget: number;
+
+    if (totaleIsRowMode) {
+      // target = totale desiderato per le SOLE righe selezionate (con IVA).
+      // applyExactTotalToOrderLineItems opera sul totale dell'intero documento:
+      //   documentTarget = target + contributo righe non selezionate + spedizione attesa.
+      //
+      // Stima spedizione post-modifica: usiamo l'IVA media delle righe selezionate per
+      // ricavare l'imponibile atteso → verifichiamo se la soglia spedizione viene attraversata.
+      const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
+      const unselectedSubtotal = items
+        .filter((i) => !totaleSelectedItems.has(i.id))
+        .reduce((s, i) => s + i.subtotal, 0);
+      const unselectedContribution = items
+        .filter((i) => !totaleSelectedItems.has(i.id))
+        .reduce((s, i) => s + i.subtotal + i.vat, 0);
+
+      const avgVatRate =
+        selectedItems.length > 0
+          ? selectedItems.reduce((s, i) => s + i.vatRate, 0) / selectedItems.length
+          : 0;
+      const estimatedSelectedSubtotal = avgVatRate > 0 ? target / (1 + avgVatRate / 100) : target;
+      const estimatedDocSubtotal = estimatedSelectedSubtotal + unselectedSubtotal;
+      const expectedShipping = noShipping
+        ? { cost: 0, tax: 0 }
+        : calculateShippingCosts(estimatedDocSubtotal);
+
+      documentTarget = Math.round(
+        (target + unselectedContribution + expectedShipping.cost + expectedShipping.tax) * 100,
+      ) / 100;
+    } else {
+      // target = totale desiderato per l'intero documento.
+      // L'algoritmo opera già sul totale documento → nessuna traduzione necessaria.
+      documentTarget = target;
+    }
 
     const currentTotals = calculateTotals();
 
@@ -4200,6 +4230,7 @@ export default function OrderFormSimple() {
                         if (canEditItems) {
                           setTotaleTarget(item.total.toFixed(2));
                           setTotaleSelectedItems(new Set([item.id]));
+                          setTotaleIsRowMode(true);
                           setShowTotaleDialog(true);
                         }
                       }}
@@ -4538,6 +4569,7 @@ export default function OrderFormSimple() {
                         if (canEditItems) {
                           setTotaleTarget(item.total.toFixed(2));
                           setTotaleSelectedItems(new Set([item.id]));
+                          setTotaleIsRowMode(true);
                           setShowTotaleDialog(true);
                         }
                       }}
@@ -4971,6 +5003,7 @@ export default function OrderFormSimple() {
                 if (canEditItems) {
                   setTotaleTarget(totals.finalTotal.toFixed(2));
                   setTotaleSelectedItems(new Set(items.map((i) => i.id)));
+                  setTotaleIsRowMode(false);
                   setShowTotaleDialog(true);
                 }
               }}
