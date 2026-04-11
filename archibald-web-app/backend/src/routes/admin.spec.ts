@@ -29,6 +29,7 @@ function createMockDeps(): AdminRouterDeps {
       monthlyAdvance: 2000, hideCommissions: false,
     }),
     generateJWT: vi.fn().mockResolvedValue('impersonation-token'),
+    getEffectiveModules: vi.fn().mockResolvedValue({ effectiveModules: [], modulesVersion: 0 }),
     createAdminSession: vi.fn().mockResolvedValue(42),
     closeAdminSession: vi.fn().mockResolvedValue(undefined),
     getAllJobs: vi.fn().mockResolvedValue(mockJobs),

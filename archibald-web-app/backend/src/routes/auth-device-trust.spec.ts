@@ -13,7 +13,7 @@ vi.mock('../services/mfa-service', () => ({
 function createMockDeps(): AuthRouterDeps {
   return {
     pool: {
-      query: vi.fn(),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
       end: vi.fn(),
       getStats: vi.fn().mockReturnValue({ totalCount: 5, idleCount: 3, waitingCount: 0 }),
     },
@@ -49,6 +49,7 @@ function createMockDeps(): AuthRouterDeps {
     generateJWT: vi.fn().mockResolvedValue('jwt-token-123'),
     encryptAndSavePassword: vi.fn().mockResolvedValue(undefined),
     registerDevice: vi.fn().mockResolvedValue({ id: 'dev-id' }),
+    getEffectiveModules: vi.fn().mockResolvedValue({ effectiveModules: [], modulesVersion: 0 }),
   };
 }
 

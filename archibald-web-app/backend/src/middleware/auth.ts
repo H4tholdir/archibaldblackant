@@ -3,9 +3,29 @@ import { verifyJWT } from "../auth-utils";
 import { logger } from "../logger";
 import type { UserRole } from "../db/repositories/users";
 import type { DbPool } from "../db/pool";
-import { updateLastActivity } from "../db/repositories/users";
+import { updateLastActivity, getUserModulesVersion } from "../db/repositories/users";
 import type { RedisClient } from "../db/redis-client";
 import { isTokenRevoked } from "../db/redis-client";
+
+// Cache in-process per evitare query DB ad ogni richiesta
+const modulesVersionCache = new Map<string, { version: number; cachedAt: number }>();
+const MODULES_VERSION_CACHE_TTL_MS = 30_000;
+
+async function getCachedModulesVersion(pool: DbPool, userId: string): Promise<number> {
+  const now = Date.now();
+  const cached = modulesVersionCache.get(userId);
+  if (cached && now - cached.cachedAt < MODULES_VERSION_CACHE_TTL_MS) {
+    return cached.version;
+  }
+  const version = await getUserModulesVersion(pool, userId);
+  modulesVersionCache.set(userId, { version, cachedAt: now });
+  return version;
+}
+
+// Esposta per permettere invalidazione immediata dalla route admin
+export function invalidateModulesVersionCache(userId: string): void {
+  modulesVersionCache.delete(userId);
+}
 
 export interface AuthRequest extends Request {
   user?: {
@@ -97,6 +117,17 @@ function createAuthMiddleware(pool: DbPool, redis?: RedisClient) {
       }
     } else if (payload && !redis && payload.jti) {
       logger.warn('JWT revocation check skipped: Redis not configured', { jti: payload.jti });
+    }
+
+    // Check modules_version per rilevare cambio moduli admin
+    const currentVersion = await getCachedModulesVersion(pool, payload.userId);
+    if (currentVersion !== payload.modules_version) {
+      invalidateModulesVersionCache(payload.userId);
+      return res.status(401).json({
+        success: false,
+        error: 'session_invalidated',
+        reason: 'modules_changed',
+      });
     }
 
     req.user = payload;

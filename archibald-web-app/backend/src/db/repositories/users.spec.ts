@@ -31,7 +31,9 @@ const SAMPLE_USER_ROW = {
   extra_budget_reward: 6000,
   monthly_advance: 3500,
   hide_commissions: false,
-  modules: null,
+  modules_granted: null,
+  modules_revoked: null,
+  modules_version: 0,
   mfa_enabled: null,
 };
 
@@ -71,7 +73,9 @@ describe('createUser', () => {
       extraBudgetReward: 6000,
       monthlyAdvance: 3500,
       hideCommissions: false,
-      modules: [],
+      modulesGranted: [],
+      modulesRevoked: [],
+      modulesVersion: 0,
       mfaEnabled: false,
     });
   });
