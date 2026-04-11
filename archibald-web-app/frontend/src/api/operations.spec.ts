@@ -194,6 +194,8 @@ describe('pollJobUntilDone', () => {
 
 describe('waitForJobViaWebSocket', () => {
   test('segue il nuovo jobId quando JOB_REQUEUED arriva per il jobId originale', async () => {
+    vi.useFakeTimers();
+
     const originalJobId = 'job-original';
     const newJobId = 'job-new';
     const downloadKey = 'abc-key';
@@ -210,21 +212,23 @@ describe('waitForJobViaWebSocket', () => {
       for (const cb of callbacks[eventType] ?? []) cb(payload);
     };
 
-    setTimeout(() => {
-      fire('JOB_REQUEUED', { originalJobId, newJobId, type: 'download-ddt-pdf' });
-      setTimeout(() => {
-        fire('JOB_COMPLETED', { jobId: newJobId, result: { downloadKey } });
-      }, 10);
-    }, 10);
-
-    const result = await waitForJobViaWebSocket(originalJobId, {
+    const promise = waitForJobViaWebSocket(originalJobId, {
       subscribe,
       wsFallbackMs: 5000,
-      maxWaitMs: 5000,
+      maxWaitMs: 60_000,
       skipSafetyPoll: true,
     });
 
+    await vi.advanceTimersByTimeAsync(10);
+    fire('JOB_REQUEUED', { originalJobId, newJobId, type: 'download-ddt-pdf' });
+    await vi.advanceTimersByTimeAsync(10);
+    fire('JOB_COMPLETED', { jobId: newJobId, result: { downloadKey } });
+
+    const result = await promise;
+
     expect(result).toEqual({ downloadKey });
+
+    vi.useRealTimers();
   });
 
   test('does not call getJobStatus when skipSafetyPoll is true', async () => {
