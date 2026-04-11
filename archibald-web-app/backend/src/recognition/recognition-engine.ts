@@ -194,6 +194,11 @@ async function retrieveTop10Candidates(
     .sort((a, b) => b[1].similarity - a[1].similarity)
     .slice(0, 10)
 
+  logger.info('[recognition-engine] ANN top-10', {
+    topSimilarity,
+    top10: top10rows.map(([fc, row]) => ({ family: fc, sim: row.similarity.toFixed(4), src: row.source_type })),
+  })
+
   // Fetch best-priority rows for all families in one batch query (fallback when ANN row file is missing)
   const familyCodes = top10rows.map(([fc]) => fc)
   const priorityRows = await getBestRowsByFamilyCodes(deps.pool, familyCodes)
