@@ -4029,9 +4029,12 @@ function downloadPdfWithProgress(
         return;
       }
 
-      onProgress("Download completato!", 100);
+      if (cancelled) return;
 
       const arrayBuffer = await pdfResponse.arrayBuffer();
+
+      if (cancelled) return;
+
       const blob = new Blob([arrayBuffer], { type: "application/pdf" });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -4039,6 +4042,8 @@ function downloadPdfWithProgress(
       a.download = `${type === "ddt" ? "DDT" : docLabel ?? "Fattura"}_${orderId}.pdf`;
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
+
+      onProgress("Download completato!", 100);
 
       onComplete();
     } catch (err) {
