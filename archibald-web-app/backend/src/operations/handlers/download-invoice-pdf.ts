@@ -20,8 +20,9 @@ async function handleDownloadInvoicePdf(
   data: DownloadInvoicePdfData,
   onProgress: (progress: number, label?: string) => void,
 ): Promise<{ downloadKey: string }> {
-  bot.setProgressCallback(async (category) => {
-    onProgress(50, category);
+  bot.setProgressCallback(async (category, metadata) => {
+    const progress = typeof metadata?.progress === 'number' ? metadata.progress : 50;
+    onProgress(progress, category);
   });
 
   const docName = data.searchTerm ?? data.invoiceNumber ?? data.orderId;

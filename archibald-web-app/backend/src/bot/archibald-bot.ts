@@ -14880,6 +14880,7 @@ export class ArchibaldBot {
 
       await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
       await this.waitForDevExpressReadyOnPage(page);
+      await this.emitProgress('Apertura pagina ERP', { progress: 20 });
 
       // Step 1: Find and fill search bar with paste (DevExpress-compatible)
       const searchInputSelector = 'input[id*="SearchAC"][id*="Ed_I"]';
@@ -14911,6 +14912,7 @@ export class ArchibaldBot {
       // Step 2: Press Enter to trigger search
       await page.keyboard.press("Enter");
       await new Promise((resolve) => setTimeout(resolve, 3000));
+      await this.emitProgress('Ricerca documento', { progress: 40 });
 
       // Step 3: Verify results
       const rowCount = await page.evaluate(() =>
@@ -14947,6 +14949,7 @@ export class ArchibaldBot {
       }
 
       await scaricaPdfBtn.click();
+      await this.emitProgress('Generazione PDF in corso', { progress: 60 });
       logger.info("[ArchibaldBot] downloadSingleDocumentPDF: clicked Scarica PDF");
 
       // Step 6: Wait for PDF link to appear in the row
@@ -14977,6 +14980,7 @@ export class ArchibaldBot {
 
       const downloadedFile = await this.waitForDownloadedFile(tmpDir, 30000);
       const buffer = await fsp.readFile(downloadedFile);
+      await this.emitProgress('Download PDF', { progress: 75 });
 
       await fsp.unlink(downloadedFile).catch(() => {});
 
