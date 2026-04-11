@@ -1088,7 +1088,9 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
             o.articles_synced_at
      FROM agents.order_records o
      WHERE o.user_id = $1
-       AND o.sent_to_verona_at >= $2
+       AND o.transfer_status IS NOT NULL
+       AND o.transfer_status != 'Modifica'
+       AND o.creation_date >= $2
        AND o.arca_kt_synced_at IS NULL
        AND o.customer_name != 'Fresis Soc Cooperativa'
      ORDER BY o.creation_date ASC`,

@@ -89,13 +89,13 @@ function readCoop16File(filename: string): Buffer {
         new Map(),
       );
 
-      // 14940 FT + 187 KT = 15127
-      expect(result.stats.totalDocuments).toBe(15127);
+      // 14943 FT + 187 KT = 15130
+      expect(result.stats.totalDocuments).toBe(15130);
       // totalRows = rows read from docrig (VFP9 may skip deleted records)
       expect(result.stats.totalRows).toBeGreaterThan(50000);
       // ANAGRAFE has 1899+ records but some lack CODICE or DESCRIZION
       expect(result.stats.totalClients).toBe(1873);
-      expect(result.records).toHaveLength(15127);
+      expect(result.records).toHaveLength(15130);
       // dbffile skips VFP9 deleted records; active - FT/KT = other types
       expect(result.stats.skippedOtherTypes).toBe(23);
     },
@@ -125,7 +125,7 @@ function readCoop16File(filename: string): Buffer {
       );
 
       expect(ktRecords.length).toBe(187);
-      expect(ftRecords.length).toBe(14940);
+      expect(ftRecords.length).toBe(14943);
 
       // Verify KT IDs are distinct from FT IDs
       const ftIds = new Set(ftRecords.map((r) => r.id));
@@ -900,11 +900,11 @@ function createMockPool(overrides?: {
         anagrafeBuf,
       );
 
-      expect(result.imported).toBe(15127);
+      expect(result.imported).toBe(15130);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
-      expect(result.parseStats.totalDocuments).toBe(15127);
+      expect(result.parseStats.totalDocuments).toBe(15130);
 
       // ft_counter should have been called for FT esercizi
       const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
@@ -1013,7 +1013,7 @@ function createMockPool(overrides?: {
       );
 
       expect(result.imported).toBe(0);
-      expect(result.updated).toBe(15127);
+      expect(result.updated).toBe(15130);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
