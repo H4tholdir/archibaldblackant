@@ -105,6 +105,7 @@ export function AdminPage(_props: AdminPageProps) {
   const [webImageUrl, setWebImageUrl] = useState('');
   const [enqueuingWebImage, setEnqueuingWebImage] = useState(false);
   const [webImageQueued, setWebImageQueued] = useState(false);
+  const [catalogFamilyCodes, setCatalogFamilyCodes] = useState<string[]>([]);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
@@ -126,6 +127,10 @@ export function AdminPage(_props: AdminPageProps) {
     if (!token) return;
     getEnrichmentStats(token).then(setEnrichmentStats).catch(console.error);
     getRecognitionBudget(token).then(setRecognitionBudget).catch(console.error);
+    fetch('/api/admin/catalog-family-codes', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<string[]>)
+      .then(setCatalogFamilyCodes)
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -952,6 +957,7 @@ export function AdminPage(_props: AdminPageProps) {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input
                   type="text"
+                  list="catalog-family-codes-list"
                   placeholder="Codice famiglia (es. 227B)"
                   value={webImageFamilyCode}
                   onChange={e => { setWebImageFamilyCode(e.target.value); setWebImageQueued(false); }}
@@ -960,6 +966,9 @@ export function AdminPage(_props: AdminPageProps) {
                     fontSize: 13, width: 180,
                   }}
                 />
+                <datalist id="catalog-family-codes-list">
+                  {catalogFamilyCodes.map(fc => <option key={fc} value={fc} />)}
+                </datalist>
                 <input
                   type="text"
                   placeholder="URL immagine (opzionale)"

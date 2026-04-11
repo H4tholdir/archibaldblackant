@@ -617,6 +617,21 @@ function createAdminRouter(deps: AdminRouterDeps) {
     }
   });
 
+  router.get('/catalog-family-codes', async (_req, res) => {
+    try {
+      const { rows } = await deps.pool.query<{ family_code: string }>(
+        `SELECT DISTINCT unnest(family_codes) AS family_code
+         FROM shared.catalog_entries
+         WHERE family_codes IS NOT NULL
+         ORDER BY 1`,
+      )
+      res.json(rows.map(r => r.family_code))
+    } catch (err) {
+      logger.error('[admin] catalog-family-codes error', { err })
+      res.status(500).json({ error: 'Failed to fetch family codes' })
+    }
+  });
+
   router.get('/audit-log', async (req: AuthRequest, res) => {
     try {
       const { actorId, action, targetType, from, to, page = '1' } = req.query as Record<string, string>;
