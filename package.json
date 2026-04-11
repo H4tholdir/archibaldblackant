@@ -24,6 +24,7 @@
   "dependencies": {
     "fuse.js": "^7.1.0",
     "jspdf": "^4.0.0",
-    "jspdf-autotable": "^5.0.7"
+    "jspdf-autotable": "^5.0.7",
+    "xlsx": "^0.18.5"
   }
 }
