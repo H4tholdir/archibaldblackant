@@ -113,6 +113,19 @@ export async function getIndexedFamilyStripKeys(pool: DbPool): Promise<Set<strin
   return new Set(rows.map(r => `${r.family_code}|${r.local_path}`))
 }
 
+/**
+ * Returns a set of 'familyCode|localPath' keys for already-indexed catalog_pdf rows.
+ * Used by index-catalog-pages to skip families already indexed from a given page file.
+ */
+export async function getIndexedCatalogFamilyKeys(pool: DbPool): Promise<Set<string>> {
+  const { rows } = await pool.query<{ family_code: string; local_path: string }>(
+    `SELECT family_code, local_path
+     FROM shared.catalog_family_images
+     WHERE visual_embedding IS NOT NULL AND source_type = 'catalog_pdf'`,
+  )
+  return new Set(rows.map(r => `${r.family_code}|${r.local_path}`))
+}
+
 export type FamilyImageRow = {
   family_code: string
   local_path:  string

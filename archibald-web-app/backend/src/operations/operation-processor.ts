@@ -83,6 +83,7 @@ function calculateJobTimeout(type: OperationType, data: Record<string, unknown>)
   if (type === 'catalog-ingestion') return 7_200_000; // 2h — legge ~400 pagine PDF via Sonnet
   if (type === 're-extract-pictograms') return 7_200_000; // 2h — ~1600 famiglie × Sonnet vision
   if (type === 'build-visual-index') return 1_800_000; // 30 min — ~400 crop × Jina API
+  if (type === 'index-catalog-pages') return 3_600_000; // 1h — ~762 pagine PDF × Jina API
   if (isScheduledSync(type)) return SYNC_TIMEOUT_MS;
   if (isWriteOperation(type)) return DEFAULT_WRITE_TIMEOUT_MS;
   return DEFAULT_WRITE_TIMEOUT_MS;

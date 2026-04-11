@@ -33,6 +33,7 @@ const QUEUE_ROUTING: Record<OperationType, QueueName> = {
   'recognition-feedback':       'enrichment',
   'build-visual-index':         'enrichment',
   're-extract-pictograms':      'enrichment',
+  'index-catalog-pages':        'enrichment',
 };
 
 function getQueueForOperation(type: OperationType): QueueName {

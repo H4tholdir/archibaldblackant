@@ -34,6 +34,7 @@ describe('getQueueForOperation', () => {
     'recognition-feedback':       'enrichment',
     'build-visual-index':         'enrichment',
     're-extract-pictograms':      'enrichment',
+    'index-catalog-pages':        'enrichment',
   };
 
   test.each(OPERATION_TYPES.map(type => [type, expectedRouting[type]] as const))(
@@ -83,9 +84,9 @@ describe('getQueueForOperation', () => {
     expect(agentSyncOps).toHaveLength(4);
   });
 
-  test('enrichment queue contains 10 operations', () => {
+  test('enrichment queue contains 11 operations', () => {
     const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
-    expect(enrichmentOps).toHaveLength(10);
+    expect(enrichmentOps).toHaveLength(11);
   });
 
   test('shared-sync queue contains 2 operations', () => {

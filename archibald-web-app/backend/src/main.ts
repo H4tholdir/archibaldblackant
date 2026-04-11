@@ -52,6 +52,7 @@ import {
   createWebProductEnrichmentHandler,
   createBuildVisualIndexHandler,
   createReExtractPictogramsHandler,
+  createIndexCatalogPagesHandler,
 } from './operations/handlers';
 import { createVisualEmbeddingService } from './recognition/visual-embedding-service';
 import Anthropic from '@anthropic-ai/sdk';
@@ -1194,6 +1195,9 @@ async function bootstrap(): Promise<void> {
     } : {}),
     ...(config.recognition.jinaApiKey && embeddingSvc ? {
       'build-visual-index': createBuildVisualIndexHandler({ pool, embeddingSvc }),
+    } : {}),
+    ...(config.recognition.jinaApiKey && embeddingSvc && catalogPdf ? {
+      'index-catalog-pages': createIndexCatalogPagesHandler({ pool, embeddingSvc, catalogPdf }),
     } : {}),
   };
 

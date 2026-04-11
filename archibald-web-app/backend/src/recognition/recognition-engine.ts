@@ -94,12 +94,15 @@ export async function runRecognitionPipeline(
       logger.warn('[recognition-engine] Family code not in catalog — downgrading to not_found', { familyCode })
       result = { state: 'not_found' }
     } else {
+      const productCode  = identification.productCode ?? ''
+      const discontinued = !(await isProductAvailable(deps.pool, productCode))
       result = {
         state: 'match',
         product: {
-          productId: identification.productCode ?? '', productName: identification.productCode ?? '',
+          productId: productCode, productName: productCode,
           familyCode, headSizeMm: 0, shankType: '', thumbnailUrl: null,
           confidence: identification.confidence,
+          discontinued: discontinued || undefined,
         },
         confidence: identification.confidence,
       }
@@ -223,6 +226,23 @@ async function validateFamilyExists(pool: DbPool, familyCode: string): Promise<b
   } catch {
     // Fail-closed: DB unavailable → treat as not found to avoid caching hallucinated codes
     return false
+  }
+}
+
+/**
+ * Returns true if the product exists in shared.products and is not retired (deleted_at IS NULL).
+ * Fail-open: returns true on DB error so we don't falsely mark products as discontinued.
+ */
+async function isProductAvailable(pool: DbPool, productId: string): Promise<boolean> {
+  if (!productId) return false
+  try {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT 1 FROM shared.products WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [productId],
+    )
+    return rows.length > 0
+  } catch {
+    return true
   }
 }
 

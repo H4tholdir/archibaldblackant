@@ -6,6 +6,7 @@ import {
   countIndexed,
   getFallbackFamilies,
   getIndexedFamilyStripKeys,
+  getIndexedCatalogFamilyKeys,
 } from './catalog-family-images'
 
 const FAKE_EMBEDDING = Array.from({ length: 2048 }, () => 0.5)
@@ -99,6 +100,25 @@ describe('getIndexedFamilyStripKeys', () => {
 
   test('returns empty set when no campionario rows are indexed', async () => {
     const result = await getIndexedFamilyStripKeys(makePool([]))
+    expect(result.size).toBe(0)
+  })
+})
+
+describe('getIndexedCatalogFamilyKeys', () => {
+  test('returns set of familyCode|localPath keys for catalog_pdf rows', async () => {
+    const rows = [
+      { family_code: '227B', local_path: '/app/catalog-pages/509.jpg' },
+      { family_code: '227A', local_path: '/app/catalog-pages/509.jpg' },
+    ]
+    const result = await getIndexedCatalogFamilyKeys(makePool(rows))
+    expect(result).toEqual(new Set([
+      '227B|/app/catalog-pages/509.jpg',
+      '227A|/app/catalog-pages/509.jpg',
+    ]))
+  })
+
+  test('returns empty set when no catalog_pdf rows are indexed', async () => {
+    const result = await getIndexedCatalogFamilyKeys(makePool([]))
     expect(result.size).toBe(0)
   })
 })

@@ -99,12 +99,15 @@ export function AdminPage(_props: AdminPageProps) {
   const [reExtractQueued, setReExtractQueued] = useState(false);
   const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
+  const [enqueuingCatalogPages, setEnqueuingCatalogPages] = useState(false);
+  const [catalogPagesQueued, setCatalogPagesQueued] = useState(false);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
   const [webEnrichProgress, setWebEnrichProgress] = useState<OpProgress | null>(null);
   const [reExtractProgress, setReExtractProgress] = useState<OpProgress | null>(null);
   const [visualProgress, setVisualProgress] = useState<OpProgress | null>(null);
+  const [catalogPagesProgress, setCatalogPagesProgress] = useState<OpProgress | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -127,6 +130,7 @@ export function AdminPage(_props: AdminPageProps) {
       'web-product-enrichment':     setWebEnrichProgress,
       're-extract-pictograms':      setReExtractProgress,
       'build-visual-index':         setVisualProgress,
+      'index-catalog-pages':        setCatalogPagesProgress,
     }
 
     const unsubs = [
@@ -397,6 +401,25 @@ export function AdminPage(_props: AdminPageProps) {
       alert("Errore nell'avvio del visual index. Riprova.");
     } finally {
       setEnqueuingVisualIndex(false);
+    }
+  };
+
+  const handleIndexCatalogPages = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingCatalogPages(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "index-catalog-pages", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setCatalogPagesQueued(true);
+    } catch {
+      alert("Errore nell'avvio dell'indicizzazione. Riprova.");
+    } finally {
+      setEnqueuingCatalogPages(false);
     }
   };
 
@@ -845,6 +868,38 @@ export function AdminPage(_props: AdminPageProps) {
                 {enqueuingVisualIndex ? "..." : visualIndexQueued ? "Avviato" : "Indicizza →"}
               </button>
               <OpProgressBar progress={visualProgress} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Visual index (pagine catalogo PDF)</strong>
+                <div style={{ color: catalogPagesQueued ? "#1976d2" : "#666", fontSize: "12px", marginTop: 2 }}>
+                  {catalogPagesQueued
+                    ? "In corso — gira in background (~1h)"
+                    : "Indicizza ogni pagina PDF per tutte le famiglie del catalogo"}
+                </div>
+              </div>
+              <div style={{ color: "#555", fontSize: "13px" }}>1639 fam.</div>
+              <button
+                onClick={() => { void handleIndexCatalogPages(); }}
+                disabled={enqueuingCatalogPages || catalogPagesQueued}
+                style={{
+                  background: catalogPagesQueued ? "#999" : "#7b1fa2",
+                  color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: (enqueuingCatalogPages || catalogPagesQueued) ? "not-allowed" : "pointer",
+                  opacity: (enqueuingCatalogPages || catalogPagesQueued) ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingCatalogPages ? "..." : catalogPagesQueued ? "Avviato" : "Indicizza PDF →"}
+              </button>
+              <OpProgressBar progress={catalogPagesProgress} />
             </div>
 
             <div style={{

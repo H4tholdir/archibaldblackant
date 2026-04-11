@@ -404,8 +404,10 @@ export function ToolRecognitionPage() {
   if (pageState === 'match' && identifyResult?.result.state === 'match') {
     const { product, confidence } = identifyResult.result
     const { imageHash } = identifyResult
+    const isDiscontinued = product.discontinued === true
 
     const handleOpenProduct = async () => {
+      if (isDiscontinued) return
       const token = localStorage.getItem('archibald_jwt')
       if (!token) return
       try {
@@ -415,36 +417,41 @@ export function ToolRecognitionPage() {
       navigate(`/products/${encodeURIComponent(product.productId)}`, { state: { fromScanner: true } })
     }
 
-    const confidencePct = Math.round(confidence * 100)
-    const confidenceColor = confidence >= 0.9 ? '#22c55e' : confidence >= 0.75 ? '#4ade80' : '#f9a825'
+    const confidencePct    = Math.round(confidence * 100)
+    const confidenceColor  = confidence >= 0.9 ? '#22c55e' : confidence >= 0.75 ? '#4ade80' : '#f9a825'
+    const accentColor      = isDiscontinued ? '#f97316' : '#22c55e'
+    const accentDim        = isDiscontinued ? '#7c3c14' : '#1a3a1a'
+    const headerBg         = isDiscontinued ? '#1a0e05' : '#0d2b0d'
+    const pageBg           = isDiscontinued ? '#110a04' : '#0a1f0a'
+    const borderColor      = isDiscontinued ? '#3a1f0a' : '#1a3a1a'
 
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 200,
-        background: '#0a1f0a',
+        background: pageBg,
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{
-          background: '#0d2b0d',
+          background: headerBg,
           padding: '14px 20px',
           display: 'flex', alignItems: 'center', gap: 10,
-          flexShrink: 0, borderBottom: '1px solid #1a3a1a',
+          flexShrink: 0, borderBottom: `1px solid ${borderColor}`,
         }}>
           <div style={{
             width: 26, height: 26, borderRadius: '50%',
-            background: '#22c55e', color: '#000',
+            background: accentColor, color: '#000',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 900, flexShrink: 0,
-          }}>✓</div>
-          <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15, flex: 1 }}>
-            Articolo identificato
+          }}>{isDiscontinued ? '!' : '✓'}</div>
+          <span style={{ color: accentColor, fontWeight: 700, fontSize: 15, flex: 1 }}>
+            {isDiscontinued ? 'Articolo fuori produzione' : 'Articolo identificato'}
           </span>
           {usedPhotoCount > 1 && (
             <span style={{
-              color: '#22c55e', fontSize: 11, fontWeight: 600,
-              background: 'rgba(34,197,94,0.12)', borderRadius: 6, padding: '3px 8px',
-              border: '1px solid rgba(34,197,94,0.3)', marginRight: 4,
+              color: accentColor, fontSize: 11, fontWeight: 600,
+              background: `rgba(255,255,255,0.06)`, borderRadius: 6, padding: '3px 8px',
+              border: `1px solid ${accentDim}`, marginRight: 4,
             }}>
               {usedPhotoCount} foto
             </span>
@@ -469,7 +476,7 @@ export function ToolRecognitionPage() {
                 style={{
                   width: 80, height: 80, borderRadius: 10,
                   objectFit: 'cover', flexShrink: 0,
-                  border: '2px solid #22c55e',
+                  border: `2px solid ${accentColor}`,
                 }}
               />
             )}
@@ -483,10 +490,22 @@ export function ToolRecognitionPage() {
               }}>
                 {product.productName}
               </div>
-              <div style={{
-                fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
-              }}>
-                {product.productId}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{
+                  fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
+                }}>
+                  {product.productId}
+                </div>
+                {isDiscontinued && (
+                  <span style={{
+                    background: '#3a1205', color: '#f97316',
+                    borderRadius: 6, padding: '2px 8px',
+                    fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+                    border: '1px solid #7c3c14',
+                  }}>
+                    Non più in produzione
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -498,9 +517,9 @@ export function ToolRecognitionPage() {
             }}>
               {product.shankType && (
                 <span style={{
-                  background: '#1a3a1a', color: '#4ade80',
+                  background: accentDim, color: accentColor,
                   borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
-                  border: '1px solid #2d5a2d',
+                  border: `1px solid ${accentDim}`,
                 }}>
                   {product.shankType.toUpperCase()}
                 </span>
@@ -515,27 +534,38 @@ export function ToolRecognitionPage() {
             </div>
           )}
 
-          <button
-            onClick={() => { void handleOpenProduct() }}
-            aria-label="Apri scheda prodotto"
-            style={{
-              width: '100%', background: '#22c55e', color: '#000',
-              border: 'none', borderRadius: 12, padding: '16px 0',
-              fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
-            }}
-          >
-            Apri scheda prodotto →
-          </button>
-
-          <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
-            Il tap conferma il riconoscimento e salva la foto in gallery
-          </div>
+          {isDiscontinued ? (
+            <div style={{
+              background: '#1a0e05', border: '1px solid #3a1f0a',
+              borderRadius: 12, padding: '16px 20px', marginBottom: 20,
+              color: '#d97706', fontSize: 14, lineHeight: 1.5,
+            }}>
+              Questo articolo è stato identificato nel catalogo Komet ma non è più disponibile per l&apos;acquisto.
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => { void handleOpenProduct() }}
+                aria-label="Apri scheda prodotto"
+                style={{
+                  width: '100%', background: '#22c55e', color: '#000',
+                  border: 'none', borderRadius: 12, padding: '16px 0',
+                  fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
+                }}
+              >
+                Apri scheda prodotto →
+              </button>
+              <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
+                Il tap conferma il riconoscimento e salva la foto in gallery
+              </div>
+            </>
+          )}
 
           <button
             onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
             style={{
               width: '100%', background: 'transparent',
-              border: '1px solid #2d4a2d', borderRadius: 12, padding: '12px 0',
+              border: `1px solid ${borderColor}`, borderRadius: 12, padding: '12px 0',
               cursor: 'pointer',
             }}
           >

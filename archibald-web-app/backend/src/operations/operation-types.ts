@@ -27,6 +27,7 @@ const OPERATION_TYPES = [
   'recognition-feedback',
   'build-visual-index',
   're-extract-pictograms',
+  'index-catalog-pages',
 ] as const;
 
 type OperationType = (typeof OPERATION_TYPES)[number];
@@ -60,6 +61,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'recognition-feedback':       5,
   'build-visual-index':         1,
   're-extract-pictograms':      4,
+  'index-catalog-pages':        2,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([

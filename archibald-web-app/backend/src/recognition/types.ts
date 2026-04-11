@@ -1,14 +1,15 @@
 type ThrottleLevel = 'normal' | 'warning' | 'limited';
 
 type ProductMatch = {
-  productId:    string
-  productName:  string
-  familyCode:   string
-  headSizeMm:   number
-  shankType:    string
-  thumbnailUrl: string | null
-  confidence:   number
-  catalogPage?: number | null
+  productId:     string
+  productName:   string
+  familyCode:    string
+  headSizeMm:    number
+  shankType:     string
+  thumbnailUrl:  string | null
+  confidence:    number
+  catalogPage?:  number | null
+  discontinued?: boolean
 };
 
 /** Candidate shown in shortlist_visual — includes reference images for display. */
