@@ -142,7 +142,7 @@ describe('createIndexCatalogPagesHandler', () => {
       pool,
       expect.objectContaining({
         source_type: 'catalog_pdf',
-        priority:    2,
+        priority:    3,
         metadata:    { catalog_page: 509 },
         local_path:  PAGE_509_PATH,
       }),
