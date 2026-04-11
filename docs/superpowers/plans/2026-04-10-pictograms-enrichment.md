@@ -2,11 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Leggere i pittogrammi già estratti in `shared.catalog_entries.pictograms` e mostrarli nella `ProductDetailPage` come chip "Applicazioni consigliate" nella Tab Prodotto.
+**Goal:** (1) Correggere la qualità dei dati pittogrammi in `catalog_entries.pictograms` via ri-estrazione AI mirata. (2) Esporre i pittogrammi normalizzati nella route `/products/:id/enrichment`. (3) Mostrare chip "Applicazioni consigliate" nella `ProductDetailPage`.
 
-**Architecture:** La colonna `pictograms jsonb` contiene array `[{"symbol":"cavity_tooth","meaning":"Cavity preparation"}]`. I simboli sono inconsistenti (alias, case diverso), quindi si normalizzano lato backend con una mappa statica symbol→labelIt. La route `/products/:id/enrichment` espone il risultato come `pictograms: Array<{symbol, labelIt}>`. Il frontend mostra i chip solo se presenti.
+**Problema dati**: L'AI durante l'ingestion originale ha estratto pittogrammi parziali. Analisi prod (2026-04-10):
+- 364/1639 famiglie: 0 pittogrammi
+- 446/1639 famiglie: solo 1 pittogramma (probabilmente incompleto — media `rotary_carbide` = 1.8)
+- H1 (pag. 161): 1 pittogramma nel DB, 2 visibili nel catalogo
+- H21R (pag. 161): 0 pittogrammi nel DB
 
-**Tech Stack:** PostgreSQL JSONB, TypeScript strict, Express dep-injection pattern, React 19 inline styles, Vitest.
+**Architecture:** Task 0 crea un nuovo operation handler `re-extract-pictograms` che usa `CatalogPdfService` + Claude API per ri-leggere ogni pagina del catalogo e aggiornare solo la colonna `pictograms`. Tasks 1-4 implementano la normalizzazione + API + UI.
+
+**Tech Stack:** PostgreSQL JSONB, Anthropic API (Sonnet), TypeScript strict, Express dep-injection, React 19 inline styles, Vitest.
 
 ---
 
@@ -51,15 +57,311 @@ cd archibald-web-app/backend && npm run build
 
 | Azione | Path |
 |--------|------|
+| **Create** | `archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.ts` |
+| **Create** | `archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.spec.ts` |
+| **Modify** | `archibald-web-app/backend/src/server.ts` (registrare nuovo handler) |
 | **Create** | `archibald-web-app/backend/src/utils/pictogram-labels.ts` |
 | **Create** | `archibald-web-app/backend/src/utils/pictogram-labels.spec.ts` |
 | **Modify** | `archibald-web-app/backend/src/db/repositories/products.ts` |
 | **Modify** | `archibald-web-app/backend/src/db/repositories/products.spec.ts` |
 | **Modify** | `archibald-web-app/backend/src/routes/products.ts` |
 | **Modify** | `archibald-web-app/backend/src/routes/products.spec.ts` |
-| **Modify** | `archibald-web-app/backend/src/server.ts` |
+| **Modify** | `archibald-web-app/backend/src/server.ts` (wiring dep enrichment) |
 | **Modify** | `archibald-web-app/frontend/src/api/recognition.ts` |
 | **Modify** | `archibald-web-app/frontend/src/pages/ProductDetailPage.tsx` |
+
+---
+
+## Task 0: Operation handler `re-extract-pictograms` — correzione qualità dati DB
+
+**Contesto:**
+- Handler pattern: come `catalog-ingestion`, usa `CatalogPdfService` + `callSonnet` (Anthropic API)
+- Registrazione in `archibald-web-app/backend/src/main.ts` nel blocco `handlers` (condizionale su `anthropicApiKey`)
+- Export da `archibald-web-app/backend/src/operations/handlers/index.ts`
+- `catalog_entries.catalog_page` contiene il numero di pagina PDF per ogni famiglia
+- Costo stimato: ~$0.004/pagina × ~810 famiglie incomplete = ~$3.24
+
+**Files:**
+- Create: `archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.ts`
+- Create: `archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.spec.ts`
+- Modify: `archibald-web-app/backend/src/operations/handlers/index.ts`
+- Modify: `archibald-web-app/backend/src/main.ts`
+
+- [ ] **Step 1: Scrivi i test failing**
+
+```typescript
+// archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.spec.ts
+import { describe, expect, test, vi } from 'vitest';
+import type { DbPool } from '../../db/pool';
+import { createReExtractPictogramsHandler } from './re-extract-pictograms';
+
+function makePool(rows: object[]): DbPool {
+  return {
+    query: vi.fn()
+      .mockResolvedValueOnce({ rows, rowCount: rows.length, command: 'SELECT', oid: 0, fields: [] })
+      .mockResolvedValue({ rows: [], rowCount: 0, command: 'UPDATE', oid: 0, fields: [] }),
+    end: vi.fn(),
+  } as unknown as DbPool;
+}
+
+const mockCatalogPdf = {
+  getPageAsBase64: vi.fn().mockResolvedValue('base64imagepng'),
+};
+
+describe('createReExtractPictogramsHandler', () => {
+  test('aggiorna i pittogrammi quando Claude restituisce un array valido', async () => {
+    const callSonnet = vi.fn().mockResolvedValue(
+      '[{"symbol":"cavity_tooth","meaning":"Cavity preparation"},{"symbol":"consult_instructions","meaning":"Consult IFU"}]',
+    );
+    const pool = makePool([{ id: 1, catalog_page: 161, family_codes: ['H1.314'] }]);
+    const handler = createReExtractPictogramsHandler({ pool, catalogPdf: mockCatalogPdf, callSonnet });
+
+    const result = await handler({} as any, {}, 'admin', vi.fn());
+
+    expect(result.updated).toBe(1);
+    expect(pool.query).toHaveBeenCalledTimes(2); // SELECT + UPDATE
+  });
+
+  test('salta le entry quando Claude restituisce [] (nessun pittogramma visibile)', async () => {
+    const callSonnet = vi.fn().mockResolvedValue('[]');
+    const pool = makePool([{ id: 2, catalog_page: 161, family_codes: ['H21R.314'] }]);
+    const handler = createReExtractPictogramsHandler({ pool, catalogPdf: mockCatalogPdf, callSonnet });
+
+    const result = await handler({} as any, {}, 'admin', vi.fn());
+
+    // UPDATE non viene chiamato se l'array è vuoto (dati invariati)
+    expect(result.updated).toBe(0);
+  });
+
+  test('salta le entry con catalog_page null o zero', async () => {
+    const callSonnet = vi.fn();
+    const pool = makePool([{ id: 3, catalog_page: null, family_codes: ['ACCESSORY'] }]);
+    const handler = createReExtractPictogramsHandler({ pool, catalogPdf: mockCatalogPdf, callSonnet });
+
+    const result = await handler({} as any, {}, 'admin', vi.fn());
+
+    expect(callSonnet).not.toHaveBeenCalled();
+    expect(result.updated).toBe(0);
+  });
+
+  test('continua elaborazione in caso di errore Sonnet su una singola entry', async () => {
+    const callSonnet = vi.fn()
+      .mockRejectedValueOnce(new Error('API timeout'))
+      .mockResolvedValueOnce('[{"symbol":"crown_prep","meaning":"Crown preparation"}]');
+    const rows = [
+      { id: 10, catalog_page: 163, family_codes: ['H7'] },
+      { id: 11, catalog_page: 204, family_codes: ['801', '8801'] },
+    ];
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows, rowCount: 2, command: 'SELECT', oid: 0, fields: [] })
+        .mockResolvedValue({ rows: [], rowCount: 0, command: 'UPDATE', oid: 0, fields: [] }),
+      end: vi.fn(),
+    } as unknown as DbPool;
+    const handler = createReExtractPictogramsHandler({ pool, catalogPdf: mockCatalogPdf, callSonnet });
+
+    const result = await handler({} as any, {}, 'admin', vi.fn());
+
+    expect(result.updated).toBe(1); // solo la seconda entry
+    expect(result.errors).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Verifica che i test falliscano**
+
+```bash
+cd archibald-web-app/backend && npx vitest run src/operations/handlers/re-extract-pictograms.spec.ts
+```
+Atteso: FAIL — `Cannot find module './re-extract-pictograms'`
+
+- [ ] **Step 3: Implementa il handler**
+
+```typescript
+// archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.ts
+import type { DbPool } from '../../db/pool';
+import type { CatalogPdfService } from '../../services/catalog-pdf-service';
+import type { OperationHandler } from '../operation-processor';
+import { logger } from '../../logger';
+
+type SonnetFn = (
+  images: Array<{ base64: string; mediaType: 'image/png' }>,
+  prompt: string,
+) => Promise<string>;
+
+type ReExtractPictogramsDeps = {
+  pool:        DbPool;
+  catalogPdf:  CatalogPdfService;
+  callSonnet:  SonnetFn;
+};
+
+type CatalogRow = {
+  id:           number;
+  catalog_page: number | null;
+  family_codes: string[];
+};
+
+type Pictogram = { symbol: string; meaning: string };
+
+const INTER_ENTRY_DELAY_MS = 300;
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function parsePictograms(raw: string): Pictogram[] | null {
+  try {
+    const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? (parsed as Pictogram[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildPrompt(familyCodes: string[]): string {
+  const family = familyCodes[0] ?? 'unknown';
+  return `This is a page from the Komet 2025 dental instrument catalog.
+Find the product family "${family}" (family codes: ${familyCodes.join(', ')}) on this page.
+
+Look CAREFULLY at the small pictogram/symbol icons printed near the product entry (usually in the top-left corner of the product block, before the product name and size table).
+
+List ALL pictogram icons you can see for this product family. Common Komet pictograms include: tooth with cavity, crown, autoclave, single-use symbol, consult-IFU book, max speed, recommended speed, implant, orthodontics, etc.
+
+Return ONLY a valid JSON array (no markdown, no extra text):
+[{"symbol": "snake_case_symbol_name", "meaning": "English description of what the symbol represents"}]
+
+If you cannot find any pictogram icons for this family, return exactly: []`;
+}
+
+function createReExtractPictogramsHandler(deps: ReExtractPictogramsDeps): OperationHandler {
+  return async (_context, data, _userId, onProgress) => {
+    const { pool, catalogPdf, callSonnet } = deps;
+    const forceAll = data.forceAll === true;
+
+    const whereClause = forceAll
+      ? 'WHERE catalog_page IS NOT NULL AND catalog_page > 0'
+      : 'WHERE catalog_page IS NOT NULL AND catalog_page > 0 AND (pictograms IS NULL OR jsonb_array_length(pictograms) < 2)';
+
+    const { rows } = await pool.query<CatalogRow>(
+      `SELECT id, catalog_page, family_codes FROM shared.catalog_entries ${whereClause} ORDER BY catalog_page`,
+    );
+
+    let updated = 0;
+    let errors  = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row.catalog_page) continue;
+
+      try {
+        const base64 = await catalogPdf.getPageAsBase64(row.catalog_page);
+        const prompt = buildPrompt(row.family_codes);
+        const raw    = await callSonnet([{ base64, mediaType: 'image/png' }], prompt);
+        const pictos = parsePictograms(raw);
+
+        if (pictos && pictos.length > 0) {
+          await pool.query(
+            `UPDATE shared.catalog_entries SET pictograms = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+            [JSON.stringify(pictos), row.id],
+          );
+          updated++;
+        }
+      } catch (err) {
+        errors++;
+        logger.warn('[re-extract-pictograms] Failed to process entry', {
+          id: row.id, family_codes: row.family_codes, err,
+        });
+      }
+
+      if (i % 20 === 0 && i > 0) {
+        onProgress(Math.round((i / rows.length) * 100), `${i}/${rows.length} famiglie elaborate`);
+      }
+      await delay(INTER_ENTRY_DELAY_MS);
+    }
+
+    onProgress(100, 'Completato');
+    return { total: rows.length, updated, errors };
+  };
+}
+
+export { createReExtractPictogramsHandler, type ReExtractPictogramsDeps };
+```
+
+- [ ] **Step 4: Verifica che i test passino**
+
+```bash
+cd archibald-web-app/backend && npx vitest run src/operations/handlers/re-extract-pictograms.spec.ts
+```
+Atteso: 4 test PASS
+
+- [ ] **Step 5: Esporta da `index.ts`**
+
+In `archibald-web-app/backend/src/operations/handlers/index.ts`, aggiungi:
+```typescript
+export { createReExtractPictogramsHandler } from './re-extract-pictograms';
+```
+
+- [ ] **Step 6: Registra in `main.ts`**
+
+Trova il blocco `...(config.recognition.anthropicApiKey && anthropicCatalogClient ? {` in `main.ts` (linea ~1134) e aggiungi dopo `'web-product-enrichment': ...`:
+
+```typescript
+      're-extract-pictograms': createReExtractPictogramsHandler({
+        pool,
+        catalogPdf,
+        callSonnet: async (images, prompt) => {
+          const response = await anthropicCatalogClient.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  ...images.map(img => ({
+                    type: 'image' as const,
+                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                  })),
+                  { type: 'text' as const, text: prompt },
+                ],
+              },
+            ],
+          });
+          const content = response.content[0];
+          return content?.type === 'text' ? content.text : '[]';
+        },
+      }),
+```
+
+Aggiungi anche l'import in cima a `main.ts`:
+```typescript
+import { createReExtractPictogramsHandler } from './operations/handlers/re-extract-pictograms';
+```
+(oppure aggiornare l'import esistente da `'./operations/handlers'` se già presente)
+
+- [ ] **Step 7: Build TypeScript backend**
+
+```bash
+cd archibald-web-app/backend && npm run build
+```
+Atteso: nessun errore
+
+- [ ] **Step 8: Test suite completa backend**
+
+```bash
+cd archibald-web-app/backend && npm test -- --run
+```
+Atteso: tutti passano
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.ts \
+        archibald-web-app/backend/src/operations/handlers/re-extract-pictograms.spec.ts \
+        archibald-web-app/backend/src/operations/handlers/index.ts \
+        archibald-web-app/backend/src/main.ts
+git commit -m "feat(catalog): add re-extract-pictograms operation handler for pictogram data quality fix"
+```
 
 ---
 
