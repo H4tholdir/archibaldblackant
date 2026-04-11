@@ -33,6 +33,8 @@ import type { CircuitBreakerState } from './sync/circuit-breaker';
 import { createAdminRouter } from './routes/admin';
 import { createPricesRouter } from './routes/prices';
 import { createShareRouter } from './routes/share';
+import type { DocumentStoreLike } from './services/document-store';
+import { createDocumentsRouter } from './routes/documents';
 import { createPendingOrdersRouter } from './routes/pending-orders';
 import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
@@ -147,6 +149,7 @@ type AppDeps = {
   onLoginSuccess?: (userId: string) => void;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
+  documentStore?: DocumentStoreLike;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
   catalogVisionService?: CatalogVisionService;
   embeddingSvc?: VisualEmbeddingService;
@@ -1050,6 +1053,10 @@ function createApp(deps: AppDeps): Express {
     sendEmail,
     uploadToDropbox,
   }));
+
+  if (deps.documentStore) {
+    app.use('/api/documents', authenticate, createDocumentsRouter({ documentStore: deps.documentStore }));
+  }
 
   app.use('/api/cache', authenticate, createDeltaSyncRouter({ pool }));
 

@@ -465,6 +465,7 @@ async function bootstrap(): Promise<void> {
     },
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
+    documentStore,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
     catalogVisionService,
     embeddingSvc,
