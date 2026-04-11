@@ -47,6 +47,9 @@ import { useVatValidation } from '../hooks/useVatValidation';
 import { WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
 import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 import { GhostArticleModal } from './GhostArticleModal';
+import { useModules } from '../hooks/useModules';
+import { calculateEffectiveDiscount } from './new-order-form/DiscountTrafficLight';
+import { DiscountTrafficLight } from './new-order-form/DiscountTrafficLight.tsx';
 
 interface OrderItem {
   id: string;
@@ -92,6 +95,8 @@ export default function OrderFormSimple() {
 
   const { keyboardHeight, scrollFieldIntoView, keyboardPaddingStyle } =
     useKeyboardScroll();
+
+  const { hasModule } = useModules();
 
   useEffect(() => {
     customerService.syncCustomers().catch((err) => {
@@ -2607,6 +2612,9 @@ export default function OrderFormSimple() {
   const theme = WAREHOUSE_LEVEL_COLORS[activeMatchLevel];
   const isThemed = activeMatchLevel !== 'none';
 
+  const globalDiscountPct = parseFloat(globalDiscountPercent.replace(',', '.')) || 0;
+  const effectiveDiscountPercent = calculateEffectiveDiscount(items, globalDiscountPct);
+
   return (
     <div
       style={{
@@ -4596,6 +4604,11 @@ export default function OrderFormSimple() {
               />
             </div>
           </div>
+
+          {/* Discount Traffic Light — modulo condizionale */}
+          {hasModule('discount-traffic-light') && items.length > 0 && (
+            <DiscountTrafficLight effectiveDiscountPercent={effectiveDiscountPercent} />
+          )}
 
           {/* Markup Panel */}
           {showMarkupPanel && (
