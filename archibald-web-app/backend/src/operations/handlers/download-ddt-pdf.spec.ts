@@ -1,60 +1,31 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleDownloadDdtPdf, type DownloadDdtPdfBot, type DownloadDdtPdfData } from './download-ddt-pdf';
-
-function createMockBot(): DownloadDdtPdfBot {
-  return {
-    downloadDDTPDF: vi.fn().mockResolvedValue(Buffer.from('pdf-content')),
-    setProgressCallback: vi.fn(),
-  };
-}
-
-const sampleData: DownloadDdtPdfData = {
-  orderId: 'ORD-001',
-  ddtNumber: 'DDT-2026-001',
-  searchTerm: 'ORD/26003540',
-};
+import { handleDownloadDdtPdf } from './download-ddt-pdf';
 
 describe('handleDownloadDdtPdf', () => {
-  test('uses searchTerm over ddtNumber when both present', async () => {
-    const bot = createMockBot();
+  test('scarica il PDF e lo salva nel document store, ritornando il downloadKey', async () => {
+    const pdfBuffer = Buffer.from('fake-ddt-pdf');
+    const downloadKey = 'abc-uuid';
 
-    await handleDownloadDdtPdf(bot, sampleData, 'user-1', vi.fn());
-
-    expect(bot.downloadDDTPDF).toHaveBeenCalledWith('ORD-001', 'ORD/26003540');
-  });
-
-  test('falls back to ddtNumber when searchTerm is absent', async () => {
-    const bot = createMockBot();
-
-    await handleDownloadDdtPdf(bot, { orderId: 'ORD-001', ddtNumber: 'DDT-2026-001' }, 'user-1', vi.fn());
-
-    expect(bot.downloadDDTPDF).toHaveBeenCalledWith('ORD-001', 'DDT-2026-001');
-  });
-
-  test('returns pdf buffer in result', async () => {
-    const bot = createMockBot();
-
-    const result = await handleDownloadDdtPdf(bot, sampleData, 'user-1', vi.fn());
-
-    expect(result.pdf).toBeInstanceOf(Buffer);
-    expect(result.pdf.toString()).toBe('pdf-content');
-  });
-
-  test('reports progress at 100 on completion', async () => {
-    const bot = createMockBot();
+    const bot = {
+      downloadDDTPDF: vi.fn().mockResolvedValue(pdfBuffer),
+      setProgressCallback: vi.fn(),
+    };
+    const documentStore = {
+      save: vi.fn().mockResolvedValue(downloadKey),
+      get: vi.fn(),
+    };
     const onProgress = vi.fn();
 
-    await handleDownloadDdtPdf(bot, sampleData, 'user-1', onProgress);
+    const result = await handleDownloadDdtPdf(
+      bot,
+      documentStore,
+      { orderId: 'ORD/123', searchTerm: 'DDT/456' },
+      'user1',
+      onProgress,
+    );
 
-    expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
-  });
-
-  test('throws when bot fails to download', async () => {
-    const bot = createMockBot();
-    (bot.downloadDDTPDF as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Download failed'));
-
-    await expect(
-      handleDownloadDdtPdf(bot, sampleData, 'user-1', vi.fn()),
-    ).rejects.toThrow('Download failed');
+    expect(bot.downloadDDTPDF).toHaveBeenCalledWith('ORD/123', 'DDT/456');
+    expect(documentStore.save).toHaveBeenCalledWith(pdfBuffer);
+    expect(result).toEqual({ downloadKey });
   });
 });

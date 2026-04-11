@@ -1,4 +1,5 @@
 import type { OperationHandler } from '../operation-processor';
+import type { DocumentStoreLike } from '../../services/document-store';
 
 type DownloadDdtPdfData = {
   orderId: string;
@@ -15,28 +16,34 @@ type DownloadDdtPdfBot = {
 
 async function handleDownloadDdtPdf(
   bot: DownloadDdtPdfBot,
+  documentStore: DocumentStoreLike,
   data: DownloadDdtPdfData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ pdf: Buffer }> {
+): Promise<{ downloadKey: string }> {
   bot.setProgressCallback(async (category) => {
     onProgress(50, category);
   });
 
+  const docName = data.searchTerm ?? data.ddtNumber ?? data.orderId;
   onProgress(10, 'Download DDT PDF');
-  const pdf = await bot.downloadDDTPDF(data.orderId, data.searchTerm ?? data.ddtNumber ?? '');
-
+  const pdf = await bot.downloadDDTPDF(data.orderId, docName);
+  onProgress(80, 'Salvataggio documento');
+  const downloadKey = await documentStore.save(pdf);
   onProgress(100, 'Download completato');
 
-  return { pdf };
+  return { downloadKey };
 }
 
-function createDownloadDdtPdfHandler(createBot: (userId: string) => DownloadDdtPdfBot): OperationHandler {
+function createDownloadDdtPdfHandler(
+  createBot: (userId: string) => DownloadDdtPdfBot,
+  documentStore: DocumentStoreLike,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as DownloadDdtPdfData;
-    const result = await handleDownloadDdtPdf(bot, typedData, userId, onProgress);
-    return { pdf: result.pdf.toString('base64') };
+    const result = await handleDownloadDdtPdf(bot, documentStore, typedData, userId, onProgress);
+    return { downloadKey: result.downloadKey };
   };
 }
 
