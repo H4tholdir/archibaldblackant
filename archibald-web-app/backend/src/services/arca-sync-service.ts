@@ -1609,8 +1609,11 @@ export async function generateKtExportVbs(
   userId: string,
   ftExportRecords: VbsExportRecord[],
 ): Promise<KtExportResult> {
+  logger.info(`generateKtExportVbs: start — ftExportRecords=${ftExportRecords.length}`);
   const ktOrders = await getKtEligibleOrders(pool, userId);
+  logger.info(`generateKtExportVbs: ktOrders=${ktOrders.length}`);
   const allSubclients = await getAllSubclients(pool);
+  logger.info(`generateKtExportVbs: allSubclients=${allSubclients.length}`);
   const subByProfile = new Map<string, Subclient>();
   for (const sc of allSubclients) {
     if (sc.matchedCustomerProfileId) {
@@ -1797,6 +1800,7 @@ export async function generateKtExportVbs(
   }
 
   // ANAGRAFE export (spostato da performArcaSync)
+  logger.info(`generateKtExportVbs: starting ANAGRAFE export query`);
   const anagrafeExportRecords: AnagrafeExportRecord[] = [];
   const { rows: exportableSubclients } = await pool.query<{
     codice: string;
@@ -1845,6 +1849,7 @@ export async function generateKtExportVbs(
      WHERE arca_synced_at IS NULL OR updated_at > arca_synced_at`,
   );
 
+  logger.info(`generateKtExportVbs: ANAGRAFE query returned ${exportableSubclients.length} rows`);
   const seenTruncatedCodici = new Set<string>();
   for (const row of exportableSubclients) {
     const sc = mapRowToSubclient(row);
@@ -1853,13 +1858,14 @@ export async function generateKtExportVbs(
     seenTruncatedCodici.add(truncated);
     anagrafeExportRecords.push({ subclient: sc });
   }
+  logger.info(`generateKtExportVbs: anagrafeExportRecords=${anagrafeExportRecords.length}`);
 
   if (anagrafeExportRecords.length > 0) {
     const codici = anagrafeExportRecords.map((r) => r.subclient.codice);
-    const placeholders = codici.map((_, i) => `$${i + 1}`).join(', ');
+    logger.info(`generateKtExportVbs: running UPDATE arca_synced_at for ${codici.length} subclients`);
     await pool.query(
-      `UPDATE shared.sub_clients SET arca_synced_at = NOW() WHERE codice IN (${placeholders})`,
-      codici,
+      `UPDATE shared.sub_clients SET arca_synced_at = NOW() WHERE codice = ANY($1::text[])`,
+      [codici],
     );
     logger.info(`Arca sync: ${anagrafeExportRecords.length} subclients to export to ANAGRAFE`);
   }
@@ -1872,6 +1878,7 @@ export async function generateKtExportVbs(
 
   let vbsScript: VbsResult | null = null;
   if (exportRecords.length > 0 || anagrafeExportRecords.length > 0) {
+    logger.info(`generateKtExportVbs: calling generateVbsScript with ${exportRecords.length} docs + ${anagrafeExportRecords.length} anagrafe`);
     vbsScript = generateVbsScript(exportRecords, anagrafeExportRecords);
     logger.info(`Arca sync finalize-kt: ${exportRecords.length} docs + ${anagrafeExportRecords.length} anagrafe exported for user ${userId}`);
   }

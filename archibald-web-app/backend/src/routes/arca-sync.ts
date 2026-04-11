@@ -105,9 +105,12 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
     try {
       const userId = req.user!.userId;
       const ftExportRecords: VbsExportRecord[] = req.body?.ftExportRecords ?? [];
+      logger.info(`finalize-kt: starting for user ${userId} with ${ftExportRecords.length} FT records`);
       const result = await generateKtExportVbs(deps.pool, userId, ftExportRecords);
+      logger.info(`finalize-kt: completed for user ${userId} — ktExported=${result.ktExported}`);
       res.json({ success: true, data: result });
     } catch (err: any) {
+      logger.error('finalize-kt error', { error: err.message, stack: err.stack });
       res.status(500).json({ error: err.message || 'Failed to finalize KT' });
     }
   });
