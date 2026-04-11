@@ -1083,10 +1083,16 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
     order_description: string | null;
     articles_synced_at: string | null;
   }>(
-    `SELECT o.id, o.order_number, o.customer_name, o.customer_account_num,
+    `SELECT o.id, o.order_number, o.customer_name,
+            COALESCE(c_match.erp_id, o.customer_account_num) AS customer_account_num,
             o.creation_date, o.discount_percent, o.order_description,
             o.articles_synced_at
      FROM agents.order_records o
+     LEFT JOIN LATERAL (
+       SELECT erp_id FROM agents.customers
+       WHERE user_id = o.user_id AND account_num = o.customer_account_num
+       LIMIT 1
+     ) c_match ON TRUE
      WHERE o.user_id = $1
        AND o.transfer_status IS NOT NULL
        AND o.transfer_status != 'Modifica'
