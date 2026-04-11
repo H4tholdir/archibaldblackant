@@ -439,6 +439,7 @@ function createApp(deps: AppDeps): Express {
     verifyTrustToken: (userId, deviceId, rawToken) => verifyTrustToken(pool, userId, deviceId, rawToken),
     revokeAllTrustDevices: (userId) => revokeAllTrustTokens(pool, userId),
     sendSecurityAlert: deps.sendSecurityAlert,
+    getEffectiveModules: (userId, role) => usersRepo.getEffectiveModules(pool, userId, role),
   }));
 
   app.use('/api/customers/:erpId/addresses', authenticate, createCustomerAddressesRouter(pool));

@@ -52,6 +52,7 @@ type AuthRouterDeps = {
   verifyTrustToken?: (userId: string, deviceId: string, rawToken: string) => Promise<boolean>;
   createTrustToken?: (userId: string, deviceId: string) => Promise<string>;
   revokeAllTrustDevices?: (userId: string) => Promise<void>;
+  getEffectiveModules: (userId: string, role: UserRole) => Promise<{ effectiveModules: string[]; modulesVersion: number }>;
 };
 
 const loginSchema = z.object({
@@ -86,7 +87,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
       if (!payload) {
         return res.status(401).json({ success: false, error: 'MFA token non valido o scaduto' });
       }
-      req.user = { userId: payload.userId, username: '', role: 'agent', modules: [], jti: '' };
+      req.user = { userId: payload.userId, username: '', role: 'agent', modules: [], modules_version: 0, jti: '' };
       next();
     };
   }
@@ -187,12 +188,14 @@ function createAuthRouter(deps: AuthRouterDeps) {
       if (user.mfaEnabled && parsed.data.trustToken && parsed.data.deviceId && deps.verifyTrustToken) {
         const trusted = await deps.verifyTrustToken(user.id, parsed.data.deviceId, parsed.data.trustToken);
         if (trusted) {
+          const { effectiveModules, modulesVersion } = await deps.getEffectiveModules(user.id, user.role as UserRole);
           const token = await generateJWT({
             userId: user.id,
             username: user.username,
             role: user.role as UserRole,
             deviceId: parsed.data.deviceId,
-            modules: user.modules,
+            modules: effectiveModules,
+            modules_version: modulesVersion,
           });
           void audit(deps.pool, {
             actorId: user.id,
@@ -219,12 +222,14 @@ function createAuthRouter(deps: AuthRouterDeps) {
         }
       }
 
+      const { effectiveModules: loginModules, modulesVersion: loginModulesVersion } = await deps.getEffectiveModules(user.id, user.role as UserRole);
       const token = await generateJWT({
         userId: user.id,
         username: user.username,
         role: user.role as UserRole,
         deviceId: deviceId || undefined,
-        modules: user.modules,
+        modules: loginModules,
+        modules_version: loginModulesVersion,
       });
 
       const { platform, deviceName } = parsed.data;
@@ -310,12 +315,14 @@ function createAuthRouter(deps: AuthRouterDeps) {
         await deps.revokeToken(oldJti, remainingTtl).catch(() => {});
       }
 
+      const { effectiveModules: refreshModules, modulesVersion: refreshModulesVersion } = await deps.getEffectiveModules(user.userId, user.role as UserRole);
       const newToken = await generateJWT({
         userId: user.userId,
         username: user.username,
         role: user.role as UserRole,
         deviceId: user.deviceId,
-        modules: user.modules,
+        modules: refreshModules,
+        modules_version: refreshModulesVersion,
       });
 
       const userDetails = await getUserById(user.userId);
@@ -359,6 +366,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
           whitelisted: user.whitelisted,
           lastLoginAt: user.lastLoginAt,
           mfaEnabled: user.mfaEnabled,
+          modules: req.user!.modules,
+          modules_version: req.user!.modules_version,
         },
       },
     });
@@ -454,7 +463,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
       return res.status(401).json({ success: false, error: 'Codice OTP non valido' });
     }
     void audit(deps.pool, { actorId: payload.userId, actorRole: user.role, action: 'mfa.verify_success', ipAddress: req.ip });
-    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, deviceId: parsed.data.deviceId || undefined, modules: user.modules });
+    const { effectiveModules: mfaModules, modulesVersion: mfaModulesVersion } = await deps.getEffectiveModules(user.id, user.role as UserRole);
+    const token = await generateJWT({ userId: user.id, username: user.username, role: user.role as UserRole, deviceId: parsed.data.deviceId || undefined, modules: mfaModules, modules_version: mfaModulesVersion });
     let trustToken: string | undefined;
     if (parsed.data.rememberDevice && parsed.data.deviceId && deps.createTrustToken) {
       trustToken = await deps.createTrustToken(user.id, parsed.data.deviceId);

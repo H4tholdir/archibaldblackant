@@ -17,6 +17,7 @@ export interface AuthRequest extends Request {
     realAdminId?: string;
     adminSessionId?: number;
     modules: string[];
+    modules_version: number;
     jti: string;
   };
 }
