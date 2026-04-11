@@ -2916,6 +2916,7 @@ function TabLogistica({
       subscribe,
       undefined,
       (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
+      ddt?.ddtNumber,
     );
   };
 
@@ -3974,7 +3975,7 @@ const tableCellStyle: React.CSSProperties = {
 function downloadPdfWithProgress(
   orderId: string,
   type: "invoice" | "ddt",
-  _token: string,
+  token: string,
   onProgress: (stage: string, percent: number) => void,
   onComplete: () => void,
   onError: (error: string) => void,
@@ -4011,21 +4012,27 @@ function downloadPdfWithProgress(
       if (cancelled) return;
 
       const resultData = (result.data ?? result) as Record<string, unknown>;
-      const pdfBase64 = resultData.pdf as string;
-      if (!pdfBase64) {
-        onError("Nessun PDF ricevuto dal server");
+      const downloadKey = resultData.downloadKey as string;
+      if (!downloadKey) {
+        onError("Nessun documento ricevuto dal server");
+        return;
+      }
+
+      onProgress("Download documento...", 95);
+
+      const pdfResponse = await fetch(`/api/documents/download/${downloadKey}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!pdfResponse.ok) {
+        onError("Errore nel download del documento");
         return;
       }
 
       onProgress("Download completato!", 100);
 
-      const byteCharacters = atob(pdfBase64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const arrayBuffer = await pdfResponse.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
