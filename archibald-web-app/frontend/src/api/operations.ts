@@ -295,12 +295,11 @@ async function waitForJobViaWebSocket(
       const p = (payload ?? {}) as Record<string, unknown>;
       if (p.originalJobId !== jobId) return;
 
-      markWsActive();
-
       const newJobId = p.newJobId as string;
+      cleanup();
       waitForJobViaWebSocket(newJobId, options)
-        .then((result) => { if (!resolved) { cleanup(); resolve(result); } })
-        .catch((err) => { if (!resolved) { cleanup(); reject(err); } });
+        .then(resolve)
+        .catch(reject);
     }));
 
     if (!skipSafetyPoll) {
