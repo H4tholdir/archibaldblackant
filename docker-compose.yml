@@ -1,4 +1,23 @@
 services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: archibald-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DATABASE:-archibald}
+      POSTGRES_USER: ${PG_USER:-archibald}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - archibald-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-archibald} -d ${PG_DATABASE:-archibald}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Frontend (React PWA served by Nginx)
   frontend:
     build:
@@ -35,6 +54,8 @@ services:
       - ./catalog:/app/catalog:ro
       - /home/deploy/komet-campionari:/app/komet-campionari:ro
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -103,6 +124,7 @@ services:
       - backup
 
 volumes:
+  pgdata:
   redis-data:
   product-images:
   recognition-images:

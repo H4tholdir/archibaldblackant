@@ -127,7 +127,8 @@ jobs:
             cd /home/deploy/archibald-app || { echo "❌ Failed to cd to /home/deploy/archibald-app"; exit 1; }
 
             echo "📥 Pulling latest code..."
-            git pull origin master || { echo "❌ Git pull failed"; exit 1; }
+            git fetch origin master || { echo "❌ Git fetch failed"; exit 1; }
+            git reset --hard origin/master || { echo "❌ Git reset failed"; exit 1; }
 
             echo "🔐 Logging in to GitHub Container Registry..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Docker login failed"; exit 1; }
