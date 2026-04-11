@@ -2,7 +2,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 const API_BASE = ""; // Vite proxy handles /api
 
-export type UserRole = "agent" | "admin";
+export type UserRole = "agent" | "admin" | "ufficio" | "concessionario";
 
 export interface LoginRequest {
   username: string;
@@ -42,6 +42,8 @@ export interface User {
   mfaEnabled?: boolean;
   isImpersonating?: boolean;
   realAdminName?: string;
+  modules?: string[];
+  modules_version?: number;
 }
 
 export async function mfaBeginSetup(token: string): Promise<{ success: boolean; setupToken?: string; error?: string }> {
