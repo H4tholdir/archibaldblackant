@@ -429,15 +429,19 @@ export function AdminPage(_props: AdminPageProps) {
     }
   };
 
-  const handleIndexWebImage = async () => {
+  const handleIndexWebImage = async (imageBase64?: string) => {
     const token = localStorage.getItem("archibald_jwt");
-    if (!token || !webImageFamilyCode.trim() || !webImageUrl.trim()) return;
+    if (!token || !webImageFamilyCode.trim()) return;
+    if (!imageBase64 && !webImageUrl.trim()) return;
     setEnqueuingWebImage(true);
     try {
+      const data = imageBase64
+        ? { familyCode: webImageFamilyCode.trim(), imageBase64 }
+        : { familyCode: webImageFamilyCode.trim(), imageUrl: webImageUrl.trim() };
       const res = await fetch("/api/operations/enqueue", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "index-web-image", data: { familyCode: webImageFamilyCode.trim(), imageUrl: webImageUrl.trim() } }),
+        body: JSON.stringify({ type: "index-web-image", data }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setWebImageQueued(true);
@@ -446,6 +450,17 @@ export function AdminPage(_props: AdminPageProps) {
     } finally {
       setEnqueuingWebImage(false);
     }
+  };
+
+  const handleWebImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      if (base64) void handleIndexWebImage(base64);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubClientImport = async (
@@ -930,9 +945,9 @@ export function AdminPage(_props: AdminPageProps) {
             <div style={{
               padding: "12px 16px", borderBottom: "1px solid #eee",
             }}>
-              <strong>Indicizza immagine web per famiglia</strong>
+              <strong>Indicizza immagine per famiglia</strong>
               <div style={{ color: "#666", fontSize: "12px", marginTop: 2, marginBottom: 8 }}>
-                Utile per prodotti discontinued (es. 227B) — inserisci codice famiglia e URL immagine
+                Utile per prodotti discontinued (es. 227B) — URL immagine oppure carica file direttamente
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input
@@ -947,12 +962,12 @@ export function AdminPage(_props: AdminPageProps) {
                 />
                 <input
                   type="text"
-                  placeholder="URL immagine"
+                  placeholder="URL immagine (opzionale)"
                   value={webImageUrl}
                   onChange={e => { setWebImageUrl(e.target.value); setWebImageQueued(false); }}
                   style={{
                     padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc",
-                    fontSize: 13, flex: 1, minWidth: 200,
+                    fontSize: 13, flex: 1, minWidth: 160,
                   }}
                 />
                 <button
@@ -968,8 +983,24 @@ export function AdminPage(_props: AdminPageProps) {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {enqueuingWebImage ? "..." : webImageQueued ? "Avviato" : "Indicizza →"}
+                  {enqueuingWebImage ? "..." : webImageQueued ? "Avviato" : "Da URL →"}
                 </button>
+                <label style={{
+                  background: webImageQueued || enqueuingWebImage || !webImageFamilyCode.trim() ? "#999" : "#0288d1",
+                  color: "#fff", borderRadius: 6, padding: "6px 14px",
+                  fontSize: 13, fontWeight: 600, cursor: (webImageQueued || enqueuingWebImage || !webImageFamilyCode.trim()) ? "not-allowed" : "pointer",
+                  opacity: (webImageQueued || enqueuingWebImage || !webImageFamilyCode.trim()) ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}>
+                  {enqueuingWebImage ? "..." : webImageQueued ? "Avviato" : "Carica file →"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={webImageQueued || enqueuingWebImage || !webImageFamilyCode.trim()}
+                    onChange={handleWebImageFileUpload}
+                  />
+                </label>
               </div>
               <OpProgressBar progress={webImageProgress} />
             </div>

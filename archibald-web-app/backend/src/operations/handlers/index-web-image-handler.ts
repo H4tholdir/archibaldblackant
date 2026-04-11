@@ -17,8 +17,9 @@ type Deps = {
 }
 
 type IndexWebImageData = {
-  familyCode: string
-  imageUrl:   string
+  familyCode:   string
+  imageUrl?:    string
+  imageBase64?: string
 }
 
 function runCommand(cmd: string, args: string[]): Promise<void> {
@@ -69,24 +70,30 @@ async function fetchAsJpeg(imageUrl: string): Promise<Buffer> {
 export function createIndexWebImageHandler(deps: Deps): OperationHandler {
   return async function (_context, data, _userId, onProgress) {
     const { pool, embeddingSvc } = deps
-    const { familyCode, imageUrl } = data as IndexWebImageData
+    const { familyCode, imageUrl, imageBase64 } = data as IndexWebImageData
 
-    if (!familyCode || !imageUrl) {
-      throw new Error('familyCode and imageUrl are required')
+    if (!familyCode || (!imageUrl && !imageBase64)) {
+      throw new Error('familyCode and either imageUrl or imageBase64 are required')
     }
 
-    onProgress(10, `Scarico immagine per ${familyCode}…`)
+    onProgress(10, `Elaboro immagine per ${familyCode}…`)
 
     await mkdir(WEB_IMAGES_DIR, { recursive: true })
     const localPath = join(WEB_IMAGES_DIR, `${familyCode}.jpg`)
 
     let jpegBuffer: Buffer
-    try {
-      jpegBuffer = await fetchAsJpeg(imageUrl)
+    if (imageBase64) {
+      jpegBuffer = await sharp(Buffer.from(imageBase64, 'base64')).jpeg({ quality: 90 }).toBuffer()
       await writeFile(localPath, jpegBuffer)
-    } catch (err) {
-      logger.warn('[index-web-image] fetch failed', { familyCode, imageUrl, err })
-      throw err
+    } else {
+      try {
+        jpegBuffer = await fetchAsJpeg(imageUrl!)
+        await writeFile(localPath, jpegBuffer)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.warn('[index-web-image] fetch failed', { familyCode, imageUrl, err: msg })
+        throw new Error(`Fetch fallito: ${msg}`)
+      }
     }
 
     onProgress(50, `Calcolo embedding per ${familyCode}…`)
@@ -96,18 +103,19 @@ export function createIndexWebImageHandler(deps: Deps): OperationHandler {
       'retrieval.passage',
     )
 
+    const sourceUrl = imageUrl ?? null
     const id = await upsertFamilyImage(pool, {
       family_code: familyCode,
       source_type: 'website',
-      source_url:  imageUrl,
+      source_url:  sourceUrl,
       local_path:  localPath,
       priority:    1,
-      metadata:    { indexedFrom: imageUrl },
+      metadata:    { indexedFrom: sourceUrl ?? 'upload' },
     })
     await updateEmbedding(pool, id, embedding)
 
     onProgress(100, `${familyCode} indicizzata`)
-    logger.info('[index-web-image] Complete', { familyCode, imageUrl, id })
+    logger.info('[index-web-image] Complete', { familyCode, source: sourceUrl ?? 'upload', id })
     return { familyCode, id }
   }
 }
