@@ -1,60 +1,30 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleDownloadInvoicePdf, type DownloadInvoicePdfBot, type DownloadInvoicePdfData } from './download-invoice-pdf';
-
-function createMockBot(): DownloadInvoicePdfBot {
-  return {
-    downloadInvoicePDF: vi.fn().mockResolvedValue(Buffer.from('invoice-pdf')),
-    setProgressCallback: vi.fn(),
-  };
-}
-
-const sampleData: DownloadInvoicePdfData = {
-  orderId: 'ORD-001',
-  invoiceNumber: 'INV-2026-001',
-  searchTerm: 'ORD/26002419',
-};
+import { handleDownloadInvoicePdf } from './download-invoice-pdf';
 
 describe('handleDownloadInvoicePdf', () => {
-  test('uses searchTerm over invoiceNumber when both present', async () => {
-    const bot = createMockBot();
+  test('scarica il PDF e lo salva nel document store, ritornando il downloadKey', async () => {
+    const pdfBuffer = Buffer.from('fake-invoice-pdf');
+    const downloadKey = 'def-uuid';
 
-    await handleDownloadInvoicePdf(bot, sampleData, 'user-1', vi.fn());
-
-    expect(bot.downloadInvoicePDF).toHaveBeenCalledWith('ORD-001', 'ORD/26002419');
-  });
-
-  test('falls back to invoiceNumber when searchTerm is absent', async () => {
-    const bot = createMockBot();
-
-    await handleDownloadInvoicePdf(bot, { orderId: 'ORD-001', invoiceNumber: 'INV-2026-001' }, 'user-1', vi.fn());
-
-    expect(bot.downloadInvoicePDF).toHaveBeenCalledWith('ORD-001', 'INV-2026-001');
-  });
-
-  test('returns pdf buffer in result', async () => {
-    const bot = createMockBot();
-
-    const result = await handleDownloadInvoicePdf(bot, sampleData, 'user-1', vi.fn());
-
-    expect(result.pdf).toBeInstanceOf(Buffer);
-    expect(result.pdf.toString()).toBe('invoice-pdf');
-  });
-
-  test('reports progress at 100 on completion', async () => {
-    const bot = createMockBot();
+    const bot = {
+      downloadInvoicePDF: vi.fn().mockResolvedValue(pdfBuffer),
+      setProgressCallback: vi.fn(),
+    };
+    const documentStore = {
+      save: vi.fn().mockResolvedValue(downloadKey),
+      get: vi.fn(),
+    };
     const onProgress = vi.fn();
 
-    await handleDownloadInvoicePdf(bot, sampleData, 'user-1', onProgress);
+    const result = await handleDownloadInvoicePdf(
+      bot,
+      documentStore,
+      { orderId: 'ORD/123', searchTerm: 'FT/789' },
+      onProgress,
+    );
 
-    expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
-  });
-
-  test('throws when bot fails to download', async () => {
-    const bot = createMockBot();
-    (bot.downloadInvoicePDF as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Invoice download failed'));
-
-    await expect(
-      handleDownloadInvoicePdf(bot, sampleData, 'user-1', vi.fn()),
-    ).rejects.toThrow('Invoice download failed');
+    expect(bot.downloadInvoicePDF).toHaveBeenCalledWith('ORD/123', 'FT/789');
+    expect(documentStore.save).toHaveBeenCalledWith(pdfBuffer);
+    expect(result).toEqual({ downloadKey });
   });
 });

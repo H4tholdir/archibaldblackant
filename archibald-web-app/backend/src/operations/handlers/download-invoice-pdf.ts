@@ -1,4 +1,5 @@
 import type { OperationHandler } from '../operation-processor';
+import type { DocumentStoreLike } from '../../services/document-store';
 
 type DownloadInvoicePdfData = {
   orderId: string;
@@ -15,28 +16,32 @@ type DownloadInvoicePdfBot = {
 
 async function handleDownloadInvoicePdf(
   bot: DownloadInvoicePdfBot,
+  documentStore: DocumentStoreLike,
   data: DownloadInvoicePdfData,
-  userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ pdf: Buffer }> {
+): Promise<{ downloadKey: string }> {
   bot.setProgressCallback(async (category) => {
     onProgress(50, category);
   });
 
+  const docName = data.searchTerm ?? data.invoiceNumber ?? data.orderId;
   onProgress(10, 'Download fattura PDF');
-  const pdf = await bot.downloadInvoicePDF(data.orderId, data.searchTerm ?? data.invoiceNumber ?? '');
-
+  const pdf = await bot.downloadInvoicePDF(data.orderId, docName);
+  onProgress(80, 'Salvataggio documento');
+  const downloadKey = await documentStore.save(pdf);
   onProgress(100, 'Download completato');
 
-  return { pdf };
+  return { downloadKey };
 }
 
-function createDownloadInvoicePdfHandler(createBot: (userId: string) => DownloadInvoicePdfBot): OperationHandler {
+function createDownloadInvoicePdfHandler(
+  createBot: (userId: string) => DownloadInvoicePdfBot,
+  documentStore: DocumentStoreLike,
+): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
     const typedData = data as unknown as DownloadInvoicePdfData;
-    const result = await handleDownloadInvoicePdf(bot, typedData, userId, onProgress);
-    return { pdf: result.pdf.toString('base64') };
+    return handleDownloadInvoicePdf(bot, documentStore, typedData, onProgress);
   };
 }
 

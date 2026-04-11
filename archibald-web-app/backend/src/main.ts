@@ -71,6 +71,7 @@ import { createWebSocketServer } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { createRedisClient } from './db/redis-client';
+import { createDocumentStore } from './services/document-store';
 import { PasswordCache } from './password-cache';
 import { passwordEncryption } from './services/password-encryption-service';
 import { getEncryptedPassword } from './db/repositories/users';
@@ -119,6 +120,7 @@ async function bootstrap(): Promise<void> {
   };
 
   const sharedRedisClient = createRedisClient();
+  const documentStore = createDocumentStore(sharedRedisClient);
 
   const allQueues = Object.fromEntries(
     QUEUE_NAMES.map(name => [
@@ -756,7 +758,7 @@ async function bootstrap(): Promise<void> {
         },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
-    }),
+    }, documentStore),
     'download-invoice-pdf': createDownloadInvoicePdfHandler((userId) => {
       const bot = createBotForUser(userId);
       return {
@@ -773,7 +775,7 @@ async function bootstrap(): Promise<void> {
         },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
       };
-    }),
+    }, documentStore),
     'sync-order-articles': createSyncOrderArticlesHandler(
       {
         pool,
