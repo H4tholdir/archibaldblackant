@@ -25,7 +25,9 @@ type User = {
   extraBudgetReward: number;
   monthlyAdvance: number;
   hideCommissions: boolean;
-  modules: string[];
+  modulesGranted: string[];
+  modulesRevoked: string[];
+  modulesVersion: number;
   mfaEnabled: boolean;
 };
 
@@ -57,7 +59,9 @@ type UserRow = {
   extra_budget_reward: number;
   monthly_advance: number;
   hide_commissions: boolean;
-  modules: string[] | null;
+  modules_granted: string[] | null;
+  modules_revoked: string[] | null;
+  modules_version: number;
   mfa_enabled: boolean | null;
 };
 
@@ -110,7 +114,7 @@ const USER_COLUMNS = `
   monthly_target, yearly_target, currency, target_updated_at,
   commission_rate, bonus_amount, bonus_interval,
   extra_budget_interval, extra_budget_reward, monthly_advance,
-  hide_commissions, modules, mfa_enabled
+  hide_commissions, modules_granted, modules_revoked, modules_version, mfa_enabled
 `;
 
 function mapRowToUser(row: UserRow): User {
@@ -135,7 +139,9 @@ function mapRowToUser(row: UserRow): User {
     extraBudgetReward: row.extra_budget_reward,
     monthlyAdvance: row.monthly_advance,
     hideCommissions: row.hide_commissions,
-    modules: row.modules ?? [],
+    modulesGranted: row.modules_granted ?? [],
+    modulesRevoked: row.modules_revoked ?? [],
+    modulesVersion: row.modules_version ?? 0,
     mfaEnabled: row.mfa_enabled ?? false,
   };
 }
@@ -447,6 +453,81 @@ async function consumeRecoveryCode(pool: DbPool, userId: string, plainCode: stri
   return false;
 }
 
+type ModuleDefaultRow = {
+  module_name: string;
+  role: UserRole;
+  enabled: boolean;
+};
+
+async function getModuleDefaultsForRole(
+  pool: DbPool,
+  role: UserRole,
+): Promise<string[]> {
+  const result = await pool.query<ModuleDefaultRow>(
+    `SELECT module_name FROM system.module_defaults WHERE role = $1 AND enabled = TRUE`,
+    [role],
+  );
+  return result.rows.map((r) => r.module_name);
+}
+
+async function getEffectiveModules(
+  pool: DbPool,
+  userId: string,
+  role: UserRole,
+): Promise<{ effectiveModules: string[]; modulesVersion: number }> {
+  const result = await pool.query<{
+    modules_granted: string[] | null;
+    modules_revoked: string[] | null;
+    modules_version: number;
+  }>(
+    `SELECT modules_granted, modules_revoked, modules_version FROM agents.users WHERE id = $1`,
+    [userId],
+  );
+
+  if (result.rows.length === 0) {
+    return { effectiveModules: [], modulesVersion: 0 };
+  }
+
+  const { modules_granted, modules_revoked, modules_version } = result.rows[0];
+  const granted = modules_granted ?? [];
+  const revoked = modules_revoked ?? [];
+  const roleDefaults = await getModuleDefaultsForRole(pool, role);
+
+  const effectiveModules = [
+    ...roleDefaults.filter((m) => !revoked.includes(m)),
+    ...granted.filter((m) => !revoked.includes(m) && !roleDefaults.includes(m)),
+  ];
+
+  return { effectiveModules, modulesVersion: modules_version ?? 0 };
+}
+
+async function getUserModulesVersion(
+  pool: DbPool,
+  userId: string,
+): Promise<number> {
+  const result = await pool.query<{ modules_version: number }>(
+    `SELECT modules_version FROM agents.users WHERE id = $1`,
+    [userId],
+  );
+  return result.rows[0]?.modules_version ?? 0;
+}
+
+async function updateUserModules(
+  pool: DbPool,
+  userId: string,
+  modulesGranted: string[],
+  modulesRevoked: string[],
+): Promise<number> {
+  const result = await pool.query<{ modules_version: number }>(
+    `UPDATE agents.users
+     SET modules_granted = $1, modules_revoked = $2, modules_version = modules_version + 1
+     WHERE id = $3
+     RETURNING modules_version`,
+    [modulesGranted, modulesRevoked, userId],
+  );
+  return result.rows[0]?.modules_version ?? 0;
+}
+
 export {
   createUser,
   getUserById,
@@ -474,6 +555,10 @@ export {
   enableMfa,
   saveRecoveryCodes,
   consumeRecoveryCode,
+  getModuleDefaultsForRole,
+  getEffectiveModules,
+  getUserModulesVersion,
+  updateUserModules,
   type User,
   type UserRole,
   type UserRow,
