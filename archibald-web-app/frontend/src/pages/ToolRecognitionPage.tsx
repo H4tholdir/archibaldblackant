@@ -8,6 +8,7 @@ import {
   getRecognitionBudget,
   submitRecognitionFeedback,
 } from '../api/recognition'
+import { getProductVariants } from '../api/products'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
 
 type PageState =
@@ -586,6 +587,16 @@ export function ToolRecognitionPage() {
       if (token) {
         try {
           await submitRecognitionFeedback(token, { imageHash, productId: familyCode, confirmedByUser: true })
+        } catch {
+        }
+        try {
+          const variantsData = await getProductVariants(token, familyCode)
+          const variants = variantsData.data?.variants ?? []
+          const firstVariantId = variants[0]?.productId
+          if (firstVariantId) {
+            navigate(`/products/${encodeURIComponent(firstVariantId)}`, { state: { fromScanner: true } })
+            return
+          }
         } catch {
         }
       }

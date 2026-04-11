@@ -144,7 +144,7 @@ export async function getBestRowsByFamilyCodes(
      FROM shared.catalog_family_images
      WHERE family_code = ANY($1)
        AND visual_embedding IS NOT NULL
-     ORDER BY family_code, priority DESC`,
+     ORDER BY family_code, priority ASC`,
     [familyCodes],
   )
   return rows
