@@ -95,12 +95,14 @@ export function AdminPage(_props: AdminPageProps) {
   const [ingestionQueued, setIngestionQueued] = useState(false);
   const [enqueuingEnrich, setEnqueuingEnrich] = useState(false);
   const [enqueuingWebEnrich, setEnqueuingWebEnrich] = useState(false);
+  const [enqueuingReExtract, setEnqueuingReExtract] = useState(false);
   const [enqueuingVisualIndex, setEnqueuingVisualIndex] = useState(false);
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
   const [webEnrichProgress, setWebEnrichProgress] = useState<OpProgress | null>(null);
+  const [reExtractProgress, setReExtractProgress] = useState<OpProgress | null>(null);
   const [visualProgress, setVisualProgress] = useState<OpProgress | null>(null);
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export function AdminPage(_props: AdminPageProps) {
       'catalog-ingestion':          setIngestionProgress,
       'catalog-product-enrichment': setEnrichProgress,
       'web-product-enrichment':     setWebEnrichProgress,
+      're-extract-pictograms':      setReExtractProgress,
       'build-visual-index':         setVisualProgress,
     }
 
@@ -355,6 +358,24 @@ export function AdminPage(_props: AdminPageProps) {
       alert("Errore nell'avvio del web enrichment. Riprova.");
     } finally {
       setEnqueuingWebEnrich(false);
+    }
+  };
+
+  const handleReExtractPictograms = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    setEnqueuingReExtract(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "re-extract-pictograms", data: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      alert("Errore nell'avvio della ri-estrazione pittogrammi. Riprova.");
+    } finally {
+      setEnqueuingReExtract(false);
     }
   };
 
@@ -758,6 +779,36 @@ export function AdminPage(_props: AdminPageProps) {
                 {enqueuingWebEnrich ? "..." : "Web enrich →"}
               </button>
               <OpProgressBar progress={webEnrichProgress} />
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto auto",
+              alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <div>
+                <strong>Ri-estrazione pittogrammi</strong>
+                <div style={{ color: "#666", fontSize: "12px", marginTop: 2 }}>
+                  Corregge pittogrammi incompleti (~810 famiglie, ~$3)
+                </div>
+              </div>
+              <div />
+              <button
+                onClick={() => { void handleReExtractPictograms(); }}
+                disabled={enqueuingReExtract}
+                style={{
+                  background: "#388e3c",
+                  color: "#fff", border: "none",
+                  borderRadius: "6px", padding: "6px 14px",
+                  fontSize: "13px", fontWeight: 600,
+                  cursor: enqueuingReExtract ? "not-allowed" : "pointer",
+                  opacity: enqueuingReExtract ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {enqueuingReExtract ? "..." : "Ri-estrai →"}
+              </button>
+              <OpProgressBar progress={reExtractProgress} />
             </div>
 
             <div style={{
