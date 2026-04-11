@@ -885,6 +885,7 @@ function createApp(deps: AppDeps): Express {
       usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
     getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
     generateJWT,
+    getEffectiveModules: (userId, role) => usersRepo.getEffectiveModules(pool, userId, role),
     createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
     closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
     getAllJobs: async (limit, status) => {

@@ -51,6 +51,7 @@ type AdminRouterDeps = {
   updateUserTarget: (userId: string, yearlyTarget: number, currency: string, commissionRate: number, bonusAmount: number, bonusInterval: number, extraBudgetInterval: number, extraBudgetReward: number, monthlyAdvance: number, hideCommissions: boolean) => Promise<void>;
   getUserTarget: (userId: string) => Promise<UserTarget | null>;
   generateJWT: (payload: Omit<JWTPayload, 'jti'>) => Promise<string>;
+  getEffectiveModules: (userId: string, role: UserRole) => Promise<{ effectiveModules: string[]; modulesVersion: number }>;
   createAdminSession: (adminUserId: string, targetUserId: string) => Promise<number>;
   closeAdminSession: (sessionId: number) => Promise<void>;
   getAllJobs: (limit: number, status?: string) => Promise<AdminJob[]>;
@@ -98,7 +99,7 @@ const ALLOWED_EXCEL_MIME_TYPES = [
 function createAdminRouter(deps: AdminRouterDeps) {
   const {
     getAllUsers, getUserById, createUser, updateWhitelist, deleteUser,
-    updateUserTarget, getUserTarget, generateJWT, createAdminSession, closeAdminSession,
+    updateUserTarget, getUserTarget, generateJWT, getEffectiveModules, createAdminSession, closeAdminSession,
     getAllJobs, retryJob, cancelJob, cleanupJobs, getRetentionConfig, importSubclients, importKometListino,
   } = deps;
   const router = Router();
@@ -271,6 +272,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
 
       const adminSessionId = await createAdminSession(adminUser.userId, targetUserId);
 
+      const { effectiveModules, modulesVersion } = await getEffectiveModules(targetUser.id, targetUser.role as UserRole);
+
       const token = await generateJWT({
         userId: targetUser.id,
         username: targetUser.username,
@@ -278,7 +281,8 @@ function createAdminRouter(deps: AdminRouterDeps) {
         isImpersonating: true,
         realAdminId: adminUser.userId,
         adminSessionId,
-        modules: targetUser.modules,
+        modules: effectiveModules,
+        modules_version: modulesVersion,
       });
 
       void audit(deps.pool, {
@@ -323,11 +327,14 @@ function createAdminRouter(deps: AdminRouterDeps) {
         return res.status(404).json({ success: false, error: 'Admin originale non trovato' });
       }
 
+      const { effectiveModules, modulesVersion } = await getEffectiveModules(adminUser.id, adminUser.role as UserRole);
+
       const token = await generateJWT({
         userId: adminUser.id,
         username: adminUser.username,
         role: adminUser.role as UserRole,
-        modules: adminUser.modules,
+        modules: effectiveModules,
+        modules_version: modulesVersion,
       });
 
       void audit(deps.pool, {
