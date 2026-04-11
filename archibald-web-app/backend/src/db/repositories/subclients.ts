@@ -340,7 +340,39 @@ async function upsertSubclients(pool: DbPool, subclients: Subclient[]): Promise<
       cb_cin_it = EXCLUDED.cb_cin_it,
       abicab = EXCLUDED.abicab,
       contocorr = EXCLUDED.contocorr,
-      updated_at = NOW()`,
+      updated_at = CASE
+        WHEN ROW(
+          shared.sub_clients.ragione_sociale, shared.sub_clients.suppl_ragione_sociale,
+          shared.sub_clients.indirizzo, shared.sub_clients.cap, shared.sub_clients.localita,
+          shared.sub_clients.prov, shared.sub_clients.telefono, shared.sub_clients.fax,
+          shared.sub_clients.email, shared.sub_clients.partita_iva, shared.sub_clients.cod_fiscale,
+          shared.sub_clients.zona, shared.sub_clients.pers_da_contattare,
+          shared.sub_clients.email_amministraz, shared.sub_clients.agente, shared.sub_clients.agente2,
+          shared.sub_clients.settore, shared.sub_clients.classe, shared.sub_clients.pag,
+          shared.sub_clients.listino, shared.sub_clients.banca, shared.sub_clients.valuta,
+          shared.sub_clients.cod_nazione, shared.sub_clients.aliiva, shared.sub_clients.contoscar,
+          shared.sub_clients.tipofatt, shared.sub_clients.telefono2, shared.sub_clients.telefono3,
+          shared.sub_clients.url, shared.sub_clients.cb_nazione, shared.sub_clients.cb_bic,
+          shared.sub_clients.cb_cin_ue, shared.sub_clients.cb_cin_it, shared.sub_clients.abicab,
+          shared.sub_clients.contocorr
+        ) IS DISTINCT FROM ROW(
+          EXCLUDED.ragione_sociale, EXCLUDED.suppl_ragione_sociale,
+          EXCLUDED.indirizzo, EXCLUDED.cap, EXCLUDED.localita,
+          EXCLUDED.prov, EXCLUDED.telefono, EXCLUDED.fax,
+          EXCLUDED.email, EXCLUDED.partita_iva, EXCLUDED.cod_fiscale,
+          EXCLUDED.zona, EXCLUDED.pers_da_contattare,
+          EXCLUDED.email_amministraz, EXCLUDED.agente, EXCLUDED.agente2,
+          EXCLUDED.settore, EXCLUDED.classe, EXCLUDED.pag,
+          EXCLUDED.listino, EXCLUDED.banca, EXCLUDED.valuta,
+          EXCLUDED.cod_nazione, EXCLUDED.aliiva, EXCLUDED.contoscar,
+          EXCLUDED.tipofatt, EXCLUDED.telefono2, EXCLUDED.telefono3,
+          EXCLUDED.url, EXCLUDED.cb_nazione, EXCLUDED.cb_bic,
+          EXCLUDED.cb_cin_ue, EXCLUDED.cb_cin_it, EXCLUDED.abicab,
+          EXCLUDED.contocorr
+        )
+        THEN NOW()
+        ELSE shared.sub_clients.updated_at
+      END`,
     params,
   );
 
