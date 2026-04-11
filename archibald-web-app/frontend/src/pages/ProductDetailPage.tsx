@@ -381,6 +381,32 @@ export function ProductDetailPage() {
               </div>
             </div>
           )}
+          {/* Pittogrammi — Applicazioni consigliate */}
+          {enrichment?.pictograms && enrichment.pictograms.length > 0 && (
+            <div style={{
+              background: '#1a1a1a', borderRadius: 10, padding: '14px 16px', marginBottom: 10,
+            }}>
+              <div style={{
+                fontSize: 10, color: '#6b7280', letterSpacing: '1px',
+                textTransform: 'uppercase', marginBottom: 10,
+              }}>
+                Applicazioni consigliate
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {enrichment.pictograms.map(p => (
+                  <span
+                    key={p.symbol}
+                    style={{
+                      background: '#262626', borderRadius: 6, padding: '4px 10px',
+                      fontSize: 11, color: '#d1d5db', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {p.labelIt}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {details && (details.rpmMax || details.packagingUnits != null || details.notes) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {details.rpmMax && (

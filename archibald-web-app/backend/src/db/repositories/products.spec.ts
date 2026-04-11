@@ -23,6 +23,7 @@ import {
   getProductChangeStats,
   getProductPricesByNames,
   getShankLengthMm,
+  getPictograms,
 } from './products';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -885,6 +886,47 @@ describe('getShankLengthMm', () => {
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringContaining('shank_options'),
       [productId, shankCode],
+    );
+  });
+});
+
+describe('getPictograms', () => {
+  const productId = 'H1.314.009';
+
+  test('returns normalized pictograms for a product', async () => {
+    const pool = createMockPool(vi.fn(async () => ({
+      rows: [{ symbol: 'cavity_tooth' }, { symbol: 'maximum_speed' }],
+      rowCount: 2, command: 'SELECT', oid: 0, fields: [],
+    })));
+
+    const result = await getPictograms(pool, productId);
+
+    // maximum_speed viene saltato (già mostrato come rpmMax)
+    expect(result).toEqual([
+      { symbol: 'cavity_tooth', labelIt: 'Preparazione cavità' },
+    ]);
+  });
+
+  test('returns empty array when no pictograms found in catalog', async () => {
+    const pool = createMockPool(vi.fn(async () => ({
+      rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [],
+    })));
+
+    const result = await getPictograms(pool, productId);
+
+    expect(result).toEqual([]);
+  });
+
+  test('passes productId as the only SQL parameter', async () => {
+    const mockQuery = vi.fn(async () => ({
+      rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [],
+    }));
+
+    await getPictograms(createMockPool(mockQuery as DbPool['query']), productId);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('pictograms'),
+      [productId],
     );
   });
 });
