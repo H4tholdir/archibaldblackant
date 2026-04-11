@@ -9,7 +9,7 @@ import type { OperationHandler } from '../operation-processor'
 import { upsertFamilyImage, updateEmbedding } from '../../db/repositories/catalog-family-images'
 import { logger } from '../../logger'
 
-const WEB_IMAGES_DIR = process.env.WEB_IMAGES_DIR ?? '/tmp/web-images'
+const WEB_IMAGES_DIR = process.env.WEB_IMAGES_DIR ?? '/app/data/recognition-images/web-images'
 
 type Deps = {
   pool:        DbPool
