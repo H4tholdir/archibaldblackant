@@ -28,7 +28,13 @@ function runCommand(cmd: string, args: string[]): Promise<void> {
 }
 
 async function fetchRaw(url: string): Promise<{ buffer: Buffer; contentType: string }> {
-  const res = await fetch(url)
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
   const contentType = res.headers.get('content-type') ?? ''
   const buffer = Buffer.from(await res.arrayBuffer())
