@@ -52,11 +52,14 @@ export function AdminModulesSection() {
   async function toggleRoleDefault(moduleName: string, role: UserRole, currentEnabled: boolean) {
     const key = `${moduleName}-${role}`;
     setSaving(key);
-    await updateModuleDefault(moduleName, role, !currentEnabled);
-    setDefaults(prev => prev.map(d =>
-      d.module_name === moduleName && d.role === role ? { ...d, enabled: !currentEnabled } : d
-    ));
-    setSaving(null);
+    try {
+      await updateModuleDefault(moduleName, role, !currentEnabled);
+      setDefaults(prev => prev.map(d =>
+        d.module_name === moduleName && d.role === role ? { ...d, enabled: !currentEnabled } : d
+      ));
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function toggleUserOverride(
@@ -73,11 +76,14 @@ export function AdminModulesSection() {
       : [...revoked, moduleName];
     const newGranted = granted.filter(m => m !== moduleName);
 
-    await updateUserModules(user.id, newGranted, newRevoked);
-    setUsers(prev => prev.map(u =>
-      u.id === user.id ? { ...u, modulesGranted: newGranted, modulesRevoked: newRevoked } : u
-    ));
-    setSaving(null);
+    try {
+      await updateUserModules(user.id, newGranted, newRevoked);
+      setUsers(prev => prev.map(u =>
+        u.id === user.id ? { ...u, modulesGranted: newGranted, modulesRevoked: newRevoked } : u
+      ));
+    } finally {
+      setSaving(null);
+    }
   }
 
   if (loading) {

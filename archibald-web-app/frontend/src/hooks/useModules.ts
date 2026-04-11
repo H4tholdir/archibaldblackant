@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 function readModulesFromJWT(): string[] {
   try {
     const token = localStorage.getItem('archibald_jwt');
@@ -12,7 +14,14 @@ function readModulesFromJWT(): string[] {
 }
 
 export function useModules() {
-  const modules = readModulesFromJWT();
+  const [modules, setModules] = useState<string[]>(readModulesFromJWT);
+
+  useEffect(() => {
+    const handler = () => setModules(readModulesFromJWT());
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
   return {
     hasModule: (name: string): boolean => modules.includes(name),
   };

@@ -85,7 +85,7 @@ export async function fetchWithRetry(
           if (data.reason === 'modules_changed') {
             console.log('🔄 [FetchWithRetry] Moduli aggiornati — logout forzato');
             localStorage.removeItem('archibald_jwt');
-            window.location.href = '/';
+            window.location.href = '/login?reason=modules_changed';
             return response;
           }
 
