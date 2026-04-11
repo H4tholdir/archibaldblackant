@@ -290,6 +290,18 @@ async function waitForJobViaWebSocket(
     unsubscribers.push(subscribe('JOB_PROGRESS', handleEvent('JOB_PROGRESS')));
     unsubscribers.push(subscribe('JOB_COMPLETED', handleEvent('JOB_COMPLETED')));
     unsubscribers.push(subscribe('JOB_FAILED', handleEvent('JOB_FAILED')));
+    unsubscribers.push(subscribe('JOB_REQUEUED', (payload) => {
+      if (resolved) return;
+      const p = (payload ?? {}) as Record<string, unknown>;
+      if (p.originalJobId !== jobId) return;
+
+      markWsActive();
+
+      const newJobId = p.newJobId as string;
+      waitForJobViaWebSocket(newJobId, options)
+        .then((result) => { if (!resolved) { cleanup(); resolve(result); } })
+        .catch((err) => { if (!resolved) { cleanup(); reject(err); } });
+    }));
 
     if (!skipSafetyPoll) {
       safetyPollTimer = setInterval(async () => {
