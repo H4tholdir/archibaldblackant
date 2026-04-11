@@ -496,6 +496,13 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   // 1884 "Uniqueness of index ID is violated". NOOPTIMIZE forces a sequential heap
   // scan which is immune to CDX corruption and still returns the correct MAX value.
   lines.push('mainPrg.WriteLine "LOCAL nDTId, nDRId, nSCId, nCurDTId, nMaxDT, nMaxDR, nMaxSC"');
+  // SET DELETED OFF so that CALCULATE MAX(ID) includes soft-deleted records in its
+  // sequential heap scan. The default VFP OLE DB setting is SET DELETED ON, which hides
+  // soft-deleted rows. Soft-deleted rows still have live CDX entries; inserting at an ID
+  // that matches a soft-deleted row triggers error 1884 "Uniqueness of index ID is
+  // violated" during TABLEUPDATE. Using the max across ALL rows (including deleted) gives
+  // a safe starting ID that avoids every existing CDX entry.
+  lines.push('mainPrg.WriteLine "SET DELETED OFF"');
   lines.push('mainPrg.WriteLine "nMaxDT = 0"');
   lines.push('mainPrg.WriteLine "SELECT _dt"');
   lines.push('mainPrg.WriteLine "CALCULATE MAX(ID) TO nMaxDT NOOPTIMIZE"');
@@ -508,6 +515,7 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push('mainPrg.WriteLine "SELECT _sc"');
   lines.push('mainPrg.WriteLine "CALCULATE MAX(ID) TO nMaxSC NOOPTIMIZE"');
   lines.push('mainPrg.WriteLine "nSCId = IIF(ISNULL(nMaxSC) .OR. nMaxSC < 100000000, 100000000, nMaxSC + 1)"');
+  lines.push('mainPrg.WriteLine "SET DELETED ON"');
   lines.push("");
 
   for (const record of records) {

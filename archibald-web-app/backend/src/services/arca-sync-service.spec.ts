@@ -89,13 +89,13 @@ function readCoop16File(filename: string): Buffer {
         new Map(),
       );
 
-      // 14937 FT + 188 KT = 15125
-      expect(result.stats.totalDocuments).toBe(15125);
+      // 14940 FT + 187 KT = 15127
+      expect(result.stats.totalDocuments).toBe(15127);
       // totalRows = rows read from docrig (VFP9 may skip deleted records)
       expect(result.stats.totalRows).toBeGreaterThan(50000);
       // ANAGRAFE has 1899+ records but some lack CODICE or DESCRIZION
       expect(result.stats.totalClients).toBe(1873);
-      expect(result.records).toHaveLength(15125);
+      expect(result.records).toHaveLength(15127);
       // dbffile skips VFP9 deleted records; active - FT/KT = other types
       expect(result.stats.skippedOtherTypes).toBe(23);
     },
@@ -124,8 +124,8 @@ function readCoop16File(filename: string): Buffer {
         r.invoice_number.startsWith("KT "),
       );
 
-      expect(ktRecords.length).toBe(188);
-      expect(ftRecords.length).toBe(14937);
+      expect(ktRecords.length).toBe(187);
+      expect(ftRecords.length).toBe(14940);
 
       // Verify KT IDs are distinct from FT IDs
       const ftIds = new Set(ftRecords.map((r) => r.id));
@@ -506,8 +506,10 @@ describe("generateVbsScript", () => {
     expect(result.vbs).toContain("WScript.ScriptFullName");
     expect(result.vbs).toContain("REPLACE ESERCIZIO WITH");
     expect(result.vbs).toContain("REPLACE ID_TESTA WITH");
+    expect(result.vbs).toContain("SET DELETED OFF");
     expect(result.vbs).toContain("CALCULATE MAX(ID) TO nMaxDT NOOPTIMIZE");
     expect(result.vbs).toContain("nDTId = IIF(ISNULL(nMaxDT) .OR. nMaxDT < 100000000");
+    expect(result.vbs).toContain("SET DELETED ON");
   });
 
   test("preserves single quotes in VFP bracket-delimited strings", () => {
@@ -898,11 +900,11 @@ function createMockPool(overrides?: {
         anagrafeBuf,
       );
 
-      expect(result.imported).toBe(15125);
+      expect(result.imported).toBe(15127);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
-      expect(result.parseStats.totalDocuments).toBe(15125);
+      expect(result.parseStats.totalDocuments).toBe(15127);
 
       // ft_counter should have been called for FT esercizi
       const queryCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
@@ -1011,7 +1013,7 @@ function createMockPool(overrides?: {
       );
 
       expect(result.imported).toBe(0);
-      expect(result.updated).toBe(15125);
+      expect(result.updated).toBe(15127);
       expect(result.skipped).toBe(0);
       expect(result.exported).toBe(0);
       expect(result.ftExportRecords).toHaveLength(0);
