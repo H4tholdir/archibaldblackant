@@ -46,6 +46,12 @@ function createMockDeps(): AdminRouterDeps {
       unmatchedProducts: [],
       errors: [],
     }),
+    getModuleDefaults: vi.fn().mockResolvedValue([
+      { module_name: 'warehouse', role: 'agent', enabled: true },
+    ]),
+    updateModuleDefault: vi.fn().mockResolvedValue(undefined),
+    updateUserModules: vi.fn().mockResolvedValue(1),
+    invalidateModulesVersionCache: vi.fn(),
   };
 }
 
@@ -409,13 +415,18 @@ describe('createAdminRouter', () => {
       expect(res.body.success).toBe(true);
     });
 
-    test('allows admin to change their own modules field (not a role change)', async () => {
+    test('allows admin to change their own modules_granted field (not a role change)', async () => {
+      (deps.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockUsers[0], modulesGranted: [], modulesRevoked: [],
+      });
       const res = await request(app)
         .patch('/api/admin/users/admin-1')
-        .send({ modules: ['warehouse'] });
+        .send({ modules_granted: ['warehouse'] });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(deps.updateUserModules).toHaveBeenCalledWith('admin-1', ['warehouse'], []);
+      expect(deps.invalidateModulesVersionCache).toHaveBeenCalledWith('admin-1');
     });
 
     test('allows admin to change another user role', async () => {

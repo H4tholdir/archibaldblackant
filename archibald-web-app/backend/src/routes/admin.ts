@@ -69,6 +69,10 @@ type AdminRouterDeps = {
     errors: string[];
   }>;
   getEnrichmentStats: () => Promise<EnrichmentStats>;
+  getModuleDefaults: () => Promise<Array<{ module_name: string; role: string; enabled: boolean }>>;
+  updateModuleDefault: (module_name: string, role: string, enabled: boolean) => Promise<void>;
+  updateUserModules: (userId: string, modulesGranted: string[], modulesRevoked: string[]) => Promise<number>;
+  invalidateModulesVersionCache: (userId: string) => void;
 };
 
 const createUserSchema = z.object({
@@ -101,6 +105,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
     getAllUsers, getUserById, createUser, updateWhitelist, deleteUser,
     updateUserTarget, getUserTarget, generateJWT, getEffectiveModules, createAdminSession, closeAdminSession,
     getAllJobs, retryJob, cancelJob, cleanupJobs, getRetentionConfig, importSubclients, importKometListino,
+    getModuleDefaults, updateModuleDefault, updateUserModules, invalidateModulesVersionCache,
   } = deps;
   const router = Router();
 
@@ -117,7 +122,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
         users: users.map((u) => ({
           id: u.id, username: u.username, fullName: u.fullName,
           role: u.role, whitelisted: u.whitelisted, lastLoginAt: u.lastLoginAt,
-          modules: u.modules, mfaEnabled: u.mfaEnabled,
+          modulesGranted: u.modulesGranted, modulesRevoked: u.modulesRevoked, mfaEnabled: u.mfaEnabled,
         })),
       });
     } catch (error) {
@@ -170,8 +175,9 @@ function createAdminRouter(deps: AdminRouterDeps) {
 
       const parsed = z.object({
         role: z.enum(['agent', 'admin', 'ufficio', 'concessionario']).optional(),
-        modules: z.array(z.string()).optional(),
         whitelisted: z.boolean().optional(),
+        modules_granted: z.array(z.string()).optional(),
+        modules_revoked: z.array(z.string()).optional(),
       }).safeParse(req.body);
 
       if (!parsed.success) {
@@ -189,22 +195,29 @@ function createAdminRouter(deps: AdminRouterDeps) {
       let idx = 1;
 
       if (changes.role !== undefined) { setClauses.push(`role = $${idx++}`); params.push(changes.role); }
-      if (changes.modules !== undefined) { setClauses.push(`modules = $${idx++}`); params.push(changes.modules); }
       if (changes.whitelisted !== undefined) { setClauses.push(`whitelisted = $${idx++}`); params.push(changes.whitelisted); }
 
-      if (setClauses.length === 0) {
-        return res.status(400).json({ success: false, error: 'Nessun campo da aggiornare' });
+      if (setClauses.length > 0) {
+        params.push(id);
+        await deps.pool.query(`UPDATE agents.users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
       }
 
-      params.push(id);
-      await deps.pool.query(`UPDATE agents.users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+      if (changes.modules_granted !== undefined || changes.modules_revoked !== undefined) {
+        const user = await getUserById(id);
+        const newGranted = changes.modules_granted ?? user?.modulesGranted ?? [];
+        const newRevoked = changes.modules_revoked ?? user?.modulesRevoked ?? [];
+        await updateUserModules(id, newGranted, newRevoked);
+        invalidateModulesVersionCache(id);
+      }
 
-      const action = 'user.updated';
+      if (setClauses.length === 0 && changes.modules_granted === undefined && changes.modules_revoked === undefined) {
+        return res.status(400).json({ success: false, error: 'Nessun campo da aggiornare' });
+      }
 
       void audit(deps.pool, {
         actorId: req.user!.userId,
         actorRole: req.user!.role,
-        action,
+        action: 'user.updated',
         targetType: 'user',
         targetId: id,
         ipAddress: req.ip,
@@ -215,6 +228,46 @@ function createAdminRouter(deps: AdminRouterDeps) {
     } catch (error) {
       logger.error('Error updating user', { error });
       res.status(500).json({ success: false, error: 'Errore aggiornamento utente' });
+    }
+  });
+
+  router.get('/module-defaults', async (_req: AuthRequest, res) => {
+    try {
+      const defaults = await getModuleDefaults();
+      res.json({ success: true, defaults });
+    } catch (error) {
+      logger.error('Error fetching module defaults', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  router.patch('/module-defaults', async (req: AuthRequest, res) => {
+    try {
+      const parsed = z.object({
+        module_name: z.string().min(1),
+        role: z.enum(['agent', 'admin', 'ufficio', 'concessionario']),
+        enabled: z.boolean(),
+      }).safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
+      }
+
+      const { module_name, role, enabled } = parsed.data;
+      await updateModuleDefault(module_name, role, enabled);
+
+      void audit(deps.pool, {
+        actorId: req.user!.userId,
+        actorRole: req.user!.role,
+        action: 'module_defaults.updated',
+        ipAddress: req.ip,
+        metadata: { module_name, role, enabled },
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error updating module default', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
     }
   });
 
