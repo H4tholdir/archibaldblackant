@@ -34,7 +34,8 @@ RUN apk add --no-cache \
     font-noto-emoji \
     python3 \
     py3-pip \
-    poppler-utils
+    poppler-utils \
+    su-exec
 
 # Install Python PDF parsing library
 RUN pip3 install --no-cache-dir pdfplumber==0.11.4 --break-system-packages
@@ -63,12 +64,13 @@ COPY archibald-web-app/backend/package*.json ./
 # Copy Python scripts for PDF parsing
 COPY --chown=node:node scripts /scripts
 
-# Create directories for application runtime
+# Create directories for application runtime (owned by node for non-volume paths)
 RUN mkdir -p /app/data /app/.cache /app/logs && \
     chown -R node:node /app/data /app/.cache /app/logs
 
-# Run as non-root user
-USER node
+# Entrypoint: runs as root to fix Docker volume permissions, then drops to node via su-exec
+COPY archibald-web-app/backend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3000
 
@@ -76,4 +78,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]
