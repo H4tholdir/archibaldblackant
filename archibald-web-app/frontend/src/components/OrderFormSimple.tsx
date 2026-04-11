@@ -2154,27 +2154,32 @@ export default function OrderFormSimple() {
     if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0)
       return;
 
-    const selectedSubtotal = items
-      .filter((i) => imponibileSelectedItems.has(i.id))
-      .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    // target = imponibile desiderato per le sole righe selezionate.
+    // applyExactImponibileToOrderLineItems si aspetta l'imponibile dell'intero documento,
+    // quindi traduciamo: documentTarget = target + contributo righe non selezionate.
+    // Quando tutte le righe sono selezionate unselectedSubtotal = 0 → nessuna differenza.
     const unselectedSubtotal = items
       .filter((i) => !imponibileSelectedItems.has(i.id))
       .reduce((sum, i) => sum + i.subtotal, 0);
-    const targetForSelected = target - unselectedSubtotal;
+    const documentTarget = Math.round((target + unselectedSubtotal) * 100) / 100;
 
-    if (targetForSelected < 0 || selectedSubtotal === 0) {
+    const selectedSubtotal = items
+      .filter((i) => imponibileSelectedItems.has(i.id))
+      .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+
+    if (target < 0 || selectedSubtotal === 0) {
       toastService.error("Impossibile raggiungere l'imponibile target");
       setShowImponibileDialog(false);
       return;
     }
-    const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
+    const scontoNecessario = (1 - target / selectedSubtotal) * 100;
     if (scontoNecessario < 0 || scontoNecessario > 100) {
       toastService.error("Sconto calcolato non valido");
       setShowImponibileDialog(false);
       return;
     }
 
-    const updatedItems = applyExactImponibileToOrderLineItems(items, target, imponibileSelectedItems);
+    const updatedItems = applyExactImponibileToOrderLineItems(items, documentTarget, imponibileSelectedItems);
     setItems(updatedItems);
     setShowImponibileDialog(false);
     const uniqueDiscounts = [
@@ -2196,14 +2201,10 @@ export default function OrderFormSimple() {
     if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0)
       return;
 
+    // target = imponibile desiderato per le sole righe selezionate.
     const selectedItems = items.filter((i) =>
       imponibileSelectedItems.has(i.id),
     );
-    const unselectedSubtotal = items
-      .filter((i) => !imponibileSelectedItems.has(i.id))
-      .reduce((sum, i) => sum + i.subtotal, 0);
-
-    const targetForSelected = target - unselectedSubtotal;
     const currentSelectedSubtotal = selectedItems.reduce(
       (sum, i) => sum + i.subtotal,
       0,
@@ -2214,7 +2215,7 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const ratio = targetForSelected / currentSelectedSubtotal;
+    const ratio = target / currentSelectedSubtotal;
 
     const recalcItemPrice = (item: OrderItem, unitPrice: number) => {
       const newSubtotal =
@@ -2240,12 +2241,14 @@ export default function OrderFormSimple() {
       );
     });
 
-    // Correction: if imponibile < target, bump unit prices of selected items
+    // Correction: if selected imponibile < target, bump unit prices of selected items
     // starting from lowest quantity (smallest impact per +0.01€)
-    const computeImponibile = (testItems: OrderItem[]) =>
-      testItems.reduce((sum, i) => sum + i.subtotal, 0);
+    const computeSelectedImponibile = (testItems: OrderItem[]) =>
+      testItems
+        .filter((i) => imponibileSelectedItems.has(i.id))
+        .reduce((sum, i) => sum + i.subtotal, 0);
 
-    let actualImponibile = computeImponibile(updatedItems);
+    let actualImponibile = computeSelectedImponibile(updatedItems);
     if (actualImponibile < target) {
       const sortedIndices = updatedItems
         .map((item, idx) => ({ item, idx }))
@@ -2258,7 +2261,7 @@ export default function OrderFormSimple() {
         updatedItems = updatedItems.map((it, i) =>
           i === idx ? recalcItemPrice(it, item.unitPrice + 0.01) : it,
         );
-        actualImponibile = computeImponibile(updatedItems);
+        actualImponibile = computeSelectedImponibile(updatedItems);
       }
     }
 
@@ -4145,7 +4148,25 @@ export default function OrderFormSimple() {
                         "—"
                       )}
                     </td>
-                    <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "right",
+                        ...(canEditItems ? {
+                          cursor: "pointer",
+                          border: "1px dashed #8b5cf6",
+                          borderRadius: "4px",
+                        } : {}),
+                      }}
+                      title={canEditItems ? "Clicca per impostare imponibile riga" : undefined}
+                      onClick={() => {
+                        if (canEditItems) {
+                          setImponibileTarget(item.subtotal.toFixed(2));
+                          setImponibileSelectedItems(new Set([item.id]));
+                          setShowImponibileDialog(true);
+                        }
+                      }}
+                    >
                       {formatCurrency(item.subtotal)}
                     </td>
                     <td
@@ -4470,7 +4491,25 @@ export default function OrderFormSimple() {
                         </strong>
                       )}
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        ...(canEditItems ? {
+                          cursor: "pointer",
+                          border: "1px dashed #8b5cf6",
+                          borderRadius: "4px",
+                          padding: "0.25rem",
+                        } : {}),
+                      }}
+                      title={canEditItems ? "Clicca per impostare imponibile riga" : undefined}
+                      onClick={() => {
+                        if (canEditItems) {
+                          setImponibileTarget(item.subtotal.toFixed(2));
+                          setImponibileSelectedItems(new Set([item.id]));
+                          setShowImponibileDialog(true);
+                        }
+                      }}
+                    >
                       <span style={{ color: "#6b7280" }}>Subtotale:</span>
                       <strong style={{ marginLeft: "0.25rem" }}>
                         {formatCurrency(item.subtotal)}
