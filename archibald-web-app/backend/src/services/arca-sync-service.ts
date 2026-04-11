@@ -489,13 +489,25 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   // Two VFP runtimes (OLE DB + awext.FXP) don't share the lock manager, so FLOCK
   // cannot prevent ArcaPro from inserting between our MAX(ID) read and TABLEUPDATE.
   // Partitioning the ID space is the only reliable solution.
-  lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _dt INTO ARRAY aDTId"');
-  lines.push('mainPrg.WriteLine "LOCAL nDTId, nDRId, nSCId, nCurDTId"');
-  lines.push('mainPrg.WriteLine "nDTId = IIF(ISNULL(aDTId[1]) .OR. aDTId[1] < 100000000, 100000000, aDTId[1] + 1)"');
-  lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _dr INTO ARRAY aDRId"');
-  lines.push('mainPrg.WriteLine "nDRId = IIF(ISNULL(aDRId[1]) .OR. aDRId[1] < 100000000, 100000000, aDRId[1] + 1)"');
-  lines.push('mainPrg.WriteLine "SELECT MAX(ID) FROM _sc INTO ARRAY aSCId"');
-  lines.push('mainPrg.WriteLine "nSCId = IIF(ISNULL(aSCId[1]) .OR. aSCId[1] < 100000000, 100000000, aSCId[1] + 1)"');
+  //
+  // CALCULATE NOOPTIMIZE instead of SELECT MAX(ID) INTO ARRAY: avoids traversing
+  // the CDX CANDIDATE index for the aggregate scan. If the CDX B-tree has phantom
+  // entries from a previously interrupted VBS run, SELECT MAX() triggers VFP error
+  // 1884 "Uniqueness of index ID is violated". NOOPTIMIZE forces a sequential heap
+  // scan which is immune to CDX corruption and still returns the correct MAX value.
+  lines.push('mainPrg.WriteLine "LOCAL nDTId, nDRId, nSCId, nCurDTId, nMaxDT, nMaxDR, nMaxSC"');
+  lines.push('mainPrg.WriteLine "nMaxDT = 0"');
+  lines.push('mainPrg.WriteLine "SELECT _dt"');
+  lines.push('mainPrg.WriteLine "CALCULATE MAX(ID) TO nMaxDT NOOPTIMIZE"');
+  lines.push('mainPrg.WriteLine "nDTId = IIF(ISNULL(nMaxDT) .OR. nMaxDT < 100000000, 100000000, nMaxDT + 1)"');
+  lines.push('mainPrg.WriteLine "nMaxDR = 0"');
+  lines.push('mainPrg.WriteLine "SELECT _dr"');
+  lines.push('mainPrg.WriteLine "CALCULATE MAX(ID) TO nMaxDR NOOPTIMIZE"');
+  lines.push('mainPrg.WriteLine "nDRId = IIF(ISNULL(nMaxDR) .OR. nMaxDR < 100000000, 100000000, nMaxDR + 1)"');
+  lines.push('mainPrg.WriteLine "nMaxSC = 0"');
+  lines.push('mainPrg.WriteLine "SELECT _sc"');
+  lines.push('mainPrg.WriteLine "CALCULATE MAX(ID) TO nMaxSC NOOPTIMIZE"');
+  lines.push('mainPrg.WriteLine "nSCId = IIF(ISNULL(nMaxSC) .OR. nMaxSC < 100000000, 100000000, nMaxSC + 1)"');
   lines.push("");
 
   for (const record of records) {
@@ -544,6 +556,18 @@ function generateSyncVbs(records: VbsExportRecord[], anagrafeRecords?: AnagrafeE
   lines.push('mainPrg.WriteLine "USE IN SELECT([_dr])"');
   lines.push('mainPrg.WriteLine "USE IN SELECT([_sc])"');
   lines.push("mainPrg.Close");
+  lines.push("");
+  // Reconnect before EXECSCRIPT: the idempotency SELECT queries above leave VFP
+  // cursors open on DOCTES inside the OLE DB session. When the PRG then executes
+  // "USE doctes IN 0 SHARED AGAIN", two cursors share the same CDX file. On
+  // TABLEUPDATE the CDX page is written through one cursor while the other holds
+  // a cached (now stale) copy — this corrupts the B-tree and causes the next run
+  // to fail with "Uniqueness of index ID is violated". Closing and reopening the
+  // connection drops all session-level VFP work areas before EXECSCRIPT runs.
+  lines.push("conn.Close");
+  lines.push("Err.Clear");
+  lines.push('Set conn = CreateObject("ADODB.Connection")');
+  lines.push('conn.Open "Provider=vfpoledb.1;Data Source=" & scriptDir & "\\"');
   lines.push("");
   lines.push("If batchCount > 0 Then");
   lines.push("  Err.Clear");
