@@ -632,7 +632,7 @@ export function ToolRecognitionPage() {
                   Campionario di riferimento
                 </div>
                 <img
-                  src={stripUrl}
+                  src={`data:image/jpeg;base64,${stripUrl}`}
                   alt="Strip campionario Komet"
                   style={{
                     width: '100%', height: 90, objectFit: 'cover',
@@ -661,7 +661,7 @@ export function ToolRecognitionPage() {
               >
                 {c.thumbnailUrl ? (
                   <img
-                    src={c.thumbnailUrl}
+                    src={`data:image/jpeg;base64,${c.thumbnailUrl}`}
                     alt="Strip campionario"
                     style={{
                       width: 64, height: 64, objectFit: 'cover',

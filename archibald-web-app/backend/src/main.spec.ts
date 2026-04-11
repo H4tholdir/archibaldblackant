@@ -245,6 +245,7 @@ vi.mock('./operations/handlers', () => ({
   createBuildVisualIndexHandler: vi.fn(() => vi.fn()),
   createReExtractPictogramsHandler: vi.fn(() => vi.fn()),
   createIndexCatalogPagesHandler: vi.fn(() => vi.fn()),
+  createIndexWebImageHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('./services/anthropic-vision-service', () => ({
@@ -369,7 +370,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 29 operation handlers', async () => {
+  test('registers all 30 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -408,8 +409,9 @@ describe('bootstrap', () => {
       'build-visual-index',
       're-extract-pictograms',
       'index-catalog-pages',
+      'index-web-image',
     ]));
-    expect(handlerKeys).toHaveLength(29);
+    expect(handlerKeys).toHaveLength(30);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

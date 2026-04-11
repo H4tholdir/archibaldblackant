@@ -28,6 +28,7 @@ const OPERATION_TYPES = [
   'build-visual-index',
   're-extract-pictograms',
   'index-catalog-pages',
+  'index-web-image',
 ] as const;
 
 type OperationType = (typeof OPERATION_TYPES)[number];
@@ -62,6 +63,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'build-visual-index':         1,
   're-extract-pictograms':      4,
   'index-catalog-pages':        2,
+  'index-web-image':            2,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([

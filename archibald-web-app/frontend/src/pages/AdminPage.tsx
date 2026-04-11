@@ -101,6 +101,10 @@ export function AdminPage(_props: AdminPageProps) {
   const [visualIndexQueued, setVisualIndexQueued] = useState(false);
   const [enqueuingCatalogPages, setEnqueuingCatalogPages] = useState(false);
   const [catalogPagesQueued, setCatalogPagesQueued] = useState(false);
+  const [webImageFamilyCode, setWebImageFamilyCode] = useState('');
+  const [webImageUrl, setWebImageUrl] = useState('');
+  const [enqueuingWebImage, setEnqueuingWebImage] = useState(false);
+  const [webImageQueued, setWebImageQueued] = useState(false);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
@@ -108,6 +112,7 @@ export function AdminPage(_props: AdminPageProps) {
   const [reExtractProgress, setReExtractProgress] = useState<OpProgress | null>(null);
   const [visualProgress, setVisualProgress] = useState<OpProgress | null>(null);
   const [catalogPagesProgress, setCatalogPagesProgress] = useState<OpProgress | null>(null);
+  const [webImageProgress, setWebImageProgress] = useState<OpProgress | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -131,6 +136,7 @@ export function AdminPage(_props: AdminPageProps) {
       're-extract-pictograms':      setReExtractProgress,
       'build-visual-index':         setVisualProgress,
       'index-catalog-pages':        setCatalogPagesProgress,
+      'index-web-image':            setWebImageProgress,
     }
 
     const unsubs = [
@@ -420,6 +426,25 @@ export function AdminPage(_props: AdminPageProps) {
       alert("Errore nell'avvio dell'indicizzazione. Riprova.");
     } finally {
       setEnqueuingCatalogPages(false);
+    }
+  };
+
+  const handleIndexWebImage = async () => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token || !webImageFamilyCode.trim() || !webImageUrl.trim()) return;
+    setEnqueuingWebImage(true);
+    try {
+      const res = await fetch("/api/operations/enqueue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "index-web-image", data: { familyCode: webImageFamilyCode.trim(), imageUrl: webImageUrl.trim() } }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setWebImageQueued(true);
+    } catch {
+      alert("Errore nell'avvio dell'indicizzazione. Riprova.");
+    } finally {
+      setEnqueuingWebImage(false);
     }
   };
 
@@ -900,6 +925,53 @@ export function AdminPage(_props: AdminPageProps) {
                 {enqueuingCatalogPages ? "..." : catalogPagesQueued ? "Avviato" : "Indicizza PDF →"}
               </button>
               <OpProgressBar progress={catalogPagesProgress} />
+            </div>
+
+            <div style={{
+              padding: "12px 16px", borderBottom: "1px solid #eee",
+            }}>
+              <strong>Indicizza immagine web per famiglia</strong>
+              <div style={{ color: "#666", fontSize: "12px", marginTop: 2, marginBottom: 8 }}>
+                Utile per prodotti discontinued (es. 227B) — inserisci codice famiglia e URL immagine
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="Codice famiglia (es. 227B)"
+                  value={webImageFamilyCode}
+                  onChange={e => { setWebImageFamilyCode(e.target.value); setWebImageQueued(false); }}
+                  style={{
+                    padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc",
+                    fontSize: 13, width: 180,
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="URL immagine"
+                  value={webImageUrl}
+                  onChange={e => { setWebImageUrl(e.target.value); setWebImageQueued(false); }}
+                  style={{
+                    padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc",
+                    fontSize: 13, flex: 1, minWidth: 200,
+                  }}
+                />
+                <button
+                  onClick={() => { void handleIndexWebImage(); }}
+                  disabled={enqueuingWebImage || webImageQueued || !webImageFamilyCode.trim() || !webImageUrl.trim()}
+                  style={{
+                    background: webImageQueued ? "#999" : "#7b1fa2",
+                    color: "#fff", border: "none",
+                    borderRadius: "6px", padding: "6px 14px",
+                    fontSize: "13px", fontWeight: 600,
+                    cursor: (enqueuingWebImage || webImageQueued || !webImageFamilyCode.trim() || !webImageUrl.trim()) ? "not-allowed" : "pointer",
+                    opacity: (enqueuingWebImage || webImageQueued || !webImageFamilyCode.trim() || !webImageUrl.trim()) ? 0.6 : 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {enqueuingWebImage ? "..." : webImageQueued ? "Avviato" : "Indicizza →"}
+                </button>
+              </div>
+              <OpProgressBar progress={webImageProgress} />
             </div>
 
             <div style={{
