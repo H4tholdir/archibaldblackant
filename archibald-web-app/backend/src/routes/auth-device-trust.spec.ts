@@ -83,7 +83,7 @@ describe('POST /api/auth/mfa-verify — device trust', () => {
     expect(res.body).toEqual({
       success: true,
       token: 'jwt-token-123',
-      user: { id: 'user-1', username: 'agent1', fullName: 'Agent One', role: 'agent' },
+      user: { id: 'user-1', username: 'agent1', fullName: 'Agent One', role: 'agent', modules: [], modules_version: 0 },
       trustToken: 'trust-token-xyz',
     });
     expect(d.createTrustToken).toHaveBeenCalledWith('user-1', 'dev-abc');

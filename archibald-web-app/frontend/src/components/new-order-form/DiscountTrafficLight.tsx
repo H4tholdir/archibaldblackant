@@ -23,7 +23,7 @@ function getState(pct: number): TrafficLightState | null {
   }
   if (pct <= 25) {
     return {
-      color: '#f59e0b',
+      color: '#fbbf24',
       textColor: '#fbbf24',
       background: '#422006',
       border: '#92400e',

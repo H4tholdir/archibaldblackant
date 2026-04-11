@@ -18,8 +18,14 @@ export function useModules() {
 
   useEffect(() => {
     const handler = () => setModules(readModulesFromJWT());
+    // 'storage' fires when other tabs change localStorage; 'archibald-jwt-refreshed'
+    // fires in the same tab when jwt-refresh-service saves a new token.
     window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    window.addEventListener('archibald-jwt-refreshed', handler);
+    return () => {
+      window.removeEventListener('storage', handler);
+      window.removeEventListener('archibald-jwt-refreshed', handler);
+    };
   }, []);
 
   return {

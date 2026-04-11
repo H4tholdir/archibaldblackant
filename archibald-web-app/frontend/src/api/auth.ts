@@ -28,6 +28,8 @@ export interface LoginResponse {
     lastLoginAt: number | null;
     isImpersonating?: boolean;
     realAdminName?: string;
+    modules: string[];
+    modules_version: number;
   };
   error?: string;
 }
@@ -42,8 +44,8 @@ export interface User {
   mfaEnabled?: boolean;
   isImpersonating?: boolean;
   realAdminName?: string;
-  modules?: string[];
-  modules_version?: number;
+  modules: string[];
+  modules_version: number;
 }
 
 export async function mfaBeginSetup(token: string): Promise<{ success: boolean; setupToken?: string; error?: string }> {

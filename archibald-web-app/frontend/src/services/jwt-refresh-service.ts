@@ -111,6 +111,7 @@ class JWTRefreshService {
 
       if (data.success && data.token) {
         localStorage.setItem('archibald_jwt', data.token);
+        window.dispatchEvent(new Event('archibald-jwt-refreshed'));
         this.consecutiveFailures = 0;
         console.log('[JWTRefresh] Token refreshed successfully');
         return true;

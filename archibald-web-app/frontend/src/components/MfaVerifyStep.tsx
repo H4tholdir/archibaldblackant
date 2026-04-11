@@ -4,7 +4,7 @@ import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 type Props = {
   mfaToken: string;
-  onSuccess: (token: string, user: { id: string; username: string; fullName: string; role: string }) => void;
+  onSuccess: (token: string, user: { id: string; username: string; fullName: string; role: string; modules: string[]; modules_version: number }) => void;
   onCancel: () => void;
 };
 

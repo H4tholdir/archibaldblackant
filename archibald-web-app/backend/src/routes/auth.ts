@@ -248,7 +248,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
       res.json({
         success: true,
         token,
-        user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role },
+        user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role, modules: loginModules, modules_version: loginModulesVersion },
       });
     } catch (error) {
       logger.error('Login error', { error });
@@ -472,7 +472,7 @@ function createAuthRouter(deps: AuthRouterDeps) {
     res.json({
       success: true,
       token,
-      user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role },
+      user: { id: user.id, username: user.username, fullName: user.fullName, role: user.role, modules: mfaModules, modules_version: mfaModulesVersion },
       ...(trustToken ? { trustToken } : {}),
     });
   });

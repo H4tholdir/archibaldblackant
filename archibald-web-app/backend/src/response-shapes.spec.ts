@@ -145,6 +145,9 @@ const MOCK_USER_ROW = {
   extra_budget_reward: 0,
   monthly_advance: 0,
   hide_commissions: false,
+  modules_granted: null,
+  modules_revoked: null,
+  modules_version: 0,
 };
 
 async function makeAgentToken(): Promise<string> {
@@ -155,7 +158,12 @@ describe('response shape regression', () => {
   describe('auth endpoints', () => {
     test('POST /api/auth/login success returns { success, token, user }', async () => {
       const deps = createMockDeps();
-      (deps.pool as any).query = vi.fn().mockResolvedValue({ rows: [MOCK_USER_ROW] });
+      (deps.pool as any).query = vi.fn().mockImplementation((sql: string) => {
+        if (typeof sql === 'string' && sql.includes('module_defaults')) {
+          return Promise.resolve({ rows: [] });
+        }
+        return Promise.resolve({ rows: [MOCK_USER_ROW] });
+      });
       deps.generateJWT = generateJWT;
       const app = createApp(deps);
 
@@ -172,6 +180,8 @@ describe('response shape regression', () => {
           username: expect.any(String),
           fullName: expect.any(String),
           role: expect.any(String),
+          modules: expect.any(Array),
+          modules_version: expect.any(Number),
         },
       });
     });

@@ -62,19 +62,34 @@ export function AdminModulesSection() {
     }
   }
 
-  async function toggleUserOverride(
-    user: AdminUser,
-    moduleName: string,
-    currentlyRevoked: boolean,
-  ) {
+  async function toggleUserOverride(user: AdminUser, moduleName: string) {
     setSaving(`user-${user.id}-${moduleName}`);
     const granted = user.modulesGranted ?? [];
     const revoked = user.modulesRevoked ?? [];
+    const isRevoked = revoked.includes(moduleName);
+    const isGranted = granted.includes(moduleName);
+    const roleDefault = isDefaultEnabled(moduleName, user.role);
 
-    const newRevoked = currentlyRevoked
-      ? revoked.filter(m => m !== moduleName)
-      : [...revoked, moduleName];
-    const newGranted = granted.filter(m => m !== moduleName);
+    let newGranted: string[];
+    let newRevoked: string[];
+
+    if (isRevoked) {
+      // Ripristina: rimuovi dalla blacklist
+      newRevoked = revoked.filter(m => m !== moduleName);
+      newGranted = granted;
+    } else if (!roleDefault && !isGranted) {
+      // Concedi: il modulo è default-OFF → aggiungilo ai granted
+      newGranted = [...granted, moduleName];
+      newRevoked = revoked;
+    } else if (!roleDefault && isGranted) {
+      // Rimuovi grant esplicito (torna allo stato default OFF)
+      newGranted = granted.filter(m => m !== moduleName);
+      newRevoked = revoked;
+    } else {
+      // Revoca: il modulo è default-ON → aggiungilo ai revoked
+      newRevoked = [...revoked, moduleName];
+      newGranted = granted.filter(m => m !== moduleName);
+    }
 
     try {
       await updateUserModules(user.id, newGranted, newRevoked);
@@ -149,10 +164,36 @@ export function AdminModulesSection() {
               Override per utente (cambio immediato → forza logout)
             </div>
             {users.map(user => {
+              const granted = user.modulesGranted ?? [];
               const revoked = user.modulesRevoked ?? [];
               const isRevoked = revoked.includes(mod.name);
+              const isGranted = granted.includes(mod.name);
               const roleDefault = isDefaultEnabled(mod.name, user.role);
               const savingKey = `user-${user.id}-${mod.name}`;
+
+              let statusLabel: string;
+              let statusColor: string;
+              let actionLabel: string;
+
+              if (isRevoked) {
+                statusLabel = 'Revocato';
+                statusColor = '#dc2626';
+                actionLabel = 'Ripristina';
+              } else if (roleDefault && !isGranted) {
+                statusLabel = 'Eredita default ✓';
+                statusColor = '#16a34a';
+                actionLabel = 'Revoca';
+              } else if (!roleDefault && isGranted) {
+                statusLabel = 'Concesso (override)';
+                statusColor = '#2563eb';
+                actionLabel = 'Rimuovi';
+              } else {
+                // !roleDefault && !isGranted
+                statusLabel = 'Disabilitato (default)';
+                statusColor = '#9ca3af';
+                actionLabel = 'Concedi';
+              }
+
               return (
                 <div
                   key={user.id}
@@ -166,16 +207,10 @@ export function AdminModulesSection() {
                 >
                   <span style={{ flex: 1, fontSize: '0.875rem' }}>{user.fullName}</span>
                   <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{ROLE_LABELS[user.role]}</span>
-                  {!isRevoked ? (
-                    <span style={{ fontSize: '0.75rem', color: '#16a34a' }}>
-                      {roleDefault ? 'Eredita default ✓' : 'Grant esplicito'}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '0.75rem', color: '#dc2626' }}>Revocato</span>
-                  )}
+                  <span style={{ fontSize: '0.75rem', color: statusColor }}>{statusLabel}</span>
                   <button
                     disabled={saving === savingKey}
-                    onClick={() => { void toggleUserOverride(user, mod.name, isRevoked); }}
+                    onClick={() => { void toggleUserOverride(user, mod.name); }}
                     style={{
                       fontSize: '0.75rem',
                       padding: '0.2rem 0.6rem',
@@ -185,7 +220,7 @@ export function AdminModulesSection() {
                       cursor: 'pointer',
                     }}
                   >
-                    {saving === savingKey ? '...' : isRevoked ? 'Ripristina' : 'Revoca'}
+                    {saving === savingKey ? '...' : actionLabel}
                   </button>
                 </div>
               );

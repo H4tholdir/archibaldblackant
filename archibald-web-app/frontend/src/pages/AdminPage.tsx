@@ -11,6 +11,7 @@ import { KometListinoImporter } from "../components/KometListinoImporter";
 import { FedExReportSection } from "../components/admin/FedExReportSection";
 import { AdminModulesSection } from "../components/admin/AdminModulesSection";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -128,7 +129,7 @@ export function AdminPage(_props: AdminPageProps) {
     if (!token) return;
     getEnrichmentStats(token).then(setEnrichmentStats).catch(console.error);
     getRecognitionBudget(token).then(setRecognitionBudget).catch(console.error);
-    fetch('/api/admin/catalog-family-codes', { headers: { Authorization: `Bearer ${token}` } })
+    fetchWithRetry('/api/admin/catalog-family-codes', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json() as Promise<string[]>)
       .then(setCatalogFamilyCodes)
       .catch(console.error);

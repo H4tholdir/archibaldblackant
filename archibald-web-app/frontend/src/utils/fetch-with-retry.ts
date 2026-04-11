@@ -86,7 +86,7 @@ export async function fetchWithRetry(
             console.log('🔄 [FetchWithRetry] Moduli aggiornati — logout forzato');
             localStorage.removeItem('archibald_jwt');
             window.location.href = '/login?reason=modules_changed';
-            return response;
+            throw new Error('Session invalidated: modules changed');
           }
 
           // 3b. CREDENTIALS_EXPIRED (very rare with lazy-load backend)

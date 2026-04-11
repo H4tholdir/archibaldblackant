@@ -1,6 +1,7 @@
 import { fetchWithRetry } from '../utils/fetch-with-retry';
+import type { UserRole } from './auth';
 
-export type UserRole = 'agent' | 'admin' | 'ufficio' | 'concessionario';
+export type { UserRole };
 
 export type ModuleDefault = {
   module_name: string;
