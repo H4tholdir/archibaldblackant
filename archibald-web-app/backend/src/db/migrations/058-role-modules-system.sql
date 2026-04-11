@@ -15,7 +15,18 @@ INSERT INTO system.module_defaults (module_name, role, enabled) VALUES
   ('discount-traffic-light', 'concessionario', TRUE)
 ON CONFLICT DO NOTHING;
 
-ALTER TABLE agents.users RENAME COLUMN modules TO modules_granted;
+-- Rinomina modules→modules_granted se esiste, altrimenti aggiunge la colonna direttamente
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'agents' AND table_name = 'users' AND column_name = 'modules'
+  ) THEN
+    ALTER TABLE agents.users RENAME COLUMN modules TO modules_granted;
+  ELSE
+    ALTER TABLE agents.users ADD COLUMN IF NOT EXISTS modules_granted JSONB NOT NULL DEFAULT '[]'::jsonb;
+  END IF;
+END $$;
 
 ALTER TABLE agents.users
   ADD COLUMN IF NOT EXISTS modules_revoked JSONB NOT NULL DEFAULT '[]'::jsonb;
