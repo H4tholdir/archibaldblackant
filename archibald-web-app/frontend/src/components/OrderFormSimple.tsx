@@ -2274,9 +2274,18 @@ export default function OrderFormSimple() {
     const target = parseFloat(totaleTarget.replace(",", "."));
     if (isNaN(target) || target <= 0 || totaleSelectedItems.size === 0) return;
 
+    // target è il totale desiderato per le sole righe selezionate (con IVA).
+    // applyExactTotalToOrderLineItems opera sul totale dell'intero documento,
+    // quindi traduciamo: documentTarget = target + contributo righe non selezionate.
+    // Quando tutte le righe sono selezionate unselectedContribution = 0 → nessuna differenza.
+    const unselectedContribution = items
+      .filter((i) => !totaleSelectedItems.has(i.id))
+      .reduce((s, i) => s + i.subtotal + i.vat, 0);
+    const documentTarget = Math.round((target + unselectedContribution) * 100) / 100;
+
     const currentTotals = calculateTotals();
 
-    if (target > currentTotals.finalTotal) {
+    if (documentTarget > currentTotals.finalTotal) {
       // Check if target is achievable by reducing discounts (discount → 0)
       const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
       const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
@@ -2292,14 +2301,14 @@ export default function OrderFormSimple() {
       const maxShipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(maxSub);
       const maxTotal = Math.round((maxSub + maxShipping.cost + Math.round((maxVAT + maxShipping.tax) * 100) / 100) * 100) / 100;
 
-      if (target > maxTotal) {
+      if (documentTarget > maxTotal) {
         if (!canEditPrice) {
           toastService.error("Per ordini diretti non è possibile superare il totale senza sconti");
           setShowTotaleDialog(false);
           return;
         }
         // Activate markup mode with pre-selected items
-        const diff = target - currentTotals.finalTotal;
+        const diff = documentTarget - currentTotals.finalTotal;
         setMarkupAmount(diff);
         setMarkupArticleSelection(new Set(totaleSelectedItems));
         setShowMarkupPanel(true);
@@ -2309,7 +2318,7 @@ export default function OrderFormSimple() {
       // Target achievable by reducing discounts — fall through to binary search
     }
 
-    const updatedItems = applyExactTotalToOrderLineItems(items, target, totaleSelectedItems, noShipping);
+    const updatedItems = applyExactTotalToOrderLineItems(items, documentTarget, totaleSelectedItems, noShipping);
     setItems(updatedItems);
     setShowTotaleDialog(false);
     const uniqueDiscounts = [
