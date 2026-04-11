@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
-const DOC_TTL_SECONDS = 5 * 60;
-const KEY_PREFIX = 'doc:download:';
+export const DOC_TTL_SECONDS = 5 * 60;
+export const KEY_PREFIX = 'doc:download:';
 
 type RedisBinaryClient = {
   setex: (key: string, seconds: number, value: Buffer) => Promise<unknown>;
@@ -9,7 +9,7 @@ type RedisBinaryClient = {
 };
 
 type DocumentStoreLike = {
-  save: (pdf: Buffer, docName: string) => Promise<string>;
+  save: (pdf: Buffer) => Promise<string>;
   get: (key: string) => Promise<Buffer | null>;
 };
 

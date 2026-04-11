@@ -1,8 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { RedisBinaryClient } from './document-store';
-
-const DOC_TTL_SECONDS = 5 * 60;
-const KEY_PREFIX = 'doc:download:';
+import { DOC_TTL_SECONDS, KEY_PREFIX } from './document-store';
 
 function createMockRedis(): RedisBinaryClient {
   return {
@@ -19,7 +17,7 @@ describe('createDocumentStore', () => {
       const store = createDocumentStore(redis);
       const pdf = Buffer.from('pdf-content');
 
-      const key = await store.save(pdf, 'my-doc.pdf');
+      const key = await store.save(pdf);
 
       expect(vi.mocked(redis.setex)).toHaveBeenCalledWith(
         `${KEY_PREFIX}${key}`,
