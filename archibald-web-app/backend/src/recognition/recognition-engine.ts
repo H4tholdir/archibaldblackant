@@ -194,21 +194,38 @@ async function retrieveTop10Candidates(
     .sort((a, b) => b[1].similarity - a[1].similarity)
     .slice(0, 10)
 
+  // Fetch best-priority rows for all families in one batch query (fallback when ANN row file is missing)
+  const familyCodes = top10rows.map(([fc]) => fc)
+  const priorityRows = await getBestRowsByFamilyCodes(deps.pool, familyCodes)
+  const priorityByFamily = new Map(priorityRows.map(r => [r.family_code, r]))
+
   const candidates = await Promise.all(
-    top10rows.map(async ([familyCode, row]) => {
+    top10rows.map(async ([familyCode, annRow]) => {
       const referenceImages: string[] = []
-      try {
-        let imgBuffer: Buffer
-        if (row.source_type === 'campionario' && row.metadata) {
-          const meta = row.metadata as { strip_family_index: number; strip_family_count: number }
-          imgBuffer = await cropSingleFamily(row.local_path, meta.strip_family_index, meta.strip_family_count)
-        } else {
-          imgBuffer = await readFile(row.local_path)
+
+      // Try rows in order: ANN-selected first, then best-priority fallback
+      const rowsToTry = [annRow, priorityByFamily.get(familyCode)].filter(Boolean) as typeof top50rows
+
+      for (const row of rowsToTry) {
+        try {
+          let imgBuffer: Buffer
+          if (row.source_type === 'campionario' && row.metadata) {
+            const meta = row.metadata as { strip_family_index: number; strip_family_count: number }
+            imgBuffer = await cropSingleFamily(row.local_path, meta.strip_family_index, meta.strip_family_count)
+          } else {
+            imgBuffer = await readFile(row.local_path)
+          }
+          referenceImages.push(imgBuffer.toString('base64'))
+          break  // Got an image — stop trying
+        } catch {
+          // File missing — try next row
         }
-        referenceImages.push(imgBuffer.toString('base64'))
-      } catch {
-        // File missing — pass candidate without image
       }
+
+      if (referenceImages.length === 0) {
+        logger.warn('[recognition-engine] No reference image available', { familyCode })
+      }
+
       return { familyCode, description: familyCode, referenceImages }
     }),
   )
