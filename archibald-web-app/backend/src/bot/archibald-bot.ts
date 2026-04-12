@@ -6653,14 +6653,25 @@ export class ArchibaldBot {
         this.deleteOrderFilterReady = true;
       }
 
-      // Step 3: Find the search input and paste the normalized ID
+      // Close any popup opened by ensureOrdersFilterSetToAll (Show hidden items overlay)
+      await this.page.keyboard.press("Escape");
+      await this.wait(300);
+
+      // Step 3: Find the search input using resilient partial-ID selector
+      // (same strategy as sendToVerona — xaf_a0/xaf_a1 suffix can change across sessions)
       logger.debug(`[deleteOrder] Searching for order ${normalizedId}...`);
       await this.emitProgress("delete.search");
 
-      const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
-      const searchHandle = await this.page
-        .waitForSelector(searchSelector, { timeout: 5000, visible: true })
-        .catch(() => null);
+      let searchHandle = (await this.page
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+
+      if (!searchHandle) {
+        logger.warn("[deleteOrder] Search input not found with visible:true, trying without...");
+        searchHandle = (await this.page
+          .$('input[id*="SearchAC"][id*="Ed_I"]')
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+      }
 
       if (!searchHandle) {
         await this.page.screenshot({
@@ -7362,14 +7373,27 @@ export class ArchibaldBot {
         this.batchOperationFilterReady = true;
       }
 
+      // Close any popup opened by ensureOrdersFilterSetToAll (Show hidden items overlay)
+      await this.page.keyboard.press('Escape');
+      await this.wait(300);
+
       // Delete each order one at a time using the same proven strategy as deleteOrderFromArchibald:
       // search → 1 riga in griglia → click cells[0] via JS → Cancellare abilitato → confirm.
       // JS click funziona quando la griglia mostra 1 sola riga dopo la ricerca.
       const deletedIds: string[] = [];
       const notFoundIds: string[] = [];
 
-      const searchSelector = '#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I';
-      const searchHandle = await this.page.waitForSelector(searchSelector, { timeout: 5000, visible: true }).catch(() => null);
+      let searchHandle = (await this.page
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+
+      if (!searchHandle) {
+        logger.warn('[batchDelete] Search input not found with visible:true, trying without...');
+        searchHandle = (await this.page
+          .$('input[id*="SearchAC"][id*="Ed_I"]')
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+      }
+
       if (!searchHandle) {
         return { success: false, message: 'Search input not found on orders list page', deletedIds: [], notFoundIds: orderIds };
       }
@@ -7544,13 +7568,26 @@ export class ArchibaldBot {
         this.batchOperationFilterReady = true;
       }
 
+      // Close any popup opened by ensureOrdersFilterSetToAll (Show hidden items overlay)
+      await this.page.keyboard.press('Escape');
+      await this.wait(300);
+
       // Invia ogni ordine uno alla volta con lo stesso pattern del delete singolo:
       // cerca → 1 riga in griglia → click cells[0] → pulsante abilitato → invia.
       const sentIds: string[] = [];
       const notFoundIds: string[] = [];
 
-      const searchSelector = '#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I';
-      const searchHandle = await this.page.waitForSelector(searchSelector, { timeout: 5000, visible: true }).catch(() => null);
+      let searchHandle = (await this.page
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+
+      if (!searchHandle) {
+        logger.warn('[batchSendToVerona] Search input not found with visible:true, trying without...');
+        searchHandle = (await this.page
+          .$('input[id*="SearchAC"][id*="Ed_I"]')
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+      }
+
       if (!searchHandle) {
         return { success: false, message: 'Search input not found on orders list page', sentIds: [], notFoundIds: orderIds };
       }
@@ -7763,14 +7800,24 @@ export class ArchibaldBot {
         this.editOrderFilterReady = true;
       }
 
-      // Step 3: Search for the order
+      // Close any popup opened by ensureOrdersFilterSetToAll (Show hidden items overlay)
+      await this.page.keyboard.press("Escape");
+      await this.wait(300);
+
+      // Step 3: Search for the order using resilient partial-ID selector
       logger.debug(`[editOrder] Searching for order ${normalizedId}...`);
       await this.emitProgress("edit.search");
 
-      const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
-      const searchHandle = await this.page
-        .waitForSelector(searchSelector, { timeout: 5000, visible: true })
-        .catch(() => null);
+      let searchHandle = (await this.page
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+
+      if (!searchHandle) {
+        logger.warn("[editOrder] Search input not found with visible:true, trying without...");
+        searchHandle = (await this.page
+          .$('input[id*="SearchAC"][id*="Ed_I"]')
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
+      }
 
       if (!searchHandle) {
         return {
