@@ -46,6 +46,14 @@ export function CustomerHistoryModal({
   isOpen, onClose, customerName, customerErpIds, subClientCodices,
   isFresisClient, onAddArticle, onAddOrder, onEditMatching,
 }: Props) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const [orders, setOrders] = useState<CustomerFullHistoryOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -468,25 +476,35 @@ export function CustomerHistoryModal({
         position: 'fixed', inset: 0, zIndex: 9000,
         background: 'rgba(15,23,42,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        padding: isMobile ? 0 : 16,
       }}>
         <div style={{
-          background: 'white', borderRadius: 12, width: '100%', maxWidth: 1100,
-          height: '90vh', display: 'flex', flexDirection: 'column',
+          background: 'white', borderRadius: isMobile ? 0 : 12, width: '100%', maxWidth: 1100,
+          height: isMobile ? '100dvh' : '90vh', display: 'flex', flexDirection: 'column',
           boxShadow: '0 25px 60px rgba(0,0,0,0.4)', overflow: 'hidden',
         }}>
           {/* HEADER */}
           <div style={{
-            background: '#1e293b', color: 'white', padding: '16px 20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 12,
+            background: '#1e293b', color: 'white', padding: isMobile ? '12px 14px' : '16px 20px',
+            display: 'flex', flexDirection: 'column', flexShrink: 0, gap: 8,
           }}>
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>Storico Ordini — {customerName}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                Storico ordini + Storico Fresis · Ordinati per data ↓
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: isMobile ? 14 : 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {isMobile ? 'Storico' : 'Storico Ordini'} — {customerName}
+                </div>
+                {!isMobile && (
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                    Storico ordini + Storico Fresis · Ordinati per data ↓
+                  </div>
+                )}
               </div>
+              <button onClick={onClose} style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',
+                width: 32, height: 32, borderRadius: 6, cursor: 'pointer', fontSize: 16, flexShrink: 0,
+              }}>✕</button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {addedCount > 0 && (
                 <div id="cart-counter" style={{
                   display: 'flex', alignItems: 'center', gap: 6,
@@ -508,17 +526,13 @@ export function CustomerHistoryModal({
                   padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
                 }}>✎ Modifica collegamenti</button>
               )}
-              <button onClick={onClose} style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',
-                width: 32, height: 32, borderRadius: 6, cursor: 'pointer', fontSize: 16, flexShrink: 0,
-              }}>✕</button>
             </div>
           </div>
 
           {/* FILTER BAR */}
           <div style={{
-            padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
-            display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+            padding: isMobile ? '10px 12px' : '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
+            display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 8 : 10, flexShrink: 0,
           }}>
             <input autoComplete="off"
               type="search"
@@ -530,62 +544,68 @@ export function CustomerHistoryModal({
                 border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13,
               }}
             />
-            <select
-              aria-label="Filtra per cliente o sottocliente"
-              value={selectedClientFilter}
-              onChange={(e) => setSelectedClientFilter(e.target.value)}
-              style={{
-                padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
-                fontSize: 13, background: 'white', cursor: 'pointer',
-                color: selectedClientFilter ? '#1e293b' : '#94a3b8',
-                maxWidth: 200, minWidth: 0,
-              }}
-            >
-              <option value="">Tutti i clienti/sottoclienti</option>
-              {clientOptions.sortedCustomers.length > 0 && (
-                <optgroup label="Clienti">
-                  {clientOptions.sortedCustomers.map(([id, name]) => (
-                    <option key={id} value={`customer:${id}`}>{id} — {name}</option>
-                  ))}
-                </optgroup>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                aria-label="Filtra per cliente o sottocliente"
+                value={selectedClientFilter}
+                onChange={(e) => setSelectedClientFilter(e.target.value)}
+                style={{
+                  flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
+                  fontSize: 13, background: 'white', cursor: 'pointer',
+                  color: selectedClientFilter ? '#1e293b' : '#94a3b8',
+                  minWidth: 0,
+                }}
+              >
+                <option value="">Tutti i clienti</option>
+                {clientOptions.sortedCustomers.length > 0 && (
+                  <optgroup label="Clienti">
+                    {clientOptions.sortedCustomers.map(([id, name]) => (
+                      <option key={id} value={`customer:${id}`}>{id} — {name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {clientOptions.sortedSubClients.length > 0 && (
+                  <optgroup label="Sottoclienti">
+                    {clientOptions.sortedSubClients.map(([cod, name]) => (
+                      <option key={cod} value={`subclient:${cod}`}>{cod} — {name}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <select
+                aria-label="Filtra per città"
+                value={selectedCityFilter}
+                onChange={(e) => setSelectedCityFilter(e.target.value)}
+                style={{
+                  flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
+                  fontSize: 13, background: 'white', cursor: 'pointer',
+                  color: selectedCityFilter ? '#1e293b' : '#94a3b8',
+                  minWidth: 0,
+                }}
+              >
+                <option value="">Tutte le città</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+              <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
+                Ordini: {ordersCount}
+              </span>
+              <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
+                Fresis: {fresisCount}
+              </span>
+              {!isMobile && (
+                <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+                  {filteredOrders.length} ordini · {filteredOrders.reduce((s, o) => s + o.articles.length, 0)} articoli
+                </span>
               )}
-              {clientOptions.sortedSubClients.length > 0 && (
-                <optgroup label="Sottoclienti">
-                  {clientOptions.sortedSubClients.map(([cod, name]) => (
-                    <option key={cod} value={`subclient:${cod}`}>{cod} — {name}</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <select
-              aria-label="Filtra per città"
-              value={selectedCityFilter}
-              onChange={(e) => setSelectedCityFilter(e.target.value)}
-              style={{
-                padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6,
-                fontSize: 13, background: 'white', cursor: 'pointer',
-                color: selectedCityFilter ? '#1e293b' : '#94a3b8',
-                maxWidth: 160, minWidth: 0,
-              }}
-            >
-              <option value="">Tutte le città</option>
-              {cityOptions.map((city) => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
-            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
-              Ordini: {ordersCount}
-            </span>
-            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}>
-              Fresis: {fresisCount}
-            </span>
-            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
-              {filteredOrders.length} ordini · {filteredOrders.reduce((s, o) => s + o.articles.length, 0)} articoli
-            </span>
+            </div>
           </div>
 
           {/* BODY */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, background: '#f1f5f9' }}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? '10px 8px' : '16px 20px', display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 16, background: '#f1f5f9' }}>
             {loading && <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Caricamento storico...</div>}
             {error && <div style={{ textAlign: 'center', padding: 40, color: '#dc2626' }}>{error}</div>}
             {!loading && !error && filteredOrders.map((order) => (
@@ -600,6 +620,7 @@ export function CustomerHistoryModal({
                 isCopying={copyingOrderId === order.orderId}
                 isCopied={copiedOrderIds.has(order.orderId)}
                 isFresisWithSubClient={isFresisWithSubClient}
+                isMobile={isMobile}
                 onAddArticle={(article) => handleAddSingle(article, order.orderDiscountPercent, order.source)}
                 onAddGhostArticle={(article) => handleAddGhostOrWarehouse(article, order.orderDiscountPercent)}
                 onCopyOrder={() => handleCopyOrder(order)}
@@ -680,12 +701,13 @@ type OrderCardProps = {
   isCopying: boolean;
   isCopied: boolean;
   isFresisWithSubClient: boolean;
+  isMobile: boolean;
   onAddArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onAddGhostArticle: (article: CustomerFullHistoryOrder['articles'][number]) => void;
   onCopyOrder: () => void;
 };
 
-function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, isFresisWithSubClient, onAddArticle, onAddGhostArticle, onCopyOrder }: OrderCardProps) {
+function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, codeSubstitutions, warehouseMatchMap, isCopying, isCopied, isFresisWithSubClient, isMobile, onAddArticle, onAddGhostArticle, onCopyOrder }: OrderCardProps) {
   const isFresis = order.source === 'fresis';
   const totalAmount = order.articles.reduce((s, a) => s + a.lineTotalWithVat, 0);
 
@@ -700,76 +722,50 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
         </div>
       )}
       <div style={{
-        background: '#f1f5f9', padding: '10px 14px',
-        display: 'flex', alignItems: 'center', gap: 10,
+        background: '#f1f5f9', padding: isMobile ? '10px 12px' : '10px 14px',
+        display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 8 : 10,
         borderBottom: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-            {order.orderNumber}
-            {' '}
-            <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>{new Date(order.orderDate).toLocaleDateString('it-IT')}</span>
-          </span>
-          {(order.customerAccountNum || order.customerCity || order.customerRagioneSociale) && (
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              Cliente: {[order.customerAccountNum, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
-            </div>
-          )}
-          {isFresis && order.subClientCodice && (
-            <div style={{ fontSize: 11, color: '#64748b' }}>
-              Sottocliente: {[order.subClientCodice, order.subClientRagioneSociale, order.subClientCity].filter(Boolean).join(' · ')}
-            </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+              {order.orderNumber}
+              {' '}
+              <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>{new Date(order.orderDate).toLocaleDateString('it-IT')}</span>
+            </span>
+            {(order.customerAccountNum || order.customerCity || order.customerRagioneSociale) && (
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                Cliente: {[order.customerAccountNum, order.customerRagioneSociale, order.customerCity].filter(Boolean).join(' · ')}
+              </div>
+            )}
+            {isFresis && order.subClientCodice && (
+              <div style={{ fontSize: 11, color: '#64748b' }}>
+                Sottocliente: {[order.subClientCodice, order.subClientRagioneSociale, order.subClientCity].filter(Boolean).join(' · ')}
+              </div>
+            )}
+          </div>
+          {order.orderDiscountPercent > 0 && (
+            <span style={{
+              padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+              background: '#e2e8f0', color: '#475569',
+            }}>Sconto {order.orderDiscountPercent}%</span>
           )}
         </div>
-        {order.orderDiscountPercent > 0 && (
-          <span style={{
-            padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-            background: '#e2e8f0', color: '#475569',
-          }}>Sconto {order.orderDiscountPercent}%</span>
-        )}
         <button onClick={onCopyOrder} disabled={isCopying} style={{
-          marginLeft: 'auto',
+          marginLeft: isMobile ? 0 : 'auto',
           background: isCopying ? '#475569' : '#1e293b', color: 'white', border: 'none',
-          padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+          padding: isMobile ? '8px 12px' : '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
           cursor: isCopying ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+          width: isMobile ? '100%' : 'auto',
         }}>{isCopying ? '⏳ Copiando...' : '⊕ Copia tutto l\'ordine'}</button>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
-        <colgroup>
-          <col style={{ width: '11%' }} /><col style={{ width: '22%' }} />
-          <col style={{ width: '5%' }} />
-          {/* storico */}
-          <col style={{ width: '8%' }} />
-          {/* listino unit NEW */}
-          <col style={{ width: '8%' }} />
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '5%' }} />
-          {/* tot storico */}
-          <col style={{ width: '9%' }} />
-          {/* tot listino NEW */}
-          <col style={{ width: '9%' }} />
-          <col style={{ width: '9%' }} />
-        </colgroup>
-        <thead>
-          <tr style={{ background: '#f1f5f9' }}>
-            <th style={{ padding: '7px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Codice</th>
-            <th style={{ padding: '7px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Descrizione</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Qtà</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>P.unit. storico</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Listino unit.</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Sconto</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>IVA</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Tot.+IVA storico</th>
-            <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Tot. listino+IVA</th>
-            <th style={{ padding: '7px 8px', borderBottom: '1px solid #e2e8f0' }}></th>
-          </tr>
-        </thead>
-        <tbody>
+      {isMobile ? (
+        <div>
           {order.articles.map((article, idx) => {
             const isUnmatched = isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode);
             return (
-              <ArticleRow
+              <ArticleRowMobile
                 key={idx}
                 article={article}
                 listinoInfo={listinoPrices.get(article.articleCode) ?? null}
@@ -784,8 +780,60 @@ function OrderCard({ order, listinoPrices, articleBadges, flashingArticles, code
               />
             );
           })}
-        </tbody>
-      </table>
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '11%' }} /><col style={{ width: '22%' }} />
+            <col style={{ width: '5%' }} />
+            {/* storico */}
+            <col style={{ width: '8%' }} />
+            {/* listino unit NEW */}
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '7%' }} />
+            <col style={{ width: '5%' }} />
+            {/* tot storico */}
+            <col style={{ width: '9%' }} />
+            {/* tot listino NEW */}
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '9%' }} />
+          </colgroup>
+          <thead>
+            <tr style={{ background: '#f1f5f9' }}>
+              <th style={{ padding: '7px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Codice</th>
+              <th style={{ padding: '7px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Descrizione</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Qtà</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>P.unit. storico</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Listino unit.</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Sconto</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>IVA</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #e2e8f0' }}>Tot.+IVA storico</th>
+              <th style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>Tot. listino+IVA</th>
+              <th style={{ padding: '7px 8px', borderBottom: '1px solid #e2e8f0' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.articles.map((article, idx) => {
+              const isUnmatched = isFresis && listinoPrices.get(article.articleCode) === null && !codeSubstitutions.has(article.articleCode);
+              return (
+                <ArticleRow
+                  key={idx}
+                  article={article}
+                  listinoInfo={listinoPrices.get(article.articleCode) ?? null}
+                  badgeCount={articleBadges.get(article.articleCode) ?? 0}
+                  isFlashing={flashingArticles.has(article.articleCode)}
+                  substituteCode={isFresis ? codeSubstitutions.get(article.articleCode) : undefined}
+                  isUnmatched={isUnmatched}
+                  canAddAsGhost={isUnmatched && isFresisWithSubClient}
+                  warehouseMatches={warehouseMatchMap.get(article.articleCode) ?? []}
+                  onAdd={() => onAddArticle(article)}
+                  onAddGhost={() => onAddGhostArticle(article)}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
       <div style={{
         background: '#f8fafc', borderTop: '2px solid #e2e8f0',
@@ -940,6 +988,100 @@ function ArticleRow({ article, listinoInfo, badgeCount, isFlashing, substituteCo
         )}
       </td>
     </tr>
+  );
+}
+
+function ArticleRowMobile({ article, listinoInfo, badgeCount, isFlashing, substituteCode, isUnmatched, canAddAsGhost, warehouseMatches, onAdd, onAddGhost }: {
+  article: CustomerFullHistoryOrder['articles'][number];
+  listinoInfo: { price: number; vat: number } | null;
+  badgeCount: number;
+  isFlashing: boolean;
+  substituteCode?: string;
+  isUnmatched?: boolean;
+  canAddAsGhost?: boolean;
+  warehouseMatches: WarehouseMatch[];
+  onAdd: () => void;
+  onAddGhost: () => void;
+}) {
+  const bestLevel = bestMatchLevel(warehouseMatches);
+  const colors = WAREHOUSE_LEVEL_COLORS[bestLevel];
+  const topMatch = warehouseMatches[0] ?? null;
+  const listinoUnit = listinoInfo ? listinoInfo.price : null;
+  const listinoTot = listinoUnit !== null
+    ? Math.round(article.quantity * listinoUnit * (1 + article.vatPercent / 100) * 100) / 100
+    : null;
+  const rowBg = isFlashing ? undefined : (bestLevel !== 'none' ? colors.backgroundLight : 'white');
+
+  return (
+    <div style={{
+      borderBottom: '1px solid #f1f5f9',
+      background: rowBg,
+      animation: isFlashing ? 'artFlash 1.2s ease' : undefined,
+      padding: '10px 12px',
+    }}>
+      {/* Row 1: Codice + bottone Aggiungi */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 3 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{
+            fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#1e293b',
+            textDecoration: (substituteCode || isUnmatched) ? 'line-through' : 'none',
+            opacity: (substituteCode || isUnmatched) ? 0.7 : 1,
+          }}>
+            {article.articleCode}
+          </span>
+          {substituteCode && <span style={{ display: 'block', fontSize: 9, color: '#64748b' }}>→ {substituteCode}</span>}
+          {isUnmatched && <span style={{ display: 'block', fontSize: 9, color: '#94a3b8' }}>non nel catalogo</span>}
+          {bestLevel !== 'none' && topMatch && (
+            <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: colors.accentColor, marginTop: 1 }}>
+              {bestLevel === 'exact' ? `🏪 ${topMatch.availableQty} pz · ${topMatch.item.boxName}` : `→ ${topMatch.item.articleCode}`}
+            </span>
+          )}
+        </div>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={canAddAsGhost ? onAddGhost : onAdd}
+            disabled={isUnmatched && !canAddAsGhost}
+            style={{
+              background: (isUnmatched && !canAddAsGhost) ? '#cbd5e1' : isFlashing ? '#475569' : '#1e293b',
+              color: 'white', border: 'none', padding: '7px 14px', borderRadius: 6, fontSize: 12,
+              fontWeight: 600, cursor: (isUnmatched && !canAddAsGhost) ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap', minWidth: 80,
+            }}
+          >
+            {(isUnmatched && !canAddAsGhost) ? '⚠ N/D' : isFlashing ? 'Aggiunto ✓' : '+ Aggiungi'}
+          </button>
+          {badgeCount > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              background: '#1e293b', color: 'white',
+              borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 700,
+              animation: badgeCount === 1 ? 'badgePop 0.3s ease' : 'badgeBump 0.2s ease',
+              pointerEvents: 'none',
+            }}>×{badgeCount}</span>
+          )}
+        </div>
+      </div>
+      {/* Row 2: Descrizione */}
+      <div style={{ fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 5 }}>
+        {article.articleDescription}
+      </div>
+      {/* Row 3: dati numerici compatti */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#64748b', alignItems: 'center' }}>
+        <span>Qtà: <strong style={{ color: '#1e293b' }}>{article.quantity}</strong></span>
+        {listinoUnit !== null && (
+          <span>Listino: <strong style={{ color: '#1e293b' }}>{formatEur(listinoUnit)}</strong></span>
+        )}
+        <span style={{ background: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>
+          Sc. {article.discountPercent}%
+        </span>
+        <span style={{ background: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>
+          IVA {article.vatPercent}%
+        </span>
+        {listinoTot !== null && (
+          <span>Tot: <strong style={{ color: '#1e293b' }}>{formatEur(listinoTot)}</strong></span>
+        )}
+      </div>
+    </div>
   );
 }
 
