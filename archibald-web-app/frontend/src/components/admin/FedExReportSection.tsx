@@ -64,17 +64,17 @@ export function FedExReportSection() {
     <div style={{ background: '#fff', borderRadius: '12px', padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', marginBottom: '16px' }}>
 
       {/* Header + filtri */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#1a1a2e' }}>📦 Report Spedizioni FedEx</div>
           <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>Eccezioni, reclami e statistiche</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <input
             placeholder="ID agente..."
             value={agentFilter}
             onChange={(e) => setAgentFilter(e.target.value)}
-            style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', width: '140px' }}
+            style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', width: '140px', minWidth: 0 }}
           />
           <select value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)}
             style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
@@ -90,7 +90,7 @@ export function FedExReportSection() {
       {!loading && stats && (
         <>
           {/* Stat boxes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))', gap: '12px', marginBottom: '20px' }}>
             {[
               { num: stats.delivered, label: 'Consegnati', color: '#1b5e20' },
               { num: stats.exceptionActive + stats.held + stats.returning, label: 'Con eccezioni', color: '#cc0066' },
@@ -110,7 +110,7 @@ export function FedExReportSection() {
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#555', textTransform: 'uppercase', marginBottom: '10px' }}>Eccezioni per tipo</div>
               {stats.byCode.slice(0, 6).map((b) => (
                 <div key={b.code ?? 'other'} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '7px' }}>
-                  <div style={{ fontSize: '11px', color: '#555', width: '220px', flexShrink: 0 }}>
+                  <div style={{ fontSize: '11px', color: '#555', flex: '0 1 180px', minWidth: 0 }}>
                     {b.code ? `${b.code} — ` : ''}{b.description}
                   </div>
                   <div style={{ flex: 1, height: '18px', background: '#f0f0f0', borderRadius: '4px', overflow: 'hidden' }}>
