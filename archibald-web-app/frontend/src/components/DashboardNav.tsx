@@ -210,12 +210,12 @@ export function DashboardNav() {
           }}
         >
           <img
-            src="/archibaldrework.png"
-            alt="Archibald Rework"
+            src="/formicaneralogo.png"
+            alt="Formicanera"
             style={{
-              height: "40px",
-              width: "auto",
-              maxWidth: "200px",
+              height: "44px",
+              width: "44px",
+              objectFit: "contain",
             }}
           />
         </Link>
