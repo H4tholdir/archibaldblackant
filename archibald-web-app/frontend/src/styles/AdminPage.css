@@ -142,3 +142,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 640px) {
+  .admin-section {
+    padding: 1rem;
+    border-radius: 8px;
+  }
+
+  .admin-section h2 {
+    font-size: 1.2rem;
+  }
+}

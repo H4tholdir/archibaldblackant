@@ -327,7 +327,7 @@ export default function SyncMonitoringDashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))",
           gap: "12px",
           marginBottom: "24px",
         }}
@@ -367,7 +367,7 @@ export default function SyncMonitoringDashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(460px, 100%), 1fr))",
           gap: "16px",
           marginBottom: "24px",
         }}

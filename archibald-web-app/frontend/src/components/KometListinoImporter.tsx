@@ -67,6 +67,7 @@ export function KometListinoImporter() {
             Listino 2026 vendita e acquisto.xlsx
           </code>
         </div>
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
           <thead>
             <tr style={{ background: '#dbeafe' }}>
@@ -93,6 +94,7 @@ export function KometListinoImporter() {
             ))}
           </tbody>
         </table>
+        </div>
         <div style={{ color: '#4b5563', lineHeight: '1.6' }}>
           <div>
             • Sconto Fresis calcolato automaticamente:{' '}
@@ -177,7 +179,7 @@ export function KometListinoImporter() {
                 {showUnmatched ? '▲ Nascondi' : '▼ Mostra'} articoli non abbinati ({result.unmatchedProducts.length})
               </button>
               {showUnmatched && (
-                <div style={{ marginTop: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ marginTop: '0.5rem', maxHeight: '200px', overflowY: 'auto', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
                     <thead>
                       <tr style={{ background: '#f3f4f6' }}>

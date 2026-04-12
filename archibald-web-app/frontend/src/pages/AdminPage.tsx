@@ -1103,7 +1103,8 @@ export function AdminPage(_props: AdminPageProps) {
                   borderRadius: "6px",
                   border: "1px solid #ddd",
                   fontSize: "14px",
-                  minWidth: "240px",
+                  flex: 1,
+                  minWidth: 0,
                 }}
               />
               <select

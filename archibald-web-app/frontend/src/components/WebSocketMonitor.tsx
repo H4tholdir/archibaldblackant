@@ -170,7 +170,7 @@ export default function WebSocketMonitor() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))",
             gap: "16px",
             marginBottom: "20px",
           }}
