@@ -55,6 +55,10 @@ vi.mock('../utils/customer-completeness', () => ({
 vi.mock('../contexts/WebSocketContext', () => ({
   useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}) }),
 }));
+vi.mock('../hooks/usePromotions', () => ({
+  usePromotions: () => ({ activePromotions: [], loading: false, triggeredFor: () => [] }),
+  invalidatePromotionsCache: vi.fn(),
+}));
 
 const INCOMPLETE_RICH_CUSTOMER = {
   erpId: 'CUST-001',

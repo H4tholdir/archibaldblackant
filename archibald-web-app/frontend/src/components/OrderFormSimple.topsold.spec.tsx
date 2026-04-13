@@ -58,6 +58,10 @@ vi.mock('../services/sub-client-matches.service', () => ({
   removeSubClientMatch: vi.fn().mockResolvedValue(undefined),
   upsertSkipModal: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('../hooks/usePromotions', () => ({
+  usePromotions: () => ({ activePromotions: [], loading: false, triggeredFor: () => [] }),
+  invalidatePromotionsCache: vi.fn(),
+}));
 
 import OrderFormSimple from './OrderFormSimple';
 import { getCustomerFullHistory } from '../api/customer-full-history';

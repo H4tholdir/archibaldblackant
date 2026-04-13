@@ -9,6 +9,11 @@ const KNOWN_MODULES: Array<{ name: string; label: string; description: string }>
     label: '🚦 Semaforo Sconto',
     description: 'Mostra un banner colorato durante la creazione ordine con lo stato dello sconto effettivo documento.',
   },
+  {
+    name: 'promotion-advisor',
+    label: '🏷️ Promotion Advisor',
+    description: "Mostra banner con promozioni Komet attive nel form ordine quando l'agente inserisce un articolo corrispondente.",
+  },
 ];
 
 const ALL_ROLES: UserRole[] = ['agent', 'admin', 'ufficio', 'concessionario'];

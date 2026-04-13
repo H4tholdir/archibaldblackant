@@ -10,6 +10,7 @@ import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
 import { KometListinoImporter } from "../components/KometListinoImporter";
 import { FedExReportSection } from "../components/admin/FedExReportSection";
 import { AdminModulesSection } from "../components/admin/AdminModulesSection";
+import { PromotionsAdminSection } from "../components/admin/PromotionsAdminSection";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
@@ -1070,6 +1071,11 @@ export function AdminPage(_props: AdminPageProps) {
 
         <section className="admin-section">
           <KometListinoImporter />
+        </section>
+
+        {/* Sezione Gestione Promozioni */}
+        <section style={{ marginTop: '2rem' }}>
+          <PromotionsAdminSection />
         </section>
 
         {/* Sezione Gestione Moduli */}

@@ -57,6 +57,10 @@ vi.mock('../contexts/WebSocketContext', () => ({
 vi.mock('../services/customer-addresses', () => ({
   getCustomerAddresses: vi.fn(),
 }));
+vi.mock('../hooks/usePromotions', () => ({
+  usePromotions: () => ({ activePromotions: [], loading: false, triggeredFor: () => [] }),
+  invalidatePromotionsCache: vi.fn(),
+}));
 
 const CUSTOMER = {
   id: 'CUST-ADDR-001',
