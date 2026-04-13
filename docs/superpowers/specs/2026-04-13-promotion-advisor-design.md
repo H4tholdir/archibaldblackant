@@ -115,7 +115,9 @@ GET    /api/promotions/:id/pdf      → serve PDF (tutti gli agenti autenticati)
 
 `GET /api/promotions/active` filtra: `is_active = true AND valid_from <= today AND valid_to >= today`.
 
-Il PDF viene salvato in storage (Hetzner S3 se disponibile, altrimenti directory locale `uploads/promotions/`). `pdf_key` è la chiave di storage.
+Il PDF viene salvato nella directory locale del backend sul VPS: `uploads/promotions/<uuid>.pdf`. `pdf_key` è il nome del file (es. `"<uuid>.pdf"`). Il backend serve il file tramite `GET /api/promotions/:id/pdf`.
+
+Quando una promozione viene eliminata (`DELETE /api/promotions/:id`), il backend cancella anche il file PDF corrispondente dal filesystem prima di rimuovere il record dal DB.
 
 ---
 
