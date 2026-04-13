@@ -115,10 +115,13 @@ export function PromotionsAdminSection() {
   }
 
   async function handleDelete(id: string) {
-    await deletePromotion(id)
-    invalidatePromotionsCache()
-    setConfirmDeleteId(null)
-    await reload()
+    try {
+      await deletePromotion(id)
+      invalidatePromotionsCache()
+      await reload()
+    } finally {
+      setConfirmDeleteId(null)
+    }
   }
 
   function addExactTrigger() {
