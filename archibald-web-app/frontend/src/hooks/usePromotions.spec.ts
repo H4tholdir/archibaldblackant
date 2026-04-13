@@ -27,7 +27,7 @@ describe('usePromotions', () => {
     vi.mocked(api.fetchActivePromotions).mockResolvedValue([makePromo()])
     const { result } = renderHook(() => usePromotions())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.activePromotions).toHaveLength(1)
+    expect(result.current.activePromotions).toEqual([makePromo()])
   })
 
   test('triggeredFor ritorna le promo che matchano gli articoli', async () => {
@@ -39,8 +39,7 @@ describe('usePromotions', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     const matchingIds = result.current.triggeredFor(['CERC.314.014', 'H100.104.012']).map(p => p.id)
-    expect(matchingIds).toContain('p1')
-    expect(matchingIds).toContain('p2')
+    expect(matchingIds).toEqual(['p1', 'p2'])
   })
 
   test('triggeredFor non include promo senza match', async () => {
@@ -50,6 +49,6 @@ describe('usePromotions', () => {
     const { result } = renderHook(() => usePromotions())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    expect(result.current.triggeredFor(['CERC.314.014'])).toHaveLength(0)
+    expect(result.current.triggeredFor(['CERC.314.014'])).toEqual([])
   })
 })
