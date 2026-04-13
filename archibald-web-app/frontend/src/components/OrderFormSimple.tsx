@@ -50,6 +50,8 @@ import { GhostArticleModal } from './GhostArticleModal';
 import { useModules } from '../hooks/useModules';
 import { calculateEffectiveDiscount } from './new-order-form/DiscountTrafficLight';
 import { DiscountTrafficLight } from './new-order-form/DiscountTrafficLight.tsx';
+import { PromotionAdvisor } from './new-order-form/PromotionAdvisor';
+import { usePromotions } from '../hooks/usePromotions';
 
 interface OrderItem {
   id: string;
@@ -343,6 +345,13 @@ export default function OrderFormSimple() {
     if (!customerHistoryCache) return new Map();
     return new Map(items.map(item => [item.id, findLastPurchase(customerHistoryCache, item.productName)]));
   }, [customerHistoryCache, items]);
+
+  const { triggeredFor } = usePromotions();
+
+  const triggeredPromotions = useMemo(
+    () => triggeredFor(items.map(item => item.id)),
+    [items, triggeredFor]
+  );
 
   // Reset activeMatchLevel when no product is selected
   useEffect(() => {
@@ -4684,6 +4693,11 @@ export default function OrderFormSimple() {
               />
             </div>
           </div>
+
+          {/* Promotion Advisor */}
+          {hasModule('promotion-advisor') && triggeredPromotions.length > 0 && (
+            <PromotionAdvisor promotions={triggeredPromotions} isMobile={isMobile} />
+          )}
 
           {/* Discount Traffic Light — modulo condizionale */}
           {hasModule('discount-traffic-light') && items.length > 0 && (
