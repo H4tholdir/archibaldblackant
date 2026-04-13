@@ -54,6 +54,9 @@ import * as notificationsRepo from './db/repositories/notifications';
 import { createRemindersRouter } from './routes/reminders';
 import { createCustomerRemindersRouter } from './routes/customer-reminders';
 import { createTrackingRouter } from './routes/tracking';
+import { createPromotionsRouter } from './routes/promotions.router';
+import path from 'path';
+import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
@@ -165,6 +168,9 @@ function createApp(deps: AppDeps): Express {
     passwordCache, pdfStore, generateJWT, verifyToken,
     sendEmail, uploadToDropbox,
   } = deps;
+
+  const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
+  mkdirSync(PROMOTIONS_UPLOAD_DIR, { recursive: true });
 
   const authenticate = createAuthMiddleware(pool, deps.redis);
 
@@ -1090,6 +1096,11 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/tracking', authenticate, createTrackingRouter({ pool }));
+
+  app.use('/api/promotions', authenticate, createPromotionsRouter({
+    pool,
+    uploadDir: PROMOTIONS_UPLOAD_DIR,
+  }));
 
   if (deps.catalogVisionService && deps.embeddingSvc) {
     const recognitionRouter = createRecognitionRouter({
