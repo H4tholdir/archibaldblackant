@@ -5,6 +5,7 @@ import { promises as fs } from 'fs'
 import { randomUUID } from 'crypto'
 import type { DbPool } from '../db/pool'
 import type { Request, Response } from 'express'
+import { requireAdmin } from '../middleware/auth'
 import {
   getAllPromotions, getActivePromotions, getPromotionById,
   createPromotion, updatePromotion, deletePromotion,
@@ -13,15 +14,6 @@ import {
 export type PromotionsRouterDeps = {
   pool: DbPool
   uploadDir: string
-}
-
-function requireAdmin(req: Request, res: Response, next: import('express').NextFunction): void {
-  const user = (req as any).user
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ error: 'Admin only' })
-    return
-  }
-  next()
 }
 
 export function createPromotionsRouter({ pool, uploadDir }: PromotionsRouterDeps): Router {
@@ -102,7 +94,12 @@ export function createPromotionsRouter({ pool, uploadDir }: PromotionsRouterDeps
   })
 
   // POST /api/promotions/:id/pdf — solo admin
-  router.post('/:id/pdf', requireAdmin, upload.single('pdf'), async (req, res) => {
+  router.post('/:id/pdf', requireAdmin, (req: Request, res: Response, next) => {
+    upload.single('pdf')(req, res, (err) => {
+      if (err) { res.status(400).json({ error: err instanceof Error ? err.message : 'Upload error' }); return }
+      next()
+    })
+  }, async (req, res) => {
     if (!req.file) { res.status(400).json({ error: 'File PDF mancante' }); return }
     try {
       // Recupera promo per cancellare eventuale PDF precedente
@@ -131,7 +128,7 @@ export function createPromotionsRouter({ pool, uploadDir }: PromotionsRouterDeps
       const filePath = path.join(uploadDir, promo.pdf_key)
       res.setHeader('Content-Type', 'application/pdf')
       res.sendFile(filePath, err => {
-        if (err) res.status(404).json({ error: 'File non trovato' })
+        if (err && !res.headersSent) res.status(404).json({ error: 'File non trovato' })
       })
     } catch (e) {
       res.status(500).json({ error: 'Internal error' })

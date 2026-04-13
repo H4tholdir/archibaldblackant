@@ -58,6 +58,11 @@ import { createPromotionsRouter } from './routes/promotions.router';
 import path from 'path';
 import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
+
+const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
+if (process.env.NODE_ENV !== 'test') {
+  mkdirSync(PROMOTIONS_UPLOAD_DIR, { recursive: true });
+}
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
 import { createCustomerFullHistoryRouter } from './routes/customer-full-history';
@@ -168,9 +173,6 @@ function createApp(deps: AppDeps): Express {
     passwordCache, pdfStore, generateJWT, verifyToken,
     sendEmail, uploadToDropbox,
   } = deps;
-
-  const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
-  mkdirSync(PROMOTIONS_UPLOAD_DIR, { recursive: true });
 
   const authenticate = createAuthMiddleware(pool, deps.redis);
 

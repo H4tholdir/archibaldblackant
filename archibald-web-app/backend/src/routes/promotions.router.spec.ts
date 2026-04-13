@@ -101,9 +101,9 @@ describe('DELETE /api/promotions/:id', () => {
 })
 
 describe('requireAdmin guard', () => {
-  test('403 per richieste senza utente autenticato su route admin-only', async () => {
+  test('401 per richieste senza utente autenticato su route admin-only', async () => {
     const { app } = makeApp(null)
     const res = await request(app).get('/api/promotions')
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(401)
   })
 })
