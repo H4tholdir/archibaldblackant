@@ -41,7 +41,7 @@ export async function deletePromotion(id: string): Promise<void> {
 export async function uploadPromotionPdf(id: string, file: File): Promise<Promotion> {
   const form = new FormData()
   form.append('pdf', file)
-  const res = await fetch(`/api/promotions/${id}/pdf`, { method: 'POST', body: form })
+  const res = await fetchWithRetry(`/api/promotions/${id}/pdf`, { method: 'POST', body: form })
   if (!res.ok) throw new Error('Failed to upload PDF')
   return res.json() as Promise<Promotion>
 }
