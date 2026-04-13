@@ -23,8 +23,7 @@ describe('PromotionAdvisor', () => {
   test('mostra risparmio calcolato se prezzo presente', () => {
     render(<PromotionAdvisor promotions={[makePromo()]} isMobile={true} />)
     // 2343 - 1390 = 953, 41%
-    expect(screen.getByText(/953/)).toBeDefined()
-    expect(screen.getByText(/41%/)).toBeDefined()
+    expect(screen.getByText(/risparmio.*953.*41%/)).toBeDefined()
   })
 
   test('non mostra risparmio se promo_price o list_price mancanti', () => {
