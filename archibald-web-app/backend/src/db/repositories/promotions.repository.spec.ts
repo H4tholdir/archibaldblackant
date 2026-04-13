@@ -52,16 +52,20 @@ describe('getActivePromotions', () => {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
 
+    const dayAfterTomorrow = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
+
     const active = await createPromotion(pool, { ...baseInput, name: 'Active', validFrom: yesterday, validTo: tomorrow })
     const expired = await createPromotion(pool, { ...baseInput, name: 'Expired', validFrom: '2020-01-01', validTo: '2020-12-31' })
     const inactive = await createPromotion(pool, { ...baseInput, name: 'Inactive', validFrom: yesterday, validTo: tomorrow, isActive: false })
-    createdIds.push(active.id, expired.id, inactive.id)
+    const future = await createPromotion(pool, { ...baseInput, name: 'Future', validFrom: tomorrow, validTo: dayAfterTomorrow })
+    createdIds.push(active.id, expired.id, inactive.id, future.id)
 
     const rows = await getActivePromotions(pool)
     const ids = rows.map(r => r.id)
     expect(ids).toContain(active.id)
     expect(ids).not.toContain(expired.id)
     expect(ids).not.toContain(inactive.id)
+    expect(ids).not.toContain(future.id)
   })
 })
 
@@ -70,9 +74,14 @@ describe('updatePromotion', () => {
     const row = await createPromotion(pool, baseInput)
     createdIds.push(row.id)
     const updated = await updatePromotion(pool, row.id, { name: 'Renamed', isActive: false })
-    expect(updated?.name).toBe('Renamed')
-    expect(updated?.is_active).toBe(false)
-    expect(updated?.valid_from).toBe('2026-01-01')
+    expect(updated).toMatchObject({
+      name: 'Renamed',
+      is_active: false,
+      valid_from: '2026-01-01',
+      valid_to: '2026-12-31',
+      trigger_rules: [{ type: 'exact', value: 'CERC.314.014' }],
+      selling_points: ['Punto A', 'Punto B'],
+    })
   })
 })
 
