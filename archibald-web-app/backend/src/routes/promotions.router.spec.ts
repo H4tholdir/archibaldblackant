@@ -30,17 +30,19 @@ const mockPromo = {
   created_at: '2026-04-01T00:00:00Z', updated_at: '2026-04-01T00:00:00Z',
 }
 
-function makeApp(role: 'admin' | 'agent' = 'admin') {
+function makeApp(role: 'admin' | 'agent' | null = 'admin') {
   const deps: PromotionsRouterDeps = {
     pool: {} as any,
     uploadDir: os.tmpdir(),
   }
   const app = express()
   app.use(express.json())
-  app.use((req, _res, next) => {
-    ;(req as any).user = { userId: 'u1', username: 'u1', role }
-    next()
-  })
+  if (role !== null) {
+    app.use((req, _res, next) => {
+      ;(req as any).user = { userId: 'u1', username: 'u1', role }
+      next()
+    })
+  }
   app.use('/api/promotions', createPromotionsRouter(deps))
   return { app, deps }
 }
@@ -95,5 +97,13 @@ describe('DELETE /api/promotions/:id', () => {
     ;(deletePromotion as ReturnType<typeof vi.fn>).mockResolvedValue(null)
     const res = await request(app).delete('/api/promotions/non-existente')
     expect(res.status).toBe(404)
+  })
+})
+
+describe('requireAdmin guard', () => {
+  test('403 per richieste senza utente autenticato su route admin-only', async () => {
+    const { app } = makeApp(null)
+    const res = await request(app).get('/api/promotions')
+    expect(res.status).toBe(403)
   })
 })
