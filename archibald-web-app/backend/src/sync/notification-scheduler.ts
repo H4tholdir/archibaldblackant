@@ -44,8 +44,14 @@ async function checkCustomerInactivity(pool: DbPool, deps: NotificationServiceDe
      FROM agents.customers c
      WHERE c.deleted_at IS NULL
        AND c.last_order_date IS NOT NULL
-       AND c.last_order_date::date < CURRENT_DATE - INTERVAL '8 months'
-       AND c.last_order_date::date > CURRENT_DATE - INTERVAL '12 months'
+       AND CASE
+         WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
+         WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
+       END < CURRENT_DATE - INTERVAL '8 months'
+       AND CASE
+         WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
+         WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
+       END > CURRENT_DATE - INTERVAL '12 months'
        AND NOT EXISTS (
          SELECT 1 FROM agents.notifications n
          WHERE n.user_id = c.user_id
@@ -56,7 +62,10 @@ async function checkCustomerInactivity(pool: DbPool, deps: NotificationServiceDe
   );
 
   for (const row of rows) {
-    const expiryDate = new Date(row.last_order_date);
+    const parts = row.last_order_date.split('/');
+    const expiryDate = parts.length === 3
+      ? new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
+      : new Date(row.last_order_date);
     expiryDate.setMonth(expiryDate.getMonth() + 12);
     const monthsLeft = Math.max(0, Math.round((expiryDate.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)));
     const monthsLabel = monthsLeft === 1 ? 'mese' : 'mesi';

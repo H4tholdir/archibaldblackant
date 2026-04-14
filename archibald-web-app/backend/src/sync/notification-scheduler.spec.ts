@@ -18,7 +18,7 @@ function makeDeps(pool: DbPool): NotificationServiceDeps {
 
 describe('checkCustomerInactivity', () => {
   test('creates a warning notification for each inactive customer returned by the query', async () => {
-    const customer = { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' };
+    const customer = { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '01/06/2025' };
     const pool = makePool([customer]);
     const deps = makeDeps(pool);
 
@@ -39,8 +39,8 @@ describe('checkCustomerInactivity', () => {
 
   test('creates one notification per inactive customer', async () => {
     const customers = [
-      { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '2025-06-01' },
-      { erp_id: 'CP002', user_id: 'U2', name: 'Luigi Bianchi', last_order_date: '2025-05-15' },
+      { erp_id: 'CP001', user_id: 'U1', name: 'Mario Rossi', last_order_date: '01/06/2025' },
+      { erp_id: 'CP002', user_id: 'U2', name: 'Luigi Bianchi', last_order_date: '15/05/2025' },
     ];
     const pool = makePool(customers);
     const deps = makeDeps(pool);
