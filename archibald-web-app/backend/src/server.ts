@@ -61,7 +61,11 @@ import { createBonusesRouter } from './routes/bonuses';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
-  mkdirSync(PROMOTIONS_UPLOAD_DIR, { recursive: true });
+  try {
+    mkdirSync(PROMOTIONS_UPLOAD_DIR, { recursive: true });
+  } catch {
+    // Directory creation handled by docker-entrypoint.sh in production
+  }
 }
 import * as specialBonusesRepo from './db/repositories/special-bonuses';
 import * as bonusConditionsRepo from './db/repositories/bonus-conditions';
