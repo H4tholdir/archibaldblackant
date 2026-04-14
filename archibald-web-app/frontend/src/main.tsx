@@ -5,11 +5,12 @@ import "./index.css";
 import { registerSW } from "virtual:pwa-register";
 import { jwtRefreshService } from "./services/jwt-refresh-service";
 
-const updateSW = registerSW({
+registerSW({
   immediate: true,
   onNeedRefresh() {
-    console.log("[PWA] New content available, reloading...");
-    updateSW(true);
+    console.log("[PWA] New content available — will apply on next manual reload");
+    // Don't auto-reload: forced reload cancels in-flight API requests,
+    // causing workbox NetworkOnly to return synthetic 503 responses.
   },
   onOfflineReady() {
     console.log("[PWA] App ready to work offline");
