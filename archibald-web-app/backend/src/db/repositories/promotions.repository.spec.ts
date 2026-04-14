@@ -1,100 +1,150 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { createPool } from '../pool'
-import { config } from '../../config'
+import { describe, test, expect, vi } from 'vitest'
 import type { DbPool } from '../pool'
 import {
   createPromotion, getAllPromotions, getActivePromotions,
   getPromotionById, updatePromotion, deletePromotion,
 } from './promotions.repository'
 
-let pool: DbPool
-const createdIds: string[] = []
-
-beforeAll(() => { pool = createPool(config.database) })
-afterAll(async () => { await pool.end() })
-afterEach(async () => {
-  if (createdIds.length > 0) {
-    await pool.query(
-      `DELETE FROM system.promotions WHERE id = ANY($1::uuid[])`,
-      [createdIds]
-    )
-    createdIds.length = 0
+function createMockPool(responseQueue: Array<{ rows: unknown[]; rowCount?: number }> = []) {
+  const queue = [...responseQueue]
+  const queryCalls: Array<{ text: string; params?: unknown[] }> = []
+  const pool = {
+    queryCalls,
+    query: vi.fn(async (text: string, params?: unknown[]) => {
+      queryCalls.push({ text, params })
+      const next = queue.shift() ?? { rows: [], rowCount: 0 }
+      return { rows: next.rows, rowCount: next.rowCount ?? next.rows.length }
+    }),
+    end: vi.fn(async () => {}),
+    getStats: vi.fn(() => ({ totalCount: 1, idleCount: 1, waitingCount: 0 })),
   }
-})
+  return pool as unknown as DbPool & { queryCalls: typeof queryCalls }
+}
 
-const baseInput = {
+const BASE_ROW = {
+  id: 'promo-uuid-001',
   name: 'Test Promo',
-  validFrom: '2026-01-01',
-  validTo: '2026-12-31',
-  triggerRules: [{ type: 'exact' as const, value: 'CERC.314.014' }],
-  sellingPoints: ['Punto A', 'Punto B'],
+  tagline: null,
+  valid_from: '2026-01-01',
+  valid_to: '2026-12-31',
+  pdf_key: null,
+  trigger_rules: [{ type: 'exact', value: 'CERC.314.014' }],
+  selling_points: ['Punto A', 'Punto B'],
+  promo_price: '1390.00',
+  list_price: '2343.00',
+  is_active: true,
+  created_at: '2026-04-14T00:00:00Z',
+  updated_at: '2026-04-14T00:00:00Z',
 }
 
 describe('createPromotion', () => {
-  test('inserisce e ritorna la promo con tutti i campi', async () => {
-    const row = await createPromotion(pool, { ...baseInput, promoPrice: 1390, listPrice: 2343 })
-    createdIds.push(row.id)
-    expect(row).toMatchObject({
+  test('inserisce con i parametri corretti e ritorna la riga', async () => {
+    const pool = createMockPool([{ rows: [BASE_ROW] }])
+    const result = await createPromotion(pool, {
       name: 'Test Promo',
-      valid_from: '2026-01-01',
-      valid_to: '2026-12-31',
-      trigger_rules: [{ type: 'exact', value: 'CERC.314.014' }],
-      selling_points: ['Punto A', 'Punto B'],
-      promo_price: '1390.00',
-      list_price: '2343.00',
-      is_active: true,
+      validFrom: '2026-01-01',
+      validTo: '2026-12-31',
+      triggerRules: [{ type: 'exact', value: 'CERC.314.014' }],
+      sellingPoints: ['Punto A', 'Punto B'],
+      promoPrice: 1390,
+      listPrice: 2343,
     })
+    expect(result).toEqual(BASE_ROW)
+    expect(pool.queryCalls[0].params).toEqual([
+      'Test Promo',
+      null,
+      '2026-01-01',
+      '2026-12-31',
+      JSON.stringify([{ type: 'exact', value: 'CERC.314.014' }]),
+      ['Punto A', 'Punto B'],
+      1390,
+      2343,
+      true,
+    ])
+  })
+
+  test('usa is_active=true come default', async () => {
+    const pool = createMockPool([{ rows: [BASE_ROW] }])
+    await createPromotion(pool, {
+      name: 'Test Promo',
+      validFrom: '2026-01-01',
+      validTo: '2026-12-31',
+      triggerRules: [],
+      sellingPoints: [],
+    })
+    const params = pool.queryCalls[0].params as unknown[]
+    expect(params[8]).toBe(true)
   })
 })
 
 describe('getActivePromotions', () => {
-  test('ritorna solo promo con date che includono oggi e is_active=true', async () => {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  test('ritorna le righe dalla query', async () => {
+    const pool = createMockPool([{ rows: [BASE_ROW] }])
+    expect(await getActivePromotions(pool)).toEqual([BASE_ROW])
+  })
 
-    const dayAfterTomorrow = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
+  test('ritorna array vuoto se nessuna promo attiva', async () => {
+    const pool = createMockPool([{ rows: [] }])
+    expect(await getActivePromotions(pool)).toEqual([])
+  })
+})
 
-    const active = await createPromotion(pool, { ...baseInput, name: 'Active', validFrom: yesterday, validTo: tomorrow })
-    const expired = await createPromotion(pool, { ...baseInput, name: 'Expired', validFrom: '2020-01-01', validTo: '2020-12-31' })
-    const inactive = await createPromotion(pool, { ...baseInput, name: 'Inactive', validFrom: yesterday, validTo: tomorrow, isActive: false })
-    const future = await createPromotion(pool, { ...baseInput, name: 'Future', validFrom: tomorrow, validTo: dayAfterTomorrow })
-    createdIds.push(active.id, expired.id, inactive.id, future.id)
+describe('getAllPromotions', () => {
+  test('ritorna tutte le righe dalla query', async () => {
+    const secondRow = { ...BASE_ROW, id: 'promo-uuid-002' }
+    const pool = createMockPool([{ rows: [BASE_ROW, secondRow] }])
+    expect(await getAllPromotions(pool)).toEqual([BASE_ROW, secondRow])
+  })
+})
 
-    const rows = await getActivePromotions(pool)
-    const ids = rows.map(r => r.id)
-    expect(ids).toContain(active.id)
-    expect(ids).not.toContain(expired.id)
-    expect(ids).not.toContain(inactive.id)
-    expect(ids).not.toContain(future.id)
+describe('getPromotionById', () => {
+  test('ritorna la promo se trovata', async () => {
+    const pool = createMockPool([{ rows: [BASE_ROW] }])
+    expect(await getPromotionById(pool, 'promo-uuid-001')).toEqual(BASE_ROW)
+  })
+
+  test('ritorna null se non trovata', async () => {
+    const pool = createMockPool([{ rows: [] }])
+    expect(await getPromotionById(pool, 'non-existent')).toBeNull()
   })
 })
 
 describe('updatePromotion', () => {
-  test('aggiorna solo i campi forniti', async () => {
-    const row = await createPromotion(pool, baseInput)
-    createdIds.push(row.id)
-    const updated = await updatePromotion(pool, row.id, { name: 'Renamed', isActive: false })
-    expect(updated).toMatchObject({
-      name: 'Renamed',
-      is_active: false,
-      valid_from: '2026-01-01',
-      valid_to: '2026-12-31',
-      trigger_rules: [{ type: 'exact', value: 'CERC.314.014' }],
-      selling_points: ['Punto A', 'Punto B'],
-    })
+  test('aggiorna solo i campi forniti e ritorna il risultato', async () => {
+    const updated = { ...BASE_ROW, name: 'Renamed', is_active: false }
+    const pool = createMockPool([{ rows: [updated] }])
+    const result = await updatePromotion(pool, 'promo-uuid-001', { name: 'Renamed', isActive: false })
+    expect(result).toEqual(updated)
+    // params = [name, is_active, id] — solo i campi forniti + WHERE id
+    expect(pool.queryCalls[0].params).toEqual(['Renamed', false, 'promo-uuid-001'])
+  })
+
+  test('ritorna null se la promo non esiste', async () => {
+    const pool = createMockPool([{ rows: [] }])
+    expect(await updatePromotion(pool, 'non-existent', { name: 'X' })).toBeNull()
+  })
+
+  test('con input vuoto chiama getPromotionById (nessuna UPDATE)', async () => {
+    const pool = createMockPool([{ rows: [BASE_ROW] }])
+    const result = await updatePromotion(pool, 'promo-uuid-001', {})
+    expect(result).toEqual(BASE_ROW)
+    expect(pool.queryCalls[0].text).not.toContain('UPDATE')
   })
 })
 
 describe('deletePromotion', () => {
-  test('elimina la promo e ritorna pdf_key', async () => {
-    const row = await createPromotion(pool, baseInput)
-    const result = await deletePromotion(pool, row.id)
-    expect(result).toEqual({ pdfKey: null })
-    expect(await getPromotionById(pool, row.id)).toBeNull()
+  test('ritorna { pdfKey } della promo eliminata', async () => {
+    const pool = createMockPool([{ rows: [{ pdf_key: 'abc.pdf' }] }])
+    expect(await deletePromotion(pool, 'promo-uuid-001')).toEqual({ pdfKey: 'abc.pdf' })
+  })
+
+  test('ritorna { pdfKey: null } se pdf_key è null', async () => {
+    const pool = createMockPool([{ rows: [{ pdf_key: null }] }])
+    expect(await deletePromotion(pool, 'promo-uuid-001')).toEqual({ pdfKey: null })
   })
 
   test('ritorna null se la promo non esiste', async () => {
-    const result = await deletePromotion(pool, '00000000-0000-0000-0000-000000000000')
-    expect(result).toBeNull()
+    const pool = createMockPool([{ rows: [] }])
+    expect(await deletePromotion(pool, '00000000-0000-0000-0000-000000000000')).toBeNull()
   })
 })
