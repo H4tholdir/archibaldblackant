@@ -145,7 +145,7 @@ function NotificationsPage() {
   ];
 
   const visible = activeTab === 'all'
-    ? notifications
+    ? notifications.filter(n => getCategory(n.type) !== 'sync')
     : notifications.filter(n => getCategory(n.type) === activeTab);
 
   const handleDeleteAllRead = () => {
@@ -215,7 +215,17 @@ function NotificationsPage() {
       ) : (
         <>
           <div style={{ background: '#1e293b', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: 20 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: 'auto' }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 70 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th style={{ ...TH_STYLE, width: 20 }} />
@@ -258,14 +268,18 @@ function NotificationsPage() {
                           {meta.tag}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 10px', fontSize: 13, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '12px 10px', fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {meta.ordine}
                       </td>
                       <td style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
-                        {meta.cliente}
+                        <div style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.4 }}>
+                          {meta.cliente}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5 }}>
-                        {meta.dettaglio}
+                        <div style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', lineHeight: 1.4 }}>
+                          {meta.dettaglio}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 10px' }}>
                         {meta.codice && (

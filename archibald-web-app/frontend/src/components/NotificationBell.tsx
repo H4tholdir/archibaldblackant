@@ -144,7 +144,7 @@ function NotificationBell() {
   ];
 
   const filtered = (activeTab === 'all'
-    ? notifications
+    ? notifications.filter(n => getCategory(n.type) !== 'sync')
     : notifications.filter(n => getCategory(n.type) === activeTab)
   ).slice(0, 5);
 
