@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Promotion } from '../../types/promotion'
 import { calcSavings } from '../../types/promotion'
-import { getPromotionPdfUrl } from '../../api/promotions.api'
+import { downloadPromotionPdf } from '../../api/promotions.api'
 
 type Props = {
   promotions: Promotion[]
@@ -20,7 +20,6 @@ function PromoBanner({ promo, color, onDismiss }: {
   onDismiss: () => void
 }) {
   const savings = calcSavings(promo)
-  const pdfUrl = promo.pdf_key ? getPromotionPdfUrl(promo.id) : null
 
   return (
     <div style={{
@@ -74,9 +73,9 @@ function PromoBanner({ promo, color, onDismiss }: {
                 risparmio {savings.savings.toLocaleString('it-IT')}€ ({savings.savingsPct}%)
               </span>
             )}
-            {pdfUrl && (
+            {promo.pdf_key && (
               <button
-                onClick={() => window.open(pdfUrl, '_blank')}
+                onClick={() => void downloadPromotionPdf(promo.id)}
                 style={{
                   background: 'transparent', border: `1px solid ${color.border}`,
                   color: color.text, borderRadius: 6, padding: '3px 10px',

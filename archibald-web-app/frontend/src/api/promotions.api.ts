@@ -49,3 +49,15 @@ export async function uploadPromotionPdf(id: string, file: File): Promise<Promot
 export function getPromotionPdfUrl(id: string): string {
   return `/api/promotions/${id}/pdf`
 }
+
+export async function downloadPromotionPdf(id: string): Promise<void> {
+  const token = localStorage.getItem('archibald_jwt')
+  const res = await fetch(`/api/promotions/${id}/pdf`, {
+    headers: { Authorization: `Bearer ${token ?? ''}` },
+  })
+  if (!res.ok) return
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}

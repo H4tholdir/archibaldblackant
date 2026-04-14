@@ -349,7 +349,7 @@ export default function OrderFormSimple() {
   const { triggeredFor } = usePromotions();
 
   const triggeredPromotions = useMemo(
-    () => triggeredFor(items.map(item => item.id)),
+    () => triggeredFor(items.map(item => item.productName)),
     [items, triggeredFor]
   );
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Promotion, TriggerRule, CreatePromotionPayload } from '../../types/promotion'
 import {
   fetchAllPromotions, createPromotion, updatePromotion,
-  deletePromotion, uploadPromotionPdf, getPromotionPdfUrl,
+  deletePromotion, uploadPromotionPdf, downloadPromotionPdf,
 } from '../../api/promotions.api'
 import { invalidatePromotionsCache } from '../../hooks/usePromotions'
 
@@ -216,7 +216,7 @@ export function PromotionsAdminSection() {
               <div style={{ display: 'flex', gap: '0.375rem' }}>
                 {p.pdf_key && (
                   <button
-                    onClick={() => window.open(getPromotionPdfUrl(p.id), '_blank')}
+                    onClick={() => void downloadPromotionPdf(p.id)}
                     style={{ background: '#fff', border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
                   >📄</button>
                 )}
