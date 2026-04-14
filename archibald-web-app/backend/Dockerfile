@@ -35,6 +35,7 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     poppler-utils \
+    ghostscript \
     su-exec
 
 # Install Python PDF parsing library

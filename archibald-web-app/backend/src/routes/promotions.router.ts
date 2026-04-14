@@ -10,6 +10,7 @@ import {
   getAllPromotions, getActivePromotions, getPromotionById,
   createPromotion, updatePromotion, deletePromotion,
 } from '../db/repositories/promotions.repository'
+import { compressPdf } from '../utils/compress-pdf'
 
 export type PromotionsRouterDeps = {
   pool: DbPool
@@ -112,6 +113,7 @@ export function createPromotionsRouter({ pool, uploadDir }: PromotionsRouterDeps
       if (existing.pdf_key) {
         await fs.unlink(path.join(uploadDir, existing.pdf_key)).catch(() => {})
       }
+      await compressPdf(req.file.path)
       const row = await updatePromotion(pool, req.params.id, { pdfKey: req.file.filename })
       res.json(row)
     } catch (e) {
