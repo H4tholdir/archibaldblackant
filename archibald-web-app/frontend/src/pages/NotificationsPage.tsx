@@ -304,20 +304,22 @@ function NotificationsPage() {
                           >
                             → Vai
                           </button>
-                          {!isUnread && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); markUnread(n.id); }}
-                              title="Segna come non letta"
-                              style={{
-                                fontSize: 13, padding: '5px 8px',
-                                background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)',
-                                border: 'none', borderRadius: 6,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              ↩
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isUnread) markRead(n.id); else markUnread(n.id);
+                            }}
+                            title={isUnread ? 'Segna come letta' : 'Segna come non letta'}
+                            style={{
+                              fontSize: 13, padding: '5px 8px',
+                              background: 'rgba(255,255,255,0.08)',
+                              color: isUnread ? 'rgba(255,255,255,0.35)' : '#f59e0b',
+                              border: 'none', borderRadius: 6,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {isUnread ? '✓' : '↩'}
+                          </button>
                         </div>
                       </td>
                     </tr>
