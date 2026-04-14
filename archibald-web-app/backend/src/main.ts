@@ -850,15 +850,18 @@ async function bootstrap(): Promise<void> {
       (userId) => ({
         downloadCustomersPdf: async () => {
           const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-          }
+          const attemptDownload = async () => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+            let contextHealthy = false;
+            try {
+              const result = await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
+              contextHealthy = true;
+              return result;
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+            }
+          };
+          return retryOnSessionExpired(attemptDownload);
         },
       }),
       async (deletedInfos) => {
