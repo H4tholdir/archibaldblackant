@@ -51,6 +51,7 @@ services:
       - ./logs:/app/logs  # Persist logs
       - product-images:/app/assets/product-images
       - recognition-images:/app/data/recognition-images
+      - promotion-uploads:/app/uploads/promotions
       - ./catalog:/app/catalog:ro
       - /home/deploy/komet-campionari:/app/komet-campionari:ro
     depends_on:
@@ -128,6 +129,7 @@ volumes:
   redis-data:
   product-images:
   recognition-images:
+  promotion-uploads:
 
 networks:
   archibald-net:

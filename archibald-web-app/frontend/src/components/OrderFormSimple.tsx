@@ -348,10 +348,11 @@ export default function OrderFormSimple() {
 
   const { triggeredFor } = usePromotions();
 
-  const triggeredPromotions = useMemo(
-    () => triggeredFor(items.map(item => item.productName)),
-    [items, triggeredFor]
-  );
+  const triggeredPromotions = useMemo(() => {
+    const names = items.map(item => item.productName)
+    if (selectedProduct?.name) names.push(selectedProduct.name)
+    return triggeredFor(names)
+  }, [items, triggeredFor, selectedProduct]);
 
   // Reset activeMatchLevel when no product is selected
   useEffect(() => {
