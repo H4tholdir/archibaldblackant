@@ -35,10 +35,11 @@ export type CreatePromotionPayload = {
 export type UpdatePromotionPayload = Partial<CreatePromotionPayload>
 
 export function matchesTrigger(articleId: string, rules: TriggerRule[]): boolean {
+  const lowerArticleId = articleId.toLowerCase()
   return rules.some(rule =>
     rule.type === 'exact'
       ? articleId === rule.value
-      : articleId.includes(rule.value)
+      : lowerArticleId.includes(rule.value.toLowerCase())
   )
 }
 
