@@ -224,7 +224,7 @@ function NotificationsPage() {
                 <col style={{ width: 'auto' }} />
                 <col style={{ width: 70 }} />
                 <col style={{ width: 90 }} />
-                <col style={{ width: 70 }} />
+                <col style={{ width: 100 }} />
               </colgroup>
               <thead>
                 <tr>
