@@ -124,7 +124,7 @@ function NotificationsPage() {
   const [activeTab, setActiveTab] = useState<CategoryTab>('all');
   const {
     notifications, unreadCount,
-    markRead, markAllRead, deleteNotification, loadMore, hasMore,
+    markRead, markUnread, markAllRead, deleteNotification, loadMore, hasMore,
   } = useNotificationsContext();
 
   const fedexUnread    = notifications.filter(n => getCategory(n.type) === 'fedex'     && !n.readAt).length;
@@ -259,11 +259,11 @@ function NotificationsPage() {
                           <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#cc0066' }} />
                         )}
                       </td>
-                      <td style={{ padding: '12px 10px' }}>
+                      <td style={{ padding: '12px 10px', overflow: 'hidden' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: '3px 8px',
                           borderRadius: 5, background: meta.tagBg, color: meta.tagColor,
-                          whiteSpace: 'nowrap',
+                          display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                           {meta.tag}
                         </span>
@@ -292,17 +292,33 @@ function NotificationsPage() {
                         {formatDate(n.createdAt)}
                       </td>
                       <td style={{ padding: '12px 10px' }}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); if (isUnread) markRead(n.id); navigate(route); }}
-                          style={{
-                            fontSize: 12, padding: '5px 12px',
-                            background: '#cc0066', color: '#fff',
-                            border: 'none', borderRadius: 6,
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          → Vai
-                        </button>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (isUnread) markRead(n.id); navigate(route); }}
+                            style={{
+                              fontSize: 12, padding: '5px 12px',
+                              background: '#cc0066', color: '#fff',
+                              border: 'none', borderRadius: 6,
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                          >
+                            → Vai
+                          </button>
+                          {!isUnread && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); markUnread(n.id); }}
+                              title="Segna come non letta"
+                              style={{
+                                fontSize: 13, padding: '5px 8px',
+                                background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)',
+                                border: 'none', borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ↩
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
