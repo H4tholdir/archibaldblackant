@@ -26,13 +26,12 @@ export function calculateEffectiveDiscount(
 
   const netTotal = items.reduce((sum, item) => {
     const rowDisc = item.discount ?? 0;
-    return (
-      sum +
-      item.quantity *
-        item.unitPrice *
-        (1 - rowDisc / 100) *
-        (1 - globalDiscountPercent / 100)
-    );
+    // Se la riga ha già uno sconto esplicito (impostato da "sconto su tutte le righe",
+    // "Modifica Totale/Imponibile" o edit inline), lo usa direttamente.
+    // globalDiscountPercent è il fallback per righe aggiunte dopo l'ultima
+    // applicazione del campo globale, che hanno ancora discount = 0.
+    const effectiveDisc = rowDisc > 0 ? rowDisc : globalDiscountPercent;
+    return sum + item.quantity * item.unitPrice * (1 - effectiveDisc / 100);
   }, 0);
 
   return (1 - netTotal / listTotal) * 100;

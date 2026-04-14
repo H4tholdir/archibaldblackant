@@ -8,6 +8,7 @@ type TrafficLightState = {
   background: string;
   border: string;
   label: string;
+  glow: boolean;
 };
 
 function getState(pct: number): TrafficLightState | null {
@@ -15,27 +16,30 @@ function getState(pct: number): TrafficLightState | null {
   if (pct <= 20) {
     return {
       color: '#22c55e',
-      textColor: '#22c55e',
+      textColor: '#86efac',
       background: '#052e16',
       border: '#166534',
-      label: 'Limite sconto rispettato',
+      label: 'Range di sconto approvato',
+      glow: false,
     };
   }
   if (pct <= 25) {
     return {
       color: '#fbbf24',
-      textColor: '#fbbf24',
+      textColor: '#fde68a',
       background: '#422006',
       border: '#92400e',
-      label: 'Limite sconto critico',
+      label: 'Range di sconto critico, fai attenzione sei al limite della scontistica.',
+      glow: false,
     };
   }
   return {
     color: '#dc2626',
-    textColor: '#f87171',
+    textColor: '#fca5a5',
     background: '#450a0a',
     border: '#991b1b',
-    label: 'Limite sconto in approvazione',
+    label: "Hai superato il limite sconto, l'ordine sarà soggetto ad approvazione.",
+    glow: true,
   };
 }
 
@@ -46,39 +50,69 @@ export function DiscountTrafficLight({ effectiveDiscountPercent }: DiscountTraff
   const formatted = `${effectiveDiscountPercent.toFixed(1)}%`;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.65rem',
-        background: state.background,
-        border: `1px solid ${state.border}`,
-        borderRadius: '6px',
-        padding: '0.55rem 0.8rem',
-        marginTop: '0.5rem',
-      }}
-    >
+    <>
+      {state.glow && (
+        <style>{`
+          @keyframes arch-glow-pulse {
+            0%, 100% { box-shadow: 0 0 8px 2px rgba(220,38,38,0.35); }
+            50% { box-shadow: 0 0 22px 7px rgba(220,38,38,0.65); }
+          }
+          @keyframes arch-dot-pulse {
+            0%, 100% { box-shadow: 0 0 5px 1px rgba(220,38,38,0.55); }
+            50% { box-shadow: 0 0 14px 5px rgba(220,38,38,0.95); }
+          }
+        `}</style>
+      )}
       <div
         style={{
-          width: '12px',
-          height: '12px',
-          borderRadius: '50%',
-          background: state.color,
-          boxShadow: `0 0 6px ${state.color}`,
-          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          background: state.background,
+          border: `1.5px solid ${state.border}`,
+          borderRadius: '8px',
+          padding: '0.7rem 1rem',
+          marginTop: '0.5rem',
+          animation: state.glow ? 'arch-glow-pulse 2s ease-in-out infinite' : undefined,
         }}
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: state.textColor, fontWeight: 700, fontSize: '0.76rem', lineHeight: 1.2 }}>
-          {state.label}
+      >
+        <div
+          style={{
+            width: '13px',
+            height: '13px',
+            borderRadius: '50%',
+            background: state.color,
+            flexShrink: 0,
+            boxShadow: state.glow ? undefined : `0 0 7px ${state.color}`,
+            animation: state.glow ? 'arch-dot-pulse 2s ease-in-out infinite' : undefined,
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              color: state.textColor,
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              lineHeight: 1.35,
+              letterSpacing: '0.01em',
+            }}
+          >
+            {state.label}
+          </div>
         </div>
-        <div style={{ color: state.textColor, fontSize: '0.68rem', marginTop: '0.1rem', opacity: 0.85 }}>
-          Sconto effettivo documento: {formatted}
+        <div
+          style={{
+            color: state.textColor,
+            fontWeight: 800,
+            fontSize: '1.1rem',
+            fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {formatted}
         </div>
       </div>
-      <div style={{ color: state.textColor, fontWeight: 800, fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}>
-        {formatted}
-      </div>
-    </div>
+    </>
   );
 }
