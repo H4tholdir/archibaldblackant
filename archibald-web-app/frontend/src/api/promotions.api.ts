@@ -59,5 +59,5 @@ export async function downloadPromotionPdf(id: string): Promise<void> {
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   window.open(url, '_blank')
-  setTimeout(() => URL.revokeObjectURL(url), 10000)
+  setTimeout(() => URL.revokeObjectURL(url), 300000) // 5 min — lascia tempo a Chrome per caricare tutte le pagine
 }
