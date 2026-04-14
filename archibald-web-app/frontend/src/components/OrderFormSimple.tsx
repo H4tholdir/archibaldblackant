@@ -3266,6 +3266,8 @@ export default function OrderFormSimple() {
               2. Aggiungi Articoli
             </h2>
 
+            <div style={{ display: isMobile ? 'block' : 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
             {/* Product search */}
             <div style={{ marginBottom: "1rem" }}>
               <label
@@ -3876,6 +3878,16 @@ export default function OrderFormSimple() {
                   {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
                 </button>
               </>
+            )}
+            </div>
+            {!isMobile && hasModule('promotion-advisor') && triggeredPromotions.length > 0 && (
+              <div style={{ width: 268, flexShrink: 0 }}>
+                <PromotionAdvisor promotions={triggeredPromotions} isMobile={false} />
+              </div>
+            )}
+            </div>
+            {isMobile && hasModule('promotion-advisor') && triggeredPromotions.length > 0 && (
+              <PromotionAdvisor promotions={triggeredPromotions} isMobile={true} />
             )}
           </div>
         )}
@@ -4695,11 +4707,6 @@ export default function OrderFormSimple() {
               />
             </div>
           </div>
-
-          {/* Promotion Advisor */}
-          {hasModule('promotion-advisor') && triggeredPromotions.length > 0 && (
-            <PromotionAdvisor promotions={triggeredPromotions} isMobile={isMobile} />
-          )}
 
           {/* Discount Traffic Light — modulo condizionale */}
           {hasModule('discount-traffic-light') && items.length > 0 && (

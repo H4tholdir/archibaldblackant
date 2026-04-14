@@ -7,7 +7,7 @@ const makePromo = (overrides: Partial<Promotion> = {}): Promotion => ({
   id: 'p1', name: 'Rocky Promo', tagline: 'Il duo definitivo',
   valid_from: '2026-04-01', valid_to: '2026-06-30',
   pdf_key: 'abc.pdf', trigger_rules: [], selling_points: ['87% più veloce', '+74% taglio'],
-  promo_price: '1390.00', list_price: '2343.00',
+  promo_price: '1390.00', list_price: '2343.00', price_includes_vat: false,
   is_active: true, created_at: '', updated_at: '',
   ...overrides,
 })
@@ -20,15 +20,15 @@ describe('PromotionAdvisor', () => {
     expect(screen.getByText('+74% taglio')).toBeDefined()
   })
 
-  test('mostra risparmio calcolato se prezzo presente', () => {
+  test('mostra badge percentuale risparmio se prezzo presente', () => {
     render(<PromotionAdvisor promotions={[makePromo()]} isMobile={true} />)
     // 2343 - 1390 = 953, 41%
-    expect(screen.getByText(/risparmio.*953.*41%/)).toBeDefined()
+    expect(screen.getByText('−41%')).toBeDefined()
   })
 
-  test('non mostra risparmio se promo_price o list_price mancanti', () => {
+  test('non mostra badge risparmio se promo_price mancante', () => {
     render(<PromotionAdvisor promotions={[makePromo({ promo_price: null })]} isMobile={true} />)
-    expect(screen.queryByText(/risparmio/i)).toBeNull()
+    expect(screen.queryByText(/−\d+%/)).toBeNull()
   })
 
   test('dismiss rimuove il banner', () => {

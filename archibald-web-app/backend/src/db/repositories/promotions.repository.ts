@@ -15,6 +15,7 @@ export type PromotionRow = {
   selling_points: string[]
   promo_price: string | null
   list_price: string | null
+  price_includes_vat: boolean
   is_active: boolean
   created_at: string
   updated_at: string
@@ -25,6 +26,7 @@ const SELECT_COLS = `
   valid_from::text, valid_to::text,
   pdf_key, trigger_rules, selling_points,
   promo_price::text, list_price::text,
+  price_includes_vat,
   is_active, created_at::text, updated_at::text
 `
 
@@ -63,6 +65,7 @@ export type CreatePromotionInput = {
   sellingPoints: string[]
   promoPrice?: number | null
   listPrice?: number | null
+  priceIncludesVat?: boolean
   isActive?: boolean
 }
 
@@ -73,8 +76,8 @@ export async function createPromotion(
   const res = await pool.query<PromotionRow>(
     `INSERT INTO system.promotions
        (name, tagline, valid_from, valid_to, trigger_rules, selling_points,
-        promo_price, list_price, is_active)
-     VALUES ($1, $2, $3::date, $4::date, $5::jsonb, $6::text[], $7, $8, $9)
+        promo_price, list_price, price_includes_vat, is_active)
+     VALUES ($1, $2, $3::date, $4::date, $5::jsonb, $6::text[], $7, $8, $9, $10)
      RETURNING ${SELECT_COLS}`,
     [
       input.name,
@@ -85,6 +88,7 @@ export async function createPromotion(
       input.sellingPoints,
       input.promoPrice ?? null,
       input.listPrice ?? null,
+      input.priceIncludesVat ?? false,
       input.isActive ?? true,
     ]
   )
@@ -100,6 +104,7 @@ export type UpdatePromotionInput = {
   sellingPoints?: string[]
   promoPrice?: number | null
   listPrice?: number | null
+  priceIncludesVat?: boolean
   isActive?: boolean
   pdfKey?: string | null
 }
@@ -119,10 +124,11 @@ export async function updatePromotion(
   if (input.validTo      !== undefined) { sets.push(`valid_to = $${i++}::date`);          values.push(input.validTo) }
   if (input.triggerRules !== undefined) { sets.push(`trigger_rules = $${i++}::jsonb`);    values.push(JSON.stringify(input.triggerRules)) }
   if (input.sellingPoints !== undefined){ sets.push(`selling_points = $${i++}::text[]`);  values.push(input.sellingPoints) }
-  if (input.promoPrice   !== undefined) { sets.push(`promo_price = $${i++}`);             values.push(input.promoPrice ?? null) }
-  if (input.listPrice    !== undefined) { sets.push(`list_price = $${i++}`);              values.push(input.listPrice ?? null) }
-  if (input.isActive     !== undefined) { sets.push(`is_active = $${i++}`);               values.push(input.isActive) }
-  if (input.pdfKey       !== undefined) { sets.push(`pdf_key = $${i++}`);                 values.push(input.pdfKey ?? null) }
+  if (input.promoPrice       !== undefined) { sets.push(`promo_price = $${i++}`);           values.push(input.promoPrice ?? null) }
+  if (input.listPrice        !== undefined) { sets.push(`list_price = $${i++}`);            values.push(input.listPrice ?? null) }
+  if (input.priceIncludesVat !== undefined) { sets.push(`price_includes_vat = $${i++}`);   values.push(input.priceIncludesVat) }
+  if (input.isActive         !== undefined) { sets.push(`is_active = $${i++}`);             values.push(input.isActive) }
+  if (input.pdfKey           !== undefined) { sets.push(`pdf_key = $${i++}`);               values.push(input.pdfKey ?? null) }
 
   if (sets.length === 0) return getPromotionById(pool, id)
 

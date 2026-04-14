@@ -10,7 +10,7 @@ const makePromo = (overrides: Partial<Promotion> = {}): Promotion => ({
   id: 'p1', name: 'Rocky Promo', tagline: null,
   valid_from: '2026-04-18', valid_to: '2026-05-31',
   pdf_key: null, trigger_rules: [], selling_points: [],
-  promo_price: null, list_price: null, is_active: true,
+  promo_price: null, list_price: null, price_includes_vat: false, is_active: true,
   created_at: '2026-04-13T00:00:00Z', updated_at: '2026-04-13T00:00:00Z',
   ...overrides,
 })
@@ -29,7 +29,7 @@ describe('PromotionsAdminSection', () => {
     render(<PromotionsAdminSection />)
     await waitFor(() => expect(screen.queryByText(/caricamento/i)).toBeNull())
     fireEvent.click(screen.getByText(/nuova promozione/i))
-    expect(screen.getByLabelText(/nome promozione/i)).toBeDefined()
+    expect(screen.getByLabelText(/^nome/i)).toBeDefined()
   })
 
   test('salva una nuova promo e ricarica la lista', async () => {
@@ -42,7 +42,7 @@ describe('PromotionsAdminSection', () => {
     await waitFor(() => expect(screen.queryByText(/caricamento/i)).toBeNull())
 
     fireEvent.click(screen.getByText(/nuova promozione/i))
-    fireEvent.change(screen.getByLabelText(/nome promozione/i), { target: { value: 'Nuova Promo' } })
+    fireEvent.change(screen.getByLabelText(/^nome/i), { target: { value: 'Nuova Promo' } })
     fireEvent.change(screen.getByLabelText(/valida dal/i), { target: { value: '2026-04-18' } })
     fireEvent.change(screen.getByLabelText(/valida fino al/i), { target: { value: '2026-05-31' } })
     fireEvent.click(screen.getByText(/salva/i))

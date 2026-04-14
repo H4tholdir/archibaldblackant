@@ -12,7 +12,7 @@ const makePromo = (overrides: Partial<Promotion> = {}): Promotion => ({
   pdf_key: null,
   trigger_rules: [{ type: 'exact', value: 'CERC.314.014' }],
   selling_points: ['Punto A'],
-  promo_price: '1390.00', list_price: '2343.00',
+  promo_price: '1390.00', list_price: '2343.00', price_includes_vat: false,
   is_active: true, created_at: '', updated_at: '',
   ...overrides,
 })

@@ -32,6 +32,7 @@ const BASE_ROW = {
   selling_points: ['Punto A', 'Punto B'],
   promo_price: '1390.00',
   list_price: '2343.00',
+  price_includes_vat: false,
   is_active: true,
   created_at: '2026-04-14T00:00:00Z',
   updated_at: '2026-04-14T00:00:00Z',
@@ -59,6 +60,7 @@ describe('createPromotion', () => {
       ['Punto A', 'Punto B'],
       1390,
       2343,
+      false,
       true,
     ])
   })
@@ -73,7 +75,8 @@ describe('createPromotion', () => {
       sellingPoints: [],
     })
     const params = pool.queryCalls[0].params as unknown[]
-    expect(params[8]).toBe(true)
+    expect(params[8]).toBe(false)  // price_includes_vat default false
+    expect(params[9]).toBe(true)   // is_active default true
   })
 })
 

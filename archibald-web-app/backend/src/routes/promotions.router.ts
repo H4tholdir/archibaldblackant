@@ -55,13 +55,13 @@ export function createPromotionsRouter({ pool, uploadDir }: PromotionsRouterDeps
 
   // POST /api/promotions — solo admin
   router.post('/', requireAdmin, async (req, res) => {
-    const { name, tagline, validFrom, validTo, triggerRules, sellingPoints, promoPrice, listPrice, isActive } = req.body
+    const { name, tagline, validFrom, validTo, triggerRules, sellingPoints, promoPrice, listPrice, priceIncludesVat, isActive } = req.body
     if (!name || !validFrom || !validTo || !Array.isArray(triggerRules) || !Array.isArray(sellingPoints)) {
       res.status(400).json({ error: 'name, validFrom, validTo, triggerRules, sellingPoints sono obbligatori' })
       return
     }
     try {
-      const row = await createPromotion(pool, { name, tagline, validFrom, validTo, triggerRules, sellingPoints, promoPrice, listPrice, isActive })
+      const row = await createPromotion(pool, { name, tagline, validFrom, validTo, triggerRules, sellingPoints, promoPrice, listPrice, priceIncludesVat, isActive })
       res.status(201).json(row)
     } catch (e) {
       res.status(500).json({ error: 'Internal error' })

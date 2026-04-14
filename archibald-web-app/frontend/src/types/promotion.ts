@@ -13,6 +13,7 @@ export type Promotion = {
   selling_points: string[]
   promo_price: string | null
   list_price: string | null
+  price_includes_vat: boolean
   is_active: boolean
   created_at: string
   updated_at: string
@@ -27,6 +28,7 @@ export type CreatePromotionPayload = {
   sellingPoints: string[]
   promoPrice?: number | null
   listPrice?: number | null
+  priceIncludesVat?: boolean
   isActive?: boolean
 }
 

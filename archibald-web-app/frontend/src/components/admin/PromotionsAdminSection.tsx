@@ -15,6 +15,7 @@ type FormState = {
   sellingPoints: string[]
   promoPrice: string
   listPrice: string
+  priceIncludesVat: boolean
   isActive: boolean
   pendingPdfFile: File | null
 }
@@ -22,7 +23,7 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   name: '', tagline: '', validFrom: '', validTo: '',
   triggerRules: [], sellingPoints: [],
-  promoPrice: '', listPrice: '', isActive: true, pendingPdfFile: null,
+  promoPrice: '', listPrice: '', priceIncludesVat: false, isActive: true, pendingPdfFile: null,
 }
 
 function promoToForm(p: Promotion): FormState {
@@ -31,6 +32,7 @@ function promoToForm(p: Promotion): FormState {
     validFrom: p.valid_from, validTo: p.valid_to,
     triggerRules: p.trigger_rules, sellingPoints: p.selling_points,
     promoPrice: p.promo_price ?? '', listPrice: p.list_price ?? '',
+    priceIncludesVat: p.price_includes_vat,
     isActive: p.is_active, pendingPdfFile: null,
   }
 }
@@ -95,6 +97,7 @@ export function PromotionsAdminSection() {
         sellingPoints: form.sellingPoints,
         promoPrice: form.promoPrice ? parseFloat(form.promoPrice) : null,
         listPrice: form.listPrice ? parseFloat(form.listPrice) : null,
+        priceIncludesVat: form.priceIncludesVat,
         isActive: form.isActive,
       }
       let saved: Promotion
@@ -417,6 +420,27 @@ export function PromotionsAdminSection() {
                   ✓ Risparmio: <strong>{liveSavings.savings.toLocaleString('it-IT')}€ ({liveSavings.pct}%)</strong> — verrà mostrato nel banner
                 </div>
               )}
+              <div style={{ marginTop: '0.625rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>Prezzi:</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="priceIncludesVat"
+                    checked={!form.priceIncludesVat}
+                    onChange={() => setForm(f => ({ ...f, priceIncludesVat: false }))}
+                  />
+                  + IVA
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="priceIncludesVat"
+                    checked={form.priceIncludesVat}
+                    onChange={() => setForm(f => ({ ...f, priceIncludesVat: true }))}
+                  />
+                  IVA inclusa
+                </label>
+              </div>
             </div>
 
             {/* Attiva */}
