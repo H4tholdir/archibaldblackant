@@ -5,6 +5,16 @@ import "./index.css";
 import { registerSW } from "virtual:pwa-register";
 import { jwtRefreshService } from "./services/jwt-refresh-service";
 
+// Reload automatico quando il nuovo SW prende il controllo (skipWaiting + clientsClaim)
+if (navigator.serviceWorker) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+}
+
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {

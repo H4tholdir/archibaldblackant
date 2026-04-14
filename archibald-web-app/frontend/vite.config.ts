@@ -62,30 +62,32 @@ export default defineConfig({
             urlPattern: /\.html$/,
             handler: "NetworkOnly",
           },
-          // Stale-while-revalidate for JS bundles - serve cached immediately but update in background
+          // NetworkFirst for JS bundles - always try network first so updates are immediate
           {
             urlPattern: /\.js$/,
-            handler: "StaleWhileRevalidate",
+            handler: "NetworkFirst",
             options: {
-              cacheName: "js-cache-v1",
+              cacheName: "js-cache-v2",
+              networkTimeoutSeconds: 3,
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
             },
           },
-          // Stale-while-revalidate for CSS bundles
+          // NetworkFirst for CSS bundles
           {
             urlPattern: /\.css$/,
-            handler: "StaleWhileRevalidate",
+            handler: "NetworkFirst",
             options: {
-              cacheName: "css-cache-v1",
+              cacheName: "css-cache-v2",
+              networkTimeoutSeconds: 3,
               expiration: {
                 maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
