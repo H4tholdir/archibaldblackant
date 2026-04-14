@@ -520,10 +520,10 @@ async function updateUserModules(
 ): Promise<number> {
   const result = await pool.query<{ modules_version: number }>(
     `UPDATE agents.users
-     SET modules_granted = $1, modules_revoked = $2, modules_version = modules_version + 1
+     SET modules_granted = $1::jsonb, modules_revoked = $2::jsonb, modules_version = modules_version + 1
      WHERE id = $3
      RETURNING modules_version`,
-    [modulesGranted, modulesRevoked, userId],
+    [JSON.stringify(modulesGranted), JSON.stringify(modulesRevoked), userId],
   );
   return result.rows[0]?.modules_version ?? 0;
 }
