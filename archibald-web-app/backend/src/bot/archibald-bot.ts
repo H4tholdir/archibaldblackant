@@ -14016,7 +14016,7 @@ export class ArchibaldBot {
 
   async navigateToCustomerByErpId(erpId: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
-    const cleanId = erpId.replace(/,/g, '');
+    const cleanId = erpId.replace(/[.,]/g, '');
     logger.info("navigateToCustomerByErpId: navigating directly", { erpId: cleanId });
 
     await this.page.goto(
@@ -14947,7 +14947,7 @@ export class ArchibaldBot {
     const savedUrl = this.page.url();
     const urlMatch = savedUrl.match(/CUSTTABLE_DetailView(?:Agent)?\/(\d+)\//);
     const customerProfileId = urlMatch
-      ? urlMatch[1]
+      ? urlMatch[1].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
       : await this.getCustomerProfileId(customerData.name);
 
     logger.info("Interactive: customer created successfully", {
