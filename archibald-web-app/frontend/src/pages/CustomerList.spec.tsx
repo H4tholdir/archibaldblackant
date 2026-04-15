@@ -17,6 +17,10 @@ vi.mock('../components/CustomerCreateModal', () => ({
   CustomerCreateModal: () => <div data-testid="create-modal" />,
 }));
 
+vi.mock('../contexts/WebSocketContext', () => ({
+  useWebSocketContext: () => ({ socket: null, isConnected: false, subscribe: vi.fn().mockReturnValue(() => {}) }),
+}));
+
 const mockMyCustomers = [
   { erpId: 'A001', name: 'Rossi Mario', city: 'Napoli', phone: '081 123', lastOrderDate: '2025-12-01', createdAt: Date.now() },
   { erpId: 'B002', name: 'Bianchi Srl', city: 'Milano', phone: null, lastOrderDate: '2024-01-01', createdAt: Date.now() - 400 * 86_400_000 },

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
 import { customerService } from '../services/customers.service';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
 
 // ── Recenti ─────────────────────────────────────────────────────────────────
@@ -60,9 +61,9 @@ export function CustomerList() {
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [isCreationMinimized, setIsCreationMinimized] = useState(false);
-  const [minimizedCreationName, setMinimizedCreationName] = useState('');
+  const [pendingCreationJobId, setPendingCreationJobId] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>(getRecents());
+  const { subscribe } = useWebSocketContext();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -95,6 +96,19 @@ export function CustomerList() {
   }, []);
 
   useEffect(() => { void fetchMyCustomers(); }, [fetchMyCustomers]);
+
+  // Refresh list when customer creation job completes
+  useEffect(() => {
+    if (!pendingCreationJobId) return;
+    const jobId = pendingCreationJobId;
+    return subscribe('JOB_COMPLETED', (payload: unknown) => {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      if (p.jobId === jobId) {
+        void fetchMyCustomers();
+        setPendingCreationJobId(null);
+      }
+    });
+  }, [pendingCreationJobId, subscribe, fetchMyCustomers]);
 
   // Fetch search results
   const fetchSearch = useCallback(async () => {
@@ -304,36 +318,6 @@ export function CustomerList() {
         )}
       </div>
 
-      {isCreationMinimized && createModalOpen && (
-        <div
-          onClick={() => setIsCreationMinimized(false)}
-          style={{
-            position: 'fixed',
-            bottom: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-            background: '#1976d2',
-            color: '#fff',
-            borderRadius: 12,
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-            cursor: 'pointer',
-            minWidth: 220,
-            maxWidth: '90vw',
-          }}
-        >
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#90caf9', flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
-          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
-            {minimizedCreationName ? `Creazione ${minimizedCreationName} in corso…` : 'Creazione cliente in corso…'}
-          </span>
-          <span style={{ fontSize: 12, opacity: 0.8 }}>Tocca per riaprire</span>
-        </div>
-      )}
-
       {isMobile && (
         <button
           onClick={() => setCreateModalOpen(true)}
@@ -355,10 +339,9 @@ export function CustomerList() {
 
       <CustomerCreateModal
         isOpen={createModalOpen}
-        isMinimized={isCreationMinimized}
-        onClose={() => { setCreateModalOpen(false); setIsCreationMinimized(false); }}
-        onSaved={() => { setCreateModalOpen(false); setIsCreationMinimized(false); void fetchMyCustomers(); }}
-        onMinimize={(name) => { setIsCreationMinimized(true); setMinimizedCreationName(name); }}
+        onClose={() => setCreateModalOpen(false)}
+        onSaved={() => { setCreateModalOpen(false); void fetchMyCustomers(); }}
+        onJobDispatched={(taskId) => setPendingCreationJobId(taskId)}
       />
     </div>
   );

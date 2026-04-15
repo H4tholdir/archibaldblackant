@@ -11925,17 +11925,23 @@ export class ArchibaldBot {
   private async ensureNameFieldBeforeSave(expectedName: string): Promise<void> {
     if (!this.page) return;
 
-    const { currentValue, maxLength } = await this.page.evaluate(() => {
+    const { currentValue, maxLength, inputId } = await this.page.evaluate(() => {
       const input = document.querySelector(
         'input[id*="dviNAME"][id$="_I"]',
       ) as HTMLInputElement | null;
+      if (!input) return { currentValue: null, maxLength: 0, inputId: null };
       return {
-        currentValue: input?.value ?? null,
-        maxLength: input?.maxLength ?? 0,
+        currentValue: input.value,
+        maxLength: input.maxLength ?? 0,
+        inputId: input.id,
       };
     });
 
-    // Truncate to field's maxLength so comparison and re-type use the actual storable value
+    if (!inputId) {
+      logger.warn("NAME field not found for pre-save refill");
+      return;
+    }
+
     const effectiveExpected =
       maxLength > 0 ? expectedName.substring(0, maxLength) : expectedName;
 
@@ -11947,40 +11953,39 @@ export class ArchibaldBot {
       });
     }
 
-    // Always re-type NAME right before save to guarantee the server-side model has the
-    // latest value. Without this, rapid typing of subsequent fields (PEC, SDI, …) can
-    // race with NAME's DevExpress callback and leave the server model without NAME.
-    const inputId = await this.page.evaluate(() => {
-      const input = document.querySelector(
-        'input[id*="dviNAME"][id$="_I"]',
-      ) as HTMLInputElement | null;
-      if (!input) return null;
-      input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
-      input.select();
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      if (setter) setter.call(input, "");
-      else input.value = "";
-      // No dispatchEvent — avoids DevExpress XHR that restores the original value
-      return input.id;
-    });
+    // Focus + clear without click() — page.click() triggers DevExpress to detach and
+    // re-render the node. Use setSelectionRange atomically (same pattern as typeOrClear).
+    // No dispatchEvent to avoid the XHR that would restore the original model value.
+    await this.page.evaluate((id: string, regexSrc: string) => {
+      let el = document.getElementById(id) as HTMLInputElement | null;
+      if (!el) {
+        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input"));
+        el = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+      }
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      el.focus();
+      el.setSelectionRange(0, el.value.length);
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      if (setter) setter.call(el, "");
+      else el.value = "";
+    }, inputId, /xaf_dviNAME_Edit_I$/.source);
 
-    if (!inputId) {
-      logger.warn("NAME field not found for pre-save refill");
-      return;
-    }
-
-    await this.page.type(`#${inputId}`, effectiveExpected, { delay: 20 });
+    // Type via keyboard.type (focused element) — avoids page.type CSS-selector issues
+    // with special chars ($, .) in DevExpress IDs, and avoids the implicit re-click.
+    await this.page.keyboard.type(effectiveExpected, { delay: 5 });
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({ timeout: 5000, label: "name-prefill" });
 
-    const verifiedValue = await this.page.evaluate((id: string) => {
-      return (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
-    }, inputId);
+    // Verify with regex fallback in case DevExpress re-rendered with a new dynamic ID.
+    const verifiedValue = await this.page.evaluate((id: string, regexSrc: string) => {
+      let input = document.getElementById(id) as HTMLInputElement | null;
+      if (!input) {
+        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input"));
+        input = inputs.find((i) => new RegExp(regexSrc).test(i.id)) ?? null;
+      }
+      return input?.value ?? "";
+    }, inputId, /xaf_dviNAME_Edit_I$/.source);
 
     logger.info("NAME field pre-save re-type result", {
       expected: effectiveExpected.substring(0, 60),
@@ -14904,11 +14909,14 @@ export class ArchibaldBot {
     }
 
     // Pre-save inject: these fields cannot be reliably preserved via keyboard.type alone:
+    //   NAME: DevExpress can re-render the field mid-keystroke (partial write bug — chars
+    //         typed before re-render go to the old element; chars after go to the new one).
     //   CF/SDI: blur triggers a server XHR that resets both fields to "".
     //   STREET: DevExpress client-side callbacks can re-render the input mid-keystroke.
     //   PHONE/CELL/EMAIL/URL: subsequent XHR callbacks (CAP, NAMEALIAS) may clear them.
     // Native setter bypasses all DevExpress callbacks; all xaf_dvi inputs are serialized on save.
     await this.injectFieldsViaNativeSetter([
+      { regex: /xaf_dviNAME_Edit_I$/, value: customerData.name },
       { regex: /xaf_dviFISCALCODE_Edit_I$/, value: customerData.fiscalCode ?? "" },
       { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: customerData.sdi ?? "" },
       { regex: /xaf_dviSTREET_Edit_I$/, value: customerData.street ?? "" },

@@ -333,28 +333,22 @@ describe('typeDevExpressField', () => {
 });
 
 describe('ensureNameFieldBeforeSave', () => {
-  it('chiama page.type con il valore troncato al maxLength', async () => {
-    const page = {
-      ...makePageMock(),
-      type: vi.fn().mockResolvedValue(undefined),
-    };
-    // Prima evaluate: legge currentValue + maxLength
-    // Seconda evaluate: find+clear → restituisce inputId
-    // Terza evaluate: legge valore verificato
+  it('usa keyboard.type con il valore troncato al maxLength, senza page.type', async () => {
+    const page = makePageMock();
+    // Prima evaluate: legge currentValue + maxLength + inputId in un unico step
+    // Seconda evaluate: find+focus+clear (void)
+    // Terza evaluate: verifica il valore dopo la ri-digitazione
     page.evaluate
-      .mockResolvedValueOnce({ currentValue: 'Dr. Elio Verace Cent', maxLength: 20 })
-      .mockResolvedValueOnce('name-input-id')
+      .mockResolvedValueOnce({ currentValue: 'Dr. Elio Verace Cent', maxLength: 20, inputId: 'name-input-id' })
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce('Dr. Elio Verace Cent');
 
     const bot = makeBot(page as any);
     await (bot as any).ensureNameFieldBeforeSave('Dr. Elio Verace Centro Medico');
 
-    expect(page.type).toHaveBeenCalledOnce();
-    expect(page.type).toHaveBeenCalledWith(
-      '#name-input-id',
-      'Dr. Elio Verace Cent',
-      { delay: 20 },
-    );
+    // Deve usare keyboard.type (no page.type) per evitare click DevExpress
+    expect(page.keyboard.type).toHaveBeenCalledWith('Dr. Elio Verace Cent', { delay: 5 });
+    expect(page.keyboard.press).toHaveBeenCalledWith('Tab');
   });
 });
 

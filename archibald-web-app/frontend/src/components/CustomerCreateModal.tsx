@@ -6,12 +6,10 @@ import { DELIVERY_MODES, DEFAULT_DELIVERY_MODE } from "../data/delivery-modes";
 import { CAP_BY_CODE } from "../data/cap-list";
 import type { CapEntry } from "../data/cap-list";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
-import { waitForJobViaWebSocket } from "../api/operations";
+import { useOperationTracking } from "../contexts/OperationTrackingContext";
 
 import type { CustomerFormData, AddressEntry } from "../types/customer-form-data";
 import type { VatLookupResult } from "../types/vat-lookup-result";
-
-type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
 type WizardStep =
   | { kind: "vat" }
@@ -46,8 +44,7 @@ interface CustomerCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  onMinimize?: (name: string) => void;
-  isMinimized?: boolean;
+  onJobDispatched?: (taskId: string) => void;
   prefillName?: string;
 }
 
@@ -90,8 +87,7 @@ export function CustomerCreateModal({
   isOpen,
   onClose,
   onSaved,
-  onMinimize,
-  isMinimized = false,
+  onJobDispatched,
   prefillName,
 }: CustomerCreateModalProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>({ kind: "vat" });
@@ -125,14 +121,10 @@ export function CustomerCreateModal({
   const [paymentTermsHighlight, setPaymentTermsHighlight] = useState(0);
 
   const [saving, setSaving] = useState(false);
-  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
-  const [botError, setBotError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
   const {
     scrollFieldIntoView,
     modalOverlayKeyboardStyle,
@@ -141,7 +133,6 @@ export function CustomerCreateModal({
 
   const isMobile = window.innerWidth < 640;
   const isDesktop = window.innerWidth >= 1024;
-  const isProcessing = processingState !== "idle";
 
   // --- Ref syncs ---
   useEffect(() => {
@@ -175,11 +166,6 @@ export function CustomerCreateModal({
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setSaving(false);
-      setProcessingState("idle");
-      setTaskId(null);
-      setProgress(0);
-      setProgressLabel("");
-      setBotError(null);
       setError(null);
     } else {
       if (vatErpTimeoutRef.current) {
@@ -270,61 +256,15 @@ export function CustomerCreateModal({
     return () => unsubs.forEach((u) => u());
   }, [interactiveSessionId, subscribe]);
 
-  // --- Job progress listener ---
-  useEffect(() => {
-    if (!taskId) return;
-    let resolved = false;
-    let cancelled = false;
-
-    waitForJobViaWebSocket(taskId, {
-      subscribe,
-      maxWaitMs: 180_000,
-      skipSafetyPoll: true,
-      wsFallbackMs: Number.MAX_SAFE_INTEGER,
-      onProgress: (p, label) => {
-        if (!resolved && !cancelled) {
-          setProgress(p);
-          setProgressLabel(label ?? "Elaborazione...");
-        }
-      },
-    })
-      .then(() => {
-        if (cancelled) return;
-        resolved = true;
-        setProcessingState("completed");
-        setProgress(100);
-        setProgressLabel("Completato");
-        setTimeout(() => {
-          onSaved();
-          onClose();
-        }, 2000);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        resolved = true;
-        setProcessingState("failed");
-        setBotError(err instanceof Error ? err.message : "Operazione fallita");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [taskId, subscribe, onSaved, onClose]);
-
-  // ESC handler: minimizza se il bot sta girando, altrimenti chiude
+  // ESC handler
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (isProcessing && onMinimize) {
-        onMinimize(formData.name || "");
-      } else if (!isProcessing) {
-        onClose();
-      }
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isProcessing, onMinimize, onClose, formData.name]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -471,7 +411,6 @@ export function CustomerCreateModal({
   const performSave = async () => {
     setSaving(true);
     setError(null);
-    setBotError(null);
 
     try {
       const dataToSend: CustomerFormData = {
@@ -492,10 +431,10 @@ export function CustomerCreateModal({
       );
 
       if (resultTaskId) {
-        setTaskId(resultTaskId);
-        setProcessingState("processing");
-        setProgress(5);
-        setProgressLabel("Avvio operazione...");
+        const displayName = formData.name || "Nuovo cliente";
+        trackOperation(resultTaskId, resultTaskId, displayName, "Creazione in corso...", "Cliente creato", "/customers");
+        onJobDispatched?.(resultTaskId);
+        onClose();
       } else {
         onSaved();
         onClose();
@@ -508,15 +447,6 @@ export function CustomerCreateModal({
   };
 
   const handleSave = () => {
-    void performSave();
-  };
-
-  const handleRetry = () => {
-    setProcessingState("idle");
-    setBotError(null);
-    setProgress(0);
-    setProgressLabel("");
-    setTaskId(null);
     void performSave();
   };
 
@@ -591,9 +521,6 @@ export function CustomerCreateModal({
   ].filter((row) => row.value.trim().length > 0);
 
   const handleBackdropClick = () => {
-    if (isProcessing && onMinimize) {
-      onMinimize(formData.name || "");
-    }
     // click fuori non chiude mai la modale — solo ESC o la X
   };
 
@@ -608,7 +535,7 @@ export function CustomerCreateModal({
         right: 0,
         bottom: 0,
         backgroundColor: isMobile ? "white" : "rgba(0, 0, 0, 0.5)",
-        display: isMinimized ? "none" : "flex",
+        display: "flex",
         alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
         zIndex: 10000,
@@ -645,8 +572,7 @@ export function CustomerCreateModal({
         )}
 
         {/* Close button */}
-        {!isProcessing && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               onClick={onClose}
               aria-label="Chiudi"
@@ -669,11 +595,9 @@ export function CustomerCreateModal({
               &#x2715;
             </button>
           </div>
-        )}
 
         {/* Header with progress bar */}
-        {!isProcessing && (
-          <div style={{ marginBottom: "24px", textAlign: "center" }}>
+        <div style={{ marginBottom: "24px", textAlign: "center" }}>
             <h2
               style={{
                 fontSize: "24px",
@@ -718,10 +642,9 @@ export function CustomerCreateModal({
               />
             </div>
           </div>
-        )}
 
         {/* Spinner keyframes */}
-        {(vatChecking || isProcessing) && (
+        {vatChecking && (
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         )}
 
@@ -2152,7 +2075,7 @@ export function CustomerCreateModal({
         )}
 
         {/* ── STEP RIEPILOGO ─────────────────────────────────────────── */}
-        {currentStep.kind === "riepilogo" && !isProcessing && (
+        {currentStep.kind === "riepilogo" && (
           <div>
             {/* ERP validation banner */}
             {!erpValidated && interactiveSessionId && (
@@ -2317,155 +2240,6 @@ export function CustomerCreateModal({
           </div>
         )}
 
-        {/* ── PROCESSING STATE ───────────────────────────────────────── */}
-        {isProcessing && (
-          <div>
-            <div style={{ textAlign: "center", marginBottom: "24px" }}>
-              <h2
-                style={{
-                  fontSize: "24px",
-                  fontWeight: 700,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
-                {processingState === "completed"
-                  ? "Operazione completata"
-                  : processingState === "failed"
-                    ? "Errore"
-                    : "Creazione in corso..."}
-              </h2>
-            </div>
-
-            {processingState === "processing" && (
-              <div style={{ marginBottom: "24px" }}>
-                <div
-                  style={{
-                    height: "8px",
-                    backgroundColor: "#e0e0e0",
-                    borderRadius: "4px",
-                    overflow: "hidden",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${progress}%`,
-                      height: "100%",
-                      backgroundColor: "#1976d2",
-                      borderRadius: "4px",
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
-                <p
-                  style={{
-                    fontSize: "14px",
-                    color: "#666",
-                    textAlign: "center",
-                  }}
-                >
-                  {progressLabel || "Elaborazione..."}
-                </p>
-                <p
-                  style={{
-                    fontSize: "12px",
-                    color: "#999",
-                    textAlign: "center",
-                    marginTop: "4px",
-                  }}
-                >
-                  {progress}%
-                </p>
-              </div>
-            )}
-
-            {processingState === "completed" && (
-              <div
-                style={{
-                  padding: "16px",
-                  backgroundColor: "#e8f5e9",
-                  border: "1px solid #4caf50",
-                  borderRadius: "8px",
-                  textAlign: "center",
-                  marginBottom: "16px",
-                }}
-              >
-                <p
-                  style={{
-                    color: "#2e7d32",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Cliente creato con successo!
-                </p>
-                <p
-                  style={{
-                    color: "#666",
-                    fontSize: "13px",
-                    marginTop: "4px",
-                  }}
-                >
-                  Chiusura automatica...
-                </p>
-              </div>
-            )}
-
-            {processingState === "failed" && (
-              <div>
-                <div
-                  style={{
-                    padding: "16px",
-                    backgroundColor: "#ffebee",
-                    border: "1px solid #f44336",
-                    borderRadius: "8px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <p style={{ color: "#c62828", fontSize: "14px" }}>
-                    {botError ||
-                      "Si e verificato un errore durante l'operazione."}
-                  </p>
-                </div>
-                <div style={{ display: "flex", gap: "12px" }}>
-                  <button
-                    onClick={handleRetry}
-                    style={{
-                      flex: 1,
-                      padding: "14px",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      backgroundColor: "#ff9800",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Riprova
-                  </button>
-                  <button
-                    onClick={onClose}
-                    style={{
-                      flex: 1,
-                      padding: "14px",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      backgroundColor: "#f44336",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Chiudi
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

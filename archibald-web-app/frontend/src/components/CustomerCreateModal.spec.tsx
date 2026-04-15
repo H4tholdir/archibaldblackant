@@ -43,6 +43,10 @@ vi.mock('../contexts/WebSocketContext', () => ({
   }),
 }));
 
+vi.mock('../contexts/OperationTrackingContext', () => ({
+  useOperationTracking: () => ({ trackOperation: vi.fn(), activeOperations: [], dismissOperation: vi.fn() }),
+}));
+
 import { CustomerCreateModal } from './CustomerCreateModal';
 import { customerService } from '../services/customers.service';
 
