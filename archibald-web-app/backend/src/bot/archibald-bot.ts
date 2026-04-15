@@ -11472,18 +11472,30 @@ export class ArchibaldBot {
 
         if (hint) {
           const hintLower = hint.trim().toLowerCase();
+
+          // First pass: full substring match (standard case)
           for (const row of rows) {
             if (row.textContent?.toLowerCase().includes(hintLower)) {
               const target = row.querySelector("td") || (row as HTMLElement);
               (target as HTMLElement).scrollIntoView({ block: "center" });
               (target as HTMLElement).click();
-              return {
-                clicked: true,
-                reason: "hint-match",
-                rowCount: rows.length,
-                rowTexts,
-                hint,
-              };
+              return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
+            }
+          }
+
+          // Second pass: every significant word (>2 chars) must appear in the row.
+          // Handles ERP abbreviations, e.g. "S.SEBASTIANO AL VESUVIO" matched by
+          // hint "san sebastiano al vesuvio" via words ["san","sebastiano","vesuvio"].
+          const hintWords = hintLower.split(/\s+/).filter((w) => w.length > 2);
+          if (hintWords.length > 0) {
+            for (const row of rows) {
+              const rowTextLower = row.textContent?.toLowerCase() ?? '';
+              if (hintWords.every((w) => rowTextLower.includes(w))) {
+                const target = row.querySelector("td") || (row as HTMLElement);
+                (target as HTMLElement).scrollIntoView({ block: "center" });
+                (target as HTMLElement).click();
+                return { clicked: true, reason: "hint-word-match", rowCount: rows.length, rowTexts, hint };
+              }
             }
           }
         }
@@ -11644,18 +11656,30 @@ export class ArchibaldBot {
 
         if (hint) {
           const hintLower = hint.trim().toLowerCase();
+
+          // First pass: full substring match (standard case)
           for (const row of rows) {
             if (row.textContent?.toLowerCase().includes(hintLower)) {
               const target = row.querySelector("td") || (row as HTMLElement);
               (target as HTMLElement).scrollIntoView({ block: "center" });
               (target as HTMLElement).click();
-              return {
-                clicked: true,
-                reason: "hint-match",
-                rowCount: rows.length,
-                rowTexts,
-                hint,
-              };
+              return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
+            }
+          }
+
+          // Second pass: every significant word (>2 chars) must appear in the row.
+          // Handles ERP abbreviations, e.g. "S.SEBASTIANO AL VESUVIO" matched by
+          // hint "san sebastiano al vesuvio" via words ["san","sebastiano","vesuvio"].
+          const hintWords = hintLower.split(/\s+/).filter((w) => w.length > 2);
+          if (hintWords.length > 0) {
+            for (const row of rows) {
+              const rowTextLower = row.textContent?.toLowerCase() ?? '';
+              if (hintWords.every((w) => rowTextLower.includes(w))) {
+                const target = row.querySelector("td") || (row as HTMLElement);
+                (target as HTMLElement).scrollIntoView({ block: "center" });
+                (target as HTMLElement).click();
+                return { clicked: true, reason: "hint-word-match", rowCount: rows.length, rowTexts, hint };
+              }
             }
           }
         }
@@ -14752,25 +14776,21 @@ export class ArchibaldBot {
 
     await this.emitProgress("customer.field");
 
-    // 7. PHONE
+    // 7–10. PHONE, CELLULARPHONE, EMAIL, URL — typed here so DevExpress can validate them;
+    // all four are also re-injected via native setter immediately before save to guard
+    // against XHR callbacks (CAP lookup, NAMEALIAS, etc.) that may clear them afterwards.
     if (customerData.phone) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
-
-    // 8. CELLULARPHONE (mobile) — only if explicitly provided; never copy phone
     if (customerData.mobile) {
       await this.typeDevExpressField(
         /xaf_dviCELLULARPHONE_Edit_I$/,
         customerData.mobile,
       );
     }
-
-    // 9. EMAIL
     if (customerData.email) {
       await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
-
-    // 10. URL — only if explicitly provided; no fallback value
     if (customerData.url) {
       await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
     }
@@ -14883,25 +14903,39 @@ export class ArchibaldBot {
       );
     }
 
-    // Step 2: "Indirizzo alt." tab — write all alt addresses (full replace)
-    await this.emitProgress("customer.tab.indirizzo");
-    await this.writeAltAddresses(customerData.addresses ?? []);
-
-    // Pre-save inject: CF, SDI and STREET cannot be reliably typed via keyboard events.
-    // CF/SDI: blur triggers a server XHR that resets both fields to "".
-    // STREET: DevExpress client-side callbacks (e.g. NAME→NAMEALIAS) can re-render the
-    // input mid-keystroke, causing partial writes (e.g. first 10 chars lost).
-    // Native setter bypasses all callbacks; DevExpress serializes all xaf_dvi inputs on save.
+    // Pre-save inject: these fields cannot be reliably preserved via keyboard.type alone:
+    //   CF/SDI: blur triggers a server XHR that resets both fields to "".
+    //   STREET: DevExpress client-side callbacks can re-render the input mid-keystroke.
+    //   PHONE/CELL/EMAIL/URL: subsequent XHR callbacks (CAP, NAMEALIAS) may clear them.
+    // Native setter bypasses all DevExpress callbacks; all xaf_dvi inputs are serialized on save.
     await this.injectFieldsViaNativeSetter([
       { regex: /xaf_dviFISCALCODE_Edit_I$/, value: customerData.fiscalCode ?? "" },
       { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: customerData.sdi ?? "" },
       { regex: /xaf_dviSTREET_Edit_I$/, value: customerData.street ?? "" },
+      ...(customerData.phone
+        ? [{ regex: /xaf_dviPHONE_Edit_I$/, value: customerData.phone }]
+        : []),
+      ...(customerData.mobile
+        ? [{ regex: /xaf_dviCELLULARPHONE_Edit_I$/, value: customerData.mobile }]
+        : []),
+      ...(customerData.email
+        ? [{ regex: /xaf_dviEMAIL_Edit_I$/, value: customerData.email }]
+        : []),
+      ...(customerData.url
+        ? [{ regex: /xaf_dviURL_Edit_I$/, value: customerData.url }]
+        : []),
     ]);
 
     await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer(/* saveInPlace */ true);
 
-    // Fix 5: read numeric ID directly from URL (most reliable — avoids ListView search on page 2+)
+    // Step 2: "Indirizzo alt." tab — written AFTER save so DevExpress accepts new rows.
+    // On a NewObject=true form the server rejects inline grid inserts; the form must be
+    // persisted (real ERP ID assigned) before alt addresses can be added.
+    await this.emitProgress("customer.tab.indirizzo");
+    await this.writeAltAddresses(customerData.addresses ?? []);
+
+    // Read numeric ID directly from URL (most reliable — avoids ListView search on page 2+)
     const savedUrl = this.page.url();
     const urlMatch = savedUrl.match(/CUSTTABLE_DetailView(?:Agent)?\/(\d+)\//);
     const customerProfileId = urlMatch
