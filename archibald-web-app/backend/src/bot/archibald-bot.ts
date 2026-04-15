@@ -14746,13 +14746,9 @@ export class ArchibaldBot {
 
     // 5. SDI (LEGALAUTHORITY) — injected via native setter before save (same reason as CF above).
 
-    // 6. STREET
-    if (customerData.street) {
-      await this.typeDevExpressField(
-        /xaf_dviSTREET_Edit_I$/,
-        customerData.street,
-      );
-    }
+    // 6. STREET — injected via native setter before save (same reason as CF/SDI: keyboard.type
+    // is subject to mid-typing DOM re-renders from DevExpress client-side callbacks, causing
+    // partial writes). DevExpress serializes all xaf_dvi inputs on save POST regardless.
 
     await this.emitProgress("customer.field");
 
@@ -14891,13 +14887,15 @@ export class ArchibaldBot {
     await this.emitProgress("customer.tab.indirizzo");
     await this.writeAltAddresses(customerData.addresses ?? []);
 
-    // Pre-save inject: CF and SDI cannot be typed normally because their blur event triggers
-    // a server XHR that resets both fields to "". Native setter bypasses that callback.
-    // These fields are still in the DOM (just hidden under the Principale tab), so the save
-    // POST includes their values when DevExpress serializes all xaf_dvi inputs.
+    // Pre-save inject: CF, SDI and STREET cannot be reliably typed via keyboard events.
+    // CF/SDI: blur triggers a server XHR that resets both fields to "".
+    // STREET: DevExpress client-side callbacks (e.g. NAME→NAMEALIAS) can re-render the
+    // input mid-keystroke, causing partial writes (e.g. first 10 chars lost).
+    // Native setter bypasses all callbacks; DevExpress serializes all xaf_dvi inputs on save.
     await this.injectFieldsViaNativeSetter([
       { regex: /xaf_dviFISCALCODE_Edit_I$/, value: customerData.fiscalCode ?? "" },
       { regex: /xaf_dviLEGALAUTHORITY_Edit_I$/, value: customerData.sdi ?? "" },
+      { regex: /xaf_dviSTREET_Edit_I$/, value: customerData.street ?? "" },
     ]);
 
     await this.emitProgress("customer.save");
