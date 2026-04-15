@@ -364,6 +364,13 @@ export function CustomerCreateModal({
       nextStepFn();
       return;
     }
+    // If the user already picked a city from the disambiguation list, skip it
+    const alreadySelected = formData.postalCodeCity &&
+      entries.some((e) => e.citta === formData.postalCodeCity);
+    if (alreadySelected) {
+      nextStepFn();
+      return;
+    }
     setCapDisambigEntries(entries);
   };
 
