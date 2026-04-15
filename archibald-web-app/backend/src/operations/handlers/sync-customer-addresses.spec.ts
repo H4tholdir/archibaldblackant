@@ -42,7 +42,7 @@ function createMockBot(addresses: AltAddress[] = mockAltAddresses): SyncCustomer
   return {
     initialize: vi.fn().mockResolvedValue(undefined),
     navigateToCustomerByErpId: vi.fn().mockResolvedValue(undefined),
-    readAltAddresses: vi.fn().mockResolvedValue(addresses),
+    readAltAddresses: vi.fn().mockResolvedValue({ addresses, reliable: true }),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -91,13 +91,30 @@ describe('handleSyncCustomerAddresses', () => {
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
 
-  it('returns addressesCount 0 when no addresses found', async () => {
+  it('returns addressesCount 0 when no addresses found (grid appeared, legitimately empty)', async () => {
     const pool = createMockPool();
     const bot = createMockBot([]);
     const onProgress = vi.fn();
 
     const result = await handleSyncCustomerAddresses(pool, bot, data, userId, onProgress);
 
+    expect(pool.withTransaction).toHaveBeenCalledOnce();
+    expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
+  });
+
+  it('skips upsert when grid timed out and DOM snapshot returned 0 addresses (reliable=false)', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot([]);
+    (bot.readAltAddresses as ReturnType<typeof vi.fn>).mockResolvedValue({ addresses: [], reliable: false });
+    const onProgress = vi.fn();
+
+    const result = await handleSyncCustomerAddresses(pool, bot, data, userId, onProgress);
+
+    expect(pool.withTransaction).not.toHaveBeenCalled();
+    const syncedAtCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
+    );
+    expect(syncedAtCall).toBeUndefined();
     expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
   });
 
@@ -159,6 +176,24 @@ describe('handleSyncCustomerAddresses', () => {
       await handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn());
 
       expect(bot.close).toHaveBeenCalledOnce();
+    });
+
+    it('skips upsert for a customer when grid timed out (reliable=false) but continues with the next', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      (bot.readAltAddresses as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ addresses: [], reliable: false })
+        .mockResolvedValueOnce({ addresses: mockAltAddresses, reliable: true });
+      const onProgress = vi.fn();
+
+      const result = await handleSyncCustomerAddresses(pool, bot, batchData, userId, onProgress);
+
+      expect(bot.readAltAddresses).toHaveBeenCalledTimes(2);
+      const syncedAtCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
+      );
+      expect(syncedAtCalls).toHaveLength(1);
+      expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 0 });
     });
 
     it('reinitializes bot when a Protocol error occurs, allowing remaining customers to be processed', async () => {

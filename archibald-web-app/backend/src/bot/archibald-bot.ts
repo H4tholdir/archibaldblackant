@@ -14348,7 +14348,7 @@ export class ArchibaldBot {
     return values;
   }
 
-  async readAltAddresses(): Promise<AltAddress[]> {
+  async readAltAddresses(): Promise<{ addresses: AltAddress[]; reliable: boolean }> {
     if (!this.page) throw new Error('Browser page is null');
 
     await this.openCustomerTab('Indirizzo alt');
@@ -14357,10 +14357,14 @@ export class ArchibaldBot {
     // The alt-addresses grid is loaded asynchronously after the tab click.
     // Its DOM element has an ID containing "ADDRESSes" (XAF property name).
     // Wait until that grid element appears in the DOM.
+    // reliable=false when the grid times out: callers must not treat an empty result as
+    // "no addresses exist" in that case — doing so would silently delete all stored addresses.
+    let reliable = true;
     await this.page.waitForFunction(
       () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null,
       { timeout: 12000, polling: 300 },
     ).catch(() => {
+      reliable = false;
       logger.warn('readAltAddresses: ADDRESSes grid not found after 12s — proceeding with DOM snapshot');
     });
 
@@ -14392,7 +14396,7 @@ export class ArchibaldBot {
       });
     }) as AltAddress[];
 
-    return addresses;
+    return { addresses, reliable };
   }
 
   // ─── Interactive Customer Creation (VAT auto-fill flow) ───────────

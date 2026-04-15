@@ -13,7 +13,7 @@ type CustomerBotLike = BotLike & {
   navigateToNewCustomerForm: () => Promise<void>;
   navigateToEditCustomerForm: (name: string) => Promise<void>;
   readEditFormFieldValues: () => Promise<Record<string, string>>;
-  readAltAddresses: () => Promise<AltAddress[]>;
+  readAltAddresses: () => Promise<{ addresses: AltAddress[]; reliable: boolean }>;
   submitVatAndReadAutofill: (vatNumber: string) => Promise<VatLookupResult>;
   completeCustomerCreation: (formData: CustomerFormData, isVatOnForm?: boolean) => Promise<string>;
   createCustomer: (formData: CustomerFormData) => Promise<string>;
@@ -236,9 +236,13 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           const archibaldFields = await bot.readEditFormFieldValues();
 
           try {
-            const altAddresses = await bot.readAltAddresses();
-            await upsertAddressesForCustomer(userId, customer.erpId, altAddresses);
-            await setAddressesSyncedAt(userId, customer.erpId);
+            const { addresses: altAddresses, reliable } = await bot.readAltAddresses();
+            if (!reliable && altAddresses.length === 0) {
+              logger.warn('start-edit: address grid timed out — skipping upsert to avoid silent delete', { userId });
+            } else {
+              await upsertAddressesForCustomer(userId, customer.erpId, altAddresses);
+              await setAddressesSyncedAt(userId, customer.erpId);
+            }
           } catch (addressErr) {
             logger.warn('start-edit: address refresh failed (non-fatal)', { error: addressErr, userId });
           }

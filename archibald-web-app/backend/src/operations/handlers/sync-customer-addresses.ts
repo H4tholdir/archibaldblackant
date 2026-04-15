@@ -25,7 +25,7 @@ type SyncCustomerAddressesData = {
 type SyncCustomerAddressesBot = {
   initialize: () => Promise<void>;
   navigateToCustomerByErpId: (erpId: string) => Promise<void>;
-  readAltAddresses: () => Promise<AltAddress[]>;
+  readAltAddresses: () => Promise<{ addresses: AltAddress[]; reliable: boolean }>;
   close: () => Promise<void>;
 };
 
@@ -64,10 +64,14 @@ async function handleSyncCustomerAddresses(
         onProgress(Math.floor((i / customers.length) * 90) + 5, `${customerName} (${i + 1}/${customers.length})`);
         try {
           await bot.navigateToCustomerByErpId(erpId);
-          const addresses = await bot.readAltAddresses();
-          await upsertAddressesForCustomer(pool, userId, erpId, addresses);
-          await setAddressesSyncedAt(pool, userId, erpId);
-          addressesCount += addresses.length;
+          const { addresses, reliable } = await bot.readAltAddresses();
+          if (!reliable && addresses.length === 0) {
+            logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId, customerName });
+          } else {
+            await upsertAddressesForCustomer(pool, userId, erpId, addresses);
+            await setAddressesSyncedAt(pool, userId, erpId);
+            addressesCount += addresses.length;
+          }
         } catch (err) {
           errorsCount++;
           const errorMessage = err instanceof Error ? err.message : String(err);
@@ -103,8 +107,13 @@ async function handleSyncCustomerAddresses(
   await bot.initialize();
   try {
     await bot.navigateToCustomerByErpId(data.erpId!);
-    const addresses = await bot.readAltAddresses();
+    const { addresses, reliable } = await bot.readAltAddresses();
     onProgress(60, 'Salvataggio indirizzi');
+    if (!reliable && addresses.length === 0) {
+      logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId: data.erpId });
+      onProgress(100, 'Indirizzi non aggiornati (grid ERP non disponibile)');
+      return { addressesCount: 0, errorsCount: 0 };
+    }
     await upsertAddressesForCustomer(pool, userId, data.erpId!, addresses);
     await setAddressesSyncedAt(pool, userId, data.erpId!);
     onProgress(100, 'Indirizzi sincronizzati');

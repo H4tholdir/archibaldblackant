@@ -182,6 +182,15 @@ async function syncCustomers(
           customerParams,
         );
         updatedCustomers++;
+      } else {
+        // Hash unchanged: customer data is up-to-date, but reset addresses_synced_at so the
+        // address sync scheduler re-reads alt addresses in its next batch cycle.
+        // This prevents address changes (which don't affect the customer hash) from going
+        // undetected for up to 7 days.
+        await pool.query(
+          'UPDATE agents.customers SET addresses_synced_at = NULL WHERE erp_id = $1 AND user_id = $2',
+          [customer.erpId, userId],
+        );
       }
     }
 
