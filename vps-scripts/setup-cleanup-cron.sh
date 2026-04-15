@@ -6,25 +6,37 @@ set -e
 
 SCRIPT_DIR="/home/deploy/archibald-app/vps-scripts"
 CLEANUP_SCRIPT="$SCRIPT_DIR/docker-cleanup.sh"
+REINDEX_SCRIPT="$SCRIPT_DIR/reindex-tables.sh"
 CRON_JOB="0 2 * * * $CLEANUP_SCRIPT >> /home/deploy/archibald-app/logs/docker-cleanup-cron.log 2>&1"
+REINDEX_CRON_JOB="30 3 * * * $REINDEX_SCRIPT >> /home/deploy/archibald-app/logs/reindex-cron.log 2>&1"
 
 echo "=== Setting up Docker cleanup automation ==="
 
-# Make cleanup script executable
+# Make scripts executable
 chmod +x "$CLEANUP_SCRIPT"
-echo "✓ Made cleanup script executable"
+chmod +x "$REINDEX_SCRIPT"
+echo "✓ Made cleanup + reindex scripts executable"
 
 # Create logs directory
 mkdir -p /home/deploy/archibald-app/logs
 echo "✓ Created logs directory"
 
-# Check if cron job already exists
+# Check if docker-cleanup cron job already exists
 if crontab -l 2>/dev/null | grep -q "$CLEANUP_SCRIPT"; then
-    echo "⚠ Cron job already exists, skipping..."
+    echo "⚠ Cleanup cron job already exists, skipping..."
 else
     # Add cron job (run daily at 2 AM)
     (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    echo "✓ Added daily cron job (runs at 2 AM)"
+    echo "✓ Added daily cleanup cron job (runs at 2:00 AM UTC)"
+fi
+
+# Check if reindex cron job already exists
+if crontab -l 2>/dev/null | grep -q "$REINDEX_SCRIPT"; then
+    echo "⚠ Reindex cron job already exists, skipping..."
+else
+    # Add reindex cron job (run daily at 3:30 AM, after docker cleanup)
+    (crontab -l 2>/dev/null; echo "$REINDEX_CRON_JOB") | crontab -
+    echo "✓ Added daily reindex cron job (runs at 3:30 AM UTC)"
 fi
 
 # Configure Docker daemon for automatic cleanup
@@ -67,10 +79,10 @@ echo "Running initial cleanup..."
 echo ""
 echo "=== Setup Complete ==="
 echo ""
-echo "Disk cleanup automation is now configured:"
-echo "  - Daily cleanup runs at 2:00 AM"
-echo "  - Logs: /home/deploy/archibald-app/logs/docker-cleanup.log"
-echo "  - Manual run: $CLEANUP_SCRIPT"
+echo "Automation configured:"
+echo "  - Docker cleanup: 2:00 AM UTC daily → logs/docker-cleanup.log"
+echo "  - PostgreSQL REINDEX: 3:30 AM UTC daily → logs/reindex.log"
 echo ""
 echo "To view cron jobs: crontab -l"
 echo "To view cleanup logs: tail -f /home/deploy/archibald-app/logs/docker-cleanup.log"
+echo "To view reindex logs: tail -f /home/deploy/archibald-app/logs/reindex.log"
