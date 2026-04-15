@@ -1909,7 +1909,7 @@ describe("getKtSyncStatus", () => {
       articlesPending: 1,
       matched: 2,
       readyToExport: 1,
-      unmatched: [{ orderId: "o3", customerName: "Beta", customerAccountNum: unmatchedProfileId }],
+      unmatched: [{ orderId: "o3", customerName: "Beta", erpId: unmatchedProfileId }],
     });
   });
 });
