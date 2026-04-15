@@ -49,13 +49,13 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     const timer = setTimeout(() => {
       setOperations((prev) => prev.filter((op) => op.orderId !== orderId));
       dismissTimersRef.current.delete(orderId);
-    }, 10_000);
+    }, 5_000);
 
     dismissTimersRef.current.set(orderId, timer);
 
     setOperations((prev) =>
       prev.map((op) =>
-        op.orderId === orderId ? { ...op, dismissedAt: Date.now() + 10_000 } : op,
+        op.orderId === orderId ? { ...op, dismissedAt: Date.now() + 5_000 } : op,
       ),
     );
   }, []);

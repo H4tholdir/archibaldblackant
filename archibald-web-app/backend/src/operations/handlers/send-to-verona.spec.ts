@@ -11,13 +11,14 @@ const CONFIRMED_HEADER = {
 function createMockPool(): DbPool {
   const queryMock = vi.fn()
     .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 }) // SELECT current_state
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE current_state
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT order_state_history
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_verona_at
-    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE warehouse_items (batchMarkSold)
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE readOrderHeader confirmed
-    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history (no records)
-    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE merged siblings
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE current_state
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // INSERT order_state_history
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE CASE WHEN (readback ERP)
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fresis_history (nessun record)
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE merged siblings
     .mockResolvedValue({ rows: [], rowCount: 0 });
   return {
     query: queryMock,
@@ -43,7 +44,7 @@ describe('handleSendToVerona', () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     expect(bot.sendOrderToVerona).toHaveBeenCalledWith('ORD-001');
   });
@@ -52,7 +53,7 @@ describe('handleSendToVerona', () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
     const stateUpdateCall = calls.find(
@@ -62,29 +63,30 @@ describe('handleSendToVerona', () => {
     expect(stateUpdateCall![1]).toEqual(['inviato_verona', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes 8 DB queries for audit trail, warehouse mark-sold, header readback, fresis lookup, and sibling propagation', async () => {
+  test('executes 9 DB queries for audit trail, warehouse mark-sold, guaranteed state, header readback, fresis lookup, and sibling propagation', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(9);
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
     expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_verona_at');
     expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
-    expect(calls[5][0]).toContain('CASE WHEN');
-    expect(calls[6][0]).toContain('SELECT id, items');
-    expect(calls[7][0]).toContain('archibald_order_id');
+    expect(calls[5][0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
+    expect(calls[6][0]).toContain('CASE WHEN');
+    expect(calls[7][0]).toContain('SELECT id, items');
+    expect(calls[8][0]).toContain('archibald_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
     const historyInsert = calls.find(
@@ -104,7 +106,7 @@ describe('handleSendToVerona', () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    const result = await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    const result = await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     expect(result.success).toBe(true);
     expect(result.sentToVeronaAt).toBeDefined();
@@ -116,7 +118,7 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot({ success: false, message: 'Send failed' });
 
     await expect(
-      handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0),
+      handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn()),
     ).rejects.toThrow('Send failed');
   });
 
@@ -133,15 +135,16 @@ describe('handleSendToVerona', () => {
 
     const queryMock = vi.fn()
       .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 }) // SELECT current_state
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE current_state
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT order_state_history
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE sent_to_verona_at
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE warehouse_items (batchMarkSold)
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE readOrderHeader confirmed
-      .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 }) // SELECT fresis_history
-      .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 }) // getNextFtNumber
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE fresis_history
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // UPDATE merged siblings
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE current_state
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // INSERT order_state_history
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE CASE WHEN (readback ERP)
+      .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 })                   // SELECT fresis_history
+      .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 })          // getNextFtNumber
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE fresis_history arca_data
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });                           // UPDATE merged siblings
 
     const pool: DbPool = {
       query: queryMock,
@@ -151,16 +154,16 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot();
     const esercizio = String(new Date().getFullYear());
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = queryMock.mock.calls;
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(11);
 
-    const ftCounterCall = calls[7];
+    const ftCounterCall = calls[8];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
     expect(ftCounterCall[1]).toEqual([esercizio, 'user-1', 'FT', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)]);
 
-    const updateCall = calls[8];
+    const updateCall = calls[9];
     expect(updateCall[0]).toContain('UPDATE agents.fresis_history');
     const updateParams = updateCall[1] as unknown[];
     const arcaDataJson = updateParams[0] as string;
@@ -181,10 +184,10 @@ describe('handleSendToVerona', () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    const siblingUpdate = calls[7];
+    const siblingUpdate = calls[8];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
     expect(siblingUpdate[0]).toContain('archibald_order_id');
     expect(siblingUpdate[0]).toContain("current_state = 'inviato_verona'");
@@ -196,7 +199,7 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot();
     const onProgress = vi.fn();
 
-    await handleSendToVerona(pool, bot, sampleData, 'user-1', onProgress, undefined, 0);
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
@@ -206,7 +209,7 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot();
     const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
 
-    const result = await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn(), undefined, 0);
+    const result = await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
 
     expect(result.success).toBe(false);
     expect(bot.sendOrderToVerona).not.toHaveBeenCalled();
@@ -217,7 +220,7 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot();
     const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
 
-    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
 
     expect(bot.setProgressCallback).not.toHaveBeenCalled();
   });
@@ -227,41 +230,49 @@ describe('handleSendToVerona', () => {
     const bot = createMockBot();
     const ghostData: SendToVeronaData = { orderId: 'ghost-1742659200000' };
 
-    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn(), undefined, 0);
+    await handleSendToVerona(pool, bot, ghostData, 'user-1', vi.fn());
 
     expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
   });
 
-  describe('readOrderHeader retry', () => {
-    test('chiama readOrderHeader una sola volta se il primo tentativo restituisce transferStatus confermato', async () => {
+  describe('readOrderHeader', () => {
+    test('chiama readOrderHeader una sola volta', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
 
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
       expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
       expect(bot.readOrderHeader).toHaveBeenCalledWith('ORD-001');
     });
 
-    test('riprova readOrderHeader finché transferStatus non è confermato', async () => {
+    test('imposta transfer_status garantito a IN ATTESA DI APPROVAZIONE prima del readback ERP', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
-      vi.mocked(bot.readOrderHeader)
-        .mockResolvedValueOnce({ salesStatus: null, documentStatus: null, transferStatus: 'Modifica' })
-        .mockResolvedValueOnce(CONFIRMED_HEADER);
 
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(2);
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const headerUpdate = calls.find(
-        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('CASE WHEN'),
-      );
-      expect(headerUpdate).toBeDefined();
-      expect(headerUpdate![1][2]).toBe('In attesa di approvazione');
+      const guaranteedUpdate = calls[5];
+      expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
+      expect(guaranteedUpdate[1]).toEqual([expect.any(Number), 'ORD-001', 'user-1']);
     });
 
-    test('non scrive "modifica" in transfer_status anche se tutti i tentativi restituiscono "Modifica"', async () => {
+    test('aggiorna sales_status e document_status con i valori ERP dal readback', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+
+      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
+
+      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+      const readbackUpdate = calls[6];
+      expect(readbackUpdate[0]).toContain('CASE WHEN');
+      expect(readbackUpdate![1][0]).toBe('Ordine aperto');
+      expect(readbackUpdate![1][1]).toBe('Packing slip');
+      expect(readbackUpdate![1][2]).toBe('In attesa di approvazione');
+    });
+
+    test('mantiene transfer_status garantito quando il readback ERP restituisce "Modifica"', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
       vi.mocked(bot.readOrderHeader).mockResolvedValue({
@@ -270,27 +281,26 @@ describe('handleSendToVerona', () => {
         transferStatus: 'Modifica',
       });
 
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(3);
+      expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const headerUpdate = calls.find(
-        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('CASE WHEN'),
-      );
-      // La query viene comunque eseguita (lastHeader non è null) ma il CASE WHEN in SQL
-      // impedisce di scrivere 'modifica' nel DB
-      expect(headerUpdate).toBeDefined();
-      expect(headerUpdate![0]).toContain("lower($3) != 'modifica'");
+      const guaranteedUpdate = calls[5];
+      expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
+      // Il CASE WHEN nel readback impedisce di sovrascrivere con 'modifica'
+      const readbackUpdate = calls[6];
+      expect(readbackUpdate[0]).toContain("lower($3) != 'modifica'");
     });
 
-    test('salta il DB update di header quando readOrderHeader restituisce null su tutti i tentativi', async () => {
+    test('salta il DB update del readback quando readOrderHeader restituisce null', async () => {
       const queryMock = vi.fn()
         .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-        // No readOrderHeader update (null returned)
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE transfer_status garantito
+        // nessun readback update (null restituito)
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE merged siblings
         .mockResolvedValue({ rows: [], rowCount: 0 });
@@ -303,16 +313,16 @@ describe('handleSendToVerona', () => {
       const bot = createMockBot();
       vi.mocked(bot.readOrderHeader).mockResolvedValue(null);
 
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn(), undefined, 0);
+      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(3);
+      expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
       const calls = queryMock.mock.calls;
       const headerUpdate = calls.find(
         (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('CASE WHEN'),
       );
       expect(headerUpdate).toBeUndefined();
-      // 7 query totali: senza la update dell'header
-      expect(calls).toHaveLength(7);
+      // 8 query totali: senza il readback update
+      expect(calls).toHaveLength(8);
     });
   });
 });
