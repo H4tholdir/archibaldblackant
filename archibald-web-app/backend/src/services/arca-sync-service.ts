@@ -29,6 +29,22 @@ import { generateArcaDataFromOrder } from "./generate-arca-data-from-order";
 import { getNextDocNumber } from "./ft-counter";
 import { logger } from "../logger";
 
+const MATCH_PRIORITY: Record<string, number> = { vat: 3, manual: 3, 'multi-field': 2, name_cap: 1, phone: 1 };
+
+export function buildSubByProfile(subclients: Subclient[]): Map<string, Subclient> {
+  const map = new Map<string, Subclient>();
+  for (const sc of subclients) {
+    if (!sc.matchedCustomerProfileId) continue;
+    const existing = map.get(sc.matchedCustomerProfileId);
+    const newPriority = MATCH_PRIORITY[sc.matchConfidence ?? ''] ?? 0;
+    const existingPriority = existing ? (MATCH_PRIORITY[existing.matchConfidence ?? ''] ?? 0) : -1;
+    if (newPriority > existingPriority) {
+      map.set(sc.matchedCustomerProfileId, sc);
+    }
+  }
+  return map;
+}
+
 // PostgreSQL jsonb serializes objects with keys sorted alphabetically and no spaces.
 // This replicates that normalization so md5(JSON.stringify(sortKeysDeep(x)))
 // matches md5(arca_data::text) computed server-side.
@@ -1429,12 +1445,7 @@ export async function performArcaSync(
   const ktOrders = await getKtEligibleOrders(pool, userId);
   if (ktOrders.length > 0) {
     const allSubclients = await getAllSubclients(pool);
-    const subByProfile = new Map<string, Subclient>();
-    for (const sc of allSubclients) {
-      if (sc.matchedCustomerProfileId) {
-        subByProfile.set(sc.matchedCustomerProfileId, sc);
-      }
-    }
+    const subByProfile = buildSubByProfile(allSubclients);
 
     for (const order of ktOrders) {
       if (!order.articlesSyncedAt) {
@@ -1582,12 +1593,7 @@ export type KtSyncStatus = {
 export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtSyncStatus> {
   const ktOrders = await getKtEligibleOrders(pool, userId);
   const allSubclients = await getAllSubclients(pool);
-  const subByProfile = new Map<string, Subclient>();
-  for (const sc of allSubclients) {
-    if (sc.matchedCustomerProfileId) {
-      subByProfile.set(sc.matchedCustomerProfileId, sc);
-    }
-  }
+  const subByProfile = buildSubByProfile(allSubclients);
 
   let articlesReady = 0;
   let articlesPending = 0;
@@ -1646,12 +1652,7 @@ export async function generateKtExportVbs(
   logger.info(`generateKtExportVbs: ktOrders=${ktOrders.length}`);
   const allSubclients = await getAllSubclients(pool);
   logger.info(`generateKtExportVbs: allSubclients=${allSubclients.length}`);
-  const subByProfile = new Map<string, Subclient>();
-  for (const sc of allSubclients) {
-    if (sc.matchedCustomerProfileId) {
-      subByProfile.set(sc.matchedCustomerProfileId, sc);
-    }
-  }
+  const subByProfile = buildSubByProfile(allSubclients);
 
   // Fallback: alcuni ordini hanno customer_account_num nel formato ACCOUNTNUM (1002xxx)
   // invece del formato erp_id (55.xxx). Risolviamo tramite agents.customers.

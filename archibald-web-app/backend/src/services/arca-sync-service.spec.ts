@@ -12,6 +12,7 @@ import {
   arcaDataHash,
   suggestNextCodice,
   importCustomerAsSubclient,
+  buildSubByProfile,
 } from "./arca-sync-service";
 import type { VbsExportRecord, SyncResult, AnagrafeExportRecord } from "./arca-sync-service";
 import { deterministicId } from "../arca-import-service";
@@ -2056,5 +2057,76 @@ describe("importCustomerAsSubclient", () => {
 
     const name = (insertedParams[0] as string[]).find(p => typeof p === "string" && p.length === 40);
     expect(name).toBe("A".repeat(40));
+  });
+});
+
+describe('buildSubByProfile', () => {
+  function makeSub(codice: string, profileId: string, confidence: string | null) {
+    return {
+      codice,
+      ragioneSociale: codice,
+      supplRagioneSociale: null, indirizzo: null, cap: null, localita: null, prov: null,
+      telefono: null, fax: null, email: null, partitaIva: null, codFiscale: null,
+      zona: null, persDaContattare: null, emailAmministraz: null, agente: null, agente2: null,
+      settore: null, classe: null, pag: null, listino: null, banca: null, valuta: null,
+      codNazione: null, aliiva: null, contoscar: null, tipofatt: null,
+      telefono2: null, telefono3: null, url: null, cbNazione: null, cbBic: null,
+      cbCinUe: null, cbCinIt: null, abicab: null, contocorr: null,
+      matchedCustomerProfileId: profileId,
+      matchConfidence: confidence,
+      arcaSyncedAt: null, customerMatchCount: 0, subClientMatchCount: 0,
+    };
+  }
+
+  test('include a single subclient per profile', () => {
+    const subclients = [makeSub('C00001', '55.100', 'vat')];
+    const map = buildSubByProfile(subclients);
+    expect(map.get('55.100')?.codice).toBe('C00001');
+  });
+
+  test('skips subclients with no matchedCustomerProfileId', () => {
+    const subclients = [
+      makeSub('C00001', '', 'vat'),
+      { ...makeSub('C00002', '55.200', 'vat'), matchedCustomerProfileId: null },
+    ];
+    const map = buildSubByProfile(subclients);
+    expect(map.size).toBe(0);
+  });
+
+  test('vat wins over phone when both map to same profile', () => {
+    const vatSub = makeSub('C00016', '55.161', 'vat');
+    const phoneSub = makeSub('C00005', '55.161', 'phone');
+    // phone comes after vat alphabetically (L > C), as in the real bug
+    const map = buildSubByProfile([vatSub, phoneSub]);
+    expect(map.get('55.161')?.codice).toBe('C00016');
+  });
+
+  test('manual wins over multi-field', () => {
+    const manualSub = makeSub('C00016', '55.161', 'manual');
+    const multiSub = makeSub('C00005', '55.161', 'multi-field');
+    const map = buildSubByProfile([multiSub, manualSub]);
+    expect(map.get('55.161')?.codice).toBe('C00016');
+  });
+
+  test('phone does not displace vat even when processed last', () => {
+    const vatSub = makeSub('C00017', '55.161', 'vat');
+    const phoneSub1 = makeSub('C00005', '55.161', 'phone');
+    const phoneSub2 = makeSub('C10016', '55.161', 'phone');
+    // simulate ORDER BY ragione_sociale ASC: C00017 first, then phone entries
+    const map = buildSubByProfile([vatSub, phoneSub1, phoneSub2]);
+    expect(map.get('55.161')?.codice).toBe('C00017');
+  });
+
+  test('distinct profiles are all retained', () => {
+    const subclients = [
+      makeSub('C00001', '55.001', 'vat'),
+      makeSub('C00002', '55.002', 'phone'),
+      makeSub('C00003', '55.003', 'manual'),
+    ];
+    const map = buildSubByProfile(subclients);
+    expect(map.size).toBe(3);
+    expect(map.get('55.001')?.codice).toBe('C00001');
+    expect(map.get('55.002')?.codice).toBe('C00002');
+    expect(map.get('55.003')?.codice).toBe('C00003');
   });
 });
