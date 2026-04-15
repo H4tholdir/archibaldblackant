@@ -7,11 +7,11 @@ interface PriceChange {
   productId: string;
   productName: string;
   variantId: string | null;
-  oldPrice: number | null;
-  newPrice: number;
-  percentageChange: number;
+  oldPriceNumeric: number | null;
+  newPriceNumeric: number;
+  percentageChange: number | null;
   changeType: "increase" | "decrease" | "new";
-  syncDate: number;
+  changedAt: string;
 }
 
 interface PriceStats {
@@ -56,7 +56,7 @@ export function PriceVariationsPage() {
 
       const data = await response.json();
       if (data.success) {
-        setChanges(data.changes || []);
+        setChanges(data.history || []);
         setStats(
           data.stats || {
             totalChanges: 0,
@@ -76,33 +76,36 @@ export function PriceVariationsPage() {
   const applyFilters = () => {
     let filtered = [...changes];
 
-    // Apply change type filter
     if (filter === "increases") {
       filtered = filtered.filter((c) => c.changeType === "increase");
     } else if (filter === "decreases") {
       filtered = filtered.filter((c) => c.changeType === "decrease");
     }
 
-    // Apply sorting
     if (sortBy === "percentage") {
       filtered.sort(
-        (a, b) => Math.abs(b.percentageChange) - Math.abs(a.percentageChange),
+        (a, b) =>
+          Math.abs(b.percentageChange ?? 0) -
+          Math.abs(a.percentageChange ?? 0),
       );
     } else {
-      filtered.sort((a, b) => b.syncDate - a.syncDate);
+      filtered.sort(
+        (a, b) =>
+          new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
+      );
     }
 
     setFilteredChanges(filtered);
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString("it-IT");
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("it-IT");
   };
 
   const getChangeColor = (changeType: string) => {
-    if (changeType === "increase") return "#c62828"; // Red
-    if (changeType === "decrease") return "#2e7d32"; // Green
-    return "#666"; // Gray for new
+    if (changeType === "increase") return "#c62828";
+    if (changeType === "decrease") return "#2e7d32";
+    return "#666";
   };
 
   const getChangeIcon = (changeType: string) => {
@@ -113,12 +116,14 @@ export function PriceVariationsPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "20px" }}>⏳ Caricamento variazioni prezzi...</div>
+      <div style={{ padding: "20px", backgroundColor: "white", minHeight: "100vh" }}>
+        ⏳ Caricamento variazioni prezzi...
+      </div>
     );
   }
 
   return (
-    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto", backgroundColor: "white", minHeight: "100vh" }}>
       <h1>📊 Variazioni Prezzi (Ultimi 30 giorni)</h1>
 
       {/* Statistics Summary */}
@@ -178,7 +183,7 @@ export function PriceVariationsPage() {
           Filtro:
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
+            onChange={(e) => setFilter(e.target.value as "all" | "increases" | "decreases")}
             style={{ marginLeft: "10px", padding: "8px" }}
           >
             <option value="all">Tutti</option>
@@ -191,7 +196,7 @@ export function PriceVariationsPage() {
           Ordina per:
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as "percentage" | "date")}
             style={{ marginLeft: "10px", padding: "8px" }}
           >
             <option value="percentage">% Variazione</option>
@@ -226,10 +231,10 @@ export function PriceVariationsPage() {
                 <td style={{ padding: "12px" }}>{change.productName}</td>
                 <td style={{ padding: "12px" }}>{change.variantId || "-"}</td>
                 <td style={{ padding: "12px", textAlign: "right" }}>
-                  {formatPrice(change.oldPrice)}
+                  {formatPrice(change.oldPriceNumeric)}
                 </td>
                 <td style={{ padding: "12px", textAlign: "right" }}>
-                  {formatPrice(change.newPrice)}
+                  {formatPrice(change.newPriceNumeric)}
                 </td>
                 <td
                   style={{
@@ -240,10 +245,10 @@ export function PriceVariationsPage() {
                   }}
                 >
                   {getChangeIcon(change.changeType)}{" "}
-                  {change.percentageChange.toFixed(2)}%
+                  {(change.percentageChange ?? 0).toFixed(2)}%
                 </td>
                 <td style={{ padding: "12px" }}>
-                  {formatDate(change.syncDate)}
+                  {formatDate(change.changedAt)}
                 </td>
                 <td style={{ padding: "12px", textAlign: "center" }}>
                   <button
