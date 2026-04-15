@@ -463,7 +463,7 @@ describe('createSyncScheduler', () => {
       scheduler.stop();
     });
 
-    test('does not enqueue address syncs for idle agents', async () => {
+    test('enqueues address syncs for idle agents (background maintenance)', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { erp_id: 'CUST-001', name: 'Rossi' },
@@ -471,9 +471,9 @@ describe('createSyncScheduler', () => {
       const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']), undefined, getCustomersNeedingAddressSync);
 
       scheduler.start(intervals);
-      await vi.advanceTimersByTimeAsync(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER + ADDRESS_SYNC_DELAY_MS);
+      await vi.advanceTimersByTimeAsync(intervals.agentSyncMs + ADDRESS_SYNC_DELAY_MS);
 
-      expect(getCustomersNeedingAddressSync).not.toHaveBeenCalledWith('idle-1', expect.any(Number));
+      expect(getCustomersNeedingAddressSync).toHaveBeenCalledWith('idle-1', ADDRESS_SYNC_BATCH_LIMIT);
 
       scheduler.stop();
     });

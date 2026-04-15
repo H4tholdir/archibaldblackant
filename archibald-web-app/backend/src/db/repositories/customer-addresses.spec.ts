@@ -160,13 +160,13 @@ describe('getCustomersNeedingAddressSync', () => {
     expect(sql).toContain('addresses_synced_at IS NULL');
   });
 
-  it('also includes customers with addresses_synced_at older than 7 days for periodic alt-address refresh', async () => {
+  it('also includes customers with addresses_synced_at older than 24 hours for periodic alt-address refresh', async () => {
     const pool = createMockPool([{ rows: [], rowCount: 0 }]);
 
     await getCustomersNeedingAddressSync(pool, userId, 10);
 
     const sql = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(sql).toContain('7 days');
+    expect(sql).toContain('24 hours');
   });
 });
 

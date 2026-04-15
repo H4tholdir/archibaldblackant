@@ -77,7 +77,7 @@ export const config = {
       removeOnComplete: { count: 100 } as const,
     },
     enrichment: {
-      concurrency: parseInt(process.env.ENRICHMENT_CONCURRENCY || "3", 10),
+      concurrency: parseInt(process.env.ENRICHMENT_CONCURRENCY || "8", 10),
       lockDuration: 900_000,
       stalledInterval: 30_000,
       removeOnComplete: { count: 100 } as const,

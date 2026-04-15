@@ -129,10 +129,10 @@ function createSyncScheduler(
 
     timers.push(
       setInterval(() => {
-        const { active } = getAgentsByActivity();
+        const { active, idle } = getAgentsByActivity();
         enqueueAgentSyncs(active, ACTIVE_SYNC_TYPES);
         scheduleArticleSync(active);
-        scheduleAddressSync(active);
+        scheduleAddressSync([...active, ...idle]);
       }, currentIntervals.agentSyncMs),
     );
 
