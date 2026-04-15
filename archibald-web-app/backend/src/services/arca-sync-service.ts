@@ -1586,7 +1586,7 @@ export type KtSyncStatus = {
   articlesReady: number;
   articlesPending: number;
   matched: number;
-  unmatched: Array<{ orderId: string; customerName: string; customerAccountNum: string | null }>;
+  unmatched: Array<{ orderId: string; customerName: string; erpId: string | null }>;
   readyToExport: number;
 };
 
@@ -1608,7 +1608,7 @@ export async function getKtSyncStatus(pool: DbPool, userId: string): Promise<KtS
       if (order.articlesSyncedAt) { articlesReady++; readyToExport++; }
       else { articlesPending++; }
     } else {
-      unmatched.push({ orderId: order.id, customerName: order.customerName, customerAccountNum: order.customerAccountNum });
+      unmatched.push({ orderId: order.id, customerName: order.customerName, erpId: order.customerAccountNum });
     }
   }
 
