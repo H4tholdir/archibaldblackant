@@ -12495,6 +12495,21 @@ export class ArchibaldBot {
     }
 
     if (!formClosed) {
+      // Last-resort URL check: the save may have completed but all waitForFunction
+      // calls timed out (e.g. slow ERP navigation after P.IVA warning acknowledgement).
+      // If the URL already satisfies the success condition, treat it as success.
+      const alreadySucceeded = await this.page.evaluate((si: boolean) => {
+        const u = window.location.href;
+        return si
+          ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
+          : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
+      }, saveInPlace);
+
+      if (alreadySucceeded) {
+        logger.info("saveAndCloseCustomer: URL already satisfies success condition — treating as success (was a timing false-positive)");
+        return;
+      }
+
       const screenshotPath = `logs/customer-save-failed-${Date.now()}.png`;
       try {
         await this.page.screenshot({ path: screenshotPath, fullPage: true });
