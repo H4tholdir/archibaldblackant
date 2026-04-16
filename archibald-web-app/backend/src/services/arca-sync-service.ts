@@ -1459,7 +1459,22 @@ export async function performArcaSync(
     const tipodoc = String(arcaData.testata.TIPODOC || "FT").trim();
     const numerodocTrimmed = String(arcaData.testata.NUMERODOC || "").trim();
     const key = `${esercizio}|${tipodoc}|${numerodocTrimmed}`;
-    if (parsed.arcaDocKeys.has(key)) continue; // Already in Arca under same type
+    if (parsed.arcaDocKeys.has(key)) {
+      // Verify against invoice_number: if invoice_number disagrees (data inconsistency from
+      // double-encoded arca_data), use invoice_number as source of truth and self-heal.
+      const invoiceKey = invoiceNumberToKey(pwaRow.invoice_number);
+      if (invoiceKey && invoiceKey !== key && !parsed.arcaDocKeys.has(invoiceKey)) {
+        const [, , invNumerodoc] = invoiceKey.split('|');
+        arcaData.testata.NUMERODOC = invNumerodoc;
+        for (const riga of arcaData.righe) riga.NUMERODOC = invNumerodoc;
+        await pool.query(
+          `UPDATE agents.fresis_history SET arca_data = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
+          [arcaData, pwaRow.id, userId],
+        );
+        exportRecords.push({ invoiceNumber: pwaRow.invoice_number, arcaData });
+      }
+      continue;
+    }
 
     const numInt = parseInt(numerodocTrimmed, 10);
     const takenSet = takenNumerodocByEsanno.get(esercizio);
