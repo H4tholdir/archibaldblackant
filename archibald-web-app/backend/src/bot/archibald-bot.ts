@@ -14241,31 +14241,11 @@ export class ArchibaldBot {
     if (diff.street !== undefined) {
       await this.typeDevExpressField(/xaf_dviSTREET_Edit_I$/, diff.street);
     }
-    // PHONE/CELL/EMAIL/URL: typed for DevExpress validation but tolerate mismatch —
-    // XHR callbacks (VATNUM, PEC validation, NAMEALIAS) may clear them after Tab.
-    // All four are re-injected via native setter immediately before save (below).
-    const tryTypeContactField = async (regex: RegExp, value: string) => {
-      try {
-        await this.typeDevExpressField(regex, value);
-      } catch (err) {
-        logger.warn(`typeDevExpressField mismatch for contact field — will re-inject before save`, {
-          field: regex.source,
-          value,
-        });
-      }
-    };
-    if (diff.phone !== undefined) {
-      await tryTypeContactField(/xaf_dviPHONE_Edit_I$/, diff.phone);
-    }
-    if (diff.mobile !== undefined) {
-      await tryTypeContactField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
-    }
-    if (diff.email !== undefined) {
-      await tryTypeContactField(/xaf_dviEMAIL_Edit_I$/, diff.email);
-    }
-    if (diff.url !== undefined) {
-      await tryTypeContactField(/xaf_dviURL_Edit_I$/, diff.url);
-    }
+    // PHONE/CELL/EMAIL/URL: NOT written via typeDevExpressField — XHR callbacks
+    // (VATNUM, PEC validation, NAMEALIAS) re-render the form mid-keystroke, shifting
+    // keyboard focus to other fields (VIA, SDI) and corrupting them.
+    // These four fields are written exclusively via injectFieldsViaNativeSetter
+    // immediately before save (see below), which is sufficient for the ERP POST.
     if (diff.attentionTo !== undefined) {
       await this.typeDevExpressField(/xaf_dviBRASCRMATTENTIONTO_Edit_I$/, diff.attentionTo);
     }
