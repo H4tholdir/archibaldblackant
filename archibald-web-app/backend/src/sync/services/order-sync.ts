@@ -250,8 +250,8 @@ async function syncOrders(
 
         for (const staleId of staleIds) {
           try {
-            const released = await batchRelease(pool, userId, staleId);
-            const returned = await batchReturnSold(pool, userId, staleId, 'stale_order_sync');
+            const released = await batchRelease(pool, userId, `pending-${staleId}`);
+            const returned = await batchReturnSold(pool, userId, `pending-${staleId}`, 'stale_order_sync');
             if (released > 0 || returned > 0) {
               logger.info('[OrderSync] Warehouse items released for stale order', {
                 orderId: staleId, released, returned,

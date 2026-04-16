@@ -54,8 +54,8 @@ async function handleBatchDeleteOrders(
 
   for (const orderId of result.deletedIds) {
     try {
-      const released = await batchRelease(pool, userId, orderId);
-      const returned = await batchReturnSold(pool, userId, orderId, 'order_deleted');
+      const released = await batchRelease(pool, userId, `pending-${orderId}`);
+      const returned = await batchReturnSold(pool, userId, `pending-${orderId}`, 'order_deleted');
       if (released > 0 || returned > 0) {
         logger.info('[BatchDeleteOrders] Warehouse items released', { orderId, released, returned });
       }

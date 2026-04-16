@@ -462,7 +462,7 @@ async function handleSubmitOrder(
   ).catch(() => {});
 
   if (!isWarehouseOnly) {
-    const transferred = await batchTransfer(pool, userId, [`pending-${data.pendingOrderId}`], orderId);
+    const transferred = await batchTransfer(pool, userId, [`pending-${data.pendingOrderId}`], `pending-${orderId}`);
     logger.info('[SubmitOrder] Warehouse reservations transferred to Archibald order', {
       orderId, pendingOrderId: data.pendingOrderId, transferred,
     });
