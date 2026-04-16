@@ -468,8 +468,10 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
 
       if (result.vbsScript && dirHandleRef.current) {
         await writeVbsToDirectory(dirHandleRef.current, result.vbsScript);
+        // Confirm immediately after writing VBS: once on disk, ArcaPro will run it.
+        // Not waiting for arca_done.txt prevents duplicates if the user closes the browser.
+        try { await confirmKtSynced(exportedKtOrderIdsRef.current); } catch {}
         setPhase('waiting-arca');
-        // arca_kt_synced_at verrà impostato dal polling arca_done.txt, dopo conferma esecuzione VBS
         return;
       }
 
@@ -495,7 +497,6 @@ export function ArcaSyncButton({ onSyncComplete }: ArcaSyncButtonProps) {
         await handle.getFileHandle('arca_done.txt');
         clearInterval(interval);
         try { await handle.removeEntry('arca_done.txt'); } catch {}
-        try { await confirmKtSynced(exportedKtOrderIdsRef.current); } catch {}
         setPhase('done');
         onSyncComplete?.(deletionWarningsRef.current);
       } catch {
