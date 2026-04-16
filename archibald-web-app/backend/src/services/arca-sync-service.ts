@@ -1357,6 +1357,71 @@ export async function performArcaSync(
   // Requires migration 030 adding kt_arca_numerodoc TEXT to agents.order_records.
   const ktRecovered = 0;
 
+  let renumbered = 0;
+
+  // FASE 5 — Renumber source='app' records conflicting with Arca numbering (same TIPODOC, different client).
+  // Must run BEFORE the pwaRows SELECT so renumbered records are picked up correctly in Phase 8.
+  {
+    const { rows: fase5Rows } = await pool.query<{
+      id: string;
+      invoice_number: string | null;
+      arca_data: string | Record<string, unknown> | null;
+      sub_client_codice: string | null;
+    }>(
+      `SELECT id, invoice_number, arca_data, sub_client_codice
+       FROM agents.fresis_history
+       WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
+      [userId],
+    );
+
+    for (const row of fase5Rows) {
+      if (!row.invoice_number || !row.arca_data) continue;
+      const key = invoiceNumberToKey(row.invoice_number);
+      if (!key || !parsed.arcaDocKeys.has(key)) continue;
+
+      const arcaCodicecf = parsed.arcaClientMap.get(key);
+      if (arcaCodicecf && arcaCodicecf === row.sub_client_codice) continue;
+
+      let arcaData: ArcaData;
+      try {
+        arcaData = typeof row.arca_data === 'string'
+          ? JSON.parse(row.arca_data)
+          : row.arca_data as unknown as ArcaData;
+      } catch {
+        errors.push(`Renumbering skipped for ${row.invoice_number}: malformed arca_data`);
+        continue;
+      }
+
+      const esercizio = arcaData.testata.ESERCIZIO;
+      const tipodoc = arcaData.testata.TIPODOC as 'FT' | 'KT';
+
+      if (tipodoc !== 'FT' && tipodoc !== 'KT') {
+        errors.push(`Renumbering skipped for ${row.invoice_number}: unexpected TIPODOC '${arcaData.testata.TIPODOC}'`);
+        continue;
+      }
+
+      const renumberDate = (arcaData.testata.DATADOC as string | null) ?? todayIsoDate();
+      const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc, renumberDate);
+
+      const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
+      arcaData.testata.NUMERODOC = String(newNum);
+      for (const riga of arcaData.righe) {
+        riga.NUMERODOC = String(newNum);
+      }
+
+      await pool.query(
+        `UPDATE agents.fresis_history SET
+           invoice_number         = $1,
+           archibald_order_number = $1,
+           arca_data              = $2,
+           updated_at             = NOW()
+         WHERE id = $3 AND user_id = $4`,
+        [newInvoiceNumber, JSON.stringify(arcaData), row.id, userId],
+      );
+      renumbered++;
+    }
+  }
+
   // 6. Find PWA export candidates (source='app', arca_data IS NOT NULL)
   const { rows: pwaRows } = await pool.query<{
     id: string;
@@ -1385,7 +1450,6 @@ export async function performArcaSync(
   }
 
   // 8. Filter PWA records not yet in Arca -> generate VBS, renumbering cross-type conflicts inline
-  let renumbered = 0;
   const exportRecords: VbsExportRecord[] = [];
   for (const pwaRow of pwaRows) {
     const arcaData: ArcaData = typeof pwaRow.arca_data === "string"
@@ -1499,69 +1563,6 @@ export async function performArcaSync(
     }
   }
 
-  // FASE 5 — Renumber source='app' records conflicting with Arca numbering (same TIPODOC, different client)
-  const { rows: pwaSourceRows } = await pool.query<{
-    id: string;
-    invoice_number: string | null;
-    arca_data: string | Record<string, unknown> | null;
-    sub_client_codice: string | null;
-  }>(
-    `SELECT id, invoice_number, arca_data, sub_client_codice
-     FROM agents.fresis_history
-     WHERE user_id = $1 AND source = 'app' AND arca_data IS NOT NULL`,
-    [userId],
-  );
-
-  for (const row of pwaSourceRows) {
-    if (!row.invoice_number || !row.arca_data) continue;
-    const key = invoiceNumberToKey(row.invoice_number);
-    if (!key || !parsed.arcaDocKeys.has(key)) continue;
-
-    // If the Arca document has the same client code, this is the same document
-    // (PWA submitted it to Arca via the bot) — skip renumbering
-    const arcaCodicecf = parsed.arcaClientMap.get(key);
-    if (arcaCodicecf && arcaCodicecf === row.sub_client_codice) continue;
-
-    // Number occupied by a DIFFERENT Arca doc → renumber
-    // pg returns jsonb columns as objects, not strings — handle both
-    let arcaData: ArcaData;
-    try {
-      arcaData = typeof row.arca_data === 'string'
-        ? JSON.parse(row.arca_data)
-        : row.arca_data as unknown as ArcaData;
-    } catch {
-      errors.push(`Renumbering skipped for ${row.invoice_number}: malformed arca_data`);
-      continue;
-    }
-
-    const esercizio = arcaData.testata.ESERCIZIO;
-    const tipodoc = arcaData.testata.TIPODOC as 'FT' | 'KT';
-
-    if (tipodoc !== 'FT' && tipodoc !== 'KT') {
-      errors.push(`Renumbering skipped for ${row.invoice_number}: unexpected TIPODOC '${arcaData.testata.TIPODOC}'`);
-      continue;
-    }
-
-    const renumberDate = (arcaData.testata.DATADOC as string | null) ?? todayIsoDate();
-    const newNum = await getNextDocNumber(pool, userId, esercizio, tipodoc, renumberDate);
-
-    const newInvoiceNumber = `${tipodoc} ${newNum}/${esercizio}`;
-    arcaData.testata.NUMERODOC = String(newNum);
-    for (const riga of arcaData.righe) {
-      riga.NUMERODOC = String(newNum);
-    }
-
-    await pool.query(
-      `UPDATE agents.fresis_history SET
-         invoice_number         = $1,
-         archibald_order_number = $1,
-         arca_data              = $2,
-         updated_at             = NOW()
-       WHERE id = $3 AND user_id = $4`,
-      [newInvoiceNumber, JSON.stringify(arcaData), row.id, userId],
-    );
-    renumbered++;
-  }
 
   return {
     imported,
