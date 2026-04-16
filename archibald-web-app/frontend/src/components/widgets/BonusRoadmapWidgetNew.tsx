@@ -26,7 +26,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
     enabled: completedBonuses > 0,
     key: bonusCelebrationKey,
     variant: "fireworks",
-    cooldownMs: 24 * 60 * 60 * 1000,
+    cooldownMs: 365 * 24 * 60 * 60 * 1000,
   });
 
   const fmt = formatCurrencyCompact;
