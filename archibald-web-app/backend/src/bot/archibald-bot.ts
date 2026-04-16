@@ -14241,17 +14241,30 @@ export class ArchibaldBot {
     if (diff.street !== undefined) {
       await this.typeDevExpressField(/xaf_dviSTREET_Edit_I$/, diff.street);
     }
+    // PHONE/CELL/EMAIL/URL: typed for DevExpress validation but tolerate mismatch —
+    // XHR callbacks (VATNUM, PEC validation, NAMEALIAS) may clear them after Tab.
+    // All four are re-injected via native setter immediately before save (below).
+    const tryTypeContactField = async (regex: RegExp, value: string) => {
+      try {
+        await this.typeDevExpressField(regex, value);
+      } catch (err) {
+        logger.warn(`typeDevExpressField mismatch for contact field — will re-inject before save`, {
+          field: regex.source,
+          value,
+        });
+      }
+    };
     if (diff.phone !== undefined) {
-      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, diff.phone);
+      await tryTypeContactField(/xaf_dviPHONE_Edit_I$/, diff.phone);
     }
     if (diff.mobile !== undefined) {
-      await this.typeDevExpressField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
+      await tryTypeContactField(/xaf_dviCELLULARPHONE_Edit_I$/, diff.mobile);
     }
     if (diff.email !== undefined) {
-      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, diff.email);
+      await tryTypeContactField(/xaf_dviEMAIL_Edit_I$/, diff.email);
     }
     if (diff.url !== undefined) {
-      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, diff.url);
+      await tryTypeContactField(/xaf_dviURL_Edit_I$/, diff.url);
     }
     if (diff.attentionTo !== undefined) {
       await this.typeDevExpressField(/xaf_dviBRASCRMATTENTIONTO_Edit_I$/, diff.attentionTo);
@@ -14291,6 +14304,17 @@ export class ArchibaldBot {
     if (addresses !== undefined) {
       await this.writeAltAddresses(addresses);
     }
+
+    // Re-inject PHONE/CELL/EMAIL/URL via native setter immediately before save.
+    // XHR callbacks (VATNUM validation, PEC validation, NAMEALIAS update) can clear
+    // these fields after typeDevExpressField wrote them. Native setter bypasses
+    // all DevExpress callbacks; the save POST reads the DOM value at that moment.
+    await this.injectFieldsViaNativeSetter([
+      ...(diff.phone !== undefined ? [{ regex: /xaf_dviPHONE_Edit_I$/, value: diff.phone }] : []),
+      ...(diff.mobile !== undefined ? [{ regex: /xaf_dviCELLULARPHONE_Edit_I$/, value: diff.mobile }] : []),
+      ...(diff.email !== undefined ? [{ regex: /xaf_dviEMAIL_Edit_I$/, value: diff.email }] : []),
+      ...(diff.url !== undefined ? [{ regex: /xaf_dviURL_Edit_I$/, value: diff.url }] : []),
+    ]);
 
     await this.emitProgress("customer.field");
 
