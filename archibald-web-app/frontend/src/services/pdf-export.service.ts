@@ -319,15 +319,20 @@ export class PDFExportService {
           }
         : calculateShippingCosts(totalNetto);
 
-    // Costruisce vatMap per le righe di display nel PDF (round per gruppo)
+    // Imponibile per gruppo (per-group è corretto per il display del subtotale IVA).
+    // IVA per riga: Σ round2(itemSub × rate/100) — allineato a ERP Archibald e UI.
     const vatGroups = arcaVatGroups(lines, scontif);
     const vatMap = new Map<number, { imp: number; tax: number }>(
-      vatGroups.map((g) => [g.vatRate, { imp: g.imponibile, tax: g.iva }]),
+      vatGroups.map((g) => [g.vatRate, { imp: g.imponibile, tax: 0 }]),
     );
+    for (const line of lines) {
+      const adj = scontif !== 1 ? round2(line.prezzotot * scontif) : line.prezzotot;
+      const prev = vatMap.get(line.vatRate) ?? { imp: 0, tax: 0 };
+      vatMap.set(line.vatRate, { imp: prev.imp, tax: round2(prev.tax + round2(adj * line.vatRate / 100)) });
+    }
     if (shipping.cost > 0) {
       const r = 22;
       const prev = vatMap.get(r) ?? { imp: 0, tax: 0 };
-      // Usa round2(cost * r/100) anziché shipping.tax per garantire coerenza con arcaDocumentTotals
       const shippingIva = round2(shipping.cost * r / 100);
       vatMap.set(r, { imp: prev.imp + shipping.cost, tax: round2(prev.tax + shippingIva) });
     }
