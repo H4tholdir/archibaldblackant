@@ -395,7 +395,7 @@ export function FresisHistoryPage() {
     try {
       if (isDraftInArchibald(order)) {
         setDeletingFromArchibald(id);
-        const result = await deleteFromArchibald(id);
+        const result = await deleteFromArchibald(id, order.customerName || undefined);
         setDeletingFromArchibald(null);
         trackOperation(id, result.jobId, order.customerName || id, 'Eliminazione da Archibald...');
         if (!result.message) {

@@ -1298,6 +1298,7 @@ function TabArticoli({
         updatedItems: editItems,
         notes: editNotes,
         noShipping: editNoShipping || undefined,
+        customerName: customerName || orderId,
       });
 
       if (!result.success) {
@@ -4081,6 +4082,7 @@ export function OrderCardNew({
     try {
       const result = await enqueueOperation('delete-order', {
         orderId: order.id,
+        customerName: order.customerName || order.id,
       });
 
       if (!result.success) {
