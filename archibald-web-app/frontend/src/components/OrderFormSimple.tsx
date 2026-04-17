@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useOrderDraft } from '../hooks/useOrderDraft';
+import { EMPTY_DRAFT_PAYLOAD } from '../types/order-draft';
+import type { OrderItem as DraftOrderItem } from '../types/order-draft';
 import { customerService } from "../services/customers.service";
 import {
   productService,
@@ -79,9 +82,37 @@ interface OrderItem {
   ghostArticleSource?: 'history' | 'manual';
 }
 
+function formatDraftAge(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'appena ora';
+  if (diffMin < 60) return `${diffMin} min fa`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h fa`;
+  return `${Math.floor(diffH / 24)}g fa`;
+}
+
 export default function OrderFormSimple() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const editingOrderIdParam = searchParams.get('editOrderId');
+
+  const {
+    draftState,
+    draftUpdatedAt,
+    hasDraft,
+    remoteUpdateFlash,
+    addItem: draftAddItem,
+    removeItem: draftRemoveItem,
+    editItem: draftEditItem,
+    updateScalar,
+    ensureDraftCreated,
+    discardDraft,
+    deleteDraft,
+  } = useOrderDraft({ disabled: !!editingOrderIdParam });
+
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Responsive design: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -182,9 +213,9 @@ export default function OrderFormSimple() {
     [],
   );
 
-  // Step 3: Order items
-  const [items, setItems] = useState<OrderItem[]>([]);
-  const [globalDiscountPercent, setGlobalDiscountPercent] = useState("");
+  // Step 3: Order items — sourced from draftState (draft persistence)
+  const items = draftState.items as OrderItem[];
+  const globalDiscountPercent = draftState.globalDiscountPercent;
 
   // Ricavo stimato Fresis
   const [estimatedRevenue, setEstimatedRevenue] = useState<number | null>(null);
@@ -259,6 +290,27 @@ export default function OrderFormSimple() {
   const canEditItems = !!selectedCustomer;
   const canEditPrice = isFresis(selectedCustomer) && !!selectedSubClient;
 
+  // Helper: sync a bulk-updated items array back to draft state via individual deltas
+  const syncItemsBulk = useCallback((newItems: OrderItem[]) => {
+    const oldItems = draftState.items as OrderItem[];
+    const oldIds = new Set(oldItems.map((i) => i.id));
+    const newIds = new Set(newItems.map((i) => i.id));
+    for (const id of oldIds) {
+      if (!newIds.has(id)) draftRemoveItem(id);
+    }
+    for (const item of newItems) {
+      if (!oldIds.has(item.id)) draftAddItem(item as DraftOrderItem);
+    }
+    for (const item of newItems) {
+      if (oldIds.has(item.id)) {
+        const old = oldItems.find((i) => i.id === item.id)!;
+        if (JSON.stringify(old) !== JSON.stringify(item)) {
+          draftEditItem(item.id, item as Partial<DraftOrderItem>);
+        }
+      }
+    }
+  }, [draftState.items, draftRemoveItem, draftAddItem, draftEditItem]);
+
   const editableCellStyle = canEditItems
     ? {
         border: "1px dashed #93c5fd",
@@ -314,10 +366,10 @@ export default function OrderFormSimple() {
   const [cacheSyncing, setCacheSyncing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
-  const [noShipping, setNoShipping] = useState(false);
-  const [orderNotes, setOrderNotes] = useState("");
+  const noShipping = draftState.noShipping;
+  const orderNotes = draftState.notes;
   const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
-  const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<number | null>(null);
+  const selectedDeliveryAddressId = draftState.deliveryAddressId;
 
   // Fresis history: top sold items modal
   const [showTopSoldModal, setShowTopSoldModal] = useState(false);
@@ -384,10 +436,10 @@ export default function OrderFormSimple() {
     if (noShipping) {
       const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
       if (subtotal >= SHIPPING_THRESHOLD) {
-        setNoShipping(false);
+        updateScalar('noShipping', false);
       }
     }
-  }, [items, noShipping]);
+  }, [items, noShipping, updateScalar]);
 
   // Calculate estimated revenue for Fresis sub-client orders
   useEffect(() => {
@@ -528,12 +580,12 @@ export default function OrderFormSimple() {
               (a) => a.tipo === 'Consegna' || a.tipo === 'Indir. cons. alt.',
             );
             setDeliveryAddresses(delivery);
-            setSelectedDeliveryAddressId(
+            updateScalar('deliveryAddressId',
               order.deliveryAddressId ?? (delivery.length === 1 ? delivery[0].id : null),
             );
           } catch {
             setDeliveryAddresses([]);
-            setSelectedDeliveryAddressId(null);
+            updateScalar('deliveryAddressId', null);
           }
         }
 
@@ -607,10 +659,10 @@ export default function OrderFormSimple() {
           }
         }
 
-        setItems(loadedItems);
+        syncItemsBulk(loadedItems);
 
-        if (order.noShipping) setNoShipping(true);
-        if (order.notes) setOrderNotes(order.notes);
+        if (order.noShipping) updateScalar('noShipping', true);
+        if (order.notes) updateScalar('notes', order.notes);
       } catch (error) {
         console.error("[OrderForm] Failed to load order:", error);
         toastService.error("Errore durante il caricamento dell'ordine");
@@ -761,12 +813,19 @@ export default function OrderFormSimple() {
           (a) => a.tipo === 'Consegna' || a.tipo === 'Indir. cons. alt.',
         );
         setDeliveryAddresses(delivery);
-        setSelectedDeliveryAddressId(delivery.length === 1 ? delivery[0].id : null);
+        updateScalar('deliveryAddressId', delivery.length === 1 ? delivery[0].id : null);
       })
       .catch(() => {
         setDeliveryAddresses([]);
-        setSelectedDeliveryAddressId(null);
+        updateScalar('deliveryAddressId', null);
       });
+
+    if (!editingOrderIdParam) {
+      ensureDraftCreated({
+        ...EMPTY_DRAFT_PAYLOAD,
+        customer,
+      }).catch(() => {});
+    }
   };
 
   const handleHideCustomer = async (e: React.MouseEvent, customer: Customer) => {
@@ -1243,10 +1302,10 @@ export default function OrderFormSimple() {
     setActiveMatchLevel('none');
 
     // Reset items
-    setItems([]);
-    setGlobalDiscountPercent("");
-    setNoShipping(false);
-    setOrderNotes("");
+    syncItemsBulk([]);
+    updateScalar('globalDiscountPercent', '0');
+    updateScalar('noShipping', false);
+    updateScalar('notes', '');
 
     toastService.success("Ordine resettato");
   };
@@ -1779,7 +1838,9 @@ export default function OrderFormSimple() {
     }
 
     // Add all lines to items list
-    setItems([...items, ...newItems]);
+    for (const newItem of newItems) {
+      draftAddItem(newItem as DraftOrderItem);
+    }
 
     // Reset form
     setSelectedProduct(null);
@@ -1815,22 +1876,13 @@ export default function OrderFormSimple() {
       );
 
       if (groupSiblings.length > 0) {
-        // Transfer warehouse data to first remaining sibling
+        // Transfer warehouse data to first remaining sibling, then remove the deleted item
         const firstSibling = groupSiblings[0];
-        const updatedItems = items
-          .filter((item) => item.id !== id)
-          .map((item) => {
-            if (item.id === firstSibling.id) {
-              return {
-                ...item,
-                warehouseQuantity: itemToDelete.warehouseQuantity,
-                warehouseSources: itemToDelete.warehouseSources,
-              };
-            }
-            return item;
-          });
-
-        setItems(updatedItems);
+        draftEditItem(firstSibling.id, {
+          warehouseQuantity: itemToDelete.warehouseQuantity,
+          warehouseSources: itemToDelete.warehouseSources,
+        });
+        draftRemoveItem(id);
         console.log("[OrderForm] 🔧 Warehouse data preserved on sibling row", {
           deletedId: id,
           transferredTo: firstSibling.id,
@@ -1841,7 +1893,7 @@ export default function OrderFormSimple() {
     }
 
     // No warehouse data or no siblings to transfer to - just delete
-    setItems(items.filter((item) => item.id !== id));
+    draftRemoveItem(id);
   };
 
   // === INLINE EDITING (Fresis+subclient) ===
@@ -1862,32 +1914,22 @@ export default function OrderFormSimple() {
       return;
     }
 
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-
-        let updated = { ...item };
-        if (field === "unitPrice") {
-          updated.unitPrice = value;
-        } else if (field === "discount") {
-          updated.discount = value;
-        }
-
-        updated.subtotal =
-          Math.round(
-            updated.unitPrice *
-              updated.quantity *
-              (1 - updated.discount / 100) *
-              100,
-          ) / 100;
-        updated.vat =
-          Math.round(updated.subtotal * (updated.vatRate / 100) * 100) / 100;
-        updated.total = Math.round((updated.subtotal + updated.vat) * 100) / 100;
-        return updated;
-      }),
-    );
+    const item = items.find((i) => i.id === itemId);
+    if (item) {
+      const updated = { ...item };
+      if (field === "unitPrice") {
+        updated.unitPrice = value;
+      } else if (field === "discount") {
+        updated.discount = value;
+      }
+      updated.subtotal =
+        Math.round(updated.unitPrice * updated.quantity * (1 - updated.discount / 100) * 100) / 100;
+      updated.vat = Math.round(updated.subtotal * (updated.vatRate / 100) * 100) / 100;
+      updated.total = Math.round((updated.subtotal + updated.vat) * 100) / 100;
+      draftEditItem(itemId, updated as Partial<DraftOrderItem>);
+    }
     if (field === "discount") {
-      setGlobalDiscountPercent("");
+      updateScalar('globalDiscountPercent', '');
     }
     setEditingCell(null);
   };
@@ -1969,27 +2011,21 @@ export default function OrderFormSimple() {
       const subtotal = variantPrice * quantity * (1 - discount / 100);
       const vat = subtotal * (variantVat / 100);
 
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== itemId) return item;
-          return {
-            ...item,
-            productId: chosenVariant.id,
-            article: chosenVariant.id,
-            productName: product.name,
-            description: chosenVariant.description || product.description,
-            unitPrice: variantPrice!,
-            vatRate: variantVat,
-            originalListPrice: variantPrice!,
-            quantity,
-            subtotal,
-            vat,
-            total: subtotal + vat,
-            warehouseQuantity: undefined,
-            warehouseSources: undefined,
-          };
-        }),
-      );
+      draftEditItem(itemId, {
+        productId: chosenVariant.id,
+        article: chosenVariant.id,
+        productName: product.name,
+        description: chosenVariant.description || product.description,
+        unitPrice: variantPrice!,
+        vatRate: variantVat,
+        originalListPrice: variantPrice!,
+        quantity,
+        subtotal,
+        vat,
+        total: subtotal + vat,
+        warehouseQuantity: undefined,
+        warehouseSources: undefined,
+      });
 
       setArticleChangeModal(null);
       toastService.success(`Articolo cambiato in ${product.name}`);
@@ -2144,16 +2180,10 @@ export default function OrderFormSimple() {
       });
     }
 
-    setItems((prev) => {
-      const firstOldIndex = prev.findIndex((i) => itemIds.includes(i.id));
-      const withoutOld = prev.filter((i) => !itemIds.includes(i.id));
-      withoutOld.splice(
-        Math.min(firstOldIndex, withoutOld.length),
-        0,
-        ...newItems,
-      );
-      return withoutOld;
-    });
+    const firstOldIndex = items.findIndex((i) => itemIds.includes(i.id));
+    const withoutOld = items.filter((i) => !itemIds.includes(i.id));
+    withoutOld.splice(Math.min(firstOldIndex, withoutOld.length), 0, ...newItems);
+    syncItemsBulk(withoutOld);
 
     setQuantityEditModal(null);
     toastService.success(`Quantità aggiornata a ${newQty} pezzi`);
@@ -2191,7 +2221,7 @@ export default function OrderFormSimple() {
     }
 
     const updatedItems = applyExactImponibileToOrderLineItems(items, documentTarget, imponibileSelectedItems);
-    setItems(updatedItems);
+    syncItemsBulk(updatedItems);
     setShowImponibileDialog(false);
     const uniqueDiscounts = [
       ...new Set(
@@ -2276,7 +2306,7 @@ export default function OrderFormSimple() {
       }
     }
 
-    setItems(updatedItems);
+    syncItemsBulk(updatedItems);
     setShowImponibileDialog(false);
     toastService.success(
       "Prezzi modificati per raggiungere l'imponibile target",
@@ -2360,7 +2390,7 @@ export default function OrderFormSimple() {
     }
 
     const updatedItems = applyExactTotalToOrderLineItems(items, documentTarget, totaleSelectedItems, noShipping);
-    setItems(updatedItems);
+    syncItemsBulk(updatedItems);
     setShowTotaleDialog(false);
     const uniqueDiscounts = [
       ...new Set(
@@ -2403,20 +2433,11 @@ export default function OrderFormSimple() {
 
       if (groupSiblings.length > 0) {
         const firstSibling = groupSiblings[0];
-        const updatedItems = items
-          .filter((i) => i.id !== id)
-          .map((i) => {
-            if (i.id === firstSibling.id) {
-              return {
-                ...i,
-                warehouseQuantity: item.warehouseQuantity,
-                warehouseSources: item.warehouseSources,
-              };
-            }
-            return i;
-          });
-
-        setItems(updatedItems);
+        draftEditItem(firstSibling.id, {
+          warehouseQuantity: item.warehouseQuantity,
+          warehouseSources: item.warehouseSources,
+        });
+        draftRemoveItem(id);
         console.log(
           "[OrderForm] 🔧 Warehouse data preserved on sibling (edit)",
           {
@@ -2429,7 +2450,7 @@ export default function OrderFormSimple() {
     }
 
     // Remove from list (no warehouse data to preserve or no siblings)
-    setItems(items.filter((i) => i.id !== id));
+    draftRemoveItem(id);
   };
 
   // === CALCULATIONS ===
@@ -2534,7 +2555,7 @@ export default function OrderFormSimple() {
       }
     }
 
-    setItems(updatedItems);
+    syncItemsBulk(updatedItems);
     setShowMarkupPanel(false);
     toastService.success(
       `Maggiorazione di ${formatCurrency(markupAmount)} applicata su ${selectedItems.length} articol${selectedItems.length === 1 ? "o" : "i"}`,
@@ -2627,6 +2648,7 @@ export default function OrderFormSimple() {
       // Mark order as saved to prevent warehouse reservation restoration on unmount
       orderSavedSuccessfullyRef.current = true;
 
+      await deleteDraft();
       navigate("/pending-orders");
     } catch (error) {
       console.error("Failed to save order:", error);
@@ -2749,6 +2771,56 @@ export default function OrderFormSimple() {
               Popolamento delle varianti di prodotto e dei prezzi dal server
             </span>
           </div>
+        </div>
+      )}
+
+      {/* DRAFT RESTORE BANNER */}
+      {hasDraft && !editingOrderIdParam && (
+        <div style={{
+          background: '#EFF6FF',
+          border: '1px solid #BFDBFE',
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          fontSize: 13,
+          color: '#1E40AF',
+        }}>
+          <span>
+            Bozza ripristinata
+            {draftState.customer ? ` · ${(draftState.customer as Customer).name || ''}` : ''}
+            {draftState.items.length > 0 ? ` · ${draftState.items.length} articoli` : ''}
+            {draftUpdatedAt ? ` · ${formatDraftAge(draftUpdatedAt)}` : ''}
+            {remoteUpdateFlash && <span style={{ marginLeft: 8, color: '#059669', fontSize: 12 }}>· Aggiornato da un altro dispositivo</span>}
+          </span>
+          {!showDiscardConfirm ? (
+            <button
+              onClick={() => setShowDiscardConfirm(true)}
+              style={{ background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#1D4ED8', fontSize: 12 }}
+            >
+              Scarta e ricomincia
+            </button>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12 }}>Sicuro?</span>
+              <button
+                onClick={async () => { await discardDraft(); setShowDiscardConfirm(false); }}
+                style={{ background: '#EF4444', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#fff', fontSize: 12 }}
+              >
+                Sì, scarta
+              </button>
+              <button
+                onClick={() => setShowDiscardConfirm(false)}
+                style={{ background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#1D4ED8', fontSize: 12 }}
+              >
+                Annulla
+              </button>
+            </span>
+          )}
         </div>
       )}
 
@@ -3043,11 +3115,11 @@ export default function OrderFormSimple() {
                 setCustomerCompleteness(null);
                 setCustomerSearch("");
                 setSelectedSubClient(null);
-                setGlobalDiscountPercent("");
+                updateScalar('globalDiscountPercent', '0');
                 setItemDiscount("");
                 setListPrice("");
                 setDeliveryAddresses([]);
-                setSelectedDeliveryAddressId(null);
+                updateScalar('deliveryAddressId', null);
                 setSelectedProduct(null);
                 setProductSearch("");
                 setProductResults([]);
@@ -3143,7 +3215,7 @@ export default function OrderFormSimple() {
             </label>
             <select
               value={selectedDeliveryAddressId ?? ''}
-              onChange={(e) => setSelectedDeliveryAddressId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => updateScalar('deliveryAddressId', e.target.value ? Number(e.target.value) : null)}
               style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontSize: '0.875rem' }}
             >
               <option value="">— Seleziona indirizzo —</option>
@@ -3166,7 +3238,7 @@ export default function OrderFormSimple() {
               }}
               onClear={() => {
                 setSelectedSubClient(null);
-                setGlobalDiscountPercent("");
+                updateScalar('globalDiscountPercent', '0');
                 setItemDiscount("");
                 setListPrice("");
               }}
@@ -4675,17 +4747,16 @@ export default function OrderFormSimple() {
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || /^\d*[.,]?\d{0,2}$/.test(val)) {
-                    setGlobalDiscountPercent(val);
+                    updateScalar('globalDiscountPercent', val);
                     const disc = parseFloat(val.replace(",", ".")) || 0;
-                    setItems((prev) =>
-                      prev.map((item) => {
-                        const subtotal =
-                          Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
-                        const vat =
-                          Math.round(subtotal * (item.vatRate / 100) * 100) / 100;
-                        return { ...item, discount: disc, subtotal, vat, total: Math.round((subtotal + vat) * 100) / 100 };
-                      }),
-                    );
+                    const newItems = items.map((item) => {
+                      const subtotal =
+                        Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
+                      const vat =
+                        Math.round(subtotal * (item.vatRate / 100) * 100) / 100;
+                      return { ...item, discount: disc, subtotal, vat, total: Math.round((subtotal + vat) * 100) / 100 };
+                    });
+                    syncItemsBulk(newItems);
                   }
                 }}
                 style={{
@@ -4870,7 +4941,7 @@ export default function OrderFormSimple() {
             </label>
             <textarea autoComplete="off"
               value={orderNotes}
-              onChange={(e) => setOrderNotes(e.target.value)}
+              onChange={(e) => updateScalar('notes', e.target.value)}
               placeholder="Note per l'ordine..."
               maxLength={500}
               rows={3}
@@ -4966,7 +5037,7 @@ export default function OrderFormSimple() {
                       <input autoComplete="off"
                         type="checkbox"
                         checked={noShipping}
-                        onChange={(e) => setNoShipping(e.target.checked)}
+                        onChange={(e) => updateScalar('noShipping', e.target.checked)}
                         style={{ accentColor: "#f59e0b", width: "16px", height: "16px", cursor: "pointer" }}
                       />
                       <span style={{ textDecoration: noShipping ? "line-through" : "none" }}>
@@ -5338,10 +5409,13 @@ export default function OrderFormSimple() {
               isGhostArticle: newItem.isGhostArticle,
               ghostArticleSource: newItem.ghostArticleSource,
             };
-            setItems((prev) => {
-              const filtered = replace ? prev.filter((e) => e.article !== newItem.articleCode) : prev;
-              return [...filtered, mapped];
-            });
+            if (replace) {
+              const newList = items.filter((e) => e.article !== newItem.articleCode);
+              newList.push(mapped);
+              syncItemsBulk(newList);
+            } else {
+              draftAddItem(mapped as DraftOrderItem);
+            }
             addItemsWithAnimation([mapped]);
           }}
           onAddOrder={(newItems, replace) => {
@@ -5369,9 +5443,9 @@ export default function OrderFormSimple() {
               ghostArticleSource: newItem.ghostArticleSource,
             }));
             if (replace) {
-              setItems(mapped);
+              syncItemsBulk(mapped);
             } else {
-              setItems((prev) => [...prev, ...mapped]);
+              for (const m of mapped) draftAddItem(m as DraftOrderItem);
             }
             addItemsWithAnimation(mapped);
           }}
@@ -5408,7 +5482,7 @@ export default function OrderFormSimple() {
               isGhostArticle: true,
               ghostArticleSource: item.ghostArticleSource,
             };
-            setItems((prev) => [...prev, mapped]);
+            draftAddItem(mapped as DraftOrderItem);
             addItemsWithAnimation([mapped]);
             setShowGhostModal(false);
             setProductSearch('');
