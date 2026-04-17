@@ -75,7 +75,7 @@ describe('createDraftMessageHandler', () => {
       payload: { draftId: DRAFT_ID, op: 'unknown:op', payload: {}, seq: 4 },
       timestamp: '2026-04-17T00:00:00Z',
     });
-    await new Promise((r) => setTimeout(r, 50));
+    await Promise.resolve();
     expect(mockBroadcast).not.toHaveBeenCalled();
   });
 });

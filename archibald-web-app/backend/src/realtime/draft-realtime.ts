@@ -13,12 +13,9 @@ function createDraftMessageHandler({ pool, broadcast }: DraftMessageHandlerDeps)
   async function handleAsync(userId: string, message: WebSocketMessage): Promise<void> {
     if (message.type !== 'draft:delta') return;
 
-    const { draftId, op, payload, seq } = message.payload as {
-      draftId: string;
-      op: string;
-      payload: unknown;
-      seq: number;
-    };
+    const raw = message.payload as Record<string, unknown>;
+    if (typeof raw?.draftId !== 'string' || typeof raw?.op !== 'string') return;
+    const { draftId, op, payload, seq } = raw as { draftId: string; op: string; payload: unknown; seq: number };
 
     if (op === 'item:add' || op === 'item:remove' || op === 'item:edit') {
       await applyItemDelta(pool, draftId, userId, op, payload);
