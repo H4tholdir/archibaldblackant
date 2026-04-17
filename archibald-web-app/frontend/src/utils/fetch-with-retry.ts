@@ -74,6 +74,12 @@ export async function fetchWithRetry(
 
     // 3. Handle 401 Unauthorized
     if (response.status === 401) {
+      // Auth endpoints manage their own 401s (wrong credentials, MFA required, etc.)
+      // — returning response lets callers handle them without a page reload.
+      if (url.includes('/api/auth/')) {
+        return response;
+      }
+
       try {
         const clonedResponse = response.clone();
         const contentType = response.headers.get('content-type');

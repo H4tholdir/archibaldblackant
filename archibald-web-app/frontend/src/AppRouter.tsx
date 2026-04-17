@@ -126,8 +126,10 @@ function AppRouter() {
     }
   };
 
-  // Show loading spinner while checking auth
-  if (auth.isLoading) {
+  // Show loading spinner only during initial JWT check (no lastUser yet).
+  // When lastUser is present we are in the unlock flow — keep UnlockScreen mounted
+  // so biometricTriggeredRef is not reset on every failed attempt.
+  if (auth.isLoading && !auth.lastUser) {
     return (
       <div
         style={{
@@ -145,7 +147,7 @@ function AppRouter() {
 
   // Determine which screen to show for non-authenticated users
   const showUnlock =
-    !auth.isAuthenticated && !auth.isLoading && auth.lastUser && !showLoginForm;
+    !auth.isAuthenticated && auth.lastUser && !showLoginForm;
   const showLogin =
     !auth.isAuthenticated &&
     !auth.isLoading &&
