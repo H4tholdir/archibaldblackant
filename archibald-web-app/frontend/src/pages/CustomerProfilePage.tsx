@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { RefObject, ReactNode } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Customer } from '../types/customer';
 import type { CustomerAddress } from '../types/customer-address';
 import type { AddressEntry } from '../types/customer-form-data';
@@ -50,6 +50,7 @@ async function fetchCustomer(erpId: string): Promise<Customer> {
 export function CustomerProfilePage() {
   const { erpId = '' } = useParams<{ erpId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -74,6 +75,8 @@ export function CustomerProfilePage() {
   const [deleteAddrConfirmId, setDeleteAddrConfirmId] = useState<number | null>(null);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
   const [addAddrForm, setAddAddrForm] = useState<AddressEntry | null>(null);
+
+  const autoEditTriggeredRef = useRef(false);
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -151,6 +154,14 @@ export function CustomerProfilePage() {
       cancelled = true;
     };
   }, [erpId]);
+
+  useEffect(() => {
+    if (loading || !customer || autoEditTriggeredRef.current) return;
+    if (searchParams.get('autoEdit') !== 'true') return;
+    autoEditTriggeredRef.current = true;
+    void handleEnterEditMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, customer]);
 
   const pendingCount = Object.keys(pendingEdits).length;
 

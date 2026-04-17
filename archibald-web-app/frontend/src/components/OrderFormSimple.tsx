@@ -40,7 +40,6 @@ import { MatchingManagerModal } from './MatchingManagerModal';
 import { checkCustomerCompleteness, type CompletenessResult } from '../utils/customer-completeness';
 import type { Customer as RichCustomer } from '../types/customer';
 import { CustomerCreateModal } from './CustomerCreateModal';
-import { CustomerQuickFix } from './CustomerQuickFix';
 import type { CustomerAddress } from '../types/customer-address';
 import { getCustomerAddresses } from '../services/customer-addresses';
 import { useVatValidation } from '../hooks/useVatValidation';
@@ -126,7 +125,6 @@ export default function OrderFormSimple() {
   // Customer completeness check
   const [selectedCustomerFull, setSelectedCustomerFull] = useState<RichCustomer | null>(null);
   const [customerCompleteness, setCustomerCompleteness] = useState<CompletenessResult | null>(null);
-  const [editCustomerForCompleteness, setEditCustomerForCompleteness] = useState<RichCustomer | null>(null);
 
   // Silent VAT validation (for customers where only vat_validated_at is missing)
   const { validate: validateVat, status: vatValidationStatus, errorMessage: vatValidationError, reset: resetVatValidation } = useVatValidation();
@@ -1226,7 +1224,6 @@ export default function OrderFormSimple() {
     setSelectedCustomer(null);
     setSelectedCustomerFull(null);
     setCustomerCompleteness(null);
-    setEditCustomerForCompleteness(null);
     setSearchingCustomer(false);
 
     // Reset product
@@ -2656,12 +2653,6 @@ export default function OrderFormSimple() {
 
   const totals = calculateTotals();
 
-  const handleCompletionModalClose = () => {
-    setEditCustomerForCompleteness(null);
-    if (!selectedCustomer) return;
-    fetchAndSetCustomerCompleteness(selectedCustomer.id);
-  };
-
   const theme = WAREHOUSE_LEVEL_COLORS[activeMatchLevel];
   const isThemed = activeMatchLevel !== 'none';
 
@@ -3125,7 +3116,7 @@ export default function OrderFormSimple() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setEditCustomerForCompleteness(selectedCustomerFull)}
+                  onClick={() => { if (selectedCustomerFull) navigate(`/customers/${selectedCustomerFull.erpId}?autoEdit=true`); }}
                   style={{
                     marginLeft: '12px',
                     background: 'none',
@@ -6374,18 +6365,6 @@ export default function OrderFormSimple() {
         </div>
       )}
 
-      {editCustomerForCompleteness && (
-        <CustomerQuickFix
-          erpId={editCustomerForCompleteness.erpId}
-          customerName={editCustomerForCompleteness.name}
-          missingFields={customerCompleteness?.missingFields ?? []}
-          onSaved={() => {
-            handleCompletionModalClose();
-            fetchAndSetCustomerCompleteness(editCustomerForCompleteness.erpId);
-          }}
-          onDismiss={handleCompletionModalClose}
-        />
-      )}
 
       {/* Shortcut: crea cliente rapido da ordine quando ricerca ha 0 risultati */}
       <CustomerCreateModal

@@ -23,8 +23,6 @@ import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
 import { useVatValidation } from '../hooks/useVatValidation';
-import { CustomerQuickFix } from '../components/CustomerQuickFix';
-import type { MissingFieldKey } from '../utils/customer-completeness';
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -89,11 +87,6 @@ export function PendingOrdersPage() {
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
-  const [quickFixCustomer, setQuickFixCustomer] = useState<{
-    erpId: string;
-    customerName: string;
-    missingFields: MissingFieldKey[];
-  } | null>(null);
   const [validatingCustomerProfile, setValidatingCustomerProfile] =
     useState<string | null>(null);
 
@@ -203,15 +196,11 @@ export function PendingOrdersPage() {
         const isGhostOnly = o.items.every((i) => i.isGhostArticle);
         return !checkCustomerCompleteness(c).ok && !isGhostOnly;
       })
-      .map((o) => {
-        const c = customersMap.get(o.customerId)!;
-        return {
-          orderId: o.id!,
-          erpId: o.customerId,
-          customerName: o.customerName,
-          missingFields: checkCustomerCompleteness(c).missingFields,
-        };
-      });
+      .map((o) => ({
+        orderId: o.id!,
+        erpId: o.customerId,
+        customerName: o.customerName,
+      }));
   }, [orders, selectedOrderIds, customersMap]);
 
   const handleSelectAll = () => {
@@ -1003,7 +992,7 @@ export function PendingOrdersPage() {
             >
               <span style={{ fontSize: '13px', color: '#374151' }}>{item.customerName}</span>
               <button
-                onClick={() => setQuickFixCustomer(item)}
+                onClick={() => navigate(`/customers/${item.erpId}?autoEdit=true`)}
                 style={{
                   padding: '4px 10px',
                   background: '#2563eb',
@@ -1230,14 +1219,7 @@ export function PendingOrdersPage() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => {
-                                const completeness = checkCustomerCompleteness(richCustomer);
-                                setQuickFixCustomer({
-                                  erpId: richCustomer.erpId,
-                                  customerName: richCustomer.name,
-                                  missingFields: completeness.missingFields,
-                                });
-                              }}
+                              onClick={() => navigate(`/customers/${richCustomer.erpId}?autoEdit=true`)}
                               style={{
                                 marginLeft: '4px',
                                 background: 'none',
@@ -1519,13 +1501,7 @@ export function PendingOrdersPage() {
                           type="button"
                           onClick={() => {
                             const c = customersMap.get(order.customerId);
-                            if (!c) return;
-                            const completeness = checkCustomerCompleteness(c);
-                            setQuickFixCustomer({
-                              erpId: c.erpId,
-                              customerName: c.name,
-                              missingFields: completeness.missingFields,
-                            });
+                            if (c) navigate(`/customers/${c.erpId}?autoEdit=true`);
                           }}
                           style={{
                             background: 'none',
@@ -1588,13 +1564,7 @@ export function PendingOrdersPage() {
                             type="button"
                             onClick={() => {
                               const c = customersMap.get(order.customerId);
-                              if (!c) return;
-                              const completeness = checkCustomerCompleteness(c);
-                              setQuickFixCustomer({
-                                erpId: c.erpId,
-                                customerName: c.name,
-                                missingFields: completeness.missingFields,
-                              });
+                              if (c) navigate(`/customers/${c.erpId}?autoEdit=true`);
                             }}
                             style={{
                               background: 'none',
@@ -2357,18 +2327,6 @@ export function PendingOrdersPage() {
         }
         isLoading={emailDialogLoading}
       />
-      {quickFixCustomer && (
-        <CustomerQuickFix
-          erpId={quickFixCustomer.erpId}
-          customerName={quickFixCustomer.customerName}
-          missingFields={quickFixCustomer.missingFields}
-          onSaved={() => {
-            void refreshCustomer(quickFixCustomer.erpId);
-            setQuickFixCustomer(null);
-          }}
-          onDismiss={() => setQuickFixCustomer(null)}
-        />
-      )}
 
       {/* Bottom selection toolbar — visible when at least 1 order is selected */}
       {selectedOrderIds.size > 0 && (
