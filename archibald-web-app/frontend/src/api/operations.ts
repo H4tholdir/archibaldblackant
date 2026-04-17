@@ -60,6 +60,20 @@ type DashboardResponse = {
   };
 };
 
+type ActiveJob = {
+  jobId: string;
+  type: string;
+  userId: string;
+  entityId: string;
+  entityName: string;
+  startedAt: string;
+};
+
+type ActiveJobsResponse = {
+  success: boolean;
+  jobs: ActiveJob[];
+};
+
 function getAuthHeaders(): Headers {
   const token = localStorage.getItem('archibald_jwt');
   const headers = new Headers({
@@ -117,6 +131,19 @@ async function getOperationsDashboard(): Promise<DashboardResponse> {
 
 async function getQueueStats(): Promise<Record<string, unknown>> {
   const response = await fetch('/api/operations/stats', {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+async function getActiveJobs(): Promise<ActiveJobsResponse> {
+  const response = await fetch('/api/active-jobs', {
     method: 'GET',
     headers: getAuthHeaders(),
   });
@@ -331,6 +358,7 @@ export {
   getJobStatus,
   getOperationsDashboard,
   getQueueStats,
+  getActiveJobs,
   retryJob,
   cancelJob,
   pollJobUntilDone,
@@ -339,6 +367,8 @@ export {
   type EnqueueResponse,
   type JobStatusResponse,
   type DashboardResponse,
+  type ActiveJob,
+  type ActiveJobsResponse,
   type PollOptions,
   type WaitForJobOptions,
   type SubscribeFn,
