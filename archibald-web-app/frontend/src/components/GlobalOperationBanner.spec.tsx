@@ -137,7 +137,7 @@ describe("GlobalOperationBanner", () => {
     expect(banner.textContent).toContain("Mario Rossi");
     expect(banner.textContent).toContain("Inserimento righe");
     expect(banner.textContent).toContain("+2 in coda");
-    expect(getByTestId("banner-spinner")).toBeTruthy();
+    expect(getByTestId("banner-spinner")).toBeInTheDocument();
     expect(banner.textContent).not.toContain("ordini in elaborazione");
   });
 
@@ -155,7 +155,7 @@ describe("GlobalOperationBanner", () => {
     expect(banner.textContent).not.toContain("ordini in elaborazione");
   });
 
-  test("shows only progress bar for single active op without queue badge when nothing else queued", () => {
+  test("shows primary active op without queue badge when no queued ops in multi-op", () => {
     mockContextValue.activeOperations = [
       makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 60, label: "Salvataggio" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "completed", progress: 100, label: "Completato" }),
