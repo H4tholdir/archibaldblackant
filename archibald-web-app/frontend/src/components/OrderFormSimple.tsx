@@ -55,32 +55,7 @@ import { DiscountTrafficLight } from './new-order-form/DiscountTrafficLight.tsx'
 import { PromotionAdvisor } from './new-order-form/PromotionAdvisor';
 import { usePromotions } from '../hooks/usePromotions';
 
-interface OrderItem {
-  id: string;
-  productId: string; // ID della variante specifica (usato per recuperare prezzo e VAT)
-  article: string; // Codice variante (stesso valore di productId)
-  productName: string; // Nome articolo (raggruppamento, es: "H129FSQ.104.023")
-  description?: string;
-  quantity: number;
-  unitPrice: number;
-  vatRate: number; // Aliquota IVA (0, 4, 5, 10, 22, etc.)
-  discount: number; // Sconto in percentuale
-  subtotal: number; // Prezzo * quantità * (1 - sconto/100)
-  vat: number; // Importo IVA calcolato
-  total: number; // Subtotal + IVA
-  originalListPrice?: number; // Prezzo listino originale del sistema (prima di modifiche utente)
-  // Warehouse integration (Phase 4)
-  warehouseQuantity?: number; // How many from warehouse
-  warehouseSources?: Array<{
-    warehouseItemId: number;
-    boxName: string;
-    quantity: number;
-  }>;
-  // 🔧 FIX #3: Group key to track variants of same product (for warehouse data preservation)
-  productGroupKey?: string; // Used to group variants, preserve warehouse data when deleting rows
-  isGhostArticle?: boolean;
-  ghostArticleSource?: 'history' | 'manual';
-}
+type OrderItem = DraftOrderItem;
 
 function formatDraftAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -101,6 +76,7 @@ export default function OrderFormSimple() {
   const {
     draftState,
     draftUpdatedAt,
+    isLoading: draftLoading,
     hasDraft,
     remoteUpdateFlash,
     addItem: draftAddItem,
@@ -113,6 +89,16 @@ export default function OrderFormSimple() {
   } = useOrderDraft({ disabled: !!editingOrderIdParam });
 
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  useEffect(() => {
+    if (draftLoading || !hasDraft) return;
+    if (draftState.customer && !selectedCustomer) {
+      setSelectedCustomer(draftState.customer as Customer);
+    }
+    if (draftState.subClient && !selectedSubClient) {
+      setSelectedSubClient(draftState.subClient as SubClient);
+    }
+  }, [draftLoading, hasDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Responsive design: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -796,6 +782,7 @@ export default function OrderFormSimple() {
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
+    updateScalar('customer', customer);
     setCustomerSearch(customer.name);
     setCustomerResults([]);
     setHighlightedCustomerIndex(-1);
@@ -1276,7 +1263,8 @@ export default function OrderFormSimple() {
   }, [packagingPreview, selectedCustomer, selectedSubClient]);
 
   // === RESET FORM (RICOMINCIA DA CAPO) ===
-  const handleResetForm = () => {
+  const handleResetForm = async () => {
+    await discardDraft().catch(() => {});
     // Reset customer
     setCustomerSearch("");
     setCustomerResults([]);
@@ -3235,9 +3223,11 @@ export default function OrderFormSimple() {
             <SubClientSelector
               onSelect={(sc) => {
                 setSelectedSubClient(sc);
+                updateScalar('subClient', sc);
               }}
               onClear={() => {
                 setSelectedSubClient(null);
+                updateScalar('subClient', null);
                 updateScalar('globalDiscountPercent', '0');
                 setItemDiscount("");
                 setListPrice("");

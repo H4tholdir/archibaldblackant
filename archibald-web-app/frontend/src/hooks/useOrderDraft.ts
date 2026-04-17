@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { getActiveDraft, createDraft, deleteActiveDraft } from '../api/drafts';
+import { toastService } from '../services/toast.service';
 import {
   type OrderItem,
   type DraftPayload,
@@ -115,6 +116,7 @@ function useOrderDraft({ disabled }: UseOrderDraftOptions): UseOrderDraftReturn 
     });
 
     const unsubSubmitted = subscribe('draft:submitted', () => {
+      toastService.info('Ordine confermato da un altro dispositivo');
       navigate('/pending-orders');
     });
 
