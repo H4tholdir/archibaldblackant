@@ -456,15 +456,6 @@ export class PDFExportService {
       const isLast = page === totalPages;
       let ty = Y_SECTIONS;
 
-      // ── Continua (pagine intermedie) ──────────────────────────────────
-      if (!isLast) {
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "italic");
-        doc.setTextColor(100, 100, 100);
-        doc.text("(continua alla pagina successiva)", PAGE_W - ML, Y_SECTIONS - 2, { align: "right" });
-        doc.setTextColor(0, 0, 0);
-        doc.setFont("helvetica", "normal");
-      }
 
       // ── Sezione 4: TRASPORTO ──────────────────────────────────────────
       cell(ML,                    ty, tW[0], 9, "TRASPORTO A CURA DEL",       isLast ? "Mittente" : "");
@@ -533,9 +524,23 @@ export class PDFExportService {
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.15);
       doc.rect(ML, ty, 140, 12);
-      cell(ML + 140, ty, rightW, 12, undefined, isLast ? fmtN(totFattura) : "", {
-        vBold: true, vSize: 13, vAlign: "right",
-      });
+      if (isLast) {
+        cell(ML + 140, ty, rightW, 12, undefined, fmtN(totFattura), {
+          vBold: true, vSize: 13, vAlign: "right",
+        });
+      } else {
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.15);
+        doc.rect(ML + 140, ty, rightW, 12);
+        doc.setFontSize(6);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(80, 80, 80);
+        const cx = ML + 140 + rightW / 2;
+        doc.text("(continua alla", cx, ty + 5.5, { align: "center" });
+        doc.text("pagina successiva)", cx, ty + 9.5, { align: "center" });
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+      }
       ty += 12;
 
       // ── Sezione 6: FOOTER ─────────────────────────────────────────────
