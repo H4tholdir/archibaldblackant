@@ -326,7 +326,7 @@ export function PendingOrdersPage() {
         const order = filteredOrders[idx];
         const jobId = jobIds[idx];
         if (jobId) {
-          trackOperation(order.id!, jobId, order.customerName);
+          trackOperation(order.id!, jobId, order.customerName, undefined, undefined, '/pending-orders');
         }
       }
 
@@ -421,7 +421,7 @@ export function PendingOrdersPage() {
       }, `submit-order-${order.id!}-${Date.now()}`);
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
-      trackOperation(order.id!, result.jobId, order.customerName);
+      trackOperation(order.id!, result.jobId, order.customerName, undefined, undefined, '/pending-orders');
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {

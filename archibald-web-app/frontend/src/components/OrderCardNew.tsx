@@ -1307,7 +1307,7 @@ function TabArticoli({
         return;
       }
 
-      trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...');
+      trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...', undefined, '/orders');
       // Exit edit mode immediately — banner tracks progress,
       // ORDER_EDIT_COMPLETE broadcast drives onEditDone when done.
       setSubmittingEdit(false);
@@ -4089,7 +4089,7 @@ export function OrderCardNew({
         throw new Error(result.error || `Errore eliminazione ordine`);
       }
 
-      trackOperation(order.id, result.jobId, order.customerName || order.id, 'Eliminazione ordine...');
+      trackOperation(order.id, result.jobId, order.customerName || order.id, 'Eliminazione ordine...', undefined, '/orders');
       // Clear local progress bar — banner tracks progress.
       // ORDER_DELETE_COMPLETE broadcast drives cleanup and onDeleteDone when done.
       setDeleteProgress(null);

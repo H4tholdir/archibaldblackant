@@ -799,7 +799,7 @@ export function OrderHistory() {
           throw new Error(data.message || "Errore nell'invio a Verona");
         }
       } else {
-        trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...', 'Inviato a Verona');
+        trackOperation(modalOrderId, data.jobId, modalCustomerName || modalOrderId, 'Invio a Verona...', 'Inviato a Verona', '/orders');
       }
 
       setSentToVeronaIds((prev) => new Set(prev).add(modalOrderId));
@@ -884,7 +884,7 @@ export function OrderHistory() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Errore eliminazione batch");
       if (data.jobId) {
-        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Eliminazione batch...");
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Eliminazione batch...", undefined, '/orders');
       }
       handleCancelSelection();
     } catch (err) {
@@ -905,7 +905,7 @@ export function OrderHistory() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.message || "Errore invio batch");
       if (data.jobId) {
-        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Invio a Verona...", "Inviato a Verona");
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Invio a Verona...", "Inviato a Verona", '/orders');
       }
       setSentToVeronaIds((prev) => {
         const next = new Set(prev);

@@ -78,6 +78,8 @@ function DownloadQueueProvider({ children }: { children: ReactNode }) {
           jobId,
           item.displayName,
           `Download ${item.docLabel}...`,
+          undefined,
+          '/orders',
         ),
       item.searchTerm,
     );
