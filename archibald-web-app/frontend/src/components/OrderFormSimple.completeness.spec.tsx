@@ -55,6 +55,13 @@ vi.mock('../utils/customer-completeness', () => ({
 vi.mock('../contexts/WebSocketContext', () => ({
   useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}) }),
 }));
+vi.mock('../contexts/OperationTrackingContext', () => ({
+  useOperationTracking: vi.fn().mockReturnValue({
+    trackOperation: vi.fn(),
+    activeOperations: [],
+    dismissOperation: vi.fn(),
+  }),
+}));
 vi.mock('../hooks/usePromotions', () => ({
   usePromotions: () => ({ activePromotions: [], loading: false, triggeredFor: () => [] }),
   invalidatePromotionsCache: vi.fn(),
