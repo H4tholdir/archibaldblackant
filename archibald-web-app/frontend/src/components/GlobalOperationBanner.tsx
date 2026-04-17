@@ -261,37 +261,62 @@ function GlobalOperationBanner() {
     );
   }
 
-  const summary = summarizeOperations(activeOperations);
+  const activeOp = activeOperations.find((o) => o.status === "active");
+  const firstQueued = activeOperations.find((o) => o.status === "queued");
+  const primaryOp = activeOp ?? firstQueued;
 
-  const style = summary.hasFailed && !summary.hasActive
-    ? failedBannerStyle
-    : activeBannerStyle;
+  if (primaryOp) {
+    const botQueuedCount = activeOperations.filter(
+      (o) => o.status === "queued" && o.orderId !== primaryOp.orderId,
+    ).length;
+    const totalQueueBadge = botQueuedCount + pendingCount;
+
+    return (
+      <>
+        <style>{ANIMATION_STYLES}</style>
+        <style>{APP_MAIN_SPACER}</style>
+        <div
+          style={activeBannerStyle}
+          onClick={() => handleClick(primaryOp.navigateTo)}
+          data-testid="global-operation-banner"
+        >
+          <span style={spinnerStyle} data-testid="banner-spinner" />
+          <span style={labelStyle}>
+            {primaryOp.customerName} — {primaryOp.label}
+          </span>
+          {primaryOp.status === "active" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+              <div style={progressBarContainerStyle}>
+                <div style={progressBarFillStyle(primaryOp.progress)} />
+              </div>
+              <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
+                {primaryOp.progress}%
+              </span>
+            </div>
+          )}
+          {totalQueueBadge > 0 && (
+            <span style={queueBadgeStyle}>+{totalQueueBadge} in coda</span>
+          )}
+          <span style={chevronStyle}>&#8250;</span>
+        </div>
+      </>
+    );
+  }
+
+  const summary = summarizeOperations(activeOperations);
+  const summaryStyle = summary.hasFailed ? failedBannerStyle : completedBannerStyle;
 
   return (
     <>
       <style>{ANIMATION_STYLES}</style>
       <style>{APP_MAIN_SPACER}</style>
       <div
-        style={style}
+        style={summaryStyle}
         onClick={() => handleClick()}
         data-testid="global-operation-banner"
       >
-        {summary.hasActive ? (
-          <span style={spinnerStyle} data-testid="banner-spinner" />
-        ) : (
-          <span style={{ flexShrink: 0 }}>&#9201;</span>
-        )}
+        <span style={{ flexShrink: 0 }}>{summary.hasFailed ? "✕" : "✓"}</span>
         <span style={labelStyle}>{summary.text}</span>
-        {summary.hasActive && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-            <div style={progressBarContainerStyle}>
-              <div style={progressBarFillStyle(summary.avgProgress)} />
-            </div>
-            <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
-              {summary.avgProgress}%
-            </span>
-          </div>
-        )}
         <span style={chevronStyle}>&#8250;</span>
       </div>
     </>

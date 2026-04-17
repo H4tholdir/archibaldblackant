@@ -109,9 +109,9 @@ describe("GlobalOperationBanner", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  test("shows aggregated text for multiple operations", () => {
+  test("shows primary active op when mixed operations", () => {
     mockContextValue.activeOperations = [
-      makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 40 }),
+      makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 40, label: "Elaborazione", customerName: "Mario Rossi" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "completed", progress: 100 }),
       makeOperation({ orderId: "o-3", jobId: "j-3", status: "queued", progress: 0 }),
     ];
@@ -119,9 +119,53 @@ describe("GlobalOperationBanner", () => {
     const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
     const banner = getByTestId("global-operation-banner");
 
-    expect(banner.textContent).toContain("3 ordini in elaborazione");
-    expect(banner.textContent).toContain("1 completato");
-    expect(banner.textContent).toContain("2 in corso");
+    expect(banner.textContent).toContain("Mario Rossi");
+    expect(banner.textContent).toContain("Elaborazione");
+    expect(banner.textContent).toContain("+1 in coda");
+  });
+
+  test("shows active op as primary with queue badge when active+queued mix", () => {
+    mockContextValue.activeOperations = [
+      makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 45, label: "Inserimento righe", customerName: "Mario Rossi" }),
+      makeOperation({ orderId: "o-2", jobId: "j-2", status: "queued", progress: 0, label: "In coda...", customerName: "Luigi Bianchi" }),
+      makeOperation({ orderId: "o-3", jobId: "j-3", status: "queued", progress: 0, label: "In coda...", customerName: "Anna Verdi" }),
+    ];
+
+    const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+    const banner = getByTestId("global-operation-banner");
+
+    expect(banner.textContent).toContain("Mario Rossi");
+    expect(banner.textContent).toContain("Inserimento righe");
+    expect(banner.textContent).toContain("+2 in coda");
+    expect(getByTestId("banner-spinner")).toBeTruthy();
+    expect(banner.textContent).not.toContain("ordini in elaborazione");
+  });
+
+  test("shows first queued op as primary when all ops are queued", () => {
+    mockContextValue.activeOperations = [
+      makeOperation({ orderId: "o-1", jobId: "j-1", status: "queued", progress: 0, label: "In coda...", customerName: "Mario Rossi" }),
+      makeOperation({ orderId: "o-2", jobId: "j-2", status: "queued", progress: 0, label: "In coda...", customerName: "Luigi Bianchi" }),
+    ];
+
+    const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+    const banner = getByTestId("global-operation-banner");
+
+    expect(banner.textContent).toContain("Mario Rossi");
+    expect(banner.textContent).toContain("+1 in coda");
+    expect(banner.textContent).not.toContain("ordini in elaborazione");
+  });
+
+  test("shows only progress bar for single active op without queue badge when nothing else queued", () => {
+    mockContextValue.activeOperations = [
+      makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 60, label: "Salvataggio" }),
+      makeOperation({ orderId: "o-2", jobId: "j-2", status: "completed", progress: 100, label: "Completato" }),
+    ];
+
+    const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+    const banner = getByTestId("global-operation-banner");
+
+    expect(banner.textContent).toContain("Salvataggio");
+    expect(banner.textContent).not.toContain("in coda");
   });
 
   test("clicking banner navigates to /pending-orders", () => {
