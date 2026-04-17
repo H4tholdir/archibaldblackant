@@ -72,11 +72,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
       try {
         const pendingOrders = await getPendingOrders();
         const inFlight = pendingOrders.filter(
-          (o) =>
-            (o.jobStatus === "queued" ||
-              o.jobStatus === "started" ||
-              o.jobStatus === "processing") &&
-            o.jobId,
+          (o) => o.status === "processing" && o.jobId,
         );
 
         if (cancelled || inFlight.length === 0) return;

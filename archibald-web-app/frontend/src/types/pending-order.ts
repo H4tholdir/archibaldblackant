@@ -48,7 +48,7 @@ export interface PendingOrder {
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  status: "pending" | "syncing" | "error" | "completed-warehouse";
+  status: "pending" | "processing" | "syncing" | "error" | "completed-warehouse";
   errorMessage?: string;
   retryCount: number;
   deviceId: string;
