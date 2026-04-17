@@ -227,6 +227,11 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   const trackOperation = useCallback(
     (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string) => {
       const label = initialLabel || "In coda...";
+      const pendingDismiss = dismissTimersRef.current.get(orderId);
+      if (pendingDismiss) {
+        clearTimeout(pendingDismiss);
+        dismissTimersRef.current.delete(orderId);
+      }
       setOperations((prev) => {
         const existing = prev.find((op) => op.orderId === orderId);
         if (existing) {

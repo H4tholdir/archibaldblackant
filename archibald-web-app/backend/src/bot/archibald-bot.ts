@@ -15100,6 +15100,13 @@ export class ArchibaldBot {
       });
 
       return buffer;
+    } catch (err) {
+      logger.error("[ArchibaldBot] downloadSingleDocumentPDF: failed", {
+        searchTerm,
+        pageUrl,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
     } finally {
       if (!page.isClosed()) {
         await page.close().catch(() => {});
@@ -15131,7 +15138,7 @@ export class ArchibaldBot {
       `${config.archibald.url}/CUSTPACKINGSLIPJOUR_ListView/`,
       orderNumber,
       "/tmp/archibald-ddt",
-      15000,
+      30000,
     );
   }
 
