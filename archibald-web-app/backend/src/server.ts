@@ -60,6 +60,7 @@ import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
 import { createActiveJobsRouter } from './routes/active-jobs';
 import { insertActiveJob, deleteActiveJob } from './db/repositories/active-jobs';
+import { createDraftsRouter } from './routes/drafts.router';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -1117,6 +1118,11 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/active-jobs', authenticate, createActiveJobsRouter({ pool }));
+
+  app.use('/api/drafts', authenticate, createDraftsRouter({
+    pool,
+    broadcast: (userId, msg) => wsServer.broadcast(userId, msg),
+  }));
 
   if (deps.catalogVisionService && deps.embeddingSvc) {
     const recognitionRouter = createRecognitionRouter({
