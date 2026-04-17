@@ -256,6 +256,7 @@ export function CustomerProfilePage() {
     try {
       const payload: Record<string, unknown> = {
         erpId,
+        customerName: customer.name,
         diff: pendingEdits,
         ...(localAddresses !== null ? {
           addresses: localAddresses.map(a => ({ tipo: a.tipo, nome: a.nome ?? undefined, via: a.via ?? undefined, cap: a.cap ?? undefined, citta: a.citta ?? undefined }))
@@ -322,6 +323,7 @@ export function CustomerProfilePage() {
     try {
       const { jobId } = await enqueueOperation('update-customer', {
         erpId,
+        customerName: customer.name,
         diff: { vatNumber },
       });
       trackOperation(erpId, jobId, customer.name, `Validazione P.IVA ${customer.name}`, 'P.IVA validata', `/customers/${erpId}`);

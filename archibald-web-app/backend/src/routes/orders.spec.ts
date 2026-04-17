@@ -345,7 +345,7 @@ describe('createOrdersRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.jobId).toBe('job-456');
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001', customerName: 'Rossi Mario' });
     });
 
     test('enqueues when state is ERP-derived (ordine_aperto) but transferStatus is modifica', async () => {
@@ -354,7 +354,7 @@ describe('createOrdersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001', customerName: 'Rossi Mario' });
     });
 
     test('enqueues when state is transfer_error and transferStatus is modifica (retry)', async () => {
@@ -363,7 +363,7 @@ describe('createOrdersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001', customerName: 'Rossi Mario' });
     });
 
     test('returns 404 for unknown order', async () => {
@@ -431,7 +431,7 @@ describe('createOrdersRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001', customerName: 'Rossi Mario' });
     });
 
     test('proceeds with enqueue when getCustomerByProfile dep is not provided (graceful degradation)', async () => {
