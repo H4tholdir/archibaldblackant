@@ -58,6 +58,7 @@ import { createPromotionsRouter } from './routes/promotions.router';
 import path from 'path';
 import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
+import { createActiveJobsRouter } from './routes/active-jobs';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -1107,6 +1108,8 @@ function createApp(deps: AppDeps): Express {
     pool,
     uploadDir: PROMOTIONS_UPLOAD_DIR,
   }));
+
+  app.use('/api/active-jobs', authenticate, createActiveJobsRouter({ pool }));
 
   if (deps.catalogVisionService && deps.embeddingSvc) {
     const recognitionRouter = createRecognitionRouter({
