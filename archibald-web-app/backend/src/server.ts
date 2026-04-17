@@ -59,6 +59,7 @@ import path from 'path';
 import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
 import { createActiveJobsRouter } from './routes/active-jobs';
+import { insertActiveJob, deleteActiveJob } from './db/repositories/active-jobs';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -579,6 +580,12 @@ function createApp(deps: AppDeps): Express {
           'customer.complete':       { progress: 95, label: 'Cliente salvato' },
         };
         return milestones[category] ?? null;
+      },
+      recordJobStarted: async (jobId, entityId, entityName, userId) => {
+        await insertActiveJob(pool, { jobId, type: 'create-customer', userId, entityId, entityName }).catch(() => {});
+      },
+      recordJobFinished: async (jobId) => {
+        await deleteActiveJob(pool, jobId).catch(() => {});
       },
     }));
   }

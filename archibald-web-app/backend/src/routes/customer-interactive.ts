@@ -40,6 +40,8 @@ type CustomerInteractiveRouterDeps = {
   setAddressesSyncedAt: (userId: string, erpId: string) => Promise<void>;
   smartCustomerSync?: () => Promise<void>;
   getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
+  recordJobStarted?: (jobId: string, entityId: string, entityName: string, userId: string) => Promise<void>;
+  recordJobFinished?: (jobId: string) => Promise<void>;
 };
 
 const vatSchema = z.object({
@@ -99,6 +101,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     pauseSyncs, resumeSyncs,
     upsertAddressesForCustomer, setAddressesSyncedAt,
     smartCustomerSync, getCustomerProgressMilestone,
+    recordJobStarted, recordJobFinished,
   } = deps;
   const router = Router();
 
@@ -433,6 +436,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             payload: { jobId: taskId },
             timestamp: now(),
           });
+          await recordJobStarted?.(taskId, taskId, customerData.name, userId).catch(() => {});
 
           const setupProgressCallback = (bot: CustomerBotLike) => {
             if (getCustomerProgressMilestone) {
@@ -558,6 +562,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             timestamp: now(),
           });
         } finally {
+          await recordJobFinished?.(taskId).catch(() => {});
           if (sessionHadSyncsPaused) {
             sessionManager.markSyncsPaused(sessionId, false);
             resumeSyncs();

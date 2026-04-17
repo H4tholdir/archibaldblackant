@@ -76,6 +76,8 @@ function createMockDeps(sessionManager?: InteractiveSessionManager): CustomerInt
     resumeSyncs: vi.fn(),
     upsertAddressesForCustomer: vi.fn().mockResolvedValue(undefined),
     setAddressesSyncedAt: vi.fn().mockResolvedValue(undefined),
+    recordJobStarted: vi.fn().mockResolvedValue(undefined),
+    recordJobFinished: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -605,6 +607,46 @@ describe('createCustomerInteractiveRouter', () => {
         existingProfile,
         'pending',
       );
+    });
+
+    test('chiama recordJobStarted con taskId, entityId=taskId, entityName=nome cliente', async () => {
+      const localDeps = createMockDeps(sessionManager);
+      const localApp = createApp(localDeps);
+
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'ready');
+
+      await request(localApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send({ name: 'Mario Rossi', vatNumber: 'IT12345678901' });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(localDeps.recordJobStarted).toHaveBeenCalledOnce();
+      const [jobId, entityId, entityName, userId] = (localDeps.recordJobStarted as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(jobId).toBeTypeOf('string');
+      expect(entityId).toBe(jobId);
+      expect(entityName).toBe('Mario Rossi');
+      expect(userId).toBe('user-1');
+    });
+
+    test('chiama recordJobFinished dopo il completamento del bot', async () => {
+      const localDeps = createMockDeps(sessionManager);
+      const localApp = createApp(localDeps);
+
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'ready');
+
+      await request(localApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send({ name: 'Mario Rossi', vatNumber: 'IT12345678901' });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(localDeps.recordJobFinished).toHaveBeenCalledOnce();
+      const [calledJobId] = (localDeps.recordJobFinished as ReturnType<typeof vi.fn>).mock.calls[0];
+      const [startedJobId] = (localDeps.recordJobStarted as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(calledJobId).toBe(startedJobId);
     });
   });
 
