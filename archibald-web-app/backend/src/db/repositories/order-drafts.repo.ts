@@ -2,6 +2,8 @@ import type { DbPool } from '../pool';
 
 type DraftPayload = Record<string, unknown>;
 
+type ScalarField = 'customer' | 'subClient' | 'globalDiscountPercent' | 'notes' | 'deliveryAddressId' | 'noShipping';
+
 type OrderDraft = {
   id: string;
   userId: string;
@@ -87,12 +89,15 @@ async function applyItemDelta(
        SET payload = jsonb_set(
          payload,
          '{items}',
-         (SELECT jsonb_agg(
-           CASE WHEN item->>'id' = $1
-                THEN item || $2::jsonb
-                ELSE item
-           END)
-          FROM jsonb_array_elements(COALESCE(payload->'items', '[]'::jsonb)) item)
+         COALESCE(
+           (SELECT jsonb_agg(
+             CASE WHEN item->>'id' = $1
+                  THEN item || $2::jsonb
+                  ELSE item
+             END)
+            FROM jsonb_array_elements(COALESCE(payload->'items', '[]'::jsonb)) item),
+           '[]'::jsonb
+         )
        ),
        updated_at = NOW()
        WHERE id = $3 AND user_id = $4`,
@@ -105,7 +110,7 @@ async function applyScalarUpdate(
   pool: DbPool,
   draftId: string,
   userId: string,
-  field: string,
+  field: ScalarField,
   value: unknown,
 ): Promise<void> {
   await pool.query(
@@ -145,4 +150,5 @@ export {
   deleteDraftByUserId,
   type OrderDraft,
   type DraftPayload,
+  type ScalarField,
 };

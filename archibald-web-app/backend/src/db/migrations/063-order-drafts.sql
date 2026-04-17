@@ -6,5 +6,3 @@ CREATE TABLE IF NOT EXISTS agents.order_drafts (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_order_drafts_user_id ON agents.order_drafts(user_id);
