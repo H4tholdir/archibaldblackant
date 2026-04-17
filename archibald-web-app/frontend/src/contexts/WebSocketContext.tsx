@@ -79,6 +79,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const lastSyncIdRef = useRef<number>(0);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasConnectedRef = useRef<boolean>(false);
 
   /**
    * Get JWT token from localStorage
@@ -261,13 +262,25 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("[WebSocket] Connected");
+      const isReconnect = hasConnectedRef.current;
+      hasConnectedRef.current = true;
+      console.log(`[WebSocket] ${isReconnect ? "Reconnected" : "Connected"}`);
       isConnectingRef.current = false;
       setState("connected");
       reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
 
-      // Start application-level heartbeat
       startHeartbeat(ws);
+
+      if (isReconnect) {
+        const reconnectHandlers = eventHandlersRef.current.get("WS_RECONNECTED");
+        reconnectHandlers?.forEach((handler) => {
+          try {
+            handler({});
+          } catch (error) {
+            console.error("[WebSocket] Error in WS_RECONNECTED handler:", error);
+          }
+        });
+      }
     };
 
     ws.onmessage = handleMessage;
