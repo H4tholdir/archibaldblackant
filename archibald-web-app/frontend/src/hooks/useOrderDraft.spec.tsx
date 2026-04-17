@@ -78,7 +78,7 @@ describe('useOrderDraft', () => {
     const { result } = renderHook(() => useOrderDraft({ disabled: false }), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.hasDraft).toBe(true);
-    expect(result.current.draftState.items).toHaveLength(1);
+    expect(result.current.draftState.items).toEqual([ITEM_A]);
     expect(result.current.draftState.globalDiscountPercent).toBe('5');
   });
 

@@ -48,6 +48,8 @@ const EMPTY_DRAFT_PAYLOAD: DraftPayload = {
   noShipping: false,
 };
 
+export type { SubClient } from './sub-client';
+
 export {
   type OrderItem,
   type DraftPayload,

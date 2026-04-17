@@ -141,12 +141,23 @@ function useOrderDraft({ disabled }: UseOrderDraftOptions): UseOrderDraftReturn 
     };
   }, [disabled, subscribe, navigate, send, applyDeltaToState]);
 
+  useEffect(() => {
+    const flashTimer = remoteFlashTimer;
+    const debounceTimers = scalarDebounceTimers;
+    return () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      debounceTimers.current.forEach(clearTimeout);
+      debounceTimers.current.clear();
+    };
+  }, []);
+
   const ensureDraftCreated = useCallback(
     async (initialPayload: DraftPayload): Promise<void> => {
       if (draftIdRef.current || isCreatingDraftRef.current) return;
       isCreatingDraftRef.current = true;
       try {
         const draft = await createDraft(initialPayload);
+        setDraftState(draft.payload);
         setDraftId(draft.id);
         setDraftUpdatedAt(draft.updatedAt);
         setHasDraft(true);
