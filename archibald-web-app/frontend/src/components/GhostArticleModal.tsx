@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { PendingOrderItem } from '../types/pending-order';
 import { getGhostArticles, type GhostArticleSuggestion } from '../api/fresis-history';
 
@@ -9,11 +9,10 @@ type GhostArticleModalProps = {
 };
 
 export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: GhostArticleModalProps) {
-  const [activeTab, setActiveTab] = useState<'history' | 'manual'>('history');
   const [suggestions, setSuggestions] = useState<GhostArticleSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedFromHistory, setSelectedFromHistory] = useState(false);
 
-  // Form state (shared between both tabs)
   const [articleCode, setArticleCode] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -22,13 +21,33 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
   const [vat, setVat] = useState<number | ''>('');
   const [vatError, setVatError] = useState('');
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     setLoading(true);
-    getGhostArticles()
+    const initialTerm = initialSearch.trim() || undefined;
+    if (initialTerm) setArticleCode(initialSearch);
+    getGhostArticles(initialTerm)
       .then(setSuggestions)
       .catch(() => setSuggestions([]))
       .finally(() => setLoading(false));
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
+
+  function handleArticleCodeChange(value: string) {
+    setArticleCode(value);
+    setSelectedFromHistory(false);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setLoading(true);
+      getGhostArticles(value.trim() || undefined)
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]))
+        .finally(() => setLoading(false));
+    }, 300);
+  }
 
   function selectSuggestion(s: GhostArticleSuggestion) {
     setArticleCode(s.articleCode);
@@ -38,6 +57,7 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
     setVat(s.vat);
     setQuantity(1);
     setVatError('');
+    setSelectedFromHistory(true);
   }
 
   function handleConfirm() {
@@ -55,22 +75,15 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
       discount,
       vat: vatNum,
       isGhostArticle: true,
-      ghostArticleSource: activeTab,
+      ghostArticleSource: selectedFromHistory ? 'history' : 'manual',
       warehouseQuantity: quantity,
       warehouseSources: [],
     };
     onConfirm(item);
   }
 
-  const tabStyle = (tab: 'history' | 'manual') => ({
-    padding: '0.5rem 1rem',
-    cursor: 'pointer' as const,
-    borderBottom: activeTab === tab ? '2px solid #3b82f6' : '2px solid transparent',
-    fontWeight: activeTab === tab ? 600 : 400,
-    color: activeTab === tab ? '#3b82f6' : '#6b7280',
-    background: 'none',
-    border: 'none',
-  });
+  const searchTerm = articleCode.trim();
+  const notFoundInHistory = searchTerm.length > 0 && !selectedFromHistory && !loading && suggestions.length === 0;
 
   return (
     <div style={{
@@ -87,58 +100,42 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer' }}>✕</button>
         </div>
 
-        {/* Tab bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
-          <button style={tabStyle('history')} onClick={() => setActiveTab('history')}>Dallo storico FT</button>
-          <button style={tabStyle('manual')} onClick={() => {
-            if (!articleCode && initialSearch) setArticleCode(initialSearch);
-            setActiveTab('manual');
-          }}>Inserimento manuale</button>
+        <div style={{ overflowY: 'auto', maxHeight: '180px', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
+          {loading && <p style={{ padding: '0.75rem', color: '#6b7280', margin: 0 }}>Caricamento...</p>}
+          {!loading && suggestions.length === 0 && !notFoundInHistory && (
+            <p style={{ padding: '0.75rem', color: '#6b7280', margin: 0 }}>Nessun articolo non catalogato trovato nello storico.</p>
+          )}
+          {notFoundInHistory && (
+            <p style={{ padding: '0.75rem', color: '#6b7280', margin: 0, fontStyle: 'italic' }}>
+              Articolo non trovato nello storico — puoi inserirlo manualmente nel form sottostante.
+            </p>
+          )}
+          {suggestions.map((s) => (
+            <div
+              key={s.articleCode}
+              onClick={() => selectSuggestion(s)}
+              style={{
+                padding: '0.625rem 0.75rem',
+                cursor: 'pointer',
+                borderBottom: '1px solid #f3f4f6',
+                background: articleCode === s.articleCode && selectedFromHistory ? '#eff6ff' : 'transparent',
+              }}
+            >
+              <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{s.articleCode}</span>
+              {' — '}
+              <span style={{ color: '#374151', fontSize: '0.875rem' }}>{s.description}</span>
+              <span style={{ float: 'right', color: '#6b7280', fontSize: '0.75rem' }}>×{s.occurrences}</span>
+            </div>
+          ))}
         </div>
 
-        {/* Tab 1 — Storico */}
-        {activeTab === 'history' && (
-          <div style={{ overflowY: 'auto', maxHeight: '200px', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
-            {loading && <p style={{ padding: '0.75rem', color: '#6b7280' }}>Caricamento...</p>}
-            {!loading && suggestions.length === 0 && (
-              <p style={{ padding: '0.75rem', color: '#6b7280' }}>Nessun articolo non catalogato trovato nello storico.</p>
-            )}
-            {[...suggestions].sort((a, b) => {
-              const term = initialSearch.toUpperCase();
-              if (!term) return 0;
-              const aMatch = a.articleCode.toUpperCase().includes(term) || a.description.toUpperCase().includes(term);
-              const bMatch = b.articleCode.toUpperCase().includes(term) || b.description.toUpperCase().includes(term);
-              if (aMatch && !bMatch) return -1;
-              if (!aMatch && bMatch) return 1;
-              return 0;
-            }).map((s) => (
-              <div
-                key={s.articleCode}
-                onClick={() => selectSuggestion(s)}
-                style={{
-                  padding: '0.625rem 0.75rem',
-                  cursor: 'pointer',
-                  borderBottom: '1px solid #f3f4f6',
-                  background: articleCode === s.articleCode ? '#eff6ff' : 'transparent',
-                }}
-              >
-                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{s.articleCode}</span>
-                {' — '}
-                <span style={{ color: '#374151', fontSize: '0.875rem' }}>{s.description}</span>
-                <span style={{ float: 'right', color: '#6b7280', fontSize: '0.75rem' }}>×{s.occurrences}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Form condiviso */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
               Codice articolo *
               <input autoComplete="off"
                 value={articleCode}
-                onChange={(e) => setArticleCode(e.target.value)}
+                onChange={(e) => handleArticleCodeChange(e.target.value)}
                 style={{ padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
               />
             </label>
@@ -192,7 +189,6 @@ export function GhostArticleModal({ onConfirm, onClose, initialSearch = '' }: Gh
           </div>
         </div>
 
-        {/* Bottoni */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
           <button
             onClick={onClose}

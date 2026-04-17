@@ -588,7 +588,16 @@ export type GhostArticleSuggestion = {
 async function getGhostArticleSuggestions(
   pool: DbPool,
   userId: string,
+  search?: string,
 ): Promise<GhostArticleSuggestion[]> {
+  const params: unknown[] = [userId];
+  let searchClause = '';
+  if (search) {
+    params.push(`%${search}%`);
+    searchClause = `AND (item->>'articleCode' ILIKE $2 OR item->>'description' ILIKE $2)`;
+  }
+  const limitClause = search ? '' : 'LIMIT 50';
+
   const result = await pool.query<{
     article_code: string;
     description: string;
@@ -615,6 +624,7 @@ async function getGhostArticleSuggestions(
            jsonb_array_elements(fh.items) AS item
       WHERE fh.user_id = $1
         AND (item->>'articleCode') IS NOT NULL
+        ${searchClause}
         AND NOT EXISTS (
           SELECT 1 FROM shared.products p
           WHERE p.id = item->>'articleCode'
@@ -630,8 +640,9 @@ async function getGhostArticleSuggestions(
     FROM ranked_items
     WHERE rn = 1
     ORDER BY occurrences DESC, article_code
+    ${limitClause}
     `,
-    [userId],
+    params,
   );
   return result.rows.map((row) => ({
     articleCode: row.article_code,

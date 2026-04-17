@@ -346,7 +346,7 @@ describe('createFresisHistoryRouter', () => {
   });
 
   describe('GET /api/fresis-history/ghost-articles', () => {
-    test('returns ghost article suggestions for authenticated user', async () => {
+    test('returns ghost article suggestions for authenticated user without search', async () => {
       const suggestions = [
         { articleCode: 'GHOST001', description: 'Test', price: 10, discount: 0, vat: 22, occurrences: 2 },
       ];
@@ -356,7 +356,20 @@ describe('createFresisHistoryRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, suggestions });
-      expect(deps.getGhostArticleSuggestions).toHaveBeenCalledWith('user-1');
+      expect(deps.getGhostArticleSuggestions).toHaveBeenCalledWith('user-1', undefined);
+    });
+
+    test('passes search param to suggestions function', async () => {
+      const suggestions = [
+        { articleCode: 'ENDO001', description: 'Endo articolo', price: 5, discount: 0, vat: 22, occurrences: 1 },
+      ];
+      (deps.getGhostArticleSuggestions as ReturnType<typeof vi.fn>).mockResolvedValueOnce(suggestions);
+
+      const res = await request(app).get('/api/fresis-history/ghost-articles?search=endo');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, suggestions });
+      expect(deps.getGhostArticleSuggestions).toHaveBeenCalledWith('user-1', 'endo');
     });
 
     test('returns 500 on error', async () => {

@@ -719,7 +719,7 @@ describe('getGhostArticleSuggestions', () => {
     vi.restoreAllMocks();
   });
 
-  test('returns ghost article suggestions from FT history excluding shared.products codes', async () => {
+  test('returns ghost article suggestions with LIMIT 50 when no search term', async () => {
     const ghostCode = 'GHOST001';
     const pool = createMockPool();
     (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -748,10 +748,25 @@ describe('getGhostArticleSuggestions', () => {
         occurrences: 3,
       },
     ]);
-    const [sql] = vi.mocked(pool.query).mock.calls[0];
+    const [sql, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(sql).toContain('LIMIT 50');
     expect(sql).toContain('shared.products');
     expect(sql).toContain('jsonb_array_elements');
     expect(sql).toContain('ROW_NUMBER()');
     expect(sql).toContain('::int');
+    expect(params).toEqual([TEST_USER_ID]);
+  });
+
+  test('searches full history with ILIKE and no LIMIT when search term provided', async () => {
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [] });
+
+    const { getGhostArticleSuggestions } = await import('./fresis-history');
+    await getGhostArticleSuggestions(pool, TEST_USER_ID, 'endo');
+
+    const [sql, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(sql).toContain('ILIKE');
+    expect(sql).not.toContain('LIMIT 50');
+    expect(params).toEqual([TEST_USER_ID, '%endo%']);
   });
 });

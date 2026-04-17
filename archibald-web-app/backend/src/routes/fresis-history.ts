@@ -30,7 +30,7 @@ type FresisHistoryRouterDeps = {
   getNextFtNumber: (userId: string, esercizio: string, docDate: string) => Promise<number>;
   updateRecord: (userId: string, id: string, updates: Partial<FresisHistoryRecord>) => Promise<FresisHistoryRecord | null>;
   reassignMerged: (userId: string, oldMergedId: string, newMergedId: string) => Promise<number>;
-  getGhostArticleSuggestions: (userId: string) => Promise<GhostArticleSuggestion[]>;
+  getGhostArticleSuggestions: (userId: string, search?: string) => Promise<GhostArticleSuggestion[]>;
   broadcast?: (userId: string, event: { type: string; payload: unknown }) => void;
 };
 
@@ -353,7 +353,8 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.get('/ghost-articles', async (req: AuthRequest, res) => {
     try {
-      const suggestions = await getGhostArticleSuggestions(req.user!.userId);
+      const search = typeof req.query.search === 'string' ? req.query.search.trim() || undefined : undefined;
+      const suggestions = await getGhostArticleSuggestions(req.user!.userId, search);
       res.json({ success: true, suggestions });
     } catch (error) {
       logger.error('Error fetching ghost article suggestions', { error });

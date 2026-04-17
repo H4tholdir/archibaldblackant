@@ -840,7 +840,7 @@ function createApp(deps: AppDeps): Express {
     getNextFtNumber: (userId, esercizio, docDate) => getNextFtNumber(pool, userId, esercizio, 'FT', docDate),
     updateRecord: (userId, id, updates) => fresisHistoryRepo.updateRecord(pool, userId, id, updates),
     reassignMerged: (userId, oldId, newId) => fresisHistoryRepo.reassignMerged(pool, userId, oldId, newId),
-    getGhostArticleSuggestions: (userId) => fresisHistoryRepo.getGhostArticleSuggestions(pool, userId),
+    getGhostArticleSuggestions: (userId, search) => fresisHistoryRepo.getGhostArticleSuggestions(pool, userId, search),
     broadcast: (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }),
   }));
 

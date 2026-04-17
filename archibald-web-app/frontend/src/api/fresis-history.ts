@@ -329,8 +329,9 @@ export type GhostArticleSuggestion = {
   occurrences: number;
 };
 
-export async function getGhostArticles(): Promise<GhostArticleSuggestion[]> {
-  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history/ghost-articles`);
+export async function getGhostArticles(search?: string): Promise<GhostArticleSuggestion[]> {
+  const params = search ? `?search=${encodeURIComponent(search)}` : '';
+  const response = await fetchWithRetry(`${API_BASE}/api/fresis-history/ghost-articles${params}`);
   if (!response.ok) {
     throw new Error(`Error fetching ghost articles: ${response.status}`);
   }
