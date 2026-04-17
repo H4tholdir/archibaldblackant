@@ -4,6 +4,7 @@ import {
   useOperationTracking,
   type TrackedOperation,
 } from "../contexts/OperationTrackingContext";
+import { useDownloadQueue } from "../contexts/DownloadQueueContext";
 
 const ANIMATION_STYLES = `
 @keyframes gob-slide-up {
@@ -134,12 +135,40 @@ const APP_MAIN_SPACER = `
 .app-main { padding-bottom: 60px !important; }
 `;
 
+const queueBadgeStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.22)",
+  border: "1px solid rgba(255,255,255,0.35)",
+  padding: "2px 9px",
+  borderRadius: "12px",
+  fontSize: "11px",
+  fontWeight: 700,
+  flexShrink: 0,
+  letterSpacing: "0.2px",
+};
+
 function GlobalOperationBanner() {
   const { activeOperations, dismissOperation } = useOperationTracking();
+  const { pendingCount } = useDownloadQueue();
   const navigate = useNavigate();
 
-  if (activeOperations.length === 0) {
+  if (activeOperations.length === 0 && pendingCount === 0) {
     return null;
+  }
+
+  if (activeOperations.length === 0 && pendingCount > 0) {
+    return (
+      <>
+        <style>{ANIMATION_STYLES}</style>
+        <style>{APP_MAIN_SPACER}</style>
+        <div style={activeBannerStyle} data-testid="global-operation-banner">
+          <span style={spinnerStyle} data-testid="banner-spinner" />
+          <span style={labelStyle}>Preparazione download...</span>
+          <span style={queueBadgeStyle}>
+            {pendingCount} in coda
+          </span>
+        </div>
+      </>
+    );
   }
 
   const handleClick = (navigateTo?: string) => {
@@ -193,6 +222,9 @@ function GlobalOperationBanner() {
             <span style={labelStyle}>
               {op.customerName} — {op.label}
             </span>
+            {pendingCount > 0 && (
+              <span style={{ ...queueBadgeStyle, background: "rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.12)", color: "#065f46" }}>+{pendingCount} in coda</span>
+            )}
             <span style={chevronStyle}>&#8250;</span>
           </div>
         </>
@@ -220,6 +252,9 @@ function GlobalOperationBanner() {
               {op.progress}%
             </span>
           </div>
+          {pendingCount > 0 && (
+            <span style={queueBadgeStyle}>+{pendingCount} in coda</span>
+          )}
           <span style={chevronStyle}>&#8250;</span>
         </div>
       </>

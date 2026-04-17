@@ -5,7 +5,7 @@ import type { Order, OrderArticle } from "../types/order";
 import { getOrderStatus, getStatusTabColors, isNotSentToVerona, getDdtPillStyle } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
-import type { OperationType, SubscribeFn } from "../api/operations";
+import { useDownloadQueue } from "../contexts/DownloadQueueContext";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
@@ -2866,14 +2866,7 @@ function TabLogistica({
   searchQuery?: string;
   borderColor?: string;
 }) {
-  const { subscribe } = useWebSocketContext();
-  const { trackOperation } = useOperationTracking();
-  const [ddtProgress, setDdtProgress] = useState<{
-    active: boolean;
-    percent: number;
-    stage: string;
-  }>({ active: false, percent: 0, stage: "" });
-  const [ddtError, setDdtError] = useState<string | null>(null);
+  const { enqueueDownload, isQueued, queuePositionOf, activeDocId, activeProgress } = useDownloadQueue();
 
   const ddt = order.ddts?.[0] ?? null;
   const backorderDdts = (order.ddts ?? []).slice(1);
@@ -2883,41 +2876,22 @@ function TabLogistica({
     trackingCourier: ddt?.trackingCourier,
   };
 
+  const ddtDocId = `ddt-${ddt?.id ?? ''}`;
+  const ddtIsActive = activeDocId === ddtDocId;
+  const ddtQueuePos = queuePositionOf(ddtDocId);
+
   const handleDownloadDDT = () => {
-    if (!token) {
-      setDdtError("Token di autenticazione mancante");
-      return;
-    }
-
-    if (!ddt?.trackingNumber) {
-      setDdtError(
-        "Tracking non disponibile: il PDF DDT non può essere generato senza un codice di tracciamento attivo",
-      );
-      return;
-    }
-
-    setDdtProgress({ active: true, percent: 0, stage: "Avvio..." });
-    setDdtError(null);
-
-    downloadPdfWithProgress(
-      order.orderNumber || order.id,
-      "ddt",
+    if (!token || !ddt?.trackingNumber) return;
+    enqueueDownload({
+      docId: ddtDocId,
+      orderId: order.id,
+      orderNumberOrId: order.orderNumber || order.id,
+      type: "ddt",
       token,
-      (stage, percent) => setDdtProgress({ active: true, percent, stage }),
-      () =>
-        setTimeout(
-          () => setDdtProgress({ active: false, percent: 0, stage: "" }),
-          1500,
-        ),
-      (error) => {
-        setDdtError(error);
-        setDdtProgress({ active: false, percent: 0, stage: "" });
-      },
-      subscribe,
-      undefined,
-      (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
-      ddt?.ddtNumber,
-    );
+      searchTerm: ddt.ddtNumber ?? ddt.trackingNumber,
+      docLabel: "DDT",
+      displayName: order.customerName || order.id,
+    });
   };
 
   const hasDestinatario =
@@ -3197,13 +3171,13 @@ function TabLogistica({
           <div style={{ marginTop: "16px", textAlign: "center" }}>
             <button
               onClick={handleDownloadDDT}
-              disabled={ddtProgress.active || !ddt.trackingNumber}
+              disabled={isQueued(ddtDocId) || !ddt.trackingNumber}
               style={{
                 maxWidth: "300px",
                 width: "100%",
                 padding: "12px",
                 backgroundColor:
-                  ddtProgress.active || !ddt.trackingNumber
+                  isQueued(ddtDocId) || !ddt.trackingNumber
                     ? "#ccc"
                     : "#4caf50",
                 color: "#fff",
@@ -3212,7 +3186,7 @@ function TabLogistica({
                 fontSize: "14px",
                 fontWeight: 600,
                 cursor:
-                  ddtProgress.active || !ddt.trackingNumber
+                  isQueued(ddtDocId) || !ddt.trackingNumber
                     ? "not-allowed"
                     : "pointer",
                 display: "inline-flex",
@@ -3222,20 +3196,25 @@ function TabLogistica({
                 transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (!ddtProgress.active && ddt.trackingNumber) {
+                if (!isQueued(ddtDocId) && ddt.trackingNumber) {
                   e.currentTarget.style.backgroundColor = "#388e3c";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!ddtProgress.active && ddt.trackingNumber) {
+                if (!isQueued(ddtDocId) && ddt.trackingNumber) {
                   e.currentTarget.style.backgroundColor = "#4caf50";
                 }
               }}
             >
-              {ddtProgress.active ? (
+              {ddtIsActive ? (
                 <>
                   <span>⏳</span>
-                  <span>{ddtProgress.stage || "Download in corso..."}</span>
+                  <span>{activeProgress?.stage ?? "Download in corso..."}</span>
+                </>
+              ) : ddtQueuePos > 1 ? (
+                <>
+                  <span>🕐</span>
+                  <span>In coda ({ddtQueuePos}°)</span>
                 </>
               ) : !ddt.trackingNumber ? (
                 <>
@@ -3249,26 +3228,12 @@ function TabLogistica({
                 </>
               )}
             </button>
-            {ddtProgress.active && (
+            {ddtIsActive && activeProgress && (
               <ProgressBar
-                percent={ddtProgress.percent}
-                stage={ddtProgress.stage}
+                percent={activeProgress.percent}
+                stage={activeProgress.stage}
                 color="#4caf50"
               />
-            )}
-            {ddtError && (
-              <div
-                style={{
-                  marginTop: "8px",
-                  padding: "8px",
-                  backgroundColor: "#ffebee",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  color: "#c62828",
-                }}
-              >
-                {ddtError}
-              </div>
             )}
           </div>
         </div>
@@ -3315,15 +3280,7 @@ function TabFinanziario({
   token?: string;
   searchQuery?: string;
 }) {
-  const { subscribe } = useWebSocketContext();
-  const { trackOperation } = useOperationTracking();
-  const [invoiceProgress, setInvoiceProgress] = useState<{
-    active: boolean;
-    percent: number;
-    stage: string;
-    forInvoiceId?: string;
-  }>({ active: false, percent: 0, stage: "" });
-  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const { enqueueDownload, isQueued, queuePositionOf, activeDocId, activeProgress } = useDownloadQueue();
   const invoices = order.invoices ?? [];
 
   return (
@@ -3500,7 +3457,9 @@ function TabFinanziario({
         </div>
       ) : (
         invoices.map((inv) => {
-          const isDownloading = invoiceProgress.active && invoiceProgress.forInvoiceId === inv.id;
+          const invDocId = `invoice-${inv.id}`;
+          const invIsActive = activeDocId === invDocId;
+          const invQueuePos = queuePositionOf(invDocId);
           const isNC = inv.invoiceNumber?.startsWith("NC/");
           return (
             <div key={inv.id} style={{ marginBottom: "16px" }}>
@@ -3701,37 +3660,30 @@ function TabFinanziario({
 
               {/* Download button for this invoice */}
               <button
-                disabled={invoiceProgress.active}
+                disabled={isQueued(invDocId)}
                 onClick={() => {
-                  if (invoiceProgress.active || !token) return;
-                  setInvoiceProgress({ active: true, percent: 0, stage: "Avvio...", forInvoiceId: inv.id });
-                  setInvoiceError(null);
-                  downloadPdfWithProgress(
-                    order.orderNumber || order.id,
-                    "invoice",
+                  if (isQueued(invDocId) || !token) return;
+                  enqueueDownload({
+                    docId: invDocId,
+                    orderId: order.id,
+                    orderNumberOrId: order.orderNumber || order.id,
+                    type: "invoice",
                     token,
-                    (stage, percent) => setInvoiceProgress({ active: true, percent, stage, forInvoiceId: inv.id }),
-                    () => setTimeout(() => setInvoiceProgress({ active: false, percent: 0, stage: "" }), 1500),
-                    (error) => {
-                      setInvoiceError(error);
-                      setInvoiceProgress({ active: false, percent: 0, stage: "" });
-                    },
-                    subscribe,
-                    isNC ? "NC" : "Fattura",
-                    (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
-                    inv.invoiceNumber,
-                  );
+                    searchTerm: inv.invoiceNumber,
+                    docLabel: isNC ? "NC" : "Fattura",
+                    displayName: order.customerName || order.id,
+                  });
                 }}
                 style={{
                   width: "100%",
                   padding: "12px",
-                  backgroundColor: invoiceProgress.active ? "#ccc" : "#4caf50",
+                  backgroundColor: isQueued(invDocId) ? "#ccc" : "#4caf50",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
                   fontSize: "14px",
                   fontWeight: 600,
-                  cursor: invoiceProgress.active ? "not-allowed" : "pointer",
+                  cursor: isQueued(invDocId) ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -3739,10 +3691,15 @@ function TabFinanziario({
                   transition: "background-color 0.2s",
                 }}
               >
-                {isDownloading ? (
+                {invIsActive ? (
                   <>
                     <span>⏳</span>
-                    <span>{invoiceProgress.stage || "Download in corso..."}</span>
+                    <span>{activeProgress?.stage ?? "Download in corso..."}</span>
+                  </>
+                ) : invQueuePos > 1 ? (
+                  <>
+                    <span>🕐</span>
+                    <span>In coda ({invQueuePos}°)</span>
                   </>
                 ) : (
                   <>
@@ -3751,28 +3708,14 @@ function TabFinanziario({
                   </>
                 )}
               </button>
-              {isDownloading && (
-                <ProgressBar percent={invoiceProgress.percent} stage={invoiceProgress.stage} color="#4caf50" />
+              {invIsActive && activeProgress && (
+                <ProgressBar percent={activeProgress.percent} stage={activeProgress.stage} color="#4caf50" />
               )}
             </div>
           );
         })
       )}
 
-      {invoiceError && (
-        <div
-          style={{
-            marginTop: "8px",
-            padding: "8px",
-            backgroundColor: "#ffebee",
-            borderRadius: "4px",
-            fontSize: "12px",
-            color: "#c62828",
-          }}
-        >
-          {invoiceError}
-        </div>
-      )}
     </div>
   );
 }
@@ -3968,94 +3911,6 @@ const tableCellStyle: React.CSSProperties = {
   color: "#333",
 };
 
-// ============================================================================
-// PDF DOWNLOAD WITH SSE PROGRESS
-// ============================================================================
-
-function downloadPdfWithProgress(
-  orderId: string,
-  type: "invoice" | "ddt",
-  token: string,
-  onProgress: (stage: string, percent: number) => void,
-  onComplete: () => void,
-  onError: (error: string) => void,
-  subscribe: SubscribeFn,
-  docLabel?: string,
-  onJobEnqueued?: (jobId: string) => void,
-  searchTerm?: string,
-): () => void {
-  let cancelled = false;
-
-  (async () => {
-    try {
-      onProgress("Avvio download...", 5);
-
-      const operationType: OperationType = type === "invoice" ? "download-invoice-pdf" : "download-ddt-pdf";
-      const { jobId } = await enqueueOperation(operationType, { orderId, searchTerm: searchTerm ?? orderId });
-
-      if (cancelled) return;
-
-      onJobEnqueued?.(jobId);
-      onProgress("In coda...", 10);
-
-      const result = await waitForJobViaWebSocket(jobId, {
-        subscribe,
-        intervalMs: 1500,
-        maxWaitMs: 180_000,
-        onProgress: (progress, label) => {
-          if (!cancelled) {
-            onProgress(label ?? "Download in corso...", progress);
-          }
-        },
-      });
-
-      if (cancelled) return;
-
-      const resultData = (result.data ?? result) as Record<string, unknown>;
-      const downloadKey = resultData.downloadKey as string;
-      if (!downloadKey) {
-        onError("Nessun documento ricevuto dal server");
-        return;
-      }
-
-      onProgress("Download documento...", 95);
-
-      const pdfResponse = await fetch(`/api/documents/download/${downloadKey}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!pdfResponse.ok) {
-        onError("Errore nel download del documento");
-        return;
-      }
-
-      if (cancelled) return;
-
-      const arrayBuffer = await pdfResponse.arrayBuffer();
-
-      if (cancelled) return;
-
-      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = `${type === "ddt" ? "DDT" : docLabel ?? "Fattura"}_${orderId}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(downloadUrl);
-
-      onProgress("Download completato!", 100);
-
-      onComplete();
-    } catch (err) {
-      if (!cancelled) {
-        onError(err instanceof Error ? err.message : "Errore durante il download");
-      }
-    }
-  })();
-
-  return () => { cancelled = true; };
-}
-
 function ProgressBar({
   percent,
   stage,
@@ -4246,18 +4101,7 @@ export function OrderCardNew({
     }
   };
 
-  const [ddtQuickProgress, setDdtQuickProgress] = useState<{
-    active: boolean;
-    percent: number;
-    stage: string;
-    forDdtId?: string;
-  }>({ active: false, percent: 0, stage: "" });
-  const [invoiceQuickProgress, setInvoiceQuickProgress] = useState<{
-    active: boolean;
-    percent: number;
-    stage: string;
-    forInvoiceId?: string;
-  }>({ active: false, percent: 0, stage: "" });
+  const { enqueueDownload: enqueueDl, isQueued: isDlQueued, queuePositionOf: dlQueuePos, activeDocId: dlActiveDocId, activeProgress: dlActiveProgress } = useDownloadQueue();
 
   // Articles totals state (updated when articles are loaded/synced)
   // Initialize from order prop if available
@@ -4672,41 +4516,43 @@ export function OrderCardNew({
               >
                 {/* DDT Download Buttons — one per downloadable DDT */}
                 {(order.ddts ?? []).filter(d => d.ddtNumber && d.trackingNumber).map((ddtItem) => {
-                  const isDownloading = ddtQuickProgress.active && ddtQuickProgress.forDdtId === ddtItem.id;
+                  const qdocId = `ddt-${ddtItem.id}`;
+                  const qIsActive = dlActiveDocId === qdocId;
+                  const qPos = dlQueuePos(qdocId);
+                  const qQueued = isDlQueued(qdocId);
                   return (
-                    <div key={ddtItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: isDownloading ? "160px" : undefined }}>
+                    <div key={ddtItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: qIsActive ? "160px" : undefined }}>
                       <button
-                        disabled={ddtQuickProgress.active}
+                        disabled={qQueued}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (ddtQuickProgress.active || !token) return;
-                          setDdtQuickProgress({ active: true, percent: 0, stage: "Avvio...", forDdtId: ddtItem.id });
-                          downloadPdfWithProgress(
-                            order.orderNumber || order.id, "ddt", token,
-                            (stage, percent) => setDdtQuickProgress({ active: true, percent, stage, forDdtId: ddtItem.id }),
-                            () => setTimeout(() => setDdtQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
-                            (error) => { console.error("DDT download error:", error); setDdtQuickProgress({ active: false, percent: 0, stage: "" }); },
-                            subscribe,
-                            undefined,
-                            (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, 'Download DDT...'),
-                            ddtItem.ddtNumber,
-                          );
+                          if (qQueued || !token) return;
+                          enqueueDl({
+                            docId: qdocId,
+                            orderId: order.id,
+                            orderNumberOrId: order.orderNumber || order.id,
+                            type: "ddt",
+                            token,
+                            searchTerm: ddtItem.ddtNumber ?? ddtItem.id,
+                            docLabel: "DDT",
+                            displayName: order.customerName || order.id,
+                          });
                         }}
                         style={{
                           display: "inline-flex", alignItems: "center", gap: "4px",
                           padding: "6px 12px", fontSize: "12px", fontWeight: 600,
-                          backgroundColor: isDownloading ? "#e8f5e9" : "#fff",
-                          color: isDownloading ? "#81c784" : "#388e3c",
-                          border: `1px solid ${isDownloading ? "#81c784" : "#388e3c"}`,
-                          borderRadius: "6px", cursor: ddtQuickProgress.active ? "wait" : "pointer",
-                          transition: "all 0.2s", opacity: ddtQuickProgress.active ? 0.85 : 1,
+                          backgroundColor: qIsActive ? "#e8f5e9" : "#fff",
+                          color: qIsActive ? "#81c784" : "#388e3c",
+                          border: `1px solid ${qIsActive ? "#81c784" : "#388e3c"}`,
+                          borderRadius: "6px", cursor: qQueued ? "wait" : "pointer",
+                          transition: "all 0.2s", opacity: qQueued ? 0.85 : 1,
                         }}
-                        onMouseEnter={(e) => { if (!ddtQuickProgress.active) { e.currentTarget.style.backgroundColor = "#388e3c"; e.currentTarget.style.color = "#fff"; } }}
-                        onMouseLeave={(e) => { if (!ddtQuickProgress.active) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#388e3c"; } }}
+                        onMouseEnter={(e) => { if (!qQueued) { e.currentTarget.style.backgroundColor = "#388e3c"; e.currentTarget.style.color = "#fff"; } }}
+                        onMouseLeave={(e) => { if (!qQueued) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#388e3c"; } }}
                       >
-                        {isDownloading ? "⏳ Scaricando..." : `📄 ${ddtItem.ddtNumber}`}
+                        {qIsActive ? "⏳ Scaricando..." : qPos > 1 ? `🕐 In coda (${qPos}°)` : `📄 ${ddtItem.ddtNumber}`}
                       </button>
-                      {isDownloading && <ProgressBar percent={ddtQuickProgress.percent} stage={ddtQuickProgress.stage} color="#388e3c" />}
+                      {qIsActive && dlActiveProgress && <ProgressBar percent={dlActiveProgress.percent} stage={dlActiveProgress.stage} color="#388e3c" />}
                     </div>
                   );
                 })}
@@ -4714,41 +4560,43 @@ export function OrderCardNew({
                 {/* Invoice Download Buttons — one per invoice */}
                 {(order.invoices ?? []).filter(i => i.invoiceNumber).map((invItem) => {
                   const isNC = invItem.invoiceNumber.startsWith("NC/");
-                  const isDownloading = invoiceQuickProgress.active && invoiceQuickProgress.forInvoiceId === invItem.id;
+                  const qdocId = `invoice-${invItem.id}`;
+                  const qIsActive = dlActiveDocId === qdocId;
+                  const qPos = dlQueuePos(qdocId);
+                  const qQueued = isDlQueued(qdocId);
                   return (
-                    <div key={invItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: isDownloading ? "160px" : undefined }}>
+                    <div key={invItem.id} style={{ display: "inline-flex", flexDirection: "column", minWidth: qIsActive ? "160px" : undefined }}>
                       <button
-                        disabled={invoiceQuickProgress.active}
+                        disabled={qQueued}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (invoiceQuickProgress.active || !token) return;
-                          setInvoiceQuickProgress({ active: true, percent: 0, stage: "Avvio...", forInvoiceId: invItem.id });
-                          downloadPdfWithProgress(
-                            order.orderNumber || order.id, "invoice", token,
-                            (stage, percent) => setInvoiceQuickProgress({ active: true, percent, stage, forInvoiceId: invItem.id }),
-                            () => setTimeout(() => setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
-                            (error) => { console.error("Invoice download error:", error); setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }); },
-                            subscribe,
-                            isNC ? "NC" : "Fattura",
-                            (jobId) => trackOperation(order.id, jobId, order.customerName || order.id, isNC ? 'Download NC...' : 'Download fattura...'),
-                            invItem.invoiceNumber,
-                          );
+                          if (qQueued || !token) return;
+                          enqueueDl({
+                            docId: qdocId,
+                            orderId: order.id,
+                            orderNumberOrId: order.orderNumber || order.id,
+                            type: "invoice",
+                            token,
+                            searchTerm: invItem.invoiceNumber,
+                            docLabel: isNC ? "NC" : "Fattura",
+                            displayName: order.customerName || order.id,
+                          });
                         }}
                         style={{
                           display: "inline-flex", alignItems: "center", gap: "4px",
                           padding: "6px 12px", fontSize: "12px", fontWeight: 600,
-                          backgroundColor: isDownloading ? "#f3e5f5" : "#fff",
-                          color: isDownloading ? "#ba68c8" : "#7b1fa2",
-                          border: `1px solid ${isDownloading ? "#ba68c8" : "#7b1fa2"}`,
-                          borderRadius: "6px", cursor: invoiceQuickProgress.active ? "wait" : "pointer",
-                          transition: "all 0.2s", opacity: invoiceQuickProgress.active ? 0.85 : 1,
+                          backgroundColor: qIsActive ? "#f3e5f5" : "#fff",
+                          color: qIsActive ? "#ba68c8" : "#7b1fa2",
+                          border: `1px solid ${qIsActive ? "#ba68c8" : "#7b1fa2"}`,
+                          borderRadius: "6px", cursor: qQueued ? "wait" : "pointer",
+                          transition: "all 0.2s", opacity: qQueued ? 0.85 : 1,
                         }}
-                        onMouseEnter={(e) => { if (!invoiceQuickProgress.active) { e.currentTarget.style.backgroundColor = "#7b1fa2"; e.currentTarget.style.color = "#fff"; } }}
-                        onMouseLeave={(e) => { if (!invoiceQuickProgress.active) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#7b1fa2"; } }}
+                        onMouseEnter={(e) => { if (!qQueued) { e.currentTarget.style.backgroundColor = "#7b1fa2"; e.currentTarget.style.color = "#fff"; } }}
+                        onMouseLeave={(e) => { if (!qQueued) { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.color = "#7b1fa2"; } }}
                       >
-                        {isDownloading ? "⏳ Scaricando..." : `📑 ${invItem.invoiceNumber}`}
+                        {qIsActive ? "⏳ Scaricando..." : qPos > 1 ? `🕐 In coda (${qPos}°)` : `📑 ${invItem.invoiceNumber}`}
                       </button>
-                      {isDownloading && <ProgressBar percent={invoiceQuickProgress.percent} stage={invoiceQuickProgress.stage} color="#7b1fa2" />}
+                      {qIsActive && dlActiveProgress && <ProgressBar percent={dlActiveProgress.percent} stage={dlActiveProgress.stage} color="#7b1fa2" />}
                     </div>
                   );
                 })}

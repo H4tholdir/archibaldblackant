@@ -21,6 +21,10 @@ vi.mock("../contexts/OperationTrackingContext", () => ({
   useOperationTracking: () => mockContextValue,
 }));
 
+vi.mock("../contexts/DownloadQueueContext", () => ({
+  useDownloadQueue: () => ({ pendingCount: 0 }),
+}));
+
 function makeOperation(overrides: Partial<TrackedOperation> = {}): TrackedOperation {
   return {
     orderId: "order-1",
