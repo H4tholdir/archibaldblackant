@@ -561,7 +561,7 @@ describe("OperationTrackingContext", () => {
       vi.clearAllMocks();
     });
 
-    test("aggiorna op active→completed quando WS si riconnette e job è completed", async () => {
+    test("aggiorna op queued→completed quando WS si riconnette e job è completed", async () => {
       vi.useRealTimers();
 
       const { getJobStatus } = await import("../api/operations");
