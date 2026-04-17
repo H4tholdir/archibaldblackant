@@ -333,6 +333,186 @@ describe("OperationTrackingContext", () => {
     vi.useFakeTimers();
   });
 
+  test("recovery includes queued orders on mount", async () => {
+    vi.useRealTimers();
+
+    const { getPendingOrders } = await import("../api/pending-orders");
+    const { getJobStatus } = await import("../api/operations");
+
+    (getPendingOrders as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "order-q1",
+        customerId: "cust-2",
+        customerName: "Anna Bianchi",
+        items: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        status: "syncing",
+        retryCount: 0,
+        deviceId: "dev-1",
+        needsSync: false,
+        jobId: "job-q1",
+        jobStatus: "queued",
+        jobStartedAt: null,
+      },
+    ]);
+
+    (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: true,
+      job: {
+        jobId: "job-q1",
+        type: "submit-order",
+        userId: "user-1",
+        state: "waiting",
+        progress: 0,
+        result: null,
+        failedReason: undefined,
+      },
+    });
+
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeOperations).toEqual([
+        expect.objectContaining({
+          orderId: "order-q1",
+          jobId: "job-q1",
+          customerName: "Anna Bianchi",
+          status: "queued",
+          progress: 0,
+        }),
+      ]);
+    });
+
+    vi.useFakeTimers();
+  });
+
+  test("recovery includes started orders on mount", async () => {
+    vi.useRealTimers();
+
+    const { getPendingOrders } = await import("../api/pending-orders");
+    const { getJobStatus } = await import("../api/operations");
+
+    (getPendingOrders as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "order-s1",
+        customerId: "cust-3",
+        customerName: "Carlo Neri",
+        items: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        status: "syncing",
+        retryCount: 0,
+        deviceId: "dev-1",
+        needsSync: false,
+        jobId: "job-s1",
+        jobStatus: "started",
+        jobStartedAt: "2026-01-01T00:01:00Z",
+      },
+    ]);
+
+    (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: true,
+      job: {
+        jobId: "job-s1",
+        type: "submit-order",
+        userId: "user-1",
+        state: "active",
+        progress: 10,
+        result: null,
+        failedReason: undefined,
+      },
+    });
+
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeOperations).toEqual([
+        expect.objectContaining({
+          orderId: "order-s1",
+          jobId: "job-s1",
+          customerName: "Carlo Neri",
+          status: "active",
+          progress: 10,
+        }),
+      ]);
+    });
+
+    vi.useFakeTimers();
+  });
+
+  test("recovery ignores idle orders and does not call getJobStatus for completed/failed", async () => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+
+    const { getPendingOrders } = await import("../api/pending-orders");
+    const { getJobStatus } = await import("../api/operations");
+
+    (getPendingOrders as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "order-idle",
+        customerId: "cust-4",
+        customerName: "Davide Russo",
+        items: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        status: "pending",
+        retryCount: 0,
+        deviceId: "dev-1",
+        needsSync: false,
+        jobId: undefined,
+        jobStatus: "idle",
+        jobStartedAt: null,
+      },
+      {
+        id: "order-done",
+        customerId: "cust-5",
+        customerName: "Elena Greco",
+        items: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        status: "completed",
+        retryCount: 0,
+        deviceId: "dev-1",
+        needsSync: false,
+        jobId: "job-done",
+        jobStatus: "completed",
+        jobStartedAt: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "order-fail",
+        customerId: "cust-6",
+        customerName: "Fabio Serra",
+        items: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        status: "failed",
+        retryCount: 2,
+        deviceId: "dev-1",
+        needsSync: false,
+        jobId: "job-fail",
+        jobStatus: "failed",
+        jobStartedAt: "2026-01-01T00:00:00Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    // Wait a tick to allow the async recover() to complete
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(result.current.activeOperations).toEqual([]);
+    expect(getJobStatus).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+  });
+
   test("WS events for unknown jobId are ignored", async () => {
     const { result } = renderHook(() => useOperationTracking(), {
       wrapper: Wrapper,

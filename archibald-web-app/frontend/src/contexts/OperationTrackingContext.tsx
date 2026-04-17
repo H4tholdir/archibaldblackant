@@ -66,15 +66,19 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     async function recover() {
       try {
         const pendingOrders = await getPendingOrders();
-        const processing = pendingOrders.filter(
-          (o) => o.jobStatus === "processing" && o.jobId,
+        const inFlight = pendingOrders.filter(
+          (o) =>
+            (o.jobStatus === "queued" ||
+              o.jobStatus === "started" ||
+              o.jobStatus === "processing") &&
+            o.jobId,
         );
 
-        if (cancelled || processing.length === 0) return;
+        if (cancelled || inFlight.length === 0) return;
 
         const recovered: TrackedOperation[] = [];
 
-        for (const order of processing) {
+        for (const order of inFlight) {
           try {
             const { job } = await getJobStatus(order.jobId!);
             if (cancelled) return;
