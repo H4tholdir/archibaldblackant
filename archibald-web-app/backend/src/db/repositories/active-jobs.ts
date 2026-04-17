@@ -37,7 +37,7 @@ async function getActiveJobsByUserId(pool: DbPool, userId: string): Promise<Acti
     user_id: string;
     entity_id: string;
     entity_name: string;
-    started_at: Date;
+    started_at: Date | string;
   }>(
     'SELECT job_id, type, user_id, entity_id, entity_name, started_at FROM system.active_jobs WHERE user_id = $1 ORDER BY started_at ASC',
     [userId],
@@ -48,14 +48,14 @@ async function getActiveJobsByUserId(pool: DbPool, userId: string): Promise<Acti
     userId: row.user_id,
     entityId: row.entity_id,
     entityName: row.entity_name,
-    startedAt: row.started_at.toISOString(),
+    startedAt: new Date(row.started_at).toISOString(),
   }));
 }
 
 async function deleteStaleActiveJobs(pool: DbPool, olderThanMs: number): Promise<number> {
   const result = await pool.query(
-    `DELETE FROM system.active_jobs WHERE started_at < NOW() - ($1 || ' milliseconds')::INTERVAL`,
-    [olderThanMs],
+    `DELETE FROM system.active_jobs WHERE started_at < NOW() - INTERVAL '1 second' * $1`,
+    [olderThanMs / 1000],
   );
   return result.rowCount ?? 0;
 }

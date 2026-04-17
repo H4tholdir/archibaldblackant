@@ -46,13 +46,14 @@ describe('active-jobs repository', () => {
 
       const jobs = await getActiveJobsByUserId(pool, 'user-1');
       expect(jobs).toEqual([
-        expect.objectContaining({
+        {
           jobId: 'job-1',
           type: 'submit-order',
           userId: 'user-1',
           entityId: 'order-1',
           entityName: 'Mario Rossi',
-        }),
+          startedAt: expect.any(String),
+        },
       ]);
     });
 
@@ -104,10 +105,24 @@ describe('active-jobs repository', () => {
       await insertActiveJob(pool, { jobId: 'j-b', type: 'send-to-verona', userId: 'user-B', entityId: 'e2', entityName: 'B' });
 
       const jobsA = await getActiveJobsByUserId(pool, 'user-A');
-      expect(jobsA).toEqual([expect.objectContaining({ jobId: 'j-a', userId: 'user-A' })]);
+      expect(jobsA).toEqual([{
+        jobId: 'j-a',
+        type: 'submit-order',
+        userId: 'user-A',
+        entityId: 'e1',
+        entityName: 'A',
+        startedAt: expect.any(String),
+      }]);
 
       const jobsB = await getActiveJobsByUserId(pool, 'user-B');
-      expect(jobsB).toEqual([expect.objectContaining({ jobId: 'j-b', userId: 'user-B' })]);
+      expect(jobsB).toEqual([{
+        jobId: 'j-b',
+        type: 'send-to-verona',
+        userId: 'user-B',
+        entityId: 'e2',
+        entityName: 'B',
+        startedAt: expect.any(String),
+      }]);
     });
 
     test('restituisce array vuoto se non ci sono job', async () => {
@@ -128,7 +143,14 @@ describe('active-jobs repository', () => {
 
       expect(deleted).toBe(1);
       const remaining = await getActiveJobsByUserId(pool, 'user-1');
-      expect(remaining).toEqual([expect.objectContaining({ jobId: 'job-new' })]);
+      expect(remaining).toEqual([{
+        jobId: 'job-new',
+        type: 'edit-order',
+        userId: 'user-1',
+        entityId: 'e2',
+        entityName: 'Test',
+        startedAt: expect.any(String),
+      }]);
     });
   });
 });
