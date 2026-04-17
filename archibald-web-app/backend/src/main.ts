@@ -1265,7 +1265,7 @@ async function bootstrap(): Promise<void> {
     circuitBreaker,
     onJobStarted: async (type, data, userId, jobId) => {
       if (type === 'submit-order' && data.pendingOrderId) {
-        await updateJobTracking(pool, data.pendingOrderId as string, jobId);
+        await updateJobTracking(pool, data.pendingOrderId as string, jobId).catch(() => {});
       }
       if (ACTIVE_JOB_TYPES.has(type)) {
         const { entityId, entityName } = extractEntityInfo(type, data);

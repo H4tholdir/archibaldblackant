@@ -236,7 +236,7 @@ async function updateJobTracking(
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.pending_orders
-     SET job_id = $1, status = 'processing', job_started_at = NOW(), updated_at = $2
+     SET job_id = $1, status = 'syncing', job_started_at = NOW(), updated_at = $2
      WHERE id = $3`,
     [jobId, Date.now(), pendingOrderId],
   );
