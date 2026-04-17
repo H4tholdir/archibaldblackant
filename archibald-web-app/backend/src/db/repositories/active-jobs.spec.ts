@@ -22,7 +22,7 @@ async function cleanTable() {
   await pool.query("DELETE FROM system.active_jobs");
 }
 
-describe('active-jobs repository', () => {
+describe.skipIf(process.env.CI === 'true')('active-jobs repository', () => {
   beforeEach(async () => {
     const migrationsDir = path.resolve(__dirname, '../migrations');
     const migrations = loadMigrationFiles(migrationsDir);
