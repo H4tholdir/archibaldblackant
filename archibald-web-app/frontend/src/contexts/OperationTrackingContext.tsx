@@ -8,8 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useWebSocketContext } from "./WebSocketContext";
-import { getPendingOrders } from "../api/pending-orders";
-import { getJobStatus } from "../api/operations";
+import { getActiveJobs, getJobStatus } from "../api/operations";
 
 type TrackedOperation = {
   orderId: string;
@@ -36,6 +35,15 @@ const OperationTrackingContext = createContext<OperationTrackingValue | null>(nu
 type OperationTrackingProviderProps = {
   children: ReactNode;
 };
+
+function deriveNavigateTo(type: string, entityId: string): string | undefined {
+  if (type === 'update-customer' || type === 'read-vat-status') return `/customers/${entityId}`;
+  if (type === 'create-customer') return '/customers';
+  if (type === 'submit-order') return '/pending-orders';
+  if (['send-to-verona', 'delete-order', 'edit-order', 'batch-delete-orders',
+       'batch-send-to-verona', 'download-ddt-pdf', 'download-invoice-pdf'].includes(type)) return '/orders';
+  return undefined;
+}
 
 function OperationTrackingProvider({ children }: OperationTrackingProviderProps) {
   const { subscribe } = useWebSocketContext();
@@ -70,18 +78,15 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
 
     async function recover() {
       try {
-        const pendingOrders = await getPendingOrders();
-        const inFlight = pendingOrders.filter(
-          (o) => o.status === "processing" && o.jobId,
-        );
+        const { jobs } = await getActiveJobs();
 
-        if (cancelled || inFlight.length === 0) return;
+        if (cancelled || jobs.length === 0) return;
 
         const recovered: TrackedOperation[] = [];
 
-        for (const order of inFlight) {
+        for (const activeJob of jobs) {
           try {
-            const { job } = await getJobStatus(order.jobId!);
+            const { job } = await getJobStatus(activeJob.jobId);
             if (cancelled) return;
 
             const status = job.state === "completed"
@@ -93,23 +98,22 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                   : "queued" as const;
 
             recovered.push({
-              orderId: order.id,
-              jobId: order.jobId!,
-              customerName: order.customerName,
+              orderId: activeJob.entityId,
+              jobId: activeJob.jobId,
+              customerName: activeJob.entityName,
               status,
               progress: status === "completed" ? 100 : (job.progress ?? 0),
               label: status === "completed"
-                ? "Ordine completato"
+                ? "Operazione completata"
                 : status === "failed"
                   ? "Errore"
                   : "Recupero in corso...",
               error: job.failedReason,
-              startedAt: order.jobStartedAt
-                ? new Date(order.jobStartedAt).getTime()
-                : Date.now(),
+              startedAt: new Date(activeJob.startedAt).getTime(),
+              navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
             });
           } catch {
-            // Skip orders whose job status can't be fetched
+            // Skip jobs il cui status non è recuperabile
           }
         }
 

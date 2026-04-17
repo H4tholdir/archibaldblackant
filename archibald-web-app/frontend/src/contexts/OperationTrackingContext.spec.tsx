@@ -36,10 +36,6 @@ vi.mock("./WebSocketContext", () => ({
   }),
 }));
 
-vi.mock("../api/pending-orders", () => ({
-  getPendingOrders: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock("../api/operations", () => ({
   getJobStatus: vi.fn().mockResolvedValue({
     success: true,
@@ -53,6 +49,7 @@ vi.mock("../api/operations", () => ({
       failedReason: undefined,
     },
   }),
+  getActiveJobs: vi.fn().mockResolvedValue({ success: true, jobs: [] }),
 }));
 
 function Wrapper({ children }: { children: ReactNode }) {
@@ -282,28 +279,25 @@ describe("OperationTrackingContext", () => {
       vi.clearAllMocks();
     });
 
-    test("recovers processing orders on mount", async () => {
+    test("recupera job attivi al mount tramite getActiveJobs", async () => {
       vi.useRealTimers();
 
-      const { getPendingOrders } = await import("../api/pending-orders");
+      const { getActiveJobs } = await import("../api/operations");
       const { getJobStatus } = await import("../api/operations");
 
-      (getPendingOrders as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        {
-          id: "order-99",
-          customerId: "cust-1",
-          customerName: "Luigi Verdi",
-          items: [],
-          createdAt: "2026-01-01T00:00:00Z",
-          updatedAt: "2026-01-01T00:00:00Z",
-          status: "processing",
-          retryCount: 0,
-          deviceId: "dev-1",
-          needsSync: false,
-          jobId: "job-99",
-          jobStartedAt: "2026-01-01T00:00:00Z",
-        },
-      ]);
+      (getActiveJobs as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        success: true,
+        jobs: [
+          {
+            jobId: "job-99",
+            type: "submit-order",
+            userId: "user-1",
+            entityId: "order-99",
+            entityName: "Luigi Verdi",
+            startedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      });
 
       (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         success: true,
@@ -338,48 +332,21 @@ describe("OperationTrackingContext", () => {
       vi.useFakeTimers();
     });
 
-    test("ignores orders not in processing status", async () => {
+    test("restituisce operazioni vuote se getActiveJobs risponde con array vuoto", async () => {
       vi.useRealTimers();
 
-      const { getPendingOrders } = await import("../api/pending-orders");
+      const { getActiveJobs } = await import("../api/operations");
       const { getJobStatus } = await import("../api/operations");
 
-      (getPendingOrders as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        {
-          id: "order-pending",
-          customerId: "cust-4",
-          customerName: "Davide Russo",
-          items: [],
-          createdAt: "2026-01-01T00:00:00Z",
-          updatedAt: "2026-01-01T00:00:00Z",
-          status: "pending",
-          retryCount: 0,
-          deviceId: "dev-1",
-          needsSync: false,
-          jobId: undefined,
-          jobStartedAt: null,
-        },
-        {
-          id: "order-syncing",
-          customerId: "cust-5",
-          customerName: "Elena Greco",
-          items: [],
-          createdAt: "2026-01-01T00:00:00Z",
-          updatedAt: "2026-01-01T00:00:00Z",
-          status: "syncing",
-          retryCount: 0,
-          deviceId: "dev-1",
-          needsSync: false,
-          jobId: "job-done",
-          jobStartedAt: "2026-01-01T00:00:00Z",
-        },
-      ]);
+      (getActiveJobs as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        success: true,
+        jobs: [],
+      });
 
       const { result } = renderHook(() => useOperationTracking(), {
         wrapper: Wrapper,
       });
 
-      // Wait a tick to allow the async recover() to complete
       await new Promise((r) => setTimeout(r, 50));
 
       expect(result.current.activeOperations).toEqual([]);
