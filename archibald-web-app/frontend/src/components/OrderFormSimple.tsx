@@ -673,7 +673,7 @@ export default function OrderFormSimple() {
     };
 
     loadOrderForEditing();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, syncItemsBulk]);
 
   // === PRELOAD CUSTOMER FROM URL PARAM ===
   useEffect(() => {
