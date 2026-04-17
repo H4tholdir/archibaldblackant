@@ -329,6 +329,7 @@ describe("OperationTrackingContext", () => {
         }),
       ]);
     });
+    expect(getJobStatus).toHaveBeenCalledWith("job-99");
 
     vi.useFakeTimers();
   });
@@ -385,6 +386,7 @@ describe("OperationTrackingContext", () => {
         }),
       ]);
     });
+    expect(getJobStatus).toHaveBeenCalledWith("job-q1");
 
     vi.useFakeTimers();
   });
@@ -441,6 +443,7 @@ describe("OperationTrackingContext", () => {
         }),
       ]);
     });
+    expect(getJobStatus).toHaveBeenCalledWith("job-s1");
 
     vi.useFakeTimers();
   });
