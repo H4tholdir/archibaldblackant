@@ -109,7 +109,7 @@ describe('updateJobTracking', () => {
     expect(mockPool.query).toHaveBeenCalledTimes(1);
     const [sql, params] = mockPool.query.mock.calls[0];
     expect(sql).toContain('UPDATE agents.pending_orders');
-    expect(sql).toContain("status = 'processing'");
+    expect(sql).toContain("status = 'syncing'");
     expect(sql).toContain('job_id = $1');
     expect(sql).toContain('job_started_at = NOW()');
     expect(sql).toContain('WHERE id = $3');
