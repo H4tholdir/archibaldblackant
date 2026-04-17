@@ -41,6 +41,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   const { subscribe } = useWebSocketContext();
   const [operations, setOperations] = useState<TrackedOperation[]>([]);
   const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const operationsRef = useRef<TrackedOperation[]>([]);
 
   const scheduleDismiss = useCallback((orderId: string) => {
     const existing = dismissTimersRef.current.get(orderId);
@@ -59,6 +60,10 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
       ),
     );
   }, []);
+
+  useEffect(() => {
+    operationsRef.current = operations;
+  }, [operations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +217,49 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
               : op,
           ),
         );
+      }),
+    );
+
+    unsubs.push(
+      subscribe("WS_RECONNECTED", () => {
+        const snapshot = operationsRef.current.filter(
+          (op) => op.status === "active" || op.status === "queued",
+        );
+
+        for (const op of snapshot) {
+          getJobStatus(op.jobId)
+            .then(({ job }) => {
+              const newStatus =
+                job.state === "completed"
+                  ? ("completed" as const)
+                  : job.state === "failed"
+                    ? ("failed" as const)
+                    : job.state === "active"
+                      ? ("active" as const)
+                      : ("queued" as const);
+
+              setOperations((prev) =>
+                prev.map((o) =>
+                  o.jobId === op.jobId
+                    ? {
+                        ...o,
+                        status: newStatus,
+                        progress:
+                          newStatus === "completed" ? 100 : (job.progress ?? o.progress),
+                        error: job.failedReason,
+                      }
+                    : o,
+                ),
+              );
+
+              if (newStatus === "completed") {
+                scheduleDismiss(op.orderId);
+              }
+            })
+            .catch(() => {
+              // Job non trovato o errore transitorio — il prossimo evento WS aggiornerà
+            });
+        }
       }),
     );
 

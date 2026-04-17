@@ -555,4 +555,140 @@ describe("OperationTrackingContext", () => {
       renderHook(() => useOperationTracking());
     }).toThrow("useOperationTracking must be used within OperationTrackingProvider");
   });
+
+  describe("reconnect reconciliation", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    test("aggiorna op active→completed quando WS si riconnette e job è completed", async () => {
+      vi.useRealTimers();
+
+      const { getJobStatus } = await import("../api/operations");
+
+      (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        success: true,
+        job: {
+          jobId: "job-active",
+          type: "submit-order",
+          userId: "u1",
+          state: "completed",
+          progress: 100,
+          result: null,
+          failedReason: undefined,
+        },
+      });
+
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      // Wait for mount recovery to finish (no pending orders)
+      await new Promise((r) => setTimeout(r, 50));
+
+      act(() => {
+        result.current.trackOperation("order-1", "job-active", "Mario Rossi", "In corso...", "Completato");
+      });
+
+      await waitFor(() =>
+        expect(result.current.activeOperations.find((o) => o.orderId === "order-1")?.status).toBe("queued"),
+      );
+
+      // Simula reconnect WS
+      act(() => {
+        emitWsEvent("WS_RECONNECTED", {});
+      });
+
+      await waitFor(() =>
+        expect(result.current.activeOperations.find((o) => o.orderId === "order-1")?.status).toBe("completed"),
+      );
+
+      expect(getJobStatus).toHaveBeenCalledWith("job-active");
+
+      vi.useFakeTimers();
+    });
+
+    test("aggiorna op queued→failed quando WS si riconnette e job è failed", async () => {
+      vi.useRealTimers();
+
+      const { getJobStatus } = await import("../api/operations");
+
+      (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        success: true,
+        job: {
+          jobId: "job-q",
+          type: "submit-order",
+          userId: "u1",
+          state: "failed",
+          progress: 0,
+          result: null,
+          failedReason: "Login scaduto",
+        },
+      });
+
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      act(() => {
+        result.current.trackOperation("order-2", "job-q", "Luigi Verdi", "In coda...", "Completato");
+      });
+
+      await waitFor(() =>
+        expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.status).toBe("queued"),
+      );
+
+      act(() => {
+        emitWsEvent("WS_RECONNECTED", {});
+      });
+
+      await waitFor(() =>
+        expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.status).toBe("failed"),
+      );
+
+      expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.error).toBe("Login scaduto");
+
+      vi.useFakeTimers();
+    });
+
+    test("non chiama getJobStatus per op già completed o failed al reconnect", async () => {
+      vi.useRealTimers();
+
+      const { getJobStatus } = await import("../api/operations");
+
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      act(() => {
+        result.current.trackOperation("order-3", "job-done", "Anna Bianchi", "In corso...", "Completato");
+      });
+
+      // Manually set to completed via WS event
+      act(() => {
+        emitWsEvent("JOB_COMPLETED", { jobId: "job-done" });
+      });
+
+      await waitFor(() =>
+        expect(result.current.activeOperations.find((o) => o.orderId === "order-3")?.status).toBe("completed"),
+      );
+
+      const callsBeforeReconnect = (getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      act(() => {
+        emitWsEvent("WS_RECONNECTED", {});
+      });
+
+      // Allow any async calls to settle
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect((getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBeforeReconnect);
+
+      vi.useFakeTimers();
+    });
+  });
 });
