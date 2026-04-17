@@ -1,3 +1,6 @@
+-- Migration 063: Order draft persistence
+-- One active draft per agent. Survives refresh/deploy/navigation.
+-- All updates go through atomic JSONB operations to avoid race conditions.
 CREATE TABLE IF NOT EXISTS agents.order_drafts (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     TEXT        NOT NULL REFERENCES agents.users(id) ON DELETE CASCADE,
