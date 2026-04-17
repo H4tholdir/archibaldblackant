@@ -58,7 +58,12 @@ async function applyItemDelta(
        SET payload = jsonb_set(
          payload,
          '{items}',
-         COALESCE(payload->'items', '[]'::jsonb) || $1::jsonb
+         COALESCE(
+           (SELECT jsonb_agg(item)
+            FROM jsonb_array_elements(COALESCE(payload->'items', '[]'::jsonb)) item
+            WHERE item->>'id' != ($1::jsonb)->>'id'),
+           '[]'::jsonb
+         ) || $1::jsonb
        ),
        updated_at = NOW()
        WHERE id = $2 AND user_id = $3`,

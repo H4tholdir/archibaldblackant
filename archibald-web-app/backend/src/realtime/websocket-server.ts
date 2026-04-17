@@ -45,7 +45,7 @@ type WebSocketServerModule = {
 
 const EVENT_BUFFER_MAX_SIZE = 200;
 const EVENT_BUFFER_MAX_AGE_MS = 5 * 60 * 1000;
-const TRANSIENT_EVENT_TYPES = new Set(['JOB_PROGRESS', 'CUSTOMER_UPDATE_PROGRESS']);
+const TRANSIENT_EVENT_TYPES = new Set(['JOB_PROGRESS', 'CUSTOMER_UPDATE_PROGRESS', 'draft:submitted', 'draft:delta:applied']);
 const HEARTBEAT_INTERVAL_MS = 30000;
 
 function createWebSocketServer(deps: WebSocketServerDeps): WebSocketServerModule {

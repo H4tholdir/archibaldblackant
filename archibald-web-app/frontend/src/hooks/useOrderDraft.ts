@@ -227,6 +227,12 @@ function useOrderDraft({ disabled }: UseOrderDraftOptions): UseOrderDraftReturn 
 
   const deleteDraft = useCallback(async () => {
     await deleteActiveDraft(true);
+    setDraftState(EMPTY_DRAFT_PAYLOAD);
+    setDraftId(null);
+    setDraftUpdatedAt(null);
+    setHasDraft(false);
+    pendingDeltas.current = [];
+    seqCounter.current = 0;
   }, []);
 
   return {
