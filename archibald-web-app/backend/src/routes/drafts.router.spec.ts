@@ -41,7 +41,7 @@ describe('GET /api/drafts/active', () => {
     mockGetDraftByUserId.mockResolvedValue(fakeDraft);
     const res = await request(buildApp()).get('/api/drafts/active');
     expect(res.status).toBe(200);
-    expect(res.body.draft.id).toBe('draft-1');
+    expect(res.body).toEqual({ draft: fakeDraft });
   });
 });
 
@@ -55,7 +55,7 @@ describe('POST /api/drafts', () => {
       .post('/api/drafts')
       .send({ payload: { items: [], notes: '' } });
     expect(res.status).toBe(201);
-    expect(res.body.draft.id).toBe('draft-new');
+    expect(res.body).toEqual({ draft: newDraft });
     expect(mockCreateDraft).toHaveBeenCalledWith(expect.anything(), 'user-test-123', { items: [], notes: '' });
   });
 
