@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 interface JobProgressBarProps {
   progress: number;
   operation: string;
-  status: "idle" | "started" | "processing" | "completed" | "failed";
+  status: "idle" | "queued" | "started" | "processing" | "completed" | "failed";
   error?: string;
 }
 
@@ -19,6 +19,8 @@ export function JobProgressBar({
         return { bg: "#d1fae5", bar: "#10b981", text: "#065f46" };
       case "failed":
         return { bg: "#fee2e2", bar: "#ef4444", text: "#991b1b" };
+      case "queued":
+        return { bg: "#f3f4f6", bar: "#9ca3af", text: "#6b7280" };
       default:
         return { bg: "#dbeafe", bar: "#3b82f6", text: "#1e40af" };
     }

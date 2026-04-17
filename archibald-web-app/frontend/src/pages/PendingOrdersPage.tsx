@@ -321,7 +321,7 @@ export function PendingOrdersPage() {
             noShipping: order.noShipping,
             notes: order.notes,
             deliveryAddressId: order.deliveryAddressId,
-          });
+          }, `submit-order-${order.id!}`);
         }),
       );
       const jobIds = results.map((r) => r.jobId);
@@ -429,7 +429,7 @@ export function PendingOrdersPage() {
         noShipping: order.noShipping,
         notes: order.notes,
         deliveryAddressId: order.deliveryAddressId,
-      });
+      }, `submit-order-${order.id!}-${Date.now()}`);
 
       trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
       trackOperation(order.id!, result.jobId, order.customerName);
@@ -1070,6 +1070,7 @@ export function PendingOrdersPage() {
       >
         {orders.map((order, orderIndex) => {
           const liveOp = activeOperations.find(o => o.orderId === order.id);
+          const isJobQueued = order.jobStatus === "queued";
           const isJobActive =
             order.jobStatus &&
             ["started", "processing"].includes(order.jobStatus);
@@ -1462,17 +1463,18 @@ export function PendingOrdersPage() {
               </div>
 
               {/* PHASE 72: Job Progress Bar */}
-              {(liveOp != null || isJobActive || isJobCompleted || isJobFailed) && (
+              {(liveOp != null || isJobQueued || isJobActive || isJobCompleted || isJobFailed) && (
                 <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
                   <JobProgressBar
-                    progress={liveOp?.progress ?? order.jobProgress ?? 0}
-                    operation={liveOp?.label ?? order.jobOperation ?? "In attesa..."}
+                    progress={liveOp?.progress ?? (isJobQueued ? 0 : order.jobProgress) ?? 0}
+                    operation={liveOp?.label ?? (isJobQueued ? "In coda..." : order.jobOperation) ?? "In attesa..."}
                     status={
                       liveOp != null
                         ? liveOp.status === "completed" ? "completed"
                           : liveOp.status === "failed" ? "failed"
                           : liveOp.status === "queued" ? "started"
                           : "processing"
+                        : isJobQueued ? "queued"
                         : order.jobStatus ?? "idle"
                     }
                     error={

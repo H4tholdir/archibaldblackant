@@ -55,7 +55,7 @@ export interface PendingOrder {
   needsSync: boolean;
   serverUpdatedAt?: number;
   jobId?: string;
-  jobStatus?: "idle" | "started" | "processing" | "completed" | "failed";
+  jobStatus?: "idle" | "queued" | "started" | "processing" | "completed" | "failed";
   jobProgress?: number;
   jobOperation?: string;
   jobError?: string;

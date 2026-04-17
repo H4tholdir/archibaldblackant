@@ -39,7 +39,7 @@ const WS_EVENTS_PENDING = [
 ] as const;
 
 const TRACKING_STATUS_MAP: Record<string, PendingOrder["jobStatus"]> = {
-  queued: "started",
+  queued: "queued",
   active: "processing",
   completed: "completed",
   failed: "failed",
