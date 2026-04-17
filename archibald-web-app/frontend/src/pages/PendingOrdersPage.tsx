@@ -504,7 +504,7 @@ export function PendingOrdersPage() {
   );
 
   const calculateFresisEstimate = useCallback(async () => {
-    if (selectedFresisOrders.length < 2) {
+    if (selectedFresisOrders.length < 1) {
       setFresisEstimate(null);
       return;
     }
@@ -2389,7 +2389,7 @@ export function PendingOrdersPage() {
           }}
         >
           {/* Fresis shipping estimate (compact, only when relevant) */}
-          {selectedFresisOrders.length >= 2 && fresisEstimate && !fresisEstimate.loading && (
+          {selectedFresisOrders.length >= 1 && fresisEstimate && !fresisEstimate.loading && (
             <div
               style={{
                 fontSize: "12px",
