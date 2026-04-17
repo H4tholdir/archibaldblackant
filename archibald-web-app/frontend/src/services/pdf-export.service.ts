@@ -461,7 +461,7 @@ export class PDFExportService {
         doc.setFontSize(7);
         doc.setFont("helvetica", "italic");
         doc.setTextColor(100, 100, 100);
-        doc.text("→ continua alla pagina successiva", PAGE_W - ML, Y_SECTIONS - 2, { align: "right" });
+        doc.text("(continua alla pagina successiva)", PAGE_W - ML, Y_SECTIONS - 2, { align: "right" });
         doc.setTextColor(0, 0, 0);
         doc.setFont("helvetica", "normal");
       }

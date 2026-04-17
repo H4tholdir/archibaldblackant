@@ -682,10 +682,12 @@ export function PendingOrdersPage() {
     navigate(`/order?editOrderId=${orderId}`);
   };
 
-  const enrichForPDF = (order: PendingOrder) => ({
-    ...order,
-    customerData: customersMap.get(order.customerId),
-  });
+  const enrichForPDF = (order: PendingOrder) => {
+    // Strip shippingCost/shippingTax (DB default = 0, not "no shipping"):
+    // the PDF service must compute them via calculateShippingCosts(totalNetto).
+    const { shippingCost: _sc, shippingTax: _st, ...rest } = order;
+    return { ...rest, customerData: customersMap.get(order.customerId) };
+  };
 
   const handleDownloadPDF = (order: PendingOrder) => {
     try {
