@@ -305,7 +305,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         }
       }
 
-      const jobId = await queue.enqueue('send-to-verona', userId, { orderId });
+      const jobId = await queue.enqueue('send-to-verona', userId, { orderId, customerName: order.customerName ?? orderId });
 
       void audit(deps.pool, {
         actorId: userId,

@@ -13,6 +13,7 @@ import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
 import { getProductVariants, getProductById, getAllProducts, updateProductPrice, findDeletedProducts, softDeleteProducts, trackProductCreated } from './db/repositories/products';
 import { updateJobTracking } from './db/repositories/pending-orders';
+import { insertActiveJob, deleteActiveJob, deleteStaleActiveJobs } from './db/repositories/active-jobs';
 import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
@@ -93,6 +94,40 @@ import type { BrowserLike } from './bot/browser-pool';
 import type { OperationType } from './operations/operation-types';
 import type { OperationHandler } from './operations/operation-processor';
 import type { OperationJobData, OperationJobResult } from './operations/operation-types';
+
+const ACTIVE_JOB_TYPES = new Set<string>([
+  'submit-order',
+  'send-to-verona',
+  'delete-order',
+  'edit-order',
+  'update-customer',
+  'batch-delete-orders',
+  'batch-send-to-verona',
+  'read-vat-status',
+  'download-ddt-pdf',
+  'download-invoice-pdf',
+]);
+
+function extractEntityInfo(type: string, data: Record<string, unknown>): { entityId: string; entityName: string } {
+  const orderIds = data.orderIds as string[] | undefined;
+  const entityName = String(
+    data.entityName ??
+    data.customerName ??
+    (orderIds ? `${orderIds.length} ordini` : undefined) ??
+    data.erpId ??
+    data.orderId ??
+    data.pendingOrderId ??
+    type,
+  );
+  const entityId = String(
+    data.pendingOrderId ??
+    data.orderId ??
+    (orderIds ? orderIds[0] : undefined) ??
+    data.erpId ??
+    '',
+  );
+  return { entityId, entityName };
+}
 
 const DEFAULT_AGENT_SYNC_MS = 10 * 60 * 1000;
 const DEFAULT_SHARED_SYNC_MS = 30 * 60 * 1000;
@@ -1228,18 +1263,30 @@ async function bootstrap(): Promise<void> {
     enqueue: queue.enqueue,
     handlers,
     circuitBreaker,
-    onJobStarted: async (type, data, _userId, jobId) => {
+    onJobStarted: async (type, data, userId, jobId) => {
       if (type === 'submit-order' && data.pendingOrderId) {
         await updateJobTracking(pool, data.pendingOrderId as string, jobId);
       }
+      if (ACTIVE_JOB_TYPES.has(type)) {
+        const { entityId, entityName } = extractEntityInfo(type, data);
+        await insertActiveJob(pool, { jobId, type, userId, entityId, entityName }).catch(() => {});
+      }
     },
-    onJobFailed: async (type, data, _userId, errorMessage, _jobId) => {
+    onJobCompleted: async (type, _data, _userId, jobId) => {
+      if (ACTIVE_JOB_TYPES.has(type)) {
+        await deleteActiveJob(pool, jobId).catch(() => {});
+      }
+    },
+    onJobFailed: async (type, data, _userId, errorMessage, jobId) => {
       if (type === 'submit-order') {
         const pendingOrderId = (data as Record<string, unknown>).pendingOrderId as string | undefined;
         if (pendingOrderId) {
           const { updatePendingOrderError } = await import('./db/repositories/pending-orders');
           await updatePendingOrderError(pool, pendingOrderId, errorMessage);
         }
+      }
+      if (ACTIVE_JOB_TYPES.has(type)) {
+        await deleteActiveJob(pool, jobId).catch(() => {});
       }
     },
   });
@@ -1281,6 +1328,10 @@ async function bootstrap(): Promise<void> {
     logger.debug('Session cleanup tick');
   }, SESSION_CLEANUP_INTERVAL_MS);
 
+  const activeJobsCleanupInterval = setInterval(async () => {
+    await deleteStaleActiveJobs(pool, 2 * 60 * 60 * 1000).catch(() => {});
+  }, 30 * 60 * 1000);
+
   const dailyResetInterval = setInterval(async () => {
     await circuitBreaker.resetDailyCounts().catch(err =>
       logger.error('Failed to reset daily circuit breaker counts', { error: err }),
@@ -1302,6 +1353,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(cleanupInterval);
     clearInterval(agentActivityCacheInterval);
     clearInterval(dailyResetInterval);
+    clearInterval(activeJobsCleanupInterval);
     syncScheduler.stop();
     notificationScheduler.stop();
     await Promise.all(
