@@ -559,11 +559,13 @@ describe("OperationTrackingContext", () => {
   describe("reconnect reconciliation", () => {
     beforeEach(() => {
       vi.clearAllMocks();
+      vi.useRealTimers();
+    });
+    afterEach(() => {
+      vi.useFakeTimers();
     });
 
     test("aggiorna op queued→completed quando WS si riconnette e job è completed", async () => {
-      vi.useRealTimers();
-
       const { getJobStatus } = await import("../api/operations");
 
       (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -604,13 +606,9 @@ describe("OperationTrackingContext", () => {
       );
 
       expect(getJobStatus).toHaveBeenCalledWith("job-active");
-
-      vi.useFakeTimers();
     });
 
     test("aggiorna op queued→failed quando WS si riconnette e job è failed", async () => {
-      vi.useRealTimers();
-
       const { getJobStatus } = await import("../api/operations");
 
       (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -649,13 +647,9 @@ describe("OperationTrackingContext", () => {
       );
 
       expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.error).toBe("Login scaduto");
-
-      vi.useFakeTimers();
     });
 
     test("non chiama getJobStatus per op già completed o failed al reconnect", async () => {
-      vi.useRealTimers();
-
       const { getJobStatus } = await import("../api/operations");
 
       const { result } = renderHook(() => useOperationTracking(), {
@@ -687,8 +681,6 @@ describe("OperationTrackingContext", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect((getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBeforeReconnect);
-
-      vi.useFakeTimers();
     });
   });
 });

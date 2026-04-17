@@ -246,7 +246,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                         status: newStatus,
                         progress:
                           newStatus === "completed" ? 100 : (job.progress ?? o.progress),
-                        error: job.failedReason,
+                        error: newStatus === "failed" ? job.failedReason : undefined,
                       }
                     : o,
                 ),
