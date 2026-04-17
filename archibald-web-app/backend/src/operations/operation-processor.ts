@@ -32,9 +32,11 @@ type JobLike = {
   updateProgress: (progress: number | object) => Promise<void>;
 };
 
-type OnJobFailedFn = (type: OperationType, data: Record<string, unknown>, userId: string, error: string) => Promise<void>;
+type OnJobFailedFn = (type: OperationType, data: Record<string, unknown>, userId: string, error: string, jobId: string) => Promise<void>;
 
 type OnJobStartedFn = (type: OperationType, data: Record<string, unknown>, userId: string, jobId: string) => Promise<void>;
+
+type OnJobCompletedFn = (type: OperationType, data: Record<string, unknown>, userId: string, jobId: string) => Promise<void>;
 
 type CircuitBreakerLike = {
   isPaused: (userId: string, syncType: string) => Promise<boolean>;
@@ -50,6 +52,7 @@ type ProcessorDeps = {
   handlers: Partial<Record<OperationType, OperationHandler>>;
   onJobFailed?: OnJobFailedFn;
   onJobStarted?: OnJobStartedFn;
+  onJobCompleted?: OnJobCompletedFn;
   circuitBreaker?: CircuitBreakerLike;
 };
 
@@ -102,7 +105,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationType: s
 }
 
 function createOperationProcessor(deps: ProcessorDeps) {
-  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed, onJobStarted, circuitBreaker } = deps;
+  const { agentLock, browserPool, broadcast, enqueue, handlers, onJobFailed, onJobStarted, onJobCompleted, circuitBreaker } = deps;
 
   async function processJob(job: JobLike): Promise<ProcessJobResult> {
     const startTime = Date.now();
@@ -220,6 +223,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
         result,
       });
 
+      if (onJobCompleted) {
+        await onJobCompleted(type, data, userId, job.id).catch(() => {});
+      }
+
       return { success: true, data: result, duration: Date.now() - startTime };
     } catch (error) {
       // Invalidate browser context on failure so next operation gets a fresh session
@@ -232,7 +239,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
       }
 
       if (onJobFailed) {
-        await onJobFailed(type, data, userId, errorMessage).catch(() => {});
+        await onJobFailed(type, data, userId, errorMessage, job.id).catch(() => {});
       }
 
       broadcast(userId, {
@@ -270,4 +277,5 @@ export {
   type ProcessorDeps,
   type ProcessJobResult,
   type OnJobStartedFn,
+  type OnJobCompletedFn,
 };

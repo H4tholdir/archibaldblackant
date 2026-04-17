@@ -1233,7 +1233,7 @@ async function bootstrap(): Promise<void> {
         await updateJobTracking(pool, data.pendingOrderId as string, jobId);
       }
     },
-    onJobFailed: async (type, data, _userId, errorMessage) => {
+    onJobFailed: async (type, data, _userId, errorMessage, _jobId) => {
       if (type === 'submit-order') {
         const pendingOrderId = (data as Record<string, unknown>).pendingOrderId as string | undefined;
         if (pendingOrderId) {
