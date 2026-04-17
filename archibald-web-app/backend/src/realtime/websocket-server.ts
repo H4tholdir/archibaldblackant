@@ -29,6 +29,7 @@ type VerifyTokenFn = (token: string) => Promise<{ userId: string } | null>;
 type WebSocketServerDeps = {
   createWss: (httpServer: HTTPServer) => WebSocketServer;
   verifyToken: VerifyTokenFn;
+  onClientMessage?: (userId: string, message: WebSocketMessage) => void;
 };
 
 type WebSocketServerModule = {
@@ -208,6 +209,15 @@ function createWebSocketServer(deps: WebSocketServerDeps): WebSocketServerModule
           const msg = typeof data === 'string' ? data : data.toString();
           if (msg === 'ping' && ws.readyState === ws.OPEN) {
             ws.send('pong');
+            return;
+          }
+          if (deps.onClientMessage) {
+            try {
+              const parsed = JSON.parse(msg) as WebSocketMessage;
+              deps.onClientMessage(userId, parsed);
+            } catch {
+              // ignora messaggi malformati
+            }
           }
         });
 

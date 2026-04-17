@@ -70,7 +70,9 @@ import { createSyncScheduler } from './sync/sync-scheduler';
 import { createCircuitBreaker } from './sync/circuit-breaker';
 import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
+import type { WebSocketMessage } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
+import { createDraftMessageHandler } from './realtime/draft-realtime';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { createRedisClient } from './db/redis-client';
 import { createDocumentStore } from './services/document-store';
@@ -351,10 +353,16 @@ async function bootstrap(): Promise<void> {
     () => import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)),
   );
 
+  let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};
+
   const wsServer = createWebSocketServer({
     createWss: (server) => new WebSocketServer({ server }),
     verifyToken: verifyJWT,
+    onClientMessage: (userId, msg) => handleDraftClientMessage(userId, msg),
   });
+
+  const draftHandler = createDraftMessageHandler({ pool, broadcast: wsServer.broadcast });
+  handleDraftClientMessage = draftHandler;
 
   const jobEventBus = createJobEventBus();
 
