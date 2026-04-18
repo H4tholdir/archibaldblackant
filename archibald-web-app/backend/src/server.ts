@@ -656,6 +656,8 @@ function createApp(deps: AppDeps): Express {
     },
   }));
 
+  app.use('/api/orders', authenticate, createOverdueReportRouter({ pool }));
+
   app.use('/api/orders', authenticate, createOrdersRouter({
     pool,
     queue,
@@ -674,8 +676,6 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/orders', authenticate, createOrderVerificationRouter({ pool }));
-
-  app.use('/api/orders', authenticate, createOverdueReportRouter({ pool }));
 
   app.use('/api/pending-orders', authenticate, createPendingOrdersRouter({
     getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),
