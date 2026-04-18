@@ -543,6 +543,13 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             timestamp: now(),
           });
         } catch (error) {
+          logger.error('/save: customer creation failed', {
+            error: error instanceof Error ? error.message : String(error),
+            userId,
+            tempProfile,
+            sessionId,
+            useInteractiveBot,
+          });
           await updateCustomerBotStatus(userId, tempProfile, 'failed');
           if (effectiveSession) {
             sessionManager.setError(

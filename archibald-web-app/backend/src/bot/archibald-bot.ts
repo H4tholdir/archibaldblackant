@@ -14752,11 +14752,10 @@ export class ArchibaldBot {
       isVatOnForm,
     });
 
-    // Defensive dismiss: clear any residual popup before touching tabs.
-    await this.dismissDevExpressPopups();
-
     // Step 1: "Principale" tab — fill text fields in certified write order so that
     // XHR callbacks from earlier Tab presses have settled before dependent fields.
+    // NOTE: dismiss AFTER tab click (not before) — pre-tab dismiss was clicking the
+    // DXHFP cancel button on the hidden Addresses inline-edit, triggering a navigation.
     await this.emitProgress("customer.tab.principale");
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
