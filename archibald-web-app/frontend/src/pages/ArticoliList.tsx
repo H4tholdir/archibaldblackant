@@ -189,6 +189,13 @@ export function ArticoliList() {
     }
   };
 
+  const handleInlineSaveSuccess = (productId: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    if (vatFilterActive) setNoVatCount((prev) => Math.max(0, prev - 1));
+    if (priceFilterActive) setZeroPriceCount((prev) => Math.max(0, prev - 1));
+    if (discountFilterActive) setMissingDiscountCount((prev) => Math.max(0, prev - 1));
+  };
+
   const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive || discountFilterActive;
 
   return (
@@ -718,6 +725,20 @@ export function ArticoliList() {
                 product={product}
                 expanded={false}
                 onToggle={() => handleCardClick(product)}
+                inlineEditMode={
+                  vatFilterActive
+                    ? "vat"
+                    : priceFilterActive
+                    ? "price"
+                    : discountFilterActive
+                    ? "discount"
+                    : undefined
+                }
+                onSaveSuccess={
+                  vatFilterActive || priceFilterActive || discountFilterActive
+                    ? () => handleInlineSaveSuccess(product.id)
+                    : undefined
+                }
               />
             ))}
           </div>
