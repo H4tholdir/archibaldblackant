@@ -383,13 +383,13 @@ async function cleanupOrphanedTempCustomers(pool: DbPool, userId: string): Promi
   const tempIds = orphans.map((r) => r.erp_id);
   const placeholders = tempIds.map((_, i) => `$${i + 2}`).join(', ');
   const { rowCount } = await pool.query(
-    `UPDATE agents.customers SET deleted_at = NOW()
-     WHERE user_id = $1 AND erp_id IN (${placeholders}) AND deleted_at IS NULL`,
+    `DELETE FROM agents.customers
+     WHERE user_id = $1 AND erp_id IN (${placeholders})`,
     [userId, ...tempIds],
   );
 
   if (rowCount && rowCount > 0) {
-    logger.info('cleanupOrphanedTempCustomers: soft-deleted TEMP orphans', { userId, count: rowCount, ids: tempIds });
+    logger.info('cleanupOrphanedTempCustomers: deleted TEMP orphans', { userId, count: rowCount, ids: tempIds });
   }
 
   return rowCount ?? 0;

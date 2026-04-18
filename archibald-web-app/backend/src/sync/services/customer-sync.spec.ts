@@ -411,7 +411,7 @@ describe('cleanupOrphanedTempCustomers', () => {
       if (sql.includes('TEMP-%') && sql.includes('NOT EXISTS')) {
         return Promise.resolve({ rows: [{ erp_id: tempId }], rowCount: 1 });
       }
-      if (sql.includes('SET deleted_at = NOW()')) {
+      if (sql.includes('DELETE FROM agents.customers')) {
         return Promise.resolve({ rows: [], rowCount: 1 });
       }
       return Promise.resolve({ rows: [], rowCount: 0 });
@@ -420,10 +420,10 @@ describe('cleanupOrphanedTempCustomers', () => {
     const cleaned = await cleanupOrphanedTempCustomers(pool, userId);
 
     expect(cleaned).toBe(1);
-    const softDeleteCall = q.mock.calls.find((c: unknown[]) =>
-      typeof c[0] === 'string' && (c[0] as string).includes('SET deleted_at = NOW()') && (c[1] as unknown[]).includes(tempId),
+    const deleteCall = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('DELETE FROM agents.customers') && (c[1] as unknown[]).includes(tempId),
     );
-    expect(softDeleteCall).toBeDefined();
+    expect(deleteCall).toBeDefined();
   });
 
   test('does not soft-delete TEMP customers when active pending orders exist', async () => {
@@ -440,10 +440,10 @@ describe('cleanupOrphanedTempCustomers', () => {
     const cleaned = await cleanupOrphanedTempCustomers(pool, userId);
 
     expect(cleaned).toBe(0);
-    const softDeleteCall = q.mock.calls.find((c: unknown[]) =>
-      typeof c[0] === 'string' && (c[0] as string).includes('SET deleted_at = NOW()'),
+    const deleteCall = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('DELETE FROM agents.customers'),
     );
-    expect(softDeleteCall).toBeUndefined();
+    expect(deleteCall).toBeUndefined();
   });
 
   test('is called automatically during syncCustomers', async () => {
