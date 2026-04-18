@@ -11828,39 +11828,27 @@ export class ArchibaldBot {
     const result = await this.page.evaluate(() => {
       const w = window as any;
       const collection = w.ASPxClientControl?.GetControlCollection?.();
-      const popups: string[] = [];
+      if (!collection) return { dismissed: false, popups: [] as string[] };
 
-      if (collection) {
-        collection.ForEachControl((c: any) => {
-          const name = c?.name || c?.GetName?.() || "";
-          if (
-            (name.includes("PopupWindow") || name.includes("popupWindow") || name.includes("UPPopup")) &&
-            typeof c.Hide === "function"
-          ) {
-            try {
-              const isVisible = typeof c.IsVisible === "function" ? c.IsVisible() : true;
-              if (isVisible) {
-                c.Hide();
-                popups.push(name);
-              }
-            } catch {
+      const popups: string[] = [];
+      collection.ForEachControl((c: any) => {
+        const name = c?.name || c?.GetName?.() || "";
+        if (
+          (name.includes("PopupWindow") || name.includes("popupWindow") || name.includes("UPPopup")) &&
+          typeof c.Hide === "function"
+        ) {
+          try {
+            const isVisible = typeof c.IsVisible === "function" ? c.IsVisible() : true;
+            if (isVisible) {
               c.Hide();
               popups.push(name);
             }
+          } catch {
+            c.Hide();
+            popups.push(name);
           }
-        });
-      }
-
-      // Also close DevExpress grid inline-edit popups (DXHFP pattern).
-      // These are opened automatically by the ERP during VAT validation (addresses grid)
-      // and are not captured by the name-based search above.
-      const cancelBtns = Array.from(
-        document.querySelectorAll<HTMLElement>('[id*="DXHFP"][id$="_C"]'),
-      ).filter((el) => el.offsetParent !== null);
-      for (const btn of cancelBtns) {
-        btn.click();
-        popups.push(btn.id);
-      }
+        }
+      });
 
       return { dismissed: popups.length > 0, popups };
     });
