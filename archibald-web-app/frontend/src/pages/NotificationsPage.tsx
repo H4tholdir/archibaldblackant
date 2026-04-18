@@ -10,9 +10,9 @@ type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients' | 'payment
 function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments' | 'documents' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
-  if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
-  if (type === 'customer_inactive') return 'clients';
-  if (type === 'order_expiring') return 'payments';
+  if (type === 'sync_anomaly' || type === 'product_missing_vat' || type === 'product_change') return 'sync';
+  if (type === 'customer_inactive' || type === 'erp_customer_deleted' || type === 'erp_customer_restored' || type === 'customer_reminder') return 'clients';
+  if (type === 'order_expiring' || type === 'budget_milestone') return 'payments';
   if (type === 'order_documents_missing') return 'documents';
   return 'other';
 }
@@ -92,6 +92,55 @@ function getTableMeta(n: Notification): TableMeta {
         cliente: customerName ?? '—',
         dettaglio: n.body,
         codice: (data.currentState as string | undefined) ?? '',
+      };
+    }
+    case 'erp_customer_deleted':
+      return {
+        tag: '🗑️ Cancellato ERP', tagColor: '#ef4444', tagBg: 'rgba(239,68,68,0.15)',
+        ordine: '—',
+        cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
+    case 'erp_customer_restored':
+      return {
+        tag: '🔄 Ripristinato ERP', tagColor: '#2e7d32', tagBg: 'rgba(46,125,50,0.15)',
+        ordine: '—',
+        cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
+    case 'budget_milestone':
+      return {
+        tag: '🏆 Traguardo', tagColor: '#ca8a04', tagBg: 'rgba(250,204,21,0.15)',
+        ordine: '—',
+        cliente: '—',
+        dettaglio: n.body,
+        codice: (data.conditionTitle as string | undefined) ?? '',
+      };
+    case 'customer_reminder':
+      return {
+        tag: '🔔 Promemoria', tagColor: '#3b82f6', tagBg: 'rgba(96,165,250,0.15)',
+        ordine: '—',
+        cliente: (data.customerErpId as string | undefined) ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
+    case 'product_change': {
+      const changeType = data.changeType as string | undefined;
+      const tag = changeType === 'new' ? '🆕 Nuovi prodotti'
+        : changeType === 'removed' ? '🗑️ Prodotti rimossi'
+        : '✏️ Prodotti aggiornati';
+      const tagColor = changeType === 'new' ? '#2e7d32'
+        : changeType === 'removed' ? '#ef4444'
+        : '#3b82f6';
+      const tagBg = changeType === 'new' ? 'rgba(46,125,50,0.15)'
+        : changeType === 'removed' ? 'rgba(239,68,68,0.15)'
+        : 'rgba(96,165,250,0.15)';
+      return {
+        tag, tagColor, tagBg,
+        ordine: '—', cliente: 'Catalogo',
+        dettaglio: n.body, codice: '',
       };
     }
     default:
