@@ -27,8 +27,6 @@ import { Dashboard } from "./pages/Dashboard";
 import { ToolRecognitionPage } from "./pages/ToolRecognitionPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
-import { PriceVariationsPage } from "./pages/PriceVariationsPage";
-import { ProductVariationsPage } from "./pages/ProductVariationsPage";
 import { FresisHistoryPage } from "./pages/FresisHistoryPage";
 import { RevenueReportPage } from "./pages/RevenueReportPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
@@ -573,46 +571,6 @@ function AppRouter() {
               }
             />
 
-            {/* Price Variations route */}
-            <Route
-              path="/prezzi-variazioni"
-              element={
-                <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-                    <div style={{ flexGrow: 1 }}>
-                    <PriceVariationsPage />
-                    </div>
-                    <footer className="app-footer">
-                      <p>
-                        v1.0.0 • Formicanera by Francesco Formicola
-                        {/* TODO: Add live sync progress bar here */}
-                      </p>
-                    </footer>
-                    </div>
-                  </main>
-                </div>
-              }
-            />
-
-            {/* Product Variations route */}
-            <Route
-              path="/prodotti-variazioni"
-              element={
-                <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-                    <div style={{ flexGrow: 1 }}>
-                    <ProductVariationsPage />
-                    </div>
-                    <footer className="app-footer">
-                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
-                    </footer>
-                    </div>
-                  </main>
-                </div>
-              }
-            />
 
             {/* New Order Form route (Phase 28.2 rewrite) */}
             <Route
