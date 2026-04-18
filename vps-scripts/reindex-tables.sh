@@ -20,6 +20,7 @@ TABLES=(
   "agents.customers"
   "agents.order_records"
   "agents.customer_addresses"
+  "agents.fresis_discounts"
 )
 
 mkdir -p "$(dirname "$LOG_FILE")"
