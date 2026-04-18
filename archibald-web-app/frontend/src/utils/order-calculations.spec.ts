@@ -437,6 +437,23 @@ describe("order-calculations", () => {
         lineAmount: 0, lineTotalWithVat: 0, articleDescription: "",
       });
 
+    test("auto-retry: centra target intero quando pass1 lascia 1ct di eccesso", () => {
+      // 6 articoli mix IVA: idx=0 (3×16€@22%, q×p=48€) è il più economico.
+      // target=1159€ verificato empiricamente: Phase3 greedy lascia +1ct,
+      // retry con idx=0 (step 0.01€/0.01%) centra esatto.
+      const items = [
+        makeItem( 3,  16.00, 0, 22), // idx=0 cheapest q×p=48€
+        makeItem( 2,  25.97, 0,  4),
+        makeItem(18,  15.56, 0, 22),
+        makeItem(12,  15.56, 0, 22),
+        makeItem( 2, 170.81, 0,  4),
+        makeItem(10,   9.98, 0, 22),
+      ];
+      const target = 1159;
+      const result = applyExactTotalWithVat(items, target, new Set(items.map((_, i) => i)), false);
+      expect(computeEditDocumentTotal(result, false)).toBe(target);
+    });
+
     test("property: result total is always >= target", () => {
       fc.assert(
         fc.property(
@@ -526,6 +543,23 @@ describe("order-calculations", () => {
       disc,
     );
 
+    test("auto-retry: centra target intero quando pass1 lascia 1ct di eccesso", () => {
+      // 6 articoli mix IVA: id='a' (3×16€@22%, q×p=48€) è il più economico.
+      // target=1159€ verificato empiricamente: Phase3 greedy lascia +1ct,
+      // retry con 'a' (step 0.01€/0.01%) centra esatto.
+      const items = [
+        makeOrderItem("a",  3,  16.00, 0, 22), // cheapest q×p=48€
+        makeOrderItem("b",  2,  25.97, 0,  4),
+        makeOrderItem("c", 18,  15.56, 0, 22),
+        makeOrderItem("d", 12,  15.56, 0, 22),
+        makeOrderItem("e",  2, 170.81, 0,  4),
+        makeOrderItem("f", 10,   9.98, 0, 22),
+      ];
+      const target = 1159;
+      const result = applyExactTotalToOrderLineItems(items, target, new Set(items.map((it) => it.id)), false);
+      expect(computeOrderDocumentTotal(result, false)).toBe(target);
+    });
+
     test("property: result total is always >= target", () => {
       fc.assert(
         fc.property(
@@ -608,6 +642,20 @@ describe("order-calculations", () => {
       disc,
     );
 
+    test("auto-retry: centra target imponibile quando l'ultimo articolo ha step troppo grosso", () => {
+      // 'a' (2×170.81€@4%, q×p=341.62€) è ULTIMO nel Set → binary search step4 ha step≈3ct → miss.
+      // 'b' (10×9.98€@22%, q×p=99.8€) è il cheapest con step=0.01€ → centra esatto.
+      // target=519€ verificato empiricamente: pass1 lascia +1ct, retry cheapest centra.
+      const items = [
+        makeOrderItem("b", 10,   9.98, 0, 22), // cheapest q×p=99.8€
+        makeOrderItem("c",  5,  15.56, 0, 22),
+        makeOrderItem("a",  2, 170.81, 0,  4), // last in Set → step grosso in binary search
+      ];
+      const target = 519;
+      const result = applyExactImponibileToOrderLineItems(items, target, new Set(["b", "c", "a"]));
+      expect(result.reduce((s, i) => s + i.subtotal, 0)).toBe(target);
+    });
+
     test("property: result imponibile is always >= target", () => {
       fc.assert(
         fc.property(
@@ -659,6 +707,20 @@ describe("order-calculations", () => {
         discountPercent: disc, vatPercent: vat, vatAmount: 0,
         lineAmount: 0, lineTotalWithVat: 0, articleDescription: "",
       });
+
+    test("auto-retry: centra target imponibile quando l'ultimo articolo ha step troppo grosso", () => {
+      // idx=2 (2×170.81€@4%, q×p=341.62€) è ULTIMO → binary search step4 ha step≈3ct → miss.
+      // idx=0 (10×9.98€@22%, q×p=99.8€) è cheapest con step=0.01€ → centra esatto.
+      // target=519€ verificato empiricamente: pass1 lascia +1ct, retry cheapest centra.
+      const items = [
+        makeItem(10,   9.98, 0, 22), // idx=0 cheapest q×p=99.8€
+        makeItem( 5,  15.56, 0, 22),
+        makeItem( 2, 170.81, 0,  4), // idx=2 last → step grosso
+      ];
+      const target = 519;
+      const result = applyExactImponibileToEditItems(items, target, new Set([0, 1, 2]));
+      expect(result.reduce((s, i) => s + i.lineAmount, 0)).toBe(target);
+    });
 
     test("property: result imponibile is always >= target", () => {
       fc.assert(

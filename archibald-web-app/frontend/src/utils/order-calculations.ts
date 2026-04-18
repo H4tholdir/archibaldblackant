@@ -317,6 +317,18 @@ export function applyExactTotalWithVat(
     }
   }
 
+  // 5. Auto-retry: if target not hit exactly, retry with cheapest selected item (smallest q×p).
+  //    Items with small q×p have finer discount steps (≈0.01€/0.01%) → higher probability of
+  //    eliminating the residual cent that Phase3 greedy could not remove.
+  //    Guard: skip if only 1 item selected (retry would be identical, and avoids recursion).
+  if (selIndices.length > 1 && Math.round(getTotal(current) * 100) !== Math.round(target * 100)) {
+    const cheapestIdx = selIndices.reduce((minIdx, idx) =>
+      current[idx].unitPrice * current[idx].quantity < current[minIdx].unitPrice * current[minIdx].quantity
+        ? idx : minIdx,
+    );
+    return applyExactTotalWithVat(current, target, new Set([cheapestIdx]), noShipping);
+  }
+
   return current;
 }
 
@@ -416,6 +428,17 @@ export function applyExactTotalToOrderLineItems<T extends OrderLineItem>(
     }
   }
 
+  // 5. Auto-retry: if target not hit exactly, retry with cheapest selected item (smallest q×p).
+  //    Guard: skip if only 1 item selected (retry would be identical, and avoids recursion).
+  if (selIds.length > 1 && Math.round(getTotal(current) * 100) !== Math.round(target * 100)) {
+    const cheapestId = selIds.reduce((minId, id) => {
+      const item = current.find((it) => it.id === id)!;
+      const minItem = current.find((it) => it.id === minId)!;
+      return item.unitPrice * item.quantity < minItem.unitPrice * minItem.quantity ? id : minId;
+    });
+    return applyExactTotalToOrderLineItems(current, target, new Set([cheapestId]), noShipping);
+  }
+
   return current;
 }
 
@@ -489,6 +512,18 @@ export function applyExactImponibileToOrderLineItems<T extends OrderLineItem>(
     }
   }
 
+  // Auto-retry: if imponibile not exact, retry with cheapest selected item (smallest q×p).
+  //    Guard: skip if only 1 item selected (avoids recursion).
+  const finalImp = Math.round(current.reduce((s, i) => s + i.subtotal, 0) * 100);
+  if (selIds.length > 1 && finalImp !== Math.round(target * 100)) {
+    const cheapestId = selIds.reduce((minId, id) => {
+      const item = current.find((it) => it.id === id)!;
+      const minItem = current.find((it) => it.id === minId)!;
+      return item.unitPrice * item.quantity < minItem.unitPrice * minItem.quantity ? id : minId;
+    });
+    return applyExactImponibileToOrderLineItems(current, target, new Set([cheapestId]));
+  }
+
   return current;
 }
 
@@ -554,6 +589,17 @@ export function applyExactImponibileToEditItems(
         i === lastIdx ? recalcLineAmounts({ ...lastItemOrig, discountPercent: bestDisc }) : it,
       );
     }
+  }
+
+  // Auto-retry: if imponibile not exact, retry with cheapest selected item (smallest q×p).
+  //    Guard: skip if only 1 item selected (avoids recursion).
+  const finalImp = Math.round(current.reduce((s, i) => s + i.lineAmount, 0) * 100);
+  if (selIndices.length > 1 && finalImp !== Math.round(target * 100)) {
+    const cheapestIdx = selIndices.reduce((minIdx, idx) =>
+      current[idx].unitPrice * current[idx].quantity < current[minIdx].unitPrice * current[minIdx].quantity
+        ? idx : minIdx,
+    );
+    return applyExactImponibileToEditItems(current, target, new Set([cheapestIdx]));
   }
 
   return current;
