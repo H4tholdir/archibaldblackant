@@ -21,7 +21,7 @@ export const config = {
   },
   puppeteer: {
     headless: process.env.NODE_ENV !== "development", // Headless in production and test, visible only in dev
-    slowMo: process.env.NODE_ENV === "production" ? 50 : 200, // 50ms in production (fast but stable), 200ms in dev
+    slowMo: process.env.NODE_ENV === "production" ? 25 : 200, // 25ms in production, 200ms in dev
     timeout: 60000, // Increased to 60s for slow Archibald responses
     protocolTimeout: 300000, // 5 minutes - increased for large orders (12+ items)
     args: [
@@ -29,7 +29,6 @@ export const config = {
       "--disable-setuid-sandbox",
       "--disable-web-security",
       "--ignore-certificate-errors",
-      "--disable-dev-shm-usage",
       "--disable-gpu",
       "--disable-extensions",
       "--no-zygote",
@@ -38,7 +37,7 @@ export const config = {
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
       "--memory-pressure-off",
-      "--js-flags=--max-old-space-size=512",
+      "--js-flags=--max-old-space-size=1024",
     ],
   },
   features: {
