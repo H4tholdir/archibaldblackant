@@ -339,14 +339,14 @@ async function bootstrap(): Promise<void> {
       };
       const due = await getRemindersOverdueOrToday(pool, userId);
       for (const r of due) {
-        await insertNotificationRepo(pool, {
+        await createNotification(notificationDeps, {
+          target: 'user',
           userId,
           type: 'customer_reminder',
           severity: r.priority === 'urgent' ? 'warning' : 'info',
           title: `🔔 ${TYPE_LABELS[r.type] ?? r.type}: ${r.customerName}`,
           body: r.note ?? 'Promemoria in scadenza',
           data: { customerErpId: r.customerErpId, reminderId: r.id, action_url: `/customers/${r.customerErpId}` },
-          expiresAt: new Date(Date.now() + 7 * 86_400_000),
         });
       }
     },
@@ -1075,18 +1075,37 @@ async function bootstrap(): Promise<void> {
         return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
       },
       (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
-      async (newProducts, ghostsDeleted) => {
-        const parts: string[] = [];
-        if (newProducts > 0) parts.push(`${newProducts} nuovo/i`);
-        if (ghostsDeleted > 0) parts.push(`${ghostsDeleted} rimosso/i dal catalogo`);
-        await createNotification(notificationDeps, {
-          target: 'all',
-          type: 'product_change',
-          severity: 'info',
-          title: 'Catalogo prodotti aggiornato',
-          body: `Variazioni catalogo: ${parts.join(', ')}.`,
-          data: { newProducts, ghostsDeleted },
-        });
+      async (newProducts, updatedProducts, ghostsDeleted) => {
+        if (newProducts > 0) {
+          await createNotification(notificationDeps, {
+            target: 'all',
+            type: 'product_change',
+            severity: 'info',
+            title: 'Nuovi prodotti nel catalogo',
+            body: `${newProducts} prodotto/i aggiunto/i al catalogo.`,
+            data: { changeType: 'new', count: newProducts },
+          });
+        }
+        if (updatedProducts > 0) {
+          await createNotification(notificationDeps, {
+            target: 'all',
+            type: 'product_change',
+            severity: 'info',
+            title: 'Prodotti aggiornati nel catalogo',
+            body: `${updatedProducts} prodotto/i modificato/i nel catalogo.`,
+            data: { changeType: 'modified', count: updatedProducts },
+          });
+        }
+        if (ghostsDeleted > 0) {
+          await createNotification(notificationDeps, {
+            target: 'all',
+            type: 'product_change',
+            severity: 'info',
+            title: 'Prodotti rimossi dal catalogo',
+            body: `${ghostsDeleted} prodotto/i rimosso/i dal catalogo.`,
+            data: { changeType: 'removed', count: ghostsDeleted },
+          });
+        }
       },
       async () => {
         const { rows } = await pool.query<{ count: number }>(

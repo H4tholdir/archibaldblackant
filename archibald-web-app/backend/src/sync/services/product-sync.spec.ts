@@ -100,13 +100,13 @@ describe('syncProducts', () => {
     await syncProducts(deps, vi.fn(), () => false);
 
     expect(onProductsChanged).toHaveBeenCalledOnce();
-    expect(onProductsChanged).toHaveBeenCalledWith(2, 0);
+    expect(onProductsChanged).toHaveBeenCalledWith(2, 0, 0);
   });
 
   test('calls onProductsChanged when ghosts are deleted', async () => {
     const onProductsChanged = vi.fn().mockResolvedValue(undefined);
     const pool = createMockPool();
-    // Products already exist and are not new
+    // Products already exist and are not new → updatedProducts = 2
     (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null }], rowCount: 1 });
     const softDeleteGhosts = vi.fn().mockResolvedValue(3);
     const deps = createMockDeps(pool, { softDeleteGhosts, onProductsChanged });
@@ -114,15 +114,15 @@ describe('syncProducts', () => {
     await syncProducts(deps, vi.fn(), () => false);
 
     expect(onProductsChanged).toHaveBeenCalledOnce();
-    expect(onProductsChanged).toHaveBeenCalledWith(0, 3);
+    expect(onProductsChanged).toHaveBeenCalledWith(0, 2, 3);
   });
 
-  test('does not call onProductsChanged when nothing new or deleted', async () => {
+  test('does not call onProductsChanged when no products are processed', async () => {
     const onProductsChanged = vi.fn().mockResolvedValue(undefined);
-    const pool = createMockPool();
-    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null }], rowCount: 1 });
-    // softDeleteGhosts returns 0
-    const deps = createMockDeps(pool, { onProductsChanged });
+    const deps = createMockDeps(undefined, {
+      parsePdf: vi.fn().mockResolvedValue([]),
+      onProductsChanged,
+    });
 
     await syncProducts(deps, vi.fn(), () => false);
 
