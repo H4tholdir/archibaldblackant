@@ -11,9 +11,9 @@ type TabKey = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments';
 function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
-  if (type === 'sync_anomaly' || type === 'product_missing_vat') return 'sync';
-  if (type === 'customer_inactive') return 'clients';
-  if (type === 'order_expiring') return 'payments';
+  if (type === 'sync_anomaly' || type === 'product_missing_vat' || type === 'product_change') return 'sync';
+  if (type === 'customer_inactive' || type === 'erp_customer_deleted' || type === 'erp_customer_restored' || type === 'customer_reminder') return 'clients';
+  if (type === 'order_expiring' || type === 'budget_milestone') return 'payments';
   return 'other';
 }
 
@@ -85,6 +85,56 @@ function getRowInfo(n: Notification): RowInfo {
         subtitle: data.customerName as string | undefined,
         description: daysPastDue != null ? `${daysPastDue} gg fuori scadenza` : n.body,
         tag: 'Scaduto', tagColor: '#f87171', tagBg: 'rgba(239,68,68,0.18)',
+      };
+    }
+    case 'erp_customer_deleted':
+      return {
+        icon: '🗑️', iconBg: 'rgba(239,68,68,0.18)',
+        title: n.title,
+        subtitle: data.customerName as string | undefined,
+        description: n.body,
+        tag: 'Cancellato ERP', tagColor: '#f87171', tagBg: 'rgba(239,68,68,0.18)',
+      };
+    case 'erp_customer_restored':
+      return {
+        icon: '🔄', iconBg: 'rgba(46,125,50,0.18)',
+        title: n.title,
+        subtitle: data.customerName as string | undefined,
+        description: n.body,
+        tag: 'Ripristinato ERP', tagColor: '#66bb6a', tagBg: 'rgba(46,125,50,0.18)',
+      };
+    case 'budget_milestone':
+      return {
+        icon: '🏆', iconBg: 'rgba(250,204,21,0.18)',
+        title: n.title,
+        subtitle: data.conditionTitle as string | undefined,
+        description: n.body,
+        tag: 'Traguardo', tagColor: '#facc15', tagBg: 'rgba(250,204,21,0.18)',
+      };
+    case 'customer_reminder':
+      return {
+        icon: '🔔', iconBg: 'rgba(96,165,250,0.18)',
+        title: n.title,
+        subtitle: data.customerErpId as string | undefined,
+        description: n.body,
+        tag: 'Promemoria', tagColor: '#60a5fa', tagBg: 'rgba(96,165,250,0.18)',
+      };
+    case 'product_change': {
+      const changeType = data.changeType as string | undefined;
+      if (changeType === 'new') return {
+        icon: '🆕', iconBg: 'rgba(46,125,50,0.18)',
+        title: n.title, subtitle: undefined, description: n.body,
+        tag: 'Nuovi prodotti', tagColor: '#66bb6a', tagBg: 'rgba(46,125,50,0.18)',
+      };
+      if (changeType === 'removed') return {
+        icon: '🗑️', iconBg: 'rgba(239,68,68,0.18)',
+        title: n.title, subtitle: undefined, description: n.body,
+        tag: 'Rimossi', tagColor: '#f87171', tagBg: 'rgba(239,68,68,0.18)',
+      };
+      return {
+        icon: '✏️', iconBg: 'rgba(96,165,250,0.18)',
+        title: n.title, subtitle: undefined, description: n.body,
+        tag: 'Aggiornati', tagColor: '#60a5fa', tagBg: 'rgba(96,165,250,0.18)',
       };
     }
     default:
