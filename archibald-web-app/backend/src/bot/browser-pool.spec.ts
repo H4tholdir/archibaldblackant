@@ -17,13 +17,14 @@ function createMockPage(cookies: Array<{ name: string; expires: number }> = []) 
   };
 }
 
-function createMockContext(page?: ReturnType<typeof createMockPage>) {
+function createMockContext(page?: ReturnType<typeof createMockPage>, openPages: ReturnType<typeof createMockPage>[] = []) {
   const mockPage = page ?? createMockPage([
     { name: '.ASPXAUTH', expires: Date.now() / 1000 + 3600 },
     { name: 'ASP.NET_SessionId', expires: 0 },
   ]);
   return {
     newPage: vi.fn().mockResolvedValue(mockPage),
+    pages: vi.fn().mockResolvedValue(openPages),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -137,6 +138,28 @@ describe('createBrowserPool', () => {
     // Next acquire should create a new context
     const ctx2 = await pool.acquireContext('user-a', { fromQueue: true });
     expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+  });
+
+  test('releaseContext does not close context when interactive pages are still open', async () => {
+    const openPage = createMockPage();
+    openPage.isClosed.mockReturnValue(false);
+    const mockCtx = createMockContext(undefined, [openPage]);
+    const browser = createMockBrowser(() => mockCtx);
+    launchFn.mockResolvedValue(browser);
+
+    const pool = createBrowserPool(defaultConfig, launchFn);
+    await pool.initialize();
+
+    const ctx = await pool.acquireContext('user-a', { fromQueue: true });
+    // Simulate a sync bot failing while an interactive session has an open page
+    await pool.releaseContext('user-a', ctx, false);
+
+    // Context should be evicted from pool (a new one is created on re-acquire)
+    const ctx2 = await pool.acquireContext('user-a', { fromQueue: true });
+    expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+
+    // But the original context must NOT be closed (the open page would be killed)
+    expect(mockCtx.close).not.toHaveBeenCalled();
   });
 
   test('evicts LRU context when pool is full', async () => {

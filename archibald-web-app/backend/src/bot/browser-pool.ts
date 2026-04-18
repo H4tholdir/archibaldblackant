@@ -125,15 +125,25 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
   async function removeContextFromPool(userId: string): Promise<void> {
     const cached = contextPool.get(userId);
-    if (cached) {
-      try {
-        await cached.context.close();
-      } catch {}
-      browserContextCounts[cached.browserIndex] = Math.max(
-        0,
-        browserContextCounts[cached.browserIndex] - 1,
-      );
-      contextPool.delete(userId);
+    if (!cached) return;
+
+    // Evict from pool immediately so no new operations use this context
+    browserContextCounts[cached.browserIndex] = Math.max(
+      0,
+      browserContextCounts[cached.browserIndex] - 1,
+    );
+    contextPool.delete(userId);
+
+    // Only close the context if no other pages are open (e.g. an interactive session
+    // may still have its page alive — closing the context would kill it too).
+    let hasOpenPages = false;
+    try {
+      const pages = await cached.context.pages();
+      hasOpenPages = pages.some((p) => !p.isClosed());
+    } catch {}
+
+    if (!hasOpenPages) {
+      try { await cached.context.close(); } catch {}
     }
   }
 
