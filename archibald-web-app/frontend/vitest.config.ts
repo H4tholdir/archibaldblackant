@@ -9,6 +9,7 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     testTimeout: 20000,
     hookTimeout: 20000,
+    clearMocks: true,
     exclude: ["e2e/**", "node_modules/**"],
     execArgv: ["--max-old-space-size=4096"],
   },

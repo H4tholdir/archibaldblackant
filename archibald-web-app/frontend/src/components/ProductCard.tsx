@@ -1,18 +1,23 @@
 import { useState } from "react";
 import type { Product } from "../api/products";
 import { updateProductVat, updateProductPrice } from "../api/products";
+import { addFresisDiscountForProduct } from "../api/fresis-discounts";
 import { formatPriceFromString } from "../utils/format-currency";
 
 interface ProductCardProps {
   product: Product;
   expanded: boolean;
   onToggle: () => void;
+  inlineEditMode?: "vat" | "price" | "discount";
+  onSaveSuccess?: () => void;
 }
 
 export function ProductCard({
   product,
   expanded,
   onToggle,
+  inlineEditMode,
+  onSaveSuccess,
 }: ProductCardProps) {
   const [vatInput, setVatInput] = useState("");
   const [savingVat, setSavingVat] = useState(false);
@@ -22,6 +27,9 @@ export function ProductCard({
   const [savingPrice, setSavingPrice] = useState(false);
   const [priceError, setPriceError] = useState("");
   const [savedPrice, setSavedPrice] = useState<number | null>(null);
+  const [discountInput, setDiscountInput] = useState("");
+  const [savingDiscount, setSavingDiscount] = useState(false);
+  const [discountError, setDiscountError] = useState("");
   // Utility functions
   const formatCurrencyLocal = formatPriceFromString;
 
@@ -48,6 +56,61 @@ export function ProductCard({
       });
     } catch {
       return dateStr;
+    }
+  };
+
+  const handleMiniPanelSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const token = localStorage.getItem("archibald_jwt") || "";
+
+    if (inlineEditMode === "vat") {
+      const parsed = parseFloat(vatInput);
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+        setVatError("Valore non valido (0–100)");
+        return;
+      }
+      setSavingVat(true);
+      setVatError("");
+      try {
+        await updateProductVat(token, product.id, parsed);
+        onSaveSuccess?.();
+      } catch (err: unknown) {
+        setVatError(err instanceof Error ? err.message : "Errore salvataggio");
+      } finally {
+        setSavingVat(false);
+      }
+    } else if (inlineEditMode === "price") {
+      const parsed = parseFloat(priceInput);
+      if (isNaN(parsed) || parsed < 0) {
+        setPriceError("Valore non valido (≥ 0)");
+        return;
+      }
+      setSavingPrice(true);
+      setPriceError("");
+      try {
+        await updateProductPrice(token, product.id, parsed);
+        onSaveSuccess?.();
+      } catch (err: unknown) {
+        setPriceError(err instanceof Error ? err.message : "Errore salvataggio");
+      } finally {
+        setSavingPrice(false);
+      }
+    } else if (inlineEditMode === "discount") {
+      const parsed = parseFloat(discountInput);
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+        setDiscountError("Valore non valido (0–100)");
+        return;
+      }
+      setSavingDiscount(true);
+      setDiscountError("");
+      try {
+        await addFresisDiscountForProduct(token, product.id, parsed);
+        onSaveSuccess?.();
+      } catch (err: unknown) {
+        setDiscountError(err instanceof Error ? err.message : "Errore salvataggio");
+      } finally {
+        setSavingDiscount(false);
+      }
     }
   };
 
@@ -179,6 +242,113 @@ export function ProductCard({
           })()}
         </div>
       </div>
+
+      {/* Inline Edit Mini-Panel */}
+      {inlineEditMode && (() => {
+        const cfg =
+          inlineEditMode === "vat"
+            ? {
+                bgColor: "#fff8e1",
+                borderColor: "#ffc107",
+                labelColor: "#f57f17",
+                label: "IVA mancante",
+                placeholder: "es. 22",
+                unit: "%",
+                btnColor: "#f9a825",
+                inputWidth: "80px",
+                value: vatInput,
+                onChange: (v: string) => { setVatInput(v); setVatError(""); },
+                saving: savingVat,
+                error: vatError,
+              }
+            : inlineEditMode === "price"
+            ? {
+                bgColor: "#fce4ec",
+                borderColor: "#e91e63",
+                labelColor: "#880e4f",
+                label: "Prezzo mancante",
+                placeholder: "es. 285.00",
+                unit: "EUR",
+                btnColor: "#e91e63",
+                inputWidth: "110px",
+                value: priceInput,
+                onChange: (v: string) => { setPriceInput(v); setPriceError(""); },
+                saving: savingPrice,
+                error: priceError,
+              }
+            : {
+                bgColor: "#f3e5f5",
+                borderColor: "#9c27b0",
+                labelColor: "#6a1b9a",
+                label: "Sconto Fresis",
+                placeholder: "es. 63",
+                unit: "%",
+                btnColor: "#9c27b0",
+                inputWidth: "80px",
+                value: discountInput,
+                onChange: (v: string) => { setDiscountInput(v); setDiscountError(""); },
+                saving: savingDiscount,
+                error: discountError,
+              };
+
+        return (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              borderTop: `2px solid ${cfg.borderColor}`,
+              backgroundColor: cfg.bgColor,
+              padding: "10px 18px",
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "10px",
+              fontSize: "13px",
+            }}
+          >
+            <span style={{ fontWeight: 700, color: cfg.labelColor, minWidth: "100px" }}>
+              {cfg.label}
+            </span>
+            <input
+              autoComplete="off"
+              type="number"
+              min={0}
+              max={inlineEditMode !== "price" ? 100 : undefined}
+              step={inlineEditMode === "price" ? 0.01 : 1}
+              placeholder={cfg.placeholder}
+              value={cfg.value}
+              onChange={(e) => cfg.onChange(e.target.value)}
+              style={{
+                width: cfg.inputWidth,
+                padding: "4px 8px",
+                fontSize: "13px",
+                border: `1.5px solid ${cfg.error ? "#c62828" : "#bbb"}`,
+                borderRadius: "6px",
+                outline: "none",
+              }}
+            />
+            <span style={{ fontSize: "13px", color: "#666" }}>{cfg.unit}</span>
+            <button
+              disabled={cfg.saving || !cfg.value}
+              onClick={handleMiniPanelSave}
+              style={{
+                padding: "4px 14px",
+                fontSize: "13px",
+                fontWeight: 600,
+                backgroundColor: cfg.saving ? "#bdbdbd" : cfg.btnColor,
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: cfg.saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {cfg.saving ? "..." : "Salva"}
+            </button>
+            {cfg.error && (
+              <span style={{ color: "#c62828", fontSize: "12px" }}>{cfg.error}</span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Expanded Details */}
       {expanded && (
