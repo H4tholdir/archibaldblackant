@@ -11828,27 +11828,39 @@ export class ArchibaldBot {
     const result = await this.page.evaluate(() => {
       const w = window as any;
       const collection = w.ASPxClientControl?.GetControlCollection?.();
-      if (!collection) return { dismissed: false, popups: [] as string[] };
-
       const popups: string[] = [];
-      collection.ForEachControl((c: any) => {
-        const name = c?.name || c?.GetName?.() || "";
-        if (
-          (name.includes("PopupWindow") || name.includes("popupWindow") || name.includes("UPPopup")) &&
-          typeof c.Hide === "function"
-        ) {
-          try {
-            const isVisible = typeof c.IsVisible === "function" ? c.IsVisible() : true;
-            if (isVisible) {
+
+      if (collection) {
+        collection.ForEachControl((c: any) => {
+          const name = c?.name || c?.GetName?.() || "";
+          if (
+            (name.includes("PopupWindow") || name.includes("popupWindow") || name.includes("UPPopup")) &&
+            typeof c.Hide === "function"
+          ) {
+            try {
+              const isVisible = typeof c.IsVisible === "function" ? c.IsVisible() : true;
+              if (isVisible) {
+                c.Hide();
+                popups.push(name);
+              }
+            } catch {
               c.Hide();
               popups.push(name);
             }
-          } catch {
-            c.Hide();
-            popups.push(name);
           }
-        }
-      });
+        });
+      }
+
+      // Chiude i form inline della griglia DevExpress (pattern DXHFP).
+      // Appaiono dopo la validazione P.IVA nella griglia SALESTABLEs/ADDRESSes
+      // e non vengono catturati dalla ricerca per nome sopra.
+      const cancelBtns = Array.from(
+        document.querySelectorAll<HTMLElement>('[id*="DXHFP"][id$="_C"]'),
+      ).filter((el) => el.offsetParent !== null);
+      for (const btn of cancelBtns) {
+        btn.click();
+        popups.push(btn.id);
+      }
 
       return { dismissed: popups.length > 0, popups };
     });
