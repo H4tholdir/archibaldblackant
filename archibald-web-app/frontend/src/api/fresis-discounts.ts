@@ -49,3 +49,26 @@ export async function uploadFresisDiscounts(
   }
   return { count };
 }
+
+export async function addFresisDiscountForProduct(
+  token: string,
+  productId: string,
+  discountPercent: number,
+): Promise<void> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/fresis-history/discounts`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id: productId, articleCode: productId, discountPercent }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error || `HTTP ${response.status}`);
+  }
+}
