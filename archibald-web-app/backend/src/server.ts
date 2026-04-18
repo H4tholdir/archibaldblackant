@@ -60,7 +60,8 @@ import { mkdirSync } from 'fs';
 import { createBonusesRouter } from './routes/bonuses';
 import { createActiveJobsRouter } from './routes/active-jobs';
 import { insertActiveJob, deleteActiveJob } from './db/repositories/active-jobs';
-import { createDraftsRouter } from './routes/drafts.router';
+import { createDraftsRouter } from './routes/drafts.router'
+import { createOverdueReportRouter } from './routes/overdue-report';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -673,6 +674,8 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/orders', authenticate, createOrderVerificationRouter({ pool }));
+
+  app.use('/api/orders', authenticate, createOverdueReportRouter({ pool }));
 
   app.use('/api/pending-orders', authenticate, createPendingOrdersRouter({
     getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),

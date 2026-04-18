@@ -25,6 +25,9 @@ import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
+import { useAuth } from "../hooks/useAuth";
+import { fetchOverdueReport } from "../api/overdue-report";
+import { generateOverduePDF } from "../services/overdue-pdf.service";
 
 interface OrderFilters {
   dateFrom: string;
@@ -232,6 +235,7 @@ function getMatchingTab(order: Order, query: string): TabId | null {
 }
 
 export function OrderHistory() {
+  const auth = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightOrderId = searchParams.get("highlight");
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
@@ -261,6 +265,8 @@ export function OrderHistory() {
   const [sendToVeronaProgress, setSendToVeronaProgress] =
     useState<SendToVeronaProgressState | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null);
 
   // Selection mode for manual stacking
   const [selectionMode, setSelectionMode] = useState(false);
@@ -816,6 +822,21 @@ export function OrderHistory() {
     setExpandedOrderId(orderId);
   };
 
+  const handleExportOverduePDF = async () => {
+    setPdfExportError(null);
+    setExportingPDF(true);
+    try {
+      const data = await fetchOverdueReport();
+      const agentName = auth.user?.fullName ?? auth.user?.username ?? '';
+      generateOverduePDF(data, agentName);
+    } catch (err) {
+      console.error('Errore export PDF scaduti:', err);
+      setPdfExportError('Errore durante la generazione del PDF. Riprova.');
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
   function handleLongPressStart(orderId: string, e: React.PointerEvent) {
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1255,33 +1276,73 @@ export function OrderHistory() {
             Consulta lo storico dei tuoi ordini e il loro stato
           </p>
         </div>
-        <button
-          onClick={() => setLegendOpen(true)}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 16px",
-            fontSize: "14px",
-            fontWeight: 600,
-            backgroundColor: "#fff",
-            color: "#1976d2",
-            border: "2px solid #1976d2",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#1976d2";
-            e.currentTarget.style.color = "#fff";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#fff";
-            e.currentTarget.style.color = "#1976d2";
-          }}
-        >
-          {"\u2139\ufe0f"} Leggi gli stati
-        </button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={handleExportOverduePDF}
+            disabled={exportingPDF}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: exportingPDF ? "#f5f5f5" : "#fff",
+              color: exportingPDF ? "#aaa" : "#c0392b",
+              border: "2px solid",
+              borderColor: exportingPDF ? "#ddd" : "#c0392b",
+              borderRadius: "8px",
+              cursor: exportingPDF ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              if (!exportingPDF) {
+                e.currentTarget.style.backgroundColor = "#c0392b";
+                e.currentTarget.style.color = "#fff";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!exportingPDF) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#c0392b";
+              }
+            }}
+          >
+            {exportingPDF ? "Generando..." : "PDF Scaduti"}
+          </button>
+          {pdfExportError && (
+            <span style={{ color: '#c0392b', fontSize: '12px', marginLeft: '8px' }}>
+              {pdfExportError}
+            </span>
+          )}
+          <button
+            onClick={() => setLegendOpen(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#fff",
+              color: "#1976d2",
+              border: "2px solid #1976d2",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#1976d2";
+              e.currentTarget.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+              e.currentTarget.style.color = "#1976d2";
+            }}
+          >
+            {"\u2139\ufe0f"} Leggi gli stati
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
