@@ -66,13 +66,13 @@ function getNotificationRoute(notification: Notification): string {
     case 'erp_customer_restored':
       return '/customers';
     case 'customer_inactive':
-      return notification.data?.erpId && notification.data?.customerName
-        ? `/customers?highlight=${String(notification.data.erpId)}&search=${encodeURIComponent(String(notification.data.customerName))}`
-        : '/customers';
+      return notification.data?.erpId ? `/customers/${String(notification.data.erpId)}` : '/customers';
+    case 'customer_reminder':
+      return notification.data?.action_url ? String(notification.data.action_url) : '/notifications';
     case 'price_change':
-      return '/prezzi-variazioni';
+      return '/products?openPriceVariations=true';
     case 'product_change':
-      return '/prodotti-variazioni';
+      return '/products?openVariations=true';
     case 'product_missing_vat':
     case 'sync_anomaly':
       return '/admin';

@@ -37,9 +37,9 @@ describe('getNotificationRoute', () => {
       .toBe('/orders');
   });
 
-  test('customer_inactive con erpId e customerName → /customers?highlight=...&search=...', () => {
+  test('customer_inactive con erpId naviga al profilo diretto', () => {
     expect(getNotificationRoute(makeNotif('customer_inactive', { erpId: '55.261', customerName: 'Acme Srl' })))
-      .toBe('/customers?highlight=55.261&search=Acme%20Srl');
+      .toBe('/customers/55.261');
   });
 
   test('customer_inactive senza data → /customers', () => {
@@ -55,8 +55,32 @@ describe('getNotificationRoute', () => {
     expect(getNotificationRoute(makeNotif('order_expiring'))).toBe('/orders');
   });
 
-  test('altri tipi non fedex non sono influenzati', () => {
-    expect(getNotificationRoute(makeNotif('price_change'))).toBe('/prezzi-variazioni');
+  test('price_change naviga a /products con param openPriceVariations', () => {
+    expect(getNotificationRoute(makeNotif('price_change'))).toBe('/products?openPriceVariations=true');
+  });
+
+  test('product_change new naviga a /products con param openVariations', () => {
+    expect(getNotificationRoute(makeNotif('product_change', { changeType: 'new', count: '3' })))
+      .toBe('/products?openVariations=true');
+  });
+
+  test('product_change modified naviga a /products con param openVariations', () => {
+    expect(getNotificationRoute(makeNotif('product_change', { changeType: 'modified', count: '5' })))
+      .toBe('/products?openVariations=true');
+  });
+
+  test('product_change removed naviga a /products con param openVariations', () => {
+    expect(getNotificationRoute(makeNotif('product_change', { changeType: 'removed', count: '1' })))
+      .toBe('/products?openVariations=true');
+  });
+
+  test('customer_reminder con action_url naviga al profilo cliente', () => {
+    expect(getNotificationRoute(makeNotif('customer_reminder', { customerErpId: '42.001', reminderId: '7', action_url: '/customers/42.001' })))
+      .toBe('/customers/42.001');
+  });
+
+  test('customer_reminder senza action_url fallback a /notifications', () => {
+    expect(getNotificationRoute(makeNotif('customer_reminder'))).toBe('/notifications');
   });
 
   test('order_documents_missing con orderNumber → /orders?highlight=ORD/26004189', () => {
