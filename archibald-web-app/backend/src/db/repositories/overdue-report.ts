@@ -127,8 +127,15 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
        ON  i.order_id = o.id
        AND i.invoice_due_date::date < CURRENT_DATE
        AND i.invoice_closed IS NOT TRUE
+       AND (
+         i.invoice_remaining_amount IS NULL
+         OR i.invoice_remaining_amount = ''
+         OR REGEXP_REPLACE(REPLACE(i.invoice_remaining_amount, '.', ''), ',', '.')::NUMERIC > 0
+       )
      WHERE o.user_id = $1
        AND o.creation_date >= '2026-01-01'
+       AND o.total_amount NOT LIKE '-%'
+       AND o.customer_account_num NOT IN ('049421', '1002328')
      ORDER BY o.id, i.invoice_due_date ASC`,
     [userId]
   )
