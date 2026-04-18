@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { ProductCard } from "../components/ProductCard";
 import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, getMissingFresisDiscountCount, type Product } from "../api/products";
@@ -32,6 +32,19 @@ export function ArticoliList() {
     useState(false);
   const [showProductVariationsModal, setShowProductVariationsModal] =
     useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('openPriceVariations') === 'true') {
+      setShowPriceVariationsModal(true);
+      setSearchParams(new URLSearchParams(), { replace: true });
+    }
+    if (searchParams.get('openVariations') === 'true') {
+      setShowProductVariationsModal(true);
+      setSearchParams(new URLSearchParams(), { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [noVatCount, setNoVatCount] = useState(0);
   const [vatFilterActive, setVatFilterActive] = useState(false);
   const [zeroPriceCount, setZeroPriceCount] = useState(0);
