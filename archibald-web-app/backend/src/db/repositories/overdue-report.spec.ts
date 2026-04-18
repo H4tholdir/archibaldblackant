@@ -8,6 +8,7 @@ describe('groupOverdueRows', () => {
       {
         customer_name: 'Rossi Mario',
         customer_email: 'rossi@test.it',
+        customer_account_num: 'ACC-001',
         order_id: 'ord-1',
         order_number: 'ORD/001',
         order_date: '2026-01-10T00:00:00Z',
@@ -22,6 +23,7 @@ describe('groupOverdueRows', () => {
       {
         customer_name: 'Rossi Mario',
         customer_email: 'rossi@test.it',
+        customer_account_num: 'ACC-001',
         order_id: 'ord-1',
         order_number: 'ORD/001',
         order_date: '2026-01-10T00:00:00Z',
@@ -36,6 +38,7 @@ describe('groupOverdueRows', () => {
       {
         customer_name: 'Bianchi SRL',
         customer_email: null,
+        customer_account_num: 'ACC-002',
         order_id: 'ord-2',
         order_number: 'ORD/002',
         order_date: '2026-01-15T00:00:00Z',
@@ -98,6 +101,7 @@ describe('groupOverdueRows', () => {
       {
         customer_name: 'Verdi Luigi',
         customer_email: 'verdi@test.it',
+        customer_account_num: 'ACC-003',
         order_id: 'ord-3',
         order_number: 'ORD/003',
         order_date: '2026-01-20T00:00:00Z',

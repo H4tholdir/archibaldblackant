@@ -32,6 +32,7 @@ export type OverdueReportData = {
 export type OverdueRow = {
   customer_name: string
   customer_email: string | null
+  customer_account_num: string
   order_id: string
   order_number: string
   order_date: string
@@ -48,15 +49,15 @@ export function groupOverdueRows(rows: OverdueRow[]): OverdueReportData {
   const customerMap = new Map<string, OverdueCustomer>()
 
   for (const row of rows) {
-    if (!customerMap.has(row.customer_name)) {
-      customerMap.set(row.customer_name, {
+    if (!customerMap.has(row.customer_account_num)) {
+      customerMap.set(row.customer_account_num, {
         customerName: row.customer_name,
         customerEmail: row.customer_email,
         orders: [],
         subtotal: 0,
       })
     }
-    const customer = customerMap.get(row.customer_name)!
+    const customer = customerMap.get(row.customer_account_num)!
 
     let order = customer.orders.find(o => o.orderId === row.order_id)
     if (!order) {
@@ -96,6 +97,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
   const ordersResult = await pool.query<{
     customer_name: string
     customer_email: string | null
+    customer_account_num: string
     order_id: string
     order_number: string
     order_date: string
@@ -105,6 +107,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
     `SELECT DISTINCT ON (o.id)
        c.name            AS customer_name,
        c.email           AS customer_email,
+       o.customer_account_num,
        o.id              AS order_id,
        o.order_number,
        o.created_at      AS order_date,
@@ -166,6 +169,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
       flatRows.push({
         customer_name: order.customer_name,
         customer_email: order.customer_email,
+        customer_account_num: order.customer_account_num,
         order_id: order.order_id,
         order_number: order.order_number,
         order_date: order.order_date,
@@ -182,6 +186,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
         flatRows.push({
           customer_name: order.customer_name,
           customer_email: order.customer_email,
+          customer_account_num: order.customer_account_num,
           order_id: order.order_id,
           order_number: order.order_number,
           order_date: order.order_date,

@@ -266,6 +266,7 @@ export function OrderHistory() {
     useState<SendToVeronaProgressState | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null);
 
   // Selection mode for manual stacking
   const [selectionMode, setSelectionMode] = useState(false);
@@ -822,6 +823,7 @@ export function OrderHistory() {
   };
 
   const handleExportOverduePDF = async () => {
+    setPdfExportError(null);
     setExportingPDF(true);
     try {
       const data = await fetchOverdueReport();
@@ -829,6 +831,7 @@ export function OrderHistory() {
       generateOverduePDF(data, agentName);
     } catch (err) {
       console.error('Errore export PDF scaduti:', err);
+      setPdfExportError('Errore durante la generazione del PDF. Riprova.');
     } finally {
       setExportingPDF(false);
     }
@@ -1307,6 +1310,11 @@ export function OrderHistory() {
           >
             {exportingPDF ? "Generando..." : "PDF Scaduti"}
           </button>
+          {pdfExportError && (
+            <span style={{ color: '#c0392b', fontSize: '12px', marginLeft: '8px' }}>
+              {pdfExportError}
+            </span>
+          )}
           <button
             onClick={() => setLegendOpen(true)}
             style={{
