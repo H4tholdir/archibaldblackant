@@ -11856,7 +11856,7 @@ export class ArchibaldBot {
       // e non vengono catturati dalla ricerca per nome sopra.
       const cancelBtns = Array.from(
         document.querySelectorAll<HTMLElement>('[id*="DXHFP"][id$="_C"]'),
-      ).filter((el) => el.offsetParent !== null);
+      );
       for (const btn of cancelBtns) {
         btn.click();
         popups.push(btn.id);
