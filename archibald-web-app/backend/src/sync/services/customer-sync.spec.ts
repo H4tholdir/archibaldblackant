@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { syncCustomers, type CustomerSyncDeps, type CustomerSyncResult, type DeletedProfileInfo, type RestoredProfileInfo } from './customer-sync';
+import { syncCustomers, cleanupOrphanedTempCustomers, type CustomerSyncDeps, type CustomerSyncResult, type DeletedProfileInfo, type RestoredProfileInfo } from './customer-sync';
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
@@ -191,7 +191,8 @@ describe('syncCustomers - onDeletedCustomers', () => {
   test('calls onDeletedCustomers with profiles that have orders', async () => {
     const pool = createPool();
     const q = pool.query as ReturnType<typeof vi.fn>;
-    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-001 → new
+    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })  // cleanupOrphanedTempCustomers → no orphans
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-001 → new
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-001
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-002 → new
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-002
@@ -284,6 +285,8 @@ describe('syncCustomers - onRestoredCustomers', () => {
     const q = pool.query as ReturnType<typeof vi.fn>;
 
     q
+      // cleanupOrphanedTempCustomers → no orphans
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       // SELECT hash, deleted_at for CUST-001 → found with deleted_at set (was soft-deleted)
       .mockResolvedValueOnce({ rows: [{ hash: 'old-hash', deleted_at: new Date() }], rowCount: 1 })
       // UPDATE SET deleted_at = NULL (restore)
@@ -324,6 +327,8 @@ describe('syncCustomers - onRestoredCustomers', () => {
     const q = pool.query as ReturnType<typeof vi.fn>;
 
     q
+      // cleanupOrphanedTempCustomers → no orphans
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       // SELECT hash, deleted_at for CUST-001 → no row (hard-deleted, was never soft-deleted)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       // INSERT new customer
@@ -364,6 +369,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     const pool = createPool();
     const q = pool.query as ReturnType<typeof vi.fn>;
     q
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // cleanupOrphanedTempCustomers → no orphans
       .mockResolvedValueOnce({ rows: [{ hash: 'old-hash', deleted_at: new Date() }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
@@ -382,5 +388,75 @@ describe('syncCustomers - onRestoredCustomers', () => {
       typeof c[0] === 'string' && (c[0] as string).includes('order_records'),
     );
     expect(orderQuery).toBeUndefined();
+  });
+});
+
+describe('cleanupOrphanedTempCustomers', () => {
+  const userId = 'user-1';
+  const tempId = 'TEMP-1234567890';
+
+  test('returns 0 when no orphaned TEMP customers exist', async () => {
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const cleaned = await cleanupOrphanedTempCustomers(pool, userId);
+
+    expect(cleaned).toBe(0);
+  });
+
+  test('soft-deletes TEMP customers with no active pending orders', async () => {
+    const pool = createMockPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockImplementation((sql: string) => {
+      if (sql.includes('TEMP-%') && sql.includes('NOT EXISTS')) {
+        return Promise.resolve({ rows: [{ erp_id: tempId }], rowCount: 1 });
+      }
+      if (sql.includes('SET deleted_at = NOW()')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const cleaned = await cleanupOrphanedTempCustomers(pool, userId);
+
+    expect(cleaned).toBe(1);
+    const softDeleteCall = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('SET deleted_at = NOW()') && (c[1] as unknown[]).includes(tempId),
+    );
+    expect(softDeleteCall).toBeDefined();
+  });
+
+  test('does not soft-delete TEMP customers when active pending orders exist', async () => {
+    const pool = createMockPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    // Simulate NOT EXISTS subquery excluding the TEMP: returns empty rows
+    q.mockImplementation((sql: string) => {
+      if (sql.includes('TEMP-%') && sql.includes('NOT EXISTS')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const cleaned = await cleanupOrphanedTempCustomers(pool, userId);
+
+    expect(cleaned).toBe(0);
+    const softDeleteCall = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('SET deleted_at = NOW()'),
+    );
+    expect(softDeleteCall).toBeUndefined();
+  });
+
+  test('is called automatically during syncCustomers', async () => {
+    const pool = createMockPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockResolvedValue({ rows: [], rowCount: 0 });
+    const deps = createMockDeps(pool);
+
+    await syncCustomers(deps, userId, vi.fn(), () => false);
+
+    const cleanupCall = q.mock.calls.find((c: unknown[]) =>
+      typeof c[0] === 'string' && (c[0] as string).includes('TEMP-%') && (c[0] as string).includes('NOT EXISTS'),
+    );
+    expect(cleanupCall).toBeDefined();
   });
 });

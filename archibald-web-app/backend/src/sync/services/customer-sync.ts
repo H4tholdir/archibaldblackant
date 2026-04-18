@@ -87,6 +87,10 @@ async function syncCustomers(
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
+    await cleanupOrphanedTempCustomers(pool, userId).catch((err) =>
+      logger.warn('cleanupOrphanedTempCustomers failed (non-fatal)', { err }),
+    );
+
     onProgress(5, 'Download PDF clienti');
     pdfPath = await downloadPdf(userId);
     await copyFile(pdfPath, '/app/data/debug-clienti.pdf').catch(() => {});
@@ -358,4 +362,37 @@ function computeSimpleHash(customer: ParsedCustomer): string {
   return require('crypto').createHash('sha256').update(data).digest('hex');
 }
 
-export { syncCustomers, SyncStoppedError, type CustomerSyncDeps, type CustomerSyncResult, type ParsedCustomer, type DeletedProfileInfo, type RestoredProfileInfo };
+async function cleanupOrphanedTempCustomers(pool: DbPool, userId: string): Promise<number> {
+  const { rows: orphans } = await pool.query<{ erp_id: string }>(
+    `SELECT c.erp_id FROM agents.customers c
+     WHERE c.user_id = $1
+       AND c.erp_id LIKE 'TEMP-%'
+       AND c.deleted_at IS NULL
+       AND c.created_at < NOW() - INTERVAL '2 hours'
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.pending_orders po
+         WHERE po.customer_id = c.erp_id
+           AND po.user_id = c.user_id
+           AND po.status NOT IN ('completed-warehouse', 'error')
+       )`,
+    [userId],
+  );
+
+  if (orphans.length === 0) return 0;
+
+  const tempIds = orphans.map((r) => r.erp_id);
+  const placeholders = tempIds.map((_, i) => `$${i + 2}`).join(', ');
+  const { rowCount } = await pool.query(
+    `UPDATE agents.customers SET deleted_at = NOW()
+     WHERE user_id = $1 AND erp_id IN (${placeholders}) AND deleted_at IS NULL`,
+    [userId, ...tempIds],
+  );
+
+  if (rowCount && rowCount > 0) {
+    logger.info('cleanupOrphanedTempCustomers: soft-deleted TEMP orphans', { userId, count: rowCount, ids: tempIds });
+  }
+
+  return rowCount ?? 0;
+}
+
+export { syncCustomers, cleanupOrphanedTempCustomers, SyncStoppedError, type CustomerSyncDeps, type CustomerSyncResult, type ParsedCustomer, type DeletedProfileInfo, type RestoredProfileInfo };
