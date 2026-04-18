@@ -161,7 +161,8 @@ async function matchPricesToProducts(deps: MatchPricesToProductsDeps): Promise<M
       continue;
     }
 
-    const product = matchVariant(products, price.item_selection);
+    const directMatch = products.find((p) => p.id === price.product_id);
+    const product = directMatch ?? matchVariant(products, price.item_selection);
     if (product == null) {
       unmatched++;
       unmatchedPrices.push({

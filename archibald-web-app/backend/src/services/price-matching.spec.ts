@@ -448,6 +448,26 @@ describe('matchPricesToProducts', () => {
     expect(result.unmatchedPrices[0]).toEqual({ productId: 'UNKNOWN-ID', productName: 'NOME SCONOSCIUTO', reason: 'product_not_found' });
   });
 
+  test('matches each variant by product_id when item_selection is null and multiple variants share the same product_name', async () => {
+    const priceK2 = makePriceRow({ id: 1, product_id: '004455K2', product_name: '851.314.016', unit_price: '18,99', item_selection: null });
+    const priceK3 = makePriceRow({ id: 2, product_id: '004455K3', product_name: '851.314.016', unit_price: '18,99', item_selection: null });
+    const productK2 = makeProduct({ id: '004455K2', name: '851.314.016', price: 18.99, vat: 22 });
+    const productK3 = makeProduct({ id: '004455K3', name: '851.314.016', price: null, vat: 22 });
+
+    const updateProductPrice = vi.fn().mockResolvedValue(true);
+    const deps = createMockDeps({
+      getAllPrices: vi.fn().mockResolvedValue([priceK2, priceK3]),
+      getProductVariants: vi.fn().mockResolvedValue([productK2, productK3]),
+      updateProductPrice,
+    });
+
+    const result = await matchPricesToProducts(deps);
+
+    expect(result.result).toEqual({ matched: 2, unmatched: 0, skipped: 0 });
+    expect(updateProductPrice).toHaveBeenCalledWith('004455K2', 18.99, 22, 'prices-db', null);
+    expect(updateProductPrice).toHaveBeenCalledWith('004455K3', 18.99, 22, 'prices-db', null);
+  });
+
   test('handles multiple prices with mixed outcomes', async () => {
     const prices = [
       makePriceRow({ id: 1, product_id: 'P1', product_name: 'Matched', unit_price: '10,00' }),
