@@ -92,7 +92,7 @@ export function CustomerProfilePage() {
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 641 && window.innerWidth < 1024);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [localAddresses, setLocalAddresses] = useState<CustomerAddress[] | null>(null);
-  const [mainCapOptions, setMainCapOptions] = useState<{ city: string; county: string | null; state: string | null }[]>([]);
+  const [mainCapOptions, setMainCapOptions] = useState<{ city: string }[]>([]);
 
   useEffect(() => {
     function handleResize() {
@@ -227,7 +227,7 @@ export function CustomerProfilePage() {
         const jwt = localStorage.getItem('archibald_jwt') ?? '';
         const res = await fetch(`/api/cap-lookup?cap=${cap}`, { headers: { Authorization: `Bearer ${jwt}` } });
         if (res.ok) {
-          const body = await res.json() as { success: boolean; data: { city: string; county: string | null; state: string | null }[] };
+          const body = await res.json() as { success: boolean; data: { city: string }[] };
           const options = body.data ?? [];
           if (options.length === 1) {
             handleFieldChange('postalCodeCity', options[0].city);
@@ -1104,7 +1104,7 @@ function AddressInlineEditForm({ value, onSave, onCancel }: {
 }) {
   const [draft, setDraft] = useState<AddressEntry>({ ...value, tipo: value.tipo ?? 'Indir. cons. alt.' });
   const [saving, setSaving] = useState(false);
-  const [capOptions, setCapOptions] = useState<{ city: string; county: string | null; state: string | null }[]>([]);
+  const [capOptions, setCapOptions] = useState<{ city: string }[]>([]);
 
   async function handleCapChange(cap: string) {
     setDraft(prev => ({ ...prev, cap }));
@@ -1113,7 +1113,7 @@ function AddressInlineEditForm({ value, onSave, onCancel }: {
         const jwt = localStorage.getItem('archibald_jwt') ?? '';
         const res = await fetch(`/api/cap-lookup?cap=${cap}`, { headers: { Authorization: `Bearer ${jwt}` } });
         if (res.ok) {
-          const body = await res.json() as { success: boolean; data: { city: string; county: string | null; state: string | null }[] };
+          const body = await res.json() as { success: boolean; data: { city: string }[] };
           const options = body.data ?? [];
           if (options.length === 1) {
             setDraft(prev => ({ ...prev, citta: options[0].city }));

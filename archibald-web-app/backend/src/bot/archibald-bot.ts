@@ -12806,16 +12806,15 @@ export class ArchibaldBot {
 
     // ── 3. Insert each address ─────────────────────────────────────────────────
     // TYPE values for DevExpress SetValue() API.
-    // 'Delivery' is omitted: the ERP server-side converts it to 'AlternateDelivery'
-    // for alt addresses, so we map all delivery-type names to 'AlternateDelivery' directly.
     const TIPO_DX: Record<string, string> = {
-      'consegna':           'AlternateDelivery',
-      'indir. cons. alt.':  'AlternateDelivery',
-      'delivery':           'AlternateDelivery',
-      'alternate delivery': 'AlternateDelivery',
+      'ufficio':            'Business',
       'business':           'Business',
       'fattura':            'Facture',
       'facture':            'Facture',
+      'consegna':           'Delivery',
+      'delivery':           'Delivery',
+      'indir. cons. alt.':  'AlternateDelivery',
+      'alternate delivery': 'AlternateDelivery',
     };
 
     for (const address of addresses) {
@@ -12834,7 +12833,7 @@ export class ArchibaldBot {
       await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-addnew' });
 
       // 3b. Compute TYPE value (set after CAP lookup to avoid server-callback reset)
-      const tipoRaw  = address.tipo || 'Consegna';
+      const tipoRaw  = address.tipo || 'Indir. cons. alt.';
       const tipoDX   = TIPO_DX[tipoRaw.toLowerCase()] ?? 'AlternateDelivery';
 
       // 3c. NAME — set directly by field ID (no Tab navigation needed)

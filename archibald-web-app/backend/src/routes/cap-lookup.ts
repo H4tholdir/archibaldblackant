@@ -12,8 +12,8 @@ export function createCapLookupRouter(pool: DbPool) {
       return;
     }
     try {
-      const result = await pool.query<{ city: string; county: string | null; state: string | null }>(
-        `SELECT DISTINCT city, county, state
+      const result = await pool.query<{ city: string }>(
+        `SELECT DISTINCT city
          FROM agents.customers
          WHERE user_id = $1
            AND postal_code = $2
