@@ -99,6 +99,8 @@ type OrderRow = {
   arca_kt_synced_at: string | null;
   ddts_json: unknown;
   invoices_json: unknown;
+  note_summary_json: { total: number; checked: number } | null;
+  note_previews_json: Array<{ text: string; checked: boolean }> | null;
 };
 
 
@@ -144,6 +146,8 @@ type Order = {
   arcaKtSyncedAt: string | null;
   ddts: DdtEntry[];
   invoices: InvoiceEntry[];
+  noteSummary: { total: number; checked: number };
+  notePreviews: Array<{ text: string; checked: boolean }>;
 };
 
 type OrderInput = {
@@ -315,6 +319,8 @@ function mapRowToOrder(row: OrderRow): Order {
     arcaKtSyncedAt: row.arca_kt_synced_at,
     ddts: Array.isArray(row.ddts_json) ? (row.ddts_json as DdtRow[]).map(mapRowToDdtEntry) : [],
     invoices: Array.isArray(row.invoices_json) ? (row.invoices_json as InvoiceRow[]).map(mapRowToInvoiceEntry) : [],
+    noteSummary: row.note_summary_json ?? { total: 0, checked: 0 },
+    notePreviews: row.note_previews_json ?? [],
   };
 }
 
@@ -374,7 +380,17 @@ async function getOrderById(pool: DbPool, userId: string, orderId: string): Prom
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
-      ) AS invoices_json
+      ) AS invoices_json,
+      (SELECT json_build_object(
+          'total', COUNT(*)::int,
+          'checked', COUNT(*) FILTER (WHERE checked = true)::int
+        ) FROM agents.order_notes n WHERE n.user_id = o.user_id AND n.order_id = o.id
+      ) AS note_summary_json,
+      (SELECT COALESCE(json_agg(json_build_object('text', p.text, 'checked', p.checked)), '[]'::json)
+        FROM (SELECT text, checked FROM agents.order_notes
+              WHERE user_id = o.user_id AND order_id = o.id
+              ORDER BY checked ASC, position ASC LIMIT 3) p
+      ) AS note_previews_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
     WHERE o.id = $1 AND o.user_id = $2`,
@@ -391,7 +407,17 @@ async function getOrderByNumber(pool: DbPool, userId: string, orderNumber: strin
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
-      ) AS invoices_json
+      ) AS invoices_json,
+      (SELECT json_build_object(
+          'total', COUNT(*)::int,
+          'checked', COUNT(*) FILTER (WHERE checked = true)::int
+        ) FROM agents.order_notes n WHERE n.user_id = o.user_id AND n.order_id = o.id
+      ) AS note_summary_json,
+      (SELECT COALESCE(json_agg(json_build_object('text', p.text, 'checked', p.checked)), '[]'::json)
+        FROM (SELECT text, checked FROM agents.order_notes
+              WHERE user_id = o.user_id AND order_id = o.id
+              ORDER BY checked ASC, position ASC LIMIT 3) p
+      ) AS note_previews_json
     FROM agents.order_records o
     WHERE o.order_number = $1 AND o.user_id = $2`,
     [orderNumber, userId],
@@ -473,7 +499,17 @@ async function getOrdersByUser(
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
-      ) AS invoices_json
+      ) AS invoices_json,
+      (SELECT json_build_object(
+          'total', COUNT(*)::int,
+          'checked', COUNT(*) FILTER (WHERE checked = true)::int
+        ) FROM agents.order_notes n WHERE n.user_id = o.user_id AND n.order_id = o.id
+      ) AS note_summary_json,
+      (SELECT COALESCE(json_agg(json_build_object('text', p.text, 'checked', p.checked)), '[]'::json)
+        FROM (SELECT text, checked FROM agents.order_notes
+              WHERE user_id = o.user_id AND order_id = o.id
+              ORDER BY checked ASC, position ASC LIMIT 3) p
+      ) AS note_previews_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
     WHERE o.user_id = $1${clause} ORDER BY o.creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,

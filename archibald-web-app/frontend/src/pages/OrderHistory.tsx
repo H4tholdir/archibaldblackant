@@ -23,7 +23,6 @@ import { useOrderStacks } from "../hooks/useOrderStacks";
 import { useHiddenOrders } from "../hooks/useHiddenOrders";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
-import { getNotesSummary } from "../api/order-notes";
 import type { SendToVeronaProgressState } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
 
@@ -291,21 +290,9 @@ export function OrderHistory() {
   const [showHidden, setShowHidden] = useState(false);
 
 
-  // Note summaries and previews for collapsed badges
+  // Note summaries and previews derived from order data (included in the orders query via JOIN)
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
   const [notePreviews, setNotePreviews] = useState<Record<string, Array<{ text: string; checked: boolean }>>>({});
-
-  const refreshNoteSummaries = useCallback(async (orderList?: Order[]) => {
-    const target = orderList ?? orders;
-    if (target.length === 0) return;
-    try {
-      const { summary, previews } = await getNotesSummary(target.map(o => o.id));
-      setNoteSummaries(summary);
-      setNotePreviews(previews);
-    } catch {
-      // silent - badge is non-critical
-    }
-  }, [orders]);
 
   // Backorder banner dismiss
   const [backorderDismissed, setBackorderDismissed] = useState(false);
@@ -543,10 +530,15 @@ export function OrderHistory() {
   }, [subscribe, fetchOrders]);
 
   useEffect(() => {
-    if (orders.length > 0) {
-      refreshNoteSummaries(orders);
+    const summaries: Record<string, { total: number; checked: number }> = {};
+    const previews: Record<string, Array<{ text: string; checked: boolean }>> = {};
+    for (const o of orders) {
+      if (o.noteSummary) summaries[o.id] = o.noteSummary;
+      if (o.notePreviews) previews[o.id] = o.notePreviews;
     }
-  }, [orders, refreshNoteSummaries]);
+    setNoteSummaries(summaries);
+    setNotePreviews(previews);
+  }, [orders]);
 
   // Auto-expand and scroll to highlighted order from URL param
   useEffect(() => {
@@ -2305,7 +2297,7 @@ export function OrderHistory() {
                                 reason={stack.reason}
                                 noteSummaries={noteSummaries}
                                 notePreviews={notePreviews}
-                                onNotesChanged={() => refreshNoteSummaries()}
+                                onNotesChanged={() => fetchOrders({ background: true })}
                                 getSuggestedTab={debouncedSearch ? (o) => getMatchingTab(o, debouncedSearch) : undefined}
                                 forceExpand={searchExpandedStackId === stack.stackId}
                               />
@@ -2420,7 +2412,7 @@ export function OrderHistory() {
                               justSentToVerona={sentToVeronaIds.has(order.id)}
                               noteSummary={noteSummaries[order.id]}
                               notePreviews={notePreviews[order.id]}
-                              onNotesChanged={() => refreshNoteSummaries()}
+                              onNotesChanged={() => fetchOrders({ background: true })}
                               onHide={(id) => { setExpandedOrderId(null); handleHideOrder(id); }}
                               onUnhide={handleUnhideOrder}
                               isHidden={hiddenOrderIds.has(order.id)}

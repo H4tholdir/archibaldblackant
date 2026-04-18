@@ -223,4 +223,6 @@ export interface Order {
   verificationNotes?: string;
 
   arcaKtSyncedAt?: string;
+  noteSummary?: { total: number; checked: number };
+  notePreviews?: Array<{ text: string; checked: boolean }>;
 }
