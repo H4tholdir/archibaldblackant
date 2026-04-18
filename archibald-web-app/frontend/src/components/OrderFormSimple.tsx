@@ -659,7 +659,7 @@ export default function OrderFormSimple() {
     };
 
     loadOrderForEditing();
-  }, [searchParams, navigate, syncItemsBulk]);
+  }, [searchParams, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // === PRELOAD CUSTOMER FROM URL PARAM ===
   useEffect(() => {
