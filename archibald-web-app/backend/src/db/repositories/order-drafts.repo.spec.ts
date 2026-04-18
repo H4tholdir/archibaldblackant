@@ -13,7 +13,7 @@ const DRAFT_PAYLOAD_EMPTY = { customer: null, subClient: null, items: [], global
 
 let pool: ReturnType<typeof createPool>;
 
-describe.skipIf(process.env.CI === 'true')('order-drafts.repo', () => {
+describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('order-drafts.repo', () => {
   beforeAll(() => {
     pool = createPool({
       host: process.env.PG_HOST || 'localhost',
