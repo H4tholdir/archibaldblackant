@@ -14,6 +14,7 @@ export type OverdueOrder = {
   orderDate: string
   invoiceNumber: string
   invoiceDueDate: string
+  orderTotalWithVat: string | null
   articles: OverdueArticle[]
 }
 
@@ -38,6 +39,7 @@ export type OverdueRow = {
   order_date: string
   invoice_number: string
   invoice_due_date: string
+  order_total_with_vat: string | null
   article_code: string | null
   article_description: string | null
   quantity: number | null
@@ -67,6 +69,7 @@ export function groupOverdueRows(rows: OverdueRow[]): OverdueReportData {
         orderDate: row.order_date,
         invoiceNumber: row.invoice_number,
         invoiceDueDate: row.invoice_due_date,
+        orderTotalWithVat: row.order_total_with_vat,
         articles: [],
       }
       customer.orders.push(order)
@@ -103,6 +106,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
     order_date: string
     invoice_number: string
     invoice_due_date: string
+    order_total_with_vat: string | null
   }>(
     `SELECT DISTINCT ON (o.id)
        c.name            AS customer_name,
@@ -111,6 +115,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
        o.id              AS order_id,
        o.order_number,
        o.creation_date   AS order_date,
+       o.total_with_vat  AS order_total_with_vat,
        i.invoice_number,
        i.invoice_due_date
      FROM agents.order_records o
@@ -176,6 +181,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
         order_date: order.order_date,
         invoice_number: order.invoice_number,
         invoice_due_date: order.invoice_due_date,
+        order_total_with_vat: order.order_total_with_vat,
         article_code: null,
         article_description: null,
         quantity: null,
@@ -193,6 +199,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
           order_date: order.order_date,
           invoice_number: order.invoice_number,
           invoice_due_date: order.invoice_due_date,
+          order_total_with_vat: order.order_total_with_vat,
           article_code: a.article_code,
           article_description: a.article_description,
           quantity: a.quantity,

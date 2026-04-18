@@ -16,6 +16,7 @@ export type OverdueOrder = {
   orderDate: string;
   invoiceNumber: string;
   invoiceDueDate: string;
+  orderTotalWithVat: string | null;
   articles: OverdueArticle[];
 };
 

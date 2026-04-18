@@ -129,7 +129,10 @@ function renderOrder(
   summary: string,
 ): number {
   const late = daysLate(order.invoiceDueDate)
-  const infoLine = `${order.orderNumber}  |  Fattura: ${order.invoiceNumber}  |  Scad: ${fmtDate(order.invoiceDueDate)} (${late} gg fa)`
+  const vatPart = order.orderTotalWithVat != null
+    ? `  |  Tot. IVA incl.: ${fmtEur(parseFloat(order.orderTotalWithVat))}`
+    : ''
+  const infoLine = `${order.orderNumber}  |  Fattura: ${order.invoiceNumber}  |  Scad: ${fmtDate(order.invoiceDueDate)} (${late} gg fa)${vatPart}`
 
   doc.setFont('Helvetica', 'normal')
   doc.setFontSize(7.5)
