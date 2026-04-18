@@ -17,7 +17,7 @@ function createSyncProductsHandler(
   createBot: (userId: string) => SyncProductsBot,
   softDeleteGhosts: SoftDeleteGhostsFn,
   trackProductCreated: TrackProductCreatedFn,
-  onProductsChanged?: (newProducts: number, ghostsDeleted: number) => Promise<void>,
+  onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>,
   onProductsMissingVat?: () => Promise<void>,
   onNewProduct?: (productId: string) => Promise<void>,
 ): OperationHandler {

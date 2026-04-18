@@ -46,7 +46,7 @@ type ProductSyncDeps = {
   cleanupFile: (filePath: string) => Promise<void>;
   softDeleteGhosts: (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
   trackProductCreated: (productId: string, syncSessionId: string) => Promise<void>;
-  onProductsChanged?: (newProducts: number, ghostsDeleted: number) => Promise<void>;
+  onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>;
   onProductsMissingVat?: () => Promise<void>;
   onNewProduct?: (productId: string) => Promise<void>;
 };
@@ -166,8 +166,8 @@ async function syncProducts(
     const syncedNames = new Map(products.map((p) => [p.name, p.id]));
     const ghostsDeleted = await softDeleteGhosts(syncedIds, syncedNames);
 
-    if ((newProducts > 0 || ghostsDeleted > 0) && deps.onProductsChanged) {
-      await deps.onProductsChanged(newProducts, ghostsDeleted).catch(() => {});
+    if ((newProducts > 0 || updatedProducts > 0 || ghostsDeleted > 0) && deps.onProductsChanged) {
+      await deps.onProductsChanged(newProducts, updatedProducts, ghostsDeleted).catch(() => {});
     }
 
     if (deps.onProductsMissingVat) {
