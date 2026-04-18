@@ -105,7 +105,7 @@ function request(method, path, body, token) {
   });
 }
 
-function waitForWsEvent(ws, eventTypes, timeoutMs = 120_000) {
+function waitForWsEvent(ws, eventTypes, timeoutMs = 120_000, filterFn = null) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timeout (${timeoutMs}ms) waiting for events: ${eventTypes.join(', ')}`));
@@ -114,8 +114,9 @@ function waitForWsEvent(ws, eventTypes, timeoutMs = 120_000) {
     function handler(raw) {
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
-      logEvent(msg.type, msg.payload);
       if (eventTypes.includes(msg.type)) {
+        if (filterFn && !filterFn(msg)) return; // skip if filter doesn't match
+        logEvent(msg.type, msg.payload);
         clearTimeout(timer);
         ws.off('message', handler);
         resolve(msg);
@@ -155,9 +156,11 @@ async function connectWs(token) {
 
 async function startSession(token, ws) {
   log('STEP 3: POST /api/customers/interactive/start');
+  // Avvia la promise WS PRIMA della chiamata HTTP per non perdere eventi
+  const wsPromise = waitForWsEvent(ws, ['CUSTOMER_INTERACTIVE_READY', 'CUSTOMER_INTERACTIVE_FAILED'], 120_000);
   const [httpRes, wsEvent] = await Promise.all([
     request('POST', '/api/customers/interactive/start', {}, token),
-    waitForWsEvent(ws, ['CUSTOMER_INTERACTIVE_READY', 'CUSTOMER_INTERACTIVE_FAILED'], 120_000),
+    wsPromise,
   ]);
   log('HTTP response', { status: httpRes.status, body: httpRes.body });
 
@@ -175,9 +178,10 @@ async function startSession(token, ws) {
 
 async function validateVat(token, ws, sessionId) {
   log(`STEP 4: POST /api/customers/interactive/${sessionId}/vat`, { vatNumber: VAT_NUMBER });
+  const wsPromise = waitForWsEvent(ws, ['CUSTOMER_VAT_RESULT', 'CUSTOMER_INTERACTIVE_FAILED'], 60_000);
   const [httpRes, wsEvent] = await Promise.all([
     request('POST', `/api/customers/interactive/${sessionId}/vat`, { vatNumber: VAT_NUMBER }, token),
-    waitForWsEvent(ws, ['CUSTOMER_VAT_RESULT', 'CUSTOMER_INTERACTIVE_FAILED'], 60_000),
+    wsPromise,
   ]);
   log('HTTP response', { status: httpRes.status, body: httpRes.body });
 
@@ -187,16 +191,26 @@ async function validateVat(token, ws, sessionId) {
 
   log('VAT result', wsEvent.payload);
 
-  // Se autofill ha compilato dei campi, usali nel salvataggio
+  // Usa i dati da autofill (vatResult.parsed) + valori di test per campi obbligatori ERP.
+  // I campi obbligatori dell'ERP (CAP, Via, Cellulare, CF, Telefono, Url) devono essere non vuoti.
   const vatResult = wsEvent.payload?.vatResult ?? {};
+  const parsed = vatResult.parsed ?? {};
   const mergedData = {
     ...CUSTOMER_SAVE_DATA,
-    ...(vatResult.name       ? { name:       vatResult.name }       : {}),
-    ...(vatResult.street     ? { street:     vatResult.street }     : {}),
-    ...(vatResult.postalCode ? { postalCode: vatResult.postalCode } : {}),
-    ...(vatResult.county     ? { county:     vatResult.county }     : {}),
+    // Nome da autofill se disponibile
+    ...(parsed.companyName ? { name: parsed.companyName } : {}),
+    // Indirizzo da autofill
+    street:     parsed.street     || 'Via Test 1',
+    postalCode: parsed.postalCode || '00100',
+    // Campi obbligatori ERP — valori di test (evitano validation error)
+    phone:      '0000000001',
+    mobile:     '3000000001',
+    url:        'www.test.it',
+    fiscalCode: '00000000000',
+    // PEC da autofill se disponibile
+    ...(vatResult.pec ? { pec: vatResult.pec } : {}),
   };
-  log('Dati save dopo autofill', mergedData);
+  log('Dati save (con autofill + test fields)', mergedData);
   return mergedData;
 }
 
@@ -204,11 +218,24 @@ async function validateVat(token, ws, sessionId) {
 
 async function saveCustomer(token, ws, sessionId, customerData) {
   log(`STEP 5: POST /api/customers/interactive/${sessionId}/save`);
-  const [httpRes, wsEvent] = await Promise.all([
-    request('POST', `/api/customers/interactive/${sessionId}/save`, customerData, token),
-    waitForWsEvent(ws, ['JOB_COMPLETED', 'JOB_FAILED'], 120_000),
-  ]);
+  const httpRes = await request('POST', `/api/customers/interactive/${sessionId}/save`, customerData, token);
   log('HTTP response', { status: httpRes.status, body: httpRes.body });
+
+  if (!httpRes.body?.success) {
+    throw new Error(`HTTP /save fallito: ${JSON.stringify(httpRes.body)}`);
+  }
+
+  const taskId = httpRes.body?.data?.taskId;
+  if (!taskId) throw new Error('taskId non trovato nella risposta /save');
+  log('In attesa di JOB_COMPLETED/JOB_FAILED per taskId', taskId);
+
+  // Filtra per il taskId specifico del cliente — ignora JOB_COMPLETED di altri job (es. sync)
+  const wsEvent = await waitForWsEvent(
+    ws,
+    ['JOB_COMPLETED', 'JOB_FAILED'],
+    120_000,
+    (msg) => msg.payload?.jobId === taskId,
+  );
 
   if (wsEvent.type === 'JOB_FAILED') {
     throw new Error(`Salvataggio fallito: ${JSON.stringify(wsEvent.payload)}`);
