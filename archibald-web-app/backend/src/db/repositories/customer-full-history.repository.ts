@@ -200,7 +200,7 @@ async function getCustomerFullHistory(
              o.total_amount AS raw_order_total
            FROM agents.order_records o
            JOIN agents.order_articles a ON a.order_id = o.id AND a.user_id = o.user_id
-           LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num
+           LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num AND c2.deleted_at IS NULL
            WHERE o.user_id = $1
              AND (
                ($2::text[] != '{}' AND o.customer_account_num IN (
