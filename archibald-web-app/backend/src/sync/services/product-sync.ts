@@ -97,8 +97,8 @@ async function syncProducts(
         const dbProgress = 40 + Math.round((i / products.length) * 55);
         onProgress(dbProgress, `Aggiornamento prodotti ${i}/${products.length}`);
       }
-      const { rows: [existing] } = await pool.query<{ id: string; deleted_at: string | null }>(
-        'SELECT id, deleted_at FROM shared.products WHERE id = $1',
+      const { rows: [existing] } = await pool.query<{ id: string; deleted_at: string | null; modified_datetime: string | null }>(
+        'SELECT id, deleted_at, modified_datetime FROM shared.products WHERE id = $1',
         [p.id],
       );
 
@@ -132,6 +132,7 @@ async function syncProducts(
         newProducts++;
       } else {
         const isRestored = existing.deleted_at !== null;
+        const isModified = isRestored || existing.modified_datetime !== (p.modifiedDatetime ?? null);
         await pool.query(
           `UPDATE shared.products SET
             name=$2, search_name=$3, group_code=$4, package_content=$5,
@@ -158,7 +159,9 @@ async function syncProducts(
         if (isRestored) {
           await trackProductCreated(p.id, syncSessionId);
         }
-        updatedProducts++;
+        if (isModified) {
+          updatedProducts++;
+        }
       }
     }
 

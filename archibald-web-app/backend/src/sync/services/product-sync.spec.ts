@@ -103,18 +103,59 @@ describe('syncProducts', () => {
     expect(onProductsChanged).toHaveBeenCalledWith(2, 0, 0);
   });
 
-  test('calls onProductsChanged when ghosts are deleted', async () => {
+  test('calls onProductsChanged when ghosts are deleted but not when products are unchanged', async () => {
     const onProductsChanged = vi.fn().mockResolvedValue(undefined);
     const pool = createMockPool();
-    // Products already exist and are not new → updatedProducts = 2
-    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null }], rowCount: 1 });
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: 'P-001', deleted_at: null, modified_datetime: null }], rowCount: 1 });
     const softDeleteGhosts = vi.fn().mockResolvedValue(3);
     const deps = createMockDeps(pool, { softDeleteGhosts, onProductsChanged });
 
     await syncProducts(deps, vi.fn(), () => false);
 
     expect(onProductsChanged).toHaveBeenCalledOnce();
-    expect(onProductsChanged).toHaveBeenCalledWith(0, 2, 3);
+    expect(onProductsChanged).toHaveBeenCalledWith(0, 0, 3);
+  });
+
+  test('counts product as updated only when modified_datetime changes', async () => {
+    const onProductsChanged = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    const oldDatetime = '2026-01-01T00:00:00Z';
+    const newDatetime = '2026-04-18T10:00:00Z';
+    (pool.query as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ rows: [{ id: 'P-001', deleted_at: null, modified_datetime: oldDatetime }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'P-002', deleted_at: null, modified_datetime: newDatetime }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const parsePdf = vi.fn().mockResolvedValue([
+      { id: 'P-001', name: 'Widget', modifiedDatetime: newDatetime },
+      { id: 'P-002', name: 'Gadget', modifiedDatetime: newDatetime },
+    ]);
+    const deps = createMockDeps(pool, { parsePdf, onProductsChanged });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsChanged).toHaveBeenCalledOnce();
+    expect(onProductsChanged).toHaveBeenCalledWith(0, 1, 0);
+  });
+
+  test('does not call onProductsChanged when existing products have unchanged modified_datetime', async () => {
+    const onProductsChanged = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool();
+    const datetime = '2026-04-18T10:00:00Z';
+    (pool.query as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ rows: [{ id: 'P-001', deleted_at: null, modified_datetime: datetime }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'P-002', deleted_at: null, modified_datetime: datetime }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const parsePdf = vi.fn().mockResolvedValue([
+      { id: 'P-001', name: 'Widget', modifiedDatetime: datetime },
+      { id: 'P-002', name: 'Gadget', modifiedDatetime: datetime },
+    ]);
+    const deps = createMockDeps(pool, { parsePdf, onProductsChanged });
+
+    await syncProducts(deps, vi.fn(), () => false);
+
+    expect(onProductsChanged).not.toHaveBeenCalled();
   });
 
   test('does not call onProductsChanged when no products are processed', async () => {
