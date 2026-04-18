@@ -110,7 +110,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
        o.customer_account_num,
        o.id              AS order_id,
        o.order_number,
-       o.created_at      AS order_date,
+       o.creation_date   AS order_date,
        i.invoice_number,
        i.invoice_due_date
      FROM agents.order_records o
@@ -123,6 +123,7 @@ export async function getOverdueReport(pool: DbPool, userId: string): Promise<Ov
        AND i.invoice_due_date::date < CURRENT_DATE
        AND i.invoice_closed IS NOT TRUE
      WHERE o.user_id = $1
+       AND o.creation_date >= '2026-01-01'
      ORDER BY o.id, i.invoice_due_date ASC`,
     [userId]
   )

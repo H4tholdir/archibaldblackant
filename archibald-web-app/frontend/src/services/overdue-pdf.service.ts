@@ -147,7 +147,7 @@ function renderOrder(
 
   autoTable(doc, {
     startY: y,
-    margin: { left: MARGIN + 4, right: MARGIN },
+    margin: { top: 28, left: MARGIN + 4, right: MARGIN },
     tableWidth: CONTENT_W - 4,
     head: [['Codice', 'Descrizione', 'Q.ta', 'Prezzo', 'Totale']],
     body: order.articles.map(a => [
