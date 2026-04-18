@@ -73,6 +73,8 @@ export function ProductCard({
       setVatError("");
       try {
         await updateProductVat(token, product.id, parsed);
+        setSavedVat(parsed);
+        setVatInput("");
         onSaveSuccess?.();
       } catch (err: unknown) {
         setVatError(err instanceof Error ? err.message : "Errore salvataggio");
@@ -89,6 +91,8 @@ export function ProductCard({
       setPriceError("");
       try {
         await updateProductPrice(token, product.id, parsed);
+        setSavedPrice(parsed);
+        setPriceInput("");
         onSaveSuccess?.();
       } catch (err: unknown) {
         setPriceError(err instanceof Error ? err.message : "Errore salvataggio");
@@ -682,7 +686,7 @@ export function ProductCard({
                         e.stopPropagation();
                         const parsed = parseFloat(priceInput);
                         if (isNaN(parsed) || parsed < 0) {
-                          setPriceError("Valore non valido (>= 0)");
+                          setPriceError("Valore non valido (≥ 0)");
                           return;
                         }
                         setSavingPrice(true);
@@ -822,7 +826,7 @@ export function ProductCard({
                         e.stopPropagation();
                         const parsed = parseFloat(vatInput);
                         if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-                          setVatError("Valore non valido (0-100)");
+                          setVatError("Valore non valido (0–100)");
                           return;
                         }
                         setSavingVat(true);
