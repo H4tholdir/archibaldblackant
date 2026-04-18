@@ -754,23 +754,6 @@ export function CustomerCreateModal({
               }}
             >
               <button
-                onClick={() => setCurrentStep({ kind: "anagrafica" })}
-                disabled={vatChecking}
-                style={{
-                  flex: 1,
-                  padding: "14px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  backgroundColor: "#fff",
-                  color: vatChecking ? "#bbb" : "#666",
-                  border: `1px solid ${vatChecking ? "#eee" : "#ddd"}`,
-                  borderRadius: "8px",
-                  cursor: vatChecking ? "not-allowed" : "pointer",
-                }}
-              >
-                Salta
-              </button>
-              <button
                 onClick={() => void handleVerifyVat()}
                 disabled={
                   formData.vatNumber.trim().length === 0 || vatChecking

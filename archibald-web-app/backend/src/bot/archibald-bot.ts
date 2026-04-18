@@ -14727,6 +14727,13 @@ export class ArchibaldBot {
       sdi,
     };
 
+    // Dismiss any popup opened by the VAT validation XHR callback (e.g. VATADDRESS popup).
+    // Must happen before returning: if the popup is still open when completeCustomerCreation
+    // starts and clicks "Tab Principale", the tab-change DevExpress callback interacts with
+    // the open popup and triggers a full-page navigation → "Execution context was destroyed".
+    await this.dismissDevExpressPopups();
+    await this.waitForDevExpressIdle({ timeout: 3000, label: "post-vat-dismiss" });
+
     logger.info("Interactive: VAT lookup result", result);
     return result;
   }
@@ -14741,6 +14748,9 @@ export class ArchibaldBot {
       name: customerData.name,
       isVatOnForm,
     });
+
+    // Defensive dismiss: clear any residual popup before touching tabs.
+    await this.dismissDevExpressPopups();
 
     // Step 1: "Principale" tab — fill text fields in certified write order so that
     // XHR callbacks from earlier Tab presses have settled before dependent fields.

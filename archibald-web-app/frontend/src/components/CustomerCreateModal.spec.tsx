@@ -74,19 +74,6 @@ describe('CustomerCreateModal — vat-input step', () => {
     expect(screen.getAllByText(/Partita IVA/i).length).toBeGreaterThan(0);
   });
 
-  it('renders the Salta button allowing skip past VAT input', async () => {
-    render(
-      <CustomerCreateModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /salta/i })).toBeInTheDocument();
-    });
-  });
 });
 
 describe('CustomerCreateModal — payload di salvataggio', () => {
@@ -111,12 +98,9 @@ describe('CustomerCreateModal — payload di salvataggio', () => {
       />,
     );
 
-    // Wait for session to start, then skip VAT and navigate to summary
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /salta/i })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: /salta/i }));
+    const vatInput = screen.getByPlaceholderText(/06104510653/i);
+    await user.type(vatInput, '12345678901');
+    await user.click(screen.getByRole('button', { name: /verifica/i }));
 
     // Navigate through wizard steps to summary
     for (let i = 0; i < 5; i++) {
@@ -215,19 +199,6 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
 
     const nameInput = screen.getByPlaceholderText(/Rossi Dr\. Mario/i) as HTMLInputElement;
     expect(nameInput.value).toBe('Gianvito Naimoli');
-  });
-
-  it('salta VAT e avanza ad anagrafica senza chiamare checkVat', async () => {
-    const user = userEvent.setup();
-    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: /Salta/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
-    });
-    expect(customerService.checkVat).not.toHaveBeenCalled();
-    expect(customerService.beginInteractiveSession).not.toHaveBeenCalled();
   });
 
   it('mostra errore se checkVat risponde valid:false', async () => {
