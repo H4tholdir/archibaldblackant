@@ -192,8 +192,8 @@ export function ArticoliList() {
   const handleInlineSaveSuccess = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
     if (vatFilterActive) setNoVatCount((prev) => Math.max(0, prev - 1));
-    if (priceFilterActive) setZeroPriceCount((prev) => Math.max(0, prev - 1));
-    if (discountFilterActive) setMissingDiscountCount((prev) => Math.max(0, prev - 1));
+    else if (priceFilterActive) setZeroPriceCount((prev) => Math.max(0, prev - 1));
+    else if (discountFilterActive) setMissingDiscountCount((prev) => Math.max(0, prev - 1));
   };
 
   const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive || discountFilterActive;
