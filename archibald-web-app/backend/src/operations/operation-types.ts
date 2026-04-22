@@ -49,7 +49,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'sync-order-states': 10,
   'sync-customers': 11,
   'sync-orders': 12,
-  'sync-order-articles': 13,
+  'sync-order-articles': 8,
   'sync-ddt': 14,
   'sync-invoices': 15,
   'sync-products': 16,

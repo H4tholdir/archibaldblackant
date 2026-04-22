@@ -17,6 +17,11 @@ import type { CustomerAddress } from '../../db/repositories/customer-addresses';
 import { getAddressById } from '../../db/repositories/customer-addresses';
 import { buildOrderNotesText } from '../../utils/order-notes';
 
+const SHIPPING_COST = 15.45;
+const SHIPPING_TAX_PERCENT = 22;
+const SHIPPING_THRESHOLD = 200;
+const SHIPPING_ARTICLE_CODE = 'Spese di trasporto K3';
+
 type SubmitOrderItem = {
   articleCode: string;
   productName?: string;
@@ -387,14 +392,16 @@ async function handleSubmitOrder(
     }
 
     if (articlePlaceholders.length > 0) {
-      await tx.query(
-        `INSERT INTO agents.order_articles (
-          order_id, user_id, article_code, article_description, quantity,
-          unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
-          vat_percent, vat_amount, line_total_with_vat, is_ghost
-        ) VALUES ${articlePlaceholders.join(', ')}`,
-        articleValues,
-      );
+      if (isWarehouseOnly) {
+        await tx.query(
+          `INSERT INTO agents.order_articles (
+            order_id, user_id, article_code, article_description, quantity,
+            unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
+            vat_percent, vat_amount, line_total_with_vat, is_ghost
+          ) VALUES ${articlePlaceholders.join(', ')}`,
+          articleValues,
+        );
+      }
 
       const articleSearchText = data.items
         .map(item => `${item.articleCode} ${item.description ?? item.productName ?? ''}`.trim())
@@ -441,6 +448,60 @@ async function handleSubmitOrder(
         expectedTotalAmount: kometTotal,
         items: snapshotItems,
       });
+
+      // Replace raw article rows (item prices) with catalog-priced snapshot
+      await tx.query(
+        'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
+        [orderId, userId],
+      );
+
+      const snapshotRows: unknown[][] = [];
+
+      for (let i = 0; i < kometItems.length; i++) {
+        const item = kometItems[i];
+        const snap = snapshotItems[i];
+        const vatPct = item.vat ?? 0;
+        const vatAmt = Math.round(snap.expectedLineAmount * vatPct / 100 * 100) / 100;
+        const lineTotalVat = Math.round((snap.expectedLineAmount + vatAmt) * 100) / 100;
+        snapshotRows.push([
+          orderId, userId, item.articleCode, snap.articleDescription, snap.quantity,
+          snap.unitPrice, snap.lineDiscountPercent, snap.expectedLineAmount,
+          item.warehouseQuantity ?? 0,
+          item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
+          now, vatPct, vatAmt, lineTotalVat, !!item.isGhostArticle,
+        ]);
+      }
+
+      if (!data.noShipping && kometTotal < SHIPPING_THRESHOLD) {
+        const shippingVat = Math.round(SHIPPING_COST * SHIPPING_TAX_PERCENT / 100 * 100) / 100;
+        snapshotRows.push([
+          orderId, userId, SHIPPING_ARTICLE_CODE, null, 1,
+          SHIPPING_COST, null, SHIPPING_COST,
+          0, null, now,
+          SHIPPING_TAX_PERCENT, shippingVat,
+          Math.round((SHIPPING_COST + shippingVat) * 100) / 100, false,
+        ]);
+      }
+
+      if (snapshotRows.length > 0) {
+        const placeholders = snapshotRows.map((_, i) => {
+          const b = i * 15;
+          return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15})`;
+        });
+        await tx.query(
+          `INSERT INTO agents.order_articles (
+            order_id, user_id, article_code, article_description, quantity,
+            unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
+            vat_percent, vat_amount, line_total_with_vat, is_ghost
+          ) VALUES ${placeholders.join(', ')}`,
+          snapshotRows.flat(),
+        );
+      }
+
+      await tx.query(
+        'UPDATE agents.order_records SET articles_synced_at = $1 WHERE id = $2 AND user_id = $3',
+        [now, orderId, userId],
+      );
     }
 
     onProgress(67, 'Aggiornamento storico');
