@@ -125,7 +125,7 @@ async function handleSendToVerona(
             discount_percent, notes
      FROM agents.fresis_history
      WHERE user_id = $1
-       AND archibald_order_id = $2
+       AND replace(archibald_order_id, '.', '') = $2
        AND arca_data IS NULL
        AND source = 'app'`,
     [userId, data.orderId],
@@ -172,7 +172,7 @@ async function handleSendToVerona(
     `UPDATE agents.fresis_history
      SET current_state = 'inviato_verona', state_updated_at = NOW(), updated_at = NOW()
      WHERE user_id = $1
-       AND archibald_order_id = $2
+       AND replace(archibald_order_id, '.', '') = $2
        AND source = 'app'`,
     [userId, data.orderId],
   );

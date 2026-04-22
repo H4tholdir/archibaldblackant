@@ -512,7 +512,7 @@ async function handleSubmitOrder(
        WHERE user_id = $3
          AND (merged_into_order_id = $4 OR original_pending_order_id = $4)
          AND archibald_order_id IS NULL`,
-      [orderId, now, userId, data.pendingOrderId],
+      [orderId.replace(/\./g, ''), now, userId, data.pendingOrderId],
     );
 
   });
