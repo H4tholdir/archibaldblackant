@@ -58,116 +58,38 @@ async function saveArticlesToDb(
   userId: string,
   enrichedArticles: Array<ParsedArticle & { vatPercent: number; vatAmount: number; lineTotalWithVat: number }>,
 ): Promise<void> {
-  type WarehouseSnapshot = {
-    article_code: string;
-    article_description: string | null;
-    quantity: string;
-    unit_price: string;
-    discount_percent: string | null;
-    line_amount: string;
-    warehouse_quantity: string;
-    warehouse_sources_json: unknown;
-    vat_percent: string | null;
-    vat_amount: string | null;
-    line_total_with_vat: string | null;
-    is_ghost: boolean;
-  };
-
-  const { rows: warehouseSnapshot } = await pool.query<WarehouseSnapshot>(
-    `SELECT article_code, article_description, quantity, unit_price, discount_percent,
-            line_amount, warehouse_quantity, warehouse_sources_json, vat_percent, vat_amount,
-            line_total_with_vat, is_ghost
-     FROM agents.order_articles
-     WHERE order_id = $1 AND user_id = $2 AND warehouse_quantity > 0`,
-    [orderId, userId],
-  );
-
-  const erpArticleCodes = new Set(enrichedArticles.map(a => a.articleCode));
-
-  type WarehouseInfo = { quantity: number; sourcesJson: unknown };
-  const warehouseInfoMap = new Map<string, WarehouseInfo>(
-    warehouseSnapshot.map(r => [r.article_code, {
-      quantity: parseFloat(r.warehouse_quantity),
-      sourcesJson: r.warehouse_sources_json,
-    }]),
-  );
-
-  const warehouseOnlyRows = warehouseSnapshot.filter(r => !erpArticleCodes.has(r.article_code));
-
   await pool.query(
     'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
     [orderId, userId],
   );
-
-  const now = new Date().toISOString();
 
   if (enrichedArticles.length > 0) {
     const values: unknown[] = [];
     const placeholders: string[] = [];
 
     for (let i = 0; i < enrichedArticles.length; i++) {
-      const base = i * 15;
+      const base = i * 12;
       placeholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14}, $${base + 15})`,
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`,
       );
       const a = enrichedArticles[i];
-      const whInfo = warehouseInfoMap.get(a.articleCode);
       values.push(
         orderId, userId, a.articleCode, a.description,
         a.quantity, a.unitPrice, a.discountPercent, a.lineAmount,
-        whInfo?.quantity ?? 0, whInfo?.sourcesJson ?? null,
-        now, a.vatPercent, a.vatAmount, a.lineTotalWithVat, false,
+        a.vatPercent, a.vatAmount, a.lineTotalWithVat,
+        new Date().toISOString(),
       );
     }
 
     await pool.query(
       `INSERT INTO agents.order_articles (
         order_id, user_id, article_code, article_description, quantity,
-        unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json,
-        created_at, vat_percent, vat_amount, line_total_with_vat, is_ghost
+        unit_price, discount_percent, line_amount, vat_percent, vat_amount,
+        line_total_with_vat, created_at
       ) VALUES ${placeholders.join(', ')}`,
       values,
     );
   }
-
-  if (warehouseOnlyRows.length > 0) {
-    const values: unknown[] = [];
-    const placeholders: string[] = [];
-
-    for (let i = 0; i < warehouseOnlyRows.length; i++) {
-      const base = i * 15;
-      placeholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14}, $${base + 15})`,
-      );
-      const r = warehouseOnlyRows[i];
-      values.push(
-        orderId, userId, r.article_code, r.article_description,
-        parseFloat(r.quantity), parseFloat(r.unit_price),
-        r.discount_percent !== null ? parseFloat(r.discount_percent) : null,
-        parseFloat(r.line_amount),
-        parseFloat(r.warehouse_quantity), r.warehouse_sources_json,
-        now,
-        r.vat_percent !== null ? parseFloat(r.vat_percent) : 0,
-        r.vat_amount !== null ? parseFloat(r.vat_amount) : 0,
-        r.line_total_with_vat !== null ? parseFloat(r.line_total_with_vat) : parseFloat(r.line_amount),
-        r.is_ghost,
-      );
-    }
-
-    await pool.query(
-      `INSERT INTO agents.order_articles (
-        order_id, user_id, article_code, article_description, quantity,
-        unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json,
-        created_at, vat_percent, vat_amount, line_total_with_vat, is_ghost
-      ) VALUES ${placeholders.join(', ')}`,
-      values,
-    );
-  }
-
-  const allArticles = [
-    ...enrichedArticles.map(a => ({ articleCode: a.articleCode, description: a.description })),
-    ...warehouseOnlyRows.map(r => ({ articleCode: r.article_code, description: r.article_description })),
-  ];
 
   const grossAmount = parseFloat(
     enrichedArticles.reduce((sum, a) => sum + a.lineAmount, 0).toFixed(2),
@@ -178,7 +100,7 @@ async function saveArticlesToDb(
   const totalWithVat = parseFloat(
     enrichedArticles.reduce((sum, a) => sum + a.lineTotalWithVat, 0).toFixed(2),
   );
-  const articleSearchText = allArticles
+  const articleSearchText = enrichedArticles
     .map(a => `${a.articleCode} ${a.description ?? ''}`.trim())
     .join(' | ');
 
@@ -191,7 +113,7 @@ async function saveArticlesToDb(
       grossAmount.toFixed(2).replace('.', ','),
       totalVatAmount.toString(),
       totalWithVat.toString(),
-      now,
+      new Date().toISOString(),
       Math.floor(Date.now() / 1000),
       articleSearchText,
       orderId,
@@ -281,4 +203,4 @@ async function performInlineOrderSync(
   }
 }
 
-export { performInlineOrderSync, saveArticlesToDb, type InlineSyncDeps, type ParsedArticle };
+export { performInlineOrderSync, type InlineSyncDeps, type ParsedArticle };

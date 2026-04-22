@@ -881,66 +881,6 @@ describe('handleSubmitOrder — readOrderHeader post-piazzamento', () => {
   }, 15_000);
 });
 
-describe('handleSubmitOrder — warehouse-only items in snapshot', () => {
-  const warehouseOnlyCode = '9644.104.100';
-  const erpCode = 'H364RA.103.010';
-  const catalogPrice = 25.00;
-
-  const mixedData: SubmitOrderData = {
-    pendingOrderId: 'pending-mixed-wh',
-    customerId: 'CUST-001',
-    customerName: 'Fresis Soc Cooperativa',
-    items: [
-      {
-        articleCode: erpCode,
-        description: 'Articolo ERP parziale',
-        quantity: 4,
-        price: catalogPrice,
-        warehouseQuantity: 1,
-        warehouseSources: [{ warehouseItemId: 10, boxName: 'BOX-A', quantity: 1 }],
-      },
-      {
-        articleCode: warehouseOnlyCode,
-        description: 'Articolo solo magazzino',
-        quantity: 7,
-        price: catalogPrice,
-        warehouseQuantity: 7,
-        warehouseSources: [{ warehouseItemId: 11, boxName: 'BOX-B', quantity: 7 }],
-      },
-    ],
-  };
-
-  test('include warehouse-only items nel snapshot INSERT', async () => {
-    const pool = createMockPool({ [warehouseOnlyCode]: catalogPrice, [erpCode]: catalogPrice });
-    const bot = createMockBot('ORD-MIX');
-    const onProgress = vi.fn();
-
-    await handleSubmitOrder(pool, bot, mixedData, 'user-1', onProgress);
-
-    const articleInserts = (pool.query as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'));
-    expect(articleInserts).toHaveLength(1);
-    const params = articleInserts[0][1] as unknown[];
-    expect(params).toContain(warehouseOnlyCode);
-  });
-
-  test('warehouse_quantity nel snapshot per articolo solo magazzino è 7', async () => {
-    const pool = createMockPool({ [warehouseOnlyCode]: catalogPrice, [erpCode]: catalogPrice });
-    const bot = createMockBot('ORD-MIX-2');
-    const onProgress = vi.fn();
-
-    await handleSubmitOrder(pool, bot, mixedData, 'user-1', onProgress);
-
-    const articleInserts = (pool.query as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_articles'));
-    const params = articleInserts[0][1] as unknown[];
-    const whOnlyIdx = params.indexOf(warehouseOnlyCode);
-    expect(whOnlyIdx).toBeGreaterThan(-1);
-    const warehouseQtyForWhOnly = params[whOnlyIdx + 6];
-    expect(warehouseQtyForWhOnly).toBe(7);
-  });
-});
-
 describe('calculateAmounts', () => {
   const items: SubmitOrderItem[] = [
     { articleCode: 'A1', quantity: 7,  price: 167.20, discount: 45.00 },
