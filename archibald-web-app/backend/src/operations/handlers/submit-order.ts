@@ -425,7 +425,7 @@ async function handleSubmitOrder(
 
       const catalogPrices = await getUnitPricesByProductIds(
         pool,
-        kometItems.map(item => item.articleCode),
+        data.items.map(item => item.articleCode),
       );
 
       const snapshotItems = kometItems.map(item => {
@@ -480,6 +480,23 @@ async function handleSubmitOrder(
           0, null, now,
           SHIPPING_TAX_PERCENT, shippingVat,
           Math.round((SHIPPING_COST + shippingVat) * 100) / 100, false,
+        ]);
+      }
+
+      for (const item of data.items) {
+        const whQty = item.warehouseQuantity ?? 0;
+        if (whQty <= 0 || whQty < item.quantity) continue;
+        const unitPrice = catalogPrices.get(item.articleCode) ?? item.price;
+        const lineAmt = arcaLineAmount(item.quantity, unitPrice, item.discount ?? 0);
+        const vatPct = item.vat ?? 0;
+        const vatAmt = Math.round(lineAmt * vatPct / 100 * 100) / 100;
+        const lineTotalVat = Math.round((lineAmt + vatAmt) * 100) / 100;
+        snapshotRows.push([
+          orderId, userId, item.articleCode, item.description ?? item.productName ?? null, item.quantity,
+          unitPrice, item.discount ?? null, lineAmt,
+          whQty,
+          item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
+          now, vatPct, vatAmt, lineTotalVat, !!item.isGhostArticle,
         ]);
       }
 
