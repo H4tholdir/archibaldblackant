@@ -179,6 +179,12 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         const jobId = p.jobId as string | undefined;
         if (!jobId) return;
 
+        const type = p.type as string | undefined;
+        const result = p.result as Record<string, unknown> | undefined;
+        const completedOrderId = type === 'submit-order'
+          ? (result?.orderId as string | undefined)
+          : undefined;
+
         setOperations((prev) => {
           const updated = prev.map((op) =>
             op.jobId === jobId
@@ -187,6 +193,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                   status: "completed" as const,
                   progress: 100,
                   label: op.completedLabel ?? "Ordine completato",
+                  ...(completedOrderId ? { navigateTo: `/orders/${completedOrderId}` } : {}),
                 }
               : op,
           );

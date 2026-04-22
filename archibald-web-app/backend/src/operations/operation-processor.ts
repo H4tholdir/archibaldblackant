@@ -72,6 +72,8 @@ const MAX_SCHEDULED_RESCHEDULE_COUNT = 50;
 
 const SUBMIT_ORDER_BASE_TIMEOUT_MS = 60_000;
 const SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS = 30_000;
+// Buffer che copre un singolo protocolTimeout (120s) + login/navigazione retry (~120s)
+const SUBMIT_ORDER_RETRY_BUFFER_MS = 240_000;
 const DEFAULT_WRITE_TIMEOUT_MS = 180_000;
 const SYNC_TIMEOUT_MS = 600_000;
 const PDF_TIMEOUT_MS = 60_000;
@@ -80,7 +82,7 @@ function calculateJobTimeout(type: OperationType, data: Record<string, unknown>)
   if (type === 'submit-order') {
     const items = data.items as unknown[] | undefined;
     const numArticles = items?.length ?? 1;
-    return SUBMIT_ORDER_BASE_TIMEOUT_MS + (SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS * numArticles);
+    return SUBMIT_ORDER_BASE_TIMEOUT_MS + (SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS * numArticles) + SUBMIT_ORDER_RETRY_BUFFER_MS;
   }
   if (type === 'download-ddt-pdf' || type === 'download-invoice-pdf') return PDF_TIMEOUT_MS;
   if (type === 'catalog-ingestion') return 7_200_000; // 2h — legge ~400 pagine PDF via Sonnet
