@@ -37,6 +37,15 @@ describe('buildSearchParams', () => {
     expect(params.headMm).toBeNull()
   })
 
+  test('diameter_px=0 con pxPerMm non-null → headMm null', () => {
+    const desc: InstrumentDescriptor = {
+      ...BASE_DESCRIPTOR,
+      head: { diameter_px: 0, length_px: 80 },
+    }
+    const params = buildSearchParams(desc, 11.91)
+    expect(params.headMm).toBeNull()
+  })
+
   test('CA_HP → shankTypes ["ca","hp"]', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
     expect(params.shankTypes).toEqual(['ca', 'hp'])
@@ -117,15 +126,19 @@ describe('buildSearchParams', () => {
 })
 
 describe('SURFACE_TEXTURE_TO_PRODUCT_TYPES', () => {
-  const ALL_TEXTURES = [
-    'diamond_grit', 'carbide_blades', 'ceramic', 'rubber_polisher',
-    'abrasive_wheel', 'disc_slotted', 'disc_perforated', 'steel_smooth', 'sonic_tip', 'other',
-  ] as const
-
-  test('ogni SurfaceTexture ha una entry nella mappa', () => {
-    for (const texture of ALL_TEXTURES) {
-      expect(texture in SURFACE_TEXTURE_TO_PRODUCT_TYPES).toBe(true)
-    }
+  test('ogni SurfaceTexture mappa ai product types corretti', () => {
+    expect(SURFACE_TEXTURE_TO_PRODUCT_TYPES).toEqual({
+      diamond_grit:    ['rotary_diamond'],
+      carbide_blades:  ['rotary_carbide', 'lab_carbide'],
+      ceramic:         ['polisher_ceramic'],
+      rubber_polisher: ['polisher_composite', 'polisher_amalgam'],
+      abrasive_wheel:  ['accessory', 'other'],
+      disc_slotted:    ['accessory', 'other'],
+      disc_perforated: ['accessory', 'other'],
+      steel_smooth:    ['endodontic', 'root_post'],
+      sonic_tip:       ['sonic'],
+      other:           null,
+    })
   })
 })
 
