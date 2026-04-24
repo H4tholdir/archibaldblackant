@@ -47,7 +47,7 @@ export async function getBestRowsByFamilyCodes(
     `SELECT DISTINCT ON (family_code) family_code, local_path, source_type, metadata
      FROM shared.catalog_family_images
      WHERE family_code = ANY($1)
-     ORDER BY family_code, priority ASC`,
+     ORDER BY family_code, priority DESC`,
     [familyCodes],
   )
   return rows

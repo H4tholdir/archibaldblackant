@@ -86,7 +86,7 @@ LEFT JOIN LATERAL (
   SELECT local_path
   FROM shared.catalog_family_images
   WHERE family_code = ce.family_codes[1]
-  ORDER BY priority ASC
+  ORDER BY priority DESC
   LIMIT 1
 ) cfi ON true
 WHERE

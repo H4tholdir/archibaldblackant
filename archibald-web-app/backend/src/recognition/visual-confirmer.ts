@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { CatalogCandidate, VisualConfirmation } from './types'
 import { logger } from '../logger'
 
-const CONFIRMER_MODEL = 'claude-opus-4-7'
+export const CONFIRMER_MODEL = process.env.CONFIRMER_MODEL ?? 'claude-opus-4-7'
 
 const CONFIRM_PROMPT = `You are a dental bur identification expert. A photo of an instrument is shown, followed by numbered reference images from a product catalog.
 

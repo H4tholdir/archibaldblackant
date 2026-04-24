@@ -245,10 +245,6 @@ vi.mock('./operations/handlers', () => ({
   createBuildVisualIndexHandler: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('./services/anthropic-vision-service', () => ({
-  createCatalogVisionService: vi.fn(() => ({ identifyFromImage: vi.fn() })),
-}));
-
 vi.mock('@anthropic-ai/sdk', () => ({
   default: vi.fn(() => ({
     messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '[]' }] }) },

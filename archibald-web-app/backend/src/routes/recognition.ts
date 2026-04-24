@@ -90,7 +90,9 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
           abortController.signal,
         )
       if (res.headersSent) return
-      res.json({ result, budgetState, processingMs, imageHash })
+      // Backward compat: frontend legge result.state, nuovo client usa result.type
+      const resultWithAlias = { ...result, state: (result as any).type }
+      res.json({ result: resultWithAlias, budgetState, processingMs, imageHash })
     } catch (error) {
       if (res.headersSent) return
       logger.error('[recognition] identify failed', { error })

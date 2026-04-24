@@ -45,13 +45,19 @@ export async function runRecognitionPipeline(
   const cached = await getCached(deps.pool, imageHash)
   if (cached) {
     const { budgetState } = await checkBudget(deps.pool, userId, role)
+    const cachedType = (cached.result_json as { type?: string })?.type
+    const cachedState: 'match' | 'shortlist' | 'not_found' | 'error' =
+      cachedType === 'match'            ? 'match' :
+      cachedType === 'shortlist_visual' ? 'shortlist' :
+      cachedType === 'not_found'        ? 'not_found' :
+      'error'
     await appendRecognitionLog(deps.pool, {
       user_id:      userId,
       image_hash:   imageHash,
       cache_hit:    true,
       product_id:   null,
       confidence:   null,
-      result_state: 'match',
+      result_state: cachedState,
       tokens_used:  null,
       api_cost_usd: null,
     }).catch(() => {})
@@ -116,6 +122,7 @@ export async function runRecognitionPipeline(
     const result: RecognitionResult = { type: 'not_found', data: { measurements } }
     await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
     await logResult(deps.pool, userId, imageHash, 'not_found', null, null)
+    await consumeBudget(deps.pool)
     return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
   }
 
