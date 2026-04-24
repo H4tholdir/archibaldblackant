@@ -23,14 +23,14 @@ describe('createBuildVisualIndexHandler', () => {
     const { upsertFamilyImage } = await import('../../db/repositories/catalog-family-images')
     const pool = {} as import('../../db/pool').DbPool
 
-    await createBuildVisualIndexHandler({ pool })({} as import('bullmq').Job)
+    await createBuildVisualIndexHandler({ pool })(null, {}, 'system', () => {})
 
     expect(upsertFamilyImage).toHaveBeenCalledTimes(2)
   })
 
   test('returns count of newly indexed families', async () => {
     const pool   = {} as import('../../db/pool').DbPool
-    const result = await createBuildVisualIndexHandler({ pool })({} as import('bullmq').Job)
+    const result = await createBuildVisualIndexHandler({ pool })(null, {}, 'system', () => {})
     expect(result).toMatchObject({ indexed: 2 })
   })
 })

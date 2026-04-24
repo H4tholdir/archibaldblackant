@@ -69,4 +69,12 @@ describe('getFallbackFamilies', () => {
     const result = await getFallbackFamilies(pool, 10)
     expect(result).toEqual(['879', '863'])
   })
+
+  test('passes limit as query parameter', async () => {
+    const limit  = 10
+    const pool   = makePool([])
+    await getFallbackFamilies(pool, limit)
+    const [, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
+    expect(params[0]).toBe(limit)
+  })
 })
