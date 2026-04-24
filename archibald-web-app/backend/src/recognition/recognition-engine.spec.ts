@@ -1,175 +1,123 @@
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi, beforeEach } from 'vitest'
+import Anthropic from '@anthropic-ai/sdk'
 import { runRecognitionPipeline } from './recognition-engine'
-import type { CatalogVisionService } from './recognition-engine'
-import type { IdentificationResult } from './types'
+import type { DbPool } from '../db/pool'
+import type { CatalogCandidate, InstrumentDescriptor, VisualConfirmation } from './types'
 
-vi.mock('../db/repositories/recognition-log', () => ({
-  appendRecognitionLog: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('../db/repositories/catalog-family-images', () => ({
-  queryTopK:           vi.fn().mockResolvedValue([
-    { id: 1, family_code: '879', similarity: 0.90, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 0, strip_family_count: 3 } },
-    { id: 2, family_code: '863', similarity: 0.82, local_path: '/strip.jpg', source_type: 'campionario', metadata: { strip_family_index: 1, strip_family_count: 3 } },
-  ]),
-  getFallbackFamilies: vi.fn().mockResolvedValue([]),
-}))
-
-vi.mock('./campionario-strip-cropper', () => ({
-  cropSingleFamily: vi.fn().mockResolvedValue(Buffer.from('FAKE_CROP')),
-}))
-
-const BASE64   = 'AAAA'
-const USER_ID  = 'user-test'
-const FAKE_EMB = Array(2048).fill(0.5)
-
-function makePool(overrides: {
-  budgetAllowed?: boolean
-  cacheHit?:      boolean
-  familyExists?:  boolean
-} = {}) {
-  const { budgetAllowed = true, cacheHit = false, familyExists = true } = overrides
-  return {
-    query: vi.fn()
-      .mockResolvedValueOnce({ rows: cacheHit ? [{ result_json: { state: 'not_found' } }] : [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({
-        rows: budgetAllowed
-          ? [{ id: 1, used_today: 0, daily_limit: 500, throttle_level: 'normal', reset_at: new Date() }]
-          : [{ id: 1, used_today: 500, daily_limit: 500, throttle_level: 'limited', reset_at: new Date() }],
+// Pool mock: restituisce budget row per query recognition_budget, rows vuoti per il resto
+const makeMockPool = (): DbPool => ({
+  query: vi.fn().mockImplementation((sql: string) => {
+    if (typeof sql === 'string' && sql.includes('recognition_budget')) {
+      return Promise.resolve({
+        rows: [{ daily_limit: 500, used_today: 0, throttle_level: 'normal', reset_at: new Date() }],
       })
-      .mockResolvedValueOnce({ rows: familyExists ? [{ exists: 1 }] : [] })
-      .mockResolvedValue({ rows: [{ id: 1 }] }),
-  } as unknown as import('../db/pool').DbPool
+    }
+    return Promise.resolve({ rows: [] })
+  }),
+} as unknown as DbPool)
+
+const MOCK_ANTHROPIC = {} as Anthropic
+
+const BASE_DESCRIPTOR: InstrumentDescriptor = {
+  shank:           { diameter_group: 'CA_HP', diameter_px: 28, length_px: 140 },
+  head:            { diameter_px: 40, length_px: 80 },
+  shape_class:     'cono_tondo',
+  grit_indicator:  { type: 'ring_color', color: 'red', blade_density: null },
+  surface_texture: 'diamond_grit',
+  confidence:      0.92,
 }
 
-function makeEmbeddingSvc(embedding = FAKE_EMB) {
-  return { embedImage: vi.fn().mockResolvedValue(embedding) }
+const MOCK_CANDIDATE: CatalogCandidate = {
+  familyCode: 'H251', shapeDescription: 'Cono tondo', shapeClass: 'cono_tondo',
+  sizeOptions: [60, 70, 80], productType: 'rotary_diamond', thumbnailPath: null,
 }
 
-function makeVision(result: Partial<IdentificationResult> = {}): CatalogVisionService {
+const HIGH_CONFIDENCE: VisualConfirmation = {
+  matched_family_code: 'H251', confidence: 0.95, reasoning: 'Exact match', runner_up: null,
+}
+
+const LOW_CONFIDENCE: VisualConfirmation = {
+  matched_family_code: null, confidence: 0.72, reasoning: 'Uncertain', runner_up: 'H253',
+}
+
+function makeDeps(
+  desc:    InstrumentDescriptor   = BASE_DESCRIPTOR,
+  cands:   CatalogCandidate[]     = [MOCK_CANDIDATE],
+  confirm: VisualConfirmation     = HIGH_CONFIDENCE,
+  pool:    DbPool                 = makeMockPool(),
+) {
   return {
-    identifyFromImage: vi.fn().mockResolvedValue({
-      productCode:   '879.104.014',
-      familyCode:    '879',
-      confidence:    0.92,
-      resultState:   'match',
-      candidates:    [],
-      catalogPage:   120,
-      reasoning:     'Torpedo shape matched',
-      photo_request: null,
-      usage:         { inputTokens: 3000, outputTokens: 400 },
-      ...result,
-    } satisfies IdentificationResult),
+    pool,
+    anthropic:          MOCK_ANTHROPIC,
+    dailyLimit:         500,
+    timeoutMs:          90000,
+    describeInstrument: vi.fn().mockResolvedValue(desc),
+    searchCatalog:      vi.fn().mockResolvedValue(cands),
+    confirmWithOpus:    vi.fn().mockResolvedValue(confirm),
   }
 }
 
-const MIN_SIMILARITY = 0.30
-
 describe('runRecognitionPipeline', () => {
-  test('ritorna budget_exhausted quando budget esaurito', async () => {
-    const pool = makePool({ budgetAllowed: false })
+  test('confidence ≥ 0.85 + match → type="match" con familyCode e confidence', async () => {
     const { result } = await runRecognitionPipeline(
-      { pool, catalogVisionService: makeVision(), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
+      makeDeps(), 'fake-b64', 'u1', 'agent', null,
     )
-    expect(result.state).toBe('budget_exhausted')
-  })
-
-  test('ritorna match quando confidence ≥ 0.85', async () => {
-    const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: makeVision({ confidence: 0.92 }), embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
-    )
-    expect(result.state).toBe('match')
-    if (result.state === 'match') expect(result.product.familyCode).toBe('879')
-  })
-
-  test('ritorna not_found quando top similarity < minSimilarity (early exit)', async () => {
-    const { queryTopK } = await import('../db/repositories/catalog-family-images')
-    vi.mocked(queryTopK).mockResolvedValueOnce([
-      { id: 1, family_code: '999', similarity: 0.10, local_path: '/x.jpg', source_type: 'campionario', metadata: null },
-    ])
-    const vision = makeVision()
-    const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: 0.30 },
-      [BASE64], USER_ID, 'agent',
-    )
-    expect(result.state).toBe('not_found')
-    expect(vision.identifyFromImage).not.toHaveBeenCalled()
-  })
-
-  test('ritorna photo2_request con instruction Claude quando confidence < 0.85 e prima foto', async () => {
-    const vision = makeVision({
-      confidence: 0.70, resultState: 'shortlist',
-      candidates: ['879.104.014', '863.104.014'],
-      photo_request: 'Fotografa la punta dall\'alto',
-    })
-    const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
-    )
-    expect(result.state).toBe('photo2_request')
-    if (result.state === 'photo2_request') {
-      expect(result.instruction).toBe('Fotografa la punta dall\'alto')
-      expect(result.candidates).toContain('879.104.014')
+    expect(result.type).toBe('match')
+    if (result.type === 'match') {
+      expect(result.data.familyCode).toBe('H251')
+      expect(result.data.confidence).toBe(0.95)
     }
   })
 
-  test('usa fallback generico quando photo_request è null', async () => {
-    const vision = makeVision({ confidence: 0.60, resultState: 'shortlist', candidates: ['879.104.014', '863.104.014'], photo_request: null })
+  test('SQL ritorna 0 candidati → type="not_found"', async () => {
     const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
+      makeDeps(BASE_DESCRIPTOR, [], HIGH_CONFIDENCE), 'fake-b64', 'u1', 'agent', null,
     )
-    expect(result.state).toBe('photo2_request')
-    if (result.state === 'photo2_request') expect(typeof result.instruction).toBe('string')
+    expect(result.type).toBe('not_found')
   })
 
-  test('ritorna not_found quando confidence < 0.85 e candidates vuoti (prima foto)', async () => {
-    const vision = makeVision({ confidence: 0.40, resultState: 'not_found', candidates: [], photo_request: null })
+  test('confidence < 0.85 → type="shortlist_visual" con candidati', async () => {
     const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
+      makeDeps(BASE_DESCRIPTOR, [MOCK_CANDIDATE], LOW_CONFIDENCE), 'fake-b64', 'u1', 'agent', null,
     )
-    expect(result.state).toBe('not_found')
+    expect(result.type).toBe('shortlist_visual')
+    if (result.type === 'shortlist_visual') {
+      expect(result.data.candidates).toHaveLength(1)
+      expect(result.data.candidates[0]!.familyCode).toBe('H251')
+    }
   })
 
-  test('ritorna shortlist_visual quando confidence < 0.85 e seconda foto (images.length===2)', async () => {
-    const vision = makeVision({ confidence: 0.65, resultState: 'shortlist', candidates: ['879.104.014', '863.104.014'] })
+  test('arucoMm fornito → measurementSource="aruco"', async () => {
     const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64, BASE64], USER_ID, 'agent',
+      makeDeps(), 'fake-b64', 'u1', 'agent', 6.2,
     )
-    expect(result.state).toBe('shortlist_visual')
+    expect(result.type).toBe('match')
+    if (result.type === 'match') {
+      expect(result.data.measurementSource).toBe('aruco')
+    }
   })
 
-  test('downgrade a not_found quando family code non esiste nel catalogo', async () => {
-    const vision = makeVision({ confidence: 0.90, familyCode: '8863', productCode: '8863.104.016' })
+  test('arucoMm null + CA_HP shank → measurementSource="shank_iso"', async () => {
     const { result } = await runRecognitionPipeline(
-      { pool: makePool({ familyExists: false }), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
+      makeDeps(), 'fake-b64', 'u1', 'agent', null,
     )
-    expect(result.state).toBe('not_found')
+    expect(result.type).toBe('match')
+    if (result.type === 'match') {
+      expect(result.data.measurementSource).toBe('shank_iso')
+    }
   })
 
-  test('non chiama vision quando cache hit', async () => {
-    const vision = makeVision()
-    await runRecognitionPipeline(
-      { pool: makePool({ cacheHit: true }), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
-    )
-    expect(vision.identifyFromImage).not.toHaveBeenCalled()
-  })
-
-  test('ritorna error quando vision API lancia eccezione', async () => {
-    const vision: CatalogVisionService = {
-      identifyFromImage: vi.fn().mockRejectedValue(new Error('Anthropic timeout')),
+  test('arucoMm null + unknown shank + 0 candidati → measurementSource="none" in not_found', async () => {
+    const unknownDesc: InstrumentDescriptor = {
+      ...BASE_DESCRIPTOR,
+      shank: { diameter_group: 'unknown', diameter_px: 0, length_px: 0 },
     }
     const { result } = await runRecognitionPipeline(
-      { pool: makePool(), catalogVisionService: vision, embeddingSvc: makeEmbeddingSvc(), minSimilarity: MIN_SIMILARITY },
-      [BASE64], USER_ID, 'agent',
+      makeDeps(unknownDesc, [], HIGH_CONFIDENCE), 'fake-b64', 'u1', 'agent', null,
     )
-    expect(result.state).toBe('error')
+    expect(result.type).toBe('not_found')
+    if (result.type === 'not_found') {
+      expect(result.data.measurements.measurementSource).toBe('none')
+    }
   })
 })

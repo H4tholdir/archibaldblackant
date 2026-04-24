@@ -27,8 +27,8 @@ async function setCached(
   result: RecognitionResult,
   imageBuffer: Buffer | null,
 ): Promise<void> {
-  const productId = result.state === 'match' ? result.product.productId : null;
-  const confidence = result.state === 'match' ? result.confidence : null;
+  const productId = result.type === 'match' ? result.data.familyCode : null;
+  const confidence = result.type === 'match' ? result.data.confidence : null;
   await pool.query(
     `INSERT INTO system.recognition_cache
        (image_hash, result_json, product_id, confidence, image_data)
