@@ -119,4 +119,34 @@ describe('runRecognitionPipeline', () => {
       expect(result.data.measurements.measurementSource).toBe('none')
     }
   })
+
+  test('budget esaurito (used_today >= daily_limit) → type="budget_exhausted"', async () => {
+    const exhaustedPool: DbPool = ({
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (typeof sql === 'string' && sql.includes('recognition_budget')) {
+          return Promise.resolve({
+            rows: [{ daily_limit: 500, used_today: 500, throttle_level: 'limited', reset_at: new Date() }],
+          })
+        }
+        return Promise.resolve({ rows: [] })
+      }),
+    }) as unknown as DbPool
+    const { result } = await runRecognitionPipeline(
+      makeDeps(BASE_DESCRIPTOR, [MOCK_CANDIDATE], HIGH_CONFIDENCE, exhaustedPool),
+      'fake-b64', 'u1', 'agent', null,
+    )
+    expect(result.type).toBe('budget_exhausted')
+  })
+
+  test('signal pre-aborted → type="error" con messaggio annullata', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const { result } = await runRecognitionPipeline(
+      makeDeps(), 'fake-b64', 'u1', 'agent', null, controller.signal,
+    )
+    expect(result.type).toBe('error')
+    if (result.type === 'error') {
+      expect(result.data.message).toBe('Richiesta annullata')
+    }
+  })
 })
