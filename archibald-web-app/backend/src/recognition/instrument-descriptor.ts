@@ -53,29 +53,52 @@ GRIT INDICATOR (physical colored ring/marking on instrument):
 
 Return ONLY the JSON, no explanation.`
 
-export async function describeInstrument(
+export type DescribeResult = {
+  descriptor:   InstrumentDescriptor
+  inputTokens:  number
+  outputTokens: number
+}
+
+export async function describeInstrumentWithUsage(
   client:      Anthropic,
   imageBase64: string,
   pxPerMm:     number | null,
-): Promise<InstrumentDescriptor> {
+  signal?:     AbortSignal,
+): Promise<DescribeResult> {
   const promptText = pxPerMm != null
     ? `${PROMPT}\n\nCALIBRATION: px_per_mm=${pxPerMm.toFixed(3)} (ARUco marker detected).`
     : PROMPT
 
-  const message = await client.messages.create({
-    model:      INSTRUMENT_DESCRIPTOR_MODEL,
-    max_tokens: 512,
-    messages: [{
-      role:    'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-        { type: 'text',  text: promptText },
-      ],
-    }],
-  })
+  const message = await client.messages.create(
+    {
+      model:      INSTRUMENT_DESCRIPTOR_MODEL,
+      max_tokens: 512,
+      messages: [{
+        role:    'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          { type: 'text',  text: promptText },
+        ],
+      }],
+    },
+    { signal },
+  )
 
   const text = message.content.find(b => b.type === 'text')?.text ?? ''
-  return parseDescriptorJson(text)
+  return {
+    descriptor:   parseDescriptorJson(text),
+    inputTokens:  message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  }
+}
+
+export async function describeInstrument(
+  client:      Anthropic,
+  imageBase64: string,
+  pxPerMm:     number | null,
+  signal?:     AbortSignal,
+): Promise<InstrumentDescriptor> {
+  return (await describeInstrumentWithUsage(client, imageBase64, pxPerMm, signal)).descriptor
 }
 
 export function parseDescriptorJson(raw: string): InstrumentDescriptor {
