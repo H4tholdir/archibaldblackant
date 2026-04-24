@@ -23,15 +23,22 @@ Return ONLY this JSON:
 
 If confidence < 0.85, set matched_family_code to null.`
 
-export async function confirmWithOpus(
-  client: Anthropic,
+export type ConfirmResult = {
+  confirmation: VisualConfirmation
+  inputTokens:  number
+  outputTokens: number
+}
+
+export async function confirmWithOpusWithUsage(
+  client:      Anthropic,
   photoBase64: string,
-  candidates: CatalogCandidate[],
-): Promise<VisualConfirmation> {
+  candidates:  CatalogCandidate[],
+  signal?:     AbortSignal,
+): Promise<ConfirmResult> {
   const images = await loadImages(candidates)
 
   const content: Anthropic.MessageParam['content'] = [
-    { type: 'text', text: 'Photo of the instrument to identify:' },
+    { type: 'text',  text: 'Photo of the instrument to identify:' },
     { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photoBase64 } },
   ]
 
@@ -46,14 +53,30 @@ export async function confirmWithOpus(
 
   content.push({ type: 'text', text: CONFIRM_PROMPT })
 
-  const message = await client.messages.create({
-    model: CONFIRMER_MODEL,
-    max_tokens: 256,
-    messages: [{ role: 'user', content }],
-  })
+  const message = await client.messages.create(
+    {
+      model:      CONFIRMER_MODEL,
+      max_tokens: 256,
+      messages:   [{ role: 'user', content }],
+    },
+    { signal },
+  )
 
   const text = message.content.find(b => b.type === 'text')?.text ?? ''
-  return parseConfirmationJson(text)
+  return {
+    confirmation: parseConfirmationJson(text),
+    inputTokens:  message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  }
+}
+
+export async function confirmWithOpus(
+  client:      Anthropic,
+  photoBase64: string,
+  candidates:  CatalogCandidate[],
+  signal?:     AbortSignal,
+): Promise<VisualConfirmation> {
+  return (await confirmWithOpusWithUsage(client, photoBase64, candidates, signal)).confirmation
 }
 
 export function parseConfirmationJson(raw: string): VisualConfirmation {
