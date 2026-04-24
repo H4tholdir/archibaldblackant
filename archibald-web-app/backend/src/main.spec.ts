@@ -17,7 +17,7 @@ vi.mock('./config', () => ({
       'bot-queue': { concurrency: 1, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: { count: 100 } },
     },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
-    recognition: { anthropicApiKey: 'test-api-key', jinaApiKey: 'test-jina-key', minSimilarity: 0.20, dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
+    recognition: { anthropicApiKey: 'test-api-key', dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
   },
 }));
 
