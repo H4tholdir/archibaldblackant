@@ -1,8 +1,28 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.js'
-import type { CatalogVisionService } from '../recognition/recognition-engine'
-import type { IdentificationResult, CandidateWithImages } from '../recognition/types'
 import { logger } from '../logger'
+
+type IdentificationResult = {
+  productCode:   string | null
+  familyCode:    string | null
+  confidence:    number
+  resultState:   'match' | 'shortlist' | 'not_found'
+  candidates:    string[]
+  catalogPage:   number | null
+  reasoning:     string
+  photo_request: string | null
+  usage:         { inputTokens: number; outputTokens: number }
+}
+
+type CandidateWithImages = {
+  familyCode:      string
+  description:     string
+  referenceImages: string[]
+}
+
+type CatalogVisionService = {
+  identifyFromImage: (photos: string[], candidates: CandidateWithImages[], signal?: AbortSignal) => Promise<IdentificationResult>
+}
 
 export type CatalogVisionServiceDeps = {
   apiKey:    string

@@ -50,11 +50,8 @@ import {
   createCatalogIngestionHandler,
   createCatalogProductEnrichmentHandler,
   createWebProductEnrichmentHandler,
-  createBuildVisualIndexHandler,
 } from './operations/handlers';
-import { createVisualEmbeddingService } from './recognition/visual-embedding-service';
 import Anthropic from '@anthropic-ai/sdk';
-import { createCatalogVisionService } from './services/anthropic-vision-service';
 import { createCatalogPdfService } from './services/catalog-pdf-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
 import { getRemindersOverdueOrToday } from './db/repositories/customer-reminders';
@@ -428,15 +425,6 @@ async function bootstrap(): Promise<void> {
   const anthropicCatalogClient = config.recognition.anthropicApiKey
     ? new Anthropic({ apiKey: config.recognition.anthropicApiKey })
     : undefined;
-  const catalogVisionService = config.recognition.anthropicApiKey
-    ? createCatalogVisionService({
-        apiKey:    config.recognition.anthropicApiKey,
-        timeoutMs: config.recognition.timeoutMs,
-      })
-    : undefined;
-  const embeddingSvc = config.recognition.jinaApiKey
-    ? createVisualEmbeddingService(config.recognition.jinaApiKey)
-    : undefined;
 
   const app = createApp({
     pool,
@@ -462,12 +450,10 @@ async function bootstrap(): Promise<void> {
     getCircuitBreakerStatus: () => circuitBreaker.getAllStatus(),
     redis: sharedRedisClient,
     sendSecurityAlert: (event, details) => securityAlertService.send(event, details),
-    catalogVisionService,
-    embeddingSvc,
+    anthropic: anthropicCatalogClient,
     catalogPdf,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
-    recognitionMinSimilarity: config.recognition.minSimilarity,
   });
 
   const server = http.createServer(app);
@@ -1166,9 +1152,6 @@ async function bootstrap(): Promise<void> {
         },
         searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
       }),
-    } : {}),
-    ...(config.recognition.jinaApiKey && embeddingSvc ? {
-      'build-visual-index': createBuildVisualIndexHandler({ pool, embeddingSvc }),
     } : {}),
   };
 

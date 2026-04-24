@@ -59,8 +59,7 @@ import { createCustomerFullHistoryRouter } from './routes/customer-full-history'
 import { createSubClientMatchesRouter } from './routes/sub-client-matches';
 import { createCapLookupRouter } from './routes/cap-lookup';
 import { createRecognitionRouter } from './routes/recognition';
-import type { CatalogVisionService } from './recognition/recognition-engine';
-import type { VisualEmbeddingService } from './recognition/visual-embedding-service';
+import Anthropic from '@anthropic-ai/sdk';
 import * as productGalleryRepo from './db/repositories/product-gallery';
 import * as recognitionLogRepo from './db/repositories/recognition-log';
 import { getProductDetails } from './db/repositories/product-details';
@@ -148,12 +147,10 @@ type AppDeps = {
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   redis?: RedisClient;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
-  catalogVisionService?: CatalogVisionService;
-  embeddingSvc?: VisualEmbeddingService;
+  anthropic?: Anthropic;
   catalogPdf?: { getPageAsBase64: (page: number) => Promise<string> };
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
-  recognitionMinSimilarity?: number;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -1066,14 +1063,12 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/tracking', authenticate, createTrackingRouter({ pool }));
 
-  if (deps.catalogVisionService && deps.embeddingSvc) {
+  if (deps.anthropic) {
     const recognitionRouter = createRecognitionRouter({
       pool,
-      catalogVisionService: deps.catalogVisionService,
-      embeddingSvc: deps.embeddingSvc,
-      minSimilarity: deps.recognitionMinSimilarity ?? 0.30,
+      anthropic:  deps.anthropic,
       dailyLimit: deps.recognitionDailyLimit ?? 500,
-      timeoutMs: deps.recognitionTimeoutMs ?? 15000,
+      timeoutMs:  deps.recognitionTimeoutMs ?? 15000,
       queue,
     });
     app.use('/api/recognition', authenticate, recognitionRouter);
