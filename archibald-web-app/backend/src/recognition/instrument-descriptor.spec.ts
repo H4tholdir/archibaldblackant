@@ -33,6 +33,11 @@ describe('parseDescriptorJson', () => {
     const result = parseDescriptorJson('')
     expect(result.confidence).toBe(0)
   })
+
+  test('JSON seguita da nota con graffe → estrae solo il JSON', () => {
+    const raw = `${JSON.stringify(VALID_DESCRIPTOR)}\nNote: {use carefully}`
+    expect(parseDescriptorJson(raw)).toEqual(VALID_DESCRIPTOR)
+  })
 })
 
 describe('computePxPerMm', () => {
@@ -94,8 +99,7 @@ describe('computePxPerMm', () => {
 })
 
 describe('INSTRUMENT_DESCRIPTOR_MODEL', () => {
-  test('è una stringa non vuota', () => {
-    expect(typeof INSTRUMENT_DESCRIPTOR_MODEL).toBe('string')
-    expect(INSTRUMENT_DESCRIPTOR_MODEL.length).toBeGreaterThan(0)
+  test('default è claude-haiku-4-5-20251001 quando env non è impostata', () => {
+    expect(INSTRUMENT_DESCRIPTOR_MODEL).toBe('claude-haiku-4-5-20251001')
   })
 })

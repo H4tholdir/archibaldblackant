@@ -79,13 +79,19 @@ export async function describeInstrument(
 }
 
 export function parseDescriptorJson(raw: string): InstrumentDescriptor {
-  const match = raw.match(/\{[\s\S]*\}/)
-  if (!match) return fallbackDescriptor()
-  try {
-    return JSON.parse(match[0]) as InstrumentDescriptor
-  } catch {
-    return fallbackDescriptor()
+  const trimmed = raw.trim()
+  try { return JSON.parse(trimmed) as InstrumentDescriptor } catch {}
+  const start = raw.indexOf('{')
+  if (start === -1) return fallbackDescriptor()
+  let depth = 0
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '{') depth++
+    else if (raw[i] === '}') { depth--; if (depth === 0) { end = i; break } }
   }
+  if (end === -1) return fallbackDescriptor()
+  try { return JSON.parse(raw.slice(start, end + 1)) as InstrumentDescriptor } catch {}
+  return fallbackDescriptor()
 }
 
 function fallbackDescriptor(): InstrumentDescriptor {
