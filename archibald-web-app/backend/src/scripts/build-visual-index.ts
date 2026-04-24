@@ -1,19 +1,14 @@
 /**
  * build-visual-index.ts
  * Run: npx tsx src/scripts/build-visual-index.ts
- * Env: JINA_API_KEY, PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD
+ * Env: PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD
  */
 import { Pool } from 'pg'
 import { config } from '../config'
 import { CAMPIONARIO_STRIPS } from '../recognition/campionario-strip-map'
 import { cropStripForFamilies } from '../recognition/campionario-strip-cropper'
-import { createVisualEmbeddingService } from '../recognition/visual-embedding-service'
-import { upsertFamilyImage, updateEmbedding, countIndexed } from '../db/repositories/catalog-family-images'
+import { upsertFamilyImage } from '../db/repositories/catalog-family-images'
 import { logger } from '../logger'
-
-const DELAY_MS = 200
-
-async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
 
 async function main() {
   const pool = new Pool({
@@ -21,7 +16,6 @@ async function main() {
     database: config.database.database, user: config.database.user,
     password: config.database.password,
   })
-  const embeddingSvc  = createVisualEmbeddingService(config.recognition.jinaApiKey)
   const seenFamilies  = new Set<string>()
   let indexed = 0, errors = 0
 
@@ -38,9 +32,6 @@ async function main() {
           source_url: null, local_path: crop.stripPath, priority: 3,
           metadata: { strip_family_index: crop.familyIndex, strip_family_count: crop.familyCount },
         })
-        await sleep(DELAY_MS)
-        const embedding = await embeddingSvc.embedImage(crop.imageBuffer.toString('base64'), 'retrieval.passage')
-        await updateEmbedding(pool, id, embedding)
         seenFamilies.add(crop.familyCode)
         indexed++
         logger.info(`[index] Indexed ${crop.familyCode} (id=${id})`)
@@ -51,8 +42,7 @@ async function main() {
     }
   }
 
-  const total = await countIndexed(pool)
-  logger.info('[index] Done', { indexed, errors, total })
+  logger.info('[index] Done', { indexed, errors })
   await pool.end()
 }
 

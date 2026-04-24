@@ -16,27 +16,21 @@ vi.mock('../../recognition/campionario-strip-cropper', () => ({
 
 vi.mock('../../db/repositories/catalog-family-images', () => ({
   upsertFamilyImage: vi.fn().mockResolvedValue(1),
-  updateEmbedding:   vi.fn().mockResolvedValue(undefined),
-  countIndexed:      vi.fn().mockResolvedValue(2),
 }))
 
 describe('createBuildVisualIndexHandler', () => {
-  test('calls upsertFamilyImage and updateEmbedding for each crop', async () => {
-    const { upsertFamilyImage, updateEmbedding } = await import('../../db/repositories/catalog-family-images')
-    const pool        = {} as import('../../db/pool').DbPool
-    const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
+  test('calls upsertFamilyImage for each crop', async () => {
+    const { upsertFamilyImage } = await import('../../db/repositories/catalog-family-images')
+    const pool = {} as import('../../db/pool').DbPool
 
-    await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
+    await createBuildVisualIndexHandler({ pool })({} as import('bullmq').Job)
 
     expect(upsertFamilyImage).toHaveBeenCalledTimes(2)
-    expect(updateEmbedding).toHaveBeenCalledTimes(2)
-    expect(embeddingSvc.embedImage).toHaveBeenCalledTimes(2)
   })
 
-  test('returns total indexed count on completion', async () => {
-    const pool        = {} as import('../../db/pool').DbPool
-    const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
-    const result = await createBuildVisualIndexHandler({ pool, embeddingSvc })({} as import('bullmq').Job)
+  test('returns count of newly indexed families', async () => {
+    const pool   = {} as import('../../db/pool').DbPool
+    const result = await createBuildVisualIndexHandler({ pool })({} as import('bullmq').Job)
     expect(result).toMatchObject({ indexed: 2 })
   })
 })

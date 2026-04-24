@@ -9,10 +9,8 @@ export type FamilyImageInsert = {
   metadata:    Record<string, unknown> | null
 }
 
-export type AnnCandidate = {
-  id:          number
+export type FamilyImageRow = {
   family_code: string
-  similarity:  number
   local_path:  string
   source_type: string
   metadata:    Record<string, unknown> | null
@@ -40,53 +38,24 @@ export async function upsertFamilyImage(
   return rows[0]!.id
 }
 
-export async function updateEmbedding(
-  pool:      DbPool,
-  id:        number,
-  embedding: number[],
-): Promise<void> {
-  await pool.query(
-    `UPDATE shared.catalog_family_images
-     SET visual_embedding = $1::vector, indexed_at = now()
-     WHERE id = $2`,
-    [`[${embedding.join(',')}]`, id],
-  )
-}
-
-export async function queryTopK(
-  pool:           DbPool,
-  queryEmbedding: number[],
-  limit:          number = 50,
-): Promise<AnnCandidate[]> {
-  const vectorLiteral = `[${queryEmbedding.join(',')}]`
-  const { rows } = await pool.query<AnnCandidate>(
-    `SELECT id, family_code,
-       1 - (visual_embedding <=> $1::vector) AS similarity,
-       local_path, source_type, metadata
+export async function getBestRowsByFamilyCodes(
+  pool:        DbPool,
+  familyCodes: string[],
+): Promise<FamilyImageRow[]> {
+  if (familyCodes.length === 0) return []
+  const { rows } = await pool.query<FamilyImageRow>(
+    `SELECT DISTINCT ON (family_code) family_code, local_path, source_type, metadata
      FROM shared.catalog_family_images
-     WHERE visual_embedding IS NOT NULL
-     ORDER BY visual_embedding <=> $1::vector
-     LIMIT $2`,
-    [vectorLiteral, limit],
+     WHERE family_code = ANY($1)
+     ORDER BY family_code, priority ASC`,
+    [familyCodes],
   )
   return rows
 }
 
-export async function countIndexed(pool: DbPool): Promise<number> {
-  const { rows } = await pool.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM shared.catalog_family_images WHERE visual_embedding IS NOT NULL`,
-  )
-  return parseInt(rows[0]!.count, 10)
-}
-
-/** Fallback when Jina is down: returns distinct indexed family codes. */
 export async function getFallbackFamilies(pool: DbPool, limit: number): Promise<string[]> {
   const { rows } = await pool.query<{ family_code: string }>(
-    `SELECT DISTINCT family_code
-     FROM shared.catalog_family_images
-     WHERE visual_embedding IS NOT NULL
-     ORDER BY family_code
-     LIMIT $1`,
+    `SELECT DISTINCT family_code FROM shared.catalog_family_images ORDER BY family_code LIMIT $1`,
     [limit],
   )
   return rows.map(r => r.family_code)
