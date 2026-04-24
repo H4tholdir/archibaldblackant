@@ -82,8 +82,7 @@ describe('runRecognitionPipeline', () => {
     )
     expect(result.type).toBe('shortlist_visual')
     if (result.type === 'shortlist_visual') {
-      expect(result.data.candidates).toHaveLength(1)
-      expect(result.data.candidates[0]!.familyCode).toBe('H251')
+      expect(result.data.candidates).toEqual([{ familyCode: 'H251', thumbnailUrl: null, referenceImages: [] }])
     }
   })
 

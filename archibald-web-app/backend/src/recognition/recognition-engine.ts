@@ -45,6 +45,16 @@ export async function runRecognitionPipeline(
   const cached = await getCached(deps.pool, imageHash)
   if (cached) {
     const { budgetState } = await checkBudget(deps.pool, userId, role)
+    await appendRecognitionLog(deps.pool, {
+      user_id:      userId,
+      image_hash:   imageHash,
+      cache_hit:    true,
+      product_id:   null,
+      confidence:   null,
+      result_state: 'match',
+      tokens_used:  null,
+      api_cost_usd: null,
+    }).catch(() => {})
     return {
       result:       cached.result_json as RecognitionResult,
       budgetState,
@@ -85,7 +95,10 @@ export async function runRecognitionPipeline(
   }
 
   const pxPerMm           = computePxPerMm(descriptor, arucoMm)
-  const measurementSource = arucoMm != null ? 'aruco' : (pxPerMm != null ? 'shank_iso' : 'none') as const
+  const measurementSource: 'aruco' | 'shank_iso' | 'none' =
+    arucoMm != null ? 'aruco' :
+    pxPerMm != null ? 'shank_iso' :
+    'none'
   const searchParams      = buildSearchParams(descriptor, pxPerMm)
 
   const candidates = await search(deps.pool, searchParams)
@@ -128,8 +141,6 @@ export async function runRecognitionPipeline(
     }
   }
 
-  await consumeBudget(deps.pool)
-
   const headMm = pxPerMm != null && descriptor.head.diameter_px > 0
     ? descriptor.head.diameter_px / pxPerMm
     : null
@@ -144,7 +155,7 @@ export async function runRecognitionPipeline(
       type: 'match',
       data: {
         familyCode:        confirmation.matched_family_code,
-        productName:       confirmation.matched_family_code,
+        productName:       match?.shapeDescription ?? confirmation.matched_family_code,
         shankType:         descriptor.shank.diameter_group,
         headDiameterMm:    headMm,
         headLengthMm,
@@ -175,6 +186,7 @@ export async function runRecognitionPipeline(
     result.type === 'match' ? result.data.familyCode : null,
     result.type === 'match' ? result.data.confidence : null,
   )
+  await consumeBudget(deps.pool)
 
   return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
 }
@@ -194,7 +206,7 @@ async function logResult(
     product_id:   productId,
     confidence,
     result_state: state,
-    tokens_used:  0,
+    tokens_used:  null,
     api_cost_usd: null,
   }).catch(() => {})
 }
