@@ -57,13 +57,29 @@ export async function confirmWithOpus(
 }
 
 export function parseConfirmationJson(raw: string): VisualConfirmation {
-  const match = raw.match(/\{[\s\S]*\}/)
-  if (!match) return fallbackConfirmation()
+  const trimmed = raw.trim()
   try {
-    return JSON.parse(match[0]) as VisualConfirmation
-  } catch {
-    return fallbackConfirmation()
+    return JSON.parse(trimmed) as VisualConfirmation
+  } catch {}
+
+  const start = trimmed.indexOf('{')
+  if (start === -1) return fallbackConfirmation()
+
+  let depth = 0
+  for (let i = start; i < trimmed.length; i++) {
+    if (trimmed[i] === '{') depth++
+    else if (trimmed[i] === '}') {
+      depth--
+      if (depth === 0) {
+        try {
+          return JSON.parse(trimmed.slice(start, i + 1)) as VisualConfirmation
+        } catch {
+          return fallbackConfirmation()
+        }
+      }
+    }
   }
+  return fallbackConfirmation()
 }
 
 function fallbackConfirmation(): VisualConfirmation {
