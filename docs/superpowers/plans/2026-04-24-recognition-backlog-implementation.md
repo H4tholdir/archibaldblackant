@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Completare il frontend del nuovo sistema di riconoscimento (ARUco + Haiku + SQL + Opus) e deployarlo in produzione con migration 064+065.
+**Goal:** Completare il frontend del nuovo sistema di riconoscimento (ARUco + Haiku + SQL + Opus), deployarlo in produzione con migration 064+065, e arricchire `catalog_entries` con dati mancanti (ring_color carburi, working_length_mm, iso_shape_code) via scraper + PDF parser (Blocco D).
 
-**Architecture:** 7 task in sequenza: install js-aruco2 + estrai pattern marker → carta ARUco HTML/CSS stampabile → migrazione tipi frontend (state→type, nuovi payload) → Web Worker ARUco + hook → refactor ToolRecognitionPage (rimuovi photo2_request, aggiungi not_found, aggiorna match+shortlist) → banner ARUco + calibration toast → migration prod + merge + deploy.
+**Architecture:** 12 task in sequenza: install js-aruco2 + estrai pattern marker → carta ARUco HTML/CSS stampabile → migrazione tipi frontend (state→type, nuovi payload) → Web Worker ARUco + hook → refactor ToolRecognitionPage (rimuovi photo2_request, aggiungi aruco_absent + not_found, aggiorna match/shortlist) → banner ARUco + calibration toast → migration prod + merge + deploy → Blocco D: migration 066 → scraper komet-dental.com → PDF parser catalogo 782pp → merge + backfill → update CatalogSearcher SQL + deploy finale.
 
-**Tech Stack:** React 19 + TypeScript strict + Vite + Vitest + Testing Library, js-aruco2, inline styles, PostgreSQL (SSH + Docker exec).
+**Tech Stack:** React 19 + TypeScript strict + Vite + Vitest + Testing Library, js-aruco2, inline styles, PostgreSQL (SSH + Docker exec), node-fetch, pdf-parse.
 
 **Spec:** `docs/superpowers/plans/2026-04-24-recognition-redesign-backlog.md`
 
@@ -23,13 +23,26 @@
 | `archibald-web-app/frontend/src/workers/aruco-detector.worker.ts` | Web Worker: rileva marker ID=42, ritorna pxPerMm |
 | `archibald-web-app/frontend/src/hooks/useArucoDetector.ts` | Hook React: crea Worker, esegue detection da base64 |
 
-### File modificati
+### File modificati — Frontend
 | File | Modifica |
 |---|---|
 | `archibald-web-app/frontend/src/api/recognition.ts` | Nuovi tipi (type vs state, ProductMatch, MeasurementSummary), arucoPxPerMm in identifyInstrument |
 | `archibald-web-app/frontend/src/api/recognition.spec.ts` | Aggiorna mock IdentifyResponse (state → type) |
-| `archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx` | Rimuovi photo2_request, aggiungi not_found, aggiorna match+shortlist, ARUco banner+calibration |
-| `archibald-web-app/frontend/src/pages/ToolRecognitionPage.spec.tsx` | Aggiorna tutti i mock, rimuovi test photo2_request, aggiungi test not_found + banner |
+| `archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx` | Rimuovi photo2_request, aggiungi aruco_absent + not_found, aggiorna match+shortlist, ARUco banner+calibration |
+| `archibald-web-app/frontend/src/pages/ToolRecognitionPage.spec.tsx` | Aggiorna tutti i mock, rimuovi test photo2_request, aggiungi test aruco_absent + not_found + banner |
+
+### Blocco D — nuovi file
+| File | Responsabilità |
+|---|---|
+| `archibald-web-app/backend/src/db/migrations/066-catalog-enriched-fields.sql` | ADD COLUMN ring_color, working_length_mm, iso_shape_code a catalog_entries |
+| `archibald-web-app/backend/scripts/enrich-catalog-komet.mjs` | Scraper komet-dental.com → JSON per-family_code con ring_color/working_length/iso_code |
+| `archibald-web-app/backend/scripts/parse-catalog-pdf.mjs` | Parser PDF catalogo 782pp → JSON per-family_code con working_length/iso_code |
+| `archibald-web-app/backend/scripts/merge-catalog-enrichment.mjs` | Merge + validate le due fonti → SQL UPDATE catalog_entries in prod |
+
+### Blocco D — file modificati
+| File | Modifica |
+|---|---|
+| `archibald-web-app/backend/src/recognition/catalog-searcher.ts` | Aggiunge filtro ring_color per strumenti blade_count quando il campo è disponibile |
 
 ---
 
@@ -601,7 +614,7 @@ git commit -m "feat(recognition): js-aruco2 Web Worker + computePxPerMm + useAru
 - Modify: `archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx`
 - Modify: `archibald-web-app/frontend/src/pages/ToolRecognitionPage.spec.tsx`
 
-Questo task fa tutte le modifiche core alla pagina: rimozione di `photo2_request`, aggiornamento di `match` e `shortlist_visual` ai nuovi tipi, aggiunta di `not_found`. Il flusso ARUco visivo è nel Task 6.
+Questo task fa tutte le modifiche core alla pagina: rimozione di `photo2_request`, aggiornamento di `match` e `shortlist_visual` ai nuovi tipi, aggiunta di `aruco_absent` (schermata interstitial quando il marker non è rilevato) e `not_found`. Il flusso ARUco visivo (banner + toast) è nel Task 6.
 
 - [ ] **Step 1: Riscrivi ToolRecognitionPage.spec.tsx**
 
@@ -617,8 +630,10 @@ import { ToolRecognitionPage } from './ToolRecognitionPage'
 import * as recognitionApi from '../api/recognition'
 import type { IdentifyResponse } from '../api/recognition'
 
+let arucoResult: { detected: boolean; pxPerMm: number | null } = { detected: true, pxPerMm: 5.0 }
+
 vi.mock('../hooks/useArucoDetector', () => ({
-  useArucoDetector: () => vi.fn().mockResolvedValue({ detected: false, pxPerMm: null }),
+  useArucoDetector: () => vi.fn().mockImplementation(() => Promise.resolve(arucoResult)),
 }))
 
 function mockGetUserMedia(impl: () => Promise<MediaStream | never>) {
@@ -917,6 +932,64 @@ describe('ToolRecognitionPage — Stato 3C (not_found)', () => {
     expect(screen.getByRole('button', { name: /Riprova/i })).toBeInTheDocument()
   })
 })
+
+describe('ToolRecognitionPage — aruco_absent screen', () => {
+  beforeEach(() => { arucoResult = { detected: false, pxPerMm: null } })
+  afterEach(() => { arucoResult = { detected: true, pxPerMm: 5.0 } })
+
+  it('mostra schermata aruco_absent con le due opzioni quando marker non rilevato', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: /Riprova con la carta/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Procedi senza carta/i })).toBeInTheDocument()
+  })
+
+  it('torna a idle_photo1 quando si clicca Riprova con la carta', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Riprova con la carta/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /SCATTA FOTO 1/i })).toBeInTheDocument()
+    )
+  })
+
+  it('chiama identifyInstrument senza arucoPxPerMm quando si clicca Procedi senza carta', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Procedi senza carta/i }))
+
+    await waitFor(() =>
+      expect(recognitionApi.identifyInstrument).toHaveBeenCalledWith(
+        TOKEN,
+        expect.any(Array),
+        undefined,
+      )
+    )
+  })
+})
 ```
 
 - [ ] **Step 2: Esegui i test — atteso FAIL**
@@ -925,7 +998,7 @@ describe('ToolRecognitionPage — Stato 3C (not_found)', () => {
 npm test --prefix archibald-web-app/frontend -- ToolRecognitionPage.spec
 ```
 
-Atteso: FAIL — `useArucoDetector` non trovato, `result.state` non esiste, `not_found` screen mancante.
+Atteso: FAIL — `useArucoDetector` non trovato, `result.state` non esiste, `aruco_absent` e `not_found` screen mancanti.
 
 - [ ] **Step 3: Aggiorna ToolRecognitionPage.tsx — import + PageState**
 
@@ -946,49 +1019,40 @@ type PageState =
   | 'preview'
   | 'analyzing'
   | 'analyzing2'
+  | 'aruco_absent'
   | 'match'
   | 'shortlist_visual'
   | 'not_found'
   | 'budget_exhausted'
 ```
 
-- [ ] **Step 4: Aggiungi stato ARUco e hook nel corpo del componente**
+- [ ] **Step 4: Aggiungi stato ARUco, hook e ref nel corpo del componente**
 
 Nel corpo del componente, subito dopo gli altri `useState`, aggiungi:
 
 ```typescript
 const [arucoCalibrationPxPerMm, setArucoCalibrationPxPerMm] = useState<number | null>(null)
 const detectAruco = useArucoDetector()
+const pendingImagesRef = useRef<string[]>([])
 ```
 
-- [ ] **Step 5: Sostituisci runIdentification**
+Assicurati che `useRef` sia importato da React (`import { useRef, ... } from 'react'`).
 
-Sostituisci l'intero callback `runIdentification` (righe 224–263) con:
+- [ ] **Step 5: Aggiungi callIdentifyApi, riscrivi runIdentification, aggiungi handleProceedWithoutAruco**
+
+`callIdentifyApi` è estratto perché è riutilizzato da sia `runIdentification` che `handleProceedWithoutAruco` — giustificato da C-9.
+
+Sostituisci l'intero callback `runIdentification` (righe 224–263) con i tre callback seguenti:
 
 ```typescript
-const runIdentification = useCallback(async (images: string[]) => {
+const callIdentifyApi = useCallback(async (images: string[], arucoPxPerMm?: number) => {
   const token = localStorage.getItem('archibald_jwt')
   if (!token) return
-  setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
-  setAnalyzeStep(0)
-  setUsedPhotoCount(images.length)
-  setArucoCalibrationPxPerMm(null)
-
-  let arucoPxPerMm: number | undefined
-  if (images[0]) {
-    const detection = await detectAruco(images[0])
-    if (detection.detected && detection.pxPerMm != null) {
-      arucoPxPerMm = detection.pxPerMm
-      setArucoCalibrationPxPerMm(detection.pxPerMm)
-    }
-  }
-
   try {
     setAnalyzeStep(1)
     const response = await identifyInstrument(token, images, arucoPxPerMm)
     setAnalyzeStep(2)
     setIdentifyResult(response)
-
     const { type } = response.result
     if (type === 'budget_exhausted') {
       setPageState('budget_exhausted')
@@ -1010,7 +1074,38 @@ const runIdentification = useCallback(async (images: string[]) => {
     setPageState('idle_photo1')
     setErrorMessage('Errore di connessione. Riprova.')
   }
-}, [vibrate, playSuccessBeep, detectAruco])
+}, [vibrate, playSuccessBeep])
+
+const runIdentification = useCallback(async (images: string[]) => {
+  const token = localStorage.getItem('archibald_jwt')
+  if (!token) return
+  setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
+  setAnalyzeStep(0)
+  setUsedPhotoCount(images.length)
+  setArucoCalibrationPxPerMm(null)
+  pendingImagesRef.current = images
+
+  if (images[0]) {
+    const detection = await detectAruco(images[0])
+    if (!detection.detected) {
+      setPageState('aruco_absent')
+      return
+    }
+    if (detection.pxPerMm != null) {
+      setArucoCalibrationPxPerMm(detection.pxPerMm)
+      await callIdentifyApi(images, detection.pxPerMm)
+      return
+    }
+  }
+  await callIdentifyApi(images)
+}, [detectAruco, callIdentifyApi])
+
+const handleProceedWithoutAruco = useCallback(() => {
+  const images = pendingImagesRef.current
+  setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
+  setAnalyzeStep(0)
+  void callIdentifyApi(images)
+}, [callIdentifyApi])
 ```
 
 - [ ] **Step 6: Rimuovi handlePhoto2Shutter**
@@ -1083,9 +1178,55 @@ if (pageState === 'shortlist_visual' && identifyResult?.result.type === 'shortli
 
 Elimina l'intero blocco `if (pageState === 'photo2_request')` (righe ~715–757) compreso il return interno.
 
-- [ ] **Step 10: Aggiungi il render block not_found**
+- [ ] **Step 10: Aggiungi i render block aruco_absent e not_found**
 
-Inserisci DOPO il blocco `shortlist_visual` (dopo la `}` di chiusura) e PRIMA del blocco `if (pageState === 'preview')`:
+Inserisci ENTRAMBI i blocchi DOPO il blocco `shortlist_visual` (dopo la `}` di chiusura) e PRIMA del blocco `if (pageState === 'preview')`.
+
+**Prima: aruco_absent**
+
+```typescript
+if (pageState === 'aruco_absent') {
+  const storedImages = pendingImagesRef.current
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200, background: '#0f0f0f',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32,
+    }}>
+      <div style={{ fontSize: 56 }}>📋</div>
+      <h2 style={{ color: '#fff', textAlign: 'center', margin: 0, fontSize: 20 }}>
+        Carta ARUco non rilevata nella foto
+      </h2>
+      <p style={{ color: '#9ca3af', textAlign: 'center', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+        Il marker di calibrazione non è stato trovato.<br/>
+        Scegli come procedere:
+      </p>
+      <button
+        onClick={() => setPageState(storedImages.length === 2 ? 'idle_photo2' : 'idle_photo1')}
+        style={{
+          background: 'transparent', color: '#93c5fd',
+          border: '1px solid #1e40af', borderRadius: 8, padding: '12px 24px',
+          fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 280,
+        }}
+      >
+        ← Riprova con la carta
+      </button>
+      <button
+        onClick={handleProceedWithoutAruco}
+        style={{
+          background: '#2563eb', color: '#fff',
+          border: 'none', borderRadius: 8, padding: '12px 24px',
+          fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 280,
+        }}
+      >
+        Procedi senza carta →
+      </button>
+    </div>
+  )
+}
+```
+
+**Poi: not_found**
 
 ```typescript
 if (pageState === 'not_found' && identifyResult?.result.type === 'not_found') {
@@ -1174,7 +1315,7 @@ Atteso: tutti i test passano.
 git add \
   archibald-web-app/frontend/src/pages/ToolRecognitionPage.tsx \
   archibald-web-app/frontend/src/pages/ToolRecognitionPage.spec.tsx
-git commit -m "feat(recognition): rimuovi photo2_request, aggiungi not_found+MeasurementSummary, aggiorna match/shortlist"
+git commit -m "feat(recognition): rimuovi photo2_request, aggiungi aruco_absent+not_found+MeasurementSummary, aggiorna match/shortlist"
 ```
 
 ---
@@ -1394,3 +1535,563 @@ ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
 ```
 
 Atteso: backend avviato senza errori. Cerca `recognition` nei log per confermare che il nuovo engine sia registrato. Nessun riferimento a `jinaApiKey` o `visual_embedding`.
+
+---
+
+## Task 8: Blocco D — Migration 066 (ring_color, working_length_mm, iso_shape_code)
+
+**Files:**
+- Create: `archibald-web-app/backend/src/db/migrations/066-catalog-enriched-fields.sql`
+
+- [ ] **Step 1: Crea il file SQL**
+
+Crea `archibald-web-app/backend/src/db/migrations/066-catalog-enriched-fields.sql`:
+
+```sql
+ALTER TABLE shared.catalog_entries
+  ADD COLUMN IF NOT EXISTS ring_color        TEXT,
+  ADD COLUMN IF NOT EXISTS working_length_mm FLOAT,
+  ADD COLUMN IF NOT EXISTS iso_shape_code    TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_catalog_entries_ring_color
+  ON shared.catalog_entries (ring_color)
+  WHERE ring_color IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_catalog_entries_iso_shape_code
+  ON shared.catalog_entries (iso_shape_code)
+  WHERE iso_shape_code IS NOT NULL;
+```
+
+- [ ] **Step 2: Applica in produzione**
+
+```bash
+cat archibald-web-app/backend/src/db/migrations/066-catalog-enriched-fields.sql | \
+  ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+   exec -T postgres psql -U archibald -d archibald"
+```
+
+Verifica (atteso: 3 righe):
+
+```bash
+ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+   exec -T postgres psql -U archibald -d archibald -c \
+   \"SELECT column_name FROM information_schema.columns \
+     WHERE table_schema='shared' AND table_name='catalog_entries' \
+     AND column_name IN ('ring_color','working_length_mm','iso_shape_code') \
+     ORDER BY column_name;\""
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add archibald-web-app/backend/src/db/migrations/066-catalog-enriched-fields.sql
+git commit -m "feat(catalog): migration 066 — aggiunge ring_color, working_length_mm, iso_shape_code"
+```
+
+---
+
+## Task 9: Blocco D — Scraper komet-dental.com
+
+**Files:**
+- Create: `archibald-web-app/backend/scripts/enrich-catalog-komet.mjs`
+
+Scarica dati strutturati da komet-dental.com per ogni `family_code` in `catalog_entries`.
+Output: `docs/diagnostics/komet-enrichment-data.json` (usato da Task 11).
+
+- [ ] **Step 1: Verifica pattern URL komet-dental.com**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" "https://www.komet-dental.com/en/products/H1.314.016/" && echo " → URL /en/products/{code}/ OK" || \
+curl -s -o /dev/null -w "%{http_code}" "https://www.komet-dental.com/en/product/H1.314.016/"  && echo " → URL /en/product/{code}/ OK"
+```
+
+Prendi nota del pattern che risponde 200. Se nessuno dei due funziona, usa la ricerca:
+```bash
+curl -s "https://www.komet-dental.com/en/search/?q=H1.314.016" | grep -o '"url":"[^"]*"' | head -5
+```
+
+Aggiorna la funzione `buildProductUrl` nello script al Step 2 in base a quanto trovato.
+
+- [ ] **Step 2: Crea lo scraper**
+
+Crea `archibald-web-app/backend/scripts/enrich-catalog-komet.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import pg from 'pg'
+import { writeFileSync } from 'fs'
+import { setTimeout as sleep } from 'timers/promises'
+
+const { Pool } = pg
+const pool = new Pool({
+  host:     process.env.PG_HOST     || 'localhost',
+  port:     Number(process.env.PG_PORT || 5432),
+  database: process.env.PG_DATABASE || 'archibald',
+  user:     process.env.PG_USER     || 'archibald',
+  password: process.env.PG_PASSWORD || '',
+})
+
+function buildProductUrl(familyCode) {
+  // Adatta in base al risultato del Step 1
+  return `https://www.komet-dental.com/en/products/${encodeURIComponent(familyCode)}/`
+}
+
+async function fetchHtml(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; catalog-enricher/1.0)' },
+      signal: AbortSignal.timeout(10_000),
+    })
+    return res.ok ? res.text() : null
+  } catch {
+    return null
+  }
+}
+
+function extractField(html, patterns) {
+  for (const re of patterns) {
+    const m = html.match(re)
+    if (m) return m[1]
+  }
+  return null
+}
+
+function parseProductData(html) {
+  const ringColor = extractField(html, [
+    /ring[- ]?color[^:]*:\s*([a-zA-Z]+)/i,
+    /Ringfarbe[^:]*:\s*([a-zA-Z]+)/i,
+    /data-ring-color="([^"]+)"/i,
+  ])
+  const workingLengthStr = extractField(html, [
+    /working[- ]?length[^:]*:\s*([\d.]+)\s*mm/i,
+    /Arbeitsl[aä]nge[^:]*:\s*([\d.]+)\s*mm/i,
+    /data-working-length="([\d.]+)"/i,
+  ])
+  const isoCode = extractField(html, [
+    /ISO[^:]*:\s*(\d{6})\b/i,
+    /data-iso-code="(\d{6})"/i,
+    /\bshape[^:]*:\s*(\d{6})\b/i,
+  ])
+  return {
+    ring_color:        ringColor ? ringColor.toLowerCase().trim() : null,
+    working_length_mm: workingLengthStr ? parseFloat(workingLengthStr) : null,
+    iso_shape_code:    isoCode ?? null,
+  }
+}
+
+async function main() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT family_code FROM shared.catalog_entries
+     WHERE family_code IS NOT NULL ORDER BY family_code`
+  )
+  console.log(`${rows.length} family_codes da processare`)
+
+  const results = {}
+  let found = 0
+
+  for (let i = 0; i < rows.length; i++) {
+    const { family_code } = rows[i]
+    const html = await fetchHtml(buildProductUrl(family_code))
+    if (html) {
+      const data = parseProductData(html)
+      if (data.ring_color || data.working_length_mm || data.iso_shape_code) {
+        results[family_code] = data
+        found++
+        console.log(`[${i + 1}/${rows.length}] ${family_code}:`, JSON.stringify(data))
+      }
+    }
+    if ((i + 1) % 50 === 0) console.log(`Progresso: ${i + 1}/${rows.length}, trovati: ${found}`)
+    await sleep(300)
+  }
+
+  writeFileSync('docs/diagnostics/komet-enrichment-data.json', JSON.stringify(results, null, 2))
+  console.log(`\nCompletato: ${found}/${rows.length} con dati → docs/diagnostics/komet-enrichment-data.json`)
+  await pool.end()
+}
+
+main().catch(err => { console.error(err); process.exit(1) })
+```
+
+- [ ] **Step 3: Esegui lo scraper**
+
+```bash
+PG_HOST=localhost PG_DATABASE=archibald PG_USER=archibald \
+  node archibald-web-app/backend/scripts/enrich-catalog-komet.mjs 2>&1 | tail -20
+```
+
+Se il DB locale non è disponibile, apri prima un tunnel SSH:
+```bash
+ssh -i /tmp/archibald_vps -L 5433:localhost:5432 -N deploy@91.98.136.198 &
+PG_HOST=localhost PG_PORT=5433 PG_DATABASE=archibald PG_USER=archibald PG_PASSWORD=<pwd> \
+  node archibald-web-app/backend/scripts/enrich-catalog-komet.mjs
+```
+
+Atteso: `docs/diagnostics/komet-enrichment-data.json` non vuoto. Se ring_color=0 per tutti, riesaminare il pattern HTML in Step 1.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add \
+  archibald-web-app/backend/scripts/enrich-catalog-komet.mjs \
+  docs/diagnostics/komet-enrichment-data.json
+git commit -m "feat(catalog): scraper komet-dental.com per dati strutturati mancanti"
+```
+
+---
+
+## Task 10: Blocco D — PDF Parser catalogo 782 pagine
+
+**Files:**
+- Create: `archibald-web-app/backend/scripts/parse-catalog-pdf.mjs`
+
+Input: `/Users/hatholdir/Downloads/Catalogo_interattivo_2025 (1).pdf`
+Output: `docs/diagnostics/catalog-pdf-extract.json`
+
+- [ ] **Step 1: Installa pdf-parse e analizza la struttura**
+
+```bash
+node -e "require('pdf-parse')" 2>/dev/null && echo "OK" || npm install pdf-parse --save-dev --prefix archibald-web-app/backend
+```
+
+Poi campiona le prime 3 pagine per capire il formato:
+
+```bash
+node -e "
+const parse = require('archibald-web-app/backend/node_modules/pdf-parse')
+const fs    = require('fs')
+parse(fs.readFileSync('/Users/hatholdir/Downloads/Catalogo_interattivo_2025 (1).pdf'), { max: 3 })
+  .then(d => { console.log('pagine:', d.numpages); console.log(d.text.substring(0, 3000)) })
+" 2>&1
+```
+
+Identifica:
+- Formato del family_code (es. `H1.314.016` o `H1 314 016`)
+- Formato ISO code (es. `ISO 021220` o codice 6 cifre standalone)
+- Formato lunghezza di lavoro (es. `WL: 19 mm` o `19 mm`)
+
+Aggiorna i regex in Step 2 se necessario.
+
+- [ ] **Step 2: Crea il parser**
+
+Crea `archibald-web-app/backend/scripts/parse-catalog-pdf.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { createRequire } from 'module'
+import { readFileSync, writeFileSync } from 'fs'
+
+const require = createRequire(import.meta.url)
+const pdfParse = require('pdf-parse')
+
+const PDF_PATH = '/Users/hatholdir/Downloads/Catalogo_interattivo_2025 (1).pdf'
+
+// Adatta questi regex in base all'output di Step 1
+const FAMILY_CODE_RE  = /\b([A-Z]\d[\w.]{3,12})\b/g
+const ISO_CODE_RE     = /\bISO[.\s]*(\d{6})\b/i
+const WORKING_LEN_RE  = /(?:WL|working length|lunghezza di lavoro)[^:\d]*:?\s*([\d.]+)\s*mm/i
+
+function parsePage(text) {
+  const entries = {}
+  for (const match of text.matchAll(FAMILY_CODE_RE)) {
+    const code = match[1]
+    const idx  = text.indexOf(code)
+    if (idx === -1) continue
+    const ctx = text.slice(Math.max(0, idx - 100), idx + 500)
+    const iso = ctx.match(ISO_CODE_RE)
+    const wl  = ctx.match(WORKING_LEN_RE)
+    if (iso || wl) {
+      entries[code] = {
+        iso_shape_code:   iso ? iso[1] : null,
+        working_length_mm: wl  ? parseFloat(wl[1]) : null,
+      }
+    }
+  }
+  return entries
+}
+
+async function main() {
+  console.log('Caricamento PDF...')
+  const buf  = readFileSync(PDF_PATH)
+  const data = await pdfParse(buf)
+  console.log(`Pagine totali: ${data.numpages}`)
+
+  const results = parsePage(data.text)
+  const found   = Object.keys(results).length
+  const outPath = 'docs/diagnostics/catalog-pdf-extract.json'
+  writeFileSync(outPath, JSON.stringify(results, null, 2))
+  console.log(`Completato: ${found} entry → ${outPath}`)
+}
+
+main().catch(err => { console.error(err); process.exit(1) })
+```
+
+- [ ] **Step 3: Esegui il parser**
+
+```bash
+node archibald-web-app/backend/scripts/parse-catalog-pdf.mjs 2>&1 | tail -10
+```
+
+Atteso: `catalog-pdf-extract.json` con entry > 0. Se il risultato è 0, rileggere Step 1 e affinare i regex.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add \
+  archibald-web-app/backend/scripts/parse-catalog-pdf.mjs \
+  docs/diagnostics/catalog-pdf-extract.json
+git commit -m "feat(catalog): PDF parser catalogo Komet 2025 — iso_shape_code + working_length_mm"
+```
+
+---
+
+## Task 11: Blocco D — Merge + Validate + Backfill DB
+
+**Files:**
+- Create: `archibald-web-app/backend/scripts/merge-catalog-enrichment.mjs`
+
+Combina komet scraper (Task 9) + PDF parser (Task 10), applica UPDATE a `catalog_entries` in produzione.
+
+- [ ] **Step 1: Verifica che entrambi i file input esistano**
+
+```bash
+ls -la docs/diagnostics/komet-enrichment-data.json docs/diagnostics/catalog-pdf-extract.json
+```
+
+Atteso: entrambi presenti e non vuoti.
+
+- [ ] **Step 2: Crea lo script di merge**
+
+Crea `archibald-web-app/backend/scripts/merge-catalog-enrichment.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import pg from 'pg'
+import { readFileSync } from 'fs'
+
+const { Pool } = pg
+const pool = new Pool({
+  host:     process.env.PG_HOST     || 'localhost',
+  port:     Number(process.env.PG_PORT || 5432),
+  database: process.env.PG_DATABASE || 'archibald',
+  user:     process.env.PG_USER     || 'archibald',
+  password: process.env.PG_PASSWORD || '',
+})
+
+function loadJson(path) {
+  try { return JSON.parse(readFileSync(path, 'utf8')) }
+  catch { console.warn(`⚠ ${path} non trovato`); return {} }
+}
+
+async function main() {
+  const kometData = loadJson('docs/diagnostics/komet-enrichment-data.json')
+  const pdfData   = loadJson('docs/diagnostics/catalog-pdf-extract.json')
+
+  const allCodes = new Set([...Object.keys(kometData), ...Object.keys(pdfData)])
+  console.log(`Codici da aggiornare: ${allCodes.size}`)
+
+  const { rows: before } = await pool.query(`
+    SELECT
+      COUNT(*) FILTER (WHERE ring_color IS NOT NULL)        AS ring,
+      COUNT(*) FILTER (WHERE working_length_mm IS NOT NULL) AS wl,
+      COUNT(*) FILTER (WHERE iso_shape_code IS NOT NULL)    AS iso
+    FROM shared.catalog_entries
+  `)
+  console.log('Prima:', before[0])
+
+  let updated = 0
+  for (const code of allCodes) {
+    const k = kometData[code] ?? {}
+    const p = pdfData[code]   ?? {}
+    // Priorità: PDF > komet per iso (più preciso nel testo); komet > PDF per wl
+    const ring = k.ring_color        ?? null
+    const wl   = k.working_length_mm ?? p.working_length_mm ?? null
+    const iso  = p.iso_shape_code    ?? k.iso_shape_code    ?? null
+    if (!ring && !wl && !iso) continue
+
+    const res = await pool.query(`
+      UPDATE shared.catalog_entries
+      SET
+        ring_color        = COALESCE($1, ring_color),
+        working_length_mm = COALESCE($2, working_length_mm),
+        iso_shape_code    = COALESCE($3, iso_shape_code)
+      WHERE family_code = $4
+    `, [ring, wl, iso, code])
+    updated += res.rowCount ?? 0
+  }
+
+  const { rows: after } = await pool.query(`
+    SELECT
+      COUNT(*) FILTER (WHERE ring_color IS NOT NULL)        AS ring,
+      COUNT(*) FILTER (WHERE working_length_mm IS NOT NULL) AS wl,
+      COUNT(*) FILTER (WHERE iso_shape_code IS NOT NULL)    AS iso
+    FROM shared.catalog_entries
+  `)
+  console.log('Dopo:', after[0])
+  console.log(`Aggiornate ${updated} righe`)
+  await pool.end()
+}
+
+main().catch(err => { console.error(err); process.exit(1) })
+```
+
+- [ ] **Step 3: Dry-run (solo conteggi, senza modifiche al DB)**
+
+```bash
+node -e "
+const komet = JSON.parse(require('fs').readFileSync('docs/diagnostics/komet-enrichment-data.json', 'utf8'))
+const pdf   = JSON.parse(require('fs').readFileSync('docs/diagnostics/catalog-pdf-extract.json',   'utf8'))
+const codes = new Set([...Object.keys(komet), ...Object.keys(pdf)])
+let ring = 0, wl = 0, iso = 0
+for (const c of codes) {
+  const k = komet[c] || {}
+  const p = pdf[c]   || {}
+  if (k.ring_color) ring++
+  if (k.working_length_mm || p.working_length_mm) wl++
+  if (p.iso_shape_code || k.iso_shape_code) iso++
+}
+console.log('ring_color:', ring, '| working_length_mm:', wl, '| iso_shape_code:', iso, '| totale codici:', codes.size)
+"
+```
+
+Atteso: numeri > 0. Se ring=0, il scraper non ha trovato ring colors → rivedere Task 9.
+
+- [ ] **Step 4: Applica in produzione via SSH tunnel**
+
+```bash
+ssh -i /tmp/archibald_vps -L 5433:localhost:5432 -N deploy@91.98.136.198 &
+TUNNEL_PID=$!
+sleep 2
+PG_HOST=localhost PG_PORT=5433 PG_DATABASE=archibald PG_USER=archibald \
+  PG_PASSWORD=$(grep ^PG_PASSWORD archibald-web-app/backend/.env | cut -d= -f2) \
+  node archibald-web-app/backend/scripts/merge-catalog-enrichment.mjs
+kill $TUNNEL_PID
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add archibald-web-app/backend/scripts/merge-catalog-enrichment.mjs
+git commit -m "feat(catalog): script merge + backfill ring_color/working_length_mm/iso_shape_code"
+```
+
+---
+
+## Task 12: Blocco D — Update CatalogSearcher + Deploy Finale
+
+**Files:**
+- Modify: `archibald-web-app/backend/src/recognition/catalog-searcher.ts`
+
+Aggiunge `ring_color` come filtro opzionale per strumenti `blade_count` allo Step 1 della pipeline SQL (rimosso nei fallback progressivi).
+
+- [ ] **Step 1: Leggi CatalogSearcher per capire la struttura**
+
+```bash
+cat archibald-web-app/backend/src/recognition/catalog-searcher.ts | head -120
+```
+
+Identifica:
+- I parametri del descriptor in input (specialmente `gritIndicatorType`, `gritIndicatorColor`)
+- Come è strutturata la clausola `WHERE grit_options ...` per `blade_count`
+- Come vengono costruiti `params` e i placeholder `$N`
+
+- [ ] **Step 2: Scrivi il test per il nuovo filtro ring_color**
+
+In `archibald-web-app/backend/src/recognition/catalog-searcher.spec.ts`, aggiungi un nuovo `describe`:
+
+```typescript
+describe('CatalogSearcher — ring_color filter per blade_count', () => {
+  it('include ring_color nella SQL quando gritType=blade_count e gritColor fornito', () => {
+    const sql = searcher.buildSearchSql({
+      shankGroup:         'CA_HP',
+      headDiameterMm:     1.4,
+      shapeClass:         'cono_tondo',
+      gritIndicatorType:  'blade_count',
+      gritIndicatorColor: 'red',
+    })
+    expect(sql).toContain('ring_color')
+  })
+
+  it('non include ring_color nella SQL quando gritColor è null', () => {
+    const sql = searcher.buildSearchSql({
+      shankGroup:         'CA_HP',
+      headDiameterMm:     1.4,
+      shapeClass:         'cono_tondo',
+      gritIndicatorType:  'blade_count',
+      gritIndicatorColor: null,
+    })
+    expect(sql).not.toContain('ring_color')
+  })
+})
+```
+
+**Nota**: se `buildSearchSql` non è esposto come metodo pubblico, estrai la logica in una funzione pura `buildSearchParams(descriptor)` testabile senza DB (regola C-9: è la sola via per testare questa logica senza integration test DB).
+
+- [ ] **Step 3: Esegui il test — atteso FAIL**
+
+```bash
+npm test --prefix archibald-web-app/backend -- catalog-searcher.spec
+```
+
+- [ ] **Step 4: Aggiorna CatalogSearcher**
+
+Nel metodo/funzione di ricerca Step 1 (massima restrittività), dopo la clausola che aggiunge `grit_options @> '[{"grit_indicator_type": "blade_count"}]'::jsonb`:
+
+```typescript
+// Aggiungi solo se il descriptor ha sia blade_count che un colore anello
+if (descriptor.gritIndicatorType === 'blade_count' && descriptor.gritIndicatorColor) {
+  conditions.push(`ring_color = $${params.length + 1}`)
+  params.push(descriptor.gritIndicatorColor)
+}
+```
+
+Il filtro `ring_color` viene rimosso automaticamente nei fallback Step 2-5 (insieme agli altri filtri progressivi) senza modifiche aggiuntive.
+
+- [ ] **Step 5: Esegui i test backend**
+
+```bash
+npm test --prefix archibald-web-app/backend
+```
+
+Atteso: tutti i test passano.
+
+- [ ] **Step 6: Build**
+
+```bash
+npm run build --prefix archibald-web-app/backend
+```
+
+Atteso: 0 errori TypeScript.
+
+- [ ] **Step 7: Commit e push → deploy**
+
+```bash
+git add archibald-web-app/backend/src/recognition/catalog-searcher.ts
+git commit -m "feat(recognition): CatalogSearcher filtra per ring_color su strumenti blade_count"
+git push origin master
+```
+
+Attendi ~3 minuti. Verifica i log:
+
+```bash
+ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+   logs --tail 30 backend" | grep -i "recognition\|catalog\|error"
+```
+
+- [ ] **Step 8: Verifica finale DB**
+
+```bash
+ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml \
+   exec -T postgres psql -U archibald -d archibald -c \
+   \"SELECT
+       COUNT(*) FILTER (WHERE ring_color IS NOT NULL)        AS ring_color_filled,
+       COUNT(*) FILTER (WHERE working_length_mm IS NOT NULL) AS wl_filled,
+       COUNT(*) FILTER (WHERE iso_shape_code IS NOT NULL)    AS iso_filled,
+       COUNT(*)                                               AS total
+     FROM shared.catalog_entries;\""
+```
+
+Atteso: tutti e tre i campi > 0. Il sistema è completamente in produzione.
