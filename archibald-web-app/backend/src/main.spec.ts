@@ -403,9 +403,8 @@ describe('bootstrap', () => {
       'catalog-ingestion',
       'catalog-product-enrichment',
       'web-product-enrichment',
-      'build-visual-index',
     ]));
-    expect(handlerKeys).toHaveLength(27);
+    expect(handlerKeys).toHaveLength(26);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
