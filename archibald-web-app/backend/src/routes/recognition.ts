@@ -43,8 +43,11 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
     rateLimitMap.set(userId, recent)
     if (recent.length === 1) {
       setTimeout(() => {
+        const fireTime = Date.now()
         const ts = rateLimitMap.get(userId)
-        if (ts && !ts.some(t => t > now)) rateLimitMap.delete(userId)
+        if (ts && !ts.some(t => fireTime - t < RATE_LIMIT_WINDOW_MS)) {
+          rateLimitMap.delete(userId)
+        }
       }, RATE_LIMIT_WINDOW_MS)
     }
     return recent.length > RATE_LIMIT_MAX
@@ -105,8 +108,13 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
     const userId = req.user!.userId
     if (!confirmedByUser) { res.json({ queued: false }); return }
     if (deps.queue) {
-      await deps.queue.enqueue('recognition-feedback', userId, { imageHash, productId, userId })
-      res.json({ queued: true })
+      try {
+        await deps.queue.enqueue('recognition-feedback', userId, { imageHash, productId })
+        res.json({ queued: true })
+      } catch (error) {
+        logger.error('[recognition] feedback enqueue failed', { error })
+        res.status(500).json({ error: 'Internal server error' })
+      }
     } else {
       res.json({ queued: false })
     }
