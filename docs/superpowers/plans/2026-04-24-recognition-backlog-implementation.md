@@ -51,6 +51,23 @@
 **Files:**
 - Modify: `archibald-web-app/frontend/package.json`
 
+- [ ] **Step 0: Checkout sul branch corretto**
+
+Tutto il lavoro dei Task 1–6 avviene su `feature/recognition-redesign` (il backend è già completo lì).
+Task 7 fa il merge di quel branch su master. Task 8–12 seguono dopo il merge su master.
+
+```bash
+git checkout feature/recognition-redesign
+```
+
+Verifica:
+
+```bash
+git log --oneline -3
+```
+
+Atteso: gli ultimi commit del backend recognition redesign (es. `fix(recognition): priority DESC thumbnail...`).
+
 - [ ] **Step 1: Installa js-aruco2**
 
 ```bash
