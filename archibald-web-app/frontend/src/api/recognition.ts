@@ -3,15 +3,24 @@ import { fetchWithRetry } from '../utils/fetch-with-retry'
 
 export type ThrottleLevel = 'normal' | 'warning' | 'limited'
 
+export type MeasurementSummary = {
+  shankGroup:        string | null
+  headDiameterMm:    number | null
+  shapeClass:        string | null
+  measurementSource: 'aruco' | 'shank_iso' | 'none'
+}
+
 export type ProductMatch = {
-  productId:    string
-  productName:  string
-  familyCode:   string
-  headSizeMm:   number
-  shankType:    string
-  thumbnailUrl: string | null
-  confidence:   number
-  catalogPage?: number | null
+  familyCode:        string
+  productName:       string
+  shankType:         string
+  headDiameterMm:    number | null
+  headLengthMm:      number | null
+  shapeClass:        string | null
+  confidence:        number
+  thumbnailUrl:      string | null
+  discontinued:      boolean
+  measurementSource: 'aruco' | 'shank_iso' | 'none'
 }
 
 export type CandidateMatch = {
@@ -21,24 +30,24 @@ export type CandidateMatch = {
 }
 
 export type RecognitionResult =
-  | { state: 'match';            product: ProductMatch; confidence: number }
-  | { state: 'shortlist_visual'; candidates: CandidateMatch[] }
-  | { state: 'photo2_request';   candidates: string[]; instruction: string }
-  | { state: 'not_found' }
-  | { state: 'budget_exhausted' }
-  | { state: 'error';            message: string }
+  | { type: 'match';            data: ProductMatch }
+  | { type: 'shortlist_visual'; data: { candidates: CandidateMatch[] } }
+  | { type: 'not_found';        data: { measurements: MeasurementSummary } }
+  | { type: 'budget_exhausted' }
+  | { type: 'error';            data: { message: string } }
 
 export type BudgetState = {
   usedToday:     number
   dailyLimit:    number
   throttleLevel: ThrottleLevel
+  resetAt?:      string
 }
 
 export type IdentifyResponse = {
   result:       RecognitionResult
   budgetState:  BudgetState
   processingMs: number
-  imageHash:    string        // SHA-256 del frame, calcolato lato server
+  imageHash:    string
 }
 
 export type ProductGalleryImage = {
@@ -78,14 +87,10 @@ export type ProductEnrichment = {
   }> | null
 }
 
-/**
- * identifyInstrument: usa raw fetch con AbortController 90s.
- * NON usa fetchWithRetry — ogni tentativo consuma budget Vision API.
- * Second photo detection is server-side via images.length === 2.
- */
 export async function identifyInstrument(
-  token:  string,
-  images: string[],
+  token:         string,
+  images:        string[],
+  arucoPxPerMm?: number,
 ): Promise<IdentifyResponse> {
   const controller = new AbortController()
   const timeoutId  = setTimeout(() => controller.abort(), 90_000)
@@ -96,7 +101,10 @@ export async function identifyInstrument(
         Authorization:  `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body:   JSON.stringify({ images }),
+      body: JSON.stringify({
+        images,
+        ...(arucoPxPerMm != null && { aruco_px_per_mm: arucoPxPerMm }),
+      }),
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
