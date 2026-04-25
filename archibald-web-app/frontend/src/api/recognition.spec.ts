@@ -16,7 +16,14 @@ describe('identifyInstrument', () => {
 
   it('posts image to /api/recognition/identify with Authorization header and correct body', async () => {
     const mockResponse: IdentifyResponse = {
-      result: { state: 'not_found' },
+      result: {
+        type: 'not_found',
+        data: {
+          measurements: {
+            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none',
+          },
+        },
+      },
       budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
       processingMs: 123,
       imageHash: 'abc123hash',

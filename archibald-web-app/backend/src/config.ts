@@ -108,8 +108,6 @@ export const config = {
   },
   recognition: {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-    jinaApiKey:      process.env.JINA_API_KEY || '',
-    minSimilarity:   parseFloat(process.env.RECOGNITION_MIN_SIMILARITY || '0.20'),
     dailyLimit:      parseInt(process.env.RECOGNITION_DAILY_LIMIT || '500', 10),
     timeoutMs:       parseInt(process.env.RECOGNITION_TIMEOUT_MS || '90000', 10),
     catalogPdfPath:  process.env.CATALOG_PDF_PATH || '/app/catalog/komet-catalog-2025.pdf',

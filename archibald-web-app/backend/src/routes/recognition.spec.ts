@@ -1,101 +1,98 @@
-import { describe, expect, test, vi } from 'vitest';
-import request from 'supertest';
-import express from 'express';
-import { createRecognitionRouter } from './recognition';
-import type { CatalogVisionService } from '../recognition/recognition-engine';
-import type { DbPool } from '../db/pool';
-
-vi.mock('../db/repositories/catalog-family-images', () => ({
-  queryTopK:           vi.fn().mockResolvedValue([]),
-  getFallbackFamilies: vi.fn().mockResolvedValue([]),
-}))
+import { describe, expect, test, vi } from 'vitest'
+import request from 'supertest'
+import express from 'express'
+import Anthropic from '@anthropic-ai/sdk'
+import { createRecognitionRouter } from './recognition'
+import type { DbPool } from '../db/pool'
 
 vi.mock('../recognition/recognition-engine', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../recognition/recognition-engine')>()
   return {
     ...actual,
     runRecognitionPipeline: vi.fn().mockResolvedValue({
-      result: { state: 'budget_exhausted' },
-      budgetState: { dailyLimit: 500, usedToday: 0, throttleLevel: 'normal', resetAt: new Date() },
+      result:       { type: 'budget_exhausted' },
+      budgetState:  { dailyLimit: 500, usedToday: 0, throttleLevel: 'normal', resetAt: new Date() },
       processingMs: 10,
-      imageHash: 'a'.repeat(64),
+      imageHash:    'a'.repeat(64),
     }),
   }
 })
 
-function makeApp(catalogVisionService: CatalogVisionService, pool: DbPool) {
-  const embeddingSvc = { embedImage: vi.fn().mockResolvedValue(Array(2048).fill(0.1)) }
-  const app = express();
-  app.use(express.json({ limit: '10mb' }));
-  app.use((req: any, _res, next) => {
-    req.user = { userId: 'test-user', role: 'agent', username: 'test' };
-    next();
-  });
-  app.use('/api/recognition', createRecognitionRouter({
-    pool, catalogVisionService, embeddingSvc, minSimilarity: 0.20,
-    dailyLimit: 500, timeoutMs: 15000,
-  }));
-  return app;
-}
-
-function makeVisionStub(): CatalogVisionService {
-  return { identifyFromImage: vi.fn() };
-}
-
-// 1x1 JPEG base64 (minimo valido)
 const TINY_IMAGE = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoH'
   + 'BwYIDAoMCwsKCwsNCxAQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/wAARC'
   + 'AABAAEDASIA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAA'
-  + 'AAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9k=';
+  + 'AAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9k='
+
+function makeApp(pool: DbPool) {
+  const app = express()
+  app.use(express.json({ limit: '10mb' }))
+  app.use((req: any, _res, next) => {
+    req.user = { userId: 'test-user', role: 'agent', username: 'test' }
+    next()
+  })
+  app.use('/api/recognition', createRecognitionRouter({
+    pool,
+    anthropic:  new Anthropic({ apiKey: 'test-key' }),
+    dailyLimit: 500,
+    timeoutMs:  15000,
+  }))
+  return app
+}
+
+const EMPTY_POOL: DbPool = {
+  query: vi.fn().mockResolvedValue({ rows: [] }),
+} as unknown as DbPool
 
 describe('POST /api/recognition/identify', () => {
-  test('returns budget_exhausted when budget row is missing', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })   // getCached (cache miss)
-        .mockResolvedValueOnce({ rows: [] })   // resetBudgetIfExpired
-        .mockResolvedValueOnce({ rows: [] }),  // getBudgetRow (missing → budget_exhausted)
-    } as unknown as DbPool;
-    const app = makeApp(makeVisionStub(), pool);
-
+  test('returns 400 when image field missing', async () => {
+    const app = makeApp(EMPTY_POOL)
     const res = await request(app)
       .post('/api/recognition/identify')
-      .send({ image: TINY_IMAGE });
+      .send({})
+    expect(res.status).toBe(400)
+  })
 
-    expect(res.status).toBe(200);
-    expect(res.body.result.state).toBe('budget_exhausted');
-    expect(res.body.imageHash).toBeDefined();
-  });
+  test('returns result with imageHash when image provided', async () => {
+    const app = makeApp(EMPTY_POOL)
+    const res = await request(app)
+      .post('/api/recognition/identify')
+      .send({ image: TINY_IMAGE })
+    expect(res.status).toBe(200)
+    expect(res.body.imageHash).toBe('a'.repeat(64))
+    expect(res.body.result.type).toBe('budget_exhausted')
+  })
 
-  test('returns 429 when rate limit exceeded', async () => {
-    const pool = { query: vi.fn() } as unknown as DbPool;
-    const app = makeApp(makeVisionStub(), pool);
-    for (let i = 0; i < 10; i++) {
-      await request(app).post('/api/recognition/identify').send({ image: TINY_IMAGE });
-    }
-    const res = await request(app).post('/api/recognition/identify').send({ image: TINY_IMAGE });
-    expect(res.status).toBe(429);
-  });
+  test('accetta aruco_px_per_mm opzionale', async () => {
+    const { runRecognitionPipeline } =
+      await import('../recognition/recognition-engine') as any
+    const app = makeApp(EMPTY_POOL)
+    await request(app)
+      .post('/api/recognition/identify')
+      .send({ image: TINY_IMAGE, aruco_px_per_mm: 6.2 })
+    expect(runRecognitionPipeline).toHaveBeenCalledWith(
+      expect.anything(),
+      TINY_IMAGE,
+      'test-user',
+      'agent',
+      6.2,
+      expect.anything(),
+    )
+  })
 
-  test('returns 400 when image is missing', async () => {
-    const pool = { query: vi.fn() } as unknown as DbPool;
-    const app = makeApp(makeVisionStub(), pool);
-    const res = await request(app).post('/api/recognition/identify').send({});
-    expect(res.status).toBe(400);
-  });
-});
+  test('ritorna 429 dopo 10 richieste rapide', async () => {
+    const app = makeApp(EMPTY_POOL)
+    const send = () => request(app).post('/api/recognition/identify').send({ image: TINY_IMAGE })
+    for (let i = 0; i < 10; i++) await send()
+    const res = await send()
+    expect(res.status).toBe(429)
+  })
+})
 
 describe('GET /api/recognition/budget', () => {
-  test('returns budget state', async () => {
-    const pool = {
-      query: vi.fn()
-        .mockResolvedValueOnce({ rows: [] })  // resetBudgetIfExpired
-        .mockResolvedValueOnce({ rows: [{ id: 1, daily_limit: 500, used_today: 50, throttle_level: 'normal', reset_at: new Date(), updated_at: new Date() }] }),
-    } as unknown as DbPool;
-    const app = makeApp(makeVisionStub(), pool);
-    const res = await request(app).get('/api/recognition/budget');
-    expect(res.status).toBe(200);
-    expect(res.body.dailyLimit).toBe(500);
-    expect(res.body.usedToday).toBe(50);
-  });
-});
+  test('restituisce dailyLimit quando non c\'è budget row', async () => {
+    const app = makeApp(EMPTY_POOL)
+    const res = await request(app).get('/api/recognition/budget')
+    expect(res.status).toBe(200)
+    expect(res.body.dailyLimit).toBe(500)
+  })
+})

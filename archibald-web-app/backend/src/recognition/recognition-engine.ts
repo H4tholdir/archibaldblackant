@@ -1,21 +1,27 @@
 import { createHash } from 'crypto'
-import { readFile } from 'node:fs/promises'
+import Anthropic from '@anthropic-ai/sdk'
 import type { DbPool } from '../db/pool'
-import type { RecognitionResult, BudgetState, CandidateWithImages, CandidateMatch } from './types'
-import type { VisualEmbeddingService } from './visual-embedding-service'
+import type {
+  RecognitionResult, BudgetState, CatalogCandidate,
+  InstrumentDescriptor, MeasurementSummary, VisualConfirmation,
+} from './types'
+import { describeInstrument as defaultDescribe, describeInstrumentWithUsage, computePxPerMm } from './instrument-descriptor'
+import { buildSearchParams, searchCatalog as defaultSearch } from './catalog-searcher'
+import { confirmWithOpus as defaultConfirm, confirmWithOpusWithUsage } from './visual-confirmer'
 import { checkBudget, consumeBudget } from './budget-service'
 import { getCached, setCached } from '../db/repositories/recognition-cache'
 import { appendRecognitionLog } from '../db/repositories/recognition-log'
-import { queryTopK, getFallbackFamilies, getBestRowsByFamilyCodes } from '../db/repositories/catalog-family-images'
-import { cropSingleFamily } from './campionario-strip-cropper'
 import { logger } from '../logger'
 
-export type CatalogVisionService = {
-  identifyFromImage(
-    photos:     string[],
-    candidates: CandidateWithImages[],
-    signal?:    AbortSignal,
-  ): Promise<import('./types').IdentificationResult>
+export type RecognitionEngineDeps = {
+  pool:       DbPool
+  anthropic:  Anthropic
+  dailyLimit: number
+  timeoutMs:  number
+  // Injectable per i test
+  describeInstrument?: (client: Anthropic, img: string, pxMm: number | null, signal?: AbortSignal) => Promise<InstrumentDescriptor>
+  searchCatalog?:      (pool: DbPool, params: ReturnType<typeof buildSearchParams>) => Promise<CatalogCandidate[]>
+  confirmWithOpus?:    (client: Anthropic, img: string, candidates: CatalogCandidate[], signal?: AbortSignal) => Promise<VisualConfirmation>
 }
 
 type EngineResult = {
@@ -25,269 +31,229 @@ type EngineResult = {
   imageHash:    string
 }
 
-type EngineDeps = {
-  pool:                 DbPool
-  catalogVisionService: CatalogVisionService
-  embeddingSvc:         VisualEmbeddingService
-  minSimilarity:        number
-}
-
-const FALLBACK_INSTRUCTION = "Scatta un'altra angolazione dello strumento, preferibilmente dall'alto o di profilo"
-
 export async function runRecognitionPipeline(
-  deps:   EngineDeps,
-  images: string[],
-  userId: string,
-  role:   string,
-  signal?: AbortSignal,
+  deps:        RecognitionEngineDeps,
+  imageBase64: string,
+  userId:      string,
+  role:        string,
+  arucoMm:     number | null,
+  signal?:     AbortSignal,
 ): Promise<EngineResult> {
-  const startMs       = Date.now()
-  const isSecondPhoto = images.length === 2
+  const startMs   = Date.now()
+  const imageHash = createHash('sha256').update(Buffer.from(imageBase64, 'base64')).digest('hex')
 
-  const imageHash = createHash('sha256')
-    .update(Buffer.concat(images.map(img => Buffer.from(img, 'base64'))))
-    .digest('hex')
-
-  const cached = await getCached(deps.pool, imageHash)
-  if (cached) {
-    const { budgetState } = await checkBudget(deps.pool, userId, role)
-    const cachedResult = cached.result_json as RecognitionResult
-    if (cachedResult.state === 'shortlist_visual') {
-      await fillReferenceImages(cachedResult.candidates, deps.pool)
-    }
-    return { result: cachedResult, budgetState, processingMs: Date.now() - startMs, imageHash }
-  }
-
-  const { allowed, budgetState } = await checkBudget(deps.pool, userId, role)
-  if (!allowed) {
-    return { result: { state: 'budget_exhausted' }, budgetState, processingMs: Date.now() - startMs, imageHash }
-  }
-
-  // Stage 1: ANN retrieval — returns null on early exit (similarity below threshold)
-  const retrieval = await retrieveTop10Candidates(deps, images[0]!)
-  if (!retrieval) {
-    const result: RecognitionResult = { state: 'not_found' }
-    await setCached(deps.pool, imageHash, result, Buffer.from(images[0]!, 'base64'))
-    await appendRecognitionLog(deps.pool, {
-      user_id: userId, image_hash: imageHash, cache_hit: false,
-      product_id: null, confidence: null, result_state: 'not_found',
-      tokens_used: 0, api_cost_usd: null,
-    }).catch(() => {})
-    return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
-  }
-
-  let identification: import('./types').IdentificationResult
-  try {
-    identification = await deps.catalogVisionService.identifyFromImage(images, retrieval.candidates, signal)
-  } catch (err) {
-    logger.warn('[recognition-engine] Vision API error', { error: err instanceof Error ? err.message : String(err) })
-    return { result: { state: 'error', message: 'Servizio di riconoscimento temporaneamente non disponibile' }, budgetState, processingMs: Date.now() - startMs, imageHash }
-  }
-
-  // Stage 2: confidence-based routing
-  let result: RecognitionResult
-
-  if (identification.resultState === 'match' && identification.confidence >= 0.85) {
-    const familyCode = identification.familyCode ?? ''
-    const valid      = familyCode.length > 0 && await validateFamilyExists(deps.pool, familyCode)
-    if (!valid) {
-      logger.warn('[recognition-engine] Family code not in catalog — downgrading to not_found', { familyCode })
-      result = { state: 'not_found' }
-    } else {
-      const productCode  = identification.productCode ?? ''
-      const discontinued = !(await isProductAvailable(deps.pool, productCode))
-      result = {
-        state: 'match',
-        product: {
-          productId: productCode, productName: productCode,
-          familyCode, headSizeMm: 0, shankType: '', thumbnailUrl: null,
-          confidence: identification.confidence,
-          discontinued: discontinued || undefined,
-        },
-        confidence: identification.confidence,
-      }
-    }
-  } else if (identification.candidates.length === 0) {
-    // Claude returned no candidates — instrument not in catalog
-    result = { state: 'not_found' }
-  } else if (!isSecondPhoto) {
-    result = {
-      state:       'photo2_request',
-      candidates:  identification.candidates,
-      instruction: identification.photo_request ?? FALLBACK_INSTRUCTION,
-    }
-  } else {
-    // Second photo, still uncertain — show visual shortlist using top10 reference images
-    const candidateFamilyCodes = new Set(identification.candidates.map(c => c.split('.')[0] ?? c))
-    const shortlistCandidates: CandidateMatch[] = retrieval.candidates
-      .filter(c => candidateFamilyCodes.has(c.familyCode))
-      .map(c => ({
-        familyCode:      c.familyCode,
-        thumbnailUrl:    c.referenceImages[0] ?? null,
-        referenceImages: c.referenceImages,
-      }))
-    result = { state: 'shortlist_visual', candidates: shortlistCandidates }
-  }
-
-  // Strip base64 blobs before caching — shortlist_visual candidates carry ~30-80 KB each
-  const cacheableResult: RecognitionResult =
-    result.state === 'shortlist_visual'
-      ? { state: 'shortlist_visual', candidates: result.candidates.map(c => ({ ...c, referenceImages: [], thumbnailUrl: null })) }
-      : result
-  await setCached(deps.pool, imageHash, cacheableResult, Buffer.from(images[0]!, 'base64'))
-  await consumeBudget(deps.pool)
-
-  const resultState: string = result.state
-  const logState: 'match' | 'shortlist' | 'not_found' | 'error' =
-    resultState === 'match' || resultState === 'not_found' || resultState === 'error'
-      ? resultState
-      : 'shortlist'
-
-  await appendRecognitionLog(deps.pool, {
-    user_id: userId, image_hash: imageHash, cache_hit: false,
-    product_id: result.state === 'match' ? result.product.productId : null,
-    confidence: result.state === 'match' ? result.confidence : null,
-    result_state: logState,
-    tokens_used: identification.usage.inputTokens + identification.usage.outputTokens,
-    api_cost_usd: null,
-  }).catch(() => {})
-
-  return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
-}
-
-type RetrievalResult = { candidates: CandidateWithImages[] } | null
-
-/** Returns null when top ANN similarity is below minSimilarity (early exit — not in catalog). */
-async function retrieveTop10Candidates(
-  deps:       EngineDeps,
-  firstPhoto: string,
-): Promise<RetrievalResult> {
-  let top50rows: Awaited<ReturnType<typeof queryTopK>>
+  // Segnale composito: timeout + eventuale signal dal client
+  const timeoutController = new AbortController()
+  const timeoutId = setTimeout(() => timeoutController.abort(), deps.timeoutMs)
+  const signals: AbortSignal[] = [timeoutController.signal]
+  if (signal) signals.push(signal)
+  const combinedSignal = AbortSignal.any(signals)
+  const cleanup = () => clearTimeout(timeoutId)
 
   try {
-    const queryEmbedding = await deps.embeddingSvc.embedImage(firstPhoto, 'retrieval.query')
-    top50rows = await queryTopK(deps.pool, queryEmbedding, 50)
-  } catch (err) {
-    logger.warn('[recognition-engine] ANN query failed — using fallback families', { err })
-    const familyCodes = await getFallbackFamilies(deps.pool, 10)
-    const candidates  = familyCodes.map(fc => ({ familyCode: fc, description: fc, referenceImages: [] }))
-    return { candidates }
-  }
-
-  // Early exit: nothing visually similar in index
-  const topSimilarity = top50rows[0]?.similarity ?? 0
-  if (topSimilarity < deps.minSimilarity) {
-    logger.info('[recognition-engine] Early exit — below similarity threshold', { topSimilarity, threshold: deps.minSimilarity })
-    return null
-  }
-
-  // Dedup: best similarity per family → top-10
-  const bestByFamily = new Map<string, (typeof top50rows)[0]>()
-  for (const row of top50rows) {
-    const existing = bestByFamily.get(row.family_code)
-    if (!existing || row.similarity > existing.similarity) {
-      bestByFamily.set(row.family_code, row)
-    }
-  }
-
-  const top10rows = [...bestByFamily.entries()]
-    .sort((a, b) => b[1].similarity - a[1].similarity)
-    .slice(0, 10)
-
-  logger.info('[recognition-engine] ANN top-10', {
-    topSimilarity,
-    top10: top10rows.map(([fc, row]) => ({ family: fc, sim: row.similarity.toFixed(4), src: row.source_type })),
-  })
-
-  // Fetch best-priority rows for all families in one batch query (fallback when ANN row file is missing)
-  const familyCodes = top10rows.map(([fc]) => fc)
-  const priorityRows = await getBestRowsByFamilyCodes(deps.pool, familyCodes)
-  const priorityByFamily = new Map(priorityRows.map(r => [r.family_code, r]))
-
-  const candidates = await Promise.all(
-    top10rows.map(async ([familyCode, annRow]) => {
-      const referenceImages: string[] = []
-
-      // Try rows in order: ANN-selected first, then best-priority fallback
-      const rowsToTry = [annRow, priorityByFamily.get(familyCode)].filter(Boolean) as typeof top50rows
-
-      for (const row of rowsToTry) {
-        try {
-          let imgBuffer: Buffer
-          if (row.source_type === 'campionario' && row.metadata) {
-            const meta = row.metadata as { strip_family_index: number; strip_family_count: number }
-            imgBuffer = await cropSingleFamily(row.local_path, meta.strip_family_index, meta.strip_family_count)
-          } else {
-            imgBuffer = await readFile(row.local_path)
-          }
-          referenceImages.push(imgBuffer.toString('base64'))
-          break  // Got an image — stop trying
-        } catch {
-          // File missing — try next row
+    // Fix #4 — cache guard: scarta cache con formato vecchio (state instead of type)
+    const cached = await getCached(deps.pool, imageHash)
+    if (cached) {
+      const resultJson = cached.result_json as { type?: string }
+      if (resultJson.type) {
+        const { budgetState } = await checkBudget(deps.pool, userId, role)
+        const cachedType = resultJson.type
+        const cachedState: 'match' | 'shortlist' | 'not_found' | 'error' =
+          cachedType === 'match'            ? 'match' :
+          cachedType === 'shortlist_visual' ? 'shortlist' :
+          cachedType === 'not_found'        ? 'not_found' :
+          'error'
+        await appendRecognitionLog(deps.pool, {
+          user_id:      userId,
+          image_hash:   imageHash,
+          cache_hit:    true,
+          product_id:   null,
+          confidence:   null,
+          result_state: cachedState,
+          tokens_used:  null,
+          api_cost_usd: null,
+        }).catch(() => {})
+        return {
+          result:       cached.result_json as RecognitionResult,
+          budgetState,
+          processingMs: Date.now() - startMs,
+          imageHash,
         }
       }
-
-      if (referenceImages.length === 0) {
-        logger.warn('[recognition-engine] No reference image available', { familyCode })
-      }
-
-      return { familyCode, description: familyCode, referenceImages }
-    }),
-  )
-
-  return { candidates }
-}
-
-async function validateFamilyExists(pool: DbPool, familyCode: string): Promise<boolean> {
-  try {
-    const { rows } = await pool.query<{ exists: number }>(
-      `SELECT 1 AS exists FROM shared.catalog_entries WHERE $1::text = ANY(family_codes) LIMIT 1`,
-      [familyCode],
-    )
-    return rows.length > 0
-  } catch {
-    // Fail-closed: DB unavailable → treat as not found to avoid caching hallucinated codes
-    return false
-  }
-}
-
-/**
- * Returns true if the product exists in shared.products and is not retired (deleted_at IS NULL).
- * Fail-open: returns true on DB error so we don't falsely mark products as discontinued.
- */
-async function isProductAvailable(pool: DbPool, productId: string): Promise<boolean> {
-  if (!productId) return false
-  try {
-    const { rows } = await pool.query<{ id: string }>(
-      `SELECT 1 FROM shared.products WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [productId],
-    )
-    return rows.length > 0
-  } catch {
-    return true
-  }
-}
-
-/** Re-populates referenceImages for shortlist_visual candidates retrieved from cache. */
-async function fillReferenceImages(candidates: CandidateMatch[], pool: DbPool): Promise<void> {
-  const rows = await getBestRowsByFamilyCodes(pool, candidates.map(c => c.familyCode))
-  const byFamily = new Map(rows.map(r => [r.family_code, r]))
-  await Promise.all(candidates.map(async candidate => {
-    const row = byFamily.get(candidate.familyCode)
-    if (!row) return
-    try {
-      let buf: Buffer
-      if (row.source_type === 'campionario' && row.metadata) {
-        const meta = row.metadata as { strip_family_index: number; strip_family_count: number }
-        buf = await cropSingleFamily(row.local_path, meta.strip_family_index, meta.strip_family_count)
-      } else {
-        buf = await readFile(row.local_path)
-      }
-      const b64 = buf.toString('base64')
-      candidate.referenceImages = [b64]
-      candidate.thumbnailUrl    = b64
-    } catch {
-      // image unavailable — leave referenceImages empty
+      // Cache con formato vecchio → tratta come cache miss
     }
-  }))
+
+    const { allowed, budgetState } = await checkBudget(deps.pool, userId, role)
+    if (!allowed) {
+      return { result: { type: 'budget_exhausted' }, budgetState, processingMs: Date.now() - startMs, imageHash }
+    }
+
+    // Fix #7 — token tracking: usa WithUsage per le implementazioni di default
+    let haikuTokens = 0
+    let opusTokens  = 0
+
+    const search = deps.searchCatalog ?? defaultSearch
+
+    let descriptor: InstrumentDescriptor
+    try {
+      if (deps.describeInstrument) {
+        descriptor = await deps.describeInstrument(deps.anthropic, imageBase64, arucoMm, combinedSignal)
+      } else {
+        const r = await describeInstrumentWithUsage(deps.anthropic, imageBase64, arucoMm, combinedSignal)
+        descriptor = r.descriptor
+        haikuTokens = r.inputTokens + r.outputTokens
+      }
+    } catch (err) {
+      // Fix #3 — consumaBudget anche su errori API (Haiku)
+      await consumeBudget(deps.pool).catch(() => {})
+      logger.warn('[recognition-engine] InstrumentDescriptor failed', { err })
+      return {
+        result:       { type: 'error', data: { message: 'Servizio di riconoscimento temporaneamente non disponibile' } },
+        budgetState,
+        processingMs: Date.now() - startMs,
+        imageHash,
+      }
+    }
+
+    // Fix #1 — abort check (include timeout via combinedSignal)
+    if (combinedSignal.aborted) {
+      return {
+        result:       { type: 'error', data: { message: 'Richiesta annullata' } },
+        budgetState,
+        processingMs: Date.now() - startMs,
+        imageHash,
+      }
+    }
+
+    const pxPerMm           = computePxPerMm(descriptor, arucoMm)
+    const measurementSource: 'aruco' | 'shank_iso' | 'none' =
+      arucoMm != null ? 'aruco' :
+      pxPerMm != null ? 'shank_iso' :
+      'none'
+    const searchParams      = buildSearchParams(descriptor, pxPerMm)
+
+    const candidates = await search(deps.pool, searchParams)
+
+    if (candidates.length === 0) {
+      const headMm = pxPerMm != null && descriptor.head.diameter_px > 0
+        ? descriptor.head.diameter_px / pxPerMm
+        : null
+      const measurements: MeasurementSummary = {
+        shankGroup:        descriptor.shank.diameter_group,
+        headDiameterMm:    headMm,
+        shapeClass:        descriptor.shape_class,
+        measurementSource,
+      }
+      const result: RecognitionResult = { type: 'not_found', data: { measurements } }
+      await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
+      await logResult(deps.pool, userId, imageHash, 'not_found', null, null, haikuTokens)
+      await consumeBudget(deps.pool)
+      return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+    }
+
+    if (combinedSignal.aborted) {
+      return {
+        result:       { type: 'error', data: { message: 'Richiesta annullata' } },
+        budgetState,
+        processingMs: Date.now() - startMs,
+        imageHash,
+      }
+    }
+
+    let confirmation: VisualConfirmation
+    try {
+      if (deps.confirmWithOpus) {
+        confirmation = await deps.confirmWithOpus(deps.anthropic, imageBase64, candidates, combinedSignal)
+      } else {
+        const r = await confirmWithOpusWithUsage(deps.anthropic, imageBase64, candidates, combinedSignal)
+        confirmation = r.confirmation
+        opusTokens = r.inputTokens + r.outputTokens
+      }
+    } catch (err) {
+      // Fix #3 — consumaBudget anche su errori API (Opus)
+      await consumeBudget(deps.pool).catch(() => {})
+      logger.warn('[recognition-engine] VisualConfirmer failed', { err })
+      return {
+        result:       { type: 'error', data: { message: 'Servizio di riconoscimento temporaneamente non disponibile' } },
+        budgetState,
+        processingMs: Date.now() - startMs,
+        imageHash,
+      }
+    }
+
+    const totalTokens = haikuTokens + opusTokens
+
+    const headMm = pxPerMm != null && descriptor.head.diameter_px > 0
+      ? descriptor.head.diameter_px / pxPerMm
+      : null
+    const headLengthMm = pxPerMm != null && descriptor.head.length_px > 0
+      ? descriptor.head.length_px / pxPerMm
+      : null
+
+    let result: RecognitionResult
+    if (confirmation.confidence >= 0.85 && confirmation.matched_family_code) {
+      const match = candidates.find(c => c.familyCode === confirmation.matched_family_code)
+      result = {
+        type: 'match',
+        data: {
+          familyCode:        confirmation.matched_family_code,
+          productName:       match?.shapeDescription ?? confirmation.matched_family_code,
+          shankType:         descriptor.shank.diameter_group,
+          headDiameterMm:    headMm,
+          headLengthMm,
+          shapeClass:        descriptor.shape_class,
+          confidence:        confirmation.confidence,
+          thumbnailUrl:      match?.thumbnailPath ?? null,
+          discontinued:      false,
+          measurementSource,
+        },
+      }
+    } else {
+      result = {
+        type: 'shortlist_visual',
+        data: {
+          candidates: candidates.map(c => ({
+            familyCode:      c.familyCode,
+            thumbnailUrl:    c.thumbnailPath,
+            referenceImages: [],
+          })),
+        },
+      }
+    }
+
+    await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
+    await logResult(
+      deps.pool, userId, imageHash,
+      result.type === 'match' ? 'match' : 'shortlist',
+      result.type === 'match' ? result.data.familyCode : null,
+      result.type === 'match' ? result.data.confidence : null,
+      totalTokens,
+    )
+    await consumeBudget(deps.pool)
+
+    return { result, budgetState, processingMs: Date.now() - startMs, imageHash }
+  } finally {
+    cleanup()
+  }
+}
+
+async function logResult(
+  pool:       DbPool,
+  userId:     string,
+  imageHash:  string,
+  state:      'match' | 'shortlist' | 'not_found' | 'error',
+  productId:  string | null,
+  confidence: number | null,
+  tokensUsed: number,
+): Promise<void> {
+  await appendRecognitionLog(pool, {
+    user_id:      userId,
+    image_hash:   imageHash,
+    cache_hit:    false,
+    product_id:   productId,
+    confidence,
+    result_state: state,
+    tokens_used:  tokensUsed,
+    api_cost_usd: null,
+  }).catch(() => {})
 }

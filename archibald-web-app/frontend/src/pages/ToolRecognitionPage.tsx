@@ -3,12 +3,12 @@ import { useState, useEffect, useRef, useCallback, type RefCallback } from 'reac
 import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useArucoDetector } from '../hooks/useArucoDetector'
 import {
   identifyInstrument,
   getRecognitionBudget,
   submitRecognitionFeedback,
 } from '../api/recognition'
-import { getProductVariants } from '../api/products'
 import type { IdentifyResponse, BudgetState } from '../api/recognition'
 
 type PageState =
@@ -19,9 +19,10 @@ type PageState =
   | 'preview'
   | 'analyzing'
   | 'analyzing2'
+  | 'aruco_absent'
   | 'match'
   | 'shortlist_visual'
-  | 'photo2_request'
+  | 'not_found'
   | 'budget_exhausted'
 
 function InstrumentGuide() {
@@ -150,6 +151,10 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
+  const [arucoCalibrationPxPerMm, setArucoCalibrationPxPerMm] = useState<number | null>(null)
+
+  const detectAruco = useArucoDetector()
+  const pendingImagesRef = useRef<string[]>([])
 
   // Haptic feedback helper
   const vibrate = useCallback((pattern: number | number[]) => {
@@ -221,46 +226,67 @@ export function ToolRecognitionPage() {
     return canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/\w+;base64,/, '')
   }, [])
 
-  const runIdentification = useCallback(async (images: string[]) => {
+  const callIdentifyApi = useCallback(async (images: string[], arucoPxPerMm?: number) => {
     const token = localStorage.getItem('archibald_jwt')
     if (!token) return
-    setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
-    setAnalyzeStep(0)
-    setUsedPhotoCount(images.length)
-
     try {
       setAnalyzeStep(1)
-      const response = await identifyInstrument(token, images)
+      const response = await identifyInstrument(token, images, arucoPxPerMm)
       setAnalyzeStep(2)
       setIdentifyResult(response)
-
-      const { state } = response.result
-      if (state === 'budget_exhausted') {
+      const { type } = response.result
+      if (type === 'budget_exhausted') {
         setPageState('budget_exhausted')
-      } else if (state === 'match') {
+      } else if (type === 'match') {
         setAnalyzeStep(3)
         vibrate([200, 50, 100])
         playSuccessBeep()
         setPageState('match')
-      } else if (state === 'photo2_request') {
-        vibrate([80, 30, 80])
-        setPageState('photo2_request')
-      } else if (state === 'shortlist_visual') {
+      } else if (type === 'shortlist_visual') {
         vibrate([80, 30, 80])
         setPageState('shortlist_visual')
+      } else if (type === 'not_found') {
+        setPageState('not_found')
       } else {
         setPageState('idle_photo1')
-        if (state === 'not_found') {
-          setErrorMessage('Strumento non riconosciuto. Centra bene la fresa nella guida e riprova.')
-        } else if (state === 'error') {
-          setErrorMessage('Errore di analisi. Riprova.')
-        }
+        setErrorMessage('Errore di analisi. Riprova.')
       }
     } catch {
       setPageState('idle_photo1')
       setErrorMessage('Errore di connessione. Riprova.')
     }
   }, [vibrate, playSuccessBeep])
+
+  const runIdentification = useCallback(async (images: string[]) => {
+    const token = localStorage.getItem('archibald_jwt')
+    if (!token) return
+    setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
+    setAnalyzeStep(0)
+    setUsedPhotoCount(images.length)
+    setArucoCalibrationPxPerMm(null)
+    pendingImagesRef.current = images
+
+    if (images[0]) {
+      const detection = await detectAruco(images[0])
+      if (!detection.detected) {
+        setPageState('aruco_absent')
+        return
+      }
+      if (detection.pxPerMm != null) {
+        setArucoCalibrationPxPerMm(detection.pxPerMm)
+        await callIdentifyApi(images, detection.pxPerMm)
+        return
+      }
+    }
+    await callIdentifyApi(images)
+  }, [detectAruco, callIdentifyApi])
+
+  const handleProceedWithoutAruco = useCallback(() => {
+    const images = pendingImagesRef.current
+    setPageState(images.length === 2 ? 'analyzing2' : 'analyzing')
+    setAnalyzeStep(0)
+    void callIdentifyApi(images)
+  }, [callIdentifyApi])
 
   const handleShutterPhoto1 = useCallback(() => {
     if (pageState !== 'idle_photo1') return
@@ -284,15 +310,6 @@ export function ToolRecognitionPage() {
     await runIdentification(capturedImages)
   }, [capturedImages, runIdentification])
 
-  const handlePhoto2Shutter = useCallback(async () => {
-    if (pageState !== 'photo2_request') return
-    vibrate(30)
-    const base64 = captureFrame()
-    if (!base64) return
-    const allImages = [capturedImages[0] ?? base64, base64]
-    setCapturedImages(allImages)
-    await runIdentification(allImages)
-  }, [captureFrame, capturedImages, pageState, runIdentification, vibrate])
 
   if (pageState === 'permission_denied') {
     return (
@@ -369,6 +386,16 @@ export function ToolRecognitionPage() {
               )
             })}
           </div>
+
+          {arucoCalibrationPxPerMm != null && (
+            <div style={{
+              marginTop: 8, color: '#22c55e', fontSize: 13, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span>✓</span>
+              <span>ARUco {arucoCalibrationPxPerMm.toFixed(1)} px/mm</span>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -402,57 +429,52 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'match' && identifyResult?.result.state === 'match') {
-    const { product, confidence } = identifyResult.result
+  if (pageState === 'match' && identifyResult?.result.type === 'match') {
+    const { data: product } = identifyResult.result
+    const confidence = product.confidence
     const { imageHash } = identifyResult
-    const isDiscontinued = product.discontinued === true
 
     const handleOpenProduct = async () => {
-      if (isDiscontinued) return
+      if (product.discontinued) return
       const token = localStorage.getItem('archibald_jwt')
       if (!token) return
       try {
-        await submitRecognitionFeedback(token, { imageHash, productId: product.productId, confirmedByUser: true })
+        await submitRecognitionFeedback(token, { imageHash, productId: product.familyCode, confirmedByUser: true })
       } catch {
       }
-      navigate(`/products/${encodeURIComponent(product.productId)}`, { state: { fromScanner: true } })
+      navigate(`/products/${encodeURIComponent(product.familyCode)}`, { state: { fromScanner: true } })
     }
 
-    const confidencePct    = Math.round(confidence * 100)
-    const confidenceColor  = confidence >= 0.9 ? '#22c55e' : confidence >= 0.75 ? '#4ade80' : '#f9a825'
-    const accentColor      = isDiscontinued ? '#f97316' : '#22c55e'
-    const accentDim        = isDiscontinued ? '#7c3c14' : '#1a3a1a'
-    const headerBg         = isDiscontinued ? '#1a0e05' : '#0d2b0d'
-    const pageBg           = isDiscontinued ? '#110a04' : '#0a1f0a'
-    const borderColor      = isDiscontinued ? '#3a1f0a' : '#1a3a1a'
+    const confidencePct = Math.round(confidence * 100)
+    const confidenceColor = confidence >= 0.9 ? '#22c55e' : confidence >= 0.75 ? '#4ade80' : '#f9a825'
 
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 200,
-        background: pageBg,
+        background: '#0a1f0a',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{
-          background: headerBg,
+          background: '#0d2b0d',
           padding: '14px 20px',
           display: 'flex', alignItems: 'center', gap: 10,
-          flexShrink: 0, borderBottom: `1px solid ${borderColor}`,
+          flexShrink: 0, borderBottom: '1px solid #1a3a1a',
         }}>
           <div style={{
             width: 26, height: 26, borderRadius: '50%',
-            background: accentColor, color: '#000',
+            background: '#22c55e', color: '#000',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 900, flexShrink: 0,
-          }}>{isDiscontinued ? '!' : '✓'}</div>
-          <span style={{ color: accentColor, fontWeight: 700, fontSize: 15, flex: 1 }}>
-            {isDiscontinued ? 'Articolo fuori produzione' : 'Articolo identificato'}
+          }}>✓</div>
+          <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15, flex: 1 }}>
+            Articolo identificato
           </span>
           {usedPhotoCount > 1 && (
             <span style={{
-              color: accentColor, fontSize: 11, fontWeight: 600,
-              background: `rgba(255,255,255,0.06)`, borderRadius: 6, padding: '3px 8px',
-              border: `1px solid ${accentDim}`, marginRight: 4,
+              color: '#22c55e', fontSize: 11, fontWeight: 600,
+              background: 'rgba(34,197,94,0.12)', borderRadius: 6, padding: '3px 8px',
+              border: '1px solid rgba(34,197,94,0.3)', marginRight: 4,
             }}>
               {usedPhotoCount} foto
             </span>
@@ -477,7 +499,7 @@ export function ToolRecognitionPage() {
                 style={{
                   width: 80, height: 80, borderRadius: 10,
                   objectFit: 'cover', flexShrink: 0,
-                  border: `2px solid ${accentColor}`,
+                  border: '2px solid #22c55e',
                 }}
               />
             )}
@@ -491,36 +513,24 @@ export function ToolRecognitionPage() {
               }}>
                 {product.productName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{
-                  fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
-                }}>
-                  {product.productId}
-                </div>
-                {isDiscontinued && (
-                  <span style={{
-                    background: '#3a1205', color: '#f97316',
-                    borderRadius: 6, padding: '2px 8px',
-                    fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
-                    border: '1px solid #7c3c14',
-                  }}>
-                    Non più in produzione
-                  </span>
-                )}
+              <div style={{
+                fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
+              }}>
+                {product.familyCode}
               </div>
             </div>
           </div>
 
           {/* Info misura */}
-          {product.headSizeMm > 0 && (
+          {(product.headDiameterMm != null && product.headDiameterMm > 0) && (
             <div style={{
               display: 'flex', gap: 8, marginBottom: 28,
             }}>
               {product.shankType && (
                 <span style={{
-                  background: accentDim, color: accentColor,
+                  background: '#1a3a1a', color: '#4ade80',
                   borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
-                  border: `1px solid ${accentDim}`,
+                  border: '1px solid #2d5a2d',
                 }}>
                   {product.shankType.toUpperCase()}
                 </span>
@@ -530,43 +540,32 @@ export function ToolRecognitionPage() {
                 borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600,
                 border: '1px solid #1e3a5f',
               }}>
-                Ø {product.headSizeMm} mm
+                Ø {product.headDiameterMm} mm
               </span>
             </div>
           )}
 
-          {isDiscontinued ? (
-            <div style={{
-              background: '#1a0e05', border: '1px solid #3a1f0a',
-              borderRadius: 12, padding: '16px 20px', marginBottom: 20,
-              color: '#d97706', fontSize: 14, lineHeight: 1.5,
-            }}>
-              Questo articolo è stato identificato nel catalogo Komet ma non è più disponibile per l&apos;acquisto.
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={() => { void handleOpenProduct() }}
-                aria-label="Apri scheda prodotto"
-                style={{
-                  width: '100%', background: '#22c55e', color: '#000',
-                  border: 'none', borderRadius: 12, padding: '16px 0',
-                  fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
-                }}
-              >
-                Apri scheda prodotto →
-              </button>
-              <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
-                Il tap conferma il riconoscimento e salva la foto in gallery
-              </div>
-            </>
-          )}
+          <button
+            onClick={() => { void handleOpenProduct() }}
+            aria-label="Apri scheda prodotto"
+            style={{
+              width: '100%', background: '#22c55e', color: '#000',
+              border: 'none', borderRadius: 12, padding: '16px 0',
+              fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
+            }}
+          >
+            Apri scheda prodotto →
+          </button>
+
+          <div style={{ color: '#4ade80', fontSize: 11, textAlign: 'center', marginBottom: 20, opacity: 0.7 }}>
+            Il tap conferma il riconoscimento e salva la foto in gallery
+          </div>
 
           <button
             onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
             style={{
               width: '100%', background: 'transparent',
-              border: `1px solid ${borderColor}`, borderRadius: 12, padding: '12px 0',
+              border: '1px solid #2d4a2d', borderRadius: 12, padding: '12px 0',
               cursor: 'pointer',
             }}
           >
@@ -578,30 +577,8 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'shortlist_visual' && identifyResult?.result.state === 'shortlist_visual') {
-    const { candidates } = identifyResult.result
-    const { imageHash } = identifyResult
-
-    const handleOpenCandidate = async (familyCode: string) => {
-      const token = localStorage.getItem('archibald_jwt')
-      if (token) {
-        try {
-          await submitRecognitionFeedback(token, { imageHash, productId: familyCode, confirmedByUser: true })
-        } catch {
-        }
-        try {
-          const variantsData = await getProductVariants(token, familyCode)
-          const variants = variantsData.data?.variants ?? []
-          const firstVariantId = variants[0]?.productId
-          if (firstVariantId) {
-            navigate(`/products/${encodeURIComponent(firstVariantId)}`, { state: { fromScanner: true } })
-            return
-          }
-        } catch {
-        }
-      }
-      navigate(`/products/${encodeURIComponent(familyCode)}`, { state: { fromScanner: true } })
-    }
+  if (pageState === 'shortlist_visual' && identifyResult?.result.type === 'shortlist_visual') {
+    const { candidates } = identifyResult.result.data
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
@@ -643,7 +620,7 @@ export function ToolRecognitionPage() {
                   Campionario di riferimento
                 </div>
                 <img
-                  src={`data:image/jpeg;base64,${stripUrl}`}
+                  src={stripUrl}
                   alt="Strip campionario Komet"
                   style={{
                     width: '100%', height: 90, objectFit: 'cover',
@@ -660,7 +637,7 @@ export function ToolRecognitionPage() {
             return (
               <button
                 key={c.familyCode}
-                onClick={() => { void handleOpenCandidate(c.familyCode) }}
+                onClick={() => navigate(`/products/${encodeURIComponent(c.familyCode)}`, { state: { fromScanner: true } })}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',
@@ -672,7 +649,7 @@ export function ToolRecognitionPage() {
               >
                 {c.thumbnailUrl ? (
                   <img
-                    src={`data:image/jpeg;base64,${c.thumbnailUrl}`}
+                    src={c.thumbnailUrl}
                     alt="Strip campionario"
                     style={{
                       width: 64, height: 64, objectFit: 'cover',
@@ -712,45 +689,104 @@ export function ToolRecognitionPage() {
     )
   }
 
-  if (pageState === 'photo2_request') {
-    const instruction = identifyResult?.result.state === 'photo2_request'
-      ? identifyResult.result.instruction
-      : null
+  if (pageState === 'aruco_absent') {
+    const storedImages = pendingImagesRef.current
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 200, background: '#0f0f0f',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32,
+      }}>
+        <div style={{ fontSize: 56 }}>📋</div>
+        <h2 style={{ color: '#fff', textAlign: 'center', margin: 0, fontSize: 20 }}>
+          Carta ARUco non rilevata nella foto
+        </h2>
+        <p style={{ color: '#9ca3af', textAlign: 'center', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+          Il marker di calibrazione non è stato trovato.<br/>
+          Scegli come procedere:
+        </p>
+        <button
+          onClick={() => setPageState(storedImages.length === 2 ? 'idle_photo2' : 'idle_photo1')}
+          style={{
+            background: 'transparent', color: '#93c5fd',
+            border: '1px solid #1e40af', borderRadius: 8, padding: '12px 24px',
+            fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 280,
+          }}
+        >
+          ← Riprova con la carta
+        </button>
+        <button
+          onClick={handleProceedWithoutAruco}
+          style={{
+            background: '#2563eb', color: '#fff',
+            border: 'none', borderRadius: 8, padding: '12px 24px',
+            fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 280,
+          }}
+        >
+          Procedi senza carta →
+        </button>
+      </div>
+    )
+  }
+
+  if (pageState === 'not_found' && identifyResult?.result.type === 'not_found') {
+    const { measurements } = identifyResult.result.data
+    const sourceLabel =
+      measurements.measurementSource === 'aruco'     ? 'carta ARUco' :
+      measurements.measurementSource === 'shank_iso'  ? 'gambo ISO'   : 'stima'
 
     return (
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 200,
-        background: '#0f0f0f', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32,
+        position: 'fixed', inset: 0, zIndex: 200, background: '#0f0f0f',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32,
       }}>
-        <div style={{ fontSize: 52 }}>📷</div>
-        <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: 18 }}>
-          Ho bisogno di un&apos;altra foto
-        </div>
-        {instruction && (
+        <div style={{ fontSize: 56 }}>🔍</div>
+        <h2 style={{ color: '#fff', textAlign: 'center', margin: 0, fontSize: 20 }}>
+          Strumento non trovato in catalogo
+        </h2>
+
+        {(measurements.headDiameterMm != null || measurements.shapeClass || measurements.shankGroup) && (
           <div style={{
-            color: '#e5e7eb', fontSize: 15, textAlign: 'center',
-            maxWidth: 320, lineHeight: 1.6, fontStyle: 'italic',
+            background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12,
+            padding: '16px 20px', width: '100%', maxWidth: 340,
+            display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            «{instruction}»
+            {measurements.headDiameterMm != null && (
+              <div style={{ color: '#9ca3af', fontSize: 14 }}>
+                <span style={{ color: '#6b7280' }}>Ø testa: </span>
+                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>
+                  {measurements.headDiameterMm.toFixed(1)} mm
+                </span>
+              </div>
+            )}
+            {measurements.shapeClass && (
+              <div style={{ color: '#9ca3af', fontSize: 14 }}>
+                <span style={{ color: '#6b7280' }}>Forma: </span>
+                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{measurements.shapeClass}</span>
+              </div>
+            )}
+            {measurements.shankGroup && (
+              <div style={{ color: '#9ca3af', fontSize: 14 }}>
+                <span style={{ color: '#6b7280' }}>Gambo: </span>
+                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{measurements.shankGroup}</span>
+              </div>
+            )}
+            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+              Misurazione via: {sourceLabel}
+            </div>
           </div>
         )}
+
         <button
-          onClick={() => { void handlePhoto2Shutter() }}
+          onClick={() => { setCapturedImages([]); setPageState('idle_photo1') }}
           style={{
-            marginTop: 8, background: 'rgba(245,158,11,0.25)',
-            border: '1px solid rgba(245,158,11,0.5)', color: '#fbbf24',
-            borderRadius: 10, padding: '14px 32px', fontSize: 16,
-            fontWeight: 700, cursor: 'pointer',
+            marginTop: 8, background: '#2563eb', color: '#fff',
+            border: 'none', borderRadius: 8, padding: '12px 24px',
+            fontSize: 16, cursor: 'pointer',
           }}
         >
-          Scatta ora
-        </button>
-        <button
-          onClick={() => setPageState('idle_photo1')}
-          style={{ color: '#6b7280', background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', marginTop: 4 }}
-        >
-          Annulla
+          Riprova
         </button>
       </div>
     )
@@ -952,6 +988,24 @@ export function ToolRecognitionPage() {
               <div>
                 <div style={{ color: '#3b82f6', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>CONSIGLIO</div>
                 <div style={{ color: '#C5C8D5', fontSize: 13 }}>Includi tutta la lunghezza dello strumento</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isPhoto2 && (
+          <div style={{ padding: '8px 20px 0' }}>
+            <div style={{
+              background: 'rgba(10,61,143,0.12)',
+              border: '1px solid rgba(10,61,143,0.25)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              display: 'flex', gap: 8, alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>📐</span>
+              <div style={{ color: '#93c5fd', fontSize: 12, lineHeight: 1.4 }}>
+                Per maggiore precisione, posiziona lo strumento accanto alla{' '}
+                <strong style={{ fontWeight: 600 }}>carta ARUco</strong>
               </div>
             </div>
           </div>

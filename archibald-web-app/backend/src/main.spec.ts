@@ -17,7 +17,7 @@ vi.mock('./config', () => ({
       'bot-queue': { concurrency: 1, lockDuration: 900000, stalledInterval: 30000, removeOnComplete: { count: 100 } },
     },
     browserPool: { maxBrowsers: 3, maxContextsPerBrowser: 8, contextExpiryMs: 1800000, serviceAccountContextExpiryMs: 900000 },
-    recognition: { anthropicApiKey: 'test-api-key', jinaApiKey: 'test-jina-key', minSimilarity: 0.20, dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
+    recognition: { anthropicApiKey: 'test-api-key', dailyLimit: 500, timeoutMs: 15000, catalogPdfPath: '/tmp/test.pdf' },
   },
 }));
 
@@ -248,10 +248,6 @@ vi.mock('./operations/handlers', () => ({
   createIndexWebImageHandler: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('./services/anthropic-vision-service', () => ({
-  createCatalogVisionService: vi.fn(() => ({ identifyFromImage: vi.fn() })),
-}));
-
 vi.mock('@anthropic-ai/sdk', () => ({
   default: vi.fn(() => ({
     messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '[]' }] }) },
@@ -406,12 +402,9 @@ describe('bootstrap', () => {
       'catalog-ingestion',
       'catalog-product-enrichment',
       'web-product-enrichment',
-      'build-visual-index',
       're-extract-pictograms',
-      'index-catalog-pages',
-      'index-web-image',
     ]));
-    expect(handlerKeys).toHaveLength(30);
+    expect(handlerKeys).toHaveLength(27);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

@@ -1,0 +1,128 @@
+import { readFile } from 'node:fs/promises'
+import Anthropic from '@anthropic-ai/sdk'
+import type { CatalogCandidate, VisualConfirmation } from './types'
+import { logger } from '../logger'
+
+export const CONFIRMER_MODEL = process.env.CONFIRMER_MODEL ?? 'claude-opus-4-7'
+
+const CONFIRM_PROMPT = `You are a dental bur identification expert. A photo of an instrument is shown, followed by numbered reference images from a product catalog.
+
+Identify which reference matches the instrument. Compare:
+- Head shape (ball, cone, cylinder, flame, etc.) and proportions
+- Shank type visible
+- Grit indicator: colored ring on shaft, blade pattern, or head/body color
+- Surface texture (diamond grit, cutting blades, rubber, etc.)
+
+Return ONLY this JSON:
+{
+  "matched_family_code": <string family code or null>,
+  "confidence": <float 0.0-1.0>,
+  "reasoning": <one concise sentence>,
+  "runner_up": <string or null>
+}
+
+If confidence < 0.85, set matched_family_code to null.`
+
+export type ConfirmResult = {
+  confirmation: VisualConfirmation
+  inputTokens:  number
+  outputTokens: number
+}
+
+export async function confirmWithOpusWithUsage(
+  client:      Anthropic,
+  photoBase64: string,
+  candidates:  CatalogCandidate[],
+  signal?:     AbortSignal,
+): Promise<ConfirmResult> {
+  const images = await loadImages(candidates)
+
+  const content: Anthropic.MessageParam['content'] = [
+    { type: 'text',  text: 'Photo of the instrument to identify:' },
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photoBase64 } },
+  ]
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i]!
+    content.push({ type: 'text', text: `Reference ${i + 1}: ${candidate.familyCode}` })
+    const img = images[i]
+    if (img) {
+      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img } })
+    }
+  }
+
+  content.push({ type: 'text', text: CONFIRM_PROMPT })
+
+  const message = await client.messages.create(
+    {
+      model:      CONFIRMER_MODEL,
+      max_tokens: 256,
+      messages:   [{ role: 'user', content }],
+    },
+    { signal },
+  )
+
+  const text = message.content.find(b => b.type === 'text')?.text ?? ''
+  return {
+    confirmation: parseConfirmationJson(text),
+    inputTokens:  message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  }
+}
+
+export async function confirmWithOpus(
+  client:      Anthropic,
+  photoBase64: string,
+  candidates:  CatalogCandidate[],
+  signal?:     AbortSignal,
+): Promise<VisualConfirmation> {
+  return (await confirmWithOpusWithUsage(client, photoBase64, candidates, signal)).confirmation
+}
+
+export function parseConfirmationJson(raw: string): VisualConfirmation {
+  const trimmed = raw.trim()
+  try {
+    return JSON.parse(trimmed) as VisualConfirmation
+  } catch {}
+
+  const start = trimmed.indexOf('{')
+  if (start === -1) return fallbackConfirmation()
+
+  let depth = 0
+  for (let i = start; i < trimmed.length; i++) {
+    if (trimmed[i] === '{') depth++
+    else if (trimmed[i] === '}') {
+      depth--
+      if (depth === 0) {
+        try {
+          return JSON.parse(trimmed.slice(start, i + 1)) as VisualConfirmation
+        } catch {
+          return fallbackConfirmation()
+        }
+      }
+    }
+  }
+  return fallbackConfirmation()
+}
+
+function fallbackConfirmation(): VisualConfirmation {
+  return { matched_family_code: null, confidence: 0, reasoning: 'parse error', runner_up: null }
+}
+
+async function loadImages(candidates: CatalogCandidate[]): Promise<(string | null)[]> {
+  return Promise.all(
+    candidates.map(async candidate => {
+      if (!candidate.thumbnailPath) return null
+      try {
+        const buf = await readFile(candidate.thumbnailPath)
+        return buf.toString('base64')
+      } catch {
+        logger.warn('[visual-confirmer] immagine candidato non trovata', {
+          familyCode: candidate.familyCode,
+          path: candidate.thumbnailPath,
+        })
+        return null
+      }
+    }),
+  )
+}

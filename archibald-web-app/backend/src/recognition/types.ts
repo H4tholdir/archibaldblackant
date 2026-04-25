@@ -1,64 +1,116 @@
-type ThrottleLevel = 'normal' | 'warning' | 'limited';
+type ShapeClass =
+  | 'sfera' | 'ovale' | 'pera' | 'fiamma' | 'ago'
+  | 'cilindro_piatto' | 'cilindro_tondo'
+  | 'cono_piatto' | 'cono_tondo' | 'cono_invertito'
+  | 'disco' | 'diabolo' | 'altro'
+
+type SurfaceTexture =
+  | 'diamond_grit'
+  | 'carbide_blades'
+  | 'ceramic'
+  | 'rubber_polisher'
+  | 'abrasive_wheel'
+  | 'disc_slotted'
+  | 'disc_perforated'
+  | 'steel_smooth'
+  | 'sonic_tip'
+  | 'other'
+
+type ShankGroup   = 'FG' | 'CA_HP' | 'HPT' | 'Handle_S' | 'Handle_L' | 'none' | 'unknown'
+type GritColor    = 'white' | 'yellow' | 'red' | 'none' | 'green' | 'black' | 'blue' | 'other' | null
+type BladeDensity = 'few_coarse' | 'medium' | 'many_fine' | null
+
+type InstrumentDescriptor = {
+  shank: {
+    diameter_group: ShankGroup
+    diameter_px:    number
+    length_px:      number
+  }
+  head: {
+    diameter_px: number
+    length_px:   number
+  }
+  shape_class:    ShapeClass
+  grit_indicator: {
+    type:          'ring_color' | 'blade_count' | 'head_color' | 'none' | 'unknown'
+    color:         GritColor
+    blade_density: BladeDensity
+  }
+  surface_texture: SurfaceTexture
+  confidence:      number
+}
+
+type CatalogCandidate = {
+  familyCode:       string
+  shapeDescription: string | null
+  shapeClass:       string | null
+  sizeOptions:      number[]
+  productType:      string | null
+  thumbnailPath:    string | null
+}
+
+type VisualConfirmation = {
+  matched_family_code: string | null
+  confidence:          number
+  reasoning:           string
+  runner_up:           string | null
+}
+
+type MeasurementSummary = {
+  shankGroup:        string | null
+  headDiameterMm:    number | null
+  shapeClass:        ShapeClass | null
+  measurementSource: 'aruco' | 'shank_iso' | 'none'
+}
 
 type ProductMatch = {
-  productId:     string
-  productName:   string
-  familyCode:    string
-  headSizeMm:    number
-  shankType:     string
-  thumbnailUrl:  string | null
-  confidence:    number
-  catalogPage?:  number | null
-  discontinued?: boolean
-};
+  familyCode:        string
+  productName:       string
+  shankType:         string
+  headDiameterMm:    number | null
+  headLengthMm:      number | null
+  shapeClass:        ShapeClass | null
+  confidence:        number
+  thumbnailUrl:      string | null
+  discontinued:      boolean
+  measurementSource: 'aruco' | 'shank_iso' | 'none'
+}
 
-/** Candidate shown in shortlist_visual — includes reference images for display. */
 type CandidateMatch = {
   familyCode:      string
   thumbnailUrl:    string | null
-  referenceImages: string[]   // base64 JPEGs
-};
-
-/** A candidate with reference images passed to the vision service upfront. */
-type CandidateWithImages = {
-  familyCode:      string
-  description:     string
   referenceImages: string[]
-};
+}
 
-type IdentificationResult = {
-  productCode:   string | null
-  familyCode:    string | null
-  confidence:    number
-  resultState:   'match' | 'shortlist' | 'not_found' | 'error'
-  candidates:    string[]
-  catalogPage:   number | null
-  reasoning:     string
-  photo_request: string | null   // Claude's Italian instruction for second photo
-  usage:         { inputTokens: number; outputTokens: number }
-};
-
-type RecognitionResult =
-  | { state: 'match';            product: ProductMatch; confidence: number }
-  | { state: 'shortlist_visual'; candidates: CandidateMatch[] }
-  | { state: 'photo2_request';   candidates: string[]; instruction: string }
-  | { state: 'not_found' }
-  | { state: 'budget_exhausted' }
-  | { state: 'error';            message: string };
+type ThrottleLevel = 'normal' | 'warning' | 'limited'
 
 type BudgetState = {
   dailyLimit:    number
   usedToday:     number
   throttleLevel: ThrottleLevel
   resetAt:       Date
-};
+}
+
+type RecognitionResult =
+  | { type: 'match';            data: ProductMatch }
+  | { type: 'shortlist_visual'; data: { candidates: CandidateMatch[] } }
+  | { type: 'not_found';        data: { measurements: MeasurementSummary } }
+  | { type: 'budget_exhausted' }
+  | { type: 'error';            data: { message: string } }
 
 export type {
-  ThrottleLevel,
+  ShapeClass,
+  SurfaceTexture,
+  ShankGroup,
+  GritColor,
+  BladeDensity,
+  InstrumentDescriptor,
+  CatalogCandidate,
+  VisualConfirmation,
+  MeasurementSummary,
   ProductMatch,
   CandidateMatch,
-  CandidateWithImages,
-  IdentificationResult,
-  RecognitionResult,
+  ThrottleLevel,
   BudgetState,
-};
+  RecognitionResult,
+}

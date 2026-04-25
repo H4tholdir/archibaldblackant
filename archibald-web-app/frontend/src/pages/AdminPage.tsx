@@ -908,7 +908,7 @@ export function AdminPage(_props: AdminPageProps) {
                 </div>
               </div>
               <div style={{ color: "#555", fontSize: "13px" }}>
-                {enrichmentStats != null ? `${enrichmentStats.visualIndexCount} / 150` : "—"}
+                {enrichmentStats != null ? `${enrichmentStats.totalCatalogEntries} famiglie` : "—"}
               </div>
               <button
                 onClick={() => { void handleBuildVisualIndex(); }}

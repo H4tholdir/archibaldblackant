@@ -25,7 +25,4 @@ export { createRecognitionFeedbackHandler } from './recognition-feedback';
 export { createCatalogIngestionHandler } from './catalog-ingestion';
 export { createCatalogProductEnrichmentHandler } from './catalog-product-enrichment';
 export { createWebProductEnrichmentHandler } from './web-product-enrichment';
-export { createBuildVisualIndexHandler } from './build-visual-index-handler';
 export { createReExtractPictogramsHandler } from './re-extract-pictograms';
-export { createIndexCatalogPagesHandler } from './index-catalog-pages-handler';
-export { createIndexWebImageHandler } from './index-web-image-handler';

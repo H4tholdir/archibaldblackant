@@ -1,15 +1,9 @@
 import { describe, test, expect, vi } from 'vitest'
 import {
   upsertFamilyImage,
-  updateEmbedding,
-  queryTopK,
-  countIndexed,
+  getBestRowsByFamilyCodes,
   getFallbackFamilies,
-  getIndexedFamilyStripKeys,
-  getIndexedCatalogFamilyKeys,
 } from './catalog-family-images'
-
-const FAKE_EMBEDDING = Array.from({ length: 2048 }, () => 0.5)
 
 function makePool(rows: unknown[] = []) {
   return { query: vi.fn().mockResolvedValue({ rows }) } as unknown as import('../pool').DbPool
@@ -42,83 +36,45 @@ describe('upsertFamilyImage', () => {
   })
 })
 
-describe('updateEmbedding', () => {
-  test('calls UPDATE with vector literal and id', async () => {
+describe('getBestRowsByFamilyCodes', () => {
+  test('returns empty array when familyCodes is empty', async () => {
     const pool = makePool()
-    await updateEmbedding(pool, 7, FAKE_EMBEDDING)
-    const [sql, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
-    expect(sql).toContain('UPDATE shared.catalog_family_images')
-    expect(params[0]).toMatch(/^\[[\d.,]+\]$/)
-    expect(params[1]).toBe(7)
+    const result = await getBestRowsByFamilyCodes(pool, [])
+    expect(result).toEqual([])
+    expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0)
   })
-})
 
-describe('queryTopK', () => {
-  test('returns AnnCandidate rows', async () => {
+  test('returns FamilyImageRow array for matching codes', async () => {
     const fakeRows = [
-      { id: 1, family_code: '879', similarity: 0.92, local_path: '/p1.jpg', source_type: 'campionario', metadata: null },
-      { id: 2, family_code: '863', similarity: 0.88, local_path: '/p2.jpg', source_type: 'campionario', metadata: null },
+      { family_code: '863', local_path: '/p1.jpg', source_type: 'campionario', metadata: null },
+      { family_code: '879', local_path: '/p2.jpg', source_type: 'campionario', metadata: { strip_family_index: 1 } },
     ]
-    const result = await queryTopK(makePool(fakeRows), FAKE_EMBEDDING, 50)
-    expect(result).toHaveLength(2)
-    expect(result[0]!.family_code).toBe('879')
-    expect(result[0]!.similarity).toBe(0.92)
+    const pool   = makePool(fakeRows)
+    const result = await getBestRowsByFamilyCodes(pool, ['863', '879'])
+    expect(result).toEqual(fakeRows)
   })
 
-  test('passes vector literal as first query parameter', async () => {
-    const pool = makePool([])
-    await queryTopK(pool, [0.1, 0.2], 10)
+  test('passes family codes array as query parameter', async () => {
+    const pool   = makePool([])
+    const codes  = ['860', '879']
+    await getBestRowsByFamilyCodes(pool, codes)
     const [, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
-    expect(params[0]).toBe('[0.1,0.2]')
-  })
-})
-
-describe('countIndexed', () => {
-  test('returns integer count', async () => {
-    expect(await countIndexed(makePool([{ count: '137' }]))).toBe(137)
+    expect(params[0]).toEqual(codes)
   })
 })
 
 describe('getFallbackFamilies', () => {
   test('returns array of family_code strings', async () => {
-    const pool = makePool([{ family_code: '879' }, { family_code: '863' }])
+    const pool   = makePool([{ family_code: '879' }, { family_code: '863' }])
     const result = await getFallbackFamilies(pool, 10)
     expect(result).toEqual(['879', '863'])
   })
-})
 
-describe('getIndexedFamilyStripKeys', () => {
-  test('returns set of familyCode|localPath keys', async () => {
-    const rows = [
-      { family_code: '807', local_path: 'section/strip-01.jpg' },
-      { family_code: '807', local_path: 'section/strip-02.jpg' },
-      { family_code: '879', local_path: 'section/strip-01.jpg' },
-    ]
-    const result = await getIndexedFamilyStripKeys(makePool(rows))
-    expect(result).toEqual(new Set(['807|section/strip-01.jpg', '807|section/strip-02.jpg', '879|section/strip-01.jpg']))
-  })
-
-  test('returns empty set when no campionario rows are indexed', async () => {
-    const result = await getIndexedFamilyStripKeys(makePool([]))
-    expect(result.size).toBe(0)
-  })
-})
-
-describe('getIndexedCatalogFamilyKeys', () => {
-  test('returns set of familyCode|localPath keys for catalog_pdf rows', async () => {
-    const rows = [
-      { family_code: '227B', local_path: '/app/catalog-pages/509.jpg' },
-      { family_code: '227A', local_path: '/app/catalog-pages/509.jpg' },
-    ]
-    const result = await getIndexedCatalogFamilyKeys(makePool(rows))
-    expect(result).toEqual(new Set([
-      '227B|/app/catalog-pages/509.jpg',
-      '227A|/app/catalog-pages/509.jpg',
-    ]))
-  })
-
-  test('returns empty set when no catalog_pdf rows are indexed', async () => {
-    const result = await getIndexedCatalogFamilyKeys(makePool([]))
-    expect(result.size).toBe(0)
+  test('passes limit as query parameter', async () => {
+    const limit  = 10
+    const pool   = makePool([])
+    await getFallbackFamilies(pool, limit)
+    const [, params] = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0]!
+    expect(params[0]).toBe(limit)
   })
 })

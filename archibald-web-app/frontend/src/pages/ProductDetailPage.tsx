@@ -2,47 +2,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getProductEnrichment } from '../api/recognition'
-import { getProductById } from '../api/products'
-import type { ProductEnrichment, ProductGalleryImage, SizeVariant } from '../api/recognition'
+import { getProducts } from '../api/products'
+import type { ProductEnrichment, ProductGalleryImage } from '../api/recognition'
 import type { Product } from '../api/products'
 
 type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor' | 'risorse'
 
-function sizeCode(variant: SizeVariant): string {
-  const parts = variant.name.split('.')
-  return parts[parts.length - 1] ?? variant.id
-}
-
-function safeHostname(url: string): string {
-  try { return new URL(url).hostname } catch { return url }
-}
-
-function headDiameterMmFromId(productId: string): number | null {
-  const parts = productId.split('.')
-  const code = parts[parts.length - 1] ?? ''
-  const n = parseInt(code, 10)
-  return isNaN(n) ? null : n / 10
-}
-
-function gritBadgeStyle(gritLabel: string): { background: string; color: string } {
-  if (gritLabel.includes('bianco')) return { background: '#374151', color: '#f9fafb' }
-  if (gritLabel.includes('giallo')) return { background: '#713f12', color: '#fde68a' }
-  if (gritLabel.includes('rosso'))  return { background: '#7f1d1d', color: '#fca5a5' }
-  if (gritLabel.includes('verde'))  return { background: '#14532d', color: '#6ee7b7' }
-  if (gritLabel.includes('nero'))   return { background: '#111827', color: '#9ca3af' }
-  return { background: '#1e3a5f', color: '#93c5fd' } // blu (default/standard)
-}
-
-type FeaturePillProps = { label: string; background: string; color: string }
-function FeaturePill({ label, background, color }: FeaturePillProps) {
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center',
-      background, borderRadius: 20, padding: '5px 12px',
-    }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color }}>{label}</span>
-    </div>
-  )
+function sizeCode(variant: { familyCode: string; headDiameterMm: number | null }): string {
+  const parts = variant.familyCode.split('.')
+  return parts[parts.length - 1] ?? (variant.headDiameterMm != null ? String(Math.round(variant.headDiameterMm * 10)).padStart(3, '0') : variant.familyCode)
 }
 
 // ── Gallery ──────────────────────────────────────────────────────────────────
@@ -51,12 +19,10 @@ function GalleryArea({
   gallery,
   fromScanner,
   onBack,
-  isRetired,
 }: {
   gallery: ProductGalleryImage[]
   fromScanner: boolean
   onBack: () => void
-  isRetired: boolean
 }) {
   const [activeIdx, setActiveIdx] = useState(0)
   const visible = gallery.slice(0, 4)
@@ -100,16 +66,6 @@ function GalleryArea({
             display: 'flex', alignItems: 'center', gap: 4,
           }}>
             📷 Riconosciuto
-          </div>
-        )}
-        {isRetired && (
-          <div style={{
-            background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)',
-            border: '1px solid rgba(239,68,68,0.6)', color: '#fca5a5',
-            fontSize: 11, padding: '4px 10px', borderRadius: 20,
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}>
-            Prodotto ritirato
           </div>
         )}
       </div>
@@ -198,19 +154,16 @@ export function ProductDetailPage() {
       setLoading(true)
       setNotFound(false)
       try {
-        const [productRes, enrichmentRes] = await Promise.allSettled([
-          getProductById(token!, decodedId),
+        const [productsRes, enrichmentRes] = await Promise.allSettled([
+          getProducts(token!, decodedId, 10),
           getProductEnrichment(token!, decodedId),
         ])
 
-        if (productRes.status === 'fulfilled') {
-          if (productRes.value.success) {
-            setProduct(productRes.value.data)
-          } else {
-            setNotFound(true)
-          }
+        if (productsRes.status === 'fulfilled') {
+          const found = productsRes.value.data.products.find(p => p.id === decodedId)
+          setProduct(found ?? null)
+          if (!found) setNotFound(true)
         } else {
-          console.error('getProductById failed:', productRes.reason)
           setNotFound(true)
         }
 
@@ -265,6 +218,7 @@ export function ProductDetailPage() {
   const details = enrichment?.details ?? null
   const gallery = enrichment?.gallery ?? []
   const sizeVariants = enrichment?.sizeVariants ?? []
+  const pd = details?.performanceData ?? null
 
   const priceFormatted = new Intl.NumberFormat('it-IT', {
     style: 'currency', currency: 'EUR',
@@ -284,7 +238,6 @@ export function ProductDetailPage() {
         gallery={gallery}
         fromScanner={fromScanner}
         onBack={() => navigate(-1)}
-        isRetired={product.isRetired ?? false}
       />
 
       <div style={{ padding: 16 }}>
@@ -296,29 +249,11 @@ export function ProductDetailPage() {
         {/* Product code */}
         <div style={{
           fontSize: 11, color: '#6b7280', fontFamily: "'SF Mono', Consolas, monospace",
-          marginBottom: product.isRetired ? 10 : 14, display: 'flex', alignItems: 'center', gap: 8,
+          marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%',
-            background: product.isRetired ? '#ef4444' : '#22c55e',
-            display: 'inline-block', flexShrink: 0,
-          }} />
-          {product.isRetired ? 'Non più disponibile' : product.id}
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+          {product.id}
         </div>
-
-        {product.isRetired && (
-          <div style={{
-            background: '#1f0d0d', border: '1px solid #7f1d1d', borderRadius: 10,
-            padding: '12px 16px', marginBottom: 14,
-          }}>
-            <div style={{ fontSize: 13, color: '#fca5a5', fontWeight: 600, marginBottom: 4 }}>
-              Prodotto ritirato dal catalogo Komet
-            </div>
-            <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5 }}>
-              Le informazioni tecniche sono conservate per consultazione storica.
-            </div>
-          </div>
-        )}
 
         {/* Tabs */}
         <div style={{
@@ -345,104 +280,47 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Prodotto ── */}
         <div style={{ display: activeTab === 'prodotto' ? 'block' : 'none' }}>
-          {/* Badge caratteristiche strumento */}
-          {enrichment?.features && (
-            <div style={{
-              background: '#1a1a1a', borderRadius: 10, padding: '14px 16px', marginBottom: 10,
-            }}>
-              <div style={{
-                fontSize: 10, color: '#6b7280', letterSpacing: '1px',
-                textTransform: 'uppercase', marginBottom: 10,
-              }}>
-                Caratteristiche strumento
+          {pd ? (
+            <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+                Performance vs. standard di mercato
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <FeaturePill
-                  label={enrichment.features.material}
-                  background="#166534"
-                  color="#86efac"
-                />
-                <FeaturePill
-                  label={enrichment.features.shape}
-                  background="#1e3a5f"
-                  color="#93c5fd"
-                />
-                <FeaturePill
-                  label={`Gambo ${enrichment.features.shankType} · Ø ${enrichment.features.shankDiameterMm.toLocaleString('it-IT')} mm`}
-                  background="#451a03"
-                  color="#fbbf24"
-                />
-                {enrichment.features.gritLabel && (
-                  <FeaturePill
-                    label={enrichment.features.gritLabel}
-                    {...gritBadgeStyle(enrichment.features.gritLabel)}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-          {/* Pittogrammi — Applicazioni consigliate */}
-          {enrichment?.pictograms && enrichment.pictograms.length > 0 && (
-            <div style={{
-              background: '#1a1a1a', borderRadius: 10, padding: '14px 16px', marginBottom: 10,
-            }}>
-              <div style={{
-                fontSize: 10, color: '#6b7280', letterSpacing: '1px',
-                textTransform: 'uppercase', marginBottom: 10,
-              }}>
-                Applicazioni consigliate
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {enrichment.pictograms.map(p => (
-                  <span
-                    key={p.symbol}
-                    style={{
-                      background: '#262626', borderRadius: 6, padding: '4px 10px',
-                      fontSize: 11, color: '#d1d5db', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {p.labelIt}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {details && (details.rpmMax || details.packagingUnits != null || details.notes) ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {details.rpmMax && (
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a2a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>⚡</div>
-                  <div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>Velocità massima</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-                      {details.rpmMax.toLocaleString('it-IT')} RPM
-                    </div>
+              {[
+                { label: 'Durata', value: pd.durabilityPct },
+                { label: 'Affilatura', value: pd.sharpnessPct },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                  <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>{label}</div>
+                  <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${value}%`, height: 5, borderRadius: 3,
+                      background: 'linear-gradient(90deg, #b8860b, #ffd700)',
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
+                    {value}%
                   </div>
                 </div>
-              )}
-              {details.packagingUnits != null && (
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a1a2a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
-                  <div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>Confezione</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-                      {details.packagingUnits} pz
-                      {details.sterile && <span style={{ fontSize: 12, color: '#22c55e', marginLeft: 8 }}>Sterile</span>}
-                      {details.singleUse && <span style={{ fontSize: 12, color: '#f59e0b', marginLeft: 8 }}>Monouso</span>}
-                    </div>
-                  </div>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ fontSize: 11, color: '#9ca3af', width: 75, flexShrink: 0 }}>Controllo</div>
+                <div style={{ flex: 1, height: 5, background: '#2a2a2a', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${(pd.controlStars / 5) * 100}%`, height: 5, borderRadius: 3,
+                    background: 'linear-gradient(90deg, #b8860b, #ffd700)',
+                  }} />
                 </div>
-              )}
-              {details.notes && (
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: '12px 16px' }}>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Note</div>
-                  <div style={{ fontSize: 13, color: '#d1d5db', lineHeight: 1.6 }}>{details.notes}</div>
+                <div style={{ fontSize: 11, color: '#f9a825', fontWeight: 600, width: 38, textAlign: 'right', flexShrink: 0 }}>
+                  {'★'.repeat(pd.controlStars)}{'☆'.repeat(5 - pd.controlStars)}
                 </div>
-              )}
+              </div>
+              <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>
+                Max {pd.maxRpm.toLocaleString('it-IT')} RPM · Irrigazione min {pd.minSprayMl} ml/min
+              </div>
             </div>
           ) : (
             <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
-              Dati tecnici non ancora disponibili per questo prodotto.
+              Dati performance non ancora disponibili per questo prodotto.
             </div>
           )}
         </div>
@@ -469,86 +347,39 @@ export function ProductDetailPage() {
 
         {/* ── Tab: Misure ── */}
         <div style={{ display: activeTab === 'misure' ? 'block' : 'none' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Chip varianti con diametro in mm */}
-            {sizeVariants.length > 0 && (
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                <div style={{
-                  fontSize: 10, color: '#6b7280', letterSpacing: '1px',
-                  textTransform: 'uppercase', marginBottom: 10,
-                }}>
-                  Misure disponibili
-                </div>
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  {sizeVariants.map(v => {
-                    const isActive = v.id === product.id
-                    const code = sizeCode(v)
-                    const diam = headDiameterMmFromId(v.id)
-                    return (
-                      <button
-                        key={v.id}
-                        onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.id)}`)}
-                        style={{
-                          background: isActive ? '#0d2b0d' : '#252525',
-                          border: `1px solid ${isActive ? '#22c55e' : '#333'}`,
-                          borderRadius: 7, padding: '6px 10px',
-                          fontFamily: "'SF Mono', Consolas, monospace",
-                          color: isActive ? '#6ee7b7' : '#9ca3af',
-                          cursor: isActive ? 'default' : 'pointer',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <div style={{ fontSize: 11, fontWeight: isActive ? 600 : 400 }}>{code}</div>
-                        {diam !== null && (
-                          <div style={{ fontSize: 9, color: isActive ? '#6ee7b7' : '#6b7280', marginTop: 2 }}>
-                            Ø {diam.toLocaleString('it-IT')} mm
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
+          {sizeVariants.length > 0 ? (
+            <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+                Misure disponibili
               </div>
-            )}
-
-            {/* Tabella dimensioni per la variante selezionata */}
-            {enrichment?.features && (
-              <div style={{ background: '#1a1a1a', borderRadius: 10, overflow: 'hidden' }}>
-                {[
-                  { label: 'Diametro della testa',  value: `${enrichment.features.headDiameterMm.toLocaleString('it-IT')} mm` },
-                  { label: 'Tipo di gambo',          value: enrichment.features.shankType },
-                  { label: 'Diametro del gambo',     value: `${enrichment.features.shankDiameterMm.toLocaleString('it-IT')} mm` },
-                  ...(enrichment.shankLengthMm != null
-                    ? [{ label: 'Lunghezza gambo', value: `${enrichment.shankLengthMm.toLocaleString('it-IT')} mm` }]
-                    : []),
-                ].map(({ label, value }, i, arr) => (
-                  <div
-                    key={label}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '9px 14px',
-                      borderBottom: i < arr.length - 1 ? '1px solid #222' : 'none',
-                    }}
-                  >
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{label}</div>
-                    <div style={{
-                      fontSize: 12, fontWeight: 600,
-                      color: product.isRetired ? '#6b7280' : '#fff',
-                      fontFamily: "'SF Mono', Consolas, monospace",
-                    }}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {sizeVariants.map(v => {
+                  const isActive = v.familyCode === product.id
+                  return (
+                    <button
+                      key={v.familyCode}
+                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.familyCode)}`)}
+                      style={{
+                        background: isActive ? '#0d2b0d' : '#252525',
+                        border: `1px solid ${isActive ? '#22c55e' : '#333'}`,
+                        borderRadius: 7, padding: '6px 10px',
+                        fontSize: 11, fontFamily: "'SF Mono', Consolas, monospace",
+                        color: isActive ? '#6ee7b7' : '#9ca3af',
+                        fontWeight: isActive ? 600 : 400,
+                        cursor: isActive ? 'default' : 'pointer',
+                      }}
+                    >
+                      {sizeCode(v)}
+                    </button>
+                  )
+                })}
               </div>
-            )}
-
-            {sizeVariants.length === 0 && !enrichment?.features && (
-              <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
-                Nessuna variante di misura disponibile.
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={{ color: '#4b5563', fontSize: 14, padding: '20px 0' }}>
+              Nessuna variante di misura disponibile.
+            </div>
+          )}
         </div>
 
         {/* ── Tab: Risorse ── */}
@@ -608,7 +439,7 @@ export function ProductDetailPage() {
                     rel="noopener noreferrer"
                     style={{ color: '#4b5563' }}
                   >
-                    {safeHostname(details.sourceUrl)}
+                    {new URL(details.sourceUrl).hostname}
                   </a>
                 </div>
               )}
@@ -643,29 +474,15 @@ export function ProductDetailPage() {
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: '#0a0a0a', borderTop: '1px solid #1f2937',
         padding: '12px 20px', zIndex: 50,
-        opacity: product.isRetired ? 0.6 : 1,
       }}>
         <div>
           <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>Prezzo listino</div>
-          <div style={{
-            fontSize: 24, fontWeight: 700,
-            color: product.isRetired ? '#6b7280' : '#fff',
-            lineHeight: 1,
-            textDecoration: product.isRetired ? 'line-through' : 'none',
-          }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
             {priceFormatted}
           </div>
-          {!product.isRetired && product.vat != null && product.price != null && (
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>
-              {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
-                .format(product.price / (1 + product.vat / 100))} imponibile + IVA {product.vat}%
-            </div>
-          )}
-          {!product.isRetired && product.minQty != null && product.minQty > 1 && (
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
-              Quantità minima ordine: {product.minQty} pezzi
-            </div>
-          )}
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+            / pz{product.minQty ? ` · conf. ${product.minQty} pezzi` : ''}
+          </div>
         </div>
       </div>
     </div>
