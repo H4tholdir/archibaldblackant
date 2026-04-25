@@ -28,8 +28,8 @@ type PageState =
 function InstrumentGuide() {
   const bracket: CSSProperties = {
     position: 'absolute',
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     borderColor: '#22c55e',
     borderStyle: 'solid',
     borderWidth: 0,
@@ -38,63 +38,64 @@ function InstrumentGuide() {
     <div style={{
       position: 'absolute', inset: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+      backgroundImage: 'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
       backgroundSize: '33.33% 33.33%',
       pointerEvents: 'none',
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          color: 'rgba(34,197,94,0.8)', fontSize: 10,
-          fontWeight: 700, letterSpacing: 2, marginBottom: 8,
-        }}>
-          PUNTA
+      {/* Strumento + carta ARUco affiancati, allineati al fondo (carta vicino alla BASE) */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18 }}>
+
+        {/* Colonna strumento */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
+            PUNTA
+          </div>
+          <div style={{ position: 'relative', width: 44, height: 230, border: '1px solid rgba(34,197,94,0.35)', borderRadius: 4 }}>
+            <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
+            <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
+            <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+            <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+            {/* linea divisoria testa/gambo a circa 40% dall'alto */}
+            <div style={{ position: 'absolute', left: '15%', right: '15%', top: '40%', height: 1, background: 'rgba(34,197,94,0.25)' }} />
+          </div>
+          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginTop: 6 }}>
+            BASE
+          </div>
         </div>
 
-        <div style={{
-          position: 'relative',
-          width: '22vw',
-          height: '70vh',
-          border: '1px solid rgba(34,197,94,0.3)',
-          borderRadius: 4,
-        }}>
-          <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
-          <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
-          <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
-          <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+        {/* Colonna carta ARUco — allineata al fondo → si posiziona accanto alla BASE */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ color: 'rgba(96,165,250,0.9)', fontSize: 9, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textAlign: 'center', lineHeight: 1.3 }}>
+            <div>CARTA</div>
+            <div>ARUco</div>
+          </div>
+          {/* Sagoma carta: aspect ratio 85.6 × 54 mm */}
           <div style={{
-            position: 'absolute', left: '20%', right: '20%', top: '50%',
-            height: 1, background: 'rgba(34,197,94,0.2)',
-          }} />
+            position: 'relative',
+            width: 96, height: 61,
+            border: '1.5px solid rgba(96,165,250,0.5)',
+            borderRadius: 4,
+            background: 'rgba(96,165,250,0.05)',
+          }}>
+            {/* Mini marker ARUco centrato nella carta */}
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 22, height: 22,
+              border: '1.5px solid rgba(96,165,250,0.6)',
+              background: 'rgba(96,165,250,0.12)',
+            }}>
+              {/* pattern interno: 4 quadratini angolo */}
+              <div style={{ position: 'absolute', top: 2, left: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
+              <div style={{ position: 'absolute', top: 2, right: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
+              <div style={{ position: 'absolute', bottom: 2, left: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
+            </div>
+          </div>
+          <div style={{ color: 'rgba(96,165,250,0.6)', fontSize: 9, fontWeight: 600, marginTop: 6, letterSpacing: 0.5, textAlign: 'center' }}>
+            stesso piano
+          </div>
         </div>
 
-        <div style={{
-          color: 'rgba(34,197,94,0.8)', fontSize: 10,
-          fontWeight: 700, letterSpacing: 2, marginTop: 8,
-        }}>
-          BASE
-        </div>
-      </div>
-
-      {/* ARUco card silhouette — posizionata vicino al gambo (BASE) */}
-      <div style={{
-        position: 'absolute',
-        right: '7%',
-        bottom: '14%',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-      }}>
-        <div style={{ color: 'rgba(34,197,94,0.85)', fontSize: 8, fontWeight: 700, letterSpacing: 1, textAlign: 'center' }}>
-          MARKER
-        </div>
-        <div style={{
-          width: 46, height: 30,
-          border: '1.5px dashed rgba(34,197,94,0.55)',
-          borderRadius: 3,
-          background: 'rgba(34,197,94,0.06)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ width: 13, height: 13, background: 'rgba(34,197,94,0.18)', borderRadius: 1 }} />
-        </div>
-        <div style={{ color: 'rgba(34,197,94,0.55)', fontSize: 10 }}>← qui</div>
       </div>
     </div>
   )
@@ -1084,8 +1085,7 @@ export function ToolRecognitionPage() {
             }}>
               <span style={{ fontSize: 14, flexShrink: 0 }}>📐</span>
               <div style={{ color: '#93c5fd', fontSize: 12, lineHeight: 1.4 }}>
-                Per maggiore precisione, posiziona lo strumento accanto alla{' '}
-                <strong style={{ fontWeight: 600 }}>carta ARUco</strong>
+                Allinea strumento e <strong style={{ fontWeight: 600 }}>carta ARUco</strong> come mostrato nel mirino — sullo stesso piano, carta accanto al gambo
               </div>
             </div>
           </div>
