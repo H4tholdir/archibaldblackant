@@ -91,14 +91,14 @@ export function DashboardNav() {
       highlighted: true,
     }, // Evidenziato
     { path: "/pending-orders", label: "⏳ Ordini in Attesa" },
-    { path: "/orders", label: "📚 Storico" },
+    { path: "/orders", label: "📚 Archibald" },
     // TODO_FUTURE_FEATURE: This link should be conditional based on 'warehouse' module subscription
     { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/recognition", label: "📷 Identifica strumento" },
     { path: "/profile", label: "👤 Profilo" },
-    { path: "/fresis-history", label: "📋 Storico Fresis" },
+    { path: "/fresis-history", label: "📋 Arca" },
     { path: "/revenue-report", label: "📊 Rapporto Ricavi" },
   ];
 

@@ -612,7 +612,7 @@ export function FresisHistoryPage() {
       >
         <div>
           <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#333", margin: 0 }}>
-            Storico Fresis
+            Arca
           </h1>
           <span style={{ fontSize: "12px", color: "#888" }}>
             {filteredOrders.length} documenti
