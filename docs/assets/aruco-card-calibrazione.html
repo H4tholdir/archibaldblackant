@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Carta di Calibrazione ARUco — Formicanera</title>
+<style>
+  @page { size: 85.6mm 54mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 85.6mm; height: 54mm; font-family: -apple-system, sans-serif; overflow: hidden; }
+  .card { width: 85.6mm; height: 54mm; display: flex; flex-direction: column; background: #fff; }
+  .header {
+    background: #0a3d8f; color: #fff;
+    padding: 2mm 4mm;
+    display: flex; align-items: center; gap: 2mm; flex-shrink: 0;
+  }
+  .logo-circle { width: 8mm; height: 8mm; flex-shrink: 0; }
+  .header-text { font-size: 5pt; font-weight: 700; letter-spacing: 0.3mm; line-height: 1.4; }
+  .header-sub  { font-size: 4pt; opacity: 0.8; font-weight: 400; }
+  .body {
+    flex: 1; display: flex; align-items: center;
+    justify-content: center; gap: 5mm; padding: 2mm 4mm;
+  }
+  .marker-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
+  .marker-label { font-size: 4pt; color: #555; text-align: center; line-height: 1.3; }
+  .instructions { font-size: 4pt; color: #333; line-height: 1.6; max-width: 45mm; }
+  .instructions strong { color: #0a3d8f; font-size: 4.5pt; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <svg class="logo-circle" viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="15" fill="none" stroke="white" stroke-width="1.5"/>
+      <text x="16" y="13" text-anchor="middle" fill="white"
+            font-size="5" font-weight="700" font-family="sans-serif">FORMI</text>
+      <text x="16" y="20" text-anchor="middle" fill="white"
+            font-size="5" font-weight="700" font-family="sans-serif">CANERA</text>
+    </svg>
+    <div>
+      <div class="header-text">FORMICANERA</div>
+      <div class="header-sub">Carta di Calibrazione</div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="marker-wrap">
+      <!--
+        Marker dizionario ARUCO (js-aruco2) ID=42.
+        7x7 celle totali: 5x5 inner + 1-cella bordo su tutti i lati.
+        Dimensione fisica: 20mm → ogni cella = 20/7 ≈ 2.857mm.
+        SVG viewBox 0 0 7 7, ogni unità = 1 cella.
+        Bit 1=bianco, 0=nero. Bordo: sempre nero.
+        Pattern inner 5x5 (MSB-first, 25 bit, valore 0x1082529):
+          row 0 (y=1): 1 0 0 0 0  → col 1,2,3,4 (x=2,3,4,5) nere
+          row 1 (y=2): 1 0 0 0 0  → col 1,2,3,4 (x=2,3,4,5) nere
+          row 2 (y=3): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
+          row 3 (y=4): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
+          row 4 (y=5): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
+      -->
+      <svg width="20mm" height="20mm" viewBox="0 0 7 7" shape-rendering="crispEdges">
+        <!-- Sfondo totale nero -->
+        <rect x="0" y="0" width="7" height="7" fill="black"/>
+        <!-- Area inner 5x5 bianca (y=1..5, x=1..5) -->
+        <rect x="1" y="1" width="5" height="5" fill="white"/>
+        <!-- Celle inner=0 (nere): coordinate x=col_inner+1, y=row_inner+1 -->
+        <!-- row 0: col 1,2,3,4 nere -->
+        <rect x="2" y="1" width="1" height="1" fill="black"/>
+        <rect x="3" y="1" width="1" height="1" fill="black"/>
+        <rect x="4" y="1" width="1" height="1" fill="black"/>
+        <rect x="5" y="1" width="1" height="1" fill="black"/>
+        <!-- row 1: col 1,2,3,4 nere -->
+        <rect x="2" y="2" width="1" height="1" fill="black"/>
+        <rect x="3" y="2" width="1" height="1" fill="black"/>
+        <rect x="4" y="2" width="1" height="1" fill="black"/>
+        <rect x="5" y="2" width="1" height="1" fill="black"/>
+        <!-- row 2: col 0,2,3 nere -->
+        <rect x="1" y="3" width="1" height="1" fill="black"/>
+        <rect x="3" y="3" width="1" height="1" fill="black"/>
+        <rect x="4" y="3" width="1" height="1" fill="black"/>
+        <!-- row 3: col 0,2,3 nere -->
+        <rect x="1" y="4" width="1" height="1" fill="black"/>
+        <rect x="3" y="4" width="1" height="1" fill="black"/>
+        <rect x="4" y="4" width="1" height="1" fill="black"/>
+        <!-- row 4: col 0,2,3 nere -->
+        <rect x="1" y="5" width="1" height="1" fill="black"/>
+        <rect x="3" y="5" width="1" height="1" fill="black"/>
+        <rect x="4" y="5" width="1" height="1" fill="black"/>
+      </svg>
+      <div class="marker-label">
+        ID 42 &middot; ARUCO (5&times;5)<br>
+        <strong style="color:#0a3d8f;font-size:5pt">&#9664; 20 mm &#9654;</strong>
+      </div>
+    </div>
+
+    <div class="instructions">
+      <strong>Come usare:</strong><br>
+      1. Stampa su carta rigida (glossy)<br>
+      2. Ritaglia alle dimensioni<br>
+      3. Posiziona accanto allo strumento<br>
+      4. Scatta la foto — Formicanera<br>
+      &nbsp;&nbsp;&nbsp;misura la scala automaticamente
+    </div>
+  </div>
+</div>
+</body>
+</html>
