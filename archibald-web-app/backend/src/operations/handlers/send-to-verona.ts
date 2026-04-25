@@ -88,18 +88,21 @@ async function handleSendToVerona(
   );
 
   onProgress(83, 'Lettura stato ordine da ERP');
+  const cleanOrderId = data.orderId.replace(/\./g, '');
   try {
     const header = await bot.readOrderHeader(data.orderId);
 
     if (header) {
+      const ts = header.transferStatus;
+      const transferStatusUpdate = (ts && ts.toLowerCase() !== 'modifica') ? ts : null;
       await pool.query(
         `UPDATE agents.order_records SET
            sales_status = COALESCE($1, sales_status),
            document_status = COALESCE($2, document_status),
-           transfer_status = CASE WHEN $3 IS NOT NULL AND lower($3) != 'modifica' THEN $3 ELSE transfer_status END,
+           transfer_status = COALESCE($3, transfer_status),
            last_sync = $4
          WHERE id = $5 AND user_id = $6`,
-        [header.salesStatus, header.documentStatus, header.transferStatus, Math.floor(Date.now() / 1000), data.orderId, userId],
+        [header.salesStatus, header.documentStatus, transferStatusUpdate, Math.floor(Date.now() / 1000), data.orderId, userId],
       );
       logger.info('[SendToVerona] stato aggiornato da ERP', { orderId: data.orderId, header });
     } else {
@@ -128,7 +131,7 @@ async function handleSendToVerona(
        AND replace(archibald_order_id, '.', '') = $2
        AND arca_data IS NULL
        AND source = 'app'`,
-    [userId, data.orderId],
+    [userId, cleanOrderId],
   );
 
   const esercizio = String(new Date().getFullYear());
@@ -174,7 +177,7 @@ async function handleSendToVerona(
      WHERE user_id = $1
        AND replace(archibald_order_id, '.', '') = $2
        AND source = 'app'`,
-    [userId, data.orderId],
+    [userId, cleanOrderId],
   );
 
   onProgress(100, 'Invio completato');

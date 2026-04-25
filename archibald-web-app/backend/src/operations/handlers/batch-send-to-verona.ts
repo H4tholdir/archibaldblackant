@@ -95,14 +95,16 @@ async function handleBatchSendToVerona(
       const header = await bot.readOrderHeader(orderId);
 
       if (header) {
+        const ts = header.transferStatus;
+        const transferStatusUpdate = (ts && ts.toLowerCase() !== 'modifica') ? ts : null;
         await pool.query(
           `UPDATE agents.order_records SET
              sales_status = COALESCE($1, sales_status),
              document_status = COALESCE($2, document_status),
-             transfer_status = CASE WHEN $3 IS NOT NULL AND lower($3) != 'modifica' THEN $3 ELSE transfer_status END,
+             transfer_status = COALESCE($3, transfer_status),
              last_sync = $4
            WHERE id = $5 AND user_id = $6`,
-          [header.salesStatus, header.documentStatus, header.transferStatus, Math.floor(Date.now() / 1000), orderId, userId],
+          [header.salesStatus, header.documentStatus, transferStatusUpdate, Math.floor(Date.now() / 1000), orderId, userId],
         );
         logger.info('[BatchSendToVerona] stato aggiornato da ERP', { orderId, header });
       } else {
@@ -119,6 +121,7 @@ async function handleBatchSendToVerona(
   const esercizio = String(new Date().getFullYear());
 
   for (const orderId of result.sentIds) {
+    const cleanOrderIdForFt = orderId.replace(/\./g, '');
     const fresis = await pool.query<{
       id: number;
       items: GenerateInput['items'];
@@ -135,7 +138,7 @@ async function handleBatchSendToVerona(
          AND replace(archibald_order_id, '.', '') = $2
          AND arca_data IS NULL
          AND source = 'app'`,
-      [userId, orderId],
+      [userId, cleanOrderIdForFt],
     );
 
     for (const row of fresis.rows) {
@@ -175,7 +178,7 @@ async function handleBatchSendToVerona(
        WHERE user_id = $1
          AND replace(archibald_order_id, '.', '') = $2
          AND source = 'app'`,
-      [userId, orderId],
+      [userId, cleanOrderIdForFt],
     );
 
     logger.info('[BatchSendToVerona] FT documents generated', { orderId });
