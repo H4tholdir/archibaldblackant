@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-type ArucoResult = { detected: boolean; pxPerMm: number | null }
+type ArucoResult = { detected: boolean; pxPerMm: number | null; debug?: string }
 
 export function useArucoDetector(): (imageBase64: string) => Promise<ArucoResult> {
   return useCallback(async (imageBase64: string): Promise<ArucoResult> => {
@@ -22,6 +22,7 @@ export function useArucoDetector(): (imageBase64: string) => Promise<ArucoResult
 
       worker.onmessage = (e: MessageEvent<ArucoResult>) => {
         cleanup()
+        if (e.data.debug) console.debug('[ARUco]', e.data.debug)
         resolve(e.data)
       }
 

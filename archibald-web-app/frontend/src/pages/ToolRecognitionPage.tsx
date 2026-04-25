@@ -328,17 +328,22 @@ export function ToolRecognitionPage() {
     setArucoCalibrationPxPerMm(null)
     pendingImagesRef.current = images
 
-    if (images[0]) {
-      const detection = await detectAruco(images[0])
-      if (!detection.detected) {
-        setPageState('aruco_absent')
-        return
-      }
-      if (detection.pxPerMm != null) {
-        setArucoCalibrationPxPerMm(detection.pxPerMm)
-        await callIdentifyApi(images, detection.pxPerMm)
-        return
-      }
+    // Prova ARUco su ogni scatto in ordine — usa il primo che rileva il marker
+    let arucoDetected: { detected: boolean; pxPerMm: number | null } = { detected: false, pxPerMm: null }
+    for (let i = 0; i < images.length; i++) {
+      const result = await detectAruco(images[i])
+      console.debug(`[ARUco] img[${i}] detected=${result.detected}`, result.debug ?? '')
+      if (result.detected) { arucoDetected = result; break }
+    }
+
+    if (!arucoDetected.detected) {
+      setPageState('aruco_absent')
+      return
+    }
+    if (arucoDetected.pxPerMm != null) {
+      setArucoCalibrationPxPerMm(arucoDetected.pxPerMm)
+      await callIdentifyApi(images, arucoDetected.pxPerMm)
+      return
     }
     await callIdentifyApi(images)
   }, [detectAruco, callIdentifyApi])
