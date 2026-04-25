@@ -16,7 +16,7 @@ function createMockPool(): DbPool {
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE CASE WHEN (readback ERP)
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fresis_history (nessun record)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE merged siblings
     .mockResolvedValue({ rows: [], rowCount: 0 });
@@ -77,7 +77,7 @@ describe('handleSendToVerona', () => {
     expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_verona_at');
     expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
     expect(calls[5][0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-    expect(calls[6][0]).toContain('CASE WHEN');
+    expect(calls[6][0]).toContain('COALESCE');
     expect(calls[7][0]).toContain('SELECT id, items');
     expect(calls[8][0]).toContain('archibald_order_id');
   });
@@ -140,7 +140,7 @@ describe('handleSendToVerona', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE CASE WHEN (readback ERP)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
       .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 })                   // SELECT fresis_history
       .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 })          // getNextFtNumber
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE fresis_history arca_data
@@ -266,7 +266,7 @@ describe('handleSendToVerona', () => {
 
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
       const readbackUpdate = calls[6];
-      expect(readbackUpdate[0]).toContain('CASE WHEN');
+      expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
       expect(readbackUpdate![1][0]).toBe('Ordine aperto');
       expect(readbackUpdate![1][1]).toBe('Packing slip');
       expect(readbackUpdate![1][2]).toBe('In attesa di approvazione');
@@ -287,9 +287,11 @@ describe('handleSendToVerona', () => {
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
       const guaranteedUpdate = calls[5];
       expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-      // Il CASE WHEN nel readback impedisce di sovrascrivere con 'modifica'
+      // Il controllo avviene in JS: transferStatusUpdate = null quando ts è 'modifica'
+      // COALESCE($3, transfer_status) con $3=null preserva il valore garantito
       const readbackUpdate = calls[6];
-      expect(readbackUpdate[0]).toContain("lower($3) != 'modifica'");
+      expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
+      expect(readbackUpdate![1][2]).toBeNull();
     });
 
     test('salta il DB update del readback quando readOrderHeader restituisce null', async () => {
@@ -318,7 +320,7 @@ describe('handleSendToVerona', () => {
       expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
       const calls = queryMock.mock.calls;
       const headerUpdate = calls.find(
-        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('CASE WHEN'),
+        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('COALESCE($3, transfer_status)'),
       );
       expect(headerUpdate).toBeUndefined();
       // 8 query totali: senza il readback update
