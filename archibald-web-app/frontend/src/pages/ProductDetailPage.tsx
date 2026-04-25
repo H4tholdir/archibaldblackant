@@ -8,9 +8,9 @@ import type { Product } from '../api/products'
 
 type Tab = 'prodotto' | 'clinica' | 'misure' | 'competitor' | 'risorse'
 
-function sizeCode(variant: { productId: string; headSizeMm: number }): string {
-  const parts = variant.productId.split('.')
-  return parts[parts.length - 1] ?? String(Math.round(variant.headSizeMm * 10)).padStart(3, '0')
+function sizeCode(variant: { familyCode: string; headDiameterMm: number | null }): string {
+  const parts = variant.familyCode.split('.')
+  return parts[parts.length - 1] ?? (variant.headDiameterMm != null ? String(Math.round(variant.headDiameterMm * 10)).padStart(3, '0') : variant.familyCode)
 }
 
 // ── Gallery ──────────────────────────────────────────────────────────────────
@@ -354,11 +354,11 @@ export function ProductDetailPage() {
               </div>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {sizeVariants.map(v => {
-                  const isActive = v.productId === product.id
+                  const isActive = v.familyCode === product.id
                   return (
                     <button
-                      key={v.productId}
-                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.productId)}`)}
+                      key={v.familyCode}
+                      onClick={() => !isActive && navigate(`/products/${encodeURIComponent(v.familyCode)}`)}
                       style={{
                         background: isActive ? '#0d2b0d' : '#252525',
                         border: `1px solid ${isActive ? '#22c55e' : '#333'}`,

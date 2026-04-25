@@ -104,9 +104,9 @@ const FULL_ENRICHMENT: ProductEnrichment = {
   ],
   competitors: [],
   sizeVariants: [
-    { productId: 'H1.314.012', productName: 'TC Round Ø1.2', familyCode: 'H1', headSizeMm: 1.2, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
-    { productId: 'H1.314.016', productName: 'TC Round Ø1.6', familyCode: 'H1', headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
-    { productId: 'H1.314.018', productName: 'TC Round Ø1.8', familyCode: 'H1', headSizeMm: 1.8, shankType: 'fg', thumbnailUrl: null, confidence: 1 },
+    { familyCode: 'H1.314.012', productName: 'TC Round Ø1.2', shankType: 'fg', headDiameterMm: 1.2, headLengthMm: null, shapeClass: null, thumbnailUrl: null, confidence: 1, discontinued: false, measurementSource: 'none' as const },
+    { familyCode: 'H1.314.016', productName: 'TC Round Ø1.6', shankType: 'fg', headDiameterMm: 1.6, headLengthMm: null, shapeClass: null, thumbnailUrl: null, confidence: 1, discontinued: false, measurementSource: 'none' as const },
+    { familyCode: 'H1.314.018', productName: 'TC Round Ø1.8', shankType: 'fg', headDiameterMm: 1.8, headLengthMm: null, shapeClass: null, thumbnailUrl: null, confidence: 1, discontinued: false, measurementSource: 'none' as const },
   ],
   recognitionHistory: [
     { scannedAt: '2026-04-04T14:30:00Z', agentId: 'agent-1', confidence: 0.95, cacheHit: false },
