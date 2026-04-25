@@ -40,7 +40,7 @@ describe.skipIf(CI || !PG_HOST)('searchCatalog integration', () => {
 
     expect(results.length).toBeGreaterThan(0)
     expect(results.length).toBeLessThanOrEqual(5)
-    expect(results.some(c => c.productType === 'rotary_diamond')).toBe(true)
+    expect(results.some(c => c.productType === 'diamond_studio' || c.productType === 'diamond_lab')).toBe(true)
   })
 
   test('head_px leggermente fuori tolleranza → ancora trova candidati (fallback ±0.4mm)', async () => {

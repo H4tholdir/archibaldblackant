@@ -28,8 +28,8 @@ const BASE_DESCRIPTOR: InstrumentDescriptor = {
 }
 
 const MOCK_CANDIDATE: CatalogCandidate = {
-  familyCode: 'H251', shapeDescription: 'Cono tondo', shapeClass: 'cono_tondo',
-  sizeOptions: [60, 70, 80], productType: 'rotary_diamond', thumbnailPath: null,
+  familyCode: 'H251', shapeDescription: 'Cono tondo diamantato', shapeClass: null,
+  sizeOptions: [60, 70, 80], productType: 'diamond_studio', thumbnailPath: null,
 }
 
 const HIGH_CONFIDENCE: VisualConfirmation = {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildSearchParams,
-  SURFACE_TEXTURE_TO_PRODUCT_TYPES,
-  SHANK_GROUP_TO_DB_TYPES,
+  SURFACE_TEXTURE_TO_CATALOG_SECTIONS,
+  SHANK_GROUP_TO_DB_CODES,
 } from './catalog-searcher'
 import type { InstrumentDescriptor } from './types'
 
@@ -16,20 +16,9 @@ const BASE_DESCRIPTOR: InstrumentDescriptor = {
 }
 
 describe('buildSearchParams', () => {
-  test('confidence >= 0.7 → shapeClass incluso', () => {
-    const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.shapeClass).toBe('cono_tondo')
-  })
-
-  test('confidence < 0.7 → shapeClass null', () => {
-    const desc: InstrumentDescriptor = { ...BASE_DESCRIPTOR, confidence: 0.65 }
-    const params = buildSearchParams(desc, 11.91)
-    expect(params.shapeClass).toBeNull()
-  })
-
   test('CA_HP + pxPerMm=11.91 + head.diameter_px=40 → headMm ~3.36', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.headMm).toBeCloseTo(3.36) // 40 / 11.91
+    expect(params.headMm).toBeCloseTo(3.36)
   })
 
   test('pxPerMm null → headMm null', () => {
@@ -46,61 +35,60 @@ describe('buildSearchParams', () => {
     expect(params.headMm).toBeNull()
   })
 
-  test('CA_HP → shankTypes ["ca","hp"]', () => {
+  test('CA_HP → shankCodes ["204","205"]', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.shankTypes).toEqual(['ca', 'hp'])
+    expect(params.shankCodes).toEqual(['204', '205'])
   })
 
-  test('FG → shankTypes ["fg"]', () => {
+  test('FG → shankCodes ["314"]', () => {
     const desc: InstrumentDescriptor = {
       ...BASE_DESCRIPTOR,
       shank: { diameter_group: 'FG', diameter_px: 16, length_px: 100 },
     }
     const params = buildSearchParams(desc, 10.0)
-    expect(params.shankTypes).toEqual(['fg'])
+    expect(params.shankCodes).toEqual(['314'])
   })
 
-  test('HPT → shankTypes ["hpt"]', () => {
+  test('HPT → shankCodes ["104"]', () => {
     const desc: InstrumentDescriptor = {
       ...BASE_DESCRIPTOR,
       shank: { diameter_group: 'HPT', diameter_px: 30, length_px: 100 },
     }
     const params = buildSearchParams(desc, 10.0)
-    expect(params.shankTypes).toEqual(['hpt'])
+    expect(params.shankCodes).toEqual(['104'])
   })
 
-  test('Handle_S → shankTypes ["grip"]', () => {
+  test('Handle_S → shankCodes ["000"]', () => {
     const desc: InstrumentDescriptor = {
       ...BASE_DESCRIPTOR,
       shank: { diameter_group: 'Handle_S', diameter_px: 48, length_px: 0 },
     }
     const params = buildSearchParams(desc, 12.0)
-    expect(params.shankTypes).toEqual(['grip'])
+    expect(params.shankCodes).toEqual(['000'])
   })
 
-  test('unknown shank → shankTypes null', () => {
+  test('unknown shank → shankCodes null', () => {
     const desc: InstrumentDescriptor = {
       ...BASE_DESCRIPTOR,
       shank: { diameter_group: 'unknown', diameter_px: 0, length_px: 0 },
     }
     const params = buildSearchParams(desc, null)
-    expect(params.shankTypes).toBeNull()
+    expect(params.shankCodes).toBeNull()
   })
 
-  test('diamond_grit → productTypes ["rotary_diamond"]', () => {
+  test('diamond_grit → catalogSections diamond_studio + diamond_lab', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.productTypes).toEqual(['rotary_diamond'])
+    expect(params.catalogSections).toEqual(['diamond_studio', 'diamond_lab'])
   })
 
-  test('carbide_blades → productTypes ["rotary_carbide","lab_carbide"]', () => {
+  test('carbide_blades → catalogSections carbide_studio + carbide_lab', () => {
     const desc: InstrumentDescriptor = { ...BASE_DESCRIPTOR, surface_texture: 'carbide_blades' }
     const params = buildSearchParams(desc, 11.91)
-    expect(params.productTypes).toEqual(['rotary_carbide', 'lab_carbide'])
+    expect(params.catalogSections).toEqual(['carbide_studio', 'carbide_lab'])
   })
 
-  test('ring_color + red → gritColor "red", gritIndicatorType "ring_color"', () => {
+  test('ring_color + red → gritColor "red"', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.gritIndicatorType).toBe('ring_color')
     expect(params.gritColor).toBe('red')
   })
 
@@ -112,42 +100,32 @@ describe('buildSearchParams', () => {
     }
     const params = buildSearchParams(desc, 11.91)
     expect(params.gritColor).toBeNull()
-    expect(params.gritIndicatorType).toBe('blade_count')
-  })
-
-  test('grit_indicator.type unknown → gritIndicatorType null', () => {
-    const desc: InstrumentDescriptor = {
-      ...BASE_DESCRIPTOR,
-      grit_indicator: { type: 'unknown', color: null, blade_density: null },
-    }
-    const params = buildSearchParams(desc, 11.91)
-    expect(params.gritIndicatorType).toBeNull()
   })
 })
 
-describe('SURFACE_TEXTURE_TO_PRODUCT_TYPES', () => {
-  test('ogni SurfaceTexture mappa ai product types corretti', () => {
-    expect(SURFACE_TEXTURE_TO_PRODUCT_TYPES).toEqual({
-      diamond_grit:    ['rotary_diamond'],
-      carbide_blades:  ['rotary_carbide', 'lab_carbide'],
-      ceramic:         ['polisher_ceramic'],
-      rubber_polisher: ['polisher_composite', 'polisher_amalgam'],
-      abrasive_wheel:  ['accessory', 'other'],
-      disc_slotted:    ['accessory', 'other'],
-      disc_perforated: ['accessory', 'other'],
-      steel_smooth:    ['endodontic', 'root_post'],
-      sonic_tip:       ['sonic'],
+describe('SURFACE_TEXTURE_TO_CATALOG_SECTIONS', () => {
+  test('ogni SurfaceTexture mappa alle catalog_section corrette', () => {
+    expect(SURFACE_TEXTURE_TO_CATALOG_SECTIONS).toEqual({
+      diamond_grit:    ['diamond_studio', 'diamond_lab'],
+      carbide_blades:  ['carbide_studio', 'carbide_lab'],
+      ceramic:         ['ceramics', 'ceramics_lab'],
+      rubber_polisher: ['polisher_studio', 'polisher_lab'],
+      abrasive_wheel:  ['separating_discs'],
+      disc_slotted:    ['separating_discs'],
+      disc_perforated: ['separating_discs'],
+      steel_smooth:    ['endodontics', 'root_posts'],
+      sonic_tip:       ['sonic_perio', 'sonic_endo', 'sonic_quick'],
       other:           null,
     })
   })
 })
 
-describe('SHANK_GROUP_TO_DB_TYPES', () => {
-  test('FG → ["fg"]', () => { expect(SHANK_GROUP_TO_DB_TYPES.FG).toEqual(['fg']) })
-  test('CA_HP → ["ca","hp"]', () => { expect(SHANK_GROUP_TO_DB_TYPES.CA_HP).toEqual(['ca', 'hp']) })
-  test('HPT → ["hpt"]', () => { expect(SHANK_GROUP_TO_DB_TYPES.HPT).toEqual(['hpt']) })
-  test('Handle_S e Handle_L → ["grip"]', () => {
-    expect(SHANK_GROUP_TO_DB_TYPES.Handle_S).toEqual(['grip'])
-    expect(SHANK_GROUP_TO_DB_TYPES.Handle_L).toEqual(['grip'])
+describe('SHANK_GROUP_TO_DB_CODES', () => {
+  test('FG → ["314"]',       () => { expect(SHANK_GROUP_TO_DB_CODES.FG).toEqual(['314']) })
+  test('CA_HP → ["204","205"]', () => { expect(SHANK_GROUP_TO_DB_CODES.CA_HP).toEqual(['204', '205']) })
+  test('HPT → ["104"]',      () => { expect(SHANK_GROUP_TO_DB_CODES.HPT).toEqual(['104']) })
+  test('Handle_S e Handle_L → ["000"]', () => {
+    expect(SHANK_GROUP_TO_DB_CODES.Handle_S).toEqual(['000'])
+    expect(SHANK_GROUP_TO_DB_CODES.Handle_L).toEqual(['000'])
   })
 })
