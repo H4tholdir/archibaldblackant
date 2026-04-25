@@ -74,11 +74,33 @@ function InstrumentGuide() {
           BASE
         </div>
       </div>
+
+      {/* ARUco card silhouette — posizionata vicino al gambo (BASE) */}
+      <div style={{
+        position: 'absolute',
+        right: '7%',
+        bottom: '14%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+      }}>
+        <div style={{ color: 'rgba(34,197,94,0.85)', fontSize: 8, fontWeight: 700, letterSpacing: 1, textAlign: 'center' }}>
+          MARKER
+        </div>
+        <div style={{
+          width: 46, height: 30,
+          border: '1.5px dashed rgba(34,197,94,0.55)',
+          borderRadius: 3,
+          background: 'rgba(34,197,94,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ width: 13, height: 13, background: 'rgba(34,197,94,0.18)', borderRadius: 1 }} />
+        </div>
+        <div style={{ color: 'rgba(34,197,94,0.55)', fontSize: 10 }}>← qui</div>
+      </div>
     </div>
   )
 }
 
-function TopDownGuide() {
+function ObliqueGuide() {
   const bracket: CSSProperties = {
     position: 'absolute',
     width: 18,
@@ -98,12 +120,13 @@ function TopDownGuide() {
           color: 'rgba(96,165,250,0.9)', fontSize: 10,
           fontWeight: 700, letterSpacing: 2, marginBottom: 12,
         }}>
-          PUNTA — DALL'ALTO
+          INCLINA 30–45°
         </div>
+        {/* Ellisse — suggerisce prospettiva obliqua */}
         <div style={{
           position: 'relative',
-          width: '60vw',
-          height: '60vw',
+          width: '58vw',
+          height: '38vw',
           borderRadius: '50%',
           border: '1.5px solid rgba(96,165,250,0.35)',
         }}>
@@ -111,19 +134,53 @@ function TopDownGuide() {
           <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
           <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
           <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
+          {/* Centro: dot + asse verticale che suggerisce la punta */}
           <div style={{
             position: 'absolute', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
             width: 8, height: 8, borderRadius: '50%',
             background: 'rgba(96,165,250,0.5)',
           }} />
+          <div style={{
+            position: 'absolute', top: '10%', bottom: '10%', left: '50%',
+            width: 1, background: 'rgba(96,165,250,0.2)',
+            transform: 'translateX(-50%)',
+          }} />
         </div>
         <div style={{
           color: 'rgba(96,165,250,0.8)', fontSize: 10,
           fontWeight: 700, letterSpacing: 2, marginTop: 12,
         }}>
-          10–15 cm di distanza
+          5–10 cm dalla punta
         </div>
+      </div>
+
+      {/* Indicatore angolo — angolo icona in basso-sinistra */}
+      <div style={{
+        position: 'absolute', bottom: '14%', left: '8%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      }}>
+        <div style={{
+          width: 36, height: 36, position: 'relative',
+          border: '1px solid rgba(96,165,250,0.3)',
+          borderRadius: 4,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-start',
+          overflow: 'hidden',
+        }}>
+          {/* Arco angolo */}
+          <div style={{
+            position: 'absolute', bottom: 4, left: 4,
+            width: 20, height: 20,
+            border: '1.5px solid rgba(96,165,250,0.6)',
+            borderRadius: '50%',
+            clipPath: 'polygon(0 100%, 100% 100%, 100% 0)',
+          }} />
+          {/* Linea verticale */}
+          <div style={{ position: 'absolute', bottom: 4, left: 4, width: 1, height: 16, background: 'rgba(96,165,250,0.5)' }} />
+          {/* Linea orizzontale */}
+          <div style={{ position: 'absolute', bottom: 4, left: 4, width: 16, height: 1, background: 'rgba(96,165,250,0.5)' }} />
+        </div>
+        <div style={{ color: 'rgba(96,165,250,0.7)', fontSize: 8, fontWeight: 700, letterSpacing: 1 }}>30–45°</div>
       </div>
     </div>
   )
@@ -454,70 +511,76 @@ export function ToolRecognitionPage() {
         background: '#0a1f0a',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
       }}>
-        {/* Header */}
-        <div style={{
-          background: '#0d2b0d',
-          padding: '14px 20px',
-          display: 'flex', alignItems: 'center', gap: 10,
-          flexShrink: 0, borderBottom: '1px solid #1a3a1a',
-        }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: '50%',
-            background: '#22c55e', color: '#000',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 900, flexShrink: 0,
-          }}>✓</div>
-          <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 15, flex: 1 }}>
-            Articolo identificato
-          </span>
-          {usedPhotoCount > 1 && (
-            <span style={{
-              color: '#22c55e', fontSize: 11, fontWeight: 600,
-              background: 'rgba(34,197,94,0.12)', borderRadius: 6, padding: '3px 8px',
-              border: '1px solid rgba(34,197,94,0.3)', marginRight: 4,
+        {/* Hero photo */}
+        {capturedImages[0] && (
+          <div style={{ position: 'relative', height: '42vh', flexShrink: 0 }}>
+            <img
+              src={`data:image/jpeg;base64,${capturedImages[0]}`}
+              alt="Foto scansione"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+            {/* gradient overlay bottom */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
+              background: 'linear-gradient(to bottom, transparent, #0a1f0a)',
+            }} />
+            {/* confidence badge */}
+            <div style={{
+              position: 'absolute', top: 52, right: 16,
+              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+              borderRadius: 20, padding: '4px 12px',
+              color: confidenceColor, fontSize: 13, fontWeight: 700,
+              border: `1px solid ${confidenceColor}40`,
             }}>
-              {usedPhotoCount} foto
-            </span>
-          )}
-          <span style={{
-            color: confidenceColor, fontSize: 13, fontWeight: 700,
-            background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '3px 8px',
-          }}>
-            {confidencePct}% conf.
-          </span>
-        </div>
+              {confidencePct}% conf.
+            </div>
+            {/* check badge */}
+            <div style={{
+              position: 'absolute', top: 52, left: 16,
+              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+              borderRadius: 20, padding: '4px 12px',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#22c55e', color: '#000',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 900,
+              }}>✓</div>
+              <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 13 }}>
+                Articolo identificato
+              </span>
+            </div>
+            {/* foto count badge */}
+            {usedPhotoCount > 1 && (
+              <div style={{
+                position: 'absolute', bottom: 24, right: 16,
+                color: '#22c55e', fontSize: 11, fontWeight: 600,
+                background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 8px',
+                border: '1px solid rgba(34,197,94,0.3)',
+              }}>
+                {usedPhotoCount} foto
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ padding: '20px', flex: 1 }}>
-          {/* Foto + identità prodotto */}
-          <div style={{
-            display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 24,
-          }}>
-            {capturedImages[0] && (
-              <img
-                src={`data:image/jpeg;base64,${capturedImages[0]}`}
-                alt="Foto scansione"
-                style={{
-                  width: 80, height: 80, borderRadius: 10,
-                  objectFit: 'cover', flexShrink: 0,
-                  border: '2px solid #22c55e',
-                }}
-              />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 4 }}>
-                {[product.familyCode, product.shankType?.toUpperCase()].filter(Boolean).join(' · ')}
-              </div>
-              <div style={{
-                color: '#fff', fontSize: 18, fontWeight: 700,
-                lineHeight: 1.3, marginBottom: 6, wordBreak: 'break-word',
-              }}>
-                {product.productName}
-              </div>
-              <div style={{
-                fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
-              }}>
-                {product.familyCode}
-              </div>
+          {/* Identità prodotto */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 4 }}>
+              {[product.familyCode, product.shankType?.toUpperCase()].filter(Boolean).join(' · ')}
+            </div>
+            <div style={{
+              color: '#fff', fontSize: 20, fontWeight: 700,
+              lineHeight: 1.3, marginBottom: 6, wordBreak: 'break-word',
+            }}>
+              {product.productName}
+            </div>
+            <div style={{
+              fontFamily: 'monospace', color: '#9ca3af', fontSize: 14, letterSpacing: 1.5,
+            }}>
+              {product.familyCode}
             </div>
           </div>
 
@@ -582,29 +645,30 @@ export function ToolRecognitionPage() {
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#111', overflowY: 'auto' }}>
+        {/* Hero photo */}
+        {capturedImages[0] && (
+          <div style={{ position: 'relative', height: '38vh', flexShrink: 0 }}>
+            <img
+              src={`data:image/jpeg;base64,${capturedImages[0]}`}
+              alt="Foto scansione"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
+              background: 'linear-gradient(to bottom, transparent, #111)',
+            }} />
+          </div>
+        )}
         {/* Header */}
         <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #1f1f1f', background: '#141414' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {capturedImages[0] && (
-              <img
-                src={`data:image/jpeg;base64,${capturedImages[0]}`}
-                alt="Foto scansione"
-                style={{
-                  width: 52, height: 52, borderRadius: 8,
-                  objectFit: 'cover', flexShrink: 0,
-                  border: '2px solid #f9a825',
-                }}
-              />
-            )}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ color: '#f9a825', fontSize: 16, fontWeight: 700 }}>
-                  {candidates.length} candidati trovati
-                </span>
-              </div>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>
-                Incerto · seleziona il prodotto corretto
-              </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <span style={{ color: '#f9a825', fontSize: 16, fontWeight: 700 }}>
+                {candidates.length} candidati trovati
+              </span>
+            </div>
+            <div style={{ color: '#6b7280', fontSize: 13 }}>
+              Incerto · seleziona il prodotto corretto
             </div>
           </div>
         </div>
@@ -663,18 +727,18 @@ export function ToolRecognitionPage() {
                     src={c.thumbnailUrl}
                     alt="Strip campionario"
                     style={{
-                      width: 64, height: 64, objectFit: 'cover',
-                      borderRadius: 6, flexShrink: 0,
+                      width: 88, height: 88, objectFit: 'cover',
+                      borderRadius: 8, flexShrink: 0,
                       border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
                     }}
                   />
                 ) : (
                   <div style={{
-                    width: 64, height: 64, borderRadius: 6, flexShrink: 0,
+                    width: 88, height: 88, borderRadius: 8, flexShrink: 0,
                     background: '#2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     border: `1px solid ${isFirst ? '#f9a825' : '#374151'}`,
                   }}>
-                    <span style={{ color: '#6b7280', fontSize: 22 }}>🔩</span>
+                    <span style={{ color: '#6b7280', fontSize: 26 }}>🔩</span>
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -954,11 +1018,11 @@ export function ToolRecognitionPage() {
         {/* Title + subtitle */}
         <div style={{ padding: '14px 20px 0' }}>
           <div style={{ color: '#fff', fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
-            {isPhoto2 ? 'Vista dall\'Alto' : 'Vista Laterale'}
+            {isPhoto2 ? 'Vista Obliqua' : 'Vista Laterale'}
           </div>
           <div style={{ color: '#8B90A0', fontSize: 14 }}>
             {isPhoto2
-              ? 'Fotografa la punta dello strumento dall\'alto verso il basso'
+              ? 'Avvicina la punta e inclina 30–45° dall\'alto per vedere la forma'
               : 'Orienta lo strumento orizzontalmente nel mirino'}
           </div>
         </div>
@@ -972,7 +1036,7 @@ export function ToolRecognitionPage() {
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
             {/* Guide overlay */}
-            {isPhoto2 ? <TopDownGuide /> : <InstrumentGuide />}
+            {isPhoto2 ? <ObliqueGuide /> : <InstrumentGuide />}
             {/* Corner brackets */}
             {[
               { top: 10, left: 10, borderTopWidth: 2, borderLeftWidth: 2 },
