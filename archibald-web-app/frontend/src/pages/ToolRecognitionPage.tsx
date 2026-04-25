@@ -28,12 +28,18 @@ type PageState =
 function InstrumentGuide() {
   const bracket: CSSProperties = {
     position: 'absolute',
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     borderColor: '#22c55e',
     borderStyle: 'solid',
     borderWidth: 0,
   }
+  // Fresa orizzontale: PUNTA a sinistra, BASE a destra
+  // Carta ARUco landscape accanto alla BASE, stesso piano
+  const FRESA_W = 190
+  const FRESA_H = 46
+  const CARD_W  = 78   // aspect ratio 85.6:54 ≈ 1.585
+  const CARD_H  = 49
   return (
     <div style={{
       position: 'absolute', inset: 0,
@@ -42,60 +48,58 @@ function InstrumentGuide() {
       backgroundSize: '33.33% 33.33%',
       pointerEvents: 'none',
     }}>
-      {/* Strumento + carta ARUco affiancati, allineati al fondo (carta vicino alla BASE) */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
 
-        {/* Colonna strumento */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
-            PUNTA
-          </div>
-          <div style={{ position: 'relative', width: 44, height: 230, border: '1px solid rgba(34,197,94,0.35)', borderRadius: 4 }}>
+        {/* Riga etichette PUNTA / BASE — sopra le estremità della fresa */}
+        <div style={{ display: 'flex', width: FRESA_W, justifyContent: 'space-between', paddingLeft: 2, paddingRight: 2 }}>
+          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 9, fontWeight: 700, letterSpacing: 2 }}>PUNTA</div>
+          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 9, fontWeight: 700, letterSpacing: 2 }}>BASE</div>
+        </div>
+
+        {/* Riga principale: fresa orizzontale + carta ARUco */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+
+          {/* Fresa orizzontale */}
+          <div style={{ position: 'relative', width: FRESA_W, height: FRESA_H, border: '1px solid rgba(34,197,94,0.35)', borderRadius: 4 }}>
             <div style={{ ...bracket, top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 }} />
             <div style={{ ...bracket, top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 }} />
             <div style={{ ...bracket, bottom: -1, left: -1, borderBottomWidth: 2, borderLeftWidth: 2 }} />
             <div style={{ ...bracket, bottom: -1, right: -1, borderBottomWidth: 2, borderRightWidth: 2 }} />
-            {/* linea divisoria testa/gambo a circa 40% dall'alto */}
-            <div style={{ position: 'absolute', left: '15%', right: '15%', top: '40%', height: 1, background: 'rgba(34,197,94,0.25)' }} />
+            {/* linea divisoria testa attiva / gambo — circa 45% da sinistra */}
+            <div style={{ position: 'absolute', top: '15%', bottom: '15%', left: '45%', width: 1, background: 'rgba(34,197,94,0.3)' }} />
           </div>
-          <div style={{ color: 'rgba(34,197,94,0.8)', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginTop: 6 }}>
-            BASE
-          </div>
-        </div>
 
-        {/* Colonna carta ARUco — allineata al fondo → si posiziona accanto alla BASE */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ color: 'rgba(96,165,250,0.9)', fontSize: 9, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textAlign: 'center', lineHeight: 1.3 }}>
-            <div>CARTA</div>
-            <div>ARUco</div>
-          </div>
-          {/* Sagoma carta: aspect ratio 85.6 × 54 mm */}
-          <div style={{
-            position: 'relative',
-            width: 96, height: 61,
-            border: '1.5px solid rgba(96,165,250,0.5)',
-            borderRadius: 4,
-            background: 'rgba(96,165,250,0.05)',
-          }}>
-            {/* Mini marker ARUco centrato nella carta */}
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 22, height: 22,
-              border: '1.5px solid rgba(96,165,250,0.6)',
-              background: 'rgba(96,165,250,0.12)',
-            }}>
-              {/* pattern interno: 4 quadratini angolo */}
-              <div style={{ position: 'absolute', top: 2, left: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
-              <div style={{ position: 'absolute', top: 2, right: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
-              <div style={{ position: 'absolute', bottom: 2, left: 2, width: 5, height: 5, background: 'rgba(96,165,250,0.5)' }} />
+          {/* Carta ARUco landscape — accanto alla BASE (destra della fresa) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{ color: 'rgba(96,165,250,0.85)', fontSize: 8, fontWeight: 700, letterSpacing: 1, lineHeight: 1.2, textAlign: 'center' }}>
+              <div>CARTA</div>
+              <div>ARUco</div>
             </div>
+            <div style={{
+              position: 'relative',
+              width: CARD_W, height: CARD_H,
+              border: '1.5px solid rgba(96,165,250,0.5)',
+              borderRadius: 3,
+              background: 'rgba(96,165,250,0.05)',
+            }}>
+              {/* Marker nella colonna destra (come nella carta reale) */}
+              <div style={{
+                position: 'absolute',
+                top: '50%', left: '62%',
+                transform: 'translateY(-50%)',
+                width: 20, height: 20,
+                border: '1.5px solid rgba(96,165,250,0.65)',
+                background: 'rgba(96,165,250,0.1)',
+              }}>
+                <div style={{ position: 'absolute', top: 2, left: 2, width: 4, height: 4, background: 'rgba(96,165,250,0.6)' }} />
+                <div style={{ position: 'absolute', top: 2, right: 2, width: 4, height: 4, background: 'rgba(96,165,250,0.6)' }} />
+                <div style={{ position: 'absolute', bottom: 2, left: 2, width: 4, height: 4, background: 'rgba(96,165,250,0.6)' }} />
+              </div>
+            </div>
+            <div style={{ color: 'rgba(96,165,250,0.55)', fontSize: 8, letterSpacing: 0.5 }}>stesso piano</div>
           </div>
-          <div style={{ color: 'rgba(96,165,250,0.6)', fontSize: 9, fontWeight: 600, marginTop: 6, letterSpacing: 0.5, textAlign: 'center' }}>
-            stesso piano
-          </div>
-        </div>
 
+        </div>
       </div>
     </div>
   )
