@@ -7,7 +7,12 @@ import { ToolRecognitionPage } from './ToolRecognitionPage'
 import * as recognitionApi from '../api/recognition'
 import type { IdentifyResponse } from '../api/recognition'
 
-// Mock getUserMedia
+let arucoResult: { detected: boolean; pxPerMm: number | null } = { detected: true, pxPerMm: 5.0 }
+
+vi.mock('../hooks/useArucoDetector', () => ({
+  useArucoDetector: () => vi.fn().mockImplementation(() => Promise.resolve(arucoResult)),
+}))
+
 function mockGetUserMedia(impl: () => Promise<MediaStream | never>) {
   Object.defineProperty(global.navigator, 'mediaDevices', {
     value: { getUserMedia: vi.fn().mockImplementation(impl) },
@@ -23,14 +28,10 @@ function mockStream() {
   } as unknown as MediaStreamTrack
   return {
     getVideoTracks: () => [track],
-    getTracks: () => [track],
+    getTracks:      () => [track],
   } as unknown as MediaStream
 }
 
-/**
- * Abilita captureFrame() in jsdom: il video element ha dimensioni 0×0 di default,
- * quindi occorre mock videoWidth/videoHeight + canvas toDataURL.
- */
 function mockCapture() {
   Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth',  { get: () => 1, configurable: true })
   Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', { get: () => 1, configurable: true })
@@ -40,10 +41,6 @@ function mockCapture() {
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,FAKEFRAME')
 }
 
-/**
- * Flusso completo: foto1 → skip foto2 → identifica.
- * Richiede che mockCapture() sia già stato chiamato.
- */
 async function captureAndIdentify() {
   await waitFor(() => screen.getByRole('button', { name: /SCATTA FOTO 1/i }))
   await userEvent.click(screen.getByRole('button', { name: /SCATTA FOTO 1/i }))
@@ -134,11 +131,10 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
     mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockImplementation(
-      () => new Promise(() => {}) // non risolve — rimane in analisi
+      () => new Promise(() => {})
     )
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-
     await captureAndIdentify()
 
     await waitFor(() =>
@@ -146,18 +142,17 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
     )
   })
 
-  it('mostra schermata budget esaurito quando result.state è budget_exhausted', async () => {
+  it('mostra schermata budget esaurito quando result.type è budget_exhausted', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
     mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue({
-      result: { state: 'budget_exhausted' },
+      result: { type: 'budget_exhausted' },
       budgetState: { usedToday: 500, dailyLimit: 500, throttleLevel: 'limited' },
       processingMs: 50,
       imageHash: 'xyz',
     })
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
-
     await captureAndIdentify()
 
     await waitFor(() =>
@@ -168,15 +163,23 @@ describe('ToolRecognitionPage — Stato 2 (analyzing)', () => {
 
 const MATCH_RESPONSE: IdentifyResponse = {
   result: {
-    state: 'match',
-    product: {
-      productId: 'H1.314.016', productName: 'TC Round FG Ø1.6', familyCode: 'H1',
-      headSizeMm: 1.6, shankType: 'fg', thumbnailUrl: null, confidence: 0.95,
+    type: 'match',
+    data: {
+      familyCode:        'H1',
+      productName:       'TC Round FG Ø1.6',
+      shankType:         'fg',
+      headDiameterMm:    1.6,
+      headLengthMm:      null,
+      shapeClass:        'sfera',
+      confidence:        0.95,
+      thumbnailUrl:      null,
+      discontinued:      false,
+      measurementSource: 'shank_iso',
     },
-    confidence: 0.95,
   },
   budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
-  processingMs: 800, imageHash: 'abc123',
+  processingMs: 800,
+  imageHash: 'abc123',
 }
 
 describe('ToolRecognitionPage — Stato 3A (match)', () => {
@@ -193,10 +196,10 @@ describe('ToolRecognitionPage — Stato 3A (match)', () => {
       expect(screen.getByRole('button', { name: /Apri scheda prodotto/i })).toBeInTheDocument()
     )
     expect(screen.getByText('TC Round FG Ø1.6')).toBeInTheDocument()
-    expect(screen.getByText('H1.314.016')).toBeInTheDocument()
+    expect(screen.getByText('H1')).toBeInTheDocument()
   })
 
-  it('chiama submitRecognitionFeedback prima di navigare quando si clicca "Apri scheda"', async () => {
+  it('chiama submitRecognitionFeedback con familyCode prima di navigare', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
     mockCapture()
     vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
@@ -209,27 +212,30 @@ describe('ToolRecognitionPage — Stato 3A (match)', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: /Apri scheda prodotto/i }))
 
-    if (MATCH_RESPONSE.result.state !== 'match') throw new Error('Test setup error')
+    if (MATCH_RESPONSE.result.type !== 'match') throw new Error('Test setup error')
     expect(feedbackSpy).toHaveBeenCalledWith(TOKEN, {
-      imageHash: MATCH_RESPONSE.imageHash,
-      productId: MATCH_RESPONSE.result.product.productId,
+      imageHash:       MATCH_RESPONSE.imageHash,
+      productId:       MATCH_RESPONSE.result.data.familyCode,
       confirmedByUser: true,
     })
   })
 })
 
 describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
-  it('mostra lista candidati con link a scheda prodotto', async () => {
+  it('mostra lista candidati', async () => {
     const shortlistResponse: IdentifyResponse = {
       result: {
-        state: 'shortlist_visual',
-        candidates: [
-          { familyCode: 'H1', thumbnailUrl: null, referenceImages: [] },
-          { familyCode: 'H79NEX', thumbnailUrl: null, referenceImages: [] },
-        ],
+        type: 'shortlist_visual',
+        data: {
+          candidates: [
+            { familyCode: 'H1',     thumbnailUrl: null, referenceImages: [] },
+            { familyCode: 'H79NEX', thumbnailUrl: null, referenceImages: [] },
+          ],
+        },
       },
       budgetState: { usedToday: 11, dailyLimit: 500, throttleLevel: 'normal' },
-      processingMs: 900, imageHash: 'def456',
+      processingMs: 900,
+      imageHash: 'def456',
     }
 
     mockGetUserMedia(() => Promise.resolve(mockStream()))
@@ -247,55 +253,117 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
   })
 })
 
-describe('photo2_request state', () => {
-  it('mostra istruzione Claude quando result è photo2_request', async () => {
+describe('ToolRecognitionPage — Stato 3C (not_found)', () => {
+  it('mostra schermata not_found con misure quando disponibili', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
-    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValueOnce({
-      result: {
-        state:       'photo2_request',
-        candidates:  ['879.104.014', '863.104.014'],
-        instruction: 'Fotografa la punta dall\'alto per vedere se è piatta o arrotondata',
-      },
-      budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
-      processingMs: 3000,
-      imageHash:    'abc',
-    })
     mockCapture()
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue({
+      result: {
+        type: 'not_found',
+        data: {
+          measurements: {
+            shankGroup: 'CA_HP', headDiameterMm: 2.3,
+            shapeClass: 'cono_tondo', measurementSource: 'shank_iso',
+          },
+        },
+      },
+      budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 1200,
+      imageHash: 'nf001',
+    })
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
     await captureAndIdentify()
 
-    await waitFor(() => {
-      expect(screen.getByText(/ho bisogno di un'altra foto/i)).toBeInTheDocument()
-      expect(screen.getByText(/fotografa la punta dall'alto/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /scatta ora/i })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByText(/Strumento non trovato in catalogo/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/2\.3 mm/i)).toBeInTheDocument()
+    expect(screen.getByText(/cono_tondo/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Riprova/i })).toBeInTheDocument()
+  })
+
+  it('mostra schermata not_found anche senza misure', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue({
+      result: {
+        type: 'not_found',
+        data: {
+          measurements: {
+            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none',
+          },
+        },
+      },
+      budgetState: { usedToday: 5, dailyLimit: 500, throttleLevel: 'normal' },
+      processingMs: 800,
+      imageHash: 'nf002',
     })
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Strumento non trovato in catalogo/i)).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: /Riprova/i })).toBeInTheDocument()
   })
 })
 
-describe('shortlist_visual state', () => {
-  it('mostra lista candidati quando result è shortlist_visual', async () => {
+describe('ToolRecognitionPage — aruco_absent screen', () => {
+  beforeEach(() => { arucoResult = { detected: false, pxPerMm: null } })
+  afterEach(() => { arucoResult = { detected: true, pxPerMm: 5.0 } })
+
+  it('mostra schermata aruco_absent con le due opzioni quando marker non rilevato', async () => {
     mockGetUserMedia(() => Promise.resolve(mockStream()))
-    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValueOnce({
-      result: {
-        state: 'shortlist_visual',
-        candidates: [
-          { familyCode: '879', thumbnailUrl: null, referenceImages: [] },
-          { familyCode: '863', thumbnailUrl: null, referenceImages: [] },
-        ],
-      },
-      budgetState:  { usedToday: 1, dailyLimit: 500, throttleLevel: 'normal' },
-      processingMs: 5000,
-      imageHash:    'xyz',
-    })
     mockCapture()
 
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
     await captureAndIdentify()
 
-    await waitFor(() => {
-      expect(screen.getByText('879')).toBeInTheDocument()
-      expect(screen.getByText('863')).toBeInTheDocument()
-    })
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: /Riprova con la carta/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Procedi senza carta/i })).toBeInTheDocument()
+  })
+
+  it('torna a idle_photo1 quando si clicca Riprova con la carta', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Riprova con la carta/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /SCATTA FOTO 1/i })).toBeInTheDocument()
+    )
+  })
+
+  it('chiama identifyInstrument senza arucoPxPerMm quando si clicca Procedi senza carta', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+    mockCapture()
+    vi.spyOn(recognitionApi, 'identifyInstrument').mockResolvedValue(MATCH_RESPONSE)
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+    await captureAndIdentify()
+
+    await waitFor(() =>
+      expect(screen.getByText(/Carta ARUco non rilevata nella foto/i)).toBeInTheDocument()
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Procedi senza carta/i }))
+
+    await waitFor(() =>
+      expect(recognitionApi.identifyInstrument).toHaveBeenCalledWith(
+        TOKEN,
+        expect.any(Array),
+        undefined,
+      )
+    )
   })
 })
