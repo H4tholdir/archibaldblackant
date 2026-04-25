@@ -1,106 +1,316 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="utf-8">
-<title>Carta di Calibrazione ARUco — Formicanera</title>
+<meta charset="UTF-8">
+<title>Carta ARUco Calibrazione — Formicanera</title>
 <style>
   @page { size: 85.6mm 54mm; margin: 0; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { width: 85.6mm; height: 54mm; font-family: -apple-system, sans-serif; overflow: hidden; }
-  .card { width: 85.6mm; height: 54mm; display: flex; flex-direction: column; background: #fff; }
+
+  body {
+    background: #e0e4ed;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
+    padding: 24px;
+    gap: 20px;
+  }
+
+  @media print {
+    body {
+      background: white;
+      min-height: 0;
+      padding: 0;
+      gap: 0;
+    }
+    .print-hint { display: none; }
+  }
+
+  /* === CARD === */
+  .card {
+    width: 85.6mm;
+    height: 54mm;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 1.5mm;
+    box-shadow: 0 6px 32px rgba(0,0,0,0.35);
+  }
+
+  @media print {
+    .card { border-radius: 0; box-shadow: none; }
+  }
+
+  /* === HEADER === */
   .header {
-    background: #0a3d8f; color: #fff;
-    padding: 2mm 4mm;
-    display: flex; align-items: center; gap: 2mm; flex-shrink: 0;
+    height: 14mm;
+    background: linear-gradient(90deg, #0a3d8f 0%, #1a6fff 100%);
+    display: flex;
+    align-items: center;
+    padding: 0 3.5mm;
+    gap: 2.2mm;
+    flex-shrink: 0;
   }
-  .logo-circle { width: 8mm; height: 8mm; flex-shrink: 0; }
-  .header-text { font-size: 5pt; font-weight: 700; letter-spacing: 0.3mm; line-height: 1.4; }
-  .header-sub  { font-size: 4pt; opacity: 0.8; font-weight: 400; }
+
+  .header img {
+    width: 9mm;
+    height: 9mm;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .header-fallback {
+    width: 9mm;
+    height: 9mm;
+    border-radius: 50%;
+    border: 0.4mm solid rgba(255,255,255,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .header-text { display: flex; flex-direction: column; gap: 0.4mm; }
+
+  .brand-name {
+    font-size: 3.4mm;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.28mm;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .brand-sub {
+    font-size: 1.9mm;
+    color: #aad0ff;
+    letter-spacing: 0.08mm;
+    line-height: 1;
+  }
+
+  /* === BODY === */
   .body {
-    flex: 1; display: flex; align-items: center;
-    justify-content: center; gap: 5mm; padding: 2mm 4mm;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 2.5mm 3.5mm;
+    gap: 3mm;
   }
-  .marker-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
-  .marker-label { font-size: 4pt; color: #555; text-align: center; line-height: 1.3; }
-  .instructions { font-size: 4pt; color: #333; line-height: 1.6; max-width: 45mm; }
-  .instructions strong { color: #0a3d8f; font-size: 4.5pt; }
+
+  /* === LEFT COLUMN: scale info === */
+  .left-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.8mm;
+    min-width: 0;
+  }
+
+  .scale-title {
+    font-size: 1.85mm;
+    font-weight: 700;
+    color: #0a3d8f;
+    text-transform: uppercase;
+    letter-spacing: 0.12mm;
+    line-height: 1;
+  }
+
+  .shank-rows { display: flex; flex-direction: column; gap: 0.7mm; }
+
+  .shank-row { display: flex; align-items: center; gap: 1.5mm; }
+
+  .shank-bar {
+    width: 4.2mm;
+    border-radius: 0.5mm;
+    flex-shrink: 0;
+  }
+
+  .shank-label {
+    font-size: 1.65mm;
+    color: #333;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .ruler { margin-top: 0.8mm; }
+
+  .ruler-marks {
+    display: flex;
+    align-items: center;
+  }
+
+  .tick { width: 0.25mm; height: 2mm; background: #0a3d8f; flex-shrink: 0; }
+
+  .ruler-line { width: 10mm; height: 0.2mm; background: #0a3d8f; flex-shrink: 0; }
+
+  .ruler-label {
+    font-size: 1.5mm;
+    color: #888;
+    font-family: 'Courier New', monospace;
+    margin-top: 0.5mm;
+    line-height: 1;
+  }
+
+  /* === RIGHT COLUMN: ARUco marker === */
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8mm;
+    flex-shrink: 0;
+  }
+
+  .aruco-wrap {
+    padding: 0.8mm;
+    border: 0.5mm solid #0a3d8f;
+    border-radius: 0.5mm;
+    background: #ffffff;
+    line-height: 0;
+  }
+
+  .aruco-label {
+    font-size: 1.5mm;
+    color: #666;
+    font-family: 'Courier New', monospace;
+    text-align: center;
+    line-height: 1.35;
+  }
+
+  /* === PRINT HINT === */
+  .print-hint {
+    max-width: 480px;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #c8d0e0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #444;
+    line-height: 1.65;
+  }
+
+  .print-hint h3 {
+    font-size: 13px;
+    color: #0a3d8f;
+    margin-bottom: 6px;
+  }
+
+  .print-hint ol { padding-left: 18px; }
+  .print-hint li { margin-bottom: 3px; }
+  .print-hint strong { color: #0a3d8f; }
 </style>
 </head>
 <body>
+
 <div class="card">
+  <!-- HEADER -->
   <div class="header">
-    <svg class="logo-circle" viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="15" fill="none" stroke="white" stroke-width="1.5"/>
-      <text x="16" y="13" text-anchor="middle" fill="white"
-            font-size="5" font-weight="700" font-family="sans-serif">FORMI</text>
-      <text x="16" y="20" text-anchor="middle" fill="white"
-            font-size="5" font-weight="700" font-family="sans-serif">CANERA</text>
-    </svg>
-    <div>
-      <div class="header-text">FORMICANERA</div>
-      <div class="header-sub">Carta di Calibrazione</div>
+    <img
+      src="../../archibald-web-app/frontend/public/formicaneralogo.png"
+      alt=""
+      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+    />
+    <div class="header-fallback" style="display:none;">
+      <svg width="7mm" height="7mm" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="8" r="3.5" fill="white" opacity="0.9"/>
+        <path d="M5 20c0-4 3-7 7-7s7 3 7 7" stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <div class="brand-name">Formicanera</div>
+      <div class="brand-sub">Strumento di Calibrazione</div>
     </div>
   </div>
 
+  <!-- BODY -->
   <div class="body">
-    <div class="marker-wrap">
-      <!--
-        Marker dizionario ARUCO (js-aruco2) ID=42.
-        7x7 celle totali: 5x5 inner + 1-cella bordo su tutti i lati.
-        Dimensione fisica: 20mm → ogni cella = 20/7 ≈ 2.857mm.
-        SVG viewBox 0 0 7 7, ogni unità = 1 cella.
-        Bit 1=bianco, 0=nero. Bordo: sempre nero.
-        Pattern inner 5x5 (MSB-first, 25 bit, valore 0x1082529):
-          row 0 (y=1): 1 0 0 0 0  → col 1,2,3,4 (x=2,3,4,5) nere
-          row 1 (y=2): 1 0 0 0 0  → col 1,2,3,4 (x=2,3,4,5) nere
-          row 2 (y=3): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
-          row 3 (y=4): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
-          row 4 (y=5): 0 1 0 0 1  → col 0,2,3 (x=1,3,4) nere
-      -->
-      <svg width="20mm" height="20mm" viewBox="0 0 7 7" shape-rendering="crispEdges">
-        <!-- Sfondo totale nero -->
-        <rect x="0" y="0" width="7" height="7" fill="black"/>
-        <!-- Area inner 5x5 bianca (y=1..5, x=1..5) -->
-        <rect x="1" y="1" width="5" height="5" fill="white"/>
-        <!-- Celle inner=0 (nere): coordinate x=col_inner+1, y=row_inner+1 -->
-        <!-- row 0: col 1,2,3,4 nere -->
-        <rect x="2" y="1" width="1" height="1" fill="black"/>
-        <rect x="3" y="1" width="1" height="1" fill="black"/>
-        <rect x="4" y="1" width="1" height="1" fill="black"/>
-        <rect x="5" y="1" width="1" height="1" fill="black"/>
-        <!-- row 1: col 1,2,3,4 nere -->
-        <rect x="2" y="2" width="1" height="1" fill="black"/>
-        <rect x="3" y="2" width="1" height="1" fill="black"/>
-        <rect x="4" y="2" width="1" height="1" fill="black"/>
-        <rect x="5" y="2" width="1" height="1" fill="black"/>
-        <!-- row 2: col 0,2,3 nere -->
-        <rect x="1" y="3" width="1" height="1" fill="black"/>
-        <rect x="3" y="3" width="1" height="1" fill="black"/>
-        <rect x="4" y="3" width="1" height="1" fill="black"/>
-        <!-- row 3: col 0,2,3 nere -->
-        <rect x="1" y="4" width="1" height="1" fill="black"/>
-        <rect x="3" y="4" width="1" height="1" fill="black"/>
-        <rect x="4" y="4" width="1" height="1" fill="black"/>
-        <!-- row 4: col 0,2,3 nere -->
-        <rect x="1" y="5" width="1" height="1" fill="black"/>
-        <rect x="3" y="5" width="1" height="1" fill="black"/>
-        <rect x="4" y="5" width="1" height="1" fill="black"/>
-      </svg>
-      <div class="marker-label">
-        ID 42 &middot; ARUCO (5&times;5)<br>
-        <strong style="color:#0a3d8f;font-size:5pt">&#9664; 20 mm &#9654;</strong>
+
+    <!-- LEFT: scala ISO gambi + righello -->
+    <div class="left-col">
+      <div class="scale-title">Scala ISO gambi</div>
+
+      <div class="shank-rows">
+        <div class="shank-row">
+          <div class="shank-bar" style="height:1.6mm; background:#0a3d8f;"></div>
+          <span class="shank-label">FG &nbsp;· Ø 1.60 mm</span>
+        </div>
+        <div class="shank-row">
+          <div class="shank-bar" style="height:2.35mm; background:#1a6fff;"></div>
+          <span class="shank-label">HP &nbsp;· Ø 2.35 mm</span>
+        </div>
+        <div class="shank-row">
+          <div class="shank-bar" style="height:3.0mm; background:#4d9fff;"></div>
+          <span class="shank-label">HPT · Ø 3.00 mm</span>
+        </div>
+      </div>
+
+      <div class="ruler">
+        <div class="ruler-marks">
+          <div class="tick"></div>
+          <div class="ruler-line"></div>
+          <div class="tick"></div>
+        </div>
+        <div class="ruler-label">10 mm</div>
       </div>
     </div>
 
-    <div class="instructions">
-      <strong>Come usare:</strong><br>
-      1. Stampa su carta rigida (glossy)<br>
-      2. Ritaglia alle dimensioni<br>
-      3. Posiziona accanto allo strumento<br>
-      4. Scatta la foto — Formicanera<br>
-      &nbsp;&nbsp;&nbsp;misura la scala automaticamente
+    <!-- RIGHT: ARUco marker -->
+    <div class="right-col">
+      <div class="aruco-wrap">
+        <!--
+          Dizionario ARUCO (js-aruco2) ID=42 — 7×7 totale (5×5 bit + bordo 1 cella).
+          codeList[42] = 0x1082529 = 17311017 dec = "1000010000010010100101001" (25 bit).
+          Convenzione: bit 1 = cella BIANCA, bit 0 = cella NERA.
+          Bordo esterno: sempre NERO.
+          Grid 5×5 inner (riga=0..4, col=0..4), posizione SVG = (col+1, riga+1):
+            riga 0: 1 0 0 0 0  → x=2,3,4,5 nere
+            riga 1: 1 0 0 0 0  → x=2,3,4,5 nere
+            riga 2: 0 1 0 0 1  → x=1,3,4 nere
+            riga 3: 0 1 0 0 1  → x=1,3,4 nere
+            riga 4: 0 1 0 0 1  → x=1,3,4 nere
+        -->
+        <svg width="20mm" height="20mm" viewBox="0 0 7 7" shape-rendering="crispEdges">
+          <!-- sfondo bianco -->
+          <rect x="0" y="0" width="7" height="7" fill="#000"/>
+          <!-- area inner bianca -->
+          <rect x="1" y="1" width="5" height="5" fill="#fff"/>
+          <!-- celle nere inner (bit=0) -->
+          <rect x="2" y="1" width="4" height="1" fill="#000"/>
+          <rect x="2" y="2" width="4" height="1" fill="#000"/>
+          <rect x="1" y="3" width="1" height="1" fill="#000"/>
+          <rect x="3" y="3" width="2" height="1" fill="#000"/>
+          <rect x="1" y="4" width="1" height="1" fill="#000"/>
+          <rect x="3" y="4" width="2" height="1" fill="#000"/>
+          <rect x="1" y="5" width="1" height="1" fill="#000"/>
+          <rect x="3" y="5" width="2" height="1" fill="#000"/>
+        </svg>
+      </div>
+      <div class="aruco-label">ARUco 20mm<br>ID: 42</div>
     </div>
+
+  </div><!-- /body -->
+</div><!-- /card -->
+
+<div class="print-hint">
+  <h3>Come stampare questa carta</h3>
+  <ol>
+    <li>Apri in <strong>Chrome</strong> o Safari → <strong>Cmd+P</strong></li>
+    <li>Layout: <strong>Orizzontale</strong></li>
+    <li>Margini: <strong>Nessuno</strong> (o "Personalizzati" → tutti 0)</li>
+    <li>Scala: <strong>100%</strong> (non adattare alla pagina)</li>
+    <li>Carta: <strong>85.6×54mm</strong> (formato ID-1/biglietto da visita) oppure ritaglia da A4</li>
+  </ol>
+  <div style="margin-top:8px; font-size:11.5px; color:#666;">
+    Il marker ARUco misura esattamente <strong>20×20mm</strong> a stampa — critico per il calcolo px/mm.
+    Per verificare: il righello nella card deve misurare 10mm con un calibro.
   </div>
 </div>
+
 </body>
 </html>
