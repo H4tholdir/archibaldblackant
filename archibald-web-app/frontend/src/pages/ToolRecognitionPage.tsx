@@ -151,8 +151,7 @@ export function ToolRecognitionPage() {
   const [analyzeStep, setAnalyzeStep] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
-  const [arucoCalibrationPxPerMm, setArucoCalibrationPxPerMm] = useState<number | null>(null) // used by Task6 ARUco banner
-  void arucoCalibrationPxPerMm
+  const [arucoCalibrationPxPerMm, setArucoCalibrationPxPerMm] = useState<number | null>(null)
 
   const detectAruco = useArucoDetector()
   const pendingImagesRef = useRef<string[]>([])
@@ -387,6 +386,16 @@ export function ToolRecognitionPage() {
               )
             })}
           </div>
+
+          {arucoCalibrationPxPerMm != null && (
+            <div style={{
+              marginTop: 8, color: '#22c55e', fontSize: 13, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span>✓</span>
+              <span>ARUco {arucoCalibrationPxPerMm.toFixed(1)} px/mm</span>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -979,6 +988,24 @@ export function ToolRecognitionPage() {
               <div>
                 <div style={{ color: '#3b82f6', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>CONSIGLIO</div>
                 <div style={{ color: '#C5C8D5', fontSize: 13 }}>Includi tutta la lunghezza dello strumento</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isPhoto2 && (
+          <div style={{ padding: '8px 20px 0' }}>
+            <div style={{
+              background: 'rgba(10,61,143,0.12)',
+              border: '1px solid rgba(10,61,143,0.25)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              display: 'flex', gap: 8, alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>📐</span>
+              <div style={{ color: '#93c5fd', fontSize: 12, lineHeight: 1.4 }}>
+                Per maggiore precisione, posiziona lo strumento accanto alla{' '}
+                <strong style={{ fontWeight: 600 }}>carta ARUco</strong>
               </div>
             </div>
           </div>

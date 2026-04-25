@@ -367,3 +367,15 @@ describe('ToolRecognitionPage — aruco_absent screen', () => {
     )
   })
 })
+
+describe('ToolRecognitionPage — Banner ARUco in idle_photo1', () => {
+  it('mostra suggerimento carta ARUco nello stato idle_photo1', async () => {
+    mockGetUserMedia(() => Promise.resolve(mockStream()))
+
+    render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
+
+    await waitFor(() =>
+      expect(screen.getByText(/carta ARUco/i)).toBeInTheDocument()
+    )
+  })
+})
