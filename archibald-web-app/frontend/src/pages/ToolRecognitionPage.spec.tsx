@@ -228,8 +228,8 @@ describe('ToolRecognitionPage — Stato 3B (shortlist)', () => {
         type: 'shortlist_visual',
         data: {
           candidates: [
-            { familyCode: 'H1',     thumbnailUrl: null, referenceImages: [] },
-            { familyCode: 'H79NEX', thumbnailUrl: null, referenceImages: [] },
+            { familyCode: 'H1',     shapeDescription: null, thumbnailUrl: null, referenceImages: [] },
+            { familyCode: 'H79NEX', shapeDescription: null, thumbnailUrl: null, referenceImages: [] },
           ],
         },
       },
@@ -263,7 +263,7 @@ describe('ToolRecognitionPage — Stato 3C (not_found)', () => {
         data: {
           measurements: {
             shankGroup: 'CA_HP', headDiameterMm: 2.3,
-            shapeClass: 'cono_tondo', measurementSource: 'shank_iso',
+            shapeClass: 'cono_tondo', measurementSource: 'shank_iso', sqlFallbackStep: 6,
           },
         },
       },
@@ -291,7 +291,7 @@ describe('ToolRecognitionPage — Stato 3C (not_found)', () => {
         type: 'not_found',
         data: {
           measurements: {
-            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none',
+            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none', sqlFallbackStep: 6,
           },
         },
       },

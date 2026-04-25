@@ -6,7 +6,7 @@ import type {
   InstrumentDescriptor, MeasurementSummary, VisualConfirmation,
 } from './types'
 import { describeInstrument as defaultDescribe, describeInstrumentWithUsage, computePxPerMm } from './instrument-descriptor'
-import { buildSearchParams, searchCatalog as defaultSearch } from './catalog-searcher'
+import { buildSearchParams, searchCatalog as defaultSearch, FALLBACK_STEPS_COUNT } from './catalog-searcher'
 import { confirmWithOpus as defaultConfirm, confirmWithOpusWithUsage } from './visual-confirmer'
 import { checkBudget, consumeBudget } from './budget-service'
 import { getCached, setCached } from '../db/repositories/recognition-cache'
@@ -143,6 +143,7 @@ export async function runRecognitionPipeline(
         headDiameterMm:    headMm,
         shapeClass:        descriptor.shape_class,
         measurementSource,
+        sqlFallbackStep:   FALLBACK_STEPS_COUNT,
       }
       const result: RecognitionResult = { type: 'not_found', data: { measurements } }
       await setCached(deps.pool, imageHash, result, Buffer.from(imageBase64, 'base64'))
@@ -213,9 +214,10 @@ export async function runRecognitionPipeline(
         type: 'shortlist_visual',
         data: {
           candidates: candidates.map(c => ({
-            familyCode:      c.familyCode,
-            thumbnailUrl:    c.thumbnailPath,
-            referenceImages: [],
+            familyCode:       c.familyCode,
+            shapeDescription: c.shapeDescription,
+            thumbnailUrl:     c.thumbnailPath,
+            referenceImages:  [],
           })),
         },
       }

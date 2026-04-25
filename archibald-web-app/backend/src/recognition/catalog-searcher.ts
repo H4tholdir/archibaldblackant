@@ -55,6 +55,8 @@ type FallbackStep = {
   useSection:     boolean
 }
 
+export const FALLBACK_STEPS_COUNT = 6
+
 const FALLBACK_STEPS: FallbackStep[] = [
   { tolerance: 0.3, useGrit: true,  useSection: true  },
   { tolerance: 0.3, useGrit: false, useSection: true  },

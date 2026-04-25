@@ -61,6 +61,7 @@ type MeasurementSummary = {
   headDiameterMm:    number | null
   shapeClass:        ShapeClass | null
   measurementSource: 'aruco' | 'shank_iso' | 'none'
+  sqlFallbackStep:   number
 }
 
 type ProductMatch = {
@@ -77,9 +78,10 @@ type ProductMatch = {
 }
 
 type CandidateMatch = {
-  familyCode:      string
-  thumbnailUrl:    string | null
-  referenceImages: string[]
+  familyCode:       string
+  shapeDescription: string | null
+  thumbnailUrl:     string | null
+  referenceImages:  string[]
 }
 
 type ThrottleLevel = 'normal' | 'warning' | 'limited'

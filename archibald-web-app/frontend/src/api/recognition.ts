@@ -8,6 +8,7 @@ export type MeasurementSummary = {
   headDiameterMm:    number | null
   shapeClass:        string | null
   measurementSource: 'aruco' | 'shank_iso' | 'none'
+  sqlFallbackStep:   number
 }
 
 export type ProductMatch = {
@@ -24,9 +25,10 @@ export type ProductMatch = {
 }
 
 export type CandidateMatch = {
-  familyCode:      string
-  thumbnailUrl:    string | null
-  referenceImages: string[]
+  familyCode:       string
+  shapeDescription: string | null
+  thumbnailUrl:     string | null
+  referenceImages:  string[]
 }
 
 export type RecognitionResult =

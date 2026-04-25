@@ -634,10 +634,21 @@ export function ToolRecognitionPage() {
 
           {candidates.map((c, idx) => {
             const isFirst = idx === 0
+            const handleSelectCandidate = () => {
+              const token = localStorage.getItem('archibald_jwt')
+              if (token && identifyResult?.imageHash) {
+                submitRecognitionFeedback(token, {
+                  imageHash:       identifyResult.imageHash,
+                  productId:       c.familyCode,
+                  confirmedByUser: true,
+                }).catch(console.error)
+              }
+              navigate(`/products/${encodeURIComponent(c.familyCode)}`, { state: { fromScanner: true } })
+            }
             return (
               <button
                 key={c.familyCode}
-                onClick={() => navigate(`/products/${encodeURIComponent(c.familyCode)}`, { state: { fromScanner: true } })}
+                onClick={handleSelectCandidate}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
                   background: isFirst ? '#1f1a00' : '#1a1a1a',
@@ -668,6 +679,11 @@ export function ToolRecognitionPage() {
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{c.familyCode}</div>
+                  {c.shapeDescription && (
+                    <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 3, lineHeight: 1.3 }}>
+                      {c.shapeDescription}
+                    </div>
+                  )}
                 </div>
               </button>
             )
@@ -773,7 +789,7 @@ export function ToolRecognitionPage() {
               </div>
             )}
             <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
-              Misurazione via: {sourceLabel}
+              Misurazione via: {sourceLabel} · {measurements.sqlFallbackStep} tentativi di ricerca
             </div>
           </div>
         )}

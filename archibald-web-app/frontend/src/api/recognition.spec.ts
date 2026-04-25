@@ -20,7 +20,7 @@ describe('identifyInstrument', () => {
         type: 'not_found',
         data: {
           measurements: {
-            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none',
+            shankGroup: null, headDiameterMm: null, shapeClass: null, measurementSource: 'none', sqlFallbackStep: 6,
           },
         },
       },

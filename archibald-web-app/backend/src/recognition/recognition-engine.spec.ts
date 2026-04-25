@@ -82,7 +82,7 @@ describe('runRecognitionPipeline', () => {
     )
     expect(result.type).toBe('shortlist_visual')
     if (result.type === 'shortlist_visual') {
-      expect(result.data.candidates).toEqual([{ familyCode: 'H251', thumbnailUrl: null, referenceImages: [] }])
+      expect(result.data.candidates).toEqual([{ familyCode: 'H251', shapeDescription: 'Cono tondo diamantato', thumbnailUrl: null, referenceImages: [] }])
     }
   })
 
