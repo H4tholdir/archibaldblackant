@@ -19,7 +19,7 @@ type RecognitionRouterDeps = {
 }
 
 const identifySchema = z.object({
-  image:           z.string().min(10),
+  images:          z.array(z.string().min(10)).min(1).max(5),
   aruco_px_per_mm: z.number().positive().optional(),
 })
 
@@ -56,7 +56,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
   router.post('/identify', async (req: AuthRequest, res) => {
     const parsed = identifySchema.safeParse(req.body)
     if (!parsed.success) {
-      res.status(400).json({ error: 'image (base64 string) required' })
+      res.status(400).json({ error: 'images (array of base64 strings, 1–5 elements) required' })
       return
     }
 
@@ -68,7 +68,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       return
     }
 
-    const { image, aruco_px_per_mm } = parsed.data
+    const { images, aruco_px_per_mm } = parsed.data
     const abortController = new AbortController()
     req.on('close', () => { if (!res.headersSent) abortController.abort() })
 
@@ -83,7 +83,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
       const { result, budgetState, processingMs, imageHash } =
         await runRecognitionPipeline(
           engineDeps,
-          image,
+          images[0]!,
           userId,
           role,
           aruco_px_per_mm ?? null,

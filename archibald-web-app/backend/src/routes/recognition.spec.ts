@@ -52,11 +52,11 @@ describe('POST /api/recognition/identify', () => {
     expect(res.status).toBe(400)
   })
 
-  test('returns result with imageHash when image provided', async () => {
+  test('returns result with imageHash when images provided', async () => {
     const app = makeApp(EMPTY_POOL)
     const res = await request(app)
       .post('/api/recognition/identify')
-      .send({ image: TINY_IMAGE })
+      .send({ images: [TINY_IMAGE] })
     expect(res.status).toBe(200)
     expect(res.body.imageHash).toBe('a'.repeat(64))
     expect(res.body.result.type).toBe('budget_exhausted')
@@ -68,7 +68,7 @@ describe('POST /api/recognition/identify', () => {
     const app = makeApp(EMPTY_POOL)
     await request(app)
       .post('/api/recognition/identify')
-      .send({ image: TINY_IMAGE, aruco_px_per_mm: 6.2 })
+      .send({ images: [TINY_IMAGE], aruco_px_per_mm: 6.2 })
     expect(runRecognitionPipeline).toHaveBeenCalledWith(
       expect.anything(),
       TINY_IMAGE,
@@ -81,7 +81,7 @@ describe('POST /api/recognition/identify', () => {
 
   test('ritorna 429 dopo 10 richieste rapide', async () => {
     const app = makeApp(EMPTY_POOL)
-    const send = () => request(app).post('/api/recognition/identify').send({ image: TINY_IMAGE })
+    const send = () => request(app).post('/api/recognition/identify').send({ images: [TINY_IMAGE] })
     for (let i = 0; i < 10; i++) await send()
     const res = await send()
     expect(res.status).toBe(429)
