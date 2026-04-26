@@ -14,7 +14,7 @@ type CustomerRemindersRouterDeps = { pool: DbPool };
 const VALID_FILTERS: ReminderFilter[] = ['active', 'done', 'all'];
 
 const CreateSchema = z.object({
-  type: z.enum(['commercial_contact', 'offer_followup', 'payment', 'contract_renewal', 'anniversary', 'custom']),
+  type_id: z.number().int().positive(),
   priority: z.enum(['urgent', 'normal', 'low']),
   due_at: z.string().datetime(),
   recurrence_days: z.number().int().positive().nullable(),
@@ -54,12 +54,12 @@ function createCustomerRemindersRouter({ pool }: CustomerRemindersRouterDeps): R
 
       const body = parsed.data;
       const reminder = await createReminder(pool, userId, customerProfile, {
-        type: body.type as import('../db/repositories/customer-reminders').ReminderType,
-        priority: body.priority as 'urgent' | 'normal',
+        typeId: body.type_id,
+        priority: body.priority,
         dueAt: new Date(body.due_at),
         recurrenceDays: body.recurrence_days,
         note: body.note,
-        notifyVia: body.notify_via as 'app' | 'email',
+        notifyVia: body.notify_via,
       });
 
       res.status(201).json(reminder);

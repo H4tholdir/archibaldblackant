@@ -324,14 +324,6 @@ async function bootstrap(): Promise<void> {
     (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
     () => deleteExpiredNotifications(pool),
     async (userId: string) => {
-      const TYPE_LABELS: Record<string, string> = {
-        commercial_contact: '📞 Ricontatto commerciale',
-        offer_followup: '🔥 Follow-up offerta',
-        payment: '💰 Pagamento',
-        contract_renewal: '🔄 Rinnovo contratto',
-        anniversary: '🎂 Ricorrenza',
-        custom: '📋 Promemoria',
-      };
       const due = await getRemindersOverdueOrToday(pool, userId);
       for (const r of due) {
         await createNotification(notificationDeps, {
@@ -339,7 +331,7 @@ async function bootstrap(): Promise<void> {
           userId,
           type: 'customer_reminder',
           severity: r.priority === 'urgent' ? 'warning' : 'info',
-          title: `🔔 ${TYPE_LABELS[r.type] ?? r.type}: ${r.customerName}`,
+          title: `🔔 ${r.typeEmoji} ${r.typeLabel}: ${r.customerName}`,
           body: r.note ?? 'Promemoria in scadenza',
           data: { customerErpId: r.customerErpId, reminderId: r.id, action_url: `/customers/${r.customerErpId}` },
         });
