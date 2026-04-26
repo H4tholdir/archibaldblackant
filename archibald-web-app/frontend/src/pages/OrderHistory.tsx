@@ -1648,15 +1648,24 @@ export function OrderHistory() {
         {/* Toggle bar for collapsible filter section */}
         <div
           onClick={() => setFiltersExpanded((prev) => !prev)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#edf2f7";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = filtersExpanded ? "#f0f7ff" : "#f5f7fa";
+          }}
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             cursor: "pointer",
-            paddingTop: "12px",
-            marginTop: "4px",
-            borderTop: "1px solid #f0f0f0",
+            padding: "9px 12px",
+            marginTop: "12px",
+            borderRadius: "8px",
+            backgroundColor: filtersExpanded ? "#f0f7ff" : "#f5f7fa",
+            border: "1px solid #e2e8f0",
             userSelect: "none",
+            transition: "background-color 0.15s",
           }}
         >
           <div
@@ -1676,21 +1685,26 @@ export function OrderHistory() {
                 color: "#1976d2",
                 display: "flex",
                 alignItems: "center",
-                gap: "5px",
+                gap: "7px",
                 flexShrink: 0,
               }}
             >
+              {/* CSS chevron \u2014 nessun Unicode */}
               <span
                 style={{
-                  fontSize: "9px",
                   display: "inline-block",
-                  transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                  width: "7px",
+                  height: "7px",
+                  borderRight: "2px solid #1976d2",
+                  borderBottom: "2px solid #1976d2",
+                  transform: filtersExpanded
+                    ? "rotate(45deg) translateY(-2px)"
+                    : "rotate(-45deg)",
                   transition: "transform 0.2s",
+                  flexShrink: 0,
                 }}
-              >
-                \u25bc
-              </span>
-              Filtri
+              />
+              Filtri avanzati
             </span>
             {!filtersExpanded && activePresetLabel && (
               <span
