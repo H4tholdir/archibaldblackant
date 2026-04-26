@@ -20,13 +20,12 @@ describe('ReminderForm', () => {
     expect(await screen.findByText('📞 Ricontatto commerciale')).toBeInTheDocument();
   });
 
-  test("il chip 'Oggi' imposta la data odierna", async () => {
+  test("il chip 'Domani' imposta la data di domani", async () => {
     render(<ReminderForm customerProfile="CUST-001" onSave={vi.fn()} onCancel={vi.fn()} />);
     await waitFor(() => expect(service.listReminderTypes).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Oggi'));
-    const today = new Date().toISOString().split('T')[0];
-    const input = screen.getByDisplayValue(today) as HTMLInputElement;
-    expect(input.value).toBe(today);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split('T')[0];
+    fireEvent.click(screen.getByText('Domani'));
+    expect((screen.getByDisplayValue(tomorrow) as HTMLInputElement).value).toBe(tomorrow);
   });
 
   test('la data di default è oggi', async () => {
