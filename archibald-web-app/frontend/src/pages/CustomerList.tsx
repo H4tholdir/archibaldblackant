@@ -63,11 +63,6 @@ function customerBadge(c: Customer): BadgeType {
   return null;
 }
 
-const BADGE_STYLE: Record<'attivo' | 'inattivo', React.CSSProperties> = {
-  attivo:   { background: '#dcfce7', color: '#166534', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
-  inattivo: { background: '#fef9c3', color: '#854d0e', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 },
-};
-
 const SEARCH_STORAGE_KEY = 'customers_search_v1';
 
 // Cache foto in memoria — persiste tra rimontaggio del componente nella stessa sessione
@@ -374,6 +369,25 @@ export function CustomerList() {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
+function OrderChip({ lastOrderDate }: { lastOrderDate: string | null }) {
+  const { bg, color } = orderChipStyle(lastOrderDate);
+  const label = formatRelativeTime(lastOrderDate);
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+      flexShrink: 0, borderRadius: 8, padding: '4px 8px', minWidth: 72,
+      background: bg,
+    }}>
+      <span style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', lineHeight: 1, marginBottom: 2 }}>
+        Ult. ordine
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 800, color, lineHeight: 1.2 }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function SectionLabel({ children, icon, count, hint }: { children: React.ReactNode; icon?: string; count?: number; hint?: string }) {
   return (
     <div style={{ padding: '10px 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }} title={hint}>
@@ -387,7 +401,6 @@ function SectionLabel({ children, icon, count, hint }: { children: React.ReactNo
 }
 
 function CustomerRow({ customer: c, photo, onClick }: { customer: Customer; photo: string | null; onClick: () => void }) {
-  const badge = customerBadge(c);
   return (
     <div
       onClick={onClick}
@@ -402,7 +415,7 @@ function CustomerRow({ customer: c, photo, onClick }: { customer: Customer; phot
           {[c.phone ?? c.mobile, c.city, `ID: ${c.erpId}`].filter(Boolean).join(' · ')}
         </div>
       </div>
-      {badge && <span style={BADGE_STYLE[badge]}>{badge}</span>}
+      <OrderChip lastOrderDate={c.lastOrderDate ?? null} />
     </div>
   );
 }

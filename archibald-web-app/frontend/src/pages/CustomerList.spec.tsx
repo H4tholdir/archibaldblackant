@@ -56,10 +56,12 @@ describe('CustomerList', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/customers/A001');
   });
 
-  test('badge "inattivo" per cliente con lastOrderDate > 180gg', async () => {
+  test('chip "Ult. ordine" visibile per ogni cliente', async () => {
     render(<MemoryRouter><CustomerList /></MemoryRouter>);
     await waitFor(() => screen.getByText('Rossi Mario'));
-    expect(screen.getByText('inattivo')).toBeInTheDocument();
+    // Due chip — uno per cliente
+    const chips = screen.getAllByText('Ult. ordine');
+    expect(chips).toHaveLength(2);
   });
 
   test('pulsante Nuovo Cliente apre CustomerCreateModal', async () => {
