@@ -27,7 +27,7 @@ const PROMPT = `You are a dental instrument classifier. Analyze the dental bur/i
   "shape_class": <"sfera"|"ovale"|"pera"|"fiamma"|"ago"|"cilindro_piatto"|"cilindro_tondo"|"cono_piatto"|"cono_tondo"|"cono_invertito"|"disco"|"diabolo"|"altro">,
   "grit_indicator": {
     "type": <"ring_color"|"blade_count"|"head_color"|"none"|"unknown">,
-    "color": <"white"|"yellow"|"red"|"none"|"green"|"black"|"blue"|"other"|null>,
+    "color": <"white"|"yellow"|"orange"|"red"|"none"|"green"|"black"|"blue"|"other"|null>,
     "blade_density": <"few_coarse"|"medium"|"many_fine"|null>
   },
   "surface_texture": <"diamond_grit"|"carbide_blades"|"ceramic"|"rubber_polisher"|"abrasive_wheel"|"disc_slotted"|"disc_perforated"|"steel_smooth"|"sonic_tip"|"other">,
@@ -46,7 +46,7 @@ SHANK GROUPS (ISO physical diameters):
 SHAPE CLASSES: sfera=ball, ovale=oval, pera=pear, fiamma=flame/torpedo, ago=needle, cilindro_piatto=flat-end cylinder, cilindro_tondo=round-end cylinder, cono_piatto=flat-end cone, cono_tondo=round-end cone, cono_invertito=inverted cone (wider at tip), disco=disc/wheel, diabolo=hourglass, altro=other
 
 GRIT INDICATOR (physical colored ring/marking on instrument):
-- ring_color: colored band on shaft neck (used on both diamond AND carbide instruments to indicate grade); color = white(ultrafine) / yellow(extrafine) / red(fine) / none(medium, NO ring) / green(coarse) / black(super-coarse); orange maps to "red"
+- ring_color: colored band on shaft neck (used on both diamond AND carbide instruments to indicate grade); color = white(ultrafine) / yellow(extrafine) / orange(carbide fine, used on ACR/lab instruments) / red(fine) / none(medium, NO ring) / green(coarse) / black(super-coarse)
 - blade_count: grit judged by counting visible blade flutes (no ring present); color=null, set blade_density
 - head_color: color of rubber/polisher body; color=null
 - none: no grit indicator

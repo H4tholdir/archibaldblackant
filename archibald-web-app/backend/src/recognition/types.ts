@@ -17,7 +17,7 @@ type SurfaceTexture =
   | 'other'
 
 type ShankGroup   = 'FG' | 'CA_HP' | 'HPT' | 'Handle_S' | 'Handle_L' | 'none' | 'unknown'
-type GritColor    = 'white' | 'yellow' | 'red' | 'none' | 'green' | 'black' | 'blue' | 'other' | null
+type GritColor    = 'white' | 'yellow' | 'orange' | 'red' | 'none' | 'green' | 'black' | 'blue' | 'other' | null
 type BladeDensity = 'few_coarse' | 'medium' | 'many_fine' | null
 
 type InstrumentDescriptor = {
