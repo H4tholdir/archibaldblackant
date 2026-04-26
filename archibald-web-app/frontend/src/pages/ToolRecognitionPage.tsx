@@ -290,7 +290,11 @@ export function ToolRecognitionPage() {
 
   const callIdentifyApi = useCallback(async (images: string[], arucoPxPerMm?: number) => {
     const token = localStorage.getItem('archibald_jwt')
-    if (!token) return
+    if (!token) {
+      setPageState('idle_photo1')
+      setErrorMessage('Sessione scaduta. Effettua il login.')
+      return
+    }
     try {
       setAnalyzeStep(1)
       const response = await identifyInstrument(token, images, arucoPxPerMm)
@@ -313,9 +317,10 @@ export function ToolRecognitionPage() {
         setPageState('idle_photo1')
         setErrorMessage('Errore di analisi. Riprova.')
       }
-    } catch {
+    } catch (err) {
       setPageState('idle_photo1')
-      setErrorMessage('Errore di connessione. Riprova.')
+      const detail = err instanceof Error && err.message.startsWith('HTTP') ? ` (${err.message})` : ''
+      setErrorMessage(`Errore di connessione${detail}. Riprova.`)
     }
   }, [vibrate, playSuccessBeep])
 
